@@ -284,7 +284,24 @@ export function AddModel({
   const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
   // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
   // provider there is nothing to choose and the field is not drawn.
-  const choosesApi = (capabilities?.apis.length ?? 0) > 1;
+  // What the provider publishes, where it publishes anything. Cached hard: a
+  // catalog changes when a provider ships a model, not while a form is open.
+  const {
+    models: suggestions,
+    refused,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(
+    providerId,
+    // Only OpenRouter and Stav can be listed at an endpoint of the reader's: a
+    // regional or staging Stav serves its own catalogue, not the public one.
+    providerId === "openrouter" || providerId === "stav"
+      ? baseUrl.trim().replace(/\/+$/, "") || undefined
+      : undefined,
+  );
+  // Stav.ai says per model which API it is served on, so nobody is asked.
+  const apiFromModel = capabilities?.api_from_model ?? false;
+  const choosesApi = (capabilities?.apis.length ?? 0) > 1 && !apiFromModel;
   // Before anybody picks: the model in use's own choice while its provider and
   // endpoint are the ones on screen, and otherwise the default for what is - so
   // pointing the model in use at a vLLM does not carry Responses there with it.
@@ -294,7 +311,21 @@ export function AddModel({
     baseUrl.trim() === (selected.base_url ?? "")
       ? selected.api
       : defaultApi(capabilities, baseUrl);
-  const api = choosesApi ? (pickedApi ?? startingApi) : null;
+  // The model in use keeps the API it was saved with; a new model takes the one
+  // its listing names, and an unlisted one is left for the server to choose.
+  const listedApis = suggestions.find((entry) => entry.id === model.trim())?.apis ?? [];
+  const modelApi: ModelApi | null = listedApis.includes("chat")
+    ? "chat"
+    : (listedApis.find((entry) => entry === "responses") ?? null);
+  const storedApi =
+    selected !== undefined && providerId === selected.provider && model.trim() === selected.model
+      ? (selected.api ?? null)
+      : null;
+  const api = choosesApi
+    ? (pickedApi ?? startingApi)
+    : apiFromModel
+      ? (storedApi ?? modelApi)
+      : null;
   // Only Stav takes a region. Before anybody picks: the model in use's own
   // region while its provider is on screen, else the provider's default (the
   // first listed), so a new Stav model starts in the EU.
@@ -317,17 +348,6 @@ export function AddModel({
     hasKey(selected) &&
     providerId === selected.provider;
   const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
-  // What the provider publishes, where it publishes anything. Cached hard: a
-  // catalog changes when a provider ships a model, not while a form is open.
-  const {
-    models: suggestions,
-    refused,
-    source,
-    isLoading: loadingModels,
-  } = useProviderModels(
-    providerId,
-    providerId === "openrouter" ? baseUrl.trim().replace(/\/+$/, "") || undefined : undefined,
-  );
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
@@ -679,7 +699,23 @@ export function AddModel({
         </FormField>
       )}
 
-      {provider !== undefined && api !== null && (
+      {provider !== undefined && apiFromModel && (
+        <div className="space-y-1.5">
+          <Label>{t("modelApi")}</Label>
+          <p className="text-sm">
+            {api === null
+              ? t("modelApiFromModelPending")
+              : // "chosen from the model" only when it is: a profile saved with
+                // another API through the API keeps it, and says only which.
+                t(api === modelApi ? "modelApiFromModel" : "modelApiStored", {
+                  api: api === "responses" ? t("modelApiResponses") : t("modelApiChat"),
+                })}
+          </p>
+          <p className="text-muted-foreground text-xs">{t("modelApiFromModelHint")}</p>
+        </div>
+      )}
+
+      {provider !== undefined && choosesApi && api !== null && (
         <FormField
           htmlFor="add-model-api"
           label={t("modelApi")}

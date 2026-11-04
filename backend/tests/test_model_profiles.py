@@ -362,6 +362,23 @@ class TestProviderCatalog:
             "stav": ("responses", "chat"),
         }
 
+    def test_only_stav_takes_its_api_from_the_model(self):
+        assert [spec.id for spec in PROVIDERS.values() if spec.api_from_model] == ["stav"]
+
+    @pytest.mark.parametrize(
+        ("surfaces", "api"),
+        [
+            (("chat", "messages", "responses"), "chat"),
+            (("responses",), "responses"),
+            (("messages",), None),
+            ((), None),
+        ],
+    )
+    def test_the_model_s_listing_names_the_api(self, surfaces, api):
+        from app.agents.model_resolver import api_for_model
+
+        assert api_for_model(surfaces) == api
+
     def test_only_stav_offers_a_region(self):
         offering = {spec.id: spec.regions for spec in PROVIDERS.values() if spec.regions}
         assert offering == {"stav": ("eu", "eea", "global")}
@@ -2059,9 +2076,76 @@ class TestTheWindowAModelAccepts:
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(("sent", "stored"), [(None, "eu"), ("global", "global")])
-    async def test_a_stav_profile_records_its_window_and_region(self, sent, stored):
-        """Read with the organization's Stav key; a profile naming no region is EU."""
+    async def test_a_stav_window_is_read_where_the_profile_points(self, sent, stored):
+        """A regional or staging Stav serves its own catalogue; the window recorded
+        is that endpoint's, read with the key the profile will send there - never
+        the organization's listing key, which the caller may not be able to see."""
         catalog = self._catalog(("mistralai/mistral-small-4", 128_000))
+        secret_id = uuid.uuid4()
+        org_key = AsyncMock(return_value="sk_stav_org")
+        profile_key = AsyncMock(return_value="sk_stav_profile")
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch("app.services.model_profile.OrganizationSecretService.listing_key", new=org_key),
+            patch("app.services.model_profile.ModelProfileService._profile_key", new=profile_key),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile._checked_endpoint",
+                new=AsyncMock(side_effect=lambda _spec, url: url),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav staging",
+                provider="stav",
+                model="mistralai/mistral-small-4",
+                secret_id=secret_id,
+                base_url="https://staging-api.stav.ai/v1",
+                region=sent,
+            )
+        catalog.assert_awaited_once_with(
+            "stav", api_key="sk_stav_profile", base_url="https://staging-api.stav.ai/v1"
+        )
+        org_key.assert_not_awaited()
+        assert profile_key.await_args.args[1] == secret_id
+        assert create.call_args.kwargs["context_length"] == 128_000
+        assert create.call_args.kwargs["region"] == stored
+
+    @pytest.mark.anyio
+    async def test_a_profile_key_is_the_bearer_token_in_the_profiles_own_key(self):
+        ctx = _ctx()
+        stored = _credential(ctx, provider="stav", secret=ApiKeySecret(api_key="sk_stav_own"))
+        with patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            new=AsyncMock(return_value=stored),
+        ):
+            assert await ModelProfileService(_db())._profile_key(ctx, stored.id) == "sk_stav_own"
+
+    @pytest.mark.anyio
+    async def test_a_profile_without_a_bearer_key_lists_with_none(self):
+        ctx = _ctx()
+        aws = _credential(ctx, provider="stav", secret=secret_for(PROVIDERS["bedrock"]))
+        service = ModelProfileService(_db())
+        assert await service._profile_key(ctx, None) is None
+        with patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            new=AsyncMock(side_effect=[None, aws]),
+        ):
+            assert await service._profile_key(ctx, uuid.uuid4()) is None
+            assert await service._profile_key(ctx, aws.id) is None
+
+    async def _stav_created(self, surfaces, *, api=None) -> dict:
+        catalog = AsyncMock(
+            return_value=(
+                [CatalogModel(id="openai/o3-pro", name="o3-pro", surfaces=surfaces)],
+                "live",
+            )
+        )
         with (
             patch("app.services.model_profile.models_for", new=catalog),
             patch(
@@ -2077,15 +2161,30 @@ class TestTheWindowAModelAccepts:
         ):
             await ModelProfileService(_db()).create_profile(
                 _ctx(),
-                label="Stav",
+                label="Stav o3-pro",
                 provider="stav",
-                model="mistralai/mistral-small-4",
+                model="openai/o3-pro",
                 secret_id=uuid.uuid4(),
-                region=sent,
+                api=api,
             )
-        catalog.assert_awaited_once_with("stav", api_key="sk_stav_test")
-        assert create.call_args.kwargs["context_length"] == 128_000
-        assert create.call_args.kwargs["region"] == stored
+        return create.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_responses_only_stav_model_gets_responses(self):
+        assert (await self._stav_created(("responses",)))["api"] == "responses"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_on_chat_gets_chat(self):
+        assert (await self._stav_created(("chat", "messages", "responses")))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_the_listing_says_nothing_about_keeps_the_default(self):
+        assert (await self._stav_created(()))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_an_api_someone_chose_wins_over_the_listing(self):
+        written = await self._stav_created(("chat", "responses"), api="responses")
+        assert written["api"] == "responses"
 
     @pytest.mark.anyio
     async def test_the_providers_own_number_is_what_gets_stored(self):

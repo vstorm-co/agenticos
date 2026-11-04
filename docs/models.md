@@ -260,7 +260,7 @@ form starts on the default:
 | `openai`, no endpoint (OpenAI's own API) | `responses` |
 | `openai` with an endpoint | `chat` |
 | `azure` | `chat`, because the Responses API needs a recent `api_version` and the secret may pin an older one |
-| `stav` | `chat` |
+| `stav` | from the model: `chat` where it is served, else `responses` |
 
 The default is only where the form starts. A regional OpenAI endpoint such as
 `https://eu.api.openai.com/v1` is an endpoint that serves Responses, so pick it

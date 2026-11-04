@@ -1,5 +1,5 @@
 ---
-source_sha: "f3ed2a9e7617"
+source_sha: "54529b3e6abc"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -299,7 +299,7 @@ Completions implementieren. Deshalb ist die Wahl ein Feld des Profiles, unter
 | `openai`, ohne Endpunkt (die eigene API von OpenAI) | `responses` |
 | `openai` mit Endpunkt | `chat` |
 | `azure` | `chat`, weil die Responses-API eine aktuelle `api_version` braucht und das Secret eine ältere festlegen kann |
-| `stav` | `chat` |
+| `stav` | aus dem Modell: `chat`, wo es bedient wird, sonst `responses` |
 
 Der Standard ist nur, wo das Formular beginnt. Ein regionaler OpenAI-Endpunkt wie
 `https://eu.api.openai.com/v1` ist ein Endpunkt, der Responses bedient, also

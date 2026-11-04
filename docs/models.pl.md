@@ -1,5 +1,5 @@
 ---
-source_sha: "f3ed2a9e7617"
+source_sha: "54529b3e6abc"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -271,7 +271,7 @@ a formularz startuje od wartości domyślnej:
 | `openai` bez endpointu (własne API OpenAI) | `responses` |
 | `openai` z endpointem | `chat` |
 | `azure` | `chat`, bo Responses API wymaga nowej `api_version`, a sekret może przypinać starszą |
-| `stav` | `chat` |
+| `stav` | z modelu: `chat`, gdzie jest obsługiwany, w przeciwnym razie `responses` |
 
 Wartość domyślna to tylko punkt startowy formularza. Regionalny endpoint OpenAI,
 taki jak `https://eu.api.openai.com/v1`, jest endpointem obsługującym Responses,

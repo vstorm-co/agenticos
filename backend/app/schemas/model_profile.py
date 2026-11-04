@@ -50,6 +50,14 @@ class ProviderInfo(BaseSchema):
             "With a `base_url` the default is `chat`. Null where `apis` is empty."
         )
     )
+    api_from_model: bool = Field(
+        default=False,
+        description=(
+            "Whether a profile's API is chosen from the model's own listing when it names "
+            "none: Chat Completions where the model is served on it, else Responses. True "
+            "only for Stav.ai, whose listing states it per model (`apis` on each model)."
+        ),
+    )
     regions: list[ModelRegion] = Field(
         default_factory=list,
         description=(
@@ -272,6 +280,13 @@ class ProviderModelRead(BaseSchema):
             '`["text", "image"]`. Empty means the listing says nothing, which is most of '
             "them: absent is *not* text-only, so a client filtering on it must treat an empty "
             "list as unknown rather than as a refusal."
+        ),
+    )
+    apis: list[ModelApi] = Field(
+        default_factory=list,
+        description=(
+            "The APIs the provider says this model is served on - `chat`, `responses` - "
+            "where its listing states it (Stav.ai). Empty means not stated."
         ),
     )
     chat_capable: bool = Field(
