@@ -1,5 +1,5 @@
 ---
-source_sha: "88717bae14a3"
+source_sha: "b38cce2e4bbd"
 ---
 
 # La sandbox { #the-sandbox }
@@ -662,11 +662,12 @@ faltan archivos sin decirlo sería peor. Después los archivos se leen y se
 transmiten de uno en uno.
 
 Un archivo que no se puede leer una vez empezada la descarga se deja fuera y se
-nombra, con el motivo, en un `NOT-INCLUDED.txt` en la parte superior del zip. Es un
-archivo borrado después del listado, o uno mayor que el propio límite de lectura
-del host (`SANDBOXD_MAX_READ_BYTES`, 8 MiB por defecto). Si los archivos crecen por
-encima del límite de bytes después del listado, la transmisión se detiene, y la
-descarga queda incompleta y no se abre.
+nombra, con el motivo, en un `NOT-INCLUDED.txt` en la carpeta superior del zip
+(`_NOT-INCLUDED.txt` si la carpeta tiene un archivo con ese nombre). Es un archivo
+borrado después del listado, o uno mayor que el propio límite de lectura del host
+(`SANDBOXD_MAX_READ_BYTES`, 8 MiB por defecto). Si el host deja de responder, o los
+archivos crecen por encima del límite de bytes después del listado, la transmisión
+se detiene, y la descarga queda incompleta y no se abre.
 
 Una carpeta de este ordenador, en la app de escritorio, no tiene ese botón: ya es
 una carpeta de este ordenador.

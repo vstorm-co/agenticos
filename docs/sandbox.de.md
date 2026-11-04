@@ -1,5 +1,5 @@
 ---
-source_sha: "88717bae14a3"
+source_sha: "b38cce2e4bbd"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -682,11 +682,13 @@ auflisten konnte, wird mit 413 abgelehnt; ein Zip, dem stillschweigend Dateien
 fehlen, wäre schlimmer. Danach werden die Dateien einzeln gelesen und gestreamt.
 
 Eine Datei, die sich nach dem Start des Downloads nicht lesen lässt, wird
-ausgelassen und mit dem Grund in einer `NOT-INCLUDED.txt` oben im Zip genannt. Das
-ist eine Datei, die seit der Auflistung gelöscht wurde, oder eine, die größer ist
-als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`, standardmäßig
-8 MiB). Wachsen die Dateien nach der Auflistung über die Byte-Grenze, bricht der
-Stream ab, und der Download ist unvollständig und lässt sich nicht öffnen.
+ausgelassen und mit dem Grund in einer `NOT-INCLUDED.txt` im obersten Ordner des
+Zips genannt (`_NOT-INCLUDED.txt`, wenn der Ordner eine Datei dieses Namens hat).
+Das ist eine Datei, die seit der Auflistung gelöscht wurde, oder eine, die größer
+ist als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`, standardmäßig
+8 MiB). Antwortet der Host nicht mehr oder wachsen die Dateien nach der Auflistung
+über die Byte-Grenze, bricht der Stream ab, und der Download ist unvollständig und
+lässt sich nicht öffnen.
 
 Ein Ordner auf diesem Computer, in der Desktop-App, hat keine solche Schaltfläche:
 Er ist bereits ein Ordner auf diesem Computer.

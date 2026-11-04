@@ -50,7 +50,7 @@ import httpx
 from PIL import Image, ImageOps
 from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import FileData, FileInfo, StateBackend
-from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS
+from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS, WorkspaceArchiveError
 from pydantic_ai_backends.remote.wire import MAX_TREES
 from pydantic_ai_backends.workspaces import (
     DaytonaWorkspace,
@@ -2238,15 +2238,10 @@ class SandboxWorkspaceService:
             )
         # The host is asked with the folder as its own listing spelled it - absolute or
         # not - and the answer is matched on the normalised form.
-        entries = browsable(await self._zip_listing(ctx, row, folder.strip() or "."))
-        members, name = zip_members(
-            (
-                (str(entry.get("path")), entry.get("size"))
-                for entry in entries
-                if not entry.get("is_dir")
-            ),
-            wanted,
-        )
+        listing = await self._zip_listing(ctx, row, folder.strip() or ".")
+        # On the file pool: a host listing runs to a hundred thousand entries,
+        # and filtering that many held the loop for close to half a second.
+        members, name = await run_blocking(_zip_members_of, listing, wanted)
         if not members:
             raise NotFoundError(message="No files in this folder", details={"path": folder})
         return FolderZip(name=name, chunks=self._zipped(ctx, row, members))
@@ -2296,7 +2291,17 @@ class SandboxWorkspaceService:
             if row.backend == "state":
                 data = self._state_bytes(row, path)
             else:
-                data = await self._read_bytes_from(ctx, row, path)
+                try:
+                    data = await self._read_bytes_from(ctx, row, path)
+                except BadRequestError as refused:
+                    if not _refused_this_file(refused):
+                        # A host that stopped answering would otherwise be asked
+                        # for every file left, each up to its timeout.
+                        raise ExternalServiceError(
+                            message="The workspace's host stopped answering mid-download.",
+                            details={"workspace_id": row.id},
+                        ) from refused
+                    raise
             if data is None:
                 raise NotFoundError(message="No such file", details={"path": path})
             return data
@@ -2632,6 +2637,29 @@ async def _destroy_and_forget(
         return
     async with get_db_context() as db:
         await pending_destroy_repo.remove(db, pending_id)
+
+
+def _zip_members_of(listing: list[FileInfo], folder: str) -> tuple[list[tuple[str, str]], str]:
+    """`zip_members` over the browsable files of a listing - see `folder_zip`."""
+    return zip_members(
+        (
+            (str(entry.get("path")), entry.get("size"))
+            for entry in browsable(listing)
+            if not entry.get("is_dir")
+        ),
+        folder,
+    )
+
+
+def _refused_this_file(refused: BadRequestError) -> bool:
+    """Whether a host's refusal is about one file, rather than about the host.
+
+    A host answers 400 or 404 for a file it will not serve - past its read
+    ceiling, or gone - and anything else, or nothing at all, when it is the
+    host that is the problem.
+    """
+    cause = refused.__cause__
+    return isinstance(cause, WorkspaceArchiveError) and cause.status_code in (400, 404)
 
 
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:

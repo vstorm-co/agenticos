@@ -56,7 +56,12 @@ from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, WorkspaceOverflowStore
 from app.agents.spec import AgentSpec
 from app.core import background
-from app.core.exceptions import BadRequestError, ExportTooLargeError, NotFoundError
+from app.core.exceptions import (
+    BadRequestError,
+    ExportTooLargeError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
 from app.services import sandbox_workspace
@@ -1795,6 +1800,54 @@ class TestDownloadingAFolderAsAZip:
                 b"workspace/a: No such file\n"
             )
         }
+
+    @pytest.mark.parametrize(
+        ("status", "named"),
+        [(400, True), (404, True), (None, False), (502, False)],
+    )
+    async def test_only_a_refusal_of_one_file_is_skipped(
+        self, monkeypatch, mock_db_session, status, named
+    ):
+        """A file past the host's read ceiling is named in the zip; a host that
+        stopped answering ends the download rather than being asked for every
+        file left, each up to its timeout."""
+        from pydantic_ai_backends import remote as remote_module
+
+        reads: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                return WorkspaceTree(
+                    entries=[
+                        {"name": "a", "path": "a", "is_dir": False, "size": 1},
+                        {"name": "b", "path": "b", "is_dir": False, "size": 1},
+                    ],
+                    truncated=False,
+                )
+
+            def read_bytes(self, session_id, path):
+                reads.append(path)
+                raise WorkspaceArchiveError("File is 9437184 bytes, over the read limit", status)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder=""
+        )
+
+        if named:
+            note = (await _unzipped(folder))["workspace/NOT-INCLUDED.txt"]
+            assert b"workspace/a:" in note and b"over the read limit" in note
+            assert reads == ["a", "b"]
+        else:
+            with pytest.raises(ExternalServiceError):
+                await _unzipped(folder)
+            assert reads == ["a"]
 
     async def test_a_chat_with_no_workspace_has_nothing_to_zip(self, monkeypatch, mock_db_session):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))

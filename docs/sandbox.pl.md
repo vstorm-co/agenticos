@@ -1,5 +1,5 @@
 ---
-source_sha: "88717bae14a3"
+source_sha: "b38cce2e4bbd"
 ---
 
 # Sandbox { #the-sandbox }
@@ -646,11 +646,12 @@ jest odrzucany z kodem 413; zip, w którym bez słowa brakuje plików, byłby go
 Potem pliki są czytane i strumieniowane po jednym.
 
 Plik, którego nie da się przeczytać po rozpoczęciu pobierania, jest pomijany i
-wymieniony, z powodem, w `NOT-INCLUDED.txt` na górze zipa. To plik usunięty po
+wymieniony, z powodem, w `NOT-INCLUDED.txt` w głównym folderze zipa
+(`_NOT-INCLUDED.txt`, jeśli folder ma plik o tej nazwie). To plik usunięty po
 wylistowaniu albo większy niż własny limit odczytu hosta
-(`SANDBOXD_MAX_READ_BYTES`, domyślnie 8 MiB). Jeśli po wylistowaniu pliki urosną
-ponad limit bajtów, strumień się zatrzymuje, a pobrany plik jest niekompletny i się
-nie otworzy.
+(`SANDBOXD_MAX_READ_BYTES`, domyślnie 8 MiB). Jeśli host przestanie odpowiadać albo
+po wylistowaniu pliki urosną ponad limit bajtów, strumień się zatrzymuje, a pobrany
+plik jest niekompletny i się nie otworzy.
 
 Folder na tym komputerze, w aplikacji desktopowej, nie ma takiego przycisku: on
 już jest folderem na tym komputerze.

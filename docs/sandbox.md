@@ -625,11 +625,11 @@ missing files without saying so would be worse. The files are then read and
 streamed one at a time.
 
 A file that cannot be read after the download has started is left out and named,
-with the reason, in a `NOT-INCLUDED.txt` at the top of the zip. That is a file
-deleted since the listing, or one larger than the host's own read limit
-(`SANDBOXD_MAX_READ_BYTES`, 8 MiB by default). If the files grow past the byte
-limit after the listing, the stream stops, and the download is incomplete and will
-not open.
+with the reason, in a `NOT-INCLUDED.txt` in the zip's top folder (`_NOT-INCLUDED.txt`
+if the folder has a file of that name). That is a file deleted since the listing,
+or one larger than the host's own read limit (`SANDBOXD_MAX_READ_BYTES`, 8 MiB by
+default). If the host stops answering, or the files grow past the byte limit after
+the listing, the stream stops, and the download is incomplete and will not open.
 
 A folder on this computer, in the desktop app, has no such button: it is already a
 folder on this computer.

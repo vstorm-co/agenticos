@@ -10,10 +10,11 @@ node, a few kilobytes that inflate to gigabytes. Checking all of that once, in
 one function, before a single byte lands is something that can be tested; an
 agent running `tar -xf` on whatever it was given is not.
 
-So :func:`read_archive` validates the whole archive and returns its members, and
-nothing is written unless every member passed. The members are then written
-through the workspace's own `write_bytes` - the path every other attachment
-takes, so the workspace's own confinement to its root still applies underneath.
+So :func:`scan_archive` checks the whole archive, keeping none of its bytes, and
+nothing is written unless every member passed. :func:`unpack_into` then reads
+the members again and writes them one at a time through the workspace's own
+`write_bytes` - the path every other attachment takes, so the workspace's own
+confinement to its root still applies underneath.
 
 **Out.** :func:`stream_zip` turns a folder's files into a `.zip` one file at a
 time, so a download of a folder is never held whole in memory.
@@ -23,6 +24,8 @@ Both directions share one set of bounds: `WORKSPACE_ARCHIVE_MAX_ENTRIES` and
 `WORKSPACE_ARCHIVE_MAX_RATIO`.
 """
 
+import asyncio
+import contextlib
 import gzip
 import io
 import logging
@@ -45,10 +48,9 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import IO
 
-import anyio
 from pydantic_ai.workspaces import Workspace
 
-from app.core.blocking import run_blocking
+from app.core.blocking import run_blocking, run_blocking_settled
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ExportTooLargeError, NotFoundError
 from app.services.office_archive import zip_has_too_many_members
@@ -171,32 +173,19 @@ class _Tree:
         if path in self.dirs or path in self.ancestors:
             raise _refused("The archive holds the same path twice, or as both a file and a folder.")
         self._claim(path)
-        data = b""
+        # Read in chunks either way, so a member's bytes are counted as they
+        # inflate and nothing past the bound is read. Kept, they are gathered
+        # into one buffer: briefly held twice when it becomes `bytes`, never more.
+        kept = bytearray()
         size = 0
-        if self.keep:
-            # One read of at most one byte past what is left, so a member is held
-            # once, at its real size, and one byte over is enough to refuse it.
-            data = stream.read(self._left() + 1)
-            size = len(data)
-            self.total += size
+        while chunk := stream.read(_CHUNK):
+            size += len(chunk)
+            self.total += len(chunk)
             self._check_size()
-        else:
-            while chunk := stream.read(_CHUNK):
-                size += len(chunk)
-                self.total += len(chunk)
-                self._check_size()
+            if self.keep:
+                kept += chunk
         self.files.add(path)
-        return ArchiveMember(path=path, size=size, data=data)
-
-    def _left(self) -> int:
-        return max(
-            0,
-            min(
-                settings.WORKSPACE_ARCHIVE_MAX_BYTES,
-                self.compressed * settings.WORKSPACE_ARCHIVE_MAX_RATIO,
-            )
-            - self.total,
-        )
+        return ArchiveMember(path=path, size=size, data=bytes(kept))
 
     def _check_size(self) -> None:
         if self.total > settings.WORKSPACE_ARCHIVE_MAX_BYTES:
@@ -391,22 +380,41 @@ async def unpack_into(workspace: Workspace, root: str, data: bytes, fmt: str) ->
     reader = _members(data, fmt, keep=True)
     try:
         await workspace.make_dir(root)
-        while (member := await run_blocking(next, reader, None)) is not None:
+        # Settled: a stop that lands while a member is inflating on the pool
+        # waits for that step, so the reader is never closed while it is still
+        # running on another thread - which raises in place of the stop.
+        while (member := await run_blocking_settled(next, reader, None)) is not None:
             target = f"{root}/{member.path}"
             if not member.is_dir:
                 await workspace.write_bytes(target, member.data)
             elif member.path in empty:
                 await workspace.make_dir(target)
     except BaseException:
+        await _discard_partial(workspace, root)
         reader.close()
-        # Shielded: a stopped turn is the commonest way here, and the clean-up
-        # must not be cancelled by the same stop.
-        with anyio.CancelScope(shield=True):
-            try:
-                await workspace.remove(root)
-            except Exception:
-                logger.warning("archive_partial_not_removed", extra={"root": root}, exc_info=True)
         raise
+
+
+async def _discard_partial(workspace: Workspace, root: str) -> None:
+    """Remove a half-written unpack, whatever else is being cancelled meanwhile.
+
+    The removal is a task of its own, and cancellations arriving while it runs
+    are absorbed until it finishes: a stopped turn whose loop then begins
+    shutting down cancels twice, and a shield alone lets the second through -
+    the pattern `create_cancel_safe` uses for the same reason.
+    """
+    cleanup = asyncio.ensure_future(_remove_quietly(workspace, root))
+    while not cleanup.done():
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait({cleanup})
+
+
+async def _remove_quietly(workspace: Workspace, root: str) -> None:
+    """Remove `root`; a failure is logged, since the caller is already unwinding."""
+    try:
+        await workspace.remove(root)
+    except Exception:
+        logger.warning("archive_partial_not_removed", extra={"root": root}, exc_info=True)
 
 
 class _Sink(io.RawIOBase):
@@ -445,6 +453,9 @@ def _add(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
 NOT_INCLUDED = "NOT-INCLUDED.txt"
 """Written into a folder's zip, beside its files, naming any file that could not be read."""
 
+_REASON_CHARS = 300
+"""How much of a host's reason for refusing one file the note keeps."""
+
 
 async def stream_zip(
     members: Sequence[tuple[str, str]], read: Callable[[str], Awaitable[bytes]]
@@ -455,11 +466,13 @@ async def stream_zip(
         members: Each file's path in the workspace, and its name in the zip -
             all under one top folder.
         read: Reads one workspace path's bytes, raising `NotFoundError` or
-            `BadRequestError` for a file it cannot serve.
+            `BadRequestError` for one file it cannot serve.
 
     A file that cannot be read once the download has started - gone since the
     listing, or past a host's own per-read ceiling - is left out and named in
-    a `NOT-INCLUDED.txt` at the top of the zip, with the reason. The response
+    a `NOT-INCLUDED.txt` in the zip's top folder, with the reason. `read` is to
+    raise anything else - a host that stopped answering - as some other error,
+    which ends the stream rather than trying every file left. The response
     has a 200 on it by then, so this is the one place left to say so, and a zip
     that opens and says what it lacks beats one that does not open.
 
@@ -477,7 +490,9 @@ async def stream_zip(
             try:
                 data = await read(path)
             except (NotFoundError, BadRequestError) as refused:
-                missing.append(f"{name}: {refused.message}")
+                # One line per file, each bounded, so the note is bounded by the
+                # entry limit however long a host's reason runs.
+                missing.append(f"{name}: {refused.message[:_REASON_CHARS]}")
                 continue
             total += len(data)
             if total > settings.WORKSPACE_ARCHIVE_MAX_BYTES:
@@ -489,8 +504,14 @@ async def stream_zip(
             yield sink.drain()
         if missing:
             top = members[0][1].split("/", 1)[0]
+            taken = {name for _path, name in members}
+            note_name = f"{top}/{NOT_INCLUDED}"
+            # A folder may hold its own `NOT-INCLUDED.txt`; two entries of one name
+            # are a zip whose unpacker decides which one survives.
+            while note_name in taken:
+                note_name = f"{top}/_{note_name.rsplit('/', 1)[1]}"
             note = "These files could not be read, and are not in this zip:\n\n"
-            _add(archive, f"{top}/{NOT_INCLUDED}", (note + "\n".join(missing) + "\n").encode())
+            _add(archive, note_name, (note + "\n".join(missing) + "\n").encode())
     yield sink.drain()
 
 

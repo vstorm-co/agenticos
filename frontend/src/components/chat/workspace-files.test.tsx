@@ -727,25 +727,28 @@ describe("the workspace panel", () => {
         "This folder is too large to download as one zip.",
       ],
       [new TypeError("network error"), "The folder could not be downloaded."],
-    ])("says why a download failed, in the reader's language (%s)", async (failure, said) => {
-      const { toast } = await import("sonner");
-      const error = vi.spyOn(toast, "error");
-      vi.mocked(apiClient.get).mockResolvedValue(repo());
-      vi.mocked(apiClient.raw).mockRejectedValue(failure);
+    ])(
+      "says why a download failed: the server's reason, else a translated one (%s)",
+      async (failure, said) => {
+        const { toast } = await import("sonner");
+        const error = vi.spyOn(toast, "error");
+        vi.mocked(apiClient.get).mockResolvedValue(repo());
+        vi.mocked(apiClient.raw).mockRejectedValue(failure);
 
-      draw(
-        <WorkspaceFiles
-          buttonSlot={document.body}
-          conversationId="c1"
-          attachments={[]}
-          revision={0}
-        />,
-      );
-      await openPanel();
-      await userEvent.click(await screen.findByRole("button", { name: "Download as .zip" }));
+        draw(
+          <WorkspaceFiles
+            buttonSlot={document.body}
+            conversationId="c1"
+            attachments={[]}
+            revision={0}
+          />,
+        );
+        await openPanel();
+        await userEvent.click(await screen.findByRole("button", { name: "Download as .zip" }));
 
-      await waitFor(() => expect(error).toHaveBeenCalledWith(said));
-    });
+        await waitFor(() => expect(error).toHaveBeenCalledWith(said));
+      },
+    );
 
     it("offers nothing to zip in a workspace with no files", async () => {
       vi.mocked(apiClient.get).mockResolvedValue(workspace({ items: [], total: 0 }));
