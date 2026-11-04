@@ -33,6 +33,7 @@ import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import type { BindingTarget } from "@/lib/skill-versions-api";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { bindingLabel } from "./skill-lines";
+import { AutoHeight } from "./auto-height";
 import { VersionDiff } from "./version-diff";
 
 /**
@@ -201,123 +202,124 @@ export function ChangeVersionDialog({
             {t("now", { binding: bindingLabel(tPage, usage.binding) })}
           </DialogDescription>
         </DialogHeader>
-        <fieldset className="space-y-3">
-          <legend className="sr-only">{t("legend")}</legend>
-          {option({ state: "main" }, t("followMain"))}
-          {firstPin !== undefined &&
-            option(
-              { state: "pinned", version: firstPin },
-              t("pin"),
-              target.state === "pinned" && (
-                <Select
-                  value={pinned}
-                  onValueChange={(value) => {
-                    setTarget({ state: "pinned", version: Number(value) });
-                    setUnderstood(false);
-                  }}
+        <AutoHeight>
+          <fieldset className="space-y-3">
+            <legend className="sr-only">{t("legend")}</legend>
+            {option({ state: "main" }, t("followMain"))}
+            {firstPin !== undefined &&
+              option(
+                { state: "pinned", version: firstPin },
+                t("pin"),
+                target.state === "pinned" && (
+                  <Select
+                    value={pinned}
+                    onValueChange={(value) => {
+                      setTarget({ state: "pinned", version: Number(value) });
+                      setUnderstood(false);
+                    }}
+                  >
+                    <SelectTrigger className="w-56" aria-label={t("pinVersion")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pinnable.map((number) => {
+                        const summary = known.get(number);
+                        return (
+                          <SelectItem key={number} value={String(number)}>
+                            {summary
+                              ? t("versionWhen", {
+                                  number,
+                                  when: formatDate(summary.created_at, locale),
+                                })
+                              : t("versionOption", { number })}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                ),
+              )}
+            {picked && (
+              <div className="ml-6 space-y-2">
+                <p className="text-muted-foreground text-xs">
+                  {t("pinDetail", {
+                    source:
+                      picked.restored_from !== null
+                        ? tHistory("restoredFrom", {
+                            version: t("versionOption", { number: picked.restored_from.number }),
+                          })
+                        : tHistory(`source.${picked.source}`),
+                    who: picked.created_by?.name ?? tHistory("unknownAuthor"),
+                    when: formatDateTime(picked.created_at, locale),
+                  })}
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  onClick={() => setDiffing(!diffing)}
                 >
-                  <SelectTrigger className="w-56" aria-label={t("pinVersion")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pinnable.map((number) => {
-                      const summary = known.get(number);
-                      return (
-                        <SelectItem key={number} value={String(number)}>
-                          {summary
-                            ? t("versionWhen", {
-                                number,
-                                when: formatDate(summary.created_at, locale),
-                              })
-                            : t("versionOption", { number })}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              ),
+                  {diffing ? tHistory("hideChanges") : tHistory("showChanges")}
+                </Button>
+                {diffing && (
+                  <VersionDiff
+                    skillId={skillId}
+                    versionId={picked.id}
+                    previousId={picked.previous?.id ?? null}
+                  />
+                )}
+              </div>
             )}
-          {picked && (
-            <div className="ml-6 space-y-2">
-              <p className="text-muted-foreground text-xs">
-                {t("pinDetail", {
-                  source:
-                    picked.restored_from !== null
-                      ? tHistory("restoredFrom", {
-                          version: t("versionOption", { number: picked.restored_from.number }),
-                        })
-                      : tHistory(`source.${picked.source}`),
-                  who: picked.created_by?.name ?? tHistory("unknownAuthor"),
-                  when: formatDateTime(picked.created_at, locale),
+            {forks.map((fork) => (
+              <div key={fork.id}>
+                {option({ state: "fork", fork_id: fork.id }, t("fork", { name: fork.name }))}
+              </div>
+            ))}
+          </fieldset>
+          <div className="space-y-2 pt-3 empty:hidden">
+            {leavesMain && (
+              <p className="text-sm">
+                {targetFork
+                  ? t("leavesMainFork", {
+                      name,
+                      fork: targetFork.name,
+                      behind: targetFork.behind_main,
+                    })
+                  : t("leavesMain", { name })}
+              </p>
+            )}
+            {!unchanged && !read.served && checked && (
+              <p className={cn("text-sm", checked.state === "worse" && "text-warning")}>
+                {t("checkedOn", {
+                  version: label,
+                  name,
+                  state: tCheck(`state.${checked.state}`),
+                  when: formatDate(checked.at, locale),
                 })}
               </p>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0"
-                onClick={() => setDiffing(!diffing)}
-              >
-                {diffing ? tHistory("hideChanges") : tHistory("showChanges")}
-              </Button>
-              {diffing && (
-                <VersionDiff
-                  skillId={skillId}
-                  versionId={picked.id}
-                  previousId={picked.previous?.id ?? null}
-                />
-              )}
-            </div>
-          )}
-          {forks.map((fork) => (
-            <div key={fork.id}>
-              {option({ state: "fork", fork_id: fork.id }, t("fork", { name: fork.name }))}
-            </div>
-          ))}
-        </fieldset>
-        {/* Held open at its full height, so the options above never move under the pointer. */}
-        <div className="min-h-28 space-y-2">
-          {leavesMain && (
-            <p className="text-sm">
-              {targetFork
-                ? t("leavesMainFork", {
-                    name,
-                    fork: targetFork.name,
-                    behind: targetFork.behind_main,
-                  })
-                : t("leavesMain", { name })}
-            </p>
-          )}
-          {!unchanged && !read.served && checked && (
-            <p className={cn("text-sm", checked.state === "worse" && "text-warning")}>
-              {t("checkedOn", {
-                version: label,
-                name,
-                state: tCheck(`state.${checked.state}`),
-                when: formatDate(checked.at, locale),
-              })}
-            </p>
-          )}
-          {needsAck && (
-            <Alert variant="warning">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="space-y-2">
-                <p>
-                  {seesChecks
-                    ? t("unchecked", { version: label, name })
-                    : t("checksUnseen", { version: label, name })}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="skill-binding-understood"
-                    checked={understood}
-                    onCheckedChange={(checked) => setUnderstood(checked === true)}
-                  />
-                  <Label htmlFor="skill-binding-understood">{t("understood")}</Label>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
+            )}
+            {needsAck && (
+              <Alert variant="warning">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="space-y-2">
+                  <p>
+                    {seesChecks
+                      ? t("unchecked", { version: label, name })
+                      : t("checksUnseen", { version: label, name })}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="skill-binding-understood"
+                      checked={understood}
+                      onCheckedChange={(checked) => setUnderstood(checked === true)}
+                    />
+                    <Label htmlFor="skill-binding-understood">{t("understood")}</Label>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </AutoHeight>
         <p className="text-muted-foreground text-sm">
           {usage.can_publish ? t("publishes", { name }) : t("savesToDraft", { name })}
         </p>
