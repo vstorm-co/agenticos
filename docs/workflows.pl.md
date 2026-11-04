@@ -1,5 +1,5 @@
 ---
-source_sha: "9cca435f6ea9"
+source_sha: "1e44896d7e1d"
 ---
 
 # Workflows { #workflows }
@@ -1347,3 +1347,8 @@ Galerie skills i kontekstu agenta w kroku pobierają wszystkie strony metadanych
   opublikowaną wersję, a run pokazuje swój graf krok po kroku tak, jak przebiegł.
 
 Nową automatyzację można przekazać przez `prepare_workflow_draft`: jedna akceptacja tworzy prywatną tabelę i kompletny graf w jednej transakcji. Błąd walidacji wycofuje oba zasoby. `check_workflow_draft` sprawdza graf i odwołania do zasobów bez uruchamiania kroków i bez akceptacji zapisu. Jawnie informuje, że integracje pozostają niezweryfikowane. Testy wykonujące akcje nadal wymagają zgody; test harmonogramu przyjmuje zwykłe dane i automatycznie dodaje czas zdarzenia oraz skonfigurowane wartości. Widok runa odróżnia test szkieletu od weryfikacji integracji.
+
+
+### Szkice follow-upów { #follow-up-drafts }
+
+W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szkic follow-upu po terminie**. Wybierz istniejący model i maksymalny koszt szkicu. Przy uruchomieniu workflow podaj kontekst do przygotowania treści. Agent działa tylko w gałęzi terminu po udanym sprawdzeniu skrzynki; zweryfikowana odpowiedź pomija szkic, a błąd skrzynki kończy sprawdzenie błędem. Agent nie ma narzędzi. Szkic zapisuje się w wyniku workflow, a powiadomienie prowadzi do niego. Przed wysyłką sprawdź aktualny wątek. Preset nie tworzy szkicu w Gmail/Outlook ani nie wysyła poczty.

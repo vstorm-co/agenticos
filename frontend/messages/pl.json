@@ -10162,7 +10162,12 @@
     "notificationInApp": "Powiadomienie w aplikacji",
     "notificationEmail": "E-mail",
     "notificationChannelHint": "Preferencje powiadomień każdej osoby nadal obowiązują. Prywatne kanały czatu wymagają też własnej trasy powiadomień w Ustawieniach.",
-    "fileBindingHint": "Wybierz plik z poprzedniego kroku przez Dane. Typ i rozmiar są przekazywane automatycznie. Aby przetworzyć wklejony tekst, dodaj najpierw krok Tekst do pliku."
+    "fileBindingHint": "Wybierz plik z poprzedniego kroku przez Dane. Typ i rozmiar są przekazywane automatycznie. Aby przetworzyć wklejony tekst, dodaj najpierw krok Tekst do pliku.",
+    "replyDraft": {
+      "enable": "Przygotuj szkic follow-upu po terminie",
+      "description": "Wybierz model i maksymalny koszt. Workflow przygotuje szkic z podanego kontekstu, zapisze wynik i powiadomi Cię. Nie wysyła follow-upu.",
+      "budget": "Maksymalny koszt szkicu (USD)"
+    }
   },
   "artifacts": {
     "title": "Aplikacje",

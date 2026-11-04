@@ -29,6 +29,7 @@ import {
 } from "@/components/ui";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { ReplyDraftPicker } from "./reply-draft-picker";
 import { ReplyMailboxPicker } from "@/components/workflows/property-panel/reply-mailbox-picker";
 import type { ReplyMailboxSelection, WorkflowCreate, WorkflowGraph } from "@/lib/workflows/types";
 import {
@@ -115,6 +116,10 @@ export function WorkflowCreateDialog({
   const [replyMailbox, setReplyMailbox] = useState<ReplyMailboxSelection | undefined>(
     initial?.reply_mailbox,
   );
+  const [replyDraft, setReplyDraft] = useState<WorkflowCreate["reply_draft"]>(initial?.reply_draft);
+  const invalidDraft =
+    replyDraft !== undefined &&
+    (!replyDraft.model_profile_id || replyDraft.max_cost_usd <= 0 || replyDraft.max_cost_usd > 5);
   const needsReplyMailbox = initial?.template_id === "awaitReply";
   const [start, setStart] = useState<string>(MANUAL_TRIGGER);
   const chosen = STARTS.find((entry) => entry.id === start)!;
@@ -136,11 +141,18 @@ export function WorkflowCreateDialog({
           className="flex min-h-0 flex-1 flex-col gap-6"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!name.trim() || busy || emptyAudience || (needsReplyMailbox && !replyMailbox))
+            if (
+              !name.trim() ||
+              busy ||
+              emptyAudience ||
+              invalidDraft ||
+              (needsReplyMailbox && !replyMailbox)
+            )
               return;
             onChoose({
               ...initial,
               ...(needsReplyMailbox && replyMailbox ? { reply_mailbox: replyMailbox } : {}),
+              ...(needsReplyMailbox ? { reply_draft: replyDraft } : {}),
               name: name.trim(),
               description: description.trim() || null,
               tags,
@@ -173,6 +185,9 @@ export function WorkflowCreateDialog({
                 disabled={busy}
               />
             )}
+            {needsReplyMailbox ? (
+              <ReplyDraftPicker value={replyDraft} onChange={setReplyDraft} disabled={busy} />
+            ) : null}
             {needsReplyMailbox && replyMailbox?.provider === "outlook" && (
               <div className="space-y-2">
                 <Label htmlFor="workflow-reply-shared-mailbox">{t("replySharedMailbox")}</Label>
@@ -254,7 +269,11 @@ export function WorkflowCreateDialog({
             <Button
               type="submit"
               disabled={
-                !name.trim() || busy || emptyAudience || (needsReplyMailbox && !replyMailbox)
+                !name.trim() ||
+                busy ||
+                emptyAudience ||
+                invalidDraft ||
+                (needsReplyMailbox && !replyMailbox)
               }
             >
               {common("create")}

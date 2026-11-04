@@ -260,3 +260,8 @@ Implemented explicit source review and publication, a private agent copy, task t
 ### Decision evidence / Improve handoff
 
 Implemented bounded structured episodes on the existing scoped memory ledger, runtime capture and maintenance extraction, append-only corrections/outcomes, readback, erasure/export and an explicit personal review/download flow. The flat JSONL case subset was checked against #2172 at `cae0914f75c5a2b1106da178ae46f8e2062cdf94` (`DatasetCaseContent`, `dataset_files.parse`). #2172 remains open: the handoff imports into its actual dataset UI after installation, without duplicating its optimizer or automatically publishing a generalized rule.
+
+
+### Deadline follow-up drafting
+
+The Await reply preset optionally takes an explicitly selected existing model and per-draft cost ceiling. Only its verified deadline branch invokes a tool-free inline agent, with user-supplied context, then saves the draft in the workflow output and sends a private result notification. Matching replies skip drafting; provider errors never become absence verdicts. The preset does not send mail or claim to have written a provider-side draft.

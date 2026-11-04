@@ -1310,3 +1310,8 @@ Inline-agent skill and context galleries load every metadata page and offer Retr
   version, and a run shows its graph step by step as it happened.
 
 New automations can be submitted through `prepare_workflow_draft`: one approval creates a private table and complete graph atomically. A failed validation leaves neither resource behind. `check_workflow_draft` checks the graph and its resource references without executing handlers or requiring a write approval. It explicitly reports that integrations remain unverified. Test runs with actions still require approval; schedule tests accept plain sample input and supply the event timestamp and configured defaults automatically. The run page distinguishes skeleton checks from integration verification.
+
+
+### Follow-up drafts { #follow-up-drafts }
+
+The Await reply creation dialog can also enable **Prepare a follow-up draft after the deadline**. Choose an existing model and a maximum cost per draft. When starting the workflow, provide the context the draft should use. Only a successfully checked deadline branch runs this agent; a verified reply skips it, and a mailbox failure fails the check. The agent has no tools. Its draft is saved in the workflow result and you receive a notification pointing there. Review the current thread before sending anything. This preset does not create a draft in Gmail/Outlook or send mail.

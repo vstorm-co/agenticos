@@ -35,6 +35,14 @@ class ReplyExpectationInput(BaseModel):
         return self
 
 
+class ReplyDraftSelection(BaseModel):
+    """Explicit model and per-draft budget; the draft has no sending tools."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_profile_id: UUID
+    max_cost_usd: float = Field(default=0.10, gt=0, le=5)
+
+
 class ReplyMailboxSelection(BaseModel):
     """The existing organization mailbox a reply workflow may read."""
 

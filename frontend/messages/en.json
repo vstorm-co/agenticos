@@ -9465,7 +9465,12 @@
     "notificationInApp": "In-app notification",
     "notificationEmail": "Email",
     "notificationChannelHint": "Each person’s notification preferences still apply. Private chat channels also require their own notification route in Settings.",
-    "fileBindingHint": "Choose a file from an earlier step with Data. Its type and size are included automatically. To convert pasted text, add a Text to file step first."
+    "fileBindingHint": "Choose a file from an earlier step with Data. Its type and size are included automatically. To convert pasted text, add a Text to file step first.",
+    "replyDraft": {
+      "enable": "Prepare a follow-up draft after the deadline",
+      "description": "Choose a model and a maximum cost. The workflow drafts from the context you provide, saves the result and notifies you. It never sends the follow-up.",
+      "budget": "Maximum cost per draft (USD)"
+    }
   },
   "artifacts": {
     "title": "Apps",

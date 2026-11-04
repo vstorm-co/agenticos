@@ -252,3 +252,65 @@ it("retains an explicitly selected shared Outlook mailbox", async () => {
     }),
   );
 });
+
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ profiles: [], profilesStatus: "ready" }),
+}));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button type="button" onClick={() => onChange("chosen-model")}>
+      Choose draft model
+    </button>
+  ),
+}));
+it("requires an explicit model and budget when follow-up drafting is enabled", async () => {
+  const choose = vi.fn();
+  render(
+    <WorkflowCreateDialog
+      open
+      onOpenChange={vi.fn()}
+      onChoose={choose}
+      busy={false}
+      initial={{
+        name: "Await reply",
+        template_id: "awaitReply",
+        graph: null,
+        reply_mailbox: { provider: "google", connection_id: "mailbox" },
+      }}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Prepare a follow-up draft after the deadline" }),
+  );
+  expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Choose draft model" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(choose).toHaveBeenCalledWith(
+    expect.objectContaining({
+      reply_draft: { model_profile_id: "chosen-model", max_cost_usd: 0.1 },
+    }),
+  );
+});
+it("can explicitly turn off a preset draft selection", async () => {
+  const choose = vi.fn();
+  render(
+    <WorkflowCreateDialog
+      open
+      onOpenChange={vi.fn()}
+      onChoose={choose}
+      busy={false}
+      initial={{
+        name: "Await reply",
+        template_id: "awaitReply",
+        graph: null,
+        reply_mailbox: { provider: "google", connection_id: "mailbox" },
+        reply_draft: { model_profile_id: "model", max_cost_usd: 0.1 },
+      }}
+    />,
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Prepare a follow-up draft after the deadline" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(choose.mock.calls[0]?.[0].reply_draft).toBeUndefined();
+});

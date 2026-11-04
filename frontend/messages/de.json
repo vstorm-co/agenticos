@@ -9344,7 +9344,12 @@
     "notificationInApp": "Benachrichtigung in der App",
     "notificationEmail": "E-Mail",
     "notificationChannelHint": "Die Benachrichtigungseinstellungen jeder Person gelten weiterhin. Private Chats benötigen außerdem eine eigene Benachrichtigungsroute in den Einstellungen.",
-    "fileBindingHint": "Wählen Sie mit Daten eine Datei aus einem vorherigen Schritt. Typ und Größe werden automatisch übernommen. Für eingefügten Text verwenden Sie zuerst Text in Datei."
+    "fileBindingHint": "Wählen Sie mit Daten eine Datei aus einem vorherigen Schritt. Typ und Größe werden automatisch übernommen. Für eingefügten Text verwenden Sie zuerst Text in Datei.",
+    "replyDraft": {
+      "enable": "Nach Ablauf einen Follow-up-Entwurf vorbereiten",
+      "description": "Wähle ein Modell und Höchstkosten. Der Workflow erstellt einen Entwurf aus deinem Kontext, speichert ihn und benachrichtigt dich. Er versendet den Entwurf nicht.",
+      "budget": "Höchstkosten pro Entwurf (USD)"
+    }
   },
   "artifacts": {
     "title": "Apps",

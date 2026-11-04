@@ -1,5 +1,5 @@
 ---
-source_sha: "9cca435f6ea9"
+source_sha: "1e44896d7e1d"
 ---
 
 # Workflows { #workflows }
@@ -1383,3 +1383,8 @@ Las galerías de skills y contexto del agente integrado cargan todas las página
   publicada, y un run muestra su grafo paso a paso tal como ocurrió.
 
 Las nuevas automatizaciones pueden enviarse con `prepare_workflow_draft`: una aprobación crea una tabla privada y el grafo completo de forma atómica. Una validación fallida no deja ninguno de los recursos. `check_workflow_draft` comprueba el grafo y sus referencias sin ejecutar pasos ni solicitar aprobación de escritura, e indica expresamente que las integraciones siguen sin verificar. Las pruebas con acciones requieren aprobación. Las pruebas de horarios aceptan datos sencillos y añaden la fecha del evento y los valores configurados. La página del run distingue las pruebas de estructura de la verificación de integraciones.
+
+
+### Borradores de seguimiento { #follow-up-drafts }
+
+El diálogo de espera de respuesta también permite preparar un borrador de seguimiento tras el plazo. Elige un modelo existente y un coste máximo por borrador. Al iniciar el flujo, proporciona el contexto para el texto. Solo la rama de plazo tras una comprobación correcta del buzón ejecuta el agente; una respuesta verificada lo omite y un fallo del buzón hace fallar la comprobación. El agente no tiene herramientas. El borrador se guarda en el resultado del flujo y una notificación enlaza allí. Revisa el hilo actual antes de enviar nada. Esta plantilla no crea un borrador en Gmail/Outlook ni envía correo.

@@ -453,6 +453,7 @@ export interface ReplyMailboxSelection {
 export interface WorkflowCreate {
   template_id?: "publicApi" | "markdownNotes" | "awaitReply";
   reply_mailbox?: ReplyMailboxSelection;
+  reply_draft?: { model_profile_id: string; max_cost_usd: number };
   name: string;
   description?: string | null;
   visibility?: "org" | "private" | "team";
