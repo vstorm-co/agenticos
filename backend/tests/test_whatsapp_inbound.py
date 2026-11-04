@@ -16,7 +16,7 @@ import pytest
 
 from app.services.channels import whatsapp_inbound as inbound
 from app.services.channels.base import IncomingMessage, IncomingPress, OutgoingMessage
-from app.services.channels.router import chat_lock
+from app.services.channels.router import Admission, chat_lock
 from app.services.channels.whatsapp_customers import Held, WindowStore
 from app.services.channels.whatsapp_graph import WhatsAppGraphError
 from app.services.channels.whatsapp_inbound import WhatsAppInbound, handle_customer
@@ -300,7 +300,8 @@ class World:
         self.routed: list[list[IncomingMessage | IncomingPress]] = []
         self.sent: list[OutgoingMessage] = []
         self.offered: list[uuid.UUID] = []
-        self.admitted = True
+        self.verdict: str = "admitted"
+        self.sender_gone = False
         self.session: MagicMock | None = None
         self.sessions = 0
 
@@ -380,14 +381,28 @@ def world() -> Iterator[World]:
         world.offered.append(run_id)
         world.offer_kwargs.append({"platform": platform, "resend": resend})
 
-    async def may_continue(db: Any, run: Any, incoming: IncomingMessage) -> bool:
+    async def incoming_for_run(
+        db: Any, run: Any, *, bot_id: uuid.UUID, platform_chat_id: str
+    ) -> IncomingMessage | None:
+        assert (bot_id, platform_chat_id) == (uuid.UUID(BOT), CHAT)
+        if world.sender_gone:
+            return None
+        return IncomingMessage(
+            platform="whatsapp",
+            bot_id=BOT,
+            platform_user_id=f"{ORG}:{CHAT}",
+            platform_chat_id=CHAT,
+            chat_type="private",
+            text="",
+        )
+
+    async def admission(db: Any, run: Any, incoming: IncomingMessage) -> Admission:
         assert (incoming.platform, incoming.bot_id, incoming.platform_chat_id) == (
             "whatsapp",
             BOT,
             CHAT,
         )
-        assert incoming.platform_user_id == f"{ORG}:{CHAT}" and incoming.chat_type == "private"
-        return world.admitted
+        return Admission(world.verdict, "test")  # type: ignore[arg-type]
 
     async def process(events: list[IncomingMessage | IncomingPress]) -> None:
         world.order.append("route")
@@ -396,11 +411,11 @@ def world() -> Iterator[World]:
     adapter = MagicMock(send_message=AsyncMock(side_effect=send), send_held_preview=AsyncMock())
     world.adapter = adapter
     world.offer = AsyncMock(side_effect=offer)
-    world.may_continue = AsyncMock(side_effect=may_continue)
+    world.admission = AsyncMock(side_effect=admission)
     bot = MagicMock(is_active=True, organization_id=ORG)
     world.bot = AsyncMock(return_value=bot)
     prompts = MagicMock(return_value=MagicMock(offer=world.offer))
-    router = MagicMock(return_value=MagicMock(may_continue=world.may_continue))
+    router = MagicMock(return_value=MagicMock(admission=world.admission))
     with (
         patch(f"{MODULE}.get_db_context", sessions),
         patch(f"{MODULE}.agent_run_repo.get_run", get_run),
@@ -411,6 +426,7 @@ def world() -> Iterator[World]:
         patch(f"{MODULE}.whatsapp_adapter", return_value=adapter),
         patch(f"{MODULE}.ChannelPrompts", prompts),
         patch(f"{MODULE}.ChannelMessageRouter", router),
+        patch(f"{MODULE}.incoming_for_run", incoming_for_run),
         patch(f"{MODULE}.process_channel_events_in_order", process),
     ):
         yield world
@@ -632,17 +648,35 @@ class TestHeldAnswers:
 
         assert seen == [1]
 
-    async def test_a_sender_no_longer_admitted_keeps_the_run_held(self, world):
+    @pytest.mark.security
+    @pytest.mark.parametrize("why", ["refused", "sender_gone"])
+    async def test_a_sender_no_longer_admitted_keeps_the_run_held(self, world, why):
         run = world.run()
         row = world.held(run)
         store = world.store([row])
-        world.admitted = False
+        if why == "refused":
+            world.verdict = "refused"
+        else:
+            world.sender_gone = True
 
         await _handle(world, store)
 
         assert world.sent == []
         assert store.settled == [("release", row.id)]
         assert world.order == ["route"]
+
+    async def test_an_admission_the_platform_cannot_confirm_still_delivers(self, world):
+        """Only a definite refusal holds an answer back; an unanswered check does not."""
+        run = world.run()
+        row = world.held(run)
+        store = world.store([row])
+        world.verdict = "unconfirmed"
+
+        await _handle(world, store)
+
+        assert world.order == ["answer", "route"]
+        assert [m.text for m in world.sent] == ["the answer"]
+        assert store.settled_ids("release") == []
 
     async def test_a_stale_message_does_not_deliver_into_a_closed_window(self, world):
         run = world.run()
@@ -760,7 +794,7 @@ class TestHeldAnswers:
         run = world.run()
         row = world.held(run)
         store = world.store([row])
-        world.may_continue.side_effect = RuntimeError("db down")
+        world.admission.side_effect = RuntimeError("db down")
 
         await _handle(world, store)
 

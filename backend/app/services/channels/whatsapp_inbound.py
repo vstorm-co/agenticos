@@ -35,8 +35,9 @@ from app.repositories import (
     whatsapp_customer_repo,
 )
 from app.services.channel_bot import unseal_bot_token
-from app.services.channels.base import IncomingMessage, OutgoingMessage
+from app.services.channels.base import OutgoingMessage
 from app.services.channels.dedupe import claim_delivery
+from app.services.channels.next_steps import incoming_for_run
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter, chat_lock
 from app.services.channels.whatsapp import whatsapp_adapter
@@ -46,7 +47,6 @@ from app.services.channels.whatsapp_payload import (
     ParsedWebhook,
     WhatsAppMessage,
     group_by_customer,
-    platform_user_id_for,
     to_event,
     to_incoming,
 )
@@ -207,15 +207,13 @@ class _Owed:
 async def _read_run(
     db: AsyncSession, run: AgentRun, held: Held, *, bot_id: str, organization_id: UUID, chat_id: str
 ) -> _Owed:
-    incoming = IncomingMessage(
-        platform="whatsapp",
-        bot_id=bot_id,
-        platform_user_id=platform_user_id_for(organization_id, chat_id),
-        platform_chat_id=chat_id,
-        chat_type="private",
-        text="",
+    # The run's own sender, judged as a decision's continuation is: only a definite
+    # refusal keeps the answer held, never what the platform could not confirm.
+    incoming = await incoming_for_run(db, run, bot_id=UUID(bot_id), platform_chat_id=chat_id)
+    admitted = (
+        incoming is not None
+        and (await ChannelMessageRouter().admission(db, run, incoming)).verdict != "refused"
     )
-    admitted = await ChannelMessageRouter().may_continue(db, run, incoming)
     return _Owed(
         admitted=admitted,
         parked=run.status in _PARKED,
