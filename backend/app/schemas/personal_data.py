@@ -1,12 +1,14 @@
 """What a person's own data looks like on the wire."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.routine_sources import RoutineSourcePolicy
+from app.schemas.telephony import PhoneContactConfig
 
 
 class RoutineAnswerExport(BaseModel):
@@ -67,6 +69,35 @@ class ProjectTrackingExport(BaseModel):
     trigger_id: UUID
 
 
+class PhoneContactExport(PhoneContactConfig):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    organization_id: UUID
+
+
+class PhoneCallExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    organization_id: UUID
+    endpoint_id: UUID
+    agent_id: UUID | None
+    agent_version_id: UUID | None
+    source_run_id: UUID | None
+    source_conversation_id: UUID | None
+    conversation_id: UUID | None
+    mode: str
+    direction: str
+    status: str
+    destination: str | None
+    report: str | None
+    report_language: str
+    cap_seconds: int
+    end_reason: str | None
+    estimated_cost_usd: Decimal
+    created_at: datetime
+    finished_at: datetime | None
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -83,6 +114,8 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    phone_contacts: list[PhoneContactExport] = Field(default_factory=list)
+    phone_calls: list[PhoneCallExport] = Field(default_factory=list)
     project_trackers: list[ProjectTrackingExport] = Field(default_factory=list)
     routine_sources: list[RoutineSourceExport] = Field(default_factory=list)
     routine_health: list[RoutineHealthExport] = Field(default_factory=list)

@@ -41,6 +41,7 @@ import { SandboxPolicyWidget } from "./sandbox-policy";
 import { SandboxSessionsWidget } from "./sandbox-sessions";
 import { SharedWithYouWidget } from "./shared-with-you";
 import { ArtifactsWidget } from "./artifacts";
+import { PhoneCallsWidget } from "./phone-calls";
 import { VoiceMinutesWidget } from "./voice-minutes";
 import { ProjectsWidget } from "./projects";
 import { RecentVisualsWidget } from "./recent-visuals";
@@ -104,6 +105,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "shared-with-you": SharedWithYouWidget,
   artifacts: ArtifactsWidget,
   "voice-minutes": VoiceMinutesWidget,
+  "phone-calls": PhoneCallsWidget,
   projects: ProjectsWidget,
   "recent-visuals": RecentVisualsWidget,
   "sandbox-capacity": SandboxCapacityWidget,

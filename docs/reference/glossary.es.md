@@ -1,5 +1,5 @@
 ---
-source_sha: "5141fd725ab4"
+source_sha: "92d48b4f1b5e"
 ---
 
 # Glosario { #glossary }
@@ -69,6 +69,7 @@ se describe en [Capabilities](capabilities.md).
 | Ask the user | `ask_user` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Llamadas telefónicas | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |

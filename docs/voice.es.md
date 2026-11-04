@@ -1,5 +1,5 @@
 ---
-source_sha: "0ff785349ff9"
+source_sha: "0abab0f5d4b0"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -411,3 +411,16 @@ El socket se cierra, y el servidor cuelga la llamada del provider y registra su
 tiempo y su coste. Si el propio servidor se detuvo, el barrido cuelga la llamada
 en cerca de un minuto desde su último heartbeat. Los turnos dichos antes de que
 se cerrara la pestaña ya están guardados en la conversación.
+
+
+## Llamadas telefónicas { #telephone-calls }
+
+En Canales, configura un bot SMS de Twilio existente con credenciales en la bóveda y activa su ruta telefónica. Usa una `PUBLIC_BASE_URL` HTTPS, copia la URL entrante mostrada al webhook Voice del número (POST) y permite los callbacks de estado firmados. Las llamadas entrantes necesitan un embed de voz público publicado. El identificador de llamada no autentica al visitante. El modelo realtime existente utiliza un relé de audio del servidor; se conserva texto, sin grabar audio.
+
+En Ajustes → Notificaciones, selecciona tu identidad SMS verificada y autoriza por separado conversaciones, informes hablados y transferencias. Configura zona horaria, horas de silencio, límite diario e idioma de informes. Estos permisos son independientes de las notificaciones SMS. Los informes pueden llegar al buzón de voz; el consentimiento incluye esa posibilidad y se puede revocar. El administrador limita duración, concurrencia, número de llamadas, contactos de transferencia y presupuesto telefónico.
+
+El formulario personal permite solicitar una conversación o informe. La capacidad `phone_calls` vincula una ruta: `call_me` llama únicamente al contacto autorizado del miembro autenticado. Las rutinas pueden emitir informes, pero no iniciar conversaciones interactivas con permisos de fuentes más amplios. `list_phone_transfer_contacts` devuelve identificadores permitidos; `transfer_phone_call` y `end_phone_call` afectan solo a la sesión telefónica actual de confianza. Las transferencias conservan el límite original y requieren consentimiento independiente del destino.
+
+Cada solicitud saliente tiene una clave de idempotencia duradera. Si la aceptación del proveedor es incierta, se espera un callback firmado sin volver a marcar automáticamente. Se comprueban consentimiento, membresía, fuentes y generación de ruta antes de ejecutar y durante la llamada. Preparar un informe no demuestra que alguien lo escuchó. Las tarjetas muestran estado del proveedor, coste estimado y transcripciones disponibles. Los chats privados pueden continuar; los proyectos compartidos reciben un comprobante sin transcripción privada.
+
+Introduce una tarifa conservadora por minuto que cubra destino, síntesis y demás cargos. La plataforma reserva minutos redondeados, incluida una posible segunda conexión de transferencia, antes de llamar. Estas estimaciones son independientes del presupuesto de IA y no son una factura de Twilio. Los comprobantes caducan a los 30 días; las conversaciones mantienen su retención habitual. La exportación personal incluye consentimientos e historial sin credenciales. Verifica números reales, audio, buzón de voz, transferencias y facturación en tu cuenta Twilio.

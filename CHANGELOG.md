@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Twilio telephone conversations and spoken reports, opt-in verified contacts, quiet hours, bounded rates/budgets, permitted transfers, call cards and private transcripts.
+
 - Optional follow-up drafting in Await reply: explicitly selected model/cost ceiling, tool-free drafting after a verified deadline and a saved result for human review.
 
 - Structured, scoped decision episodes with alternatives, expected/observed outcomes and append-only corrections; explicitly reviewed JSONL handoff to Improve datasets.

@@ -380,3 +380,16 @@ The socket closes, and the server hangs up the provider call and records its
 time and cost. If the server itself stopped, the sweep hangs the call up within
 about a minute of its last heartbeat. The turns said before the tab closed are
 already saved in the conversation.
+
+
+## Telephone calls { #telephone-calls }
+
+Configure an existing vault-backed Twilio SMS bot in Channels, then enable its telephone route. Use an HTTPS `PUBLIC_BASE_URL`, copy the displayed inbound URL into the number’s Voice webhook (POST), and keep signed status callbacks reachable. Select a published public voice embed for inbound calls; caller ID never authenticates an inbound visitor. The existing realtime model runs through a server audio relay, with text transcripts and no audio recording.
+
+In Settings → Notifications, select your verified SMS identity and explicitly allow calls, spoken reports and/or transfers. Set your time zone, quiet hours, daily limit and report language. These permissions are independent of SMS notification consent. Reports can reach voicemail; enabling them authorizes that possibility. You can revoke consent at any time. An administrator sets route duration, concurrency, call counts, transfer contacts and the daily telephone budget.
+
+Use the personal dialer for a conversation or a spoken report. The `phone_calls` capability binds one route: `call_me` calls only the authenticated member’s opted-in contact. Scheduled routines may send spoken reports, but cannot start an interactive conversation with broader source authority. `list_phone_transfer_contacts` returns permitted contact IDs; `transfer_phone_call` and `end_phone_call` affect only the current trusted telephone session. Transfers retain the original time ceiling and require the destination’s separate consent.
+
+Every outbound request has a durable idempotency key. Unknown provider acceptance waits for a signed callback and never automatically redials. Consent, membership, source authority and route generations are checked again before execution and during active calls. A prepared report is not proof that a person heard it. Call cards show provider state, estimated cost and available transcript links; private source chats can continue privately, while shared project chats receive a receipt without the private transcript.
+
+Enter a conservative per-minute price covering the destination, voice synthesis and other applicable fees. The platform reserves rounded minutes, including a possible transfer leg, before calling; these estimates are separate from AI model budgets and are not a Twilio invoice. Receipts expire after 30 days; conversations retain their normal retention policy. Personal export includes your consent and receipts without provider credentials. Validate real numbers, audio, voicemail, transfer and provider billing on your own Twilio account before relying on live calls.

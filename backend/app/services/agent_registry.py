@@ -118,6 +118,7 @@ from app.schemas.agent import (
     TemplateInstallResult,
     normalize_labels_query,
 )
+from app.schemas.telephony import PhoneCallsConfig
 from app.services import (
     agent_templates,
     mcp_catalog,
@@ -1932,6 +1933,17 @@ class AgentRegistryService:
                 problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
+            if isinstance(config, PhoneCallsConfig):
+                from app.services.telephony.policy import PhonePolicyService
+
+                try:
+                    await PhonePolicyService(self.db).load_endpoint(
+                        config.endpoint_id, organization_id=ctx.organization_id
+                    )
+                except (AuthorizationError, BadRequestError, NotFoundError) as exc:
+                    problems.merge(
+                        _SpecProblems.at("capabilities.phone_calls.config.endpoint_id", exc.message)
+                    )
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the

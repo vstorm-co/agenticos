@@ -51,6 +51,9 @@ template-inherited subsystems have different coverage gates, described below.
   the response is written. A bare `Depends(get_db_session)` has different timing.
   The agent run paths in `AgentRunnerService._run` and `ChatAgentRunner.run`
   explicitly commit before the model call and in terminal cleanup;
+  `app.services.telephony.runtime` commits telephone admission, submission, transfer, hang-up and
+  single-use media claims before external effects; unknown acceptance is retained
+  for signed callbacks and cleanup, never automatic redial.
   `VoiceCallStarter.start` commits a call's row and its run before the call
   connects and `VoiceCallSession` commits again in its teardown (per-turn
   messages, heartbeats and approval writes use their own `get_db_context()`

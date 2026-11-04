@@ -108,6 +108,10 @@ def sync_source_key(source_id: UUID) -> str:
     return f"sync-source:{source_id}"
 
 
+class DialPhone(Payload):
+    call_id: UUID
+
+
 class FireTrigger(Payload):
     trigger_id: UUID
     source_policy_id: UUID | None = None
@@ -342,6 +346,15 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+DIAL_PHONE = Task(
+    kind="dial-phone",
+    payload_type=DialPhone,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(seconds=60),
+    priority=Priority.INTERACTIVE,
+)
+
 DELIVER_ROUTINE_ANSWER = Task(
     kind="deliver-routine-answer",
     payload_type=DeliverRoutineAnswer,
@@ -504,6 +517,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        DIAL_PHONE,
         DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
         WORKFLOW_DISPATCH_NODE,

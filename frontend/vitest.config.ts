@@ -283,6 +283,9 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/phone/**/*.tsx",
+        "src/lib/phone-api.ts",
+        "src/hooks/use-phone.ts",
         "src/components/tables/**/*.{ts,tsx}",
         // The workflows visual editor's undo/redo history leaf (#1787).
         "src/components/workflows/history.ts",

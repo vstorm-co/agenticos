@@ -11,7 +11,7 @@ reaper can see them.
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from secrets import compare_digest, token_urlsafe
@@ -75,6 +75,9 @@ class VoiceCaller:
     """A hosted page visitor's continuity key, so a new thread is linked to it."""
     conversation_title: str = "Voice call"
     """What a conversation the call starts is called."""
+    phone_call_id: UUID | None = None
+    phone_cap_seconds: int | None = None
+    phone_agent_version_id: UUID | None = None
     embed: AgentEmbed | None = None
     """The embed a visitor was admitted to: its placement context and declared variables."""
 
@@ -143,10 +146,17 @@ class VoiceCallStarter:
         except NotFoundError, AuthorizationError:
             raise VoiceRefused("forbidden", "This agent cannot take your call.") from None
         voice_settings = VoiceSettingsService(self.db)
-        spec = await voice_settings.published_spec(agent)
+        if caller.phone_agent_version_id is not None:
+            _, spec, _ = await AgentRegistryService(self.db).get_pinned_spec(
+                ctx, agent.id, caller.phone_agent_version_id
+            )
+        else:
+            spec = await voice_settings.published_spec(agent)
         resolved = resolve_voice(None if spec is None else spec.voice)
         if spec is None or resolved is None:
             raise VoiceRefused("not_configured", "This agent is not set up for calls.")
+        if caller.phone_call_id is not None:
+            resolved = replace(resolved, entry=replace(resolved.entry, transport="relay"))
         if resolved.entry.transport == "webrtc":
             if frame.sdp_offer is None:
                 raise VoiceRefused("bad_offer", "The call could not be set up.")
@@ -161,6 +171,8 @@ class VoiceCallStarter:
         cap = limits.call_cap_seconds(
             agent_max=resolved.max_call_seconds, chain_elapsed=chain_elapsed
         )
+        if caller.phone_cap_seconds is not None:
+            cap = min(cap, caller.phone_cap_seconds)
         if cap < limits.MIN_CALL_SECONDS:
             # A reconnect whose call has used its longest time already.
             raise VoiceRefused("call_limit", "This call has reached its time limit.")
@@ -202,6 +214,7 @@ class VoiceCallStarter:
             conversation_id=conversation_id,
             user_name=caller.user_name,
             acts_for_sender=not caller.anonymous,
+            version_id=caller.phone_agent_version_id,
             voice=VoiceRun(
                 options=VoiceOptions(
                     on_deferred=bridge,
@@ -215,6 +228,7 @@ class VoiceCallStarter:
                 secret_id=resolved.secret_id,
             ),
         )
+        prepared.built.deps.phone_call_id = caller.phone_call_id
         bridge.attach(prepared.approvals)
         questions = VoiceQuestions(send=self._send)
         if caller.surface == "web":

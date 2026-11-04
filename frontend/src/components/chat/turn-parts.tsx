@@ -19,6 +19,7 @@ import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { PhoneCallCard } from "@/components/phone/phone-call-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
@@ -116,6 +117,8 @@ export function TurnParts({
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
+    ) : run.part.type === "phone_call" && run.part.phoneCallId ? (
+      <PhoneCallCard key={run.part.id} callId={run.part.phoneCallId} />
     ) : run.part.type === "workflow_run" && run.part.workflowRun ? (
       <WorkflowRunCard key={run.part.id} run={run.part.workflowRun} />
     ) : run.part.type === "ask_user" ? (
@@ -402,7 +405,7 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user" || part.type === "workflow_run") {
+    if (part.type === "ask_user" || part.type === "workflow_run" || part.type === "phone_call") {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }

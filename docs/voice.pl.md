@@ -1,5 +1,5 @@
 ---
-source_sha: "0ff785349ff9"
+source_sha: "0abab0f5d4b0"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -404,3 +404,16 @@ Gniazdo się zamyka, a serwer rozłącza rozmowę u providera i zapisuje jej cza
 koszt. Jeśli zatrzymał się sam serwer, przemiatanie rozłącza rozmowę w ciągu
 mniej więcej minuty od jej ostatniego heartbeatu. Tury wypowiedziane przed
 zamknięciem karty są już zapisane w konwersacji.
+
+
+## Połączenia telefoniczne { #telephone-calls }
+
+W Kanałach skonfiguruj istniejącego bota SMS Twilio z poświadczeniami w sejfie i włącz jego trasę telefoniczną. Ustaw HTTPS w `PUBLIC_BASE_URL`, skopiuj pokazany adres przychodzący do webhooka Voice numeru (POST) i zapewnij dostęp do podpisanych callbacków stanu. Dla połączeń przychodzących wybierz opublikowany publiczny embed głosowy. Numer dzwoniącego nie uwierzytelnia gościa. Istniejący model realtime korzysta z serwerowego przekaźnika audio; platforma zapisuje transkrypcję tekstową, bez nagrania audio.
+
+W Ustawieniach → Powiadomienia wybierz zweryfikowaną tożsamość SMS i osobno zezwól na rozmowy, raporty głosowe lub przekierowania. Ustaw strefę czasową, ciszę nocną, limit dzienny i język raportu. Zgody są niezależne od powiadomień SMS. Raport może trafić na pocztę głosową; zgoda na raporty obejmuje tę możliwość. Zgodę możesz odwołać. Administrator określa czas rozmowy, współbieżność, liczbę połączeń, kontakty przekierowań i budżet telefoniczny.
+
+Osobisty formularz pozwala zamówić rozmowę lub raport. Capability `phone_calls` wskazuje jedną trasę: `call_me` dzwoni wyłącznie do kontaktu zalogowanego członka, który wyraził zgodę. Rutyny mogą przekazywać raporty głosowe, ale nie rozpoczynają interaktywnej rozmowy z szerszym dostępem do źródeł. `list_phone_transfer_contacts` zwraca dozwolone identyfikatory; `transfer_phone_call` i `end_phone_call` dotyczą wyłącznie bieżącej zaufanej sesji telefonicznej. Przekierowanie zachowuje pierwotny limit czasu i wymaga oddzielnej zgody odbiorcy.
+
+Każde żądanie wychodzące ma trwały klucz idempotencji. Niepewny wynik u operatora oczekuje na podpisany callback i nie wywołuje automatycznego ponownego telefonu. Zgody, członkostwo, uprawnienia do źródeł i generacja trasy są sprawdzane przed wykonaniem i podczas rozmowy. Przygotowany raport nie potwierdza odsłuchania. Karty pokazują stan operatora, szacowany koszt i dostępne transkrypcje. Prywatny czat może zachować ciągłość; wspólny czat projektu otrzymuje potwierdzenie bez prywatnej transkrypcji.
+
+Podaj ostrożną stawkę minutową obejmującą kierunek, syntezę głosu i pozostałe opłaty. Platforma rezerwuje zaokrąglone minuty, także możliwy dodatkowy odcinek przekierowania, przed telefonem. Szacunki są niezależne od budżetu modelu AI i nie stanowią faktury Twilio. Potwierdzenia wygasają po 30 dniach; rozmowy podlegają zwykłej retencji. Eksport osobisty obejmuje zgody i historię bez poświadczeń operatora. Na własnym koncie Twilio sprawdź rzeczywiste numery, audio, pocztę głosową, przekierowania i rozliczenia.

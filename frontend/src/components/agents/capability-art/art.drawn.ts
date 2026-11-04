@@ -11,6 +11,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   computer_use: 200,
   video_generation: 300,
   follow_ups: 172,
+  phone_calls: 195,
 };
 
 /** Visuals: a board standing on the base with a small diagram on it, and `draw()` above. */
@@ -233,6 +234,17 @@ const WORKFLOWS =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >run()</text></g></g>' +
   "</svg>";
 
+/** Telephone calls: a handset and live waveform above the shared base. */
+const PHONE_CALLS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 82 12)"><rect class="int" width="64" height="74" rx="9"/>' +
+  '<path class="ln w2" d="M16 15L24 12L30 25L25 30Q29 40 39 45L44 40L56 47L53 55Q31 60 16 32Z"/>' +
+  '<path class="ln w2 breathe" d="M12 63H20L24 58L29 69L35 59L40 65H52"/></g></svg>';
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
@@ -242,4 +254,5 @@ export const DRAWN_ART: Readonly<Record<string, string>> = {
   computer_use: COMPUTER_USE,
   video_generation: VIDEO_GENERATION,
   follow_ups: FOLLOW_UPS,
+  phone_calls: PHONE_CALLS,
 };

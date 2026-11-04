@@ -1759,7 +1759,11 @@
       "listingApps": "Liste die Anwendungen auf",
       "listApps": "Anwendungen auflisten",
       "sendingChannelFile": "Sendet eine Datei an den Kanal",
-      "sendChannelFile": "Datei an Kanal senden"
+      "sendChannelFile": "Datei an Kanal senden",
+      "phoneCalling": "Telefonanruf wird eingereiht",
+      "phoneContacts": "Weiterleitungskontakte prüfen",
+      "phoneTransferring": "Anruf wird weitergeleitet",
+      "phoneEnding": "Anruf wird beendet"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -2957,6 +2961,14 @@
           "descriptionOff": "Ihre Organisation hat die Proaktivität ausgeschaltet."
         },
         "more": "{count, plural, =1 {1 weiterer im Posteingang} other {# weitere im Posteingang}}"
+      },
+      "phone-calls": {
+        "title": "Telefonanrufe",
+        "description": "Letzte Telefonabsichten und ihr Status; Kanaladministratoren sehen Routingbelege der Organisation.",
+        "empty": {
+          "title": "Noch keine Telefonanrufe",
+          "description": "Richte die Telefonzustimmung unter Benachrichtigungen und eine Twilio-Route unter Kanäle ein."
+        }
       }
     },
     "edit": {
@@ -4857,6 +4869,18 @@
       "flow-project-tracker-create": {
         "title": "Projektbegleiter einrichten?",
         "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
+      },
+      "channels-phone": {
+        "title": "Telefonrouting einrichten",
+        "body": "Wähle einen Twilio-SMS-Bot, eine öffentliche Sprachoberfläche für eingehende Anrufe, Grenzen und erlaubte Weiterleitungskontakte. Kopiere die Webhook-URLs nach Twilio. Mitglieder stimmen separat zu."
+      },
+      "phone-contact": {
+        "title": "Deine Telefonzustimmung",
+        "body": "Wähle eine bestätigte SMS-Identität und erlaube Anrufe, gesprochene Berichte oder Weiterleitungen separat. Wähle Berichtssprache und Ruhezeit; geänderte oder abgelaufene Nummernverknüpfungen verlangen eine neue Prüfung."
+      },
+      "phone-dial": {
+        "title": "Eigene Nummer anrufen",
+        "body": "Wähle eine konfigurierte Route und einen veröffentlichten Sprachagenten oder bereite einen Bericht vor. Die Anfrage wird einmal eingereiht; unklare Anbieterannahme wird nicht automatisch wiederholt."
       }
     },
     "chooseLanguage": "Sprache",
@@ -10804,6 +10828,14 @@
       "example2": "Einen Bericht aus einem alten Werkzeug ohne API exportieren",
       "needs": "Ein Desktop in der eigenen Sandbox des Agenten (die Sandbox-Fähigkeit auf der Laufzeit 'desktop') oder einer, den ein Administrator mit computerd auf einem Linux-Desktop oder Mac betreibt, mit seinem Token im Tresor der Organisation. Jeder Schritt ist eine Modellanfrage mit einem Screenshot.",
       "never": "Handelt nie ohne Freigabe, außer sie ist abgeschaltet, folgt nie Anweisungen auf dem Bildschirm und hält vor Passwörtern oder Zahlungen an."
+    },
+    "phone_calls": {
+      "name": "Telefonanrufe",
+      "does": "Ruft deine bestätigte Nummer mit Zustimmung an, liest einen Bericht vor oder leitet diesen Live-Anruf an einen erlaubten Kontakt weiter.",
+      "example1": "Lies meinen Morgenbericht am Telefon vor",
+      "example2": "Übergib einen öffentlichen Supportanruf an einen Kollegen mit Zustimmung",
+      "needs": "Ein konfigurierter Twilio-Telefonendpunkt, separate Kontaktzustimmung, Budget und Zeit außerhalb der Ruhezeit.",
+      "never": "Authentifiziert niemanden über die Rufnummer, wählt keine beliebige Nummer, wiederholt keine unbestätigte Übermittlung und verlängert keine Zeitgrenze."
     }
   },
   "capabilityCategories": {
@@ -11399,6 +11431,12 @@
       "preview": {
         "title": "Live-Vorschau",
         "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
+      }
+    },
+    "phone_calls": {
+      "endpoint_id": {
+        "title": "Telefonendpunkt",
+        "description": "Der konfigurierte Twilio-Telefonendpunkt aus Kanälen. Nur ausdrückliche Mitgliedszustimmung und aktuelle Grenzen erlauben einen Anruf."
       }
     }
   },
@@ -12339,5 +12377,76 @@
     "off": "Bei wiederholten Ausführungsfehlern nicht pausieren",
     "after": "{count, plural, one {Nach # erfolgloser Prüfung} other {Nach # erfolglosen Prüfungen}}",
     "paused": "{count, plural, one {Nach # erfolgloser Prüfung pausiert} other {Nach # erfolglosen Prüfungen pausiert}}"
+  },
+  "phone": {
+    "title": "Telefonanrufe",
+    "description": "Separate Zustimmung und Grenzen für Anrufe über eine konfigurierte Twilio-Nummer.",
+    "choose": "Auswählen",
+    "none": "Keine",
+    "linkFirst": "Verknüpfe und bestätige zuerst eine SMS-Nummer in deinem Profil.",
+    "verifiedNumber": "Bestätigte SMS-Nummer",
+    "allow_calls": "Anrufe auf meiner Nummer erlauben",
+    "allow_reports": "Gesprochene Berichte einschließlich Mailbox erlauben",
+    "allow_transfers": "Genehmigte Weiterleitungen auf meine Nummer erlauben",
+    "timezone": "Zeitzone (IANA)",
+    "contactLimit": "Anrufe in den letzten 24 Stunden",
+    "quietStart": "Beginn der Ruhezeit",
+    "quietEnd": "Ende der Ruhezeit",
+    "saveContact": "Telefonzustimmung speichern",
+    "twilioBot": "Twilio-SMS-Bot",
+    "routingHint": "Wähle einen vorhandenen Twilio-SMS-Bot, um dessen Tresor-Zugangsdaten für Anrufe zu verwenden.",
+    "enableRouting": "Telefonrouting aktivieren",
+    "publicExposure": "Öffentliche Sprachseite oder Widget für eingehende Anrufe",
+    "inboundPrivacy": "Anrufer bleiben anonym. Die Rufnummer schaltet kein privates Konto frei. Leer bedeutet keine eingehenden Agentenanrufe.",
+    "max_call_seconds": "Maximale Gesprächsdauer in Sekunden",
+    "calls_per_hour": "Anrufe in der letzten Stunde",
+    "calls_per_day": "Anrufe in den letzten 24 Stunden",
+    "max_concurrent": "Gleichzeitige Anrufe",
+    "daily_budget_usd": "Tägliches Telefonbudget (USD)",
+    "price_per_minute_usd": "Konservativer Preis pro Verbindung/Minute (USD)",
+    "costHint": "Berücksichtige einen Puffer für Twilio-Gebühren und Ziele. Volle Minuten und mögliche Weiterleitungen werden vor dem Wählen reserviert. Modellbudgets gelten separat; Schätzungen sind keine Rechnung.",
+    "transferTargets": "Erlaubte Weiterleitungskontakte",
+    "saveRouting": "Telefonrouting speichern",
+    "endpointId": "Endpunkt-ID für die Agentenfähigkeit",
+    "inboundUrl": "Twilio-Sprachwebhook-URL (POST)",
+    "statusUrl": "Twilio-Statuscallback-URL (POST)",
+    "route": "Telefonroute",
+    "reportMode": "Einen Bericht vorlesen",
+    "reportText": "Vorzulesender Bericht",
+    "agent": "Sprachagent",
+    "dialHint": "Der Anruf geht an deine Nummer mit separater Zustimmung. Ein eingereihter oder akzeptierter Anruf beweist kein Anhören.",
+    "callMe": "Anruf an mich einreihen",
+    "loading": "Telefoneinstellungen werden geladen…",
+    "receiptUnavailable": "Dieser Anrufbeleg ist für dich nicht verfügbar.",
+    "call": "Telefonanruf",
+    "estimatedCost": "Geschätzte Telefonkosten: {cost}",
+    "preparedReport": "Vorbereiteter Bericht",
+    "transcript": "Transkript öffnen",
+    "hangup": "Anruf beenden",
+    "transfer": "Anruf weiterleiten",
+    "transferHint": "Nur ausdrücklich erlaubte Kontakte mit Zustimmung außerhalb ihrer Ruhezeit sind verfügbar. Die ursprüngliche Zeitgrenze gilt weiter.",
+    "recentCalls": "Letzte Anrufe",
+    "noCalls": "Noch keine Anrufe.",
+    "refresh": "Aktualisieren",
+    "status": {
+      "queued": "Eingereiht",
+      "dialing": "Wählt",
+      "unknown": "Wartet auf Anbieterbestätigung",
+      "ringing": "Klingelt",
+      "active": "Verbunden",
+      "transferring": "Weiterleitung ausstehend",
+      "transferred": "Weitergeleitet",
+      "ending": "Wird beendet",
+      "completed": "Beendet",
+      "failed": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen"
+    },
+    "reportLanguage": "Sprache gesprochener Berichte",
+    "languages": {
+      "en-US": "English",
+      "pl-PL": "Polski",
+      "de-DE": "Deutsch",
+      "es-ES": "Español"
+    }
   }
 }

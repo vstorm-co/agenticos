@@ -425,3 +425,15 @@ it("keeps the persisted submission correlation for reconnect reconciliation", ()
       .clientMessageId,
   ).toBe("nonce");
 });
+
+it("restores a phone receipt card without copying a private report into the timeline", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      parts: [{ type: "phone_call", phone_call_id: "phone-intent" }],
+      content: "Telephone call requested.",
+    }),
+  );
+  expect(message.parts).toEqual([
+    { id: expect.any(String), type: "phone_call", phoneCallId: "phone-intent" },
+  ]);
+});

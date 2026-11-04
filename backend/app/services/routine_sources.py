@@ -142,6 +142,29 @@ def external_fingerprint(agent: ExternalAgent) -> str:
 async def require_bound_sources(
     db: AsyncSession, *, organization_id: UUID, policy: RoutineSourcePolicy
 ) -> None:
+    if policy.phone_sources:
+        from app.repositories import channel_bot_repo
+        from app.repositories import telephony as phone_repo
+        from app.services.telephony.policy import endpoint_fingerprint
+
+        for identifier, expected in policy.phone_sources.items():
+            endpoint = await phone_repo.endpoint(db, identifier, organization_id=organization_id)
+            bot = (
+                await channel_bot_repo.get_for_org(
+                    db, endpoint.bot_id, organization_id=organization_id
+                )
+                if endpoint is not None
+                else None
+            )
+            if (
+                endpoint is None
+                or not endpoint.enabled
+                or bot is None
+                or not bot.is_active
+                or bot.authorization_generation != endpoint.bot_generation
+                or endpoint_fingerprint(endpoint, bot) != expected
+            ):
+                raise RoutineSourcesRequired()
     if policy.project_id is not None:
         project = await project_repo.get(db, policy.project_id, organization_id=organization_id)
         if project is None or project_fingerprint(project) != policy.project_hash:
@@ -274,6 +297,40 @@ class RoutineSourceService:
                     raise RoutineSourcesRequired()
                 specs.append(AgentSpec.model_validate(child_version.spec))
                 resources.add(f"Delegate · {delegate.agent_id} · {delegate.agent_version_id}")
+        from app.repositories import channel_bot_repo
+        from app.repositories import telephony as phone_repo
+        from app.schemas.telephony import PhoneCallsConfig
+        from app.services.telephony.policy import endpoint_fingerprint
+
+        phone_sources: dict[UUID, str] = {}
+        for candidate in specs:
+            for binding in candidate.capabilities:
+                if not binding.enabled or binding.id != "phone_calls":
+                    continue
+                config = PhoneCallsConfig.model_validate(binding.config)
+                endpoint = await phone_repo.endpoint(
+                    self.db, config.endpoint_id, organization_id=ctx.organization_id
+                )
+                bot = (
+                    await channel_bot_repo.get_for_org(
+                        self.db, endpoint.bot_id, organization_id=ctx.organization_id
+                    )
+                    if endpoint is not None
+                    else None
+                )
+                resources.add(f"Telephone endpoint · {config.endpoint_id}")
+                if (
+                    endpoint is None
+                    or not endpoint.enabled
+                    or bot is None
+                    or not bot.is_active
+                    or bot.authorization_generation != endpoint.bot_generation
+                ):
+                    unavailable.add(f"Telephone endpoint · {config.endpoint_id}")
+                else:
+                    phone_sources[endpoint.id] = endpoint_fingerprint(endpoint, bot)
+        if len(phone_sources) > 100:
+            raise RoutineSourcesRequired()
         external_sources: dict[UUID, str] = {}
         for ref in (ref for current in specs for ref in current.external_agents):
             remote = await external_repo.get(
@@ -380,6 +437,7 @@ class RoutineSourceService:
                 mcp_sources=sources,
                 root_mcp_ids=tuple(sorted(root_sources)),
                 external_sources=external_sources,
+                phone_sources=phone_sources,
                 input_connection_id=trigger.connection_id if input_source is not None else None,
                 input_source=input_source,
             ),

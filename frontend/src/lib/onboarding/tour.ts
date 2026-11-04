@@ -860,6 +860,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "channels-list",
     permission: Perm.agentsView,
   },
+  {
+    id: "channels-phone",
+    page: ROUTES.CHANNELS,
+    target: "channels-phone",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
+  { id: "phone-contact", page: SETTINGS_DETAIL, target: "phone-contact", optional: true },
+  { id: "phone-dial", page: SETTINGS_DETAIL, target: "phone-dial", optional: true },
 
   {
     id: "sandboxes-connections",

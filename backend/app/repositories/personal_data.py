@@ -44,6 +44,7 @@ from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
+from app.db.models.telephony import PhoneCall, PhoneContact
 from app.db.models.user_slash_command import UserSlashCommand
 from app.db.models.watch import Watch
 from app.repositories import memory_claim as memory_claim_repo
@@ -593,3 +594,34 @@ async def decision_episode_export_size(db: AsyncSession, user_id: UUID) -> int:
         )
     )
     return int(size or 0)
+
+
+async def phone_contacts_of(db: AsyncSession, user_id: UUID) -> list[PhoneContact]:
+    return list(
+        await db.scalars(
+            select(PhoneContact).where(PhoneContact.user_id == user_id).order_by(PhoneContact.id)
+        )
+    )
+
+
+async def phone_calls_of(db: AsyncSession, user_id: UUID) -> list[PhoneCall]:
+    return list(
+        await db.scalars(
+            select(PhoneCall)
+            .where(PhoneCall.user_id == user_id)
+            .order_by(PhoneCall.created_at, PhoneCall.id)
+        )
+    )
+
+
+async def phone_export_size(db: AsyncSession, user_id: UUID) -> int:
+    calls = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(PhoneCall.report)), 0)
+            + func.count(PhoneCall.id) * 2048
+        ).where(PhoneCall.user_id == user_id)
+    )
+    contacts = await db.scalar(
+        select(func.count()).select_from(PhoneContact).where(PhoneContact.user_id == user_id)
+    )
+    return int(calls or 0) + int(contacts or 0) * 1024

@@ -6,6 +6,7 @@ import { MessagesSquare, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
+import { PhoneSettings } from "@/components/phone/phone-settings";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
@@ -145,6 +146,8 @@ export default function ChannelsPage() {
           />
         )}
       </BotsCard>
+
+      <PhoneSettings administration />
 
       <AddChannelDialog
         open={adding}

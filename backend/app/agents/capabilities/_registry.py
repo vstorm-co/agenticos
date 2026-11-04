@@ -739,6 +739,7 @@ def load_builtins() -> None:
         knowledge,
         media,
         memory_files,
+        phone_calls,
         planning,
         sandbox,
         skills,

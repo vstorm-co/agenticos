@@ -1189,3 +1189,18 @@ async def test_a_visitor_cannot_call_into_an_archived_thread(world, monkeypatch,
         )
 
     assert await _refusal(world, caller=caller, frame=frame) == "forbidden"
+
+
+async def test_telephone_uses_the_admitted_pin_relay_and_narrower_call_cap(world, monkeypatch):
+    pin = uuid4()
+    registry = AsyncMock(return_value=(world.agent, world.prepared.spec, pin))
+    monkeypatch.setattr(f"{_M}.AgentRegistryService.get_pinned_spec", registry)
+    starter, _ = _starter()
+    call_id = uuid4()
+    started = await starter.start(
+        world.caller(phone_call_id=call_id, phone_cap_seconds=120, phone_agent_version_id=pin),
+        StartFrame(type="start"),
+    )
+    assert started.resolved.entry.transport == "relay" and started.cap_seconds == 120
+    assert world.prepared.built.deps.phone_call_id == call_id
+    registry.assert_awaited_once()

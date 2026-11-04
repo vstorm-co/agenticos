@@ -299,3 +299,5 @@ it("selects event preferences independently for each supported chat channel", as
   await userEvent.click(screen.getByRole("switch", { name: "Run completed - Telegram" }));
   expect(setPreference).toHaveBeenLastCalledWith("run_completed", "telegram", false);
 });
+
+vi.mock("@/components/phone/phone-settings", () => ({ PhoneSettings: () => null }));

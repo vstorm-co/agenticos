@@ -12,9 +12,11 @@ from app.db.models.organization import OrganizationMember
 from app.db.models.user import User
 
 
-async def get_by_id(db: AsyncSession, identity_id: UUID) -> ChannelIdentity | None:
+async def get_by_id(
+    db: AsyncSession, identity_id: UUID, *, fresh: bool = False
+) -> ChannelIdentity | None:
     """Get a channel identity by ID."""
-    return await db.get(ChannelIdentity, identity_id)
+    return await db.get(ChannelIdentity, identity_id, populate_existing=fresh)
 
 
 async def get_by_platform_user(

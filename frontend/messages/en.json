@@ -1759,7 +1759,11 @@
       "listingApps": "Listing the applications",
       "listApps": "List the Applications",
       "sendingChannelFile": "Sending a file to the channel",
-      "sendChannelFile": "Send Channel File"
+      "sendChannelFile": "Send Channel File",
+      "phoneCalling": "Queueing a telephone call",
+      "phoneContacts": "Checking transfer contacts",
+      "phoneTransferring": "Transferring the call",
+      "phoneEnding": "Ending the call"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2957,6 +2961,14 @@
           "descriptionOff": "Your organization has proactivity off."
         },
         "more": "{count, plural, =1 {1 more in your inbox} other {# more in your inbox}}"
+      },
+      "phone-calls": {
+        "title": "Telephone calls",
+        "description": "Recent phone call intentions and their status; channel administrators see organization routing receipts.",
+        "empty": {
+          "title": "No telephone calls yet",
+          "description": "Configure telephone consent in Notifications and a Twilio route in Channels."
+        }
       }
     },
     "edit": {
@@ -4979,6 +4991,18 @@
       "flow-project-tracker-create": {
         "title": "Set up a project tracker?",
         "body": "Review an editable published agent and its accounts, then explicitly publish a private tracker with a task table and scheduled checks."
+      },
+      "channels-phone": {
+        "title": "Set up telephone routing",
+        "body": "Choose a Twilio SMS bot, a public voice exposure for inbound calls, limits and authorized transfer contacts. Copy the webhook URLs into Twilio. Member phone consent is separate."
+      },
+      "phone-contact": {
+        "title": "Your phone consent",
+        "body": "Select a verified SMS identity and separately allow calls, spoken reports or transfers. Choose the report language and quiet hours; changed or expired number links require a new consent review."
+      },
+      "phone-dial": {
+        "title": "Call your own number",
+        "body": "Choose a configured route and a published voice agent, or prepare a spoken report. The request is queued once; unknown provider acceptance is never redialled automatically."
       }
     },
     "chooseLanguage": "Language",
@@ -10925,6 +10949,14 @@
       "example2": "Export a report from a legacy tool with no API",
       "needs": "A desktop in the agent's own sandbox (the Sandbox capability on its 'desktop' runtime), or one an administrator runs with computerd on a Linux desktop or a Mac, with its token in the organization's vault. Each step is one model request with a screenshot.",
       "never": "Never acts without approval unless that is switched off, never follows instructions shown on the screen, and stops to ask before passwords or payments."
+    },
+    "phone_calls": {
+      "name": "Telephone calls",
+      "does": "Calls your opted-in verified number, reads a spoken report, or transfers this live call to an allowed contact.",
+      "example1": "Read my morning report over the phone",
+      "example2": "Hand a public support call to an opted-in colleague",
+      "needs": "A configured Twilio telephone endpoint; separate contact consent, available budget and time outside quiet hours.",
+      "never": "Never authenticates an inbound caller from caller ID, dials an arbitrary number, redials an uncertain submission or extends the original call cap."
     }
   },
   "capabilityCategories": {
@@ -11520,6 +11552,12 @@
       "preview": {
         "title": "Live preview",
         "description": "Show the desktop live in the chat while the agent works it."
+      }
+    },
+    "phone_calls": {
+      "endpoint_id": {
+        "title": "Telephone endpoint",
+        "description": "The configured Twilio telephone endpoint from Channels. Only explicit member consent and current limits authorize a call."
       }
     }
   },
@@ -12667,5 +12705,76 @@
     "off": "Do not pause for repeated execution failures",
     "after": "{count, plural, one {After # unsuccessful check} other {After # unsuccessful checks}}",
     "paused": "{count, plural, one {Paused after # unsuccessful check} other {Paused after # unsuccessful checks}}"
+  },
+  "phone": {
+    "title": "Telephone calls",
+    "description": "Separate consent and limits for calls through a configured Twilio number.",
+    "choose": "Choose",
+    "none": "None",
+    "linkFirst": "Link and verify an SMS number in your profile before enabling telephone calls.",
+    "verifiedNumber": "Verified SMS number",
+    "allow_calls": "Allow calls to my number",
+    "allow_reports": "Allow spoken reports, including playback to voicemail",
+    "allow_transfers": "Allow opted-in call transfers to my number",
+    "timezone": "Time zone (IANA)",
+    "contactLimit": "Calls per rolling 24 hours",
+    "quietStart": "Quiet hours start",
+    "quietEnd": "Quiet hours end",
+    "saveContact": "Save phone consent",
+    "twilioBot": "Twilio SMS bot",
+    "routingHint": "Choose an existing Twilio SMS bot to configure calling with its vault credential.",
+    "enableRouting": "Enable telephone routing",
+    "publicExposure": "Public voice page or widget for inbound calls",
+    "inboundPrivacy": "Inbound callers remain anonymous. Caller ID never unlocks a private account. Leave empty to accept no inbound agent calls.",
+    "max_call_seconds": "Maximum call seconds",
+    "calls_per_hour": "Calls per rolling hour",
+    "calls_per_day": "Calls per rolling 24 hours",
+    "max_concurrent": "Concurrent calls",
+    "daily_budget_usd": "Daily telephony budget (USD)",
+    "price_per_minute_usd": "Conservative rate per leg/minute (USD)",
+    "costHint": "Include a margin for Twilio fees and destinations. Whole minutes and possible transfer legs are reserved before dialing. Model budgets apply separately; estimates are not an invoice.",
+    "transferTargets": "Allowed transfer contacts",
+    "saveRouting": "Save telephone routing",
+    "endpointId": "Endpoint ID for agent capability",
+    "inboundUrl": "Twilio voice webhook URL (POST)",
+    "statusUrl": "Twilio status callback URL (POST)",
+    "route": "Telephone route",
+    "reportMode": "Read a spoken report",
+    "reportText": "Report to read",
+    "agent": "Voice agent",
+    "dialHint": "This calls your own opted-in number. A queued or accepted call does not mean anyone heard it.",
+    "callMe": "Queue call to me",
+    "loading": "Loading telephone settings…",
+    "receiptUnavailable": "This call receipt is unavailable to you.",
+    "call": "Telephone call",
+    "estimatedCost": "Estimated telephony cost: {cost}",
+    "preparedReport": "Prepared report",
+    "transcript": "Open transcript",
+    "hangup": "End call",
+    "transfer": "Transfer call",
+    "transferHint": "Only opted-in, allowlisted contacts outside quiet hours are available. The original call time limit remains in force.",
+    "recentCalls": "Recent calls",
+    "noCalls": "No calls yet.",
+    "refresh": "Refresh",
+    "status": {
+      "queued": "Queued",
+      "dialing": "Dialing",
+      "unknown": "Awaiting provider confirmation",
+      "ringing": "Ringing",
+      "active": "Connected",
+      "transferring": "Transfer pending",
+      "transferred": "Transferred",
+      "ending": "Ending",
+      "completed": "Ended",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "reportLanguage": "Spoken report language",
+    "languages": {
+      "en-US": "English",
+      "pl-PL": "Polski",
+      "de-DE": "Deutsch",
+      "es-ES": "Español"
+    }
   }
 }

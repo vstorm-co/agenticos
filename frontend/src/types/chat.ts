@@ -178,7 +178,8 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run";
+export type MessagePartType =
+  "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run" | "phone_call";
 
 /** A workflow answering a chat turn: which run it is and where it stands. */
 export interface WorkflowRunPart {
@@ -210,6 +211,7 @@ export interface MessagePart {
   askedBy?: string;
   /** The run, for a "workflow_run" part. */
   workflowRun?: WorkflowRunPart;
+  phoneCallId?: string;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";

@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "0ff785349ff9"
+source_sha: "0abab0f5d4b0"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -429,3 +429,16 @@ dessen Zeit und Kosten fest. Hat der Server selbst angehalten, legt der Sweep
 den Anruf innerhalb von etwa einer Minute nach seinem letzten Heartbeat auf. Die
 Züge, die gesprochen wurden, bevor der Tab schloss, sind bereits in der
 Unterhaltung gespeichert.
+
+
+## Telefonanrufe { #telephone-calls }
+
+Richte unter Kanäle einen bestehenden Twilio-SMS-Bot mit Zugangsdaten im Tresor ein und aktiviere seine Telefonroute. Verwende eine HTTPS-`PUBLIC_BASE_URL`, hinterlege die angezeigte Eingangsadresse als Voice-Webhook der Nummer (POST) und halte signierte Status-Callbacks erreichbar. Eingehende Anrufe benötigen ein veröffentlichtes öffentliches Voice-Embed. Die Rufnummer authentifiziert keinen Besucher. Das bestehende Realtime-Modell nutzt ein serverseitiges Audio-Relay; gespeichert wird Text, keine Audioaufnahme.
+
+Wähle unter Einstellungen → Benachrichtigungen deine verifizierte SMS-Identität und erlaube Gespräche, gesprochene Berichte und Weiterleitungen jeweils ausdrücklich. Lege Zeitzone, Ruhezeiten, Tageslimit und Berichtssprache fest. Diese Zustimmungen sind unabhängig von SMS-Benachrichtigungen. Berichte können auf der Mailbox landen; die Zustimmung umfasst diese Möglichkeit und ist widerrufbar. Administratoren begrenzen Dauer, parallele Anrufe, Anrufzahlen, Weiterleitungsziele und Telefonbudget.
+
+Der persönliche Dialog startet Gespräche oder Berichte. Die Capability `phone_calls` bindet eine Route: `call_me` ruft nur den zugestimmten Kontakt des angemeldeten Mitglieds an. Routinen dürfen Berichte übermitteln, aber keine interaktiven Gespräche mit weitergehender Quellenberechtigung starten. `list_phone_transfer_contacts` liefert erlaubte Kontakt-IDs; `transfer_phone_call` und `end_phone_call` betreffen nur die aktuelle vertrauenswürdige Telefonsitzung. Weiterleitungen behalten die ursprüngliche Zeitgrenze und benötigen eine eigene Zustimmung des Ziels.
+
+Ausgehende Aufträge haben dauerhafte Idempotenzschlüssel. Bei unklarer Providerannahme wartet das System auf einen signierten Callback, ohne automatisch erneut anzurufen. Zustimmung, Mitgliedschaft, Quellenrechte und Routengeneration werden vor Ausführung und während des Anrufs geprüft. Ein vorbereiteter Bericht belegt kein Anhören. Anrufkarten zeigen Providerstatus, geschätzte Kosten und verfügbare Transkripte. Private Chats können fortgesetzt werden; gemeinsame Projektchats erhalten einen Beleg ohne privates Transkript.
+
+Trage einen konservativen Minutenpreis einschließlich Zieltarif, Sprachsynthese und weiterer Gebühren ein. Vor dem Anruf reserviert die Plattform aufgerundete Minuten einschließlich einer möglichen Weiterleitungsstrecke. Diese Schätzung ist vom KI-Budget getrennt und keine Twilio-Rechnung. Belege verfallen nach 30 Tagen; Gespräche behalten ihre normale Aufbewahrung. Persönliche Exporte enthalten Zustimmungen und Belege ohne Providerzugangsdaten. Prüfe echte Nummern, Audio, Mailbox, Weiterleitungen und Abrechnung mit deinem Twilio-Konto.

@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { Switch } from "@/components/ui";
 import { ErrorState } from "@/components/states";
+import { PhoneSettings } from "@/components/phone/phone-settings";
 import { NotificationRoutes } from "@/components/settings/notification-routes";
 import {
   CHAT_NOTIFICATION_CHANNELS,
@@ -347,6 +348,7 @@ export default function NotificationsSettingsPage() {
       <PushSettings />
 
       <NotificationRoutes />
+      <PhoneSettings />
 
       <SectionCard
         title={t("notificationPreferences")}

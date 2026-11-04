@@ -23,7 +23,8 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
-  type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run";
+  type:
+    "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention" | "workflow_run" | "phone_call";
   text?: string | null;
   /** For a `mention` entry on a user turn (#2189). */
   mention_kind?: MentionKind | null;
@@ -33,6 +34,7 @@ export interface RawMessagePart {
   answer?: string | null;
   asked_by?: string | null;
   run_id?: string | null;
+  phone_call_id?: string | null;
   workflow_id?: string | null;
   workflow_name?: string | null;
   status?: string | null;
@@ -114,6 +116,15 @@ export function replayStoredParts(
         answer: entry.answer ?? "",
         ...(entry.asked_by ? { askedBy: entry.asked_by } : {}),
       });
+      return;
+    }
+    if (entry.type === "phone_call") {
+      if (entry.phone_call_id)
+        parts.push({
+          id: `${msgId}-phone-${index}`,
+          type: "phone_call",
+          phoneCallId: entry.phone_call_id,
+        });
       return;
     }
     if (entry.type === "workflow_run") {

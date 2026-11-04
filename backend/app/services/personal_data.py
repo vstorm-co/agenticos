@@ -36,6 +36,8 @@ from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import (
     PersonalDataExport,
     PersonalDataPurge,
+    PhoneCallExport,
+    PhoneContactExport,
     ProjectTrackingExport,
     RoutineAnswerExport,
     RoutineDeviceWaitExport,
@@ -201,6 +203,14 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            phone_contacts=[
+                PhoneContactExport.model_validate(row)
+                for row in await personal_data_repo.phone_contacts_of(self.db, user_id)
+            ],
+            phone_calls=[
+                PhoneCallExport.model_validate(row)
+                for row in await personal_data_repo.phone_calls_of(self.db, user_id)
+            ],
             project_trackers=[
                 ProjectTrackingExport.model_validate(row)
                 for row in await personal_data_repo.project_trackers_of(self.db, user_id)
@@ -330,6 +340,7 @@ class PersonalDataService:
         size += await personal_data_repo.routine_source_export_size(self.db, user_id)
         size += await personal_data_repo.project_tracking_export_size(self.db, user_id)
         size += await personal_data_repo.decision_episode_export_size(self.db, user_id)
+        size += await personal_data_repo.phone_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(

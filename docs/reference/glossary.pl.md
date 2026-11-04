@@ -1,5 +1,5 @@
 ---
-source_sha: "5141fd725ab4"
+source_sha: "92d48b4f1b5e"
 ---
 
 # Słownik { #glossary }
@@ -67,6 +67,7 @@ w [Capabilities](capabilities.md).
 | Pytania do użytkownika | `ask_user` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
+| Połączenia telefoniczne | `phone_calls` |
 | Wykresy | `charts` |
 | Data i godzina | `clock` |
 | Obliczenia | `code_execution` |

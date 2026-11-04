@@ -687,3 +687,5 @@ describe("the channels page", () => {
     );
   });
 });
+
+vi.mock("@/components/phone/phone-settings", () => ({ PhoneSettings: () => null }));

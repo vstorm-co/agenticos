@@ -265,6 +265,7 @@ class TestToolDeclarations:
         )
 
     CONFIGS: dict[str, dict[str, Any]] = {
+        "phone_calls": {"endpoint_id": "00000000-0000-4000-8000-000000000001"},
         # The only capability whose *tools* are configuration rather than a fixed
         # list: a binding names which lookups it allows, so the widest
         # configuration is the one that allows all of them. Same reason the

@@ -70,12 +70,15 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention"] = (
-        Field(description="What this entry is.")
-    )
+    type: Literal[
+        "text", "thinking", "tool", "ask_user", "workflow_run", "steer", "mention", "phone_call"
+    ] = Field(description="What this entry is.")
     text: str | None = Field(
         default=None,
         description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
+    )
+    phone_call_id: UUID | None = Field(
+        default=None, description="The owned telephone receipt for a phone_call entry."
     )
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."

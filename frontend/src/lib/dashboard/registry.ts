@@ -62,6 +62,7 @@ export type WidgetId =
   | "routines"
   | "notifications"
   | "artifacts"
+  | "phone-calls"
   | "voice-minutes"
   | "projects"
   | "recent-visuals"
@@ -456,6 +457,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
   },
   // Call minutes by agent, and the month against the organization's limit (#54).
   // What `GET /voice/usage` asks, and nothing more.
+  "phone-calls": {
+    id: "phone-calls",
+    gate: everyone,
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "attention",
+    seeAll: ROUTES.SETTINGS_NOTIFICATIONS,
+  },
   "voice-minutes": {
     id: "voice-minutes",
     gate: holds(Perm.runsView),

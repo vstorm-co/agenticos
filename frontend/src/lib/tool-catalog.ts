@@ -533,6 +533,10 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
 
   // workflows - starting one is a write: it sets a process going.
   list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
+  call_me: { kind: "write", render: "generic", captionKey: "phoneCalling" },
+  list_phone_transfer_contacts: { kind: "read", render: "generic", captionKey: "phoneContacts" },
+  transfer_phone_call: { kind: "write", render: "generic", captionKey: "phoneTransferring" },
+  end_phone_call: { kind: "write", render: "generic", captionKey: "phoneEnding" },
   run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
   get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
 

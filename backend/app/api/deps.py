@@ -2180,3 +2180,25 @@ def get_update_service() -> UpdateService:
 
 
 UpdateSvc = Annotated[UpdateService, Depends(get_update_service)]
+
+
+from app.services.telephony.policy import PhonePolicyService
+from app.services.telephony.calls import PhoneCallService
+from app.services.telephony.webhooks import PhoneWebhookService
+
+
+def get_phone_policy(db: DBSession) -> PhonePolicyService:
+    return PhonePolicyService(db)
+
+
+def get_phone_calls(db: DBSession) -> PhoneCallService:
+    return PhoneCallService(db)
+
+
+def get_phone_webhooks(db: DBSession) -> PhoneWebhookService:
+    return PhoneWebhookService(db)
+
+
+PhonePolicySvc = Annotated[PhonePolicyService, Depends(get_phone_policy)]
+PhoneCallsSvc = Annotated[PhoneCallService, Depends(get_phone_calls)]
+PhoneWebhooksSvc = Annotated[PhoneWebhookService, Depends(get_phone_webhooks)]

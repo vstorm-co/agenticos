@@ -846,7 +846,11 @@
       "listingApps": "Sprawdzam zainstalowane aplikacje",
       "listApps": "Lista aplikacji",
       "sendingChannelFile": "Wysyła plik na kanał",
-      "sendChannelFile": "Wyślij plik na kanał"
+      "sendChannelFile": "Wyślij plik na kanał",
+      "phoneCalling": "Zlecanie połączenia telefonicznego",
+      "phoneContacts": "Sprawdzanie kontaktów przekierowania",
+      "phoneTransferring": "Przekierowywanie połączenia",
+      "phoneEnding": "Kończenie połączenia"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -4869,6 +4873,14 @@
           "descriptionOff": "Twoja organizacja ma proaktywność wyłączoną."
         },
         "more": "{count, plural, =1 {Jeszcze 1 w inboksie} few {Jeszcze # w inboksie} many {Jeszcze # w inboksie} other {Jeszcze # w inboksie}}"
+      },
+      "phone-calls": {
+        "title": "Połączenia telefoniczne",
+        "description": "Ostatnie zlecenia telefoniczne i ich status; administratorzy kanałów widzą potwierdzenia routingu organizacji.",
+        "empty": {
+          "title": "Brak połączeń telefonicznych",
+          "description": "Ustaw zgody w Powiadomieniach i numer Twilio w Kanałach."
+        }
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -6488,6 +6500,18 @@
       "flow-project-tracker-create": {
         "title": "Skonfigurować opiekuna projektu?",
         "body": "Przejrzyj opublikowanego agenta, którego możesz edytować, i jego konta. Następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i cyklicznymi sprawdzeniami."
+      },
+      "channels-phone": {
+        "title": "Skonfiguruj telefonię",
+        "body": "Wybierz bota SMS Twilio, publiczną rozmowę głosową dla połączeń przychodzących, limity i dozwolone kontakty przekierowań. Skopiuj adresy webhooków do Twilio. Zgody członków są osobne."
+      },
+      "phone-contact": {
+        "title": "Twoje zgody telefoniczne",
+        "body": "Wybierz zweryfikowany numer SMS i osobno zezwól na rozmowy, raporty głosowe lub przekierowania. Ustaw język raportów i godziny ciszy; zmiana lub wygaśnięcie powiązania numeru wymaga ponownego zatwierdzenia."
+      },
+      "phone-dial": {
+        "title": "Zadzwoń na swój numer",
+        "body": "Wybierz skonfigurowany numer i opublikowanego agenta głosowego lub przygotuj raport. Zlecenie trafia do kolejki raz; niepewna akceptacja dostawcy nie powoduje automatycznego ponowienia."
       }
     },
     "chooseLanguage": "Język",
@@ -8971,6 +8995,12 @@
       "preview": {
         "title": "Podgląd na żywo",
         "description": "Pokazuj pulpit na żywo w czacie, gdy agent na nim pracuje."
+      }
+    },
+    "phone_calls": {
+      "endpoint_id": {
+        "title": "Numer do połączeń",
+        "description": "Skonfigurowany punkt telefonii Twilio z Kanałów. Połączenie wymaga jawnej zgody członka i mieści się w bieżących limitach."
       }
     }
   },
@@ -11622,6 +11652,14 @@
       "example2": "Wyeksportuj raport ze starego narzędzia bez API",
       "needs": "Pulpit we własnym sandboxie agenta (możliwość Sandbox na środowisku 'desktop') albo pulpit uruchomiony przez administratora z computerd na Linuksie lub Macu, z tokenem w vaulcie organizacji. Każdy krok to jedno zapytanie do modelu ze zrzutem ekranu.",
       "never": "Nie działa bez akceptacji, chyba że ją wyłączono, nie wykonuje poleceń widocznych na ekranie i zatrzymuje się przed hasłami lub płatnościami."
+    },
+    "phone_calls": {
+      "name": "Połączenia telefoniczne",
+      "does": "Dzwoni na Twój zweryfikowany numer z osobną zgodą, odczytuje raport lub przekierowuje bieżące połączenie do dozwolonego kontaktu.",
+      "example1": "Odczytaj mój poranny raport przez telefon",
+      "example2": "Przekaż publiczną rozmowę wsparcia koledze, który wyraził zgodę",
+      "needs": "Skonfigurowany numer Twilio, osobna zgoda kontaktu, dostępny budżet i czas poza godzinami ciszy.",
+      "never": "Nie uwierzytelnia dzwoniącego numerem, nie wybiera dowolnych numerów, nie ponawia niepewnego połączenia ani nie przedłuża pierwotnego limitu czasu."
     }
   },
   "capabilityCategories": {
@@ -12443,5 +12481,76 @@
     "off": "Nie wstrzymuj po kolejnych błędach wykonania",
     "after": "Limit nieudanych sprawdzeń: {count}",
     "paused": "Wstrzymano · nieudane sprawdzenia: {count}"
+  },
+  "phone": {
+    "title": "Połączenia telefoniczne",
+    "description": "Osobne zgody i limity połączeń przez skonfigurowany numer Twilio.",
+    "choose": "Wybierz",
+    "none": "Brak",
+    "linkFirst": "Połącz i zweryfikuj numer SMS w profilu, zanim włączysz połączenia telefoniczne.",
+    "verifiedNumber": "Zweryfikowany numer SMS",
+    "allow_calls": "Zezwalaj na połączenia na mój numer",
+    "allow_reports": "Zezwalaj na raporty głosowe, również na poczcie głosowej",
+    "allow_transfers": "Zezwalaj na zatwierdzone przekierowania na mój numer",
+    "timezone": "Strefa czasowa (IANA)",
+    "contactLimit": "Połączenia w ciągu ostatnich 24 godzin",
+    "quietStart": "Początek godzin ciszy",
+    "quietEnd": "Koniec godzin ciszy",
+    "saveContact": "Zapisz zgody telefoniczne",
+    "twilioBot": "Bot SMS Twilio",
+    "routingHint": "Wybierz istniejącego bota SMS Twilio, aby użyć jego danych z sejfu do połączeń.",
+    "enableRouting": "Włącz połączenia telefoniczne",
+    "publicExposure": "Publiczna strona lub widżet głosowy dla połączeń przychodzących",
+    "inboundPrivacy": "Dzwoniący pozostają anonimowi. Identyfikacja numeru nie odblokowuje prywatnego konta. Puste pole wyłącza przychodzące rozmowy z agentem.",
+    "max_call_seconds": "Maksymalny czas rozmowy w sekundach",
+    "calls_per_hour": "Połączenia w ciągu ostatniej godziny",
+    "calls_per_day": "Połączenia w ciągu ostatnich 24 godzin",
+    "max_concurrent": "Równoczesne połączenia",
+    "daily_budget_usd": "Dzienny budżet telefonii (USD)",
+    "price_per_minute_usd": "Zachowawcza stawka za odcinek/minutę (USD)",
+    "costHint": "Uwzględnij zapas na opłaty Twilio i kierunki połączeń. Przed wybraniem numeru rezerwowane są pełne minuty i ewentualny odcinek przekierowania. Budżety modeli działają osobno; szacunek nie jest fakturą.",
+    "transferTargets": "Dozwolone kontakty przekierowań",
+    "saveRouting": "Zapisz konfigurację telefonii",
+    "endpointId": "Identyfikator połączenia dla funkcji agenta",
+    "inboundUrl": "Adres webhooka rozmów Twilio (POST)",
+    "statusUrl": "Adres callbacka statusu Twilio (POST)",
+    "route": "Numer do połączeń",
+    "reportMode": "Odczytaj raport głosowy",
+    "reportText": "Raport do odczytania",
+    "agent": "Agent głosowy",
+    "dialHint": "Połączenie trafi na Twój numer z osobną zgodą. Zlecenie lub akceptacja połączenia nie oznacza odsłuchania.",
+    "callMe": "Zleć połączenie do mnie",
+    "loading": "Ładowanie ustawień telefonii…",
+    "receiptUnavailable": "Nie masz dostępu do potwierdzenia tego połączenia.",
+    "call": "Połączenie telefoniczne",
+    "estimatedCost": "Szacowany koszt telefonii: {cost}",
+    "preparedReport": "Przygotowany raport",
+    "transcript": "Otwórz transkrypt",
+    "hangup": "Zakończ połączenie",
+    "transfer": "Przekieruj połączenie",
+    "transferHint": "Dostępne są tylko zatwierdzone kontakty z osobną zgodą, poza godzinami ciszy. Obowiązuje pierwotny limit czasu rozmowy.",
+    "recentCalls": "Ostatnie połączenia",
+    "noCalls": "Brak połączeń.",
+    "refresh": "Odśwież",
+    "status": {
+      "queued": "W kolejce",
+      "dialing": "Wybieranie numeru",
+      "unknown": "Oczekiwanie na potwierdzenie dostawcy",
+      "ringing": "Dzwonienie",
+      "active": "Połączono",
+      "transferring": "Oczekiwanie na przekierowanie",
+      "transferred": "Przekierowano",
+      "ending": "Kończenie",
+      "completed": "Zakończono",
+      "failed": "Błąd",
+      "cancelled": "Anulowano"
+    },
+    "reportLanguage": "Język raportów głosowych",
+    "languages": {
+      "en-US": "English",
+      "pl-PL": "Polski",
+      "de-DE": "Deutsch",
+      "es-ES": "Español"
+    }
   }
 }

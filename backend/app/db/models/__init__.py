@@ -150,6 +150,9 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "PhoneCall",
+    "PhoneContact",
+    "PhoneEndpoint",
     "ProjectTracking",
     "RoutineDelivery",
     "DiagnosticsIdentity",
@@ -317,3 +320,5 @@ __all__ = [
     "GeneratedMediaReservation",
     "VoiceEndReason",
 ]
+
+from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
