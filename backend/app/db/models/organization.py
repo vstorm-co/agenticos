@@ -32,18 +32,22 @@ OrgRole = OrgRoleName
 
 
 class MembershipSource(enum.StrEnum):
-    """Who maintains a membership: an administrator, or the directory sync.
+    """Who maintains a membership: an administrator, the directory sync, or the Discord sync.
 
-    The directory sync only ever rewrites or removes rows it created itself. A
-    membership an administrator made - by invitation, or by changing a role the
-    sync had set - is theirs, and a later sign-in leaves it alone (#1773).
+    Each sync only ever rewrites or removes rows it created itself. A membership
+    an administrator made - by invitation, or by changing a role a sync had set -
+    is theirs, and a later sign-in or Discord turn leaves it alone (#1773, #2569).
+    The two syncs are separate sources so neither removes what the other placed:
+    a sign-in drops every directory row its groups no longer name, and would
+    otherwise drop the Discord ones with them.
     """
 
     MANUAL = "manual"
     DIRECTORY = "directory"
+    DISCORD = "discord"
 
 
-MembershipSourceLiteral = Literal["manual", "directory"]
+MembershipSourceLiteral = Literal["manual", "directory", "discord"]
 # When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
 ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
@@ -298,7 +302,9 @@ class OrganizationMember(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_org_member"),
         Index("ix_org_member_org_role", "organization_id", "role"),
-        CheckConstraint("source IN ('manual', 'directory')", name="ck_org_member_source"),
+        CheckConstraint(
+            "source IN ('manual', 'directory', 'discord')", name="ck_org_member_source"
+        ),
     )
 
     def __repr__(self) -> str:

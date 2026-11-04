@@ -6,11 +6,12 @@ rather than with eleven addresses means. It carries no role. What a member may
 do in the organization is still their membership's role; a group only widens
 what they reach, through the grants made to it (#1773).
 
-Membership has a source because two writers maintain it. An administrator adds
+Membership has a source because three writers maintain it. An administrator adds
 and removes people by hand; the directory sync adds and removes the people a
-directory group mapping names. Each writer touches only its own rows, so a
-directory sign-in never undoes an administrator's decision and an administrator
-can see which memberships the next sign-in will rewrite.
+directory group mapping names; the Discord sync the people a Discord server role
+mapping names (#2569). Each writer touches only its own rows, so a sync never
+undoes an administrator's decision and an administrator can see which
+memberships a sync will rewrite.
 """
 
 import uuid
@@ -63,6 +64,7 @@ class Group(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_group_id_org"),
         UniqueConstraint("organization_id", "name", name="uq_group_org_name"),
         # Zero is a department that can never be answered, not a tighter cap.
         CheckConstraint(
@@ -115,7 +117,9 @@ class GroupMember(Base):
 
     __table_args__ = (
         UniqueConstraint("group_id", "user_id", name="uq_group_member"),
-        CheckConstraint("source IN ('manual', 'directory')", name="ck_group_member_source"),
+        CheckConstraint(
+            "source IN ('manual', 'directory', 'discord')", name="ck_group_member_source"
+        ),
     )
 
     def __repr__(self) -> str:

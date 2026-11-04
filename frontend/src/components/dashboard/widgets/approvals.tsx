@@ -61,12 +61,17 @@ export function ApprovalsWidget({ title, hint, seeAll, options }: DashboardWidge
                   </span>
                   {approval.created_at ? (
                     <span className="text-muted-foreground block truncate text-xs">
-                      {approval.triggered_by_email
-                        ? t("forPerson", {
-                            email: approval.triggered_by_email,
+                      {approval.asked_in_chat
+                        ? t("forChatAccount", {
+                            name: approval.asked_in_chat.name,
                             ago: timeAgo(approval.created_at, tTime, locale),
                           })
-                        : t("waiting", { ago: timeAgo(approval.created_at, tTime, locale) })}
+                        : approval.triggered_by_email
+                          ? t("forPerson", {
+                              email: approval.triggered_by_email,
+                              ago: timeAgo(approval.created_at, tTime, locale),
+                            })
+                          : t("waiting", { ago: timeAgo(approval.created_at, tTime, locale) })}
                     </span>
                   ) : null}
                 </span>

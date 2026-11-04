@@ -1,5 +1,5 @@
 ---
-source_sha: "0e00e8d61666"
+source_sha: "c3245b98d9c8"
 ---
 
 # Verzeichnisanmeldung und Gruppen { #directory-sign-in-and-groups }
@@ -117,8 +117,7 @@ Reihenfolge hier festgelegt statt hergeleitet.
 
 ### Was die Synchronisierung nie anfasst { #what-the-sync-never-touches }
 
-Die Synchronisierung ändert nur Zeilen, die sie selbst angelegt hat. Daraus
-folgen vier Regeln:
+Für den automatischen Mitgliedschaftsabgleich gelten vier Regeln:
 
 - **Eine Mitgliedschaft, die ein Administrator angelegt hat, behält ihre Rolle.**
   Wer von Hand eingeladen wurde, behält die vergebene Rolle, selbst wenn eine
@@ -133,6 +132,23 @@ folgen vier Regeln:
 
 Einer persönlichen Organisation wird nie über eine Zuordnung beigetreten, und für
 eine solche kann keine Zuordnung angelegt werden.
+
+Wenn eine Verzeichniszuordnung und eine [Discord-Rollenzuordnung](channels.md#discord-roles)
+den Zugang gewähren, hat das Verzeichnis bei der Anmeldung Vorrang: Es übernimmt
+die von Discord verwaltete Mitgliedschaft mit der Verzeichnisrolle. Der Verlust
+der Discord-Rolle entfernt diese Person dann nicht. Entfällt die Verzeichnisfreigabe,
+prüft die Anmeldung zuerst, ob ein verknüpftes Discord-Konto weiterhin Zugang gewährt.
+Dann wechselt dieselbe Mitgliedschaft zu **Discord**; API-Schlüssel, App-Einwilligungen
+und unabhängige Gruppenmitgliedschaften bleiben erhalten.
+
+Gewährt keine Quelle Zugang,
+wird die Mitgliedschaft regulär entfernt. Kann Discord nicht antworten oder läuft
+das Netzwerkbudget von zehn Sekunden ab, übernimmt Discord die erhaltene Mitgliedschaft, damit der periodische Abgleich sie ohne erneute Anmeldung prüft. Die Rolle behält nur Befugnisse, die sowohl die bisherige Rolle als auch eine mögliche ungelesene Freigabe rechtfertigen. Alle Organisationen einer Anmeldung teilen dieses Netzwerkbudget.
+
+Manuelle Mitgliedschaften und Eigentümer werden nie übernommen.
+Das Audit protokolliert `directory.member_taken_over` und
+`directory.member_handed_to_discord`. Gruppenmitgliedschaften behalten ihre eigene
+Quelle und ihre Abgleichregeln.
 
 !!! warning "Eine Zuordnung zu löschen entfernt die Menschen, die sie eingeordnet hat"
 

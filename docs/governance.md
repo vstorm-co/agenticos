@@ -710,7 +710,7 @@ not an accountability trail. There are deliberately no controls on a decided row
 | Parameter | |
 |---|---|
 | `status` | Repeats. Absent means pending — the queue |
-| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person |
+| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person. It leaves out runs where the publisher stood in for a chat account that is not linked; those rows carry `asked_in_chat` (platform, name and bot) instead, and their `triggered_by_*` fields are empty |
 | `created_from`, `created_to` | When the call was parked, inclusive both ends |
 | `oldest_first` | Defaults to true, and the default is load-bearing — see above: nothing ages a call out, so newest-first would bury the row that most needs seeing |
 
@@ -907,7 +907,10 @@ routes do not have to:
   CSV of who-ran-what with names resolved is the per-person table decision 3 of the
   activity design refused, arriving as a download. The approvals queue already
   resolves the triggering and deciding emails on screen, so the approvals export
-  keeps them.
+  keeps them. It also carries a chat stranger's display name or handle, as the
+  queue shows it, in three columns: `asked_in_chat_platform`,
+  `asked_in_chat_account` and `asked_in_chat_bot`. For such a row the two email
+  columns are empty, because the publisher did not ask.
 - **Audit.** Every export writes one `audit_log` entry - a privileged bulk read,
   cheap to record now and impossible to reconstruct later. It names the window, the
   filters that were applied and the row count, never the request body.
@@ -1052,7 +1055,7 @@ sequenceDiagram
     end
 ```
 
-Four properties worth knowing:
+Five properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
@@ -1088,13 +1091,25 @@ Four properties worth knowing:
   a binding names deleted, a model profile removed, a capability dropped in a
   deploy, an MCP connection unshared. The spec is assembled before the run leaves
   the approval queue, so a refusal there refuses the *attempt*: the decision
-  stands and resuming works again once the spec does.
+  stands and resuming works again once the spec does. A run asked in a chat that
+  nobody continued is ended by the safety net about an hour after its last
+  decision.
+- **Who continues a run asked in a chat.** A person's decision in the console, the
+  web chat or over the API continues the run in its chat, as them, and the answer
+  is posted there; a key's decision is recorded and continues nothing. A
+  continuation can be lost or refused, and then the run waits in
+  `awaiting_approval` with nothing pending. The hourly safety net ends such a
+  channel run `STRANDED_AFTER` (one hour) after its last decision, and tells the
+  chat once - not when the decision is more than 7 days old, and not when the chat
+  was already told. It looks at channel runs only. See
+  [Decided outside the chat](channels.md#decided-outside-the-chat).
 - **A decided approval cannot be decided twice.** The second decision is refused —
   including a decision arriving a second after the expiry sweep took the call.
 - **A parked call is denied by timeout once it passes `APPROVAL_EXPIRY_HOURS`**, and
   the run behind it is settled rather than left parked for ever. The status is
   `expired` with a null `decided_by_user_id`, which is what tells an expiry from a
-  rejection in the accountability trail. The Activity page still surfaces the **age**
+  rejection in the accountability trail. A run asked in a chat also tells that
+  chat once that the request expired. The Activity page still surfaces the **age**
   of the oldest wait, because a queue under its expiry window is the one somebody can
   still act on.
 - **`required` works on any capability**, not only side-effecting ones. "This only

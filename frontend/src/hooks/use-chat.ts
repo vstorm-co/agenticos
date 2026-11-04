@@ -48,7 +48,13 @@ import type {
   TurnFileSource,
   WSEvent,
 } from "@/types";
-import type { ParkedCall, ParkedQuestion, ResumedRun, WireQuestion } from "@/types/runs";
+import type {
+  ParkedCall,
+  ParkedQuestion,
+  ResumedRun,
+  ToolApproval,
+  WireQuestion,
+} from "@/types/runs";
 import { toAskUserQuestions } from "@/lib/ask-user-questions";
 import {
   applyDelegationFrame,
@@ -1854,7 +1860,7 @@ export function useChat(options: UseChatOptions = {}) {
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
     (approvalId: string, approved: boolean) =>
-      apiClient.post(`/approvals/${approvalId}`, { approved }),
+      apiClient.post<ToolApproval>(`/approvals/${approvalId}`, { approved }),
     [],
   );
 
@@ -2114,10 +2120,14 @@ export function useChat(options: UseChatOptions = {}) {
       // Recording the decision on the row is also what keeps the queue, the
       // audit entry and the email honest about what was decided.
       try {
+        // A run asked in a chat is continued by the server, so every answer
+        // here says so and the browser must not resume it as well.
+        let continuesInChat = false;
         for (const [index, request] of parked.actionRequests.entries()) {
           const decision = decisions[index];
           if (decision === undefined) continue;
-          await decideApproval(request.id, decision.type === "approve");
+          const decided = await decideApproval(request.id, decision.type === "approve");
+          if (decided?.continues_in_chat) continuesInChat = true;
           // `parked.messageId`, never the live ref: the turn ended at `complete`
           // the moment the run parked, so the ref is null by now and every one of
           // these updates was being skipped - which is why the step stayed at
@@ -2128,6 +2138,24 @@ export function useChat(options: UseChatOptions = {}) {
               result: decision.type === "approve" ? undefined : "Refused",
             });
           }
+        }
+        if (continuesInChat) {
+          // Nothing is left `running`: live updates do not refetch an open
+          // thread's messages, so a step set running here would spin for ever.
+          if (parked.messageId !== null) {
+            for (const [index, request] of parked.actionRequests.entries()) {
+              if (decisions[index]?.type === "approve") {
+                updateToolCallPart(parked.messageId, request.tool_call_id, {
+                  status: "completed",
+                  result: t("continuedInTheChat"),
+                });
+              }
+            }
+          }
+          // Delegation panels are left alone: none of them says which run it
+          // belongs to, and closing by guess would relabel another run's.
+          toast.info(t("continuesInTheChat"));
+          return;
         }
         // Once, after all of them: the run continues when nothing is left
         // parked, and resuming per decision would start it while calls it has
@@ -2181,7 +2209,7 @@ export function useChat(options: UseChatOptions = {}) {
         toast.error(getErrorMessage(error, tErrors));
       }
     },
-    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, showContinuation, tErrors],
+    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, showContinuation, tErrors, t],
   );
 
   /** Answer a question a run parked on, which continues the run (#2064). */
@@ -2227,6 +2255,7 @@ export function useChat(options: UseChatOptions = {}) {
           parked.runId,
           new Set(parked.calls.map((call) => call.toolCallId)),
         );
+        if (resumed.continues_in_chat) toast.info(t("answerAlsoInTheChat"));
       } catch (error) {
         toast.error(getErrorMessage(error, tErrors));
         // The continuation itself failed and the backend recorded the run
@@ -2240,7 +2269,7 @@ export function useChat(options: UseChatOptions = {}) {
         setStatus("awaiting_answer");
       }
     },
-    [pendingQuestions, updateToolCallPart, showContinuation, tErrors],
+    [pendingQuestions, updateToolCallPart, showContinuation, tErrors, t],
   );
 
   const sendAskUserResponses = useCallback(

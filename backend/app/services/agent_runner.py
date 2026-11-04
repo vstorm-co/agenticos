@@ -234,7 +234,14 @@ from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.core.update_gate import require_admission
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
-from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
+from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
+    AgentRun,
+    ApprovalStatus,
+    RunOrder,
+    RunStatus,
+    RunSurface,
+)
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.credential import ModelProfile
@@ -248,6 +255,7 @@ from app.repositories import (
     agent_exposure_repo,
     agent_repo,
     agent_run_repo,
+    channel_prompt_repo,
     chat_file_repo,
     conversation_repo,
     conversation_share_repo,
@@ -299,6 +307,8 @@ from app.services.channels.formatting import (
     house_style,
     runtime_context,
 )
+from app.services.channels.handback import STOPPED_NOTICE, ChatNotice, chat_destination
+from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
@@ -1944,15 +1954,7 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{workspace.briefing}"})
 
 
-_CHANNEL_SURFACES = frozenset(
-    {
-        RunSurface.SLACK,
-        RunSurface.TELEGRAM,
-        RunSurface.MATTERMOST,
-        RunSurface.TEAMS,
-        RunSurface.DISCORD,
-    }
-)
+_CHANNEL_SURFACES = CHANNEL_SURFACES
 
 _INTERRUPTED = frozenset(
     {
@@ -5902,6 +5904,7 @@ class AgentRunnerService:
         *,
         answers: Mapping[str, object] | None = None,
         run_limit_usd: Decimal | None = None,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
 
@@ -6140,6 +6143,7 @@ class AgentRunnerService:
                 said=None,
                 message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
                 deferred_tool_results=plan.results,
+                on_segment=on_segment,
             )
         except Exception as exc:
             # The continuation raised. `_run` has recorded the run terminal and
@@ -6219,7 +6223,19 @@ class AgentRunnerService:
                 message="This run is not waiting for a response",
                 details={"run_id": run_id, "status": run.status},
             )
-        return await self._stop_parked(run, actor_user_id=ctx.subject_id)
+        # Read before `_stop_parked` clears the state it lives in. Settled before it
+        # too: the audit lock it takes must come last, and a settle never waits.
+        destination = chat_destination(run)
+        # A run whose chat was already told it could not continue is not told again.
+        told = run.chat_notice_sent_at is not None
+        if destination is not None:
+            await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="stopped")
+        result = await self._stop_parked(run, actor_user_id=ctx.subject_id)
+        if destination is not None and not told:
+            await queue_notices(
+                self.db, [ChatNotice(run.organization_id, run.id, destination, STOPPED_NOTICE)]
+            )
+        return result
 
     async def stop_parked_for_workflow(
         self, run_ids: Sequence[UUID], *, organization_id: UUID
@@ -6373,7 +6389,12 @@ class AgentRunnerService:
             )
 
     async def answer(
-        self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        responses: Mapping[str, list[Any]],
+        *,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Answer the questions a run parked on, and continue it (#2064).
 
@@ -6428,7 +6449,7 @@ class AgentRunnerService:
             else DECLINED
             for tool_call_id in state.questions
         }
-        return await self.resume(ctx, run_id, answers=results)
+        return await self.resume(ctx, run_id, answers=results, on_segment=on_segment)
 
     async def parked_questions(self, ctx: AuthContext, run: AgentRun) -> list[ParkedQuestion]:
         """The questions this run is waiting on the caller to answer, right now.
@@ -6607,6 +6628,7 @@ class AgentRunnerService:
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
@@ -6840,6 +6862,19 @@ class AgentRunnerService:
                             prepared.built.reminder_state.snapshot(),
                         )
                     await self.keep_plan(prepared, status=status)
+                # Persist required handback in the same transaction as this segment,
+                # including failures and cancellations. Delivery never replays tools.
+                if on_segment is not None:
+                    await on_segment(
+                        RunSegment(
+                            output=output or error or "",
+                            run=prepared.run,
+                            tool_calls=called,
+                            settled=settled,
+                            structured=structured,
+                            generated_files=frozenset(prepared.built.deps.generated_files),
+                        )
+                    )
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:

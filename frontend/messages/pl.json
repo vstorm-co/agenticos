@@ -1418,6 +1418,9 @@
       "needsFullAccess": "{agent} działa jako Ty, więc folder wymaga pełnego dostępu. Zmień to w Ustawieniach czatu → Pracuj na.",
       "chosen": "{agent} · {folder}"
     },
+    "continuesInTheChat": "Zdecydowano. Gdy nic innego nie czeka, agent kontynuuje i odpowie w czacie, w którym o to poproszono.",
+    "continuedInTheChat": "Kontynuowano w czacie, w którym o to poproszono",
+    "answerAlsoInTheChat": "Odpowiedź trafi też do czatu, w którym o to poproszono.",
     "reasoning": {
       "levels": {
         "default": "Domyślny",
@@ -2281,6 +2284,7 @@
       "credentialStored": "Zapisane. Zostaw puste, aby zachować.",
       "credentialUnset": "Nieustawione.",
       "editBot": "Edytuj {bot}",
+      "mapDiscordRoles": "Role Discorda dla {bot}",
       "editChannel": "Edytuj kanał",
       "editChannelDescription": "Zmień nazwę tego bota albo podmień jedno z jego poświadczeń. Poświadczenie nigdy nie jest odczytywane, więc puste pole zachowuje zapisaną wartość.",
       "mattermostServerUrl": "URL serwera",
@@ -2824,6 +2828,8 @@
       "toolState": "{status, select, completed {Gotowe} error {Błąd} running {W toku} pending {W toku} unfinished {Nie dokończone} awaiting_approval {Czeka na zatwierdzenie} awaiting_answer {Czeka na odpowiedź} other {Nieznany}}",
       "wantsTo": "<strong>{actor}</strong> chce: <strong>{tool}</strong>",
       "askedFor": "Dla {email}",
+      "askedInChat": "{platform}: {name} (konto niezweryfikowane)",
+      "askedInChatThrough": "{platform}: {name} (konto niezweryfikowane), przez bota {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Otwórz run",
       "decidedByWhom": "przez {email}",
@@ -2870,7 +2876,11 @@
       "stepApprovalEdited": "Zmieniono",
       "surfaceProactive": "Proaktywność",
       "standaloneRequest": "Żądanie do modelu",
-      "standaloneResponse": "Odpowiedź modelu"
+      "standaloneResponse": "Odpowiedź modelu",
+      "decisionApprovedInChat": "Zatwierdzono. Gdy nic innego nie czeka, agent kontynuuje w czacie, w którym o to poproszono.",
+      "decisionRejectedInChat": "Odrzucono. Gdy nic innego nie czeka, agent odpowie w czacie, w którym o to poproszono.",
+      "runResumedInChat": "Run wznowiony. Odpowiedź trafi też do czatu, w którym o to poproszono.",
+      "alreadyContinuing": "Ten run jest już kontynuowany w swoim czacie."
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -4445,7 +4455,8 @@
         },
         "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
         "someAgent": "Agent",
-        "forPerson": "dla {email} · czeka {ago}"
+        "forPerson": "dla {email} · czeka {ago}",
+        "forChatAccount": "dla {name} (konto niezweryfikowane) · czeka {ago}"
       },
       "recent-failures": {
         "title": "Ostatnie niepowodzenia",
@@ -5784,6 +5795,10 @@
         "title": "Podłączone kanały",
         "body": "Platformy, na których osiągalna jest ta organizacja. Kanał należy do organizacji, nie do jednego agenta, więc ten sam bot obsługuje każdego przypisanego do niego agenta."
       },
+      "channels-discord-roles": {
+        "title": "Role Discorda",
+        "body": "Zmapuj rolę z serwera Discorda na grupę tutaj. Połączeni członkowie, którzy mają tę rolę, dołączają do grupy i opuszczają ją, gdy rola zostanie im odebrana."
+      },
       "channels-new": {
         "title": "Docieraj tam, gdzie są ludzie",
         "body": "Zarejestruj platformę czatu - Slack, Telegram, Mattermost - i każdy agent może odpowiadać w niej. Token bota jest zapieczętowany w vault. Dodaj kanał tutaj."
@@ -6483,6 +6498,14 @@
       "chat-background-tasks": {
         "title": "Tematy w tle",
         "body": "Niezależne zadanie otwiera nowy temat w tym projekcie. Kontynuuj rozmowę tutaj; agent wróci z wynikiem. Z tego paska otworzysz lub zatrzymasz zadanie."
+      },
+      "project-graph": {
+        "title": "Poznaj powiązane notatki",
+        "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
+      },
+      "workspace-graph": {
+        "title": "Poznaj powiązane notatki",
+        "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -10876,6 +10899,7 @@
     "membersBody": "Do kogo dociera ta grupa. Osoby oznaczone jako Katalog umieściła tu synchronizacja logowania przez katalog, która usuwa je znowu, gdy katalog przestaje je wymieniać.",
     "nobodyYet": "W tej grupie nie ma jeszcze nikogo.",
     "directoryMemberHint": "Umieszczona przez synchronizację logowania przez katalog, która usuwa ją, gdy katalog przestaje ją wymieniać. Usunięcie tutaj trwa do jej następnego logowania.",
+    "discordMemberHint": "Dodane przez synchronizację ról Discorda, która usuwa je, gdy osoba straci rolę na Discordzie. Usunięcie tutaj działa do jej następnej wiadomości do bota.",
     "addMember": "Dodaj członka",
     "chooseMember": "Wybierz członka",
     "everyoneIsIn": "Wszyscy są już w tej grupie",
@@ -11032,6 +11056,34 @@
     "add": "Dodaj",
     "mappingAdded": "Mapowanie dodane",
     "mappingDeleted": "Mapowanie usunięte"
+  },
+  "discordRoles": {
+    "badge": "Discord",
+    "memberHint": "Utrzymywane przez synchronizację ról Discorda, która usuwa to członkostwo, gdy osoba straci rolę na Discordzie, która ją dodała. Zmiana roli tutaj przejmuje członkostwo i od tej pory synchronizacja go nie zmienia.",
+    "title": "Role Discorda dla {bot}",
+    "howItWorks": "Połączony członek, który ma zmapowaną rolę na jednym z serwerów tego bota, trafia do grupy przed każdą wiadomością do bota i przy synchronizacji co 15 minut. Opuszcza grupę, gdy rola zostanie mu odebrana. Członkostwa w grupach dodane ręcznie nigdy nie są usuwane. Użytkownicy Discorda, którzy nie połączyli konta, nie dostają niczego.",
+    "empty": "Nie zmapowano jeszcze żadnej roli.",
+    "row": "{server} · @{role} → {group}",
+    "deleteNamed": "Usuń mapowanie dla @{role}",
+    "addMapping": "Zmapuj rolę",
+    "deleteTitle": "Usunąć to mapowanie?",
+    "deleteBody": "Osoby dodane przez @{role} opuszczą jej grupę, a także organizację, jeśli rola je do niej dodała, przy następnej wiadomości do bota lub następnej synchronizacji.",
+    "delete": "Usuń",
+    "cancel": "Anuluj",
+    "add": "Dodaj",
+    "mappingAdded": "Rola zmapowana. Osoby, które ją mają, trafią do grupy przy następnej wiadomości do bota.",
+    "mappingDeleted": "Mapowanie usunięte",
+    "server": "Serwer",
+    "discordRole": "Rola na Discordzie",
+    "group": "Grupa",
+    "orgRole": "Dodaj jako",
+    "pickServer": "Wybierz serwer",
+    "loadingServers": "Pytam Discorda…",
+    "pickRole": "Wybierz rolę",
+    "pickGroup": "Wybierz grupę",
+    "membersOnly": "Tylko obecni członkowie",
+    "membersOnlyHint": "Do grupy trafiają tylko osoby, które już są członkami tej organizacji.",
+    "admitsHint": "Połączona osoba z tą rolą, która nie jest jeszcze członkiem, dołącza do tej organizacji z rolą powyżej i opuszcza ją, gdy rola na Discordzie zostanie jej odebrana."
   },
   "apiKeys": {
     "title": "Klucze API",
@@ -12340,5 +12392,52 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Widok grafu",
+    "files": "Widok plików",
+    "search": "Znajdź notatkę, alias lub tag",
+    "refresh": "Odśwież",
+    "loading": "Odczytywanie notatek Markdown…",
+    "automatic": "Odświeża się co 30 sekund, gdy jest widoczny",
+    "failed": "Nie udało się odczytać workspace. Spróbuj ponownie lub sprawdź dostęp.",
+    "counts": "{pages, plural, one {# notatka} few {# notatki} many {# notatek} other {# notatki}} · {links, plural, one {# link} few {# linki} many {# linków} other {# linku}}",
+    "partial": "Ten graf jest niekompletny",
+    "limits": "Skanowanie obejmuje do 200 notatek, 256 KiB na plik i 8 MiB łącznie. Limit relacji to 256 na notatkę i 2048 na graf. Odśwież po edycji lub zawęź zestaw plików. Aliasy i tagi mają wspólny limit 128 wpisów na notatkę i 4096 na cały graf.",
+    "skipped": "Pominięto: {path}",
+    "unreadable": "Nie można odczytać: {path}",
+    "invalidFrontmatter": "Niepoprawny frontmatter YAML. Metadane tych notatek pominięto: {paths}",
+    "empty": "Dodaj notatki Markdown z wikilinkami, linkami Markdown lub relacjami we frontmatter, aby utworzyć graf.",
+    "open": "Otwórz notatkę",
+    "notes": "Notatki",
+    "noMatches": "Brak pasujących notatek",
+    "outgoing": "Linki do",
+    "backlinks": "Linki przychodzące",
+    "none": "Brak",
+    "unresolved": "Nierozwiązane linki",
+    "missing": "{target} — brak w tym skanie",
+    "ambiguous": "{target} — więcej niż jedna pasująca notatka",
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal",
+    "reset": "Resetuj widok",
+    "overview": "Podgląd grafu",
+    "details": "Szczegóły notatki",
+    "closeDetails": "Zamknij szczegóły notatki",
+    "showLabels": "Pokaż wszystkie etykiety",
+    "showArrows": "Pokaż kierunek połączeń",
+    "fileBrowser": "Pliki",
+    "allFiles": "Wszystkie pliki",
+    "clearFolder": "Wyczyść filtr folderu",
+    "filterFolder": "Filtruj graf do {path}",
+    "fileBrowserHint": "Na grafie są tylko zindeksowane notatki Markdown. Pozostałe pliki otwierają się w podglądzie.",
+    "groups": "Grupy",
+    "resetFilters": "Resetuj filtry",
+    "groupBy": "Grupuj według",
+    "folders": "Foldery",
+    "tags": "Tagi",
+    "toggleGroup": "Przełącz grupę {group}",
+    "rootFolder": "Folder główny",
+    "untagged": "Bez tagów",
+    "visibleNotes": "Widoczne notatki: {visible} z {total}"
   }
 }

@@ -178,6 +178,10 @@ export const qk = {
     detail: (botId: string) => ["channel-bots", botId] as const,
     /** The Teams channels and group chats a trigger can post into (#1985). */
     teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
+    // Outside the list's prefix on purpose: the servers are read from Discord on
+    // every fetch, and renaming a bot is no reason to ask Discord again (#2569).
+    discordRoleMappings: (botId: string) => ["discord-role-mappings", botId] as const,
+    discordServers: (botId: string) => ["discord-servers", botId] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -631,6 +635,9 @@ export const qk = {
   localServices: {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
+  },
+  wikiGraph: {
+    source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
   },
   projects: {
     all: () => ["projects"] as const,

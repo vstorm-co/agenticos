@@ -48,6 +48,9 @@ export function ProjectFileEditor({ projectId, path }: { projectId: string; path
       setOriginal(file);
       setContent(file.content);
       await client.invalidateQueries({ queryKey: qk.projects.detail(projectId) });
+      void client.invalidateQueries({
+        queryKey: qk.wikiGraph.source({ kind: "project", id: projectId }),
+      });
     },
   });
   useEffect(() => {

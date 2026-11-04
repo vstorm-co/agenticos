@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e02e3af94a"
+source_sha: "59cdf11dca18"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1575,10 +1575,69 @@ wrzucone przez samego bota są pomijane. Potrzebne jest **Read Message History**
 a `read_channel_history` czyta wątek albo kanał tak samo, gdy pozwala na to
 powiązanie.
 
+### Role serwera jako grupy { #discord-roles }
+
+Administrator może zmapować rolę z jednego z serwerów bota na grupę organizacji
+(#2569). Otwórz **Kanały**, a potem akcję **Role Discorda** w wierszu bota. Serwer i
+rolę wybiera się spośród tego, co bot sam odczytuje z Discorda, więc `@everyone` i
+role, którymi Discord zarządza dla bota, nie są oferowane. Utworzenie mapowania
+wymaga `members:manage`, a trasy wymagają też `channels:manage`.
+
+Połączony członek, który ma tę rolę, trafia do grupy przed każdą wiadomością wysłaną
+do któregokolwiek z botów Discorda organizacji, a także przy zadaniu
+`sync-discord-roles` co 15 minut. Opuszcza grupę, gdy rola zostanie mu odebrana, a
+zadanie zauważa to u kogoś, kto przestał pisać do bota. Bot pyta Discorda o role
+jednego członka naraz, więc nie potrzebuje uprzywilejowanego intentu, a nowe
+mapowanie umieszcza ludzi przy ich następnej wiadomości, nie od razu.
+
+Te sprawdzenia przed wiadomością liczą się do `rate_limit_rpm` nadawcy w osobnym
+limicie, łącznie z poleceniami takimi jak `/help`. Nadawca, który go przekroczy,
+dostaje prośbę o zwolnienie, a Discord nie jest pytany ponownie, dopóki minuta
+nie minie.
+
+Mapowanie może też wskazać rolę w organizacji. Połączona osoba z tą rolą, która nie
+jest jeszcze członkiem, dołącza wtedy do organizacji z tą rolą, co oszczędza
+zapraszania po kolei każdego z serwera społeczności. Wskazanie roli wymaga
+`roles:manage` i tylko roli, którą własna rola wywołującego ściśle przewyższa.
+Kolejność między kilkoma pasującymi rolami i zasady tego, czego synchronizacja nigdy
+nie dotyka, są takie same jak w
+[synchronizacji katalogu](directory.md#what-the-sync-never-touches):
+
+- Liczy się tylko połączone konto. Użytkownik Discorda, który nigdy nie uruchomił
+  `/link`, nie trafia nigdzie, jakiekolwiek ma role.
+- Rola pasuje tylko na serwerze, który wskazuje mapowanie, odczytana przez bota,
+  do którego mapowanie należy. Ten sam identyfikator roli na serwerze innego bota
+  nie pasuje do niczego.
+- Synchronizacja zmienia tylko wiersze, które sama utworzyła, oznaczone **Discord**
+  na stronie członków i w grupie. Członkostwo w grupie dodane ręcznie zostaje, gdy
+  rola zostanie odebrana, członkostwo utworzone przez administratora zachowuje swoją
+  rolę, a właściciel nigdy nie jest degradowany ani usuwany. Ktoś, kogo
+  synchronizacja przyjęła do organizacji, opuszcza wszystkie jej grupy, gdy
+  synchronizacja go usuwa, tak jak ktoś usunięty ręcznie.
+- Gdy nie można odczytać serwera, jego grupy zostają. Możliwe role organizacji zachowują tylko uprawnienia, które osoba już miała; nieczytelne mapowanie `viewer` nie zachowa `admin`. Potwierdzone nadania nadal działają.
+
+Cała synchronizacja ma wspólny limit dziesięciu sekund na sieć. Odczyty REST dzielą limit `rate_limit_rpm` bota dla użytkownika między wszystkie jego konta, osobno od limitu sprawdzeń przed wiadomością. Usunięcie zmapowanej grupy wymaga też `channels:manage`.
+
+Odczyt listy serwerów dopuszcza jedno równoczesne żądanie na organizację. Stronicowanie i role dzielą dziesięciosekundowy budżet, a role są pobierane dla najwyżej ośmiu serwerów naraz. Przekroczenie obsługiwanego limitu 2500 serwerów lub niepełna odpowiedź kończy się jawnym błędem.
+
+Odłączenie konta Discorda odbiera to, co dały jego role, chyba że nadal zapewnia to
+inne połączone konto Discorda. Usunięcie mapowania odbiera to, co ono dało, przy
+następnej wiadomości danej osoby albo przy następnym przebiegu zadania. Usunięcie
+bota lub zmapowanej grupy albo nowy token bota odbiera to samo, więc wymaga tego,
+czego wymaga usunięcie każdego z tych mapowań. Każda zmiana
+trafia do dziennika audytu jako `discord.member_added`, `discord.role_changed`,
+`discord.member_removed`, `discord.group_joined` lub `discord.group_left`, a
+utworzenie lub usunięcie mapowania jako `discord.mapping_created` lub
+`discord.mapping_deleted`.
+
 Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
 których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
 członków kanału, jego szczegółów i wyszukiwania kanałów nie są oferowane na
-Discordzie, a role serwera nie są mapowane na grupy organizacji.
+Discordzie.
+
+Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
+Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
+cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
@@ -1643,7 +1702,7 @@ resztę chowa pod **Details**.
 
 Naciśnięcie działa jako osoba, która nacisnęła, przez jej powiązane konto:
 decyzja wymaga `approvals:decide`, a na pytanie może odpowiedzieć tylko osoba,
-której je zadano. Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
+której je zadano. Decyzja podjęta gdzie indziej działa jako osoba, która ją podjęła, także gdy jest to administrator aplikacji ([niżej](#decided-outside-the-chat)). Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
 na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, jak
 wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
 więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
@@ -1661,6 +1720,57 @@ Telegramie i Mattermost. Gdy strona kogoś potrzebuje, logowania albo captchy, k
 zmienia się na *Needs you* i mówi po co, a gdy człowiek trzyma przeglądarkę, podaje,
 kto. Link otwiera konsolę, więc przejęcie wymaga konta w konsoli: osoby, w imieniu
 której działa run, albo kogoś, kto może edytować agenta.
+
+### Rozstrzygnięte poza czatem { #decided-outside-the-chat }
+
+Prośbę zadaną na czacie można też rozstrzygnąć w **Approvals** w konsoli, w czacie
+webowym albo przez API HTTP. Gdy osoba to zrobi i rozstrzygnie ostatnią rzecz, na
+którą run czekał, serwer kontynuuje run jako ona i wysyła odpowiedź na czat, na
+którym padła prośba. Konsola mówi o tym zamiast sama wznawiać run, więc run jest
+kontynuowany raz. Pytanie działa tak samo, gdy osoba, której je zadano, odpowie na
+nie w konsoli.
+
+Decyzja podjęta kluczem API jest zapisywana i nie kontynuuje runa: run rozpoczęty
+przez osobę kontynuuje tylko osoba. Przez API pole `continues_in_chat` mówi
+klientowi, w którym jest przypadku (zob. [Uruchamianie agenta](api.md#running-an-agent)).
+
+Trzy zakończenia, które dzieją się poza czatem, wysyłają tam po jednej stałej
+wiadomości, żeby nikt nie czekał na przyciski, które już nic nie robią. Otwarte
+przyciski czatu są rozliczane w tej samej chwili.
+
+| Zakończenie | Czat dostaje |
+|---|---|
+| Run wygasa, po `APPROVAL_EXPIRY_HOURS` dla decyzji albo `QUESTION_EXPIRY_HOURS` dla pytania | „This request expired without a decision." |
+| Ktoś naciska **Stop** w konsoli | „This run was stopped from the console." |
+| Run został rozstrzygnięty i nic go nie kontynuowało przez około godzinę | „A decision was recorded, but the run could not continue." |
+
+Ostatnie to siatka bezpieczeństwa. Milczy w dwóch przypadkach: gdy decyzja jest
+starsza niż 7 dni oraz gdy czat usłyszał już, że run nie mógł być kontynuowany.
+Czat dostaje najwyżej jedno powiadomienie za każdym razem, gdy run się zaparkuje.
+
+Przycisk naciśnięty po tym, jak prośba została rozstrzygnięta gdzie indziej,
+odpowiada „That has already been answered." i niczego nie zmienia.
+
+Kontynuacja może zostać odrzucona, na przykład gdy czat zaczął się od nowa od
+czasu pytania, jego polityka dostępu odmawia teraz osobie, która pytała, osoba
+rozstrzygająca nie może już rozstrzygać zatwierdzeń, bot został usunięty z agenta
+albo agenta nie da się już zbudować. Czat dostaje wtedy raz: „That was decided
+outside the chat, but the run could not continue." **Resume** na stronie runa nadal
+działa, do około godziny od ostatniej decyzji. Działa jak dawniej, bez sprawdzenia pokoju, i wysyła
+odpowiedź tylko na czat, który nadal wpuszcza pytającego. Sprawdzenie członkostwa,
+na które platforma nie umie odpowiedzieć, nie zatrzymuje kontynuacji.
+
+Run zaparkowany przed 1.29.0 nie ma zapisanego czatu, więc konsola kontynuuje go
+tak jak dawniej. Jeśli nikt go nie wznowi w ciągu około godziny od ostatniej
+decyzji, siatka bezpieczeństwa kończy go bez wiadomości.
+
+Worker wysyła wymagane odpowiedzi i powiadomienia o zakończeniu z trwałych zadań
+zapisanych w tej samej transakcji co wynik lub zakończenie. Restart lub przejściowa
+awaria wysyłki ponawia samą dostawę do trzech razy, bez powtarzania agenta ani
+zatwierdzonych narzędzi. Przed wysyłką ponownie sprawdzane są bot, sesja i dostęp
+do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysyłki
+może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
+Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 
