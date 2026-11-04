@@ -5595,7 +5595,7 @@
       "broadcastsTeamsHint": "Laden Sie nach dem Aktivieren das aktualisierte Teams-App-Paket herunter und installieren oder aktualisieren Sie es im Zielteam oder Chat. Der Besitzer muss dem Empfang von Nachrichten zustimmen.",
       "broadcastsTelegramHint": "Telegram verwendet die Text-Aliase @all, @here, @channel und @everyone. Sie benachrichtigen nicht die ganze Gruppe. Der Bot muss Gruppennachrichten empfangen; prüfen Sie den Datenschutzmodus in BotFather.",
       "addChannel": "Kanal hinzufügen",
-      "addChannelDescription": "Registrieren Sie einen Slack-, Teams-, Telegram-, Mattermost- oder Discord-Bot für die Organisation. Jedes Credential hier wird im Ruhezustand versiegelt und nie zurückgelesen.",
+      "addChannelDescription": "Verbinde einen Nachrichtenkanal für deine Organisation. Zugangsdaten werden verschlüsselt und nicht erneut angezeigt.",
       "addOneBecomesBindable": "Registrieren Sie einen, und Agents lassen sich über ihren Tab Verfügbarkeit darauf bereitstellen.",
       "appLevelToken": "App-Level-Token",
       "appLevelTokenHint": "Das xapp--Token, für den Socket Mode in der Entwicklung. Optional.",
@@ -5720,7 +5720,8 @@
       "mapDiscordRoles": "Discord-Rollen für {bot}",
       "discordGuilds": "Genehmigte Discord-Server-IDs",
       "discordGuildsHint": "Aktiviere den Entwicklermodus in Discord und kopiere jede genehmigte Server-ID. Trenne IDs durch Kommas oder Leerzeichen. Eine leere Liste erlaubt nur Direktnachrichten; Servernachrichten bleiben gesperrt.",
-      "discordGuildsInvalid": "Gib numerische Server-IDs ein, getrennt durch Kommas oder Leerzeichen (bis zu 2.500 Server)."
+      "discordGuildsInvalid": "Gib numerische Server-IDs ein, getrennt durch Kommas oder Leerzeichen (bis zu 2.500 Server).",
+      "emailAddress": "E-Mail-Adresse"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -208,6 +209,7 @@ export function AddChannelDialog({
 
   /** Another platform asks other questions, so the answers to the old ones go. */
   function choosePlatform(next: ChannelPlatform) {
+    if (next !== platform) setToken("");
     setPlatform(next);
     setDiscordGuilds("");
     setServerUrl("");
@@ -316,9 +318,9 @@ export function AddChannelDialog({
 
         <div className={cn(DIALOG_BODY, "space-y-5")}>
           {/* A caption over a group of buttons, not a `Label`: a label names one
-              control and this one names three. */}
+              control and this one names a set of platforms. */}
           <div className="space-y-2">
-            <p id="channel-platform" className="text-sm leading-none font-medium">
+            <p id="channel-platform" className="text-muted-foreground text-xs font-medium">
               {t("platform")}
             </p>
             <div
@@ -333,14 +335,21 @@ export function AddChannelDialog({
                   onClick={() => choosePlatform(option)}
                   aria-pressed={platform === option}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                    "focus-visible:ring-ring flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors outline-none focus-visible:ring-2",
                     platform === option
-                      ? "border-foreground bg-accent text-foreground"
-                      : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
+                      ? "border-foreground/35 bg-accent text-foreground"
+                      : "bg-background/70 text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent/60 border-transparent",
                   )}
                 >
-                  <ChannelPlatformIcon platform={option} />
-                  <span className="font-medium">{PLATFORM_LABEL[option]}</span>
+                  <ChannelPlatformIcon
+                    platform={option}
+                    className="h-6 w-6 rounded-none bg-transparent"
+                  />
+                  <span className="min-w-0 flex-1 font-medium">{PLATFORM_LABEL[option]}</span>
+                  <Check
+                    className={cn("size-3.5 shrink-0", platform !== option && "invisible")}
+                    aria-hidden
+                  />
                 </button>
               ))}
             </div>
@@ -356,26 +365,30 @@ export function AddChannelDialog({
             >
               <Input
                 id="channel-name"
+                name="channel_name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t("supportBot")}
+                autoComplete="off"
                 maxLength={MAX_NAME}
               />
             </FormField>
 
             <FormField
-              label={t("botToken")}
+              label={t(platform === "email" ? "emailAddress" : "botToken")}
               htmlFor="channel-token"
               error={errors.token}
               description={t(TOKEN_HINT[platform])}
               required
             >
               <Input
+                key={platform}
                 id="channel-token"
-                type="password"
+                name="channel_credential"
+                type={platform === "email" ? "email" : "password"}
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
-                autoComplete="off"
+                autoComplete={platform === "email" ? "off" : "new-password"}
               />
             </FormField>
           </div>

@@ -86,7 +86,7 @@ export function SuggestionRows({
                     </Badge>
                   )}
                   {suggestion.urgent && (
-                    <Badge variant="destructive" className="shrink-0 px-2 text-[11px]">
+                    <Badge variant="destructive" className="shrink-0 px-2.5 text-xs">
                       {t("urgent")}
                     </Badge>
                   )}
@@ -117,7 +117,7 @@ export function SuggestionRows({
                 <Button
                   type="button"
                   size="sm"
-                  variant={suggestion.kind === "finding" ? "outline" : "default"}
+                  variant="secondary"
                   className="h-8"
                   onClick={() => take(suggestion)}
                 >

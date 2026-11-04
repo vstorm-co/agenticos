@@ -20,6 +20,7 @@ export function MentionPolicyFields({
   return (
     <div className="space-y-2">
       <FormField
+        layout="switch"
         label={t("respondToBroadcasts")}
         htmlFor={`${idPrefix}-broadcasts`}
         description={t("respondToBroadcastsHint")}

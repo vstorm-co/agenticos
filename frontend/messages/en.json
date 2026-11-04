@@ -6316,7 +6316,7 @@
       "broadcastsTeamsHint": "After enabling, download the updated Teams app package and reinstall or upgrade it in the target team or chat. Its owner must consent to receiving conversation messages.",
       "broadcastsTelegramHint": "Telegram uses literal @all, @here, @channel or @everyone aliases. It does not notify the whole group. The bot must receive group messages; check privacy mode in BotFather.",
       "addChannel": "Add channel",
-      "addChannelDescription": "Register a Slack, Teams, Telegram, Mattermost or Discord bot for the organization. Every credential here is sealed at rest and never read back.",
+      "addChannelDescription": "Connect a messaging channel for your organization. Credentials are encrypted and never shown again.",
       "addOneBecomesBindable": "Register one and agents can be made available on it from their Availability tab.",
       "appLevelToken": "App-level token",
       "appLevelTokenHint": "The xapp- token, for Socket Mode in development. Optional.",
@@ -6441,7 +6441,8 @@
       "mapDiscordRoles": "Discord roles for {bot}",
       "discordGuilds": "Approved Discord server IDs",
       "discordGuildsHint": "Enable Developer Mode in Discord and copy each approved server ID. Separate IDs with commas or spaces. An empty list permits DMs only; server messages stay blocked.",
-      "discordGuildsInvalid": "Enter decimal server IDs, separated by commas or spaces (up to 2,500 servers)."
+      "discordGuildsInvalid": "Enter decimal server IDs, separated by commas or spaces (up to 2,500 servers).",
+      "emailAddress": "Email address"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",

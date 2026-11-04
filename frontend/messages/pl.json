@@ -2353,7 +2353,7 @@
       "broadcastsTeamsHint": "Po włączeniu pobierz zaktualizowany pakiet aplikacji Teams i zainstaluj go ponownie lub uaktualnij w danym zespole albo czacie. Właściciel musi wyrazić zgodę na odbieranie wiadomości rozmowy.",
       "broadcastsTelegramHint": "Telegram używa tekstowych aliasów @all, @here, @channel i @everyone. Nie powiadamiają one całej grupy. Bot musi otrzymywać wiadomości grupy; sprawdź tryb prywatności w BotFather.",
       "addChannel": "Dodaj kanał",
-      "addChannelDescription": "Zarejestruj bota Slack, Teams, Telegram, Mattermost lub Discord dla organizacji. Każde poświadczenie jest tu szyfrowane w spoczynku i nigdy nie jest odczytywane z powrotem.",
+      "addChannelDescription": "Podłącz kanał rozmów dla organizacji. Dane dostępowe są szyfrowane i nie są ponownie wyświetlane.",
       "addOneBecomesBindable": "Zarejestruj go, a agentów będzie można na nim udostępnić z zakładki Dostępność.",
       "appLevelToken": "Token aplikacji",
       "appLevelTokenHint": "Token xapp-, dla Socket Mode w trakcie developmentu. Opcjonalny.",
@@ -2479,7 +2479,8 @@
       "mapDiscordRoles": "Role Discorda dla {bot}",
       "discordGuilds": "Zatwierdzone ID serwerów Discorda",
       "discordGuildsHint": "Włącz tryb deweloperski Discorda i skopiuj ID każdego zatwierdzonego serwera. Oddziel ID przecinkami lub spacjami. Pusta lista pozwala tylko na wiadomości prywatne; wiadomości z serwerów pozostają zablokowane.",
-      "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów)."
+      "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów).",
+      "emailAddress": "Adres e-mail"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",

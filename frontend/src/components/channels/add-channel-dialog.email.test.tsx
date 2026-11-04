@@ -29,16 +29,25 @@ function type(label: string, value: string) {
 describe("registering an e-mail bot (#2082)", () => {
   it("cannot be registered without the secret the relay signs with", () => {
     open();
+    expect(screen.getByLabelText(/Email address/)).toHaveAttribute("type", "email");
     type("Name", "Inbox");
-    type("Bot token", "agent@mail.example.com");
+    type("Email address", "agent@mail.example.com");
 
     expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+  });
+
+  it("does not reveal another platform's token when switching to a visible email address", () => {
+    open();
+    fireEvent.click(screen.getByRole("button", { name: "Slack" }));
+    type("Bot token", "xoxb-private-token");
+    fireEvent.click(screen.getByRole("button", { name: "Email" }));
+    expect(screen.getByLabelText(/Email address/)).toHaveValue("");
   });
 
   it("generates a secret and sends the bot as webhook-only", async () => {
     const onSubmit = open();
     type("Name", "Inbox");
-    type("Bot token", "agent@mail.example.com");
+    type("Email address", "agent@mail.example.com");
 
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     fireEvent.click(screen.getByRole("button", { name: "Register" }));

@@ -5,36 +5,34 @@ import { Spinner } from "./spinner";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex touch:min-h-11 touch:min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[loading=true]:opacity-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex touch:min-h-11 touch:min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/60 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[loading=true]:opacity-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
-      // Raised neutral actions stay legible without introducing a second palette.
+      // Primary actions carry full contrast; repeated row actions use softer fills.
       variant: {
         default:
           "border border-foreground/10 bg-action text-action-foreground hover:border-foreground/15 hover:bg-action-hover active:bg-action-active",
         destructive:
           "bg-destructive text-destructive-foreground shadow-card hover:bg-destructive/90 active:bg-destructive/80",
-        // Quiet: a faint edge on whatever it sits on, and a fill only under the
-        // pointer. A card-coloured block with its own shadow made every secondary
-        // action as heavy as the one primary beside it.
+        // Secondary edges stay faint against a softly filled surface.
         outline:
-          "text-foreground border border-foreground/12 bg-transparent hover:bg-foreground/[0.05] hover:border-foreground/20 active:bg-foreground/[0.09]",
+          "text-foreground/90 border border-foreground/[0.07] bg-foreground/[0.035] hover:border-foreground/12 hover:bg-foreground/[0.075] active:bg-foreground/[0.11]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 active:bg-secondary/65",
+          "bg-foreground/[0.07] text-foreground/90 hover:bg-foreground/[0.11] active:bg-foreground/[0.14]",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent/75",
         link: "text-brand underline-offset-4 hover:text-brand-hover hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2",
+        default: "h-10 px-4 py-2",
         sm: "h-8 px-3.5 text-[13px]",
-        lg: "h-10 px-6",
+        lg: "h-11 px-6",
         icon: "h-9 w-9",
         "icon-sm": "h-8 w-8 [&_svg]:size-3.5",
         "icon-lg": "h-10 w-10",
       },
     },
     // The small secondary buttons - Export CSV, a filter, a period - are lower
-    // and set at 12px, so a row of them reads as controls beside the content
+    // and set at 13px, so a row of them reads as controls beside the content
     // rather than a second toolbar above it.
     compoundVariants: [
       { variant: "outline", size: "sm", class: "h-8 gap-1.5 px-3 text-[13px] [&_svg]:size-3.5" },
