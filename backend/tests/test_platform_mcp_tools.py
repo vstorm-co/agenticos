@@ -1157,3 +1157,20 @@ async def test_unexpected_platform_failures_stay_masked():
         result = await client.call_tool("broken", {}, raise_on_error=False)
     assert result.is_error
     assert "confidential" not in str(result.content)
+
+
+async def test_turkish_console_switch_uses_the_askers_own_account(
+    server: FastMCP, api: MagicMock
+) -> None:
+    api.request.return_value = {"locale": "tr"}
+    result = await server.call_tool("set_my_language", {"locale": "tr"})
+    api.request.assert_awaited_once_with("PUT", "/users/me/locale", json={"locale": "tr"})
+    assert result.structured_content == {"locale": "tr"}
+
+
+async def test_an_unsupported_console_language_is_refused_before_any_api_call(
+    server: FastMCP, api: MagicMock
+) -> None:
+    with pytest.raises(MCPValidationError):
+        await server.call_tool("set_my_language", {"locale": "xx"})
+    api.request.assert_not_called()

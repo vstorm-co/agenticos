@@ -5722,6 +5722,13 @@
       "example2": "Deploy log'unu takip et ve ilk hatayı bildir",
       "needs": "Sandbox capability'si veya bilgisayarınızdaki bir klasör gibi shell içeren bir workspace gerekir.",
       "never": "Tur bittikten sonra komutu çalışır durumda bırakmaz: her izleme run ile birlikte durur."
+    },
+    "background_tasks": {
+      "does": "Siz konuşmaya devam ederken yeni bir konuda bağımsız bir çalışma başlatır; sonucu ilk agent’a iletir.",
+      "example1": "Release’i planlamaya devam ederken dışa aktarma hatasını yeni bir konuda araştır.",
+      "name": "Arka plan konuları",
+      "needs": "Yayınlanmış bir konsol agent’ı, etkin bir üye ve yerel çalışma için onaylanmış bir klasör.",
+      "never": "Konuşmanın tamamını kopyalamaz, onayları atlamaz, kesilen işlemleri yeniden başlatmaz; watch veya routine başlatmaz."
     }
   },
   "agents": {
@@ -6639,7 +6646,17 @@
     "backendComputerLabel": "Bilgisayar",
     "backendComputerDetail": "Kişinin bilgisayarını kullanın; her desktop chat'te ayrıca onaylanır.",
     "backendComputerConsent": "Her kişi chat ayarlarında bir klasör veya Tüm bilgisayar seçer. Bu ayar erişim vermez ve kişisel yol saklamaz. Hosted chat'te bu workspace için desktop app kullanılmalıdır.",
-    "workflowTablesViaMcp": "Workflow'lar ve Tables, AgenticOS MCP server'ında tool olarak sunulur. MCP servers bölümünden ekleyip Agent'ın ihtiyacı olan tool'ları seçin. Mevcut capability bağlantılarının kayıtlı izinleri korunur."
+    "workflowTablesViaMcp": "Workflow'lar ve Tables, AgenticOS MCP server'ında tool olarak sunulur. MCP servers bölümünden ekleyip Agent'ın ihtiyacı olan tool'ları seçin. Mevcut capability bağlantılarının kayıtlı izinleri korunur.",
+    "modelApiFromModel": "Modelin belirlediği {api}",
+    "modelApiFromModelHint": "Stav.ai çoğu modeli Chat Completions, bazılarını ise yalnızca Responses üzerinden sunar. Kullanılacak API’yi model belirler.",
+    "modelApiFromModelPending": "Kaydedildiğinde modele göre seçilir",
+    "modelApiStored": "Bu model için ayarlanan {api}",
+    "modelRegion": "Bölge",
+    "modelRegionEea": "Yalnızca AEA",
+    "modelRegionEu": "Yalnızca AB",
+    "modelRegionGlobal": "Küresel",
+    "modelRegionHint": "Stav.ai’nin bu modelin isteklerini çalıştırabileceği bölge. Yalnızca bu bölgedeki uç noktalardan yanıt verir; orada çalıştıramadığı istekleri reddeder.",
+    "stavEndpointHint": "api.stav.ai için boş bırakın. Yalnızca Stav.ai’nin bölgesel veya test uç noktası için değiştirin."
   },
   "dashboard": {
     "edit": {
@@ -7486,6 +7503,10 @@
           "descriptionOff": "Kuruluşunuzda proaktiflik kapalı."
         },
         "more": "{count, plural, =1 {Gelen kutunuzda 1 tane daha} other {Gelen kutunuzda # tane daha}}"
+      },
+      "background-tasks": {
+        "description": "Devrettiğiniz işler ve sonuçları",
+        "title": "Arka plan konuları"
       }
     },
     "actions": {
@@ -8416,6 +8437,14 @@
       "workflow-step-view": {
         "title": "Tek panele odaklanın",
         "body": "Telefonda etkin panele yer açmak için adım ayarları, girdi veya çıktı görünümünü seçin. Paneller arasında geçiş yaparken taslağınız korunur."
+      },
+      "chat-background-tasks": {
+        "body": "Bağımsız çalışma bu Project’te yeni bir konu açar. Siz burada konuşmaya devam edin; agent sonuçla geri döner. Her görevi bu şeritten açabilir veya durdurabilirsiniz.",
+        "title": "Arka plan konuları"
+      },
+      "chat-coding-settings": {
+        "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",
+        "title": "Kodlama modeli ve akıl yürütme"
       }
     }
   },
@@ -8569,7 +8598,15 @@
           "setup": "Yükle veya oturum aç → Desktop ayarları",
           "pickFolder": "Klasör seç",
           "changeFolder": "Klasörü değiştir · {folder}",
-          "agentWithHarness": "Agent ayarı · {agent}"
+          "agentWithHarness": "Agent ayarı · {agent}",
+          "effort": "Akıl yürütme düzeyi",
+          "effortUnsupported": "Bu modelde sunulmuyor",
+          "loadingSettings": "Kodlama agent’ının ayarları hazırlanıyor…",
+          "model": "Kodlama modeli",
+          "ownEffort": "Kodlama agent’ının ayarlarını kullan",
+          "ownModel": "Kodlama agent’ının ayarlarını kullan",
+          "refreshSettings": "Seçenekleri yenile",
+          "unavailableOption": "{value} (kullanılamıyor)"
         },
         "off": "Kapalı"
       },
@@ -9099,7 +9136,13 @@
       "listMonitors": "İzlemeler",
       "listingMonitors": "İzlemeler listeleniyor",
       "stopMonitor": "İzlemeyi durdur",
-      "stoppingMonitor": "İzleme durduruluyor"
+      "stoppingMonitor": "İzleme durduruluyor",
+      "backgroundTaskStarted": "Arka plan konusu başlatıldı",
+      "backgroundTaskStopped": "Arka plan konusu durduruldu",
+      "backgroundTasks": "Arka plan konuları",
+      "listingBackgroundTasks": "Arka plan konuları okunuyor",
+      "startingBackgroundTask": "Arka plan konusu başlatılıyor",
+      "stoppingBackgroundTask": "Arka plan konusu durduruluyor"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -9231,7 +9274,8 @@
         "collection": "Bilgi tabanları",
         "skill": "Skill'ler",
         "context": "Context dosyaları",
-        "project": "Project'ler"
+        "project": "Project'ler",
+        "conversation": "Konuşmalar"
       }
     },
     "hints": {
@@ -9560,6 +9604,37 @@
       "needsFolder": "{agent} bu bilgisayarda çalışır: Chat controls → Work on → This computer altında bir klasör seçin.",
       "needsFullAccess": "{agent} sizin adınıza çalışır; bu nedenle klasör tam erişimli olmalıdır. Chat controls → Work on altında değiştirin.",
       "chosen": "{agent} · {folder}"
+    },
+    "backgroundTasks": {
+      "empty": "Arka plan konuları özelliği olan bir agent’tan, siz konuşmaya devam ederken işi devretmesini isteyin.",
+      "emptyTitle": "Siz konuşmaya devam ederken işi devredin",
+      "heading": "Arka plan konuları · {count} etkin",
+      "retry": "Arka plan konularını yeniden yükle",
+      "returnInterrupted": "Sonucun iletilmesi kesildi",
+      "status": {
+        "awaiting_answer": "Yanıtınız bekleniyor",
+        "awaiting_approval": "Onay bekleniyor",
+        "cancelled": "Durduruldu",
+        "completed": "Tamamlandı",
+        "failed": "Başarısız oldu",
+        "interrupted": "Kesildi; yeniden başlatılmadı",
+        "queued": "Sırada",
+        "running": "Çalışıyor"
+      },
+      "stop": "{title} konusunu durdur"
+    },
+    "reasoning": {
+      "levels": {
+        "default": "Varsayılan",
+        "high": "Yüksek",
+        "low": "Düşük",
+        "max": "En yüksek",
+        "medium": "Orta",
+        "minimal": "En az",
+        "none": "Yok",
+        "ultra": "Ultra",
+        "xhigh": "Çok yüksek"
+      }
     }
   },
   "admin": {

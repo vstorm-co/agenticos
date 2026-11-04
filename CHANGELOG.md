@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Add Turkish console translations, account language selection and Turkish voice previews.
+
 ## [1.42.0] - 2026-11-04
 
 ### Added
@@ -65,7 +69,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Add Turkish console translations, account language selection and Turkish voice previews.
 
 ## [1.39.0] - 2026-11-03
 

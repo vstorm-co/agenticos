@@ -12,6 +12,8 @@
  * it, in a browser its own approximation over a soft backdrop.
  */
 
+import { locales } from "./locales";
+
 export const LOOKS = ["standard", "glass", "graphite", "midnight", "paper"] as const;
 export type Look = (typeof LOOKS)[number];
 
@@ -41,7 +43,7 @@ export const SHELL_WINDOW_ATTRIBUTE = "data-shell-window";
 /** Present when the window draws a real material behind a glass console. */
 export const VIBRANCY_ATTRIBUTE = "data-vibrancy";
 export const DESKTOP_SETUP_ATTRIBUTE = "data-desktop-setup";
-const DESKTOP_SETUP_PATH = /^\/(?:(?:en|pl|de|tr)\/)?desktop\/readiness\/?$/;
+const DESKTOP_SETUP_PATH = new RegExp(`^/(?:(?:${locales.join("|")})/)?desktop/readiness/?$`);
 export function isDesktopSetupPath(path: string | null): boolean {
   return DESKTOP_SETUP_PATH.test(path ?? "");
 }
