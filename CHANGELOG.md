@@ -23,6 +23,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A coding-agent task's panel now shows what the task changed: the files it added, changed, removed or renamed, then each file's hunks, with **Copy patch**, or "The task changed no files." The workspace is snapshotted before each task at `edit` in a conversation and again after it, outside the workspace and never through a repository a person cloned. The diff is kept with the conversation (new table `coding_task_changes`, migration `0257_coding_task_changes`), read with the conversation's own access through `GET /api/v1/conversations/coding-changes/{id}`, and bounded to 256 KiB of patch and 500 files, marked where it is cut. The platform's own `.agenticos/`, `skills/` and `tool_output/`, toolchain folders such as `.git` and `node_modules`, and files over 1 MiB, unless they were smaller when the task started, are left out; a runtime without `git` runs the task without a diff. Reverting a task is not offered yet. (#2480)
 
+## [1.47.3] - 2026-11-04
+
+### Fixed
+
+- Show the same Architect avatar in the assistant widget and agent list after its stored picture is cleared, including its selected colour.
+
+## [1.47.2] - 2026-11-04
+
 ### Security
 
 - An uploaded document's parse copy under `MEDIA_DIR/_rag_tmp` is now removed: by its ingest job when it ends (indexed, refused, its document gone, or failed on its last attempt - kept while a retry is still to come), after the commit that deletes the document, and by a new hourly `sweep-rag-scratch` job once its document is gone or no longer processing. Until now every copy stayed on the media volume for good, so the content of a deleted document, knowledge base or account was still on disk. **Operators:** nothing to run - the first sweep after the upgrade removes the copies earlier releases left, except those of documents still processing and any written in the last hour. A job queued for a document that is gone now ends at once instead of failing into a retry, and **Retry** on a dead document ingest in Background jobs is refused: retry the document from its knowledge base instead, which parses its stored file again. (#2681)
@@ -19981,7 +19989,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...HEAD
+[1.47.3]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...v1.47.3
+[1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0

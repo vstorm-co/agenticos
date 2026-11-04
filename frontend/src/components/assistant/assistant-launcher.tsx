@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { ArchitectMark } from "./architect-mark";
 import { cn } from "@/lib/utils";
 import type { AssistantState } from "@/types/assistant";
 
@@ -83,8 +82,6 @@ export function AssistantFace({
   agentId: string;
   size: "sm" | "lg";
 }) {
-  // The Architect wears its own mark until an organization gives it a picture.
-  if (assistant.wears_mark) return <ArchitectMark size={size} watching={size === "lg"} />;
   return (
     <AgentAvatar
       agentId={agentId}
