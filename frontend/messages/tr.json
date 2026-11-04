@@ -8445,6 +8445,14 @@
       "chat-coding-settings": {
         "body": "Yüklü kodlama agent’ından bir model ve akıl yürütme düzeyi seçin. Seçimler bu konuşmaya özeldir; boş bırakırsanız kodlama agent’ının kendi ayarları kullanılır.",
         "title": "Kodlama modeli ve akıl yürütme"
+      },
+      "project-graph": {
+        "title": "Bağlantılı notları keşfedin",
+        "body": "Grafik görünümü, Markdown ve frontmatter içindeki bağlantılardan ve geri bağlantılardan oluşturulur. Açık olduğu sürece yenilenir ve yalnızca bu konumda okuyabildiğiniz dosyaları kullanır."
+      },
+      "workspace-graph": {
+        "title": "Bağlantılı notları keşfedin",
+        "body": "Grafik görünümü, Markdown ve frontmatter içindeki bağlantılardan ve geri bağlantılardan oluşturulur. Açık olduğu sürece yenilenir ve yalnızca bu konumda okuyabildiğiniz dosyaları kullanır."
       }
     }
   },
@@ -12565,5 +12573,52 @@
     "withKey": "Key gönderir",
     "answersOn": "{host} üzerinde yanıt verir",
     "failedToLoad": "Uzak Agent'lar yüklenemedi."
+  },
+  "wikiGraph": {
+    "title": "Grafik görünümü",
+    "files": "Dosya görünümü",
+    "search": "Not, takma ad veya etiket bul",
+    "refresh": "Yenile",
+    "loading": "Markdown notları okunuyor…",
+    "automatic": "Görünür olduğu sürece 30 saniyede bir yenilenir",
+    "failed": "Bu workspace okunamadı. Yeniden deneyin veya erişiminizi kontrol edin.",
+    "counts": "{pages, plural, =1 {1 not} other {# not}} · {links, plural, =1 {1 bağlantı} other {# bağlantı}}",
+    "partial": "Bu grafik eksik",
+    "limits": "Tarama en fazla 200 notu, dosya başına 256 KiB ve toplam 8 MiB veriyi; not başına en fazla 256, grafik genelinde 2048 ilişkiyi okur. Düzenleme yaptıktan sonra yenileyin veya dosya kümesini daraltın. Takma adlar ve etiketler not başına 128, grafik genelinde 4096 kayıt sınırını paylaşır.",
+    "skipped": "Atlandı: {path}",
+    "unreadable": "Okunamadı: {path}",
+    "invalidFrontmatter": "Geçersiz YAML frontmatter. Bu notların üst verileri yok sayıldı: {paths}",
+    "empty": "Grafik oluşturmak için wiki bağlantıları, Markdown bağlantıları veya frontmatter ilişkileri içeren Markdown notları ekleyin.",
+    "open": "Notu aç",
+    "notes": "Notlar",
+    "noMatches": "Eşleşen not yok",
+    "outgoing": "Bağlantılar",
+    "backlinks": "Geri bağlantılar",
+    "none": "Yok",
+    "unresolved": "Çözümlenmemiş bağlantılar",
+    "missing": "{target} — bu taramada bulunamadı",
+    "ambiguous": "{target} — birden fazla eşleşen not var",
+    "zoomIn": "Yakınlaştır",
+    "zoomOut": "Uzaklaştır",
+    "reset": "Görünümü sıfırla",
+    "overview": "Grafik özeti",
+    "details": "Not ayrıntıları",
+    "closeDetails": "Not ayrıntılarını kapat",
+    "showLabels": "Tüm etiketleri göster",
+    "showArrows": "Yön oklarını göster",
+    "fileBrowser": "Dosyalar",
+    "allFiles": "Tüm dosyalar",
+    "clearFolder": "Klasör filtresini temizle",
+    "filterFolder": "Grafiği {path} konumuna göre filtrele",
+    "fileBrowserHint": "Grafikte yalnızca dizine eklenmiş Markdown notları görünür. Diğer dosyalar dosya görüntüleyicide açılır.",
+    "groups": "Gruplar",
+    "resetFilters": "Filtreleri sıfırla",
+    "groupBy": "Gruplandırma ölçütü",
+    "folders": "Klasörler",
+    "tags": "Etiketler",
+    "toggleGroup": "{group} grubunu aç/kapat",
+    "rootFolder": "Kök klasör",
+    "untagged": "Etiketsiz",
+    "visibleNotes": "Görünür not sayısı: {visible}/{total}"
   }
 }

@@ -5098,6 +5098,14 @@
         "title": "Focus on one panel",
         "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
       },
+      "project-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
+      },
+      "workspace-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
+      },
       "chat-coding-settings": {
         "title": "Coding model and reasoning",
         "body": "Choose a model and reasoning level from the installed coding agent. Choices belong to this conversation; leaving them unset keeps the coding agent’s own settings."
@@ -12565,5 +12573,52 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Graph view",
+    "files": "File view",
+    "search": "Find a note, alias or tag",
+    "refresh": "Refresh",
+    "loading": "Reading Markdown notes…",
+    "automatic": "Refreshes every 30 seconds while visible",
+    "failed": "Could not read this workspace. Retry or check your access.",
+    "counts": "{pages, plural, =1 {1 note} other {# notes}} · {links, plural, =1 {1 link} other {# links}}",
+    "partial": "This graph is incomplete",
+    "limits": "The scan reads up to 200 notes, 256 KiB per file and 8 MiB in total, with up to 256 relationships per note and 2048 across the graph. Refresh after editing, or narrow the file set. Aliases and tags share a limit of 128 entries per note and 4096 across the graph.",
+    "skipped": "Skipped: {path}",
+    "unreadable": "Could not read: {path}",
+    "invalidFrontmatter": "Invalid YAML frontmatter. Metadata ignored for these notes: {paths}",
+    "empty": "Add Markdown notes with wiki links, Markdown links or frontmatter relationships to build a graph.",
+    "open": "Open note",
+    "notes": "Notes",
+    "noMatches": "No matching notes",
+    "outgoing": "Links to",
+    "backlinks": "Backlinks",
+    "none": "None",
+    "unresolved": "Unresolved links",
+    "missing": "{target} — missing from this scan",
+    "ambiguous": "{target} — more than one matching note",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset view",
+    "overview": "Graph overview",
+    "details": "Note details",
+    "closeDetails": "Close note details",
+    "showLabels": "Show all labels",
+    "showArrows": "Show direction arrows",
+    "fileBrowser": "Files",
+    "allFiles": "All files",
+    "clearFolder": "Clear folder filter",
+    "filterFolder": "Filter graph to {path}",
+    "fileBrowserHint": "Only indexed Markdown notes appear in the graph. Other files open in the file viewer.",
+    "groups": "Groups",
+    "resetFilters": "Reset filters",
+    "groupBy": "Group by",
+    "folders": "Folders",
+    "tags": "Tags",
+    "toggleGroup": "Toggle group {group}",
+    "rootFolder": "Root folder",
+    "untagged": "Untagged",
+    "visibleNotes": "{visible} of {total} notes visible"
   }
 }

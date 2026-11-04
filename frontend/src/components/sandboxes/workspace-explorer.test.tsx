@@ -6,6 +6,15 @@ import { FileDropZone } from "@/components/rag/file-drop-zone";
 import { FileExplorer, WorkspaceExplorer, treeOf } from "./workspace-explorer";
 import type { WorkspaceFile, WorkspaceFiles } from "@/lib/sandbox-workspaces-api";
 
+vi.mock("./workspace-graph", () => ({
+  WorkspaceGraph: ({ source, onClose }: { source: { id: string }; onClose: () => void }) => (
+    <>
+      <p>Graph for {source.id}</p>
+      <button onClick={onClose}>Back to files</button>
+    </>
+  ),
+}));
+
 const state = vi.hoisted(() => ({
   files: null as WorkspaceFiles | null,
   filesLoading: false,
@@ -120,6 +129,21 @@ beforeEach(() => {
  * to answer.
  */
 describe("the workspace explorer", () => {
+  it("opens the live graph for this source and returns to the file tree", async () => {
+    render(<WorkspaceExplorer workspaceId="wiki" />);
+    await userEvent.click(screen.getByRole("button", { name: "Graph view" }));
+    expect(await screen.findByText("Graph for wiki")).toBeVisible();
+    expect(
+      screen.queryByRole("textbox", { name: "Search workspace files" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to files" }));
+    expect(screen.queryByText("Graph for wiki")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Graph view" }));
+    expect(await screen.findByText("Graph for wiki")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "File view" }));
+    expect(screen.queryByText("Graph for wiki")).not.toBeInTheDocument();
+    expect(screen.getByText("report.md")).toBeVisible();
+  });
   it("shows every level at once, open, rather than one folder at a time", () => {
     // The drill-down it replaces showed one level and a breadcrumb, so a workspace
     // whose only folder was `uploads` opened on a list of one row and hid every
