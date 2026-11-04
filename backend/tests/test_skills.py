@@ -791,6 +791,36 @@ class TestSkillManagement:
         assert "'Refund desk' and 1 more you cannot see" in refused.value.message
         delete.assert_not_awaited()
 
+    @pytest.mark.anyio
+    async def test_removing_it_from_agents_locks_them_before_the_skill(self):
+        """A draft save locks its agent, then holds the skill: the other order deadlocks."""
+        ctx = _ctx()
+        skill = _skill(ctx=ctx)
+        first, second = MagicMock(id=uuid.UUID(int=1)), MagicMock(id=uuid.UUID(int=2))
+        order: list[object] = []
+
+        async def lock_agent(_db, agent_id, **_kwargs):
+            order.append(agent_id)
+
+        async def lock_skill(_db, skill_id):
+            order.append(skill_id)
+
+        with (
+            patch("app.services.skills.skill_repo.get", new=AsyncMock(return_value=skill)),
+            patch(
+                "app.services.skills.agents_using_skill",
+                new=AsyncMock(side_effect=[[second, first], [second, first], []]),
+            ),
+            patch("app.services.skills.agent_repo.get", new=AsyncMock(side_effect=lock_agent)),
+            patch("app.services.skills.skill_repo.lock_for_delete", new=lock_skill),
+            patch("app.services.skill_agents.SkillAgentService.remove_skill", new=AsyncMock()),
+            patch("app.services.skills.skill_repo.delete", new=AsyncMock()) as delete,
+        ):
+            await SkillService(_db()).delete(ctx, skill.id, remove_from_agents=True)
+
+        assert order == [first.id, second.id, skill.id]
+        delete.assert_awaited_once()
+
 
 class TestTheListingOnlyReads:
     """A listing answers with what is there; it does not write while it reads.

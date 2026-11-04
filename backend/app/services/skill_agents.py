@@ -636,8 +636,10 @@ class SkillAgentService:
             ) from exc
 
     async def _removal(self, ctx: AuthContext, skill: Skill, agent_id: UUID) -> _Removal | None:
-        """What taking the skill out of one agent writes, or `None` when a spec it would
-        change no longer reads. The agent is locked, as every change to it is."""
+        """What taking the skill out of one agent writes, or `None` for an unreadable spec.
+
+        The agent is locked, as every change to it is.
+        """
         agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
         draft = _parsed(agent.draft_spec)
         if draft is None:

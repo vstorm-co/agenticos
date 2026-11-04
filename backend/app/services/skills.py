@@ -1451,6 +1451,18 @@ class SkillService:
                 which agents it could not be removed from, and why.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        if remove_from_agents:
+            # A draft save or a publish locks its agent before it holds the skill, so the
+            # agents are locked in that order too, or the two wait on each other.
+            for agent in sorted(
+                await agents_using_skill(
+                    self.db, organization_id=ctx.organization_id, skill_id=skill.id
+                ),
+                key=lambda agent: agent.id,
+            ):
+                await agent_repo.get(
+                    self.db, agent.id, organization_id=ctx.organization_id, for_update=True
+                )
         # Locked before the in-use check: an agent binding the skill holds it shared
         # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
         await skill_repo.lock_for_delete(self.db, skill.id)
