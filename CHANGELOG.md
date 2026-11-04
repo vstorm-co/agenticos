@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-11-04
+
 ### Added
 
 - Browse a live fullscreen graph of Markdown notes in project, sandbox and Desktop folder
@@ -19901,7 +19903,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...HEAD
+[1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...v1.41.0
 [1.40.0]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...v1.40.0
