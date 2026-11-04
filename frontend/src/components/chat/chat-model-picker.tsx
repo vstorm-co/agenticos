@@ -212,11 +212,15 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
 
   const currentSummary = current ? (
     <>
-      <ProviderIcon provider={current.provider} />
+      <span className="bg-background text-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+        <ProviderIcon provider={current.provider} className="size-5" mono />
+      </span>
       <span className="min-w-0 flex-1 truncate">
-        <span className="font-medium">{current.label}</span>
+        <span className="block font-medium">{current.label}</span>
         {currentDetail !== null && (
-          <span className="text-muted-foreground block truncate font-mono">{currentDetail}</span>
+          <span className="text-foreground/70 mt-0.5 block truncate font-mono text-xs">
+            {currentDetail}
+          </span>
         )}
       </span>
       <span className="text-muted-foreground shrink-0 text-[11px]">
@@ -232,7 +236,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
       {current && !can(Perm.connectionsManage) && (
         <p
           data-tour="chat-model-picker"
-          className="border-border bg-accent/40 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
+          className="bg-background/60 flex items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs"
         >
           {currentSummary}
         </p>
@@ -246,7 +250,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
             type="button"
             variant="ghost"
             size="sm"
-            className="border-border bg-accent/40 h-auto min-h-10 w-full justify-start gap-2 rounded-lg border px-3 py-2 text-left text-xs"
+            className="bg-background/60 h-auto min-h-14 w-full justify-start gap-2 rounded-xl border border-transparent px-3 py-2.5 text-left text-[13px]"
             aria-label={t("changeModel")}
             data-tour="chat-model-picker"
             aria-expanded={expanded}
@@ -307,7 +311,7 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
                             )
                           }
                         >
-                          <ProviderRow provider={entry.id} name={entry.label} />
+                          <ProviderRow provider={entry.id} name={entry.label} mono />
                         </SelectItem>
                       );
                     })}

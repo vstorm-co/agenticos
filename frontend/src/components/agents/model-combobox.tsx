@@ -5,6 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown, Pencil } from "lucide-react";
 
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { FORM_CONTROL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -106,11 +107,7 @@ export function ModelCombobox({
           aria-invalid={invalid}
           aria-describedby={describedBy}
           disabled={disabled}
-          className={cn(
-            "border-input bg-background flex h-9 w-full items-center gap-2 rounded-md border px-3 text-left text-sm",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-            "aria-invalid:border-destructive",
-          )}
+          className={cn(FORM_CONTROL, "flex h-10 w-full items-center gap-2 px-3 text-left text-sm")}
         >
           <span className={cn("min-w-0 flex-1 truncate font-mono", value === "" && "font-sans")}>
             {value === "" ? <span className="text-muted-foreground">{placeholder}</span> : value}
@@ -120,7 +117,7 @@ export function ModelCombobox({
               {contextLabel(chosen.context_length)}
             </span>
           )}
-          <ChevronsUpDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <ChevronsUpDown className="text-foreground/75 h-4 w-4 shrink-0 stroke-2" />
         </button>
       </PopoverTrigger>
 

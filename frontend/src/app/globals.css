@@ -274,7 +274,7 @@
     --color-foreground: #f0f0f0;
     --color-card: #212121;
     --color-card-foreground: #f0f0f0;
-    --color-popover: #292929;
+    --color-popover: #333333;
     --color-popover-foreground: #f0f0f0;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -328,7 +328,7 @@
   --color-foreground: #f0f0f0;
   --color-card: #212121;
   --color-card-foreground: #f0f0f0;
-  --color-popover: #292929;
+  --color-popover: #333333;
   --color-popover-foreground: #f0f0f0;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -431,7 +431,7 @@
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
-  --color-popover: #292929;
+  --color-popover: #333333;
   --color-popover-foreground: #f0f0f0;
   --color-sidebar: #141414;
   --color-background: #1a1a1a;

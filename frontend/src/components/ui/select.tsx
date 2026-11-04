@@ -24,7 +24,7 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       FORM_CONTROL,
-      "data-[state=open]:border-foreground/25 data-[state=open]:bg-foreground/[0.05] touch:min-h-11 flex h-10 touch-manipulation items-center justify-between px-3 py-2 text-sm whitespace-nowrap [&>span]:line-clamp-1",
+      "data-[state=open]:border-foreground/25 data-[state=open]:bg-background touch:min-h-11 flex h-10 touch-manipulation items-center justify-between px-3 py-2 text-sm whitespace-nowrap [&>span]:line-clamp-1",
       size === "sm" && "h-9 gap-1.5 px-2.5 py-1 text-[13px]",
       className,
     )}
@@ -32,7 +32,9 @@ const SelectTrigger = React.forwardRef<
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className={cn("opacity-50", size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4")} />
+      <ChevronDown
+        className={cn("text-foreground/75 stroke-2", size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4")}
+      />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));

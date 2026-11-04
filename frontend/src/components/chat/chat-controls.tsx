@@ -166,13 +166,13 @@ export function ChatControls({
           if (document.querySelector(".driver-popover")) event.preventDefault();
         }}
       >
-        <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
+        <div className="bg-foreground/[0.025] flex shrink-0 items-center justify-between border-b px-5 py-3">
           <h2 className="text-sm font-semibold">{t("label")}</h2>
           <button
             type="button"
             aria-label={tCommon("close")}
             onClick={() => setOpen(false)}
-            className="text-muted-foreground hover:bg-accent hover:text-foreground flex size-7 items-center justify-center rounded-md"
+            className="text-foreground/75 hover:bg-accent hover:text-foreground flex size-8 items-center justify-center rounded-md"
           >
             <X className="size-4" aria-hidden />
           </button>
@@ -219,7 +219,7 @@ export function ChatControls({
             data-tour="chat-settings-preferences"
             aria-expanded={expanded}
             onClick={() => setPreferences(!expanded)}
-            className="text-muted-foreground hover:text-foreground mt-4 flex w-full items-center justify-between border-t pt-4 text-xs font-medium"
+            className="text-foreground/80 hover:text-foreground mt-4 flex w-full items-center justify-between border-t pt-4 text-xs font-medium"
           >
             {t("preferencesTab")}
             <ChevronDown
