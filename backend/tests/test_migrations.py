@@ -724,7 +724,7 @@ class TestChatNoticeColumn:
     def test_parked_runs_survive_upgrade_and_downgrade_and_the_models_match_head(self):
         reset = _alembic("downgrade", "base")
         assert reset.returncode == 0, reset.stderr
-        up = _alembic("upgrade", "0250_discord_channel")
+        up = _alembic("upgrade", "0254_model_profile_region")
         assert up.returncode == 0, up.stderr
         engine = create_engine(_url(MIGRATION_DATABASE))
         run_id = uuid4()
@@ -753,7 +753,7 @@ class TestChatNoticeColumn:
                 )
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
-            down = _alembic("downgrade", "0250_discord_channel")
+            down = _alembic("downgrade", "0254_model_profile_region")
             assert down.returncode == 0, down.stderr
             with engine.connect() as connection:
                 assert (

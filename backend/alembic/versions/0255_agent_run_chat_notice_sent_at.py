@@ -1,7 +1,7 @@
 """A parked chat run remembers that its chat was told it could not continue.
 
-Revision ID: 0251_run_chat_notice_sent_at
-Revises: 0250_discord_channel
+Revision ID: 0255_run_chat_notice_sent_at
+Revises: 0254_model_profile_region
 Create Date: 2026-11-03
 
 A decision made outside a chat continues the run in that chat. When the platform
@@ -24,8 +24,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0251_run_chat_notice_sent_at"
-down_revision: str | None = "0250_discord_channel"
+revision: str = "0255_run_chat_notice_sent_at"
+down_revision: str | None = "0254_model_profile_region"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
