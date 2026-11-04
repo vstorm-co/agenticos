@@ -215,6 +215,14 @@ class BackendInfo:
     required_secrets: tuple[str, ...]
     address_fields: tuple[str, ...]
 
+    @property
+    def secret_purposes(self) -> tuple[str, ...]:
+        if self.credential == "microsoft":
+            return ("sharepoint",)
+        if self.name.startswith("hf_"):
+            return ("huggingface",)
+        return (self.name,)
+
 
 class _Lenient(GenerateJsonSchema):
     """JSON Schema for a config that also accepts a callable.

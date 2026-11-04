@@ -1,5 +1,5 @@
 ---
-source_sha: "1c1b897485ce"
+source_sha: "52203346b3f4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1341,6 +1341,8 @@ archivos y usar grep de texto; la búsqueda semántica con modelos no está habi
 El consentimiento debe terminar en el mismo navegador y con la misma cuenta
 iniciadora de AgenticOS.
 
+
+Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL o MongoDB debe figurar en la lista permitida del despliegue.
 
 ## Gráficos { #charts }
 

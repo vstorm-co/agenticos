@@ -126,14 +126,17 @@ class Mirage(AbstractCapability[AgentDeps]):
     ) -> AgentRunResult[Any]:
         try:
             result = await handler()
-            if isinstance(result.output, DeferredToolRequests) and self._ram:
+            if isinstance(result.output, DeferredToolRequests):
                 state = ScratchState(
                     folders={
                         path: ScratchFolder.model_validate(vfs.get_state())
                         for path, vfs in self._ram.items()
                     }
+                    if self._ram
+                    else self._scratch.folders
                 )
-                keep(result.all_messages(), state)
+                if state.folders:
+                    keep(result.all_messages(), state)
             return result
         finally:
             if self._workspace is not None:

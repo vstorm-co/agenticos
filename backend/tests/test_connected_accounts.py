@@ -424,3 +424,31 @@ async def test_a_revoked_grant_is_not_handed_to_a_mount():
     account = _account(last_status="error", last_error=AUTHORIZATION_EXPIRED)
     account.oauth_payload = _sealed(account, _payload())
     assert await McpConnectionService(AsyncMock()).account_grant(account) is None
+
+
+async def test_reconnecting_an_unreadable_old_key_rekeys_the_preserved_account(repo, monkeypatch):
+    from app.core.config import settings
+    from app.core.vault import unseal
+
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: "replacement-test-master-key"})
+    monkeypatch.setattr(google_oauth, "account_email", AsyncMock(return_value="ana@acme.com"))
+    owner = uuid4()
+    earlier = _account(
+        user_id=owner,
+        account_email="ana@acme.com",
+        secret_key_version=1,
+        oauth_payload="unreadable-old-envelope",
+    )
+    fresh = _account(user_id=owner, secret_key_version=2)
+    fresh.oauth_payload = _sealed(fresh, _payload(refresh_token="replacement-refresh-token"))
+    repo.list_accounts = AsyncMock(return_value=[earlier, fresh])
+    kept = await McpConnectionService(AsyncMock())._name_account(fresh, "AT")
+    assert kept is earlier
+    update = repo.update.await_args.kwargs["update_data"]
+    assert update["secret_key_version"] == 2
+    assert update["oauth_pending_payload"] is None and update["auth_token"] is None
+    recovered = McpOAuthPayload.model_validate_json(
+        unseal(update["oauth_payload"], scope=connection_scope(earlier), key_version=2)
+    )
+    assert recovered.refresh_token is not None
+    assert recovered.refresh_token.get_secret_value() == "replacement-refresh-token"

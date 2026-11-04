@@ -1962,11 +1962,16 @@ class McpConnectionService:
             live = _decode_payload(earlier, earlier.oauth_payload)
             if live is not None:
                 payload = payload.model_copy(update={"refresh_token": live.refresh_token})
+        sealed = seal(payload.model_dump_json(), scope=connection_scope(earlier))
         earlier = await mcp_connection_repo.update(
             self.db,
             db_connection=earlier,
             update_data={
-                "oauth_payload": _seal_for(earlier, payload.model_dump_json()).ciphertext,
+                "oauth_payload": sealed.ciphertext,
+                "secret_key_version": sealed.key_version,
+                "oauth_pending_payload": None,
+                "oauth_state": None,
+                "auth_token": None,
                 "account_email": email,
                 "granted_scopes": connection.granted_scopes,
                 "last_status": "ok",

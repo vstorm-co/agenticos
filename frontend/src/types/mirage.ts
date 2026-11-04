@@ -18,6 +18,7 @@ export interface MirageBackend {
   options_schema: JsonSchema;
   secret_fields: string[];
   required_secrets: string[];
+  secret_purposes: string[];
   /** Options naming a host, which must be on the operator's allowlist. */
   address_fields: string[];
 }

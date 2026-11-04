@@ -6,7 +6,7 @@ an SSH server, a mailbox. [Mirage](https://github.com/strukto-ai/mirage)
 (strukto.ai, Apache-2.0, `mirage-ai` on PyPI) mounts each one as a folder and runs
 the shell over it, reading every folder through its service's own API. An agent
 then answers "which contracts mention Acme?" with a `grep` across a Drive folder,
-in seconds and with no container.
+without starting a container.
 
 ## What a spec says
 

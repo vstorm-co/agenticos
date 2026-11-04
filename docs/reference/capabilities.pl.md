@@ -1,5 +1,5 @@
 ---
-source_sha: "1c1b897485ce"
+source_sha: "52203346b3f4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1314,6 +1314,8 @@ oraz tekstowy grep; semantyczne wyszukiwanie wymagające modelu nie jest włącz
 Zgodę na połączenie konta należy dokończyć w tej samej przeglądarce i na tym samym
 zalogowanym koncie, na którym ją rozpoczęto.
 
+
+Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL lub MongoDB musi znajdować się na liście dozwolonych hostów deploymentu.
 
 ## Wykresy { #charts }
 

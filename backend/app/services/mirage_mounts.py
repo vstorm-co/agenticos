@@ -40,7 +40,7 @@ from app.core.config import settings
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, EntraAppSecret, StorableSecret
 from app.db.models.mcp_connection import McpConnection
-from app.repositories import mcp_connection_repo
+from app.repositories import mcp_connection_repo, organization_secret_repo
 from app.services.mcp_connection import AccountGrant, McpConnectionService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import google_oauth
@@ -85,7 +85,15 @@ class MirageMountService:
         (an API key, a schedule).
         """
         secret_ids = [secret_id for mount in config.mounts for secret_id in mount.secrets.values()]
-        unsealed = await self.secrets.resolve_for_bindings(ctx, secret_ids) if secret_ids else {}
+        rows = (
+            await organization_secret_repo.get_many(
+                self.db, secret_ids, organization_id=ctx.organization_id
+            )
+            if secret_ids
+            else {}
+        )
+        purposes = {secret_id: row.purpose for secret_id, row in rows.items()}
+        unsealed = await self.secrets.resolve_for_bindings(ctx, list(rows)) if rows else {}
         mounts: list[ResolvedMount] = []
         notes: list[str] = []
         for mount in config.mounts:
@@ -96,7 +104,9 @@ class MirageMountService:
                 )
                 continue
             try:
-                mounts.extend(await self._build(ctx, mount, info, unsealed, person_id, notes))
+                mounts.extend(
+                    await self._build(ctx, mount, info, unsealed, purposes, person_id, notes)
+                )
             except _Unmountable as exc:
                 notes.append(f"{mount.path} is not mounted: {exc}")
         return ResolvedTerminal(mounts=tuple(mounts), notes=tuple(notes))
@@ -107,12 +117,19 @@ class MirageMountService:
         mount: MirageMount,
         info: BackendInfo,
         unsealed: Mapping[UUID, StorableSecret],
+        purposes: Mapping[UUID, str],
         person_id: UUID | None,
         notes: list[str],
     ) -> list[ResolvedMount]:
         options: dict[str, MountValue] = {
             key: _option(value) for key, value in mount.options.items()
         }
+        for field, secret_id in mount.secrets.items():
+            purpose = purposes.get(secret_id)
+            if purpose is None:
+                raise _Unmountable(f"its {field} secret is no longer in the vault.")
+            if purpose not in (*info.secret_purposes, "custom"):
+                raise _Unmountable(f"its {field} secret belongs to another service.")
         if info.credential == "google":
             return await self._google(ctx, mount, info, options, person_id, notes)
         if info.credential == "microsoft":
@@ -235,22 +252,29 @@ def _slug(email: str) -> str:
     return _SLUG.sub("-", email.lower()).strip("-.")[:63] or "account"
 
 
-def host_of(value: str) -> str | None:
-    """The host a typed address names: a URL or DSN's, or a bare host's."""
-    if "://" in value:
-        try:
-            parsed = urlsplit(value)
-            if parsed.scheme in {"postgres", "postgresql"} and any(
-                key.lower() in {"host", "hostaddr", "service"} for key, _ in parse_qsl(parsed.query)
-            ):
-                return None
-            host = parsed.hostname
-        except ValueError:
-            return None
-        else:
-            return host
-    host = value.rsplit("@", 1)[-1].split(":", 1)[0].strip()
-    return host.lower() or None
+def hosts_of(value: str) -> tuple[str, ...]:
+    """Every effective authority host, including PostgreSQL and MongoDB seed lists."""
+    try:
+        is_url = "://" in value
+        parsed = urlsplit(value if is_url else f"//{value}")
+        if not is_url and (parsed.path or parsed.query or parsed.fragment):
+            return ()
+        if parsed.scheme in {"postgres", "postgresql"} and any(
+            key.lower() in {"host", "hostaddr", "service"} for key, _ in parse_qsl(parsed.query)
+        ):
+            return ()
+        authority = parsed.netloc.rsplit("@", 1)[-1]
+        hosts: list[str] = []
+        for target in authority.split(","):
+            address = urlsplit(f"//{target}")
+            host = address.hostname
+            _ = address.port
+            if not host or "%" in host or address.path or any(char.isspace() for char in host):
+                return ()
+            hosts.append(host)
+        return tuple(hosts)
+    except ValueError:
+        return ()
 
 
 def address_fields(info: BackendInfo, options: Mapping[str, object]) -> tuple[str, ...]:
@@ -275,12 +299,12 @@ def _check_hosts(info: BackendInfo, options: Mapping[str, MountValue]) -> None:
         if value is None:
             continue
         text = value.get_secret_value() if isinstance(value, SecretStr) else str(value)
-        host = host_of(text)
-        if host is None or host not in allowed:
+        hosts = hosts_of(text)
+        if not hosts or not set(hosts) <= allowed:
             # The host, never the value: a DSN carries its password.
             raise _Unmountable(
                 f"its {field} names a host this deployment does not allow"
-                f"{f' ({host})' if host else ''}."
+                f"{f' ({", ".join(hosts)})' if hosts else ''}."
             )
 
 

@@ -35,6 +35,7 @@ function backend(overrides: Partial<MirageBackend> & Pick<MirageBackend, "name">
     options_schema: { type: "object", properties: {} },
     secret_fields: [],
     required_secrets: [],
+    secret_purposes: [overrides.name],
     address_fields: [],
     ...overrides,
   };
@@ -53,7 +54,12 @@ const GITHUB = backend({
   },
 });
 const GDRIVE = backend({ name: "gdrive", title: "Google Drive", credential: "google" });
-const ONEDRIVE = backend({ name: "onedrive", title: "OneDrive", credential: "microsoft" });
+const ONEDRIVE = backend({
+  name: "onedrive",
+  title: "OneDrive",
+  credential: "microsoft",
+  secret_purposes: ["sharepoint"],
+});
 const S3 = backend({ name: "s3", title: "Amazon S3", available: false, reason: "Not installed" });
 
 const DEFINITION: CapabilityCatalogEntry = {
@@ -119,8 +125,10 @@ beforeEach(() => {
   can.mockReturnValue(true);
   secrets.mockReturnValue({
     secrets: [
-      { id: "s-gh", name: "GitHub token", kind: "api_key", hint: "abcd" },
-      { id: "s-entra", name: "Acme Entra", kind: "entra_app", hint: "wxyz" },
+      { id: "s-gh", name: "GitHub token", kind: "api_key", purpose: "github", hint: "abcd" },
+      { id: "s-other", name: "OpenAI only", kind: "api_key", purpose: "openai", hint: "abcd" },
+      { id: "s-custom", name: "Custom key", kind: "api_key", purpose: "custom", hint: "abcd" },
+      { id: "s-entra", name: "Acme Entra", kind: "entra_app", purpose: "sharepoint", hint: "wxyz" },
     ],
     isLoading: false,
   });
@@ -335,6 +343,8 @@ describe("how a folder signs in", () => {
     await userEvent.click(screen.getByLabelText("Secret for token"));
 
     expect(screen.queryByRole("option", { name: /Acme Entra/ })).toBeNull();
+    expect(screen.queryByRole("option", { name: /OpenAI only/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /Custom key/ })).toBeInTheDocument();
   });
 
   it("sends somebody with no suitable key to the vault", () => {

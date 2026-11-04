@@ -19,6 +19,7 @@ class MirageBackendRead(BaseSchema):
     """JSON Schema of the options an author fills; secrets and endpoint overrides left out."""
     secret_fields: list[str]
     required_secrets: list[str]
+    secret_purposes: list[str]
     address_fields: list[str]
     """Options naming a host, which must be on the operator's allowlist."""
 
@@ -34,6 +35,7 @@ class MirageBackendRead(BaseSchema):
             options_schema=info.options_schema,
             secret_fields=list(info.secret_fields),
             required_secrets=list(info.required_secrets),
+            secret_purposes=list(info.secret_purposes),
             address_fields=list(info.address_fields),
         )
 

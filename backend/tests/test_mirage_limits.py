@@ -13,7 +13,7 @@ from pydantic_ai.workspaces import WorkspaceTimeoutError
 
 from app.agents.capabilities.mirage import _backend, _scratch
 from app.agents.capabilities.mirage._scratch import ScratchFolder, ScratchState
-from app.services.mirage_mounts import host_of
+from app.services.mirage_mounts import hosts_of
 
 pytestmark = pytest.mark.anyio
 
@@ -88,5 +88,5 @@ def test_a_paused_run_cannot_retain_unbounded_scratch(monkeypatch: pytest.Monkey
     ["host=attacker.example", "%68ost=attacker.example", "hostaddr=127.0.0.1", "service=local"],
 )
 def test_a_postgres_query_cannot_override_the_allowlisted_host(parameter: str) -> None:
-    assert host_of(f"postgresql://user:password@allowed.example/db?{parameter}") is None
-    assert host_of("postgresql://u:p@[invalid/db") is None
+    assert hosts_of(f"postgresql://user:password@allowed.example/db?{parameter}") == ()
+    assert hosts_of("postgresql://u:p@[invalid/db") == ()

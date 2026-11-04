@@ -1,5 +1,5 @@
 ---
-source_sha: "1c1b897485ce"
+source_sha: "52203346b3f4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1396,6 +1396,8 @@ Lesezugriffe und Text-grep; modellgestützte semantische Suche ist nicht aktivie
 Die Kontoverknüpfung muss im selben Browser und mit derselben angemeldeten
 Identität abgeschlossen werden, mit der sie begonnen wurde.
 
+
+Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL- oder MongoDB-Seed-Liste muss auf der Allowlist des Deployments stehen.
 
 ## Diagramme { #charts }
 

@@ -616,3 +616,43 @@ async def test_direct_filesystem_writes_cannot_skip_a_folder_approval() -> None:
             await workspace.vfs.write("/ask/not-approved.txt", b"refused")
     finally:
         await workspace.close()
+
+
+async def test_scratch_survives_two_other_capability_approvals_without_reopening_mirage() -> None:
+    from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+    mounts = (_ram("/scratch/"),)
+    calls = _calls(
+        ("mirage_write_file", {"path": "/scratch/result.txt", "content": "retained-result"}),
+        ("review_a", {}),
+        ("review_b", {}),
+        ("mirage_read_file", {"path": "/scratch/result.txt"}),
+    )
+
+    def fresh() -> Agent[AgentDeps, str | DeferredToolRequests]:
+        agent = _agent(Mirage(mounts=mounts), calls)
+
+        @agent.tool_plain(requires_approval=True)
+        def review_a() -> str:
+            return "a approved"
+
+        @agent.tool_plain(requires_approval=True)
+        def review_b() -> str:
+            return "b approved"
+
+        return agent
+
+    parked = await fresh().run("go", deps=AgentDeps())
+    assert isinstance(parked.output, DeferredToolRequests)
+    for call_id in ("c1", "c2"):
+        history = ModelMessagesTypeAdapter.validate_json(
+            ModelMessagesTypeAdapter.dump_json(parked.all_messages())
+        )
+        parked = await fresh().run(
+            message_history=history,
+            deferred_tool_results=DeferredToolResults(approvals={call_id: True}),
+            deps=AgentDeps(),
+        )
+        if call_id == "c1":
+            assert isinstance(parked.output, DeferredToolRequests)
+    assert isinstance(parked.output, str) and "retained-result" in parked.output

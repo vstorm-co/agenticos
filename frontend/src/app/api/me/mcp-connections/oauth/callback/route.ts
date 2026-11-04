@@ -8,6 +8,7 @@ import {
   safeMcpOAuthReturn,
 } from "@/lib/mcp-oauth";
 import { ACCOUNT_OAUTH_COOKIE, ACCOUNT_OAUTH_CALLBACK } from "@/lib/connected-account-oauth";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 import { backendFetch } from "@/lib/server-api";
 
 /**
@@ -17,10 +18,9 @@ import { backendFetch } from "@/lib/server-api";
  * page that started the consent, where it remembered one in
  * `MCP_OAUTH_RETURN_COOKIE`; a chat that sent somebody to connect their Notion
  * gets them back to the conversation - with a status `useMcpOAuthOutcome` turns
- * into a toast. No auth cookie is required - the
- * `state` token authenticates the exchange, which is also why every refusal it
- * writes goes through `@/lib/mcp-oauth`: a stranger can reach this address with
- * an `error` of their choosing, and that query is now rendered.
+ * into a toast. MCP uses state-only authentication; connected accounts also
+ * forward the initiating session and browser nonce. Refusals go through
+ * `@/lib/mcp-oauth` because this address accepts provider-controlled errors.
  */
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
     return servers(mcpOAuthRefused("MISSING_AUTHORIZATION_CODE"));
   }
 
+  const nonce = request.cookies.get(ACCOUNT_OAUTH_COOKIE)?.value;
+  const accessToken = nonce ? request.cookies.get(ACCESS_TOKEN_COOKIE)?.value : undefined;
   try {
     const result = await backendFetch<{
       ok: boolean;
@@ -68,10 +70,11 @@ export async function GET(request: NextRequest) {
       error: string | null;
     }>("/api/v1/me/mcp-connections/oauth/callback", {
       method: "POST",
+      ...(accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : {}),
       body: JSON.stringify({
         code,
         state,
-        browser_nonce: request.cookies.get(ACCOUNT_OAUTH_COOKIE)?.value,
+        browser_nonce: nonce,
       }),
     });
     if (!result.ok) {

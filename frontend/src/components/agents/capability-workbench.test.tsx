@@ -38,6 +38,7 @@ vi.mock("@/hooks/use-mirage-backends", () => ({
           options_schema: { type: "object", properties: {} },
           secret_fields: [],
           required_secrets: [],
+          secret_purposes: ["ram"],
           address_fields: [],
         },
       ],

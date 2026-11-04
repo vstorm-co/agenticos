@@ -149,7 +149,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
-from app.services.mirage_mounts import address_fields, default_address, host_of
+from app.services.mirage_mounts import address_fields, default_address, hosts_of
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
@@ -1995,6 +1995,11 @@ class AgentRegistryService:
                         f"{mount.path} needs a {expected.value} secret for {credential}, but "
                         f"'{secret.name}' holds a {secret.kind}"
                     )
+                elif secret.purpose not in (*info.secret_purposes, "custom"):
+                    problems.append(
+                        f"{mount.path} needs a {' or '.join(info.secret_purposes)} secret for "
+                        f"{credential}, but '{secret.name}' is for {secret.purpose}"
+                    )
             if isinstance(mount.account, OrganizationAccount):
                 account = await mcp_connection_repo.get_account(
                     self.db, mount.account.connection_id
@@ -2005,7 +2010,9 @@ class AgentRegistryService:
                     )
             for address in address_fields(info, mount.options):
                 value = mount.options.get(address) or default_address(info, address)
-                if isinstance(value, str) and (host_of(value) or "") not in allowed:
+                if isinstance(value, str) and (
+                    not (hosts := hosts_of(value)) or not set(hosts) <= allowed
+                ):
                     problems.append(
                         f"{mount.path}: {address} names a host this deployment does not allow; "
                         "an operator adds it to MIRAGE_ALLOWED_HOSTS"

@@ -5,6 +5,7 @@ account a folder reaches, and which folders cannot be built - each left out with
 sentence the model reads, rather than failing a run whose other folders work.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -18,7 +19,7 @@ from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, EntraAppSecret
 from app.services import mirage_mounts
 from app.services.mcp_connection import AccountGrant
-from app.services.mirage_mounts import MirageMountService, host_of
+from app.services.mirage_mounts import MirageMountService, hosts_of
 from app.services.portals import google_oauth
 
 pytestmark = pytest.mark.anyio
@@ -48,6 +49,15 @@ def vault(monkeypatch) -> dict:
         mirage_mounts.OrganizationSecretService,
         "resolve_for_bindings",
         AsyncMock(side_effect=lambda ctx, ids: {i: stored[i] for i in ids if i in stored}),
+    )
+    monkeypatch.setattr(
+        mirage_mounts.organization_secret_repo,
+        "get_many",
+        AsyncMock(
+            side_effect=lambda db, ids, **kw: {
+                i: SimpleNamespace(purpose="custom") for i in ids if i in stored
+            }
+        ),
     )
     return stored
 
@@ -354,7 +364,7 @@ def test_options_are_passed_as_the_library_takes_them() -> None:
     ],
 )
 def test_the_host_of_a_typed_address(value, host) -> None:
-    assert host_of(value) == host
+    assert hosts_of(value) == (() if host is None else (host,))
 
 
 def test_an_address_slug_is_never_empty() -> None:
@@ -414,3 +424,75 @@ async def test_ssh_allows_an_approved_host_without_an_alternate_hostname(
         _config({"path": "/build/", "backend": "ssh", "options": {"host": "build.acme.internal"}}),
     )
     assert len(terminal.mounts) == 1 and not terminal.notes
+
+
+async def test_a_secret_repurposed_since_publish_cannot_be_sent_to_another_service(
+    ctx, vault, accounts, monkeypatch
+):
+    monkeypatch.setattr(
+        mirage_mounts.organization_secret_repo,
+        "get_many",
+        AsyncMock(return_value={TOKEN: SimpleNamespace(purpose="openai")}),
+    )
+    terminal = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/code/",
+                "backend": "github",
+                "secrets": {"token": str(TOKEN)},
+                "options": {"owner": "o", "repo": "r"},
+            }
+        ),
+    )
+    assert terminal.mounts == ()
+    assert terminal.notes == (
+        "/code/ is not mounted: its token secret belongs to another service.",
+    )
+
+
+@pytest.mark.parametrize("scheme", ["postgresql", "mongodb"])
+async def test_every_database_seed_host_needs_permission(ctx, vault, accounts, monkeypatch, scheme):
+    vault[DSN] = ApiKeySecret(
+        api_key=f"{scheme}://u:p@allowed.internal:5432,private.internal:5432/db"
+    )
+    database = "postgres" if scheme == "postgresql" else "mongodb"
+    field = "dsn" if scheme == "postgresql" else "uri"
+    config = _config({"path": "/db/", "backend": database, "secrets": {field: str(DSN)}})
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["allowed.internal"])
+    refused = await _resolve(ctx, config)
+    assert not refused.mounts
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["allowed.internal", "private.internal"])
+    accepted = await _resolve(ctx, config)
+    assert len(accepted.mounts) == 1 and not accepted.notes
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "postgresql://u:p@allowed%2cprivate/db",
+        "http://a.invalid:wrong",
+        " ",
+        "https:///db",
+        "a.invalid/path",
+    ],
+)
+def test_unparseable_or_encoded_authority_hosts_are_refused(value: str) -> None:
+    assert hosts_of(value) == ()
+
+
+async def test_a_secret_whose_shape_changed_cannot_be_used_as_a_token(ctx, vault, accounts):
+    vault[TOKEN] = vault[APP]
+    terminal = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/code/",
+                "backend": "github",
+                "secrets": {"token": str(TOKEN)},
+                "options": {"owner": "o", "repo": "r"},
+            }
+        ),
+    )
+    assert terminal.mounts == ()
+    assert terminal.notes == ("/code/ is not mounted: its token secret is no longer in the vault.",)

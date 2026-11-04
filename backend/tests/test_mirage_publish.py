@@ -77,8 +77,8 @@ async def test_a_terminal_whose_every_reference_holds_publishes() -> None:
         ctx,
         _config(),
         secrets={
-            TOKEN: SimpleNamespace(kind=SecretKind.API_KEY.value, name="gh"),
-            APP: SimpleNamespace(kind=SecretKind.ENTRA_APP.value, name="entra"),
+            TOKEN: SimpleNamespace(purpose="custom", kind=SecretKind.API_KEY.value, name="gh"),
+            APP: SimpleNamespace(purpose="custom", kind=SecretKind.ENTRA_APP.value, name="entra"),
         },
         account=SimpleNamespace(organization_id=ctx.organization_id),
         hosts=["build.acme.internal"],
@@ -91,7 +91,9 @@ async def test_what_the_publisher_cannot_lend_is_named_folder_by_folder() -> Non
     problems = await _problems(
         ctx,
         _config(),
-        secrets={TOKEN: SimpleNamespace(kind=SecretKind.ENTRA_APP.value, name="wrong")},
+        secrets={
+            TOKEN: SimpleNamespace(purpose="custom", kind=SecretKind.ENTRA_APP.value, name="wrong")
+        },
         account=SimpleNamespace(organization_id=uuid.uuid4()),
     )
     assert problems == [
@@ -117,7 +119,9 @@ async def test_a_secret_the_publisher_may_not_see_is_reported_as_missing() -> No
                 ]
             }
         ),
-        secrets={TOKEN: SimpleNamespace(kind=SecretKind.API_KEY.value, name="gh")},
+        secrets={
+            TOKEN: SimpleNamespace(purpose="custom", kind=SecretKind.API_KEY.value, name="gh")
+        },
         access=False,
     )
     assert problems == [f"/code/ points at a secret this organization does not have: {TOKEN}"]
@@ -189,3 +193,31 @@ async def test_the_runner_leaves_the_resolved_folders_for_the_capability(monkeyp
     untouched: dict = {}
     await runner._add_mirage_terminal(untouched, ctx, _spec({"id": "clock"}), person_id=None)
     assert untouched == {}
+
+
+@pytest.mark.parametrize(
+    "purpose,accepted", [("github", True), ("custom", True), ("openai", False)]
+)
+async def test_a_mount_may_only_lend_a_secret_to_its_intended_service(purpose, accepted):
+    config = MirageConfig.model_validate(
+        {
+            "mounts": [
+                {
+                    "path": "/code/",
+                    "backend": "github",
+                    "secrets": {"token": str(TOKEN)},
+                    "options": {"owner": "o", "repo": "r"},
+                }
+            ]
+        }
+    )
+    problems = await _problems(
+        _ctx(),
+        config,
+        secrets={
+            TOKEN: SimpleNamespace(purpose=purpose, kind=SecretKind.API_KEY.value, name="key"),
+        },
+    )
+    assert (problems == []) is accepted
+    if not accepted:
+        assert problems == ["/code/ needs a github secret for token, but 'key' is for openai"]

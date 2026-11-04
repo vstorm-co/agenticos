@@ -310,6 +310,7 @@ function Credentials({ id, info, mount, disabled, onChange }: CredentialsProps) 
           id={`${id}-secret-${field}`}
           field={field}
           kind={kind}
+          purposes={info.secret_purposes}
           required={info.credential === "microsoft" || info.required_secrets.includes(field)}
           value={secrets[field]}
           disabled={disabled}
@@ -333,16 +334,31 @@ interface SecretPickerProps {
   id: string;
   field: string;
   kind: "api_key" | "entra_app";
+  purposes: string[];
   required: boolean;
   value: string | undefined;
   disabled?: boolean;
   onChange: (secretId: string | null) => void;
 }
 
-function SecretPicker({ id, field, kind, required, value, disabled, onChange }: SecretPickerProps) {
+function SecretPicker({
+  id,
+  field,
+  kind,
+  purposes,
+  required,
+  value,
+  disabled,
+  onChange,
+}: SecretPickerProps) {
   const t = useTranslations("mirage");
   const { secrets, isLoading } = useSecrets();
-  const usable = secrets.filter((secret) => secret.kind === kind);
+  const usable = secrets.filter(
+    (secret) =>
+      secret.kind === kind &&
+      (secret.purpose === "custom" ||
+        (secret.purpose !== undefined && purposes.includes(secret.purpose))),
+  );
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id}>{kind === "entra_app" ? t("entraApp") : t("secretFor", { field })}</Label>

@@ -1255,6 +1255,8 @@ reading and text grep; model-backed semantic search is not enabled. Connected-ac
 consent must finish in the same browser and signed-in account that started it.
 
 
+Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL or MongoDB seed list must be on the deployment allowlist.
+
 ## Charts
 
 `create_chart` — *Draw a chart of numbers you already have, so the user can see
