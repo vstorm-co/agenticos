@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.45.1] - 2026-11-04
+
 ### Fixed
 
 - The MCP servers Connected filter includes accessible organization and personal
@@ -19945,7 +19947,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...HEAD
+[1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
