@@ -116,6 +116,8 @@ class Item(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
+        if len(set(self.expected_pages)) != len(self.expected_pages):
+            raise ValueError(f"{self.id}: an expected page is listed twice")
         for page in self.expected_pages:
             key, locale = page_key(page)
             if locale != "en" or key != page or not _matches_page_key(page):
@@ -167,13 +169,16 @@ class Dataset(BaseModel):
         return self
 
 
-def load_dataset(path: Path, *, docs_root: Path | None = None) -> Dataset:
+def load_dataset(
+    path: Path, *, docs_root: Path | None = None, locales: tuple[Locale, ...] = ("en",)
+) -> Dataset:
     """Read and validate a question set.
 
-    With `docs_root`, also refuse an item whose expected page does not exist -
-    in English, and in every locale a `cross_language` item is searched in. A
-    page renamed under `docs/` would otherwise score as a miss for a reason
-    that has nothing to do with retrieval.
+    With `docs_root`, also refuse an item whose expected page could not be
+    found: one missing in English, or missing from every locale the item is
+    searched in - its `search_locales`, or else the run's `locales`. A page
+    renamed or untranslated under `docs/` would otherwise score as a miss for a
+    reason that has nothing to do with retrieval.
 
     Raises:
         ValueError: The file is not a valid question set, or names a page that
@@ -181,15 +186,17 @@ def load_dataset(path: Path, *, docs_root: Path | None = None) -> Dataset:
     """
     dataset = Dataset.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
     if docs_root is not None:
+
+        def exists(page: str, locale: Locale) -> bool:
+            return (docs_root / localized_path(page, locale)).is_file()
+
         missing = [
-            f"{item.id}: {localized_path(page, locale)}"
+            f"{item.id}: {page} in {', '.join(searched)}"
             for item in dataset.items
+            for searched in [item.search_locales or locales]
             for page in item.expected_pages
-            for locale in ("en", *(item.search_locales or ()))
-            if not (docs_root / localized_path(page, locale)).is_file()
+            if not exists(page, "en") or not any(exists(page, locale) for locale in searched)
         ]
         if missing:
-            raise ValueError(
-                "Expected pages missing under docs/: " + ", ".join(sorted(set(missing)))
-            )
+            raise ValueError("Expected pages missing under docs/: " + "; ".join(sorted(missing)))
     return dataset

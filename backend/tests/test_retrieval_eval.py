@@ -122,8 +122,22 @@ class TestTheQuestionSet:
             " question: q, expected_pages: [directory.md]}\n",
         )
 
-        with pytest.raises(ValueError, match=r"a: directory\.pl\.md"):
+        with pytest.raises(ValueError, match=r"a: directory\.md in pl"):
             dataset.load_dataset(path, docs_root=tmp_path / "docs")
+
+    def test_a_page_missing_from_every_searched_locale_is_refused(self, tmp_path: Path):
+        """Indexed in German only, an English-only page could never be found."""
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "docs" / "directory.md").write_text("No SAML.", encoding="utf-8")
+        path = _write(
+            tmp_path,
+            "version: 1\nitems:\n"
+            "  - {id: a, category: factual, language: en, question: q, expected_pages: [directory.md]}\n",
+        )
+
+        dataset.load_dataset(path, docs_root=tmp_path / "docs", locales=("en", "de"))
+        with pytest.raises(ValueError, match=r"a: directory\.md in de"):
+            dataset.load_dataset(path, docs_root=tmp_path / "docs", locales=("de",))
 
     def test_a_repeated_id_is_refused(self, tmp_path: Path):
         row = "  - {id: a, category: factual, language: en, question: q, expected_pages: [x.md]}\n"
@@ -155,6 +169,7 @@ class TestTheQuestionSet:
             ({"expected_pages": ["../secrets.md"]}, "not a page key"),
             ({"expected_pages": ["plans/56-shared-contracts.md"]}, "not published"),
             ({"expected_facts": [[]]}, "fact group is empty"),
+            ({"expected_pages": ["directory.md", "directory.md"]}, "listed twice"),
             ({"expected_facts": [[" "]]}, "fact group is empty"),
         ],
     )

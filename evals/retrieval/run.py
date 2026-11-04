@@ -49,6 +49,7 @@ from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]
+LOCALES: dict[str, Locale] = {locale: locale for locale in get_args(Locale)}
 MODES: dict[str, QueryAnalysisMode] = {mode: mode for mode in get_args(QueryAnalysisMode)}
 
 ANSWER_INSTRUCTIONS = (
@@ -250,10 +251,10 @@ def answerer(model: str, usage: RunUsage) -> Answer:
     return answer
 
 
-async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, object]]]:
+async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]]:
     docs_root = Path(arguments.docs).resolve()
-    dataset: Dataset = load_dataset(Path(arguments.dataset), docs_root=docs_root)
-    locales: tuple[Locale, ...] = tuple(arguments.locale or ("en", "pl"))
+    locales = tuple(dict.fromkeys(LOCALES[name] for name in arguments.locale or ("en", "pl")))
+    dataset: Dataset = load_dataset(Path(arguments.dataset), docs_root=docs_root, locales=locales)
     needed = {locale for item in dataset.items for locale in (item.search_locales or ())}
     if not needed <= set(locales):
         raise SystemExit(
@@ -326,7 +327,19 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, ob
             f"Model calls ({arguments.llm_model}): {usage.requests} requests, "
             f"{usage.input_tokens} input and {usage.output_tokens} output tokens.\n"
         )
-    return "\n".join(sections), reports
+    provenance: dict[str, object] = {
+        "dataset": str(arguments.dataset),
+        "dataset_version": dataset.version,
+        "questions": len(dataset.items),
+        "locales": list(locales),
+        "embedding_model": arguments.embedding_model,
+        "embedding_base_url": arguments.embedding_base_url,
+        "collections": collections,
+        "llm_model": arguments.llm_model,
+        "max_variants": arguments.max_variants,
+        "configurations": reports,
+    }
+    return "\n".join(sections), provenance
 
 
 def parse(argv: list[str] | None = None) -> argparse.Namespace:
@@ -340,7 +353,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--locale",
         action="append",
-        choices=["en", "pl", "de", "es"],
+        choices=list(LOCALES),
         help="repeatable; default en and pl",
     )
     parser.add_argument("--collection-prefix", default="retrieval_eval")
@@ -372,13 +385,13 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
 async def main(argv: list[str] | None = None) -> None:
     arguments = parse(argv)
     try:
-        report, reports = await measure(arguments)
+        report, exported = await measure(arguments)
     finally:
         await close_db()
     print(report)
     if arguments.json:
         Path(arguments.json).write_text(
-            json.dumps(reports, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            json.dumps(exported, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )
 
 
