@@ -1,5 +1,5 @@
 ---
-source_sha: "164320c8c033"
+source_sha: "ff0fec4ff4df"
 ---
 
 # Skille { #skills }
@@ -655,8 +655,8 @@ Każdy wiersz mówi, czy
 serwuje, i z jakim wynikiem; wersja nigdy na nim niesprawdzona jest **nieznana**.
 
 Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
-otwierał skill w ostatnich 30 dniach: linię na agenta dzień po dniu, a pod nią
-tabelę z wczytaniami każdego agenta, przeczytanymi plikami i tym, kiedy ostatnio
+otwierał skill w ostatnich 30 dniach: jeden wykres dzień po dniu z agentami
+wybranymi z listy nad nim, każdy w swoim kolorze, a pod nim tabelę z wczytaniami każdego agenta, przeczytanymi plikami i tym, kiedy ostatnio
 użył skilla. Runy ewaluacji i panelu testowego Buildera się nie liczą.
 
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
@@ -683,7 +683,8 @@ wystartował, a każdy agent siedzi w polu wersji, której używa. Na linii z co
 najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijają się do
 jednego pola. **Porównaj** przy wersji dodaje ją do porównania pod diagramem.
 Wybierz dowolnie wiele wersji, z main i z forków, żeby zobaczyć obok siebie ich
-opisy, instrukcje i pliki.
+opisy, instrukcje i pliki. Diagram przesuwa się przeciągnięciem i przybliża kółkiem
+albo przyciskami, tak jak mapa agenta.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
 main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji.
@@ -705,7 +706,8 @@ z nich, proponuje **Odepnij od N agentów i usuń**, które wymienia ich jeszcze
 drugiego potwierdzenia. Potem odpina skill od każdego agenta i go usuwa. Jeśli
 wśród agentów są tacy, których nie możesz zmieniać albo nie widzisz, okno o tym
 mówi i nie proponuje usunięcia: najpierw odepnij skill od tych agentów w Builderze
-albo poproś kogoś, kto może.
+albo poproś kogoś, kto może. Okno wymienia też środowisko czekające na promocję,
+które wciąż serwuje skill, bo przenosi je tylko promocja.
 
 ### Poprawianie skilla { #improving-a-skill }
 

@@ -637,8 +637,8 @@ Each row says whether a
 and how it did; a version never checked on it is **unknown**.
 
 Under the table, a reader who may view runs sees how often each agent opened the
-skill in the last 30 days: a line per agent by day, then a table of each agent's
-loads, the files it read and when it last used the skill. Runs of evals and of the
+skill in the last 30 days: one chart by day, overlaying the agents you pick from
+the list above it, each in its own colour, then a table of each agent's loads, the files it read and when it last used the skill. Runs of evals and of the
 Builder's test panel are not counted.
 
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
@@ -665,7 +665,8 @@ own, and every agent sits in the box of the version it uses. On a line of eight
 versions or more, stretches that no agent uses fold into one box. **Compare** on a
 version puts it in a comparison under the diagram. Pick as many versions as you
 like, from main and forks alike, to see their descriptions, instructions and files
-side by side.
+side by side. Drag to move the diagram, and zoom with the wheel or the buttons, as
+on an agent's map.
 
 **Edit** saves a new version on the line on screen. On main, the agents following
 main get it at once; pinned agents and forks keep their version. A changed text is
@@ -687,7 +688,8 @@ them, it offers **Remove from N agents and delete**, which lists them again for 
 second confirmation. It then takes the skill off each agent and deletes it. If some
 of the agents are ones you may not change or cannot see, it says so and offers no
 delete: remove the skill from those agents in the Builder first, or ask someone who
-may.
+may. An environment that waits for promotion and still serves the skill is named
+too, since only a promotion moves it.
 
 ### Improving a skill { #improving-a-skill }
 

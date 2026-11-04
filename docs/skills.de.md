@@ -1,5 +1,5 @@
 ---
-source_sha: "164320c8c033"
+source_sha: "ff0fec4ff4df"
 ---
 
 # Skills { #skills }
@@ -711,7 +711,8 @@ Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis; eine n
 ihm geprüfte Version ist **unbekannt**.
 
 Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
-letzten 30 Tagen geöffnet hat: eine Linie pro Agent nach Tagen, darunter eine Tabelle
+letzten 30 Tagen geöffnet hat: ein Diagramm nach Tagen mit den Agents, die Sie in
+der Liste darüber auswählen, jeder in seiner Farbe, darunter eine Tabelle
 mit den Ladevorgängen jedes Agents, den gelesenen Dateien und wann er den Skill
 zuletzt genutzt hat. Runs von Evals und vom Testbereich des Builders zählen nicht.
 
@@ -743,7 +744,9 @@ ab, bei der er begann, und jeder Agent steht im Feld der Version, die er nutzt. 
 einer Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu
 einem Feld zusammengefaltet. **Vergleichen** an einer Version legt sie in einen
 Vergleich unter dem Diagramm. Wählen Sie beliebig viele Versionen aus main und
-Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen.
+Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen. Das
+Diagramm lässt sich ziehen und mit dem Mausrad oder den Schaltflächen zoomen, wie die
+Karte eines Agents.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
@@ -768,7 +771,9 @@ ihnen ändern, bietet er **Von N Agents entfernen und löschen** an, das sie zur
 zweiten Bestätigung noch einmal aufführt. Dann entfernt er den Skill von jedem Agent
 und löscht ihn. Sind Agents darunter, die Sie nicht ändern dürfen oder nicht sehen,
 sagt der Dialog das und bietet kein Löschen an: Entfernen Sie den Skill zuerst im
-Builder von diesen Agents, oder bitten Sie jemanden, der es darf.
+Builder von diesen Agents, oder bitten Sie jemanden, der es darf. Eine Umgebung, die
+auf Promotion wartet und den Skill noch ausliefert, wird ebenfalls genannt, denn nur
+eine Promotion verschiebt sie.
 
 ### Einen Skill verbessern { #improving-a-skill }
 

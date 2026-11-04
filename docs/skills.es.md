@@ -1,5 +1,5 @@
 ---
-source_sha: "164320c8c033"
+source_sha: "ff0fec4ff4df"
 ---
 
 # Skills { #skills }
@@ -676,7 +676,8 @@ Cada fila dice si una
 con qué resultado; una versión nunca comprobada en él es **desconocida**.
 
 Debajo de la tabla, quien puede ver runs ve con qué frecuencia cada agent abrió el
-skill en los últimos 30 días: una línea por agent, día a día, y debajo una tabla con
+skill en los últimos 30 días: un gráfico por día con los agents que eliges en la
+lista de encima, cada uno en su color, y debajo una tabla con
 las cargas de cada agent, los archivos que leyó y cuándo usó el skill por última vez.
 Los runs de evals y del panel de pruebas del Builder no cuentan.
 
@@ -706,7 +707,8 @@ en que empezó, y cada agent está en la caja de la versión que usa. En una lí
 ocho versiones o más, los tramos que ningún agent usa se pliegan en una sola caja.
 **Comparar** en una versión la añade a una comparación debajo del diagrama. Elige
 tantas versiones como quieras, de main y de forks, para ver lado a lado sus
-descripciones, instrucciones y archivos.
+descripciones, instrucciones y archivos. El diagrama se arrastra y se acerca con la
+rueda o los botones, como el mapa de un agent.
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su
@@ -728,7 +730,8 @@ cambiar cada uno de ellos, ofrece **Quitar de N agents y eliminar**, que los vue
 listar para una segunda confirmación. Luego quita el skill de cada agent y lo
 elimina. Si entre ellos hay agents que no puedes cambiar o no ves, el diálogo lo dice
 y no ofrece eliminar: quita primero el skill de esos agents en el Builder, o pídeselo
-a alguien que pueda.
+a alguien que pueda. También nombra un entorno que espera una promoción y todavía
+sirve el skill, porque solo una promoción lo mueve.
 
 ### Mejorar un skill { #improving-a-skill }
 
