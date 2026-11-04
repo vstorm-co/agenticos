@@ -44,10 +44,10 @@ export function useAppConnections(search?: string): {
   );
   const servers = [
     ...new Map(
-      [...curated, ...(search === undefined ? [] : registry.servers)].map((entry) => [
-        entry.key,
-        entry,
-      ]),
+      [...curated, ...(search === undefined ? [] : registry.servers)]
+        // Saved custom accounts are offered through connections, not catalog keys.
+        .filter((entry) => !entry.custom)
+        .map((entry) => [entry.key, entry]),
     ).values(),
   ];
   return { connections, servers, canConnect: can(Perm.mcpManage), unavailable: !canRead };
