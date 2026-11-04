@@ -997,7 +997,9 @@
     "backendComputerLabel": "Computer",
     "backendComputerDetail": "Den Computer der Person nutzen, separat im Desktop-Chat erlaubt.",
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
-    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben."
+    "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
+    "publicLineBinding": "Dieser Bot antwortet Kunden ohne verknüpftes Konto, hier sprechen also Personen außerhalb der Organisation mit diesem Agent.",
+    "publicLineReview": "Leitung prüfen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2882,7 +2884,8 @@
         "empty": {
           "title": "Noch keine Kanäle",
           "description": "Registrieren Sie einen Bot, und seine Agents werden aus Slack, Telegram oder Mattermost erreichbar."
-        }
+        },
+        "publicLine": "öffentliche Leitung"
       },
       "knowledge": {
         "title": "Wissen",
@@ -5562,7 +5565,41 @@
       "transcriptionInheritedNoKey": "Wo dieses Paar festgelegt ist, ist kein Schlüssel gewählt, daher werden Sprachnachrichten erst transkribiert, wenn einer gewählt wird.",
       "discordGuilds": "Genehmigte Discord-Server-IDs",
       "discordGuildsHint": "Aktiviere den Entwicklermodus in Discord und kopiere jede genehmigte Server-ID. Trenne IDs durch Kommas oder Leerzeichen. Eine leere Liste erlaubt nur Direktnachrichten; Servernachrichten bleiben gesperrt.",
-      "discordGuildsInvalid": "Gib numerische Server-IDs ein, getrennt durch Kommas oder Leerzeichen (bis zu 2.500 Server)."
+      "discordGuildsInvalid": "Gib numerische Server-IDs ein, getrennt durch Kommas oder Leerzeichen (bis zu 2.500 Server).",
+      "publicLineSwitch": "Personen ohne Konto antworten",
+      "publicLineHint": "Kunden, die kein Konto verknüpft haben, bekommen Antworten vom Agent selbst und nicht als Kollege. Nur private WhatsApp-Chats.",
+      "publicLineNoLimit": "Für diese Leitung braucht es zuerst ein Ausgabenlimit: Geben Sie dem Agent ein Monatsbudget oder der Organisation ein Monatslimit.",
+      "publicLineNoAgent": "Dieser Bot bedient noch keinen Agent. Binden Sie einen, bevor Sie die Leitung öffnen.",
+      "publicLineServes": "Bedient {agent}, Version {version}",
+      "publicLineReaches": "Ein Kunde kann erreichen:",
+      "publicLineReachKnowledge": "Wissen: {names}",
+      "publicLineReachContext": "Kontextdateien: {names}",
+      "publicLineReachSkills": "Skills: {names}",
+      "publicLineReachTables": "Tabellen: {names}",
+      "publicLineReachWeb": "Das Web: {names}",
+      "publicLineReachCode": "Code und Workspaces: {names}",
+      "publicLineReachGeneration": "Erzeugte Medien: {names}",
+      "publicLineReachDelegates": "Andere Agents: {names}",
+      "publicLineReachMcp": "MCP-Server: {names}",
+      "publicLineReachFiles": "Dateien, die sie senden",
+      "publicLineReachVoice": "Sprachnachrichten",
+      "publicLineAgentBudget": "Monatsbudget des Agents: {amount}",
+      "publicLineOrgCap": "Monatslimit der Organisation: {amount}",
+      "publicLineRate": "Jeder Kunde ist auf {count, plural, one {# Nachricht pro Minute} other {# Nachrichten pro Minute}} begrenzt",
+      "publicLineApprovalExpiry": "Eine Freigabe, die niemand entscheidet, verfällt nach {hours, plural, one {# Stunde} other {# Stunden}}",
+      "publicLineFileCap": "Dateien bis {mb} MB",
+      "publicLineVoiceCap": "Sprachnachrichten bis {mb} MB werden transkribiert",
+      "publicLineVoiceNeedsCap": "Sprachnachrichten brauchen ein Limit der Organisation und werden abgewiesen, bis eines gesetzt ist",
+      "publicLineRefused": "Ein Kunde kann nie erreichen: {list}",
+      "publicLineRefusedMemory": "Gedächtnis",
+      "publicLineRefusedConversationSearch": "Konversationssuche",
+      "publicLineRefusedArtifacts": "Seiten veröffentlichen",
+      "publicLineRefusedWorkflows": "Workflows",
+      "publicLineRefusedBackgroundTasks": "Hintergrundaufgaben",
+      "publicLineRefusedPlatformMcp": "den eigenen MCP-Server der Plattform",
+      "publicLineFiles": "Dateien von Kunden annehmen",
+      "publicLineFilesHint": "Werden unter der Person gespeichert, die den Agent gebunden hat. Ist es aus, wird eine Datei höflich abgelehnt.",
+      "publicLineBadge": "Öffentliche Leitung"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",

@@ -61,9 +61,15 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
             // "silent because nobody asked" and "silent because nothing is
             // listening", so the row says which.
             pill: bot.is_active
-              ? bot.webhook_mode
-                ? t("webhook")
-                : t("polling")
+              ? [
+                  bot.webhook_mode ? t("webhook") : t("polling"),
+                  // Only a live line answers anybody, so a paused one has nothing to flag.
+                  bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true
+                    ? t("publicLine")
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : t("switchedOff"),
             tone: bot.is_active ? "ok" : "neutral",
           }))}

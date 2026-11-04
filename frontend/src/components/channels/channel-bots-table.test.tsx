@@ -110,3 +110,34 @@ describe("the late-answer template column (#2076)", () => {
     expect(screen.queryByText("No late-answer template")).toBeNull();
   });
 });
+
+describe("a bot's public line badge", () => {
+  it("marks a WhatsApp bot that answers people with no account", () => {
+    show(
+      bot({
+        access_policy: { ...bot().access_policy, answer_unlinked_direct: true },
+      }),
+    );
+
+    expect(screen.getByText("Public line")).toBeInTheDocument();
+  });
+
+  it("says nothing of a bot with the switch off or never set", () => {
+    show(bot());
+    expect(screen.queryByText("Public line")).not.toBeInTheDocument();
+    cleanup();
+    show(bot({ access_policy: { ...bot().access_policy, answer_unlinked_direct: false } }));
+    expect(screen.queryByText("Public line")).not.toBeInTheDocument();
+  });
+
+  it("is never worn by another platform whatever its policy stored", () => {
+    show(
+      bot({
+        platform: "slack",
+        access_policy: { ...bot().access_policy, answer_unlinked_direct: true },
+      }),
+    );
+
+    expect(screen.queryByText("Public line")).not.toBeInTheDocument();
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Pause, Play, Trash2 } from "lucide-react";
 
 import { LoadingState } from "@/components/states";
@@ -23,6 +24,7 @@ import { ExposureChannelTiles, SURFACE_LABEL } from "@/components/agents/exposur
 import { ExposurePrompt } from "@/components/agents/exposure-prompt";
 import { ExposureCostReporting } from "@/components/agents/exposure-cost-reporting";
 import { ExposureTools } from "@/components/agents/exposure-tools";
+import { ROUTES } from "@/lib/constants";
 import type { ExposureSurface } from "@/types/exposures";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
@@ -162,6 +164,17 @@ export function ExposuresPanel({ agentId, canManage, hasWorkspace }: ExposuresPa
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* The bot answers customers with no account, so the agent is in front of
+                people who are not colleagues here. The line's own warning is on the bot. */}
+            {exposure.public_line === true && (
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                {t("publicLineBinding")}{" "}
+                <Link href={ROUTES.CHANNELS} className="underline underline-offset-4">
+                  {t("publicLineReview")}
+                </Link>
+              </p>
+            )}
 
             {/* Under the row rather than behind a dialog: it is the one thing
                 about a binding somebody actually wants to change after making

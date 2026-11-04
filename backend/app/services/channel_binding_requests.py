@@ -48,8 +48,8 @@ from app.repositories import (
     member_repo,
     user_repo,
 )
-from app.schemas.channel_binding_request import ChannelBindingRequestRead
 from app.schemas.agent_exposure import ExposureCreate, ExposureUpdate
+from app.schemas.channel_binding_request import ChannelBindingRequestRead
 from app.services import rate_limit
 from app.services.agent_registry import AgentRegistryService
 from app.services.notifications import NotificationService
@@ -335,9 +335,7 @@ class ChannelBindingRequestService:
         await self._apply(ctx, request)
         # Binding the agent voided every pending request on the bot, this one among them;
         # the request is locked and was checked pending, so settling it ends it approved.
-        return await self._reads_one(
-            await self._decide(ctx, bot, request, approved=True)
-        )
+        return await self._reads_one(await self._decide(ctx, bot, request, approved=True))
 
     async def decline(self, ctx: AuthContext, request_id: UUID) -> ChannelBindingRequestRead:
         """Decline a pending request. Nothing is applied.
@@ -348,9 +346,7 @@ class ChannelBindingRequestService:
             ConcurrentChangeError: It was decided, voided or replaced in the meantime.
         """
         bot, request = await self._pending(ctx, request_id)
-        return await self._reads_one(
-            await self._decide(ctx, bot, request, approved=False)
-        )
+        return await self._reads_one(await self._decide(ctx, bot, request, approved=False))
 
     async def _pending(
         self, ctx: AuthContext, request_id: UUID

@@ -338,3 +338,294 @@ class TestWhichBotsAnswerStrangers:
 
 
 OPEN = {"mode": "open", "answer_unlinked_direct": True}
+
+
+class TestWhatALineReaches:
+    """The warning a person reads before switching a line on, computed from the spec it serves."""
+
+    ORG = uuid.uuid4()
+    COLLECTION, CONTEXT, SKILL, TABLE, DELEGATE, CONNECTION = (uuid.uuid4() for _ in range(6))
+
+    def _spec(self, *, monthly_usd: float | None = 5.0, capabilities=None) -> AgentSpec:
+        return AgentSpec(
+            name="Front desk",
+            budget=None if monthly_usd is None else {"monthly_usd": monthly_usd},
+            collection_ids=[self.COLLECTION],
+            context_ids=[self.CONTEXT],
+            skill_ids=[self.SKILL],
+            subagents=[{"agent_id": self.DELEGATE, "agent_version_id": uuid.uuid4()}],
+            mcp_servers=[{"account": "organization", "connection_id": self.CONNECTION}],
+            capabilities=capabilities
+            if capabilities is not None
+            else [
+                {
+                    "id": "virtual_tables",
+                    "config": {
+                        "tables": [{"table_id": str(self.TABLE), "operations": ["read", "update"]}],
+                        "allow_create": True,
+                    },
+                },
+                {"id": "web_fetch"},
+                {"id": "code_execution"},
+                {"id": "image_generation"},
+            ],
+        )
+
+    def _bot(self, **policy) -> MagicMock:
+        return MagicMock(
+            id=uuid.uuid4(),
+            organization_id=self.ORG,
+            platform="whatsapp",
+            transcribe_voice_notes=True,
+            access_policy={"mode": "open", "rate_limit_rpm": 7, **policy},
+        )
+
+    async def _reach(self, spec: AgentSpec, bot: MagicMock, *, org_cap: Decimal | None = None):
+        from app.services.channels.public_line import reach_of
+
+        base = "app.services.channels.public_line."
+        version = SimpleNamespace(version=4, spec=spec.model_dump(mode="json"))
+        with (
+            patch(
+                base + "agent_exposure_repo.bound_to_bot",
+                AsyncMock(
+                    return_value=MagicMock(
+                        agent_id=uuid.uuid4(), organization_id=self.ORG, environment_id=None
+                    )
+                ),
+            ),
+            patch(base + "_served_version_id", AsyncMock(return_value=uuid.uuid4())),
+            patch(base + "agent_repo.get_version", AsyncMock(return_value=version)),
+            patch(
+                base + "agent_repo.get_many",
+                AsyncMock(
+                    side_effect=lambda _db, ids, **_k: {
+                        i: SimpleNamespace(name="Billing") for i in ids
+                    }
+                ),
+            ),
+            patch(
+                base + "organization_repo.get_by_id",
+                AsyncMock(return_value=MagicMock(monthly_budget_usd=org_cap)),
+            ),
+            patch(
+                base + "knowledge_base_repo.get_by_ids",
+                AsyncMock(
+                    side_effect=lambda _db, ids: {
+                        i: SimpleNamespace(name="Handbook", organization_id=self.ORG) for i in ids
+                    }
+                ),
+            ),
+            patch(
+                base + "context_repo.get_many",
+                AsyncMock(
+                    side_effect=lambda _db, ids, **_k: {
+                        i: SimpleNamespace(name="Tone") for i in ids
+                    }
+                ),
+            ),
+            patch(
+                base + "skill_repo.get_many",
+                AsyncMock(
+                    side_effect=lambda _db, ids, **_k: {
+                        i: SimpleNamespace(name="Refunds") for i in ids
+                    }
+                ),
+            ),
+            patch(
+                base + "virtual_table_repo.get_table",
+                AsyncMock(return_value=SimpleNamespace(name="Support")),
+            ),
+            patch(
+                base + "mcp_connection_repo.get_org_scoped_by_ids",
+                AsyncMock(
+                    side_effect=lambda _db, connection_ids, **_k: {
+                        i: SimpleNamespace(name="CRM") for i in connection_ids
+                    }
+                ),
+            ),
+        ):
+            return await reach_of(MagicMock(), bot)
+
+    async def test_every_kind_the_agent_can_reach_has_one_entry_with_names(self) -> None:
+        read = await self._reach(self._spec(), self._bot(answer_unlinked_direct=True))
+
+        by_kind = {entry.kind: entry for entry in read.reaches}
+        assert set(by_kind) == {
+            "knowledge",
+            "context",
+            "skills",
+            "tables",
+            "web",
+            "code",
+            "generation",
+            "delegates",
+            "mcp",
+        }
+        assert by_kind["knowledge"].names == ["Handbook"]
+        assert by_kind["context"].names == ["Tone"]
+        assert by_kind["skills"].names == ["Refunds"]
+        assert by_kind["delegates"].names == ["Billing"]
+        assert by_kind["mcp"].names == ["CRM"]
+        assert by_kind["tables"].names == ["Support"]
+        assert [(g.name, g.operations) for g in by_kind["tables"].grants] == [
+            ("Support", ["read", "update"])
+        ]
+        assert by_kind["tables"].may_create
+        assert by_kind["generation"].names == ["image_generation"]
+        assert read.answers_unlinked is True
+        assert (read.agent_name, read.agent_version) == ("Front desk", 4)
+        assert read.refused == [
+            "memory",
+            "conversation_search",
+            "artifacts",
+            "workflows",
+            "background_tasks",
+            "platform_mcp",
+        ]
+
+    async def test_web_and_code_say_they_are_outside_the_spending_limit(self) -> None:
+        read = await self._reach(self._spec(), self._bot())
+
+        by_kind = {entry.kind: entry for entry in read.reaches}
+        assert by_kind["web"].detail == "outside_ledger"
+        assert by_kind["code"].detail == "outside_ledger"
+
+    @pytest.mark.security
+    async def test_with_no_budget_and_no_cap_the_line_cannot_be_turned_on(self) -> None:
+        read = await self._reach(self._spec(monthly_usd=None), self._bot())
+
+        assert read.can_turn_on is False
+        assert read.agent_monthly_usd is None
+        assert read.organization_monthly_usd is None
+
+    @pytest.mark.security
+    async def test_either_budget_makes_it_possible(self) -> None:
+        read = await self._reach(self._spec(), self._bot(), org_cap=Decimal("50"))
+
+        assert read.can_turn_on is True
+        assert read.agent_monthly_usd == Decimal("5.0")
+        assert read.organization_monthly_usd == Decimal("50")
+
+    async def test_the_limits_a_customer_meets_are_stated(self) -> None:
+        from app.core.config import settings
+
+        read = await self._reach(self._spec(), self._bot())
+
+        assert read.rate_limit_rpm == 7
+        assert read.approval_expiry_hours == settings.APPROVAL_EXPIRY_HOURS == 72
+        assert read.recording_max_mb == 2
+        assert read.file_max_mb == settings.EMBED_MAX_UPLOAD_SIZE_MB
+
+    async def test_voice_notes_need_an_organization_cap(self) -> None:
+        only_agent = await self._reach(self._spec(), self._bot())
+        with_cap = await self._reach(self._spec(), self._bot(), org_cap=Decimal("9"))
+        off = self._bot()
+        off.transcribe_voice_notes = False
+
+        assert only_agent.voice == "refused_no_org_cap"
+        assert with_cap.voice == "on"
+        assert (await self._reach(self._spec(), off, org_cap=Decimal("9"))).voice == "off"
+
+    async def test_files_are_listed_only_while_the_setting_is_on(self) -> None:
+        off = await self._reach(self._spec(), self._bot())
+        on = await self._reach(self._spec(), self._bot(accept_customer_files=True))
+
+        assert "files" not in {entry.kind for entry in off.reaches}
+        assert off.accept_customer_files is False
+        assert "files" in {entry.kind for entry in on.reaches}
+        assert on.accept_customer_files is True
+
+    async def test_a_bot_with_no_binding_reaches_nothing(self) -> None:
+        from app.services.channels.public_line import reach_of
+
+        base = "app.services.channels.public_line."
+        with (
+            patch(base + "agent_exposure_repo.bound_to_bot", AsyncMock(return_value=None)),
+            patch(
+                base + "organization_repo.get_by_id",
+                AsyncMock(return_value=MagicMock(monthly_budget_usd=Decimal("3"))),
+            ),
+        ):
+            read = await reach_of(MagicMock(), self._bot())
+
+        assert read.reaches == []
+        assert read.agent_name is None
+        assert read.can_turn_on is True
+
+    async def test_a_spec_with_nothing_to_reach_lists_no_entries(self) -> None:
+        bare = AgentSpec(name="Bare", budget={"monthly_usd": 1})
+
+        read = await self._reach(bare, self._bot())
+
+        assert read.reaches == []
+
+    async def test_a_disabled_capability_and_a_table_that_is_gone_are_not_listed(self) -> None:
+        from app.services.channels import public_line
+
+        spec = self._spec(
+            capabilities=[
+                {"id": "web_fetch", "enabled": False},
+                {
+                    "id": "virtual_tables",
+                    "enabled": False,
+                    "config": {"tables": [{"table_id": str(self.TABLE)}]},
+                },
+            ]
+        )
+        read = await self._reach(spec, self._bot())
+        assert not {"web", "tables"} & {entry.kind for entry in read.reaches}
+
+        with patch.object(
+            public_line.virtual_table_repo, "get_table", AsyncMock(return_value=None)
+        ):
+            assert (
+                await public_line._table_reach(
+                    MagicMock(),
+                    self._spec(
+                        capabilities=[
+                            {
+                                "id": "virtual_tables",
+                                "config": {"tables": [{"table_id": str(self.TABLE)}]},
+                            }
+                        ]
+                    ),
+                    organization_id=self.ORG,
+                )
+                is None
+            )
+
+    async def test_read_only_tables_do_not_claim_they_can_create(self) -> None:
+        spec = self._spec(
+            capabilities=[
+                {"id": "virtual_tables", "config": {"tables": [{"table_id": str(self.TABLE)}]}}
+            ]
+        )
+
+        read = await self._reach(spec, self._bot())
+
+        tables = next(entry for entry in read.reaches if entry.kind == "tables")
+        assert [(g.name, g.operations) for g in tables.grants] == [("Support", ["read"])]
+
+    async def test_an_agent_with_nothing_published_reaches_nothing(self) -> None:
+        from app.services.channels.public_line import reach_of
+
+        base = "app.services.channels.public_line."
+        with (
+            patch(
+                base + "agent_exposure_repo.bound_to_bot",
+                AsyncMock(
+                    return_value=MagicMock(
+                        agent_id=uuid.uuid4(), organization_id=self.ORG, environment_id=None
+                    )
+                ),
+            ),
+            patch(base + "_served_version_id", AsyncMock(return_value=None)),
+            patch(
+                base + "organization_repo.get_by_id",
+                AsyncMock(return_value=MagicMock(monthly_budget_usd=None)),
+            ),
+        ):
+            read = await reach_of(MagicMock(), self._bot())
+
+        assert (read.reaches, read.agent_name, read.can_turn_on) == ([], None, False)

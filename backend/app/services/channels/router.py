@@ -84,6 +84,7 @@ from app.services.channels.mentions import (
 from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.public_line import (
+    STRANGER_RECORDING_MAX_BYTES,
     bot_answers_unlinked_direct,
     bot_ceiling,
     parse_policy,
@@ -121,9 +122,6 @@ logger = logging.getLogger(__name__)
 
 STRANGER_NO_VOICE = "This line does not accept voice messages."
 """The one sentence a stranger is told whenever their voice note is not taken."""
-
-STRANGER_RECORDING_MAX_BYTES = 2 * 1024 * 1024
-"""The largest voice note taken from somebody with no account: about fifteen minutes of a WhatsApp voice note."""
 
 _DEFAULT_RPM = 10
 

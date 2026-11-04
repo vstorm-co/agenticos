@@ -180,6 +180,8 @@ export const qk = {
     teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
     /** The templates Meta lists for one WhatsApp bot's account (#2076). */
     whatsappTemplates: (botId: string) => ["channel-bots", botId, "whatsapp-templates"] as const,
+    /** What a public line reaches; under the bot, so a bot update refreshes the warning. */
+    publicLine: (botId: string) => ["channel-bots", botId, "public-line"] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its

@@ -476,3 +476,26 @@ describe("ExposuresPanel", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });
+
+describe("a binding on a public line", () => {
+  it("warns that customers, not colleagues, talk to the agent here, and links the bot", async () => {
+    serve([exposure({ surface: "whatsapp", public_line: true })], []);
+    await mount();
+
+    expect(
+      await screen.findByText(/answers customers who have not linked an account/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /review the line/i })).toHaveAttribute(
+      "href",
+      "/channels",
+    );
+  });
+
+  it("says nothing on an ordinary binding", async () => {
+    serve([exposure({ public_line: false }), exposure({ id: "e2", public_line: undefined })], []);
+    await mount();
+
+    await screen.findAllByText(/Acme Support/);
+    expect(screen.queryByText(/not linked an account/i)).toBeNull();
+  });
+});

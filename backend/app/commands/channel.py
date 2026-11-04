@@ -7,6 +7,7 @@ Commands:
     channel-webhook-delete    - Remove webhook for a bot (switches to polling)
     channel-test-message      - Send a test message through a bot
     channel-forget-customer   - Erase a WhatsApp customer and what is kept of them
+    channel-public-line       - Show what a WhatsApp line reaches; switch it on or off
 
 Every command acts through the bot's own platform, read from its row. They used
 to name Telegram, which is what a channels CLI written when there was one
@@ -36,7 +37,12 @@ from app.commands import command, error, info, success
 from app.core.exceptions import AppException, NotFoundError
 from app.db.session import get_db_context
 from app.repositories import organization_repo
-from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
+from app.schemas.channel_bot import (
+    AccessPolicy,
+    ChannelBotCreate,
+    ChannelBotUpdate,
+    PublicLineRead,
+)
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
 from app.services.channels import INBOUND_PATHS, get_adapter, inbound_webhook_url
 from app.services.channels.base import OutgoingMessage
@@ -447,3 +453,80 @@ def channel_forget_customer(bot_id: str, by: str, yes: bool, org_id: str | None)
             success("Erased: " + ", ".join(f"{k}={v}" for k, v in asdict(counts).items()))
 
     asyncio.run(_report())
+
+
+def _print_public_line(read: PublicLineRead) -> None:
+    """The warning a line shows before it answers people with no account, as plain lines."""
+    state = "answering people with no account" if read.answers_unlinked else "not answering them"
+    info(f"Line is {state}.")
+    if read.agent_name is None:
+        info("Serves no agent yet.")
+    else:
+        info(f"Serves: {read.agent_name} (version {read.agent_version})")
+    if not read.can_turn_on:
+        info("No spending limit: give the agent a monthly budget or the organization a cap.")
+    if read.agent_monthly_usd is not None:
+        info(f"Agent monthly budget: {read.agent_monthly_usd}")
+    if read.organization_monthly_usd is not None:
+        info(f"Organization monthly cap: {read.organization_monthly_usd}")
+    info(f"Per-customer rate: {read.rate_limit_rpm} messages a minute")
+    info(f"Approvals expire after {read.approval_expiry_hours} hours")
+    info(
+        f"Files: {'accepted, up to ' + str(read.file_max_mb) + ' MB' if read.accept_customer_files else 'not accepted'}"
+    )
+    voice = {
+        "off": "off",
+        "refused_no_org_cap": "refused until the organization has a monthly spending cap",
+        "on": f"transcribed, up to {read.recording_max_mb} MB",
+    }[read.voice]
+    info(f"Voice notes: {voice}")
+    info("Customers can reach:")
+    for reach in read.reaches:
+        names = f" - {', '.join(reach.names)}" if reach.names else ""
+        notes = [f"{grant.name}: {', '.join(grant.operations)}" for grant in reach.grants]
+        if reach.may_create:
+            notes.append("may create tables")
+        if reach.detail == "outside_ledger":
+            notes.append("not counted in the spending limit")
+        note = f" ({'; '.join(notes)})" if notes else ""
+        info(f"  {reach.kind}{names}{note}")
+    info("Customers can never reach: " + ", ".join(read.refused))
+
+
+@command("channel-public-line", help="Show what a WhatsApp line reaches; switch it on or off")
+@click.option("--bot-id", required=True, help="Bot UUID")
+@click.option(
+    "--on/--off",
+    "switch",
+    default=None,
+    help="Answer people with no account (--on), or ask them to link (--off). Omit to only show.",
+)
+@_org_option
+def channel_public_line(bot_id: str, switch: bool | None, org_id: str | None) -> None:
+    """Print the public-line warning, then switch the line when asked.
+
+    The switch goes through the same service call as the console, so it refuses
+    exactly the same way: a line cannot be opened without a spending limit.
+    """
+
+    async def _run() -> None:
+        async with _channel_service(org_id) as svc:
+            try:
+                uid = _coerce_bot_id(bot_id)
+                _print_public_line(await svc.public_line(uid))
+                if switch is None:
+                    return
+                bot = await svc.get(uid)
+                policy = AccessPolicy.model_validate(
+                    {**bot.access_policy, "answer_unlinked_direct": switch}
+                )
+                await svc.update(uid, ChannelBotUpdate(access_policy=policy), actor_user_id=None)
+            except NotFoundError:
+                error(f"Bot not found: {bot_id}")
+                raise SystemExit(1) from None
+            except AppException as exc:
+                error(exc.message)
+                raise SystemExit(1) from None
+        success(f"The line {'answers' if switch else 'no longer answers'} people with no account.")
+
+    asyncio.run(_run())

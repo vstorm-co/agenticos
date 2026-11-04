@@ -106,6 +106,24 @@ def _opening(**fields) -> ChannelBotUpdate:
     return ChannelBotUpdate(access_policy={**OPEN, **fields})
 
 
+class TestReadingTheLine:
+    async def test_the_service_reads_the_line_from_stored_rows(self, db) -> None:
+        tenant = await _tenant(db, name="Shop")
+        await _keyed_model_profile(db, tenant)
+        bot = await _bot(db, tenant, policy=OPEN)
+        agent = await _bind(db, tenant, bot, budget=5)
+
+        read = await ChannelBotService(db, organization_id=tenant.organization.id).public_line(
+            bot.id
+        )
+
+        assert read.answers_unlinked and read.can_turn_on
+        assert read.agent_name == agent.name
+        assert read.agent_monthly_usd == Decimal("5")
+        assert read.rate_limit_rpm == 10
+        assert read.recording_max_mb == 2
+
+
 class TestTurningTheSwitchOn:
     @pytest.mark.security
     async def test_a_bound_agent_with_no_budget_and_no_cap_is_refused(self, db) -> None:

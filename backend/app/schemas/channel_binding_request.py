@@ -28,7 +28,9 @@ class ChannelBindingRequestRead(BaseSchema):
     environment_id: UUID | None
     kind: Literal["bind", "environment", "resume"]
     requester_user_id: UUID
-    requester_email: str | None = Field(default=None, description="Who asked, as the decider sees it")
+    requester_email: str | None = Field(
+        default=None, description="Who asked, as the decider sees it"
+    )
     agent_name: str
     channel_bot_name: str
     note: str | None = Field(default=None, description="What the requester said, for the decider")

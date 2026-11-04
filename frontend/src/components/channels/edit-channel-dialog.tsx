@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
+import { PublicLineField } from "@/components/channels/public-line-field";
 import { SlackTransport } from "@/components/channels/slack-transport";
 import { WhatsAppLateTemplateField } from "@/components/channels/whatsapp-late-template-field";
 import {
@@ -72,6 +73,10 @@ export interface ChannelBotDraft {
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
   respondToBroadcasts: boolean;
+  /** WhatsApp: answer people with no linked account, as the agent. */
+  answerUnlinkedDirect: boolean;
+  /** WhatsApp: take files from such customers. */
+  acceptCustomerFiles: boolean;
   discordGuilds: string;
   answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
@@ -152,6 +157,20 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
       ...bot.access_policy,
       respond_to_broadcasts: draft.respondToBroadcasts,
     };
+  }
+  if (bot.platform === "whatsapp") {
+    // Both keys ride in the one policy, merged over whatever else this patch put there.
+    const stored = bot.access_policy;
+    const changes: Partial<ChannelBot["access_policy"]> = {};
+    if (draft.answerUnlinkedDirect !== (stored.answer_unlinked_direct ?? false)) {
+      changes.answer_unlinked_direct = draft.answerUnlinkedDirect;
+    }
+    if (draft.acceptCustomerFiles !== (stored.accept_customer_files ?? false)) {
+      changes.accept_customer_files = draft.acceptCustomerFiles;
+    }
+    if (Object.keys(changes).length > 0) {
+      patch.access_policy = { ...stored, ...patch.access_policy, ...changes };
+    }
   }
   if (bot.platform === "discord") {
     const guilds = parseDiscordGuilds(draft.discordGuilds);
@@ -238,6 +257,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
       : null,
     webhookMode: bot.webhook_mode,
     respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
+    answerUnlinkedDirect: bot.access_policy.answer_unlinked_direct ?? false,
+    acceptCustomerFiles: bot.access_policy.accept_customer_files ?? false,
     discordGuilds: (bot.access_policy.discord_guild_ids ?? []).join(", "),
     answerStyle: {
       ack_reaction: bot.ack_reaction,
@@ -308,6 +329,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             "whatsapp_account_id",
             "whatsapp_verify_token",
             "whatsapp_late_template",
+            "access_policy.answer_unlinked_direct",
+            "access_policy.accept_customer_files",
           ],
           identifiedBy: "name",
         },
@@ -531,6 +554,21 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             idPrefix="edit-channel"
             value={draft.discordGuilds}
             onChange={(discordGuilds) => setDraft((current) => ({ ...current, discordGuilds }))}
+          />
+        )}
+        {whatsapp && (
+          <PublicLineField
+            botId={bot.id}
+            answers={draft.answerUnlinkedDirect}
+            files={draft.acceptCustomerFiles}
+            onAnswers={(answerUnlinkedDirect) =>
+              setDraft((current) => ({ ...current, answerUnlinkedDirect }))
+            }
+            onFiles={(acceptCustomerFiles) =>
+              setDraft((current) => ({ ...current, acceptCustomerFiles }))
+            }
+            error={errors["access_policy.answer_unlinked_direct"]}
+            filesError={errors["access_policy.accept_customer_files"]}
           />
         )}
         {/* WhatsApp groups are out of scope: every chat is private, so there is no

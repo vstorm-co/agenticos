@@ -72,9 +72,7 @@ async def list_binding_requests(
     Whoever manages channels sees them all; anyone else who may see the agent sees their own.
     """
     items = await service.list_for_agent(ctx, agent_id)
-    return ChannelBindingRequestList(
-        items=items, total=len(items)
-    )
+    return ChannelBindingRequestList(items=items, total=len(items))
 
 
 @router.post(

@@ -24,6 +24,7 @@ from app.schemas.channel_bot import (
     ChannelBotUpdate,
     ChannelSessionList,
     CustomerErasureRead,
+    PublicLineRead,
     TeamsConversationList,
     TeamsConversationRead,
     WhatsAppCustomerForget,
@@ -62,9 +63,7 @@ async def list_binding_requests(
 ) -> Any:
     """The pending requests to bind an agent to a bot that answers people with no account."""
     items, total = await service.list_pending(ctx, skip, limit)
-    return ChannelBindingRequestList(
-        items=items, total=total
-    )
+    return ChannelBindingRequestList(items=items, total=total)
 
 
 @router.post(
@@ -121,6 +120,21 @@ async def get_bot(
     if it inherited its transcription engine - which the listing leaves out.
     """
     return await service.read(bot_id)
+
+
+@router.get(
+    "/bots/{bot_id}/public-line",
+    response_model=PublicLineRead,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def get_public_line(bot_id: UUID, service: OrgChannelBotSvc) -> Any:
+    """What the bot would answer people with no account with, and what bounds it.
+
+    The warning to read before switching the line on: the knowledge, tools and
+    delegates of the agent it serves, the spending limit, the per-customer rate,
+    approval expiry, file and voice limits, and what a customer can never reach.
+    """
+    return await service.public_line(bot_id)
 
 
 @router.get(

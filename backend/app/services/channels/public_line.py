@@ -21,7 +21,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, OrgMcpServerRef
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.channel_bot import ChannelBot
@@ -29,8 +30,22 @@ from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
+    context_repo,
+    knowledge_base_repo,
+    mcp_connection_repo,
     organization_repo,
+    skill_repo,
+    virtual_table_repo,
 )
+from app.schemas.channel_bot import (
+    PublicLineKind,
+    PublicLineReach,
+    PublicLineRead,
+    PublicLineRefused,
+    PublicLineTableGrant,
+    PublicLineVoice,
+)
+from app.services.channels.base import DEFAULT_ACCESS_POLICY
 
 PLATFORMS_THAT_ANSWER_STRANGERS = frozenset({"whatsapp"})
 """Where a customer with no account can be answered at all.
@@ -273,3 +288,173 @@ async def refuse_unbounded_bindings(
             spec=await _spec_of_version(db, organization_id=organization_id, version_id=version_id),
             channel_bot_id=bot.id,
         )
+
+
+STRANGER_RECORDING_MAX_BYTES = 2 * 1024 * 1024
+"""The largest voice note taken from somebody with no account: about fifteen minutes of a WhatsApp voice note."""
+
+_CAPABILITY_KINDS: dict[PublicLineKind, tuple[str, ...]] = {
+    "web": ("web_fetch", "web_research"),
+    "code": ("code_execution", "sandbox", "coding_agent"),
+    "generation": ("image_generation", "video_generation", "text_to_speech", "visuals"),
+}
+
+_REFUSED: tuple[PublicLineRefused, ...] = (
+    "memory",
+    "conversation_search",
+    "artifacts",
+    "workflows",
+    "background_tasks",
+    "platform_mcp",
+)
+
+
+def _as_decimal(value: Decimal | None) -> Decimal | None:
+    return None if value is None else Decimal(str(value))
+
+
+async def _table_reach(
+    db: AsyncSession, spec: AgentSpec, *, organization_id: UUID
+) -> PublicLineReach | None:
+    """The tables the spec grants, with what may be done in each, or `None` when it grants none."""
+    from app.agents.capabilities.virtual_tables import VirtualTablesConfig
+
+    names: list[str] = []
+    grants: list[PublicLineTableGrant] = []
+    creates = False
+    for binding in spec.capabilities:
+        if binding.id != "virtual_tables" or not binding.enabled:
+            continue
+        config = VirtualTablesConfig.model_validate(binding.config)
+        creates = creates or config.allow_create
+        for grant in config.tables:
+            table = await virtual_table_repo.get_table(
+                db, grant.table_id, organization_id=organization_id
+            )
+            if table is None:
+                continue
+            names.append(table.name)
+            grants.append(
+                PublicLineTableGrant(
+                    name=table.name, operations=[str(op) for op in grant.operations]
+                )
+            )
+    if not names and not creates:
+        return None
+    return PublicLineReach(kind="tables", names=names, grants=grants, may_create=creates)
+
+
+def _capability_reaches(spec: AgentSpec) -> list[PublicLineReach]:
+    enabled = {binding.id for binding in spec.capabilities if binding.enabled}
+    reaches = []
+    for kind, ids in _CAPABILITY_KINDS.items():
+        found = [capability for capability in ids if capability in enabled]
+        if found:
+            reaches.append(
+                PublicLineReach(
+                    kind=kind,
+                    names=found,
+                    detail="outside_ledger" if kind in ("web", "code") else None,
+                )
+            )
+    return reaches
+
+
+async def _named_reaches(
+    db: AsyncSession, spec: AgentSpec, *, organization_id: UUID
+) -> list[PublicLineReach]:
+    """The references a spec holds to rows in the organization, each as the names of what it reaches."""
+    collections = await knowledge_base_repo.get_by_ids(db, spec.collection_ids)
+    contexts = await context_repo.get_many(db, spec.context_ids, organization_id=organization_id)
+    skills = await skill_repo.get_many(db, spec.skill_ids, organization_id=organization_id)
+    delegates = await agent_repo.get_many(
+        db, [ref.agent_id for ref in spec.subagents], organization_id=organization_id
+    )
+    connections = await mcp_connection_repo.get_org_scoped_by_ids(
+        db,
+        connection_ids=[
+            ref.connection_id for ref in spec.mcp_servers if isinstance(ref, OrgMcpServerRef)
+        ],
+        organization_id=organization_id,
+    )
+    named: list[tuple[PublicLineKind, list[str]]] = [
+        (
+            "knowledge",
+            [kb.name for kb in collections.values() if kb.organization_id == organization_id],
+        ),
+        ("context", [file.name for file in contexts.values()]),
+        ("skills", [skill.name for skill in skills.values()]),
+    ]
+    tables = await _table_reach(db, spec, organization_id=organization_id)
+    reaches = [PublicLineReach(kind=kind, names=names) for kind, names in named if names]
+    if tables is not None:
+        reaches.append(tables)
+    reaches.extend(_capability_reaches(spec))
+    if delegates:
+        reaches.append(
+            PublicLineReach(kind="delegates", names=[agent.name for agent in delegates.values()])
+        )
+    if connections:
+        reaches.append(
+            PublicLineReach(kind="mcp", names=[conn.name for conn in connections.values()])
+        )
+    return reaches
+
+
+async def reach_of(db: AsyncSession, bot: ChannelBot) -> PublicLineRead:
+    """What this bot would answer a customer with no account with, and what bounds it.
+
+    Read from the agent the bot is bound to, active or paused, and from the policy
+    as stored. A bot with no binding reaches nothing yet; only the organization's
+    cap can bound it.
+    """
+    organization_id = bot.organization_id
+    binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+    spec: AgentSpec | None = None
+    agent_version: int | None = None
+    if binding is not None:
+        version_id = await _served_version_id(
+            db,
+            organization_id=organization_id,
+            agent_id=binding.agent_id,
+            environment_id=binding.environment_id,
+        )
+        version = (
+            None
+            if version_id is None
+            else await agent_repo.get_version(db, version_id, organization_id=organization_id)
+        )
+        if version is not None:
+            spec = AgentSpec.model_validate(version.spec)
+            agent_version = version.version
+    ceiling = await ceiling_for(db, organization_id=organization_id, spec=spec)
+    policy = parse_policy(bot.access_policy)
+    accepts_files = policy.get("accept_customer_files") is True
+    reaches = (
+        [] if spec is None else await _named_reaches(db, spec, organization_id=organization_id)
+    )
+    if accepts_files:
+        reaches.append(PublicLineReach(kind="files", names=[]))
+    voice: PublicLineVoice
+    if not bot.transcribe_voice_notes:
+        voice = "off"
+    elif ceiling.organization_monthly_usd is None:
+        voice = "refused_no_org_cap"
+    else:
+        voice = "on"
+    return PublicLineRead(
+        answers_unlinked=bot_answers_unlinked_direct(bot),
+        agent_name=None if spec is None else spec.name,
+        agent_version=agent_version,
+        agent_monthly_usd=_as_decimal(ceiling.agent_monthly_usd),
+        organization_monthly_usd=_as_decimal(ceiling.organization_monthly_usd),
+        can_turn_on=ceiling.exists,
+        accept_customer_files=accepts_files,
+        voice=voice,
+        rate_limit_rpm=int(policy.get("rate_limit_rpm", DEFAULT_ACCESS_POLICY["rate_limit_rpm"])),
+        approval_expiry_hours=settings.APPROVAL_EXPIRY_HOURS,
+        recording_max_mb=STRANGER_RECORDING_MAX_BYTES // (1024 * 1024),
+        file_max_mb=settings.EMBED_MAX_UPLOAD_SIZE_MB,
+        reaches=reaches,
+        refused=list(_REFUSED),
+    )

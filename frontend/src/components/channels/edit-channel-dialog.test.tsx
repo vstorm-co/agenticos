@@ -55,6 +55,8 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     whatsappLateTemplate: null,
     webhookMode: false,
     respondToBroadcasts: false,
+    answerUnlinkedDirect: false,
+    acceptCustomerFiles: false,
     discordGuilds: "",
     answerStyle: {
       ack_reaction: null,

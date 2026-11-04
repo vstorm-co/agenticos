@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useWhatsAppTemplates } from "./use-channel-bots";
+import { usePublicLine, useWhatsAppTemplates } from "./use-channel-bots";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
@@ -30,5 +30,19 @@ describe("a WhatsApp bot's templates (#2076)", () => {
 
     await waitFor(() => expect(result.current.data).toHaveLength(1));
     expect(apiClient.get).toHaveBeenCalledWith("/channels/bots/b1/whatsapp-templates");
+  });
+});
+
+describe("what a public line reaches", () => {
+  it("reads the warning for one bot, and nothing without one", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ can_turn_on: true, reaches: [] });
+
+    const none = renderHook(() => usePublicLine(null), { wrapper });
+    expect(none.result.current.fetchStatus).toBe("idle");
+
+    const { result } = renderHook(() => usePublicLine("b1"), { wrapper });
+
+    await waitFor(() => expect(result.current.data?.can_turn_on).toBe(true));
+    expect(apiClient.get).toHaveBeenCalledWith("/channels/bots/b1/public-line");
   });
 });

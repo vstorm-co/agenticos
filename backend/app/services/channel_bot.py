@@ -38,6 +38,7 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     InheritedSpeechToTextRead,
+    PublicLineRead,
     WhatsAppCustomerList,
     WhatsAppCustomerRead,
     WhatsAppLateTemplateChoice,
@@ -55,6 +56,7 @@ from app.services.channels.public_line import (
     answers_unlinked_on,
     bot_answers_unlinked_direct,
     bot_served_spec,
+    reach_of,
     refuse_without_ceiling,
 )
 from app.services.channels.slack_manifest import slack_manifest
@@ -619,6 +621,10 @@ class ChannelBotService:
                 details={"bot_id": str(bot_id)},
             )
         return bot
+
+    async def public_line(self, bot_id: UUID) -> PublicLineRead:
+        """What this bot would answer people with no account with, and what bounds it."""
+        return await reach_of(self.db, await self.get(bot_id))
 
     async def read(self, bot_id: UUID) -> ChannelBotRead:
         """One bot as its form reads it, with what "inherit" would transcribe on.

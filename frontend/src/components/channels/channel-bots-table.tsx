@@ -134,6 +134,12 @@ export function ChannelBotsTable({
                   {bot.platform === "whatsapp" ? t("whatsappSendDown") : t("connectionDown")}
                 </Badge>
               )}
+              {/* Customers with no account are answered here. Whether a spending
+                  limit stands behind it is not worked out per row: the edit
+                  dialog's warning says so. */}
+              {bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true && (
+                <Badge variant="outline">{t("publicLineBadge")}</Badge>
+              )}
               {!bot.is_active && <Badge variant="secondary">{t("paused")}</Badge>}
             </div>
           );

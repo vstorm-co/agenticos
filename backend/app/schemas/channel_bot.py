@@ -1,6 +1,7 @@
 """Channel bot, identity, and session schemas."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
@@ -785,3 +786,71 @@ class CustomerErasureRead(BaseSchema):
     notifications: int
     handback_jobs: int
     handback_jobs_running: int
+
+
+PublicLineKind = Literal[
+    "knowledge",
+    "context",
+    "skills",
+    "tables",
+    "web",
+    "code",
+    "generation",
+    "delegates",
+    "mcp",
+    "files",
+]
+PublicLineVoice = Literal["off", "refused_no_org_cap", "on"]
+PublicLineRefused = Literal[
+    "memory",
+    "conversation_search",
+    "artifacts",
+    "workflows",
+    "background_tasks",
+    "platform_mcp",
+]
+
+
+class PublicLineTableGrant(BaseSchema):
+    """What an agent may do in one table."""
+
+    name: str
+    operations: list[str]
+
+
+class PublicLineReach(BaseSchema):
+    """One thing a customer with no account can reach through the agent on a public line.
+
+    `detail` is a code the console and the CLI each put in their own words:
+    `outside_ledger` means the use is not counted in the spending limit. `grants` and
+    `may_create` say what is allowed in the tables of a `tables` reach.
+    """
+
+    kind: PublicLineKind
+    names: list[str] = Field(default_factory=list)
+    detail: Literal["outside_ledger"] | None = None
+    grants: list[PublicLineTableGrant] = Field(default_factory=list)
+    may_create: bool = False
+
+
+class PublicLineRead(BaseSchema):
+    """What a bot would answer people with no account with, and what bounds it.
+
+    Computed from the agent the bot is bound to, so the warning shown before the
+    switch is the spec's, not a hand-kept list.
+    """
+
+    answers_unlinked: bool
+    agent_name: str | None = None
+    agent_version: int | None = None
+    agent_monthly_usd: Decimal | None = None
+    organization_monthly_usd: Decimal | None = None
+    can_turn_on: bool
+    accept_customer_files: bool
+    voice: PublicLineVoice
+    rate_limit_rpm: int
+    approval_expiry_hours: int
+    recording_max_mb: int
+    file_max_mb: int
+    reaches: list[PublicLineReach]
+    refused: list[PublicLineRefused]

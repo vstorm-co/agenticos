@@ -13,6 +13,7 @@ import type {
   ChannelBotCreate,
   ChannelBotList,
   ChannelBotUpdate,
+  PublicLine,
   TeamsConversation,
   WhatsAppTemplate,
 } from "@/types/channels";
@@ -134,6 +135,20 @@ export function useWhatsAppTemplates(botId: string | null) {
     enabled: botId !== null,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * What a WhatsApp bot would answer people with no account with, and what bounds it.
+ *
+ * Computed by the server from the agent the bot serves, so the warning beside the
+ * switch is the spec's own and never a list kept in the console.
+ */
+export function usePublicLine(botId: string | null) {
+  return useQuery({
+    queryKey: qk.channelBots.publicLine(botId ?? ""),
+    queryFn: () => apiClient.get<PublicLine>(`/channels/bots/${botId}/public-line`),
+    enabled: botId !== null,
   });
 }
 

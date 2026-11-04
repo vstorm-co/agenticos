@@ -9,6 +9,25 @@ vi.mock("@/hooks/use-channel-bots", () => ({
   useCopySlackManifest: () => ({ mutate: vi.fn(), isPending: false }),
   useDownloadTeamsPackage: () => ({ mutate: vi.fn(), isPending: false }),
   useChannelBot: () => null,
+  usePublicLine: () => ({
+    data: {
+      answers_unlinked: false,
+      agent_name: "Front desk",
+      agent_version: 1,
+      agent_monthly_usd: "5",
+      organization_monthly_usd: null,
+      can_turn_on: true,
+      accept_customer_files: false,
+      voice: "off",
+      rate_limit_rpm: 10,
+      approval_expiry_hours: 72,
+      recording_max_mb: 2,
+      file_max_mb: 5,
+      reaches: [],
+      refused: [],
+    },
+    isLoading: false,
+  }),
   useWhatsAppTemplates: () => ({
     data: [{ name: "late_answer", language: "en_US", body: "Answer: {{1}} - thanks" }],
     isLoading: false,
@@ -79,6 +98,8 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     whatsappLateTemplate: null,
     webhookMode: true,
     respondToBroadcasts: false,
+    answerUnlinkedDirect: false,
+    acceptCustomerFiles: false,
     answerStyle: {
       ack_reaction: null,
       stream_answers: true,
@@ -269,5 +290,91 @@ describe("the patch an edited WhatsApp bot sends", () => {
 
   it("does not send webhook_mode for a WhatsApp bot", () => {
     expect(botPatch(bot(), draft({ webhookMode: false }))).toEqual({});
+  });
+});
+
+describe("the public line in the edit dialog", () => {
+  it("shows the switch on a WhatsApp bot", () => {
+    show(bot());
+
+    expect(
+      screen.getByRole("switch", { name: /answer people with no account/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("saves the switch merged into the stored access policy", () => {
+    const onSubmit = show(bot());
+
+    fireEvent.click(screen.getByRole("switch", { name: /answer people with no account/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith("b1", {
+      access_policy: { ...bot().access_policy, answer_unlinked_direct: true },
+    });
+  });
+
+  it("saves the files setting with the switch it travels beside", () => {
+    const open = bot();
+    open.access_policy = { ...open.access_policy, answer_unlinked_direct: true };
+    const onSubmit = show(open);
+
+    fireEvent.click(screen.getByRole("switch", { name: /accept files from customers/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith("b1", {
+      access_policy: { ...open.access_policy, accept_customer_files: true },
+    });
+  });
+
+  it("shows a refusal from the server instead of swallowing it", async () => {
+    const { ApiError } = await import("@/lib/api-error");
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError(400, "Refused", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Refused",
+          details: {
+            fields: [
+              {
+                field: "access_policy.answer_unlinked_direct",
+                message: "Needs a spending limit first",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    show(bot(), onSubmit);
+
+    fireEvent.click(screen.getByRole("switch", { name: /answer people with no account/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Needs a spending limit first")).toBeInTheDocument();
+  });
+});
+
+describe("the public line outside WhatsApp", () => {
+  it("is not offered on another platform", () => {
+    show(bot({ platform: "slack" }));
+
+    expect(screen.queryByRole("switch", { name: /answer people with no account/i })).toBeNull();
+  });
+});
+
+describe("the patch for the public line", () => {
+  it("sends nothing when neither moved", () => {
+    expect(botPatch(bot(), draft())).toEqual({});
+  });
+
+  it("merges both keys into one policy", () => {
+    expect(
+      botPatch(bot(), draft({ answerUnlinkedDirect: true, acceptCustomerFiles: true })),
+    ).toEqual({
+      access_policy: {
+        ...bot().access_policy,
+        answer_unlinked_direct: true,
+        accept_customer_files: true,
+      },
+    });
   });
 });

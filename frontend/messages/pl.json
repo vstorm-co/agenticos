@@ -2390,7 +2390,41 @@
       "transcriptionInheritedNoKey": "Na poziomie, z którego pochodzi ta para, nie wybrano klucza, więc wiadomości głosowe nie są transkrybowane, dopóki ktoś go nie wybierze.",
       "discordGuilds": "Zatwierdzone ID serwerów Discorda",
       "discordGuildsHint": "Włącz tryb deweloperski Discorda i skopiuj ID każdego zatwierdzonego serwera. Oddziel ID przecinkami lub spacjami. Pusta lista pozwala tylko na wiadomości prywatne; wiadomości z serwerów pozostają zablokowane.",
-      "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów)."
+      "discordGuildsInvalid": "Wpisz liczbowe ID serwerów, oddzielone przecinkami lub spacjami (maksymalnie 2500 serwerów).",
+      "publicLineSwitch": "Odpowiadaj osobom bez konta",
+      "publicLineHint": "Klienci, którzy nie powiązali konta, dostają odpowiedzi od samego agenta, a nie jako współpracownik. Tylko prywatne czaty WhatsApp.",
+      "publicLineNoLimit": "Ta linia potrzebuje najpierw limitu wydatków: nadaj agentowi miesięczny budżet albo organizacji miesięczny limit.",
+      "publicLineNoAgent": "Ten bot nie obsługuje jeszcze żadnego agenta. Powiąż go, zanim otworzysz linię.",
+      "publicLineServes": "Obsługuje agenta {agent}, wersja {version}",
+      "publicLineReaches": "Klient może dotrzeć do:",
+      "publicLineReachKnowledge": "Wiedza: {names}",
+      "publicLineReachContext": "Pliki kontekstu: {names}",
+      "publicLineReachSkills": "Skille: {names}",
+      "publicLineReachTables": "Tabele: {names}",
+      "publicLineReachWeb": "Sieć: {names}",
+      "publicLineReachCode": "Kod i workspace'y: {names}",
+      "publicLineReachGeneration": "Generowane media: {names}",
+      "publicLineReachDelegates": "Inni agenci: {names}",
+      "publicLineReachMcp": "Serwery MCP: {names}",
+      "publicLineReachFiles": "Pliki, które wysyła",
+      "publicLineReachVoice": "Wiadomości głosowe",
+      "publicLineAgentBudget": "Miesięczny budżet agenta: {amount}",
+      "publicLineOrgCap": "Miesięczny limit organizacji: {amount}",
+      "publicLineRate": "Każdy klient ma limit {count, plural, one {# wiadomości na minutę} few {# wiadomości na minutę} many {# wiadomości na minutę} other {# wiadomości na minutę}}",
+      "publicLineApprovalExpiry": "Zatwierdzenie, którego nikt nie rozstrzygnie, wygasa po {hours, plural, one {# godzinie} few {# godzinach} many {# godzinach} other {# godzin}}",
+      "publicLineFileCap": "Pliki do {mb} MB",
+      "publicLineVoiceCap": "Wiadomości głosowe do {mb} MB są transkrybowane",
+      "publicLineVoiceNeedsCap": "Wiadomości głosowe wymagają limitu organizacji i są odrzucane, dopóki go nie ustawisz",
+      "publicLineRefused": "Klient nigdy nie dotrze do: {list}",
+      "publicLineRefusedMemory": "pamięci",
+      "publicLineRefusedConversationSearch": "wyszukiwania w rozmowach",
+      "publicLineRefusedArtifacts": "publikowania stron",
+      "publicLineRefusedWorkflows": "workflow",
+      "publicLineRefusedBackgroundTasks": "zadań w tle",
+      "publicLineRefusedPlatformMcp": "własnego serwera MCP platformy",
+      "publicLineFiles": "Przyjmuj pliki od klientów",
+      "publicLineFilesHint": "Zapisywane na koncie osoby, która powiązała agenta. Gdy wyłączone, plik jest grzecznie odrzucany.",
+      "publicLineBadge": "Linia publiczna"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -4712,7 +4746,8 @@
         "empty": {
           "title": "Brak kanałów",
           "description": "Zarejestruj bota, a jego agenci staną się dostępni ze Slacka, Telegrama albo Mattermosta."
-        }
+        },
+        "publicLine": "linia publiczna"
       },
       "knowledge": {
         "title": "Wiedza",
@@ -8388,7 +8423,9 @@
     "backendComputerLabel": "Komputer",
     "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
-    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia."
+    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
+    "publicLineBinding": "Ten bot odpowiada klientom bez powiązanego konta, więc z tym agentem rozmawiają tu osoby spoza organizacji.",
+    "publicLineReview": "Sprawdź linię"
   },
   "steps": {
     "skills-gallery": {

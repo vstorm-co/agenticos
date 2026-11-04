@@ -23,6 +23,8 @@ export interface Exposure {
   channel_bot_id: string;
   /** Resolved server-side, so the section can name a place without reading bots. */
   channel_bot_name: string;
+  /** Whether the bot answers people who have not linked an account, so customers talk to the agent here. */
+  public_line?: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
   /**
@@ -108,6 +110,8 @@ export interface ExposureTarget {
   platform: ExposureSurface;
   name: string;
   is_active: boolean;
+  /** Whether the bot answers people who have not linked an account. */
+  public_line?: boolean;
 }
 
 export interface ExposureTargetList {

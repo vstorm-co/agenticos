@@ -47,6 +47,54 @@ export interface ChannelAccessPolicy {
   rate_limit_rpm: number;
   denied_message: string;
   respond_to_broadcasts?: boolean;
+  /** WhatsApp only: answer a private chat from somebody with no linked account, as the agent. */
+  answer_unlinked_direct?: boolean;
+  /** WhatsApp only: take files from such a customer. */
+  accept_customer_files?: boolean;
+}
+
+/** One thing a customer with no account can reach through the agent. */
+export interface PublicLineReach {
+  kind:
+    | "knowledge"
+    | "context"
+    | "skills"
+    | "tables"
+    | "web"
+    | "code"
+    | "generation"
+    | "delegates"
+    | "mcp"
+    | "files"
+    | "voice";
+  names: string[];
+  detail: string | null;
+}
+
+/** What a public line would answer with, and what bounds it - `GET /channels/bots/{id}/public-line`. */
+export interface PublicLine {
+  answers_unlinked: boolean;
+  agent_name: string | null;
+  agent_version: number | null;
+  /** Decimal values arrive as strings. */
+  agent_monthly_usd: string | null;
+  organization_monthly_usd: string | null;
+  can_turn_on: boolean;
+  accept_customer_files: boolean;
+  voice: "off" | "refused_no_org_cap" | "on";
+  rate_limit_rpm: number;
+  approval_expiry_hours: number;
+  recording_max_mb: number;
+  file_max_mb: number;
+  reaches: PublicLineReach[];
+  refused: (
+    | "memory"
+    | "conversation_search"
+    | "artifacts"
+    | "workflows"
+    | "background_tasks"
+    | "platform_mcp"
+  )[];
 }
 
 export interface ChannelBot extends AnswerStyle {
