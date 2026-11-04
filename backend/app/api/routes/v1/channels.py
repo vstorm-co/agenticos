@@ -11,8 +11,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import Auth, OrgChannelBotSvc, require
+from app.api.deps import Auth, ChannelBindingRequestSvc, OrgChannelBotSvc, require
 from app.core.permissions import Perm
+from app.schemas.channel_binding_request import (
+    ChannelBindingRequestList,
+    ChannelBindingRequestRead,
+)
 from app.schemas.channel_bot import (
     ChannelBotCreate,
     ChannelBotList,
@@ -39,6 +43,48 @@ async def list_bots(
     """List the organization's registered channel bots."""
     items, total = await service.list_all(skip=skip, limit=limit)
     return ChannelBotList(items=items, total=total)
+
+
+@router.get(
+    "/binding-requests",
+    response_model=ChannelBindingRequestList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_binding_requests(
+    ctx: Auth,
+    service: ChannelBindingRequestSvc,
+    skip: int = Query(0, ge=0, description="Items to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max items to return"),
+) -> Any:
+    """The pending requests to bind an agent to a bot that answers people with no account."""
+    items, total = await service.list_pending(ctx, skip, limit)
+    return ChannelBindingRequestList(
+        items=items, total=total
+    )
+
+
+@router.post(
+    "/binding-requests/{request_id}/approve",
+    response_model=ChannelBindingRequestRead,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def approve_binding_request(
+    request_id: UUID, ctx: Auth, service: ChannelBindingRequestSvc
+) -> Any:
+    """Apply what the request asks, as you, and tell the one who asked."""
+    return await service.approve(ctx, request_id)
+
+
+@router.post(
+    "/binding-requests/{request_id}/decline",
+    response_model=ChannelBindingRequestRead,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def decline_binding_request(
+    request_id: UUID, ctx: Auth, service: ChannelBindingRequestSvc
+) -> Any:
+    """Decline the request. Nothing is applied; the one who asked is told."""
+    return await service.decline(ctx, request_id)
 
 
 @router.post(

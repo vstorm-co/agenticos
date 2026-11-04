@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.agents.spec import AgentSpec
 from app.core.config import settings
 from app.core.exceptions import (
+    AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
@@ -41,9 +42,14 @@ from app.db.models.channel_binding_request import (
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.notification import Notification
 from app.db.models.organization import OrganizationMember
-from app.repositories import channel_binding_request_repo
+from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.repositories import agent_exposure_repo, channel_binding_request_repo
 from app.schemas.agent_environment import EnvironmentCreate
+from app.schemas.agent_exposure import ExposureCreate, ExposureUpdate
+from app.schemas.channel_binding_request import BindingDeferred
+from app.schemas.channel_bot import ChannelBotUpdate
 from app.services.agent_environment import AgentEnvironmentService
+from app.services.agent_exposure import AgentExposureService
 from app.services.channel_binding_requests import (
     ChannelBindingRequestService,
     deciders,
@@ -51,6 +57,7 @@ from app.services.channel_binding_requests import (
     void_for_closed_line,
     void_for_taken_bot,
 )
+from app.services.channel_bot import ChannelBotService
 from tests.integration.test_platform_flows import (
     Tenant,
     _join,
@@ -591,7 +598,6 @@ class TestApprovingAtOnce:
         await db.commit()
         factory = async_sessionmaker(engine, expire_on_commit=False)
         first_has_read = asyncio.Event()
-        second_may_go = asyncio.Event()
         original = channel_binding_request_repo.get
         reads = 0
 
@@ -607,7 +613,6 @@ class TestApprovingAtOnce:
             else:
                 await first_has_read.wait()
                 await asyncio.sleep(0.3)
-                second_may_go.set()
             return found
 
         async def approve(who: AuthContext):
@@ -634,6 +639,58 @@ class TestApprovingAtOnce:
             select(ChannelBindingRequest.status).where(ChannelBindingRequest.id == request.id)
         )
         assert list(statuses) == ["approved"]
+
+
+class TestBindingAtOnce:
+    @pytest.mark.security
+    async def test_approving_a_bind_and_binding_another_agent_directly_leave_one_binding(
+        self, db: AsyncSession, engine: AsyncEngine
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        rival = await _published_agent(db, world.tenant, spec=AgentSpec(name="Rival"))
+        request = await world.file()
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        original = agent_exposure_repo.bound_to_bot
+
+        async def slowly(*args, **kwargs):
+            """Hold each reader between its look at the bot's binding and its insert."""
+            found = await original(*args, **kwargs)
+            await asyncio.sleep(0.3)
+            return found
+
+        async def approve():
+            async with factory() as session:
+                try:
+                    await ChannelBindingRequestService(session).approve(world.admin, request.id)
+                    await session.commit()
+                    return "bound"
+                except (AlreadyExistsError, ConcurrentChangeError) as refused:
+                    await session.rollback()
+                    return refused
+
+        async def bind_rival():
+            async with factory() as session:
+                try:
+                    await AgentExposureService(session).create(
+                        world.owner, rival.id, ExposureCreate(channel_bot_id=world.bot.id)
+                    )
+                    await session.commit()
+                    return "bound"
+                except (AlreadyExistsError, ConcurrentChangeError) as refused:
+                    await session.rollback()
+                    return refused
+
+        with patch.object(agent_exposure_repo, "bound_to_bot", slowly):
+            async with asyncio.timeout(20):
+                outcomes = await asyncio.gather(approve(), bind_rival())
+
+        await db.rollback()
+        assert sorted(o if isinstance(o, str) else "refused" for o in outcomes) == [
+            "bound",
+            "refused",
+        ]
+        assert len(await world.exposures()) == 1
 
 
 class TestApproving:
@@ -664,6 +721,22 @@ class TestApproving:
         assert told.recipient_user_id == world.builder.user_id
         assert world.agent.name in told.summary and world.bot.name in told.summary
         assert "approved" in told.summary
+
+    async def test_a_deferred_binding_keeps_the_workspace_sharing_it_asked_for(
+        self, db: AsyncSession
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        deferred = await AgentExposureService(db).create(
+            world.builder,
+            world.agent.id,
+            ExposureCreate(channel_bot_id=world.bot.id, session_scope="user"),
+        )
+        assert isinstance(deferred, BindingDeferred)
+
+        await world.requests.approve(world.admin, deferred.request_id)
+
+        [exposure] = await world.exposures()
+        assert exposure.session_scope == "user"
 
     async def test_a_binding_request_with_an_environment_binds_to_it(
         self, db: AsyncSession
@@ -854,7 +927,9 @@ class TestApproving:
         await world.requests.approve(world.admin, chosen.id)
 
         await db.refresh(others)
+        await db.refresh(chosen)
         assert (others.status, others.void_reason) == ("voided", "bot_taken")
+        assert (chosen.status, chosen.void_reason) == ("approved", None)
 
     @pytest.mark.security
     async def test_a_request_of_another_organization_is_not_found(self, db: AsyncSession) -> None:
@@ -936,6 +1011,8 @@ class TestListing:
         mine = await world.requests.list_for_agent(world.builder, world.agent.id)
 
         assert [r.id for r in mine] == [request.id]
+        assert mine[0].agent_name == world.agent.name
+        assert mine[0].requester_email
         with pytest.raises(NotFoundError):
             await elsewhere.requests.list_for_agent(elsewhere.builder, world.agent.id)
 
@@ -986,3 +1063,305 @@ class TestVoiding:
         await db.refresh(request)
         assert count == 1
         assert (request.status, request.void_reason) == ("voided", "bot_taken")
+
+
+async def _publishing_world(db: AsyncSession, **kwargs) -> World:
+    """A world where the builder may publish the agent, as its owner granted."""
+    world = await _world(db, **kwargs)
+    db.add(
+        ResourceGrant(
+            organization_id=world.tenant.organization.id,
+            resource_type="agent",
+            resource_id=world.agent.id,
+            subject_user_id=world.builder.user_id,
+            level=GrantLevel.EDIT.value,
+            created_by_user_id=world.owner.user_id,
+        )
+    )
+    await db.flush()
+    return world
+
+
+class TestDeferring:
+    """A member who may publish the agent but not manage channels asks, after every check."""
+
+    @pytest.fixture
+    def exposures(self, db: AsyncSession) -> AgentExposureService:
+        return AgentExposureService(db)
+
+    @pytest.mark.security
+    async def test_a_builder_binding_to_a_public_line_gets_a_request(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+
+        answer = await exposures.create(
+            world.builder,
+            world.agent.id,
+            ExposureCreate(channel_bot_id=world.bot.id, request_note=NOTE),
+        )
+
+        assert isinstance(answer, BindingDeferred)
+        assert await world.exposures() == []
+        (request,) = await world.pending()
+        assert request.id == answer.request_id
+        assert (request.kind, request.note, request.requester_user_id) == (
+            "bind",
+            NOTE,
+            world.builder.user_id,
+        )
+        assert await world.audits("agent.exposed") == []
+        assert len(await world.told("channel_binding_requested")) >= 1
+
+    @pytest.mark.security
+    async def test_changing_the_environment_or_resuming_a_public_line_binding_is_deferred(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        exposure = await _binding(world)
+        version = await db.scalar(
+            select(Agent.current_version_id).where(Agent.id == world.agent.id)
+        )
+        staging = await AgentEnvironmentService(db).create(
+            world.owner, world.agent.id, EnvironmentCreate(name="staging", version_id=version)
+        )
+
+        moved = await exposures.update(
+            world.builder,
+            world.agent.id,
+            exposure.id,
+            ExposureUpdate(environment_id=staging.id),
+        )
+        await db.refresh(exposure)
+        assert isinstance(moved, BindingDeferred)
+        assert exposure.environment_id is None
+        (asked,) = await world.pending()
+        assert (asked.kind, asked.environment_id, asked.exposure_id) == (
+            "environment",
+            staging.id,
+            exposure.id,
+        )
+
+        exposure.is_active = False
+        await db.flush()
+        resumed = await exposures.update(
+            world.builder, world.agent.id, exposure.id, ExposureUpdate(is_active=True)
+        )
+        await db.refresh(exposure)
+        assert isinstance(resumed, BindingDeferred)
+        assert exposure.is_active is False
+        (asked,) = await world.pending()
+        assert asked.kind == "resume"
+
+    @pytest.mark.security
+    async def test_a_change_that_needs_approval_must_come_alone(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        exposure = await _binding(world, paused=True)
+
+        with pytest.raises(BadRequestError) as refused:
+            await exposures.update(
+                world.builder,
+                world.agent.id,
+                exposure.id,
+                ExposureUpdate(is_active=True, prompt="changed too"),
+            )
+
+        assert refused.value.details == {
+            "fields": [
+                {
+                    "field": "prompt",
+                    "message": "Send the change that needs approval on its own.",
+                }
+            ]
+        }
+        assert await world.all() == []
+
+    async def test_pausing_and_unbinding_apply_directly(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        exposure = await _binding(world)
+
+        paused = await exposures.update(
+            world.builder, world.agent.id, exposure.id, ExposureUpdate(is_active=False)
+        )
+        assert not isinstance(paused, BindingDeferred) and paused.is_active is False
+        await exposures.delete(world.builder, world.agent.id, exposure.id)
+
+        assert await world.exposures() == []
+        assert await world.pending() == []
+
+    @pytest.mark.security
+    async def test_a_channels_manager_binds_and_changes_directly(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+
+        created = await exposures.create(
+            world.admin, world.agent.id, ExposureCreate(channel_bot_id=world.bot.id)
+        )
+        paused = await exposures.update(
+            world.admin, world.agent.id, created.id, ExposureUpdate(is_active=False)
+        )
+        resumed = await exposures.update(
+            world.admin, world.agent.id, paused.id, ExposureUpdate(is_active=True)
+        )
+
+        assert (
+            isinstance(created, AgentExposure) and created.created_by_user_id == world.admin.user_id
+        )
+        assert isinstance(resumed, AgentExposure) and resumed.is_active is True
+        assert await world.pending() == []
+
+    async def test_a_builder_on_a_bot_that_does_not_answer_strangers_binds_directly(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db)
+
+        created = await exposures.create(
+            world.builder, world.agent.id, ExposureCreate(channel_bot_id=world.bot.id)
+        )
+
+        assert isinstance(created, AgentExposure)
+        assert await world.pending() == []
+
+    @pytest.mark.security
+    async def test_a_request_is_not_filed_for_a_bot_another_agent_serves(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        rival = await _published_agent(db, world.tenant, spec=AgentSpec(name="Rival"))
+        db.add(_bound(world.tenant, rival, world.bot))
+        await db.flush()
+
+        with pytest.raises(AlreadyExistsError):
+            await exposures.create(
+                world.builder, world.agent.id, ExposureCreate(channel_bot_id=world.bot.id)
+            )
+
+        assert await world.all() == []
+
+    @pytest.mark.security
+    async def test_a_request_is_not_filed_for_another_agents_environment(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        rival = await _published_agent(db, world.tenant, spec=AgentSpec(name="Rival"))
+        version = await db.scalar(select(Agent.current_version_id).where(Agent.id == rival.id))
+        theirs = await AgentEnvironmentService(db).create(
+            world.owner, rival.id, EnvironmentCreate(name="staging", version_id=version)
+        )
+
+        with pytest.raises(NotFoundError):
+            await exposures.create(
+                world.builder,
+                world.agent.id,
+                ExposureCreate(channel_bot_id=world.bot.id, environment_id=theirs.id),
+            )
+
+        assert await world.all() == []
+
+    @pytest.mark.security
+    async def test_a_request_is_not_filed_for_a_change_without_a_limit(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN, cap=None, budget=None)
+
+        with pytest.raises(BadRequestError):
+            await exposures.create(
+                world.builder, world.agent.id, ExposureCreate(channel_bot_id=world.bot.id)
+            )
+
+        assert await world.all() == []
+
+    async def test_an_environment_change_together_with_a_resume_is_refused_before_filing(
+        self, db: AsyncSession, exposures: AgentExposureService
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        exposure = await _binding(world, paused=True)
+        version = await db.scalar(
+            select(Agent.current_version_id).where(Agent.id == world.agent.id)
+        )
+        staging = await AgentEnvironmentService(db).create(
+            world.owner, world.agent.id, EnvironmentCreate(name="staging", version_id=version)
+        )
+
+        with pytest.raises(BadRequestError):
+            await exposures.update(
+                world.builder,
+                world.agent.id,
+                exposure.id,
+                ExposureUpdate(environment_id=staging.id, is_active=True),
+            )
+
+        assert await world.all() == []
+
+
+class TestVoidingAtTheSource:
+    @pytest.mark.security
+    async def test_closing_the_line_voids_its_requests(self, db: AsyncSession) -> None:
+        for closing in (
+            {"answer_unlinked_direct": False},
+            {"require_link": True},
+        ):
+            world = await _publishing_world(db, policy=OPEN)
+            request = await world.file()
+
+            await ChannelBotService(db, organization_id=world.tenant.organization.id).update(
+                world.bot.id,
+                ChannelBotUpdate(access_policy={**OPEN, **closing}),
+                actor_user_id=world.owner.user_id,
+            )
+
+            await db.refresh(request)
+            assert (request.status, request.void_reason) == ("voided", "line_closed"), closing
+
+    async def test_a_change_that_leaves_the_effective_state_alone_voids_nothing(
+        self, db: AsyncSession
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        request = await world.file()
+        service = ChannelBotService(db, organization_id=world.tenant.organization.id)
+
+        await service.update(
+            world.bot.id,
+            ChannelBotUpdate(access_policy={**OPEN, "whitelist": ["x"]}),
+            actor_user_id=world.owner.user_id,
+        )
+        await service.update(
+            world.bot.id, ChannelBotUpdate(name="Renamed"), actor_user_id=world.owner.user_id
+        )
+
+        await db.refresh(request)
+        assert request.status == "pending"
+
+    async def test_a_line_that_was_never_open_voids_nothing_when_a_policy_is_saved(
+        self, db: AsyncSession
+    ) -> None:
+        world = await _publishing_world(db)
+        request = await world.file()
+
+        await ChannelBotService(db, organization_id=world.tenant.organization.id).update(
+            world.bot.id,
+            ChannelBotUpdate(access_policy={"mode": "open"}),
+            actor_user_id=world.owner.user_id,
+        )
+
+        await db.refresh(request)
+        assert request.status == "pending"
+
+    @pytest.mark.security
+    async def test_a_direct_binding_voids_the_requests_waiting_on_the_bot(
+        self, db: AsyncSession
+    ) -> None:
+        world = await _publishing_world(db, policy=OPEN)
+        waiting = await world.file()
+
+        await AgentExposureService(db).create(
+            world.admin, world.agent.id, ExposureCreate(channel_bot_id=world.bot.id)
+        )
+
+        await db.refresh(waiting)
+        assert (waiting.status, waiting.void_reason) == ("voided", "bot_taken")

@@ -760,6 +760,18 @@ def get_agent_exposure_service(db: DBSession) -> AgentExposureService:
 
 AgentExposureSvc = Annotated[AgentExposureService, Depends(get_agent_exposure_service)]
 
+from app.services.channel_binding_requests import ChannelBindingRequestService
+
+
+def get_channel_binding_request_service(db: DBSession) -> ChannelBindingRequestService:
+    """Create ChannelBindingRequestService instance with database session."""
+    return ChannelBindingRequestService(db)
+
+
+ChannelBindingRequestSvc = Annotated[
+    ChannelBindingRequestService, Depends(get_channel_binding_request_service)
+]
+
 from app.services.agent_trigger import AgentTriggerService
 
 

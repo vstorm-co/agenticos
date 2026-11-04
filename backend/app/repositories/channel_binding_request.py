@@ -13,11 +13,14 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.channel_binding_request import (
     BindingRequestStatus,
     BindingVoidReason,
     ChannelBindingRequest,
 )
+from app.db.models.channel_bot import ChannelBot
+from app.db.models.user import User
 
 
 async def create(db: AsyncSession, **fields: Any) -> ChannelBindingRequest:
@@ -116,6 +119,22 @@ async def list_for_agent(
         .order_by(ChannelBindingRequest.created_at.desc(), ChannelBindingRequest.id)
     )
     return list(result.scalars().all())
+
+
+async def labels(
+    db: AsyncSession, requests: list[ChannelBindingRequest]
+) -> dict[UUID, tuple[str, str, str | None]]:
+    """Each request's agent name, bot name and requester email, in one query."""
+    if not requests:
+        return {}
+    result = await db.execute(
+        select(ChannelBindingRequest.id, Agent.name, ChannelBot.name, User.email)
+        .join(Agent, Agent.id == ChannelBindingRequest.agent_id)
+        .join(ChannelBot, ChannelBot.id == ChannelBindingRequest.channel_bot_id)
+        .outerjoin(User, User.id == ChannelBindingRequest.requester_user_id)
+        .where(ChannelBindingRequest.id.in_([request.id for request in requests]))
+    )
+    return {row[0]: (row[1], row[2], row[3]) for row in result.all()}
 
 
 async def settle(

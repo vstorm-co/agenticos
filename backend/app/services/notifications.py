@@ -1450,12 +1450,13 @@ class NotificationService:
         request_id: UUID,
         kind: str,
         approved: bool,
+        agent_id: UUID,
         agent_name: str,
         bot_name: str,
         requester_id: UUID,
     ) -> None:
         """Tell the one who asked that their request to bind an agent was decided."""
-        path = self._link("/channels", organization_id)
+        path = self._link(f"/agents/{agent_id}", organization_id)
         ask = self._binding_ask(kind, agent_name=agent_name, bot_name=bot_name)
         await self._center.write(
             recipients=[requester_id],

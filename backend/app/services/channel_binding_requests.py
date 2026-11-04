@@ -48,9 +48,9 @@ from app.repositories import (
     member_repo,
     user_repo,
 )
+from app.schemas.channel_binding_request import ChannelBindingRequestRead
 from app.schemas.agent_exposure import ExposureCreate, ExposureUpdate
 from app.services import rate_limit
-from app.services.agent_exposure import AgentExposureService
 from app.services.agent_registry import AgentRegistryService
 from app.services.notifications import NotificationService
 
@@ -87,6 +87,19 @@ async def _admit(ctx: AuthContext) -> None:
         )
 
 
+async def waiting_for(db: AsyncSession, organization_id: UUID) -> str | None:
+    """Who decides a request, by name, when it is one person; `None` when several may."""
+    everyone = await deciders(db, organization_id)
+    return await _name_of(db, everyone[0]) if len(everyone) == 1 else None
+
+
+def _gone(request_id: UUID) -> ConcurrentChangeError:
+    """What a locked re-read finds when an unbind or a delete removed a row meanwhile."""
+    return ConcurrentChangeError(
+        message="This request no longer applies.", details={"request_id": request_id}
+    )
+
+
 def _not_found(what: str, **details: object) -> NotFoundError:
     return NotFoundError(message=f"{what} not found", details=details)
 
@@ -101,6 +114,7 @@ async def file_request(
     exposure_id: UUID | None = None,
     environment_id: UUID | None = None,
     note: str | None = None,
+    session_scope: str | None = None,
 ) -> ChannelBindingRequest:
     """Replace the caller's pending request for the bot, if any, with a new one and tell
     whoever decides it.
@@ -173,6 +187,7 @@ async def file_request(
         requester_user_id=ctx.user_id,
         requester_membership_id=membership.id if membership is not None else None,
         note=note,
+        session_scope=session_scope,
     )
     await record_audit(
         db,
@@ -244,20 +259,49 @@ class ChannelBindingRequestService:
                 details={"permission": Perm.CHANNELS_MANAGE.value},
             )
 
+    async def _reads(
+        self, requests: list[ChannelBindingRequest]
+    ) -> list[ChannelBindingRequestRead]:
+        """The requests with the names a decider reads, loaded together."""
+        names = await channel_binding_request_repo.labels(self.db, requests)
+        own = ChannelBindingRequestRead.model_fields.keys() - {
+            "agent_name",
+            "channel_bot_name",
+            "requester_email",
+        }
+        reads: list[ChannelBindingRequestRead] = []
+        for request in requests:
+            agent_name, bot_name, email = names[request.id]
+            reads.append(
+                ChannelBindingRequestRead(
+                    **{field: getattr(request, field) for field in own},
+                    agent_name=agent_name,
+                    channel_bot_name=bot_name,
+                    requester_email=email,
+                )
+            )
+        return reads
+
+    async def _reads_one(self, request: ChannelBindingRequest) -> ChannelBindingRequestRead:
+        return (await self._reads([request]))[0]
+
     async def list_pending(
         self, ctx: AuthContext, skip: int, limit: int
-    ) -> tuple[list[ChannelBindingRequest], int]:
+    ) -> tuple[list[ChannelBindingRequestRead], int]:
         """The organization's pending requests, newest first, with the total.
 
         Raises:
             AuthorizationError: The caller does not hold `channels:manage`.
         """
         self._require_manager(ctx)
-        return await channel_binding_request_repo.list_pending(
+        pending, total = await channel_binding_request_repo.list_pending(
             self.db, organization_id=ctx.organization_id, skip=skip, limit=limit
         )
+        return await self._reads(pending), total
 
-    async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[ChannelBindingRequest]:
+    async def list_for_agent(
+        self, ctx: AuthContext, agent_id: UUID
+    ) -> list[ChannelBindingRequestRead]:
         """The pending requests that name an agent the caller may see: all of them for a
         holder of `channels:manage`, the caller's own for anyone else.
 
@@ -265,14 +309,15 @@ class ChannelBindingRequestService:
             NotFoundError: The agent is not the caller's to see.
         """
         agent = await AgentRegistryService(self.db).get(ctx, agent_id)
-        return await channel_binding_request_repo.list_for_agent(
+        pending = await channel_binding_request_repo.list_for_agent(
             self.db,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             requester_user_id=None if ctx.has(Perm.CHANNELS_MANAGE) else ctx.user_id,
         )
+        return await self._reads(pending)
 
-    async def approve(self, ctx: AuthContext, request_id: UUID) -> ChannelBindingRequest:
+    async def approve(self, ctx: AuthContext, request_id: UUID) -> ChannelBindingRequestRead:
         """Apply what a pending request asks, as the approver, and tell the requester.
 
         Raises:
@@ -288,14 +333,13 @@ class ChannelBindingRequestService:
         await self._requester_stands(request)
         await self._bot_not_taken(bot, request)
         await self._apply(ctx, request)
-        settled = await self._decide(ctx, bot, request, approved=True)
-        if request.kind == BindingRequestKind.BIND.value:
-            await void_for_taken_bot(
-                self.db, organization_id=ctx.organization_id, channel_bot_id=bot.id
-            )
-        return settled
+        # Binding the agent voided every pending request on the bot, this one among them;
+        # the request is locked and was checked pending, so settling it ends it approved.
+        return await self._reads_one(
+            await self._decide(ctx, bot, request, approved=True)
+        )
 
-    async def decline(self, ctx: AuthContext, request_id: UUID) -> ChannelBindingRequest:
+    async def decline(self, ctx: AuthContext, request_id: UUID) -> ChannelBindingRequestRead:
         """Decline a pending request. Nothing is applied.
 
         Raises:
@@ -304,7 +348,9 @@ class ChannelBindingRequestService:
             ConcurrentChangeError: It was decided, voided or replaced in the meantime.
         """
         bot, request = await self._pending(ctx, request_id)
-        return await self._decide(ctx, bot, request, approved=False)
+        return await self._reads_one(
+            await self._decide(ctx, bot, request, approved=False)
+        )
 
     async def _pending(
         self, ctx: AuthContext, request_id: UUID
@@ -323,19 +369,24 @@ class ChannelBindingRequestService:
         agent = await agent_repo.get(
             self.db, found.agent_id, organization_id=ctx.organization_id, for_update=True
         )
-        assert agent is not None  # a request goes with its agent
+        if agent is None:
+            raise _gone(request_id)
         bot = await channel_bot_repo.get_for_org(
             self.db, found.channel_bot_id, organization_id=ctx.organization_id, for_update=True
         )
-        assert bot is not None  # a request goes with its bot
+        if bot is None:
+            raise _gone(request_id)
         if found.exposure_id is not None:
-            await agent_exposure_repo.get(
+            exposure = await agent_exposure_repo.get(
                 self.db, found.exposure_id, organization_id=ctx.organization_id, for_update=True
             )
+            if exposure is None:
+                raise _gone(request_id)
         request = await channel_binding_request_repo.lock(
             self.db, request_id, organization_id=ctx.organization_id
         )
-        assert request is not None  # read a moment ago, and only its bot's deletion removes it
+        if request is None:
+            raise _gone(request_id)
         if request.status != BindingRequestStatus.PENDING.value:
             raise ConcurrentChangeError(
                 message="This request was already decided, or no longer applies.",
@@ -375,13 +426,20 @@ class ChannelBindingRequestService:
     async def _apply(self, ctx: AuthContext, request: ChannelBindingRequest) -> None:
         """Do what the request asks, as the approver, through the service that owns
         bindings and its checks."""
+        # Imported here: the exposure service files requests through this module.
+        from app.services.agent_exposure import AgentExposureService
+
         exposures = AgentExposureService(self.db)
         if request.kind == BindingRequestKind.BIND.value:
             await exposures.create(
                 ctx,
                 request.agent_id,
-                ExposureCreate(
-                    channel_bot_id=request.channel_bot_id, environment_id=request.environment_id
+                ExposureCreate.model_validate(
+                    {
+                        "channel_bot_id": request.channel_bot_id,
+                        "environment_id": request.environment_id,
+                        "session_scope": request.session_scope,
+                    }
                 ),
             )
             return
@@ -428,6 +486,7 @@ class ChannelBindingRequestService:
             request_id=settled.id,
             kind=settled.kind,
             approved=approved,
+            agent_id=agent.id,
             agent_name=agent.name,
             bot_name=bot.name,
             requester_id=settled.requester_user_id,

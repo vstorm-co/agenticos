@@ -94,6 +94,7 @@ class ChannelBindingRequest(Base, TimestampMixin):
     )
     # Shown to whoever decides it, never in a notification.
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    session_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16),
         nullable=False,

@@ -31,6 +31,19 @@ _ORG = uuid.uuid4()
 _CALLER = uuid.uuid4()
 
 
+@pytest.fixture(autouse=True)
+def _no_requests_to_void():
+    """Voiding pending requests is a query; its own tests run it on real rows."""
+    with (
+        patch("app.services.agent_exposure.void_for_taken_bot", new=AsyncMock()),
+        patch(
+            "app.services.agent_exposure.channel_bot_repo.get_for_org",
+            new=AsyncMock(return_value=_bot()),
+        ),
+    ):
+        yield
+
+
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=_CALLER, organization_id=_ORG, role=role)
 

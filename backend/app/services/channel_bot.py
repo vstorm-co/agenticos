@@ -945,6 +945,11 @@ class ChannelBotService:
         updated = await channel_bot_repo.update(self.db, db_bot=bot, update_data=update_data)
         if answers_now != answered_before:
             await self._audit_public_line(updated, answers=answers_now, actor_user_id=actor_user_id)
+        if answered_before and not answers_now:
+            # Imported here: that module reaches the agent registry, which reaches this one.
+            from app.services.channel_binding_requests import void_for_closed_line
+
+            await void_for_closed_line(self.db, organization_id=self._org_id, channel_bot_id=bot.id)
         self._reopen_stream(updated)
         return updated
 

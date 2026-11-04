@@ -75,6 +75,7 @@ def upgrade() -> None:
         sa.Column("requester_user_id", uuid, nullable=False),
         sa.Column("requester_membership_id", uuid, nullable=True),
         sa.Column("note", sa.Text(), nullable=True),
+        sa.Column("session_scope", sa.String(length=16), nullable=True),
         sa.Column("status", sa.String(length=16), server_default="pending", nullable=False),
         sa.Column("void_reason", sa.String(length=32), nullable=True),
         sa.Column("decided_by_user_id", uuid, nullable=True),

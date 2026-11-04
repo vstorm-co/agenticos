@@ -141,6 +141,15 @@ class ExposureCreate(BaseSchema):
             "conversation, the other a channel with threads in it."
         ),
     )
+    request_note: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Shown to whoever decides the request, when this change on a bot that answers "
+            "people with no account is filed as one instead of applied. Ignored when the "
+            "change applies directly."
+        ),
+    )
 
 
 class ExposureUpdate(BaseSchema):
@@ -191,6 +200,15 @@ class ExposureUpdate(BaseSchema):
             "workspace per channel' belongs: the same agent in web chat and on "
             "Slack is one agent in two situations - one has an account and a "
             "conversation, the other a channel with threads in it."
+        ),
+    )
+    request_note: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Shown to whoever decides the request, when this change on a bot that answers "
+            "people with no account is filed as one instead of applied. Ignored when the "
+            "change applies directly."
         ),
     )
 

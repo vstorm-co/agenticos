@@ -728,6 +728,10 @@ async def _saved(
             "app.services.channel_bot.spawn_after_commit",
             side_effect=lambda _db, coro, **_: coro.close(),
         ),
+        patch(
+            "app.services.channel_binding_requests.void_for_closed_line",
+            new=AsyncMock(return_value=0),
+        ),
     ):
         await ChannelBotService(MagicMock(), organization_id=bot.organization_id).update(
             bot.id, ChannelBotUpdate(**fields), actor_user_id=actor_user_id

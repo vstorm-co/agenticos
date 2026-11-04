@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.exceptions import AuthorizationError, RateLimitError
+from app.core.exceptions import AuthorizationError, ConcurrentChangeError, RateLimitError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm
 from app.db.models.channel_binding_request import BindingRequestKind
 from app.services import channel_binding_requests as requests_module
@@ -85,3 +85,22 @@ class TestTheHourlyAllowance:
         assert error.value.details == {"retry_after_seconds": 120}
         assert consume.await_args.kwargs["surface"] == "channel_binding_request"
         db.execute.assert_not_called()
+
+
+@pytest.mark.security
+async def test_a_request_removed_while_waiting_for_its_lock_is_a_concurrent_change() -> None:
+    found = MagicMock(agent_id=uuid4(), channel_bot_id=uuid4(), exposure_id=None)
+    with (
+        patch.object(requests_module, "channel_binding_request_repo") as repo,
+        patch.object(requests_module, "agent_repo") as agents,
+        patch.object(requests_module, "channel_bot_repo") as bots,
+    ):
+        repo.get = AsyncMock(return_value=found)
+        repo.lock = AsyncMock(return_value=None)
+        agents.get = AsyncMock(return_value=MagicMock())
+        bots.get_for_org = AsyncMock(return_value=MagicMock())
+
+        with pytest.raises(ConcurrentChangeError):
+            await ChannelBindingRequestService(MagicMock()).approve(
+                _ctx(OrgRoleName.OWNER), uuid4()
+            )

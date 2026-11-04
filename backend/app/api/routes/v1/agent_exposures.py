@@ -16,8 +16,10 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Response, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
-from app.api.deps import AgentExposureSvc, Auth
+from app.api.deps import AgentExposureSvc, Auth, ChannelBindingRequestSvc
 from app.schemas.agent_exposure import (
     ExposureCreate,
     ExposureList,
@@ -25,8 +27,21 @@ from app.schemas.agent_exposure import (
     ExposureTargetList,
     ExposureUpdate,
 )
+from app.schemas.channel_binding_request import (
+    BindingDeferred,
+    ChannelBindingRequestList,
+)
 
 router = APIRouter()
+
+_REQUESTED = (
+    "The bot answers people with no account and the caller does not manage channels: a "
+    "request was filed instead, and nothing is applied until it is decided"
+)
+
+
+def _requested(deferred: BindingDeferred) -> JSONResponse:  # routes-helper: the 202 body
+    return JSONResponse(status_code=status.HTTP_202_ACCEPTED, content=jsonable_encoder(deferred))
 
 
 @router.get("/{agent_id}/exposures", response_model=ExposureList)
@@ -48,14 +63,33 @@ async def list_exposure_targets(agent_id: UUID, ctx: Auth, service: AgentExposur
     return ExposureTargetList(items=items, total=len(items))
 
 
+@router.get("/{agent_id}/binding-requests", response_model=ChannelBindingRequestList)
+async def list_binding_requests(
+    agent_id: UUID, ctx: Auth, service: ChannelBindingRequestSvc
+) -> Any:
+    """The pending requests to bind this agent to a bot that answers people with no account.
+
+    Whoever manages channels sees them all; anyone else who may see the agent sees their own.
+    """
+    items = await service.list_for_agent(ctx, agent_id)
+    return ChannelBindingRequestList(
+        items=items, total=len(items)
+    )
+
+
 @router.post(
-    "/{agent_id}/exposures", response_model=ExposureRead, status_code=status.HTTP_201_CREATED
+    "/{agent_id}/exposures",
+    response_model=ExposureRead,
+    status_code=status.HTTP_201_CREATED,
+    responses={status.HTTP_202_ACCEPTED: {"model": BindingDeferred, "description": _REQUESTED}},
 )
 async def create_exposure(
     agent_id: UUID, data: ExposureCreate, ctx: Auth, service: AgentExposureSvc
 ) -> Any:
     """Make this agent available in one more place."""
-    await service.create(ctx, agent_id, data)
+    created = await service.create(ctx, agent_id, data)
+    if isinstance(created, BindingDeferred):
+        return _requested(created)
     # Re-read through the listing so the response carries the bot's name, the
     # same shape the section renders. Returning the bare row would make the
     # client hold two representations of one thing.
@@ -65,7 +99,11 @@ async def create_exposure(
     )
 
 
-@router.patch("/{agent_id}/exposures/{exposure_id}", response_model=ExposureRead)
+@router.patch(
+    "/{agent_id}/exposures/{exposure_id}",
+    response_model=ExposureRead,
+    responses={status.HTTP_202_ACCEPTED: {"model": BindingDeferred, "description": _REQUESTED}},
+)
 async def update_exposure(
     agent_id: UUID,
     exposure_id: UUID,
@@ -75,6 +113,8 @@ async def update_exposure(
 ) -> Any:
     """Pause, resume, rebind, or change what the agent may look up here."""
     updated = await service.update(ctx, agent_id, exposure_id, data)
+    if isinstance(updated, BindingDeferred):
+        return _requested(updated)
     exposures = await service.list_for_agent(ctx, agent_id)
     return next(exposure for exposure in exposures if exposure.id == updated.id)
 
