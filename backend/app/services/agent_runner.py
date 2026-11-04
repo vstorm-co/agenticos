@@ -225,6 +225,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ModelCallFailedError,
+    NoSpendingLimitError,
     NotFoundError,
     RunExecutionError,
     RunFailedError,
@@ -776,6 +777,16 @@ class AdmittedAs(BaseModel):
             "approver's context cannot tell it (#1469): `agent_runs.user_id` is the "
             "publisher either way. Defaults false, so a run parked before this was "
             "recorded resumes as it always did."
+        ),
+    )
+    runs_as_agent: bool = Field(
+        default=False,
+        exclude_if=lambda flag: not flag,
+        description=(
+            "Whether the run acts as its agent with only its spec's grants and as no "
+            "member. Kept so a resume approved by a member does not lend the run that "
+            "member's id, role or credentials: the run row records no member either "
+            "way. A run parked before this existed resumes as it always did."
         ),
     )
     public_origin: bool = Field(
@@ -2434,6 +2445,10 @@ class _Delegation:
     user_id: str | None
     user_name: str | None
 
+    runs_as_agent: bool
+    """Whether the run acts as its agent and as no member: no delegate of it mints a
+    platform credential, however the run's context is filled."""
+
     personal_mcp_user_id: UUID | None
     """Whose own MCP connections a personal binding speaks through.
 
@@ -2941,14 +2956,18 @@ class AgentRunnerService:
         ctx: AuthContext,
         existing_run: AgentRun | None = None,
         *,
+        runs_as_agent: bool,
         agent_id: UUID | None = None,
     ) -> str | None:
         """A credential for this platform's own MCP server, when the spec binds it.
 
         Minted from the authority of the person the run is for, so the agent can do
         what they can do - and an agent that does not bind the server mints
-        nothing. `None` where nobody is behind the run.
+        nothing. `None` where nobody is behind the run, and for a run that is its
+        agent: `_run_owner_context` would hand a resumed one to whoever decided it.
         """
+        if runs_as_agent:
+            return None
         if not any(isinstance(ref, PlatformMcpServerRef) for ref in spec.mcp_servers):
             return None
         owner = await self._run_owner_context(ctx, existing_run)
@@ -3335,6 +3354,7 @@ class AgentRunnerService:
         memory_room_key: str | None = None,
         restored_audience: RunAudience | None = None,
         restored_publisher_fallback: bool | None = None,
+        restored_runs_as_agent: bool | None = None,
         extra_toolsets: list[AbstractToolset[Any]] | None,
         exposure: AgentExposure | None,
         decided: dict[str, ApprovalDecision],
@@ -3449,6 +3469,24 @@ class AgentRunnerService:
         # which is what keeps the cap and the spend it is measured against - the
         # `period_spend` below - reading the same organization.
         organization = await self.organizations.get_by_id(ctx.organization_id)
+
+        # Whether the run is its agent and no member. Never derived from
+        # `subject_is_publisher_fallback`, which a group's unlinked sender and a schedule
+        # also set while running as a real member. Read from the parked terms on a
+        # resume, where the context is the decider's and says nothing about the run.
+        runs_as_agent = (
+            restored_runs_as_agent if restored_runs_as_agent is not None else ctx.acts_as_agent
+        )
+        # A run with no member behind it spends under a ceiling or not at all: with
+        # neither an agent budget nor an organization cap nothing stops its spend, so it
+        # is refused before a run row is opened or a model reached. Here rather than on
+        # the surface so a continuation is held to it too, whoever decided it.
+        if (
+            runs_as_agent
+            and organization.monthly_budget_usd is None
+            and (spec.budget is None or spec.budget.monthly_usd is None)
+        ):
+            raise NoSpendingLimitError(details={"agent_id": str(agent.id)})
 
         rendering = await self._variable_renderer(
             # Who the run is about: on a resume `ctx` is the approver's, and the
@@ -3593,7 +3631,7 @@ class AgentRunnerService:
             refs=spec.mcp_servers,
             sender_user_id=personal_mcp_user_id,
             platform_credential=await self._platform_credential(
-                spec, ctx, existing_run, agent_id=agent.id
+                spec, ctx, existing_run, runs_as_agent=runs_as_agent, agent_id=agent.id
             ),
         )
         spec_toolsets = resolved.toolsets
@@ -3630,6 +3668,7 @@ class AgentRunnerService:
                 ),
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+                runs_as_agent=runs_as_agent,
                 key_scopes=(
                     None
                     if ctx.key_scopes is None
@@ -3769,7 +3808,9 @@ class AgentRunnerService:
             # situations, and one value for both was the wrong shape. A project's
             # container is the project's, whatever either says.
             scope_override=(
-                "project"
+                "conversation"
+                if runs_as_agent
+                else "project"
                 if project is not None
                 else cast("SessionScope | None", exposure.session_scope)
                 if exposure is not None and exposure.session_scope
@@ -3976,6 +4017,9 @@ class AgentRunnerService:
             started=already_started,
             to_register={} if specialists is None else {k: list(v) for k, v in specialists.items()},
         )
+        # Who the run is about, for its deps and its delegates'. A run that is its agent
+        # names nobody: a decider resuming it is a member, and `ctx` is theirs.
+        audience_user_id = None if runs_as_agent else owner_user_id or ctx.user_id
         runtime = await self._delegation_runtime(
             ctx,
             models_ctx=models_ctx,
@@ -3984,6 +4028,8 @@ class AgentRunnerService:
             run=run,
             surface=surface,
             user_name=user_name,
+            audience_user_id=audience_user_id,
+            runs_as_agent=runs_as_agent,
             personal_mcp_user_id=personal_mcp_user_id,
             sender_present=sender_present,
             resources=resources,
@@ -4006,7 +4052,6 @@ class AgentRunnerService:
         # whether the subject was a publisher stand-in, whether the chat account was
         # linked, whether the chat was a room - are all gone with the request that
         # carried them.
-        audience_user_id = owner_user_id or ctx.user_id
         audience = restored_audience or derive_audience(
             user_id=audience_user_id,
             subject_is_publisher_fallback=ctx.subject_is_publisher_fallback,
@@ -4071,6 +4116,7 @@ class AgentRunnerService:
                     audience=audience,
                     run_person=run_person,
                     impersonated=impersonated,
+                    acts_as_agent=runs_as_agent,
                     granted_scopes=DEFAULT_GRANTED_SCOPES,
                     resources=resources,
                     secrets=secrets,
@@ -4137,6 +4183,7 @@ class AgentRunnerService:
             audience=audience,
             run_person=run_person,
             impersonated=impersonated,
+            acts_as_agent=runs_as_agent,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
@@ -4229,6 +4276,7 @@ class AgentRunnerService:
                 audience_searches_conversations=audience.searches_conversations,
                 audience_browses_signed_in=audience.browses_signed_in,
                 subject_is_publisher_fallback=subject_is_publisher_fallback,
+                runs_as_agent=runs_as_agent,
                 public_origin=public_origin,
                 impersonated=impersonated,
             ),
@@ -4260,6 +4308,8 @@ class AgentRunnerService:
         run: AgentRun,
         surface: RunSurface,
         user_name: str | None,
+        audience_user_id: UUID | None,
+        runs_as_agent: bool,
         personal_mcp_user_id: UUID | None,
         sender_present: bool,
         resources: dict[str, Any],
@@ -4320,11 +4370,13 @@ class AgentRunnerService:
             run=run,
             surface=surface,
             agent_id=agent.id,
-            # Not `str(ctx.user_id)`: a context with no subject would stringify to
-            # the literal "None" and hand it to every delegate's tools as the
-            # caller's id, for the reason `_assemble` says at greater length.
-            user_id=None if ctx.user_id is None else str(ctx.user_id),
+            # The run's own person, as its deps name them - not `ctx.user_id`, which on a
+            # resume is the decider's. Never `str(None)`: that would hand every
+            # delegate's tools the literal "None" as the caller's id, for the reason
+            # `_assemble` says at greater length.
+            user_id=None if audience_user_id is None else str(audience_user_id),
             user_name=user_name,
+            runs_as_agent=runs_as_agent,
             personal_mcp_user_id=personal_mcp_user_id,
             sender_present=sender_present,
             approvals=approvals,
@@ -4840,7 +4892,9 @@ class AgentRunnerService:
             sender_user_id=delegation.personal_mcp_user_id,
             # The run's own person, as for the parent: on a resume `ctx` is the
             # approver's, and a delegate must not carry their authority either.
-            platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
+            platform_credential=await self._platform_credential(
+                runnable, ctx, delegation.run, runs_as_agent=delegation.runs_as_agent
+            ),
         )
         toolsets = resolved.toolsets
         # Briefed like the parent: a delegate may bind a service the parent does
@@ -4869,7 +4923,7 @@ class AgentRunnerService:
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
-                reviewer_models=await self._reviewer_models(ctx, runnable),
+                reviewer_models=await self._reviewer_models(delegation.models_ctx, runnable),
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
@@ -5120,6 +5174,7 @@ class AgentRunnerService:
                         # sender is theirs as much as the run that made it, and
                         # without these it read as the publisher's own.
                         initiated_by_publisher_fallback=parent.initiated_by_publisher_fallback,
+                        runs_as_agent=parent.runs_as_agent,
                         channel_identity_id=parent.channel_identity_id,
                         conversation_id=parent.conversation_id,
                         # The binding that admitted the run admitted this too, so "what
@@ -5243,7 +5298,14 @@ class AgentRunnerService:
         """
         workspace = prepared.workspace
         state = prepared.materialised_skills
-        if workspace is None or state is None or prepared.ctx is None or _untouched(workspace):
+        # A proposal is recorded as a member, and a run that is its agent has none.
+        if (
+            prepared.admitted_as.runs_as_agent
+            or workspace is None
+            or state is None
+            or prepared.ctx is None
+            or _untouched(workspace)
+        ):
             return
         run_id = str(prepared.run.id)
         agent_id = prepared.agent.id
@@ -6052,6 +6114,7 @@ class AgentRunnerService:
             # a publisher stand-in is gone with the request that carried it, so a
             # resume would otherwise lend the publisher's MCP to a guest (#1469).
             restored_publisher_fallback=state.admitted_as.subject_is_publisher_fallback,
+            restored_runs_as_agent=state.admitted_as.runs_as_agent,
             # Who supplied the input is gone with the request too; without it a
             # member approving an outsider's parked run would become its person.
             # A schedule-surface row parked before the key existed cannot say
@@ -6369,6 +6432,7 @@ class AgentRunnerService:
                 subagent_task_id=frame.task_id,
                 user_id=run.user_id,
                 initiated_by_publisher_fallback=run.initiated_by_publisher_fallback,
+                runs_as_agent=run.runs_as_agent,
                 channel_identity_id=run.channel_identity_id,
                 conversation_id=run.conversation_id,
                 exposure_id=run.exposure_id,

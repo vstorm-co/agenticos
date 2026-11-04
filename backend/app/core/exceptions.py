@@ -169,6 +169,16 @@ class BadRequestError(AppException):
     status_code = 400
 
 
+class NoSpendingLimitError(BadRequestError):
+    """A run with no member behind it has neither an agent budget nor an organization cap (400).
+
+    The message is what a customer may read; `details` names the agent for the log.
+    """
+
+    message = "This line is not answering right now."
+    code = "NO_SPENDING_LIMIT"
+
+
 class PaymentRequiredError(AppException):
     """Payment required - seat or usage limit reached (402)."""
 

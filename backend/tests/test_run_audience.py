@@ -339,3 +339,12 @@ class TestBrowsingSignedIn:
     def test_an_audience_built_without_saying_so_is_signed_out(self):
         """What a run parked before #2129 resumes with."""
         assert RunAudience(user_id=PERSON).browses_signed_in is False
+
+
+def test_an_unlinked_direct_message_on_a_public_line_has_no_person():
+    """It runs as its agent with no member, so it keys on nobody and browses signed out."""
+    audience = derive_audience(user_id=None, subject_is_publisher_fallback=True, room_key=None)
+
+    assert audience.user_id is None
+    assert audience.private is True
+    assert audience.browses_signed_in is False

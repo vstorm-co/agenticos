@@ -68,6 +68,7 @@ async def create_run(
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
+    runs_as_agent: bool = False,
     modality: str = "text",
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
@@ -82,6 +83,7 @@ async def create_run(
         test_spec=test_spec,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+        runs_as_agent=runs_as_agent,
         conversation_id=conversation_id,
         channel_identity_id=channel_identity_id,
         exposure_id=exposure_id,
@@ -195,6 +197,7 @@ async def record_delegated_run(
     cache_busts: int = 0,
     cache_expiries: int = 0,
     cache_missed_tokens: int = 0,
+    runs_as_agent: bool = False,
 ) -> AgentRun:
     """Write a delegated run that is already over, in one insert.
 
@@ -222,6 +225,7 @@ async def record_delegated_run(
         subagent_task_id=subagent_task_id,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+        runs_as_agent=runs_as_agent,
         channel_identity_id=channel_identity_id,
         conversation_id=conversation_id,
         exposure_id=exposure_id,

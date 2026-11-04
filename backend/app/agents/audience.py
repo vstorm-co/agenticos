@@ -137,11 +137,11 @@ def derive_audience(
     same human into a browser store and a Slack store and left them reporting that
     the agent forgets them between the two.
 
-    There is no fallback to the chat account itself. It would need a run with a
-    chat identity, no room and no real subject - an unlinked direct message, which
-    the bot policy refuses before a run starts (#639) - and in a room the person is
-    not consulted at all. An unreachable branch is one nobody tests, so it is gone
-    rather than kept for a policy that might change (#1470).
+    There is no fallback to the chat account itself. An unlinked direct message on
+    a line that answers strangers has a chat identity, no room and no real subject,
+    and it runs as its agent with no member behind it; it keys on nobody, so its
+    memory and conversation search stay off. In a room the person is not consulted
+    at all (#1470).
 
     The trap this function exists to avoid is `user_id` on a hosted or embedded
     surface, where it is the *publisher* standing in for an unidentified visitor

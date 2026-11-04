@@ -68,6 +68,9 @@ class AgentDeps:
     organization_id: UUID | None = None
     user_id: str | None = None
     user_name: str | None = None
+    # Whether the run acts as its agent with only its spec's grants and as no
+    # member: `user_id` is then `None` and stays so in every copy.
+    acts_as_agent: bool = False
     agent_id: UUID | None = None
     run_id: UUID | None = None
     # The thread the run answers in, where it has one. What a tool keeps between
@@ -234,6 +237,7 @@ class AgentDeps:
             organization_id=self.organization_id,
             user_id=self.user_id,
             user_name=self.user_name,
+            acts_as_agent=self.acts_as_agent,
             run_person=self.run_person,
             impersonated=self.impersonated,
             agent_id=self.agent_id,

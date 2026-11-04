@@ -225,6 +225,10 @@ class AgentRun(Base, TimestampMixin):
     initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
+    # The run acted as its agent with only its spec's grants; `user_id` is NULL.
+    runs_as_agent: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )
     # The scopes of the API key that started the run, null for a session. A run
     # resumed later - by whoever approved its parked call - is rebuilt on its
     # owner's current role, and this is the ceiling that keeps it under what the

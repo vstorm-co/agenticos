@@ -66,6 +66,7 @@ from app.agents.spec import (
     ObservabilitySpec,
     OrgMcpServerRef,
     PersonalMcpServerRef,
+    PlatformMcpServerRef,
 )
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
@@ -83,10 +84,13 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
+from app.services.access import agent_context
 from app.services.agent_runner import (
     ASIDE_PREFIX,
+    AdmittedAs,
     AgentRunnerService,
     ApprovalChannel,
+    DelegationFrame,
     ParkedApproval,
     PausedRunState,
     PersonalServiceGap,
@@ -3091,6 +3095,43 @@ class TestStoppingANonStreamingRun:
             is prepared.run.initiated_by_publisher_fallback
         )
         assert written["channel_identity_id"] is prepared.run.channel_identity_id
+        assert written["runs_as_agent"] is prepared.run.runs_as_agent
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("runs_as_agent", [False, True])
+    async def test_a_parked_delegation_stopped_with_its_run_keeps_whose_turn_it_was(
+        self, runs_as_agent: bool
+    ):
+        """Cancelling a parked run writes its suspended delegates' rows, and they are the
+        run's own kind: one that is its agent has delegations that are too."""
+        run = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            user_id=None,
+            initiated_by_publisher_fallback=True,
+            runs_as_agent=runs_as_agent,
+        )
+        frame = DelegationFrame(
+            agent_id=uuid.uuid4(),
+            agent_version_id=uuid.uuid4(),
+            subagent="helper",
+            task_id="t-1",
+            tool_call_id="call-1",
+        )
+        service = AgentRunnerService(_db())
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_repo.existing_ids_locked",
+                new=AsyncMock(return_value={frame.agent_id}),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.record_delegated_run", new=AsyncMock()
+            ) as write,
+        ):
+            await service._cancel_delegations(run, [frame], at=datetime.now(UTC))
+
+        assert write.await_args.kwargs["runs_as_agent"] is runs_as_agent
 
 
 class TestMarkRunning:
@@ -6570,6 +6611,582 @@ class TestThePersonBehindTheRun:
 
         assert AgentDeps(run_person=person).clone_for_subagent().run_person == person
         assert AgentDeps().clone_for_subagent().run_person is None
+
+
+class TestARunActingAsItsAgent:
+    """A run that is its agent carries no member: not on the turn, nor on its continuation.
+
+    What the run reaches is decided in `_assemble` once, from the context for a fresh
+    run and from the parked terms for a resume - where the context is the decider's,
+    a member, who must lend the run nothing.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _no_assistant(self):
+        with patch(
+            "app.services.agent_registry.organization_assistant_repo.for_agent",
+            new=AsyncMock(return_value=None),
+        ):
+            yield
+
+    @staticmethod
+    def _agent_ctx() -> AuthContext:
+        return agent_context(
+            organization_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            channel_identity_id=uuid.uuid4(),
+        )
+
+    @staticmethod
+    async def _prepare(
+        ctx: AuthContext, *, spec: AgentSpec | None = None, **kwargs: Any
+    ) -> tuple[PreparedRun, dict[str, Any], dict[str, Any]]:
+        """Prepare a run under an organization cap; return it, the factory's and `create_run`'s arguments."""
+        service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = spec or AgentSpec(name="Support")
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create_run,
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
+        ):
+            prepared = await service.prepare(ctx, agent.id, **kwargs)
+
+        return prepared, build.call_args.kwargs, create_run.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_run_acting_as_its_agent_records_it_and_no_member(self):
+        ctx = self._agent_ctx()
+
+        prepared, _built_with, opened = await self._prepare(
+            ctx, surface=RunSurface.WHATSAPP, acts_for_sender=True
+        )
+
+        assert opened["user_id"] is None
+        assert opened["runs_as_agent"] is True
+        assert opened["initiated_by_publisher_fallback"] is True
+        assert opened["channel_identity_id"] == ctx.channel_identity_id
+        assert prepared.admitted_as.runs_as_agent is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_its_deps_and_its_delegation_name_no_member(self):
+        service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
+        ctx = self._agent_ctx()
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        seen: dict[str, Any] = {}
+
+        class _Stop(Exception):
+            pass
+
+        def delegation(**kwargs: Any) -> None:
+            seen.update(kwargs)
+            raise _Stop
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner._delegation_config", return_value=MagicMock()),
+            patch("app.services.agent_runner._Delegation", new=delegation),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
+            pytest.raises(_Stop),
+        ):
+            await service.prepare(ctx, agent.id, surface=RunSurface.WHATSAPP)
+
+        assert seen["user_id"] is None
+        assert seen["runs_as_agent"] is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_the_turns_deps_name_no_member(self):
+        _prepared_run, built_with, _opened = await self._prepare(
+            self._agent_ctx(), surface=RunSurface.WHATSAPP
+        )
+
+        assert built_with["user_id"] is None
+        assert built_with["run_person"] is None
+        assert built_with["acts_as_agent"] is True
+
+    @staticmethod
+    async def _resume(
+        paused_state: dict[str, Any],
+        *,
+        spec: dict[str, Any] | None = None,
+        run_user_id: uuid.UUID | None = None,
+    ) -> tuple[MagicMock, MagicMock, AuthContext, dict[str, Any]]:
+        """Resume a parked run as a decider: the `build_agent` mock, the resumed run and the decider."""
+        service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
+        decider = _ctx()
+        approval = MagicMock(
+            id=uuid.uuid4(),
+            status=ApprovalStatus.APPROVED.value,
+            tool_args={},
+            note=None,
+            decided_by_user_id=decider.user_id,
+        )
+        run = _parked_run(
+            paused_state=paused_state,
+            user_id=run_user_id,
+            initiated_by_publisher_fallback=True,
+            surface=RunSurface.WHATSAPP.value,
+        )
+        run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
+        version = MagicMock()
+        version.spec = spec or {"name": "Clerk"}
+        built = MagicMock()
+        built.ledger = SpendLedger()
+        built.context = ContextGauge()
+        built.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+        seen: dict[str, Any] = {}
+
+        class _Stop(Exception):
+            pass
+
+        def delegation(**kwargs: Any) -> None:
+            seen.update(kwargs)
+            raise _Stop
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built) as build,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner._delegation_config", return_value=MagicMock()),
+            patch("app.services.agent_runner._Delegation", new=delegation),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
+            pytest.raises(_Stop),
+        ):
+            await service.resume(decider, run.id)
+
+        return build, run, decider, {**seen, "workspace_open": opened}
+
+    @staticmethod
+    def _terms(**admitted: Any) -> dict[str, Any]:
+        return {
+            "messages": [],
+            "tool_call_ids": {},
+            "admitted_as": {
+                "approval_mode": "follow_agent",
+                "subject_is_publisher_fallback": True,
+                "public_origin": True,
+                "runs_as_agent": True,
+                **admitted,
+            },
+        }
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_continuation_by_a_decider_still_names_no_member(self):
+        """The decider is a member, and an approval is not a licence to lend them to the run."""
+        _build, run, decider, seen = await self._resume(self._terms())
+
+        assert decider.user_id is not None, "the decider is a real member"
+        assert run.user_id is None
+        assert seen["user_id"] is None
+        assert seen["runs_as_agent"] is True
+        assert seen["workspace_open"].await_args.kwargs["identity"].user_id is None
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_continuations_agent_is_built_with_no_member(self):
+        """Not only the delegation: the run's own deps, which a NULL owner used to fill
+        from whoever resumed it."""
+        service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
+        decider = _ctx()
+        approval = MagicMock(
+            id=uuid.uuid4(),
+            status=ApprovalStatus.APPROVED.value,
+            tool_args={},
+            note=None,
+            decided_by_user_id=decider.user_id,
+        )
+        run = _parked_run(
+            paused_state=self._terms(),
+            user_id=None,
+            initiated_by_publisher_fallback=True,
+            surface=RunSurface.WHATSAPP.value,
+        )
+        run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
+        version = MagicMock()
+        version.spec = {"name": "Clerk"}
+        built = MagicMock()
+        built.ledger = SpendLedger()
+        built.context = ContextGauge()
+        built.agent.run = AsyncMock(return_value=MagicMock(output="done"))
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch(
+                "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+                new=AsyncMock(return_value=[approval]),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch("app.services.agent_runner.build_agent", return_value=built) as build,
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
+        ):
+            await service.resume(decider, run.id)
+
+        assert build.call_args.kwargs["user_id"] is None
+        assert build.call_args.kwargs["run_person"] is None
+        assert build.call_args.kwargs["acts_as_agent"] is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("resumed", [False, True])
+    async def test_no_platform_credential_is_minted_for_it(self, resumed: bool):
+        """Neither for the agent on a turn nor, on a resume, for the member who decided."""
+        spec = AgentSpec(name="Support", mcp_servers=[PlatformMcpServerRef(account="platform")])
+        with patch("app.services.agent_runner.mint_for_run", new=AsyncMock()) as mint:
+            if resumed:
+                _build, _run, _decider, _seen = await self._resume(
+                    self._terms(), spec=spec.model_dump(mode="json")
+                )
+            else:
+                _prepared_run, built_with, _opened = await self._prepare(
+                    self._agent_ctx(), spec=spec, surface=RunSurface.WHATSAPP
+                )
+                assert built_with["acts_as_agent"] is True
+
+        mint.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_member_run_still_mints_its_credential(self):
+        """The same spec for a member: the credential is minted, so the test above is
+        about the agent and not about a spec that never asks for one."""
+        spec = AgentSpec(name="Support", mcp_servers=[PlatformMcpServerRef(account="platform")])
+        with patch(
+            "app.services.agent_runner.mint_for_run", new=AsyncMock(return_value="sk-minted")
+        ) as mint:
+            await self._prepare(_ctx(), spec=spec)
+
+        mint.assert_awaited_once()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_delegate_gets_no_platform_credential_either(self):
+        service = AgentRunnerService(_db())
+        decider = _ctx()
+        delegate_id = uuid.uuid4()
+        delegation = MagicMock(
+            ctx=decider,
+            runs_as_agent=True,
+            run=MagicMock(user_id=None, agent_id=uuid.uuid4()),
+            personal_mcp_user_id=None,
+        )
+        published = AgentSpec(name="Helper", mcp_servers=[PlatformMcpServerRef(account="platform")])
+        version = MagicMock(agent_id=delegate_id)
+        version.spec = published.model_dump(mode="json")
+        delegate = MagicMock(status="active", slug="helper")
+
+        with (
+            patch("app.services.agent_runner.agent_repo.get", new=AsyncMock(return_value=delegate)),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch.object(
+                service.registry,
+                "with_assistant_guidance",
+                new=AsyncMock(side_effect=lambda _agent, spec: spec),
+            ),
+            patch.object(
+                service,
+                "_delegate_resources",
+                new=AsyncMock(return_value={"kb_collection_names": [], "kb_vector_scopes": {}}),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ) as toolsets,
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+            patch("app.services.agent_runner._delegate_builder"),
+            patch("app.services.agent_runner.mint_for_run", new=AsyncMock()) as mint,
+        ):
+            await service._resolve_delegate(
+                delegation,
+                ref=MagicMock(agent_id=delegate_id, agent_version_id=uuid.uuid4()),
+                shared=[],
+                resources={},
+                depth_remaining=0,
+                depth=1,
+                ancestors=frozenset(),
+            )
+
+        mint.assert_not_awaited()
+        assert toolsets.await_args.kwargs["platform_credential"] is None
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("owner", [None, uuid.uuid4()], ids=["agent", "member"])
+    async def test_a_delegates_reviewers_resolve_for_the_runs_own_person_not_the_decider(
+        self, owner: uuid.UUID | None
+    ):
+        """On a resume `ctx` is the decider's. The reviewers a pinned delegate carries are
+        resolved like every other model of the tree: for nobody on a run that is its
+        agent, for the run's owner on a member's run - never a member's own sign-in."""
+        service = AgentRunnerService(_db())
+        decider = _ctx()
+        models_ctx = replace(
+            decider, user_id=owner, subject_is_publisher_fallback=False, api_key_id=None
+        )
+        delegate_id = uuid.uuid4()
+        delegation = MagicMock(
+            ctx=decider,
+            models_ctx=models_ctx,
+            runs_as_agent=owner is None,
+            run=MagicMock(user_id=owner, agent_id=uuid.uuid4()),
+            personal_mcp_user_id=None,
+        )
+        published = AgentSpec(name="Helper")
+        version = MagicMock(agent_id=delegate_id)
+        version.spec = published.model_dump(mode="json")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_repo.get",
+                new=AsyncMock(return_value=MagicMock(status="active", slug="helper")),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch.object(
+                service.registry,
+                "with_assistant_guidance",
+                new=AsyncMock(side_effect=lambda _agent, spec: spec),
+            ),
+            patch.object(
+                service,
+                "_delegate_resources",
+                new=AsyncMock(return_value={"kb_collection_names": [], "kb_vector_scopes": {}}),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+            patch.object(service, "_reviewer_models", new=AsyncMock(return_value={})) as reviewers,
+            patch("app.services.agent_runner._delegate_builder"),
+        ):
+            await service._resolve_delegate(
+                delegation,
+                ref=MagicMock(agent_id=delegate_id, agent_version_id=uuid.uuid4()),
+                shared=[],
+                resources={},
+                depth_remaining=0,
+                depth=1,
+                ancestors=frozenset(),
+            )
+
+        resolved_for = reviewers.await_args.args[0]
+        assert decider.user_id is not None
+        assert resolved_for.user_id == owner
+        assert resolved_for.user_id != decider.user_id
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("session_scope", ["agent", "channel", "user"])
+    async def test_its_workspace_is_the_conversations_whatever_the_binding_says(
+        self, session_scope: str
+    ):
+        exposure = _exposure(surface="whatsapp")
+        exposure.session_scope = session_scope
+        service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        async def prepare(ctx: AuthContext) -> dict[str, Any]:
+            with (
+                patch.object(
+                    service.registry,
+                    "get_runnable_spec",
+                    new=AsyncMock(
+                        return_value=(agent, AgentSpec(name="Support"), agent.current_version_id)
+                    ),
+                ),
+                patch.object(
+                    service.models,
+                    "resolve",
+                    new=AsyncMock(return_value=MagicMock(label="gpt-4.1")),
+                ),
+                patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+                patch(
+                    "app.services.agent_runner.agent_run_repo.create_run",
+                    new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+                ),
+                patch(
+                    "app.services.agent_runner.build_toolsets_for_agent",
+                    new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+                ),
+                patch("app.services.agent_runner.build_agent"),
+                patch.object(
+                    service.workspaces, "open", new=AsyncMock(return_value=None)
+                ) as opened,
+            ):
+                await service.prepare(ctx, agent.id, exposure=exposure, surface=RunSurface.WHATSAPP)
+            return opened.await_args.kwargs
+
+        assert (await prepare(self._agent_ctx()))["scope_override"] == "conversation"
+        assert (await prepare(_ctx()))["scope_override"] == session_scope
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_run_under_the_binding_records_the_creator(self):
+        """An unlinked sender in a group still runs as the binding's creator: only the
+        agent principal is a run with no member. Deriving `runs_as_agent` from the
+        fallback flag the two share would record the creator as an agent run."""
+        creator = uuid.uuid4()
+        ctx = AuthContext(
+            user_id=creator,
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.MEMBER,
+            subject_is_publisher_fallback=True,
+        )
+
+        prepared, built_with, opened = await self._prepare(
+            ctx, surface=RunSurface.WHATSAPP, acts_for_sender=True
+        )
+
+        assert opened["user_id"] == creator
+        assert opened["initiated_by_publisher_fallback"] is True
+        assert opened["runs_as_agent"] is False
+        assert prepared.admitted_as.runs_as_agent is False
+        assert built_with["acts_as_agent"] is False
+
+    @pytest.mark.anyio
+    async def test_a_member_run_is_unchanged(self):
+        ctx = _ctx()
+
+        prepared, built_with, opened = await self._prepare(ctx)
+
+        assert opened["user_id"] == ctx.user_id
+        assert opened["runs_as_agent"] is False
+        assert built_with["user_id"] == str(ctx.user_id)
+        assert built_with["acts_as_agent"] is False
+        assert prepared.admitted_as.runs_as_agent is False
+
+    def test_the_terms_round_trip(self):
+        terms = AdmittedAs(runs_as_agent=True)
+
+        assert AdmittedAs.model_validate(terms.model_dump(mode="json")).runs_as_agent is True
+        assert AdmittedAs.model_validate({"approval_mode": "follow_agent"}).runs_as_agent is False
+
+    def test_a_delegate_keeps_the_agent_principal(self):
+        assert AgentDeps(acts_as_agent=True).clone_for_subagent().acts_as_agent is True
+        assert AgentDeps().clone_for_subagent().acts_as_agent is False
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_an_agent_run_proposes_no_skill_changes(self, caplog: pytest.LogCaptureFixture):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.admitted_as = AdmittedAs(runs_as_agent=True)
+        prepared.ctx = self._agent_ctx()
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
+
+        with (
+            patch("app.services.agent_runner._untouched", return_value=False),
+            patch(
+                "app.services.agent_runner.collect_changes",
+                new=AsyncMock(return_value=[MagicMock()]),
+            ),
+            patch.object(service.proposals, "record", new=AsyncMock()) as record,
+            caplog.at_level("ERROR"),
+        ):
+            await service._propose_skill_changes(prepared)
+
+        record.assert_not_awaited()
+        assert "skill_proposal_record_failed" not in caplog.text
+
+    @pytest.mark.anyio
+    async def test_a_member_run_still_proposes_skill_changes(self):
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.ctx = _ctx()
+        prepared.workspace = MagicMock()
+        prepared.materialised_skills = MagicMock()
+
+        with (
+            patch("app.services.agent_runner._untouched", return_value=False),
+            patch(
+                "app.services.agent_runner.collect_changes",
+                new=AsyncMock(return_value=[MagicMock()]),
+            ),
+            patch.object(service.proposals, "record", new=AsyncMock()) as record,
+        ):
+            await service._propose_skill_changes(prepared)
+
+        record.assert_awaited_once()
 
 
 _QUESTIONS = {

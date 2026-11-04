@@ -44,6 +44,7 @@ from app.agents.capabilities.browser_use import (
     WebBrowserConfig,
     _endpoint,
     _loop,
+    _sessions,
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use import _route as _route_module
@@ -1876,6 +1877,38 @@ class TestABrowseActingAsThePerson:
         assert opener.opened[0]["sign_ins"] == []
         assert published["meta"][2].remembers is False
         assert published["meta"][2].personal is False
+
+    @pytest.mark.security
+    async def test_the_browser_keeps_no_tab_across_turns(
+        self, published: dict[str, Any], kept: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ):
+        """A run that is its agent has no member to key a kept tab on: each browse starts
+        fresh and signed out, nothing is saved for the next turn and nothing is restored."""
+
+        async def no_load(*_args: Any) -> None:
+            raise AssertionError("a tab was looked up for a run with no member")
+
+        monkeypatch.setattr(_sessions, "load", no_load)
+        deps = AgentDeps(
+            organization_id=self.ORG,
+            user_id=None,
+            acts_as_agent=True,
+            agent_id=uuid4(),
+            conversation_id=uuid4(),
+            run_id=uuid4(),
+            audience=RunAudience(),
+        )
+        first, second = _Opener(), _Opener()
+
+        for opener in (first, second):
+            answer = await _call_as(deps, opener)
+            assert answer.startswith("Finished: find the price")
+
+        for opener in (first, second):
+            assert opener.opened[0]["sign_ins"] == []
+            assert "conversation_scope" not in opener.opened[0]
+        assert "loaded_for" not in kept
+        assert published["meta"][2].remembers is False
 
     @pytest.mark.security
     async def test_a_hosted_browser_is_never_handed_a_kept_sign_in(
