@@ -19,7 +19,7 @@ import { SystemAgentChoice } from "@/components/agents/system-agent-choice";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
-import { limitText, limitValue, usd } from "@/components/evals/format";
+import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
 import { useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
@@ -262,16 +262,6 @@ export function StartSession({ agentId }: { agentId: string }) {
       </div>
     </div>
   );
-}
-
-/**
- * The limit a new session is offered: reading what went wrong, then every attempt it
- * may make, rounded up to a cent. The start is priced only to the first stop, but the
- * limit caps the whole session, so it has to leave room for the steps after it.
- */
-function sessionLimit(quote: ImprovementEstimate): string {
-  const whole = Number(quote.total_usd) + quote.max_iterations * Number(quote.per_round_usd);
-  return String(Math.max(0.01, Math.ceil(whole * 100) / 100));
 }
 
 /**

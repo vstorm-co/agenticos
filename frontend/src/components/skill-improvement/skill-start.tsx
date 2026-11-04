@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
-import { limitText, limitValue, usd } from "@/components/evals/format";
+import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button, Input, Label } from "@/components/ui";
 import { useSkillImprovements } from "@/hooks/use-skill-improvement";
@@ -48,7 +48,7 @@ export function SkillStart({
     price()
       .then((value) => {
         setQuote(value);
-        setLimit(limitText(value.total_usd, locale));
+        setLimit(limitText(sessionLimit(value), locale));
       })
       .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
   }, [isLoading, error, open, price, locale, tErrors]);
@@ -100,6 +100,7 @@ export function SkillStart({
           cost: usd(quote.total_usd, locale),
           perRound: usd(quote.per_round_usd, locale),
           rounds: quote.max_iterations,
+          limit: usd(limitValue(limit), locale),
         })}
       </p>
       <div className="max-w-xs space-y-1.5">
@@ -110,6 +111,7 @@ export function SkillStart({
           value={limit}
           onChange={(event) => setLimit(event.target.value)}
         />
+        <p className="text-muted-foreground text-xs">{t("limitHint")}</p>
       </div>
       {!quote.affordable && (
         <p role="alert" className="text-sm">
