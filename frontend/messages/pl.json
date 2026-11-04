@@ -15373,15 +15373,27 @@
         "unknown": "Nieznane: {count}",
         "same": "Bez zmian: {count}",
         "better": "Lepiej: {count}",
-        "pending": "W trakcie: {count}"
+        "pending": "W trakcie: {count}",
+        "filter": "Pokaż tylko"
       },
-      "seenCount": "{seen, plural, =0 {Nie obejrzano jeszcze żadnego z {total} agentów} other {Obejrzano # z {total} agentów}}",
       "seen": "Obejrzany",
       "details": "Szczegóły: {name}",
       "stageCounts": "lepiej: {better} · bez zmian: {same} · gorzej: {worse} · nieznane: {unknown}",
       "stageLoading": "Wczytywanie wyników…",
       "stageUnread": "Nie udało się wczytać wyników.",
-      "openAgent": "Otwórz {name}"
+      "openAgent": "Otwórz {name}",
+      "left": "Do obejrzenia: {left} z {total}",
+      "nothingLeft": "Nie ma nic gorszego ani nieznanego do obejrzenia",
+      "onlyUnseen": "Tylko nieobejrzane",
+      "search": "Znajdź agenta",
+      "noMatch": "Żaden agent nie pasuje.",
+      "group": {
+        "worse": "Gorzej ({count})",
+        "unknown": "Nieznane ({count})",
+        "pending": "W trakcie ({count})",
+        "same": "Bez zmian ({count})",
+        "better": "Lepiej ({count})"
+      }
     },
     "testSet": {
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",

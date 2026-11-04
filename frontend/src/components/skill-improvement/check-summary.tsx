@@ -26,9 +26,18 @@ const FILL: Record<Bucket, string> = {
 
 /**
  * How many agents came out better, the same, worse or unknown, as one bar and its
- * counts. Agents still being checked are counted only while there are any.
+ * counts. Agents still being checked are counted only while there are any. Each
+ * count filters the list to its agents; pressed again, it lets them go.
  */
-export function CheckSummary({ agents }: { agents: SkillCheckAgent[] }) {
+export function CheckSummary({
+  agents,
+  active,
+  onToggle,
+}: {
+  agents: SkillCheckAgent[];
+  active: ReadonlySet<Bucket>;
+  onToggle: (bucket: Bucket) => void;
+}) {
   const t = useTranslations("skillImprovement.agents.summary");
   const counts = new Map<Bucket, number>(BUCKETS.map((bucket) => [bucket, 0]));
   for (const row of agents) {
@@ -48,14 +57,24 @@ export function CheckSummary({ agents }: { agents: SkillCheckAgent[] }) {
           />
         ))}
       </div>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+      <div role="group" aria-label={t("filter")} className="flex flex-wrap gap-1.5 text-xs">
         {shown.map((bucket) => (
-          <li key={bucket} className="flex items-center gap-1.5">
+          <button
+            key={bucket}
+            type="button"
+            aria-pressed={active.has(bucket)}
+            disabled={counts.get(bucket) === 0}
+            onClick={() => onToggle(bucket)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-2 py-0.5 disabled:opacity-50",
+              active.has(bucket) ? "bg-muted border-foreground/30" : "border-transparent",
+            )}
+          >
             <span className={cn("size-2 rounded-full", FILL[bucket])} aria-hidden />
             {t(bucket, { count: counts.get(bucket)! })}
-          </li>
+          </button>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

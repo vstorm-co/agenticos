@@ -6,10 +6,17 @@ import { ChevronDown, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
+import { Checkbox, Input, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import type { AgentCheckState, SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
-import { CheckSummary, FixBreakBar } from "./check-summary";
+import type {
+  AgentCheckState,
+  SkillCheck,
+  SkillCheckAgent,
+  UnknownReason,
+} from "@/types/skill-checks";
+import { AddTestQuestions } from "./add-test-questions";
+import { bucketOf, CheckSummary, FixBreakBar, type Bucket } from "./check-summary";
 import { StageBreakdown } from "./stage-breakdown";
 
 const TONE: Record<AgentCheckState, Tone> = {
@@ -22,16 +29,30 @@ const TONE: Record<AgentCheckState, Tone> = {
   unknown: "warn",
 };
 
-/** The agent a person has to look at first leads: worse, then unknown, then the rest. */
-const ORDER: AgentCheckState[] = [
-  "worse",
-  "unknown",
-  "within_noise",
-  "running",
-  "queued",
-  "no_change",
-  "better",
+/** The groups in the order a person reads them: what blocks a decision first. */
+const GROUPS: Bucket[] = ["worse", "unknown", "pending", "same", "better"];
+/** Groups open from the start; the others are counted until somebody opens them. */
+const OPEN_FIRST = new Set<Bucket>(["worse", "unknown", "pending"]);
+/** Below this many agents every group is open: there is nothing to scroll past. */
+const COLLAPSE_FROM = 8;
+const REASONS: (UnknownReason | null)[] = [
+  "no_questions",
+  "no_budget",
+  "no_access",
+  "no_published_version",
+  "inconclusive",
+  "failed",
+  null,
 ];
+
+const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
+
+/** The worst-hit first among the worse, the most helped first among the better. */
+function sortWithin(bucket: Bucket, rows: SkillCheckAgent[]): SkillCheckAgent[] {
+  if (bucket === "worse") return [...rows].sort((a, b) => b.broken - a.broken || byName(a, b));
+  if (bucket === "better") return [...rows].sort((a, b) => b.fixed - a.fixed || byName(a, b));
+  return [...rows].sort(byName);
+}
 
 const keyOf = (row: SkillCheckAgent) => `${row.agent.id}:${row.via_specialist ?? ""}`;
 
@@ -62,36 +83,129 @@ function useSeen(checkId: string): [Set<string>, (key: string) => void] {
 }
 
 /**
- * The agents a check measured: how many came out each way, then one row per agent,
- * worst first, with what it fixed against what it broke. A row opens to its details
- * and is marked seen once opened, so ten agents read as a list of what is left.
+ * The agents a check measured, for a person deciding on ten agents or fifty: how
+ * many came out each way, each count a filter; what is left to look at among the
+ * worse and the unknown; then the agents grouped by how they came out. The worse
+ * and the unknown are open, the unknown by why nobody could check them; the rest
+ * are counted until somebody opens them. A row opens to its details and is marked
+ * seen once opened.
  */
 export function CheckAgents({ check }: { check: SkillCheck }) {
   const t = useTranslations("skillImprovement.agents");
-  const rows = [...check.agents].sort((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
+  const rows = check.agents;
   const hidden = check.hidden + check.hidden_unknown;
   const most = Math.max(0, ...rows.map((row) => row.fixed + row.broken));
   const [seen, mark] = useSeen(check.id);
-  const looked = rows.filter((row) => seen.has(keyOf(row))).length;
+  const [active, setActive] = useState<ReadonlySet<Bucket>>(new Set());
+  const [toggled, setToggled] = useState<ReadonlySet<Bucket>>(new Set());
+  const [onlyUnseen, setOnlyUnseen] = useState(false);
+  const [query, setQuery] = useState("");
+  const flip = (set: ReadonlySet<Bucket>, bucket: Bucket) => {
+    const next = new Set(set);
+    if (!next.delete(bucket)) next.add(bucket);
+    return next;
+  };
+  const toLook = rows.filter((row) => ["worse", "unknown"].includes(bucketOf(row.state)));
+  const left = toLook.filter((row) => !seen.has(keyOf(row))).length;
+  const needle = query.trim().toLocaleLowerCase();
+  const shown = rows.filter(
+    (row) =>
+      (active.size === 0 || active.has(bucketOf(row.state))) &&
+      (!onlyUnseen || !seen.has(keyOf(row))) &&
+      (needle === "" ||
+        `${row.agent.name} ${row.via_specialist ?? ""}`.toLocaleLowerCase().includes(needle)),
+  );
+  const isOpen = (bucket: Bucket) =>
+    active.has(bucket) ||
+    needle !== "" ||
+    (OPEN_FIRST.has(bucket) || rows.length < COLLAPSE_FROM) !== toggled.has(bucket);
+  const row = (item: SkillCheckAgent) => (
+    <AgentRow
+      key={keyOf(item)}
+      row={item}
+      most={most}
+      seen={seen.has(keyOf(item))}
+      onOpen={() => mark(keyOf(item))}
+    />
+  );
   return (
     <div className="space-y-3" data-tour="skill-improvement-agents">
-      <CheckSummary agents={rows} />
+      <CheckSummary
+        agents={rows}
+        active={active}
+        onToggle={(bucket) => setActive(flip(active, bucket))}
+      />
       {rows.length > 1 && (
-        <p className="text-muted-foreground text-xs">
-          {t("seenCount", { seen: looked, total: rows.length })}
-        </p>
-      )}
-      <ul className="divide-border divide-y rounded-xl border">
-        {rows.map((row) => (
-          <AgentRow
-            key={keyOf(row)}
-            row={row}
-            most={most}
-            seen={seen.has(keyOf(row))}
-            onOpen={() => mark(keyOf(row))}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <p className="font-medium">
+            {toLook.length > 0 ? t("left", { left, total: toLook.length }) : t("nothingLeft")}
+          </p>
+          <span className="flex items-center gap-1.5">
+            <Checkbox
+              id={`unseen-${check.id}`}
+              checked={onlyUnseen}
+              onCheckedChange={(value) => setOnlyUnseen(value === true)}
+            />
+            <Label htmlFor={`unseen-${check.id}`} className="text-xs font-normal">
+              {t("onlyUnseen")}
+            </Label>
+          </span>
+          <Input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label={t("search")}
+            placeholder={t("search")}
+            className="h-7 w-48 text-xs"
           />
-        ))}
-      </ul>
+        </div>
+      )}
+      {shown.length === 0 && rows.length > 0 && (
+        <p className="text-muted-foreground text-sm">{t("noMatch")}</p>
+      )}
+      {GROUPS.map((bucket) => {
+        const members = shown.filter((item) => bucketOf(item.state) === bucket);
+        if (members.length === 0) return null;
+        const open = isOpen(bucket);
+        return (
+          <section key={bucket} className="space-y-1.5">
+            <button
+              type="button"
+              aria-expanded={open}
+              className="flex items-center gap-1 text-sm font-medium"
+              onClick={() => setToggled(flip(toggled, bucket))}
+            >
+              <ChevronDown
+                aria-hidden
+                className={cn("h-4 w-4 transition-transform", !open && "-rotate-90")}
+              />
+              {t(`group.${bucket}`, { count: members.length })}
+            </button>
+            {open &&
+              (bucket === "unknown" ? (
+                REASONS.map((reason) => {
+                  const why = members.filter((item) => item.unknown_reason === reason);
+                  if (why.length === 0) return null;
+                  return (
+                    <div key={reason ?? "other"} className="space-y-1.5 pl-5">
+                      {reason !== null && (
+                        <p className="text-muted-foreground text-xs">{t(`unknown.${reason}`)}</p>
+                      )}
+                      {reason === "no_questions" && <AddTestQuestions skillId={check.skill_id} />}
+                      <ul className="divide-border divide-y rounded-xl border">
+                        {sortWithin(bucket, why).map(row)}
+                      </ul>
+                    </div>
+                  );
+                })
+              ) : (
+                <ul className="divide-border divide-y rounded-xl border">
+                  {sortWithin(bucket, members).map(row)}
+                </ul>
+              ))}
+          </section>
+        );
+      })}
       {hidden > 0 && (
         <p className="text-muted-foreground text-xs">
           {t("hidden", { count: check.hidden, unknown: check.hidden_unknown })}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,9 @@ const compared = vi.hoisted(() => ({
   error: null as Error | null,
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({ useEvalComparison: () => compared }));
+vi.mock("./add-test-questions", () => ({
+  AddTestQuestions: ({ skillId }: { skillId: string }) => <p>Add questions to {skillId}</p>,
+}));
 
 /** Opens every agent's row, as a person reading them all would. */
 async function openAll() {
@@ -46,7 +49,7 @@ describe("CheckAgents", () => {
       "Details of Support",
     ]);
     await openAll();
-    expect(screen.getByText("Not checked: its budget is spent.")).toBeInTheDocument();
+    expect(screen.getAllByText("Not checked: its budget is spent.")).toHaveLength(2);
   });
 
   it("says what each agent fixed and broke, with a link to the run", async () => {
@@ -137,23 +140,25 @@ describe("CheckAgents", () => {
   });
 
   it("marks an agent seen once its details are opened, and remembers it for the check", async () => {
-    const check = skillCheck();
+    const check = skillCheck({
+      agents: [checkAgent("Refunds", "worse"), checkAgent("Support", "better")],
+    });
     const { unmount } = render(<CheckAgents check={check} />);
-    expect(screen.getByText("None of 2 agents looked at yet")).toBeVisible();
+    expect(screen.getByText("Left to look at: 1 of 1")).toBeVisible();
     expect(screen.queryByText("Seen")).toBeNull();
 
-    const toggle = screen.getByRole("button", { name: "Details of Support" });
+    const toggle = screen.getByRole("button", { name: "Details of Refunds" });
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText("Looked at 1 of 2 agents")).toBeVisible();
+    expect(screen.getByText("Left to look at: 0 of 1")).toBeVisible();
     await userEvent.click(toggle);
     expect(screen.getAllByText("Seen")).toHaveLength(1);
 
     unmount();
     render(<CheckAgents check={check} />);
-    expect(screen.getByText("Looked at 1 of 2 agents")).toBeVisible();
-    render(<CheckAgents check={skillCheck({ id: "c2" })} />);
-    expect(screen.getByText("None of 2 agents looked at yet")).toBeVisible();
+    expect(screen.getByText("Left to look at: 0 of 1")).toBeVisible();
+    render(<CheckAgents check={{ ...check, id: "c2" }} />);
+    expect(screen.getByText("Left to look at: 1 of 1")).toBeVisible();
   });
 
   it("still marks what was seen when the browser refuses to store it", async () => {
@@ -209,5 +214,74 @@ describe("CheckAgents", () => {
     compared.error = new Error("Forbidden");
     rerender(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     expect(screen.getByText("Its results could not be read.")).toBeInTheDocument();
+  });
+
+  describe("with many agents", () => {
+    const many = () =>
+      skillCheck({
+        agents: [
+          checkAgent("Refunds", "worse", { broken: 1 }),
+          checkAgent("Returns", "worse", { broken: 4 }),
+          checkAgent("Wholesale", "unknown", { unknown_reason: "no_questions", stages: [] }),
+          checkAgent("Kiosk", "unknown", { unknown_reason: "no_budget", stages: [] }),
+          checkAgent("Store", "unknown", { unknown_reason: null, stages: [] }),
+          checkAgent("Online", "better", { fixed: 1 }),
+          checkAgent("Counter", "better", { fixed: 5 }),
+          checkAgent("Billing", "no_change"),
+          checkAgent("Sales", "within_noise"),
+        ],
+      });
+    const names = () =>
+      screen
+        .queryAllByRole("button", { name: /^Details of / })
+        .map((row) => row.getAttribute("aria-label")!.replace("Details of ", ""));
+
+    it("opens the worse and the unknown, counts the rest, and sorts each group", async () => {
+      render(<CheckAgents check={many()} />);
+
+      expect(names()).toEqual(["Returns", "Refunds", "Wholesale", "Kiosk", "Store"]);
+      expect(screen.getByText("Left to look at: 5 of 5")).toBeVisible();
+      expect(screen.getByText("Add questions to k1")).toBeVisible();
+      expect(screen.getByRole("button", { name: "No change (2)" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Better (2)" }));
+      expect(names().slice(-2)).toEqual(["Counter", "Online"]);
+      await userEvent.click(screen.getByRole("button", { name: "Worse (2)" }));
+      expect(names()).not.toContain("Returns");
+    });
+
+    it("filters by how they came out, by name, and to the ones not looked at", async () => {
+      render(<CheckAgents check={many()} />);
+      const filters = screen.getByRole("group", { name: "Show only" });
+
+      await userEvent.click(within(filters).getByRole("button", { name: "2 no change" }));
+      expect(names()).toEqual(["Billing", "Sales"]);
+      await userEvent.click(within(filters).getByRole("button", { name: "2 no change" }));
+
+      await userEvent.type(screen.getByRole("searchbox", { name: "Find an agent" }), "count");
+      expect(names()).toEqual(["Counter"]);
+      await userEvent.clear(screen.getByRole("searchbox", { name: "Find an agent" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Details of Returns" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
+      expect(names()).not.toContain("Returns");
+      expect(screen.getByText("Left to look at: 4 of 5")).toBeVisible();
+
+      await userEvent.type(screen.getByRole("searchbox", { name: "Find an agent" }), "nobody");
+      expect(screen.getByText("No agent matches.")).toBeVisible();
+    });
+
+    it("says when nothing worse or unknown is left to look at", () => {
+      render(
+        <CheckAgents
+          check={skillCheck({
+            agents: [checkAgent("Support", "better"), checkAgent("Sales", "no_change")],
+          })}
+        />,
+      );
+      expect(screen.getByText("Nothing worse or unknown to look at")).toBeVisible();
+    });
   });
 });
