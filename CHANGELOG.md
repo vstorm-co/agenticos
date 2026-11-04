@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Save assistant message parts containing local or conversation file origins without UUID serialization errors in JSONB, preserving their order and omitting unset fields. (#2709)
+
 ## [1.45.0] - 2026-11-04
 
 ### Added
