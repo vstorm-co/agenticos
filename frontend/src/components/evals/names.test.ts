@@ -6,8 +6,10 @@ import type { ProposalCheckRecord } from "@/types/eval-runs";
 import { sideName } from "./names";
 
 const evals = createTranslator({ locale: "en", messages: en, namespace: "evals" });
-const t = (key: string, values?: { version?: number; count?: number; agent?: string }) =>
-  evals(key as Parameters<typeof evals>[0], values);
+const t = (
+  key: string,
+  values?: { version?: number; count?: number; agent?: string; fork?: string },
+) => evals(key as Parameters<typeof evals>[0], values);
 
 function check(overrides: Partial<ProposalCheckRecord> = {}): ProposalCheckRecord {
   return { kind: "agent", base_version: 2, on_draft: false, suggestions: 1, ...overrides };
@@ -49,6 +51,15 @@ describe("sideName for a skill's check", () => {
   it("names both sides by the agent, and which skill each one read", () => {
     expect(sideName(candidate, t, skill)).toBe("Online returns desk · proposed skill");
     expect(sideName(baseline, t, skill)).toBe("Online returns desk · current skill");
+  });
+
+  it("names the stored version the proposal is weighed against, on main or a fork", () => {
+    expect(sideName(baseline, t, { ...skill, current: { number: 3, fork_name: null } })).toBe(
+      "Online returns desk · current skill (v3)",
+    );
+    expect(sideName(baseline, t, { ...skill, current: { number: 2, fork_name: "Returns" } })).toBe(
+      "Online returns desk · current skill (fork “Returns” v2)",
+    );
   });
 
   it("names them by version while the agent is unread, and a side of another run alike", () => {

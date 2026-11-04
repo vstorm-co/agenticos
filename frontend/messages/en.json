@@ -13605,6 +13605,8 @@
     "proposedSkill": "v{version} + proposed skill",
     "proposedContext": "v{version} + proposed context file",
     "skillCurrent": "{agent} · current skill",
+    "skillCurrentVersion": "{agent} · current skill (v{version})",
+    "skillCurrentFork": "{agent} · current skill (fork “{fork}” v{version})",
     "skillProposed": "{agent} · proposed skill",
     "version": "v{version}",
     "status": {

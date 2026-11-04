@@ -421,14 +421,21 @@ describe("EvalRunView", () => {
       run: evalRun({
         proposal_check: { kind: "skill", base_version: 3, on_draft: false, suggestions: 0 },
         arms: [
-          arm({ source: "explicit", version_number: 3 }),
-          arm({ id: "arm-0", role: "baseline", version_number: 3 }),
+          arm({ source: "explicit", version_number: 3, skill_ids: ["skill-1"] }),
+          arm({
+            id: "arm-0",
+            role: "baseline",
+            version_number: 3,
+            skill_versions: [{ skill_id: "skill-1", number: 4, fork_name: null }],
+          }),
         ],
       }),
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getAllByText(/Online returns desk · proposed skill/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Online returns desk · current skill/).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/Online returns desk · current skill \(v4\)/).length,
+    ).toBeGreaterThan(0);
     expect(screen.queryByText(/v3 \+ proposed skill/)).toBeNull();
   });
 
