@@ -18,6 +18,7 @@ describe("a mention chip", () => {
     [{ kind: "collection", id: "k", name: "Contracts" }, "lucide-database"],
     [{ kind: "skill", id: "s", name: "refunds" }, "lucide-book-open"],
     [{ kind: "context", id: "c", name: "glossary" }, "lucide-file"],
+    [{ kind: "conversation", id: "chat", name: "Research topic" }, "lucide-message-square"],
     [{ kind: "project", id: "p", name: "Launch" }, "lucide-folder-kanban"],
   ])("draws what kind of thing %o is", (item, icon) => {
     const { container } = render(<MentionChip item={item} />);

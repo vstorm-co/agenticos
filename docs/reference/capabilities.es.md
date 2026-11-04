@@ -1,5 +1,5 @@
 ---
-source_sha: "95cc474e7e4b"
+source_sha: "a9c402805186"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -86,6 +86,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | obligatoria | delegada |
 | `monitor` | Watch a command | analysis | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | delegada |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
+| `background_tasks` | Temas en segundo plano | reasoning | `start_background_task`, `list_background_tasks`, `stop_background_task` | — | — | delegado |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
 | `system_reminders` | Recordatorio de instrucciones | reasoning | ninguna, a propósito | — | — | sin efecto |
@@ -483,6 +484,10 @@ lista de permitidos vacía rechaza de plano el mem0 autoalojado, y es deliberado
 clave viaja en una cabecera `Authorization`, así que quien construya un agent y
 pueda vincular una clave compartida sin poder leerla no debe poder apuntarla a un
 servidor propio.
+
+## Temas en segundo plano { #background-tasks }
+
+Trabajo explícito en un tema nuevo que dura más que la respuesta de origen. El agente original resume el resultado con el historial actual, sin herramientas. [Temas en segundo plano](../console.es.md#background-topics) explica límites, aprobaciones, detención e interrupciones. Es independiente de `background_tools` y los subagentes asíncronos temporales de una ejecución.
 
 ## Conversaciones anteriores { #conversation-search }
 

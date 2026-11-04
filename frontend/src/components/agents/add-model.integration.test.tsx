@@ -35,6 +35,8 @@ interface ProviderCapabilities {
   keyless: boolean;
   apis: ("chat" | "responses")[];
   native_api: "chat" | "responses" | null;
+  regions?: ("eu" | "eea" | "global")[];
+  api_from_model?: boolean;
 }
 
 const state = {
@@ -42,7 +44,12 @@ const state = {
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
   profiles: [] as { label: string }[],
-  models: [] as { id: string; name: string; context_length?: number | null }[],
+  models: [] as {
+    id: string;
+    name: string;
+    context_length?: number | null;
+    apis?: ("chat" | "responses")[];
+  }[],
   refused: [] as string[],
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
@@ -63,7 +70,7 @@ vi.mock("@/hooks", () => ({
   }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
-  useProviderModels: (...args: [string, string?]) => {
+  useProviderModels: (...args: [string, string?, string?]) => {
     listingRequests(...args);
     return {
       models: state.models,
@@ -1083,6 +1090,223 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
   });
 });
 
+describe("choosing where a Stav model's requests run", () => {
+  /**
+   * Stav takes a region on every request. The form shows it only for a
+   * provider whose catalog entry lists regions, starts on the first (EU), and
+   * sends the choice.
+   */
+  async function fillStav() {
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+        api_from_model: true,
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    state.models = [
+      { id: "mistralai/mistral-small-4", name: "Mistral Small 4", apis: ["chat", "responses"] },
+      { id: "openai/o3-pro", name: "o3-pro", apis: ["responses"] },
+    ];
+    mount();
+    await pickProvider("Stav.ai");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /mistral-small-4/ }));
+  }
+
+  function sent() {
+    return state.createProfile.mutateAsync.mock.calls.at(-1)?.[0];
+  }
+
+  it("is not offered for a provider without regions", async () => {
+    mount();
+    await pickProvider("OpenAI");
+    expect(screen.queryByLabelText("Region")).toBeNull();
+  });
+
+  it("starts in the EU and sends it", async () => {
+    await fillStav();
+    expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ provider: "stav", region: "eu" }));
+  });
+
+  it("sends the region somebody picked", async () => {
+    await fillStav();
+    await userEvent.click(screen.getByLabelText("Region"));
+    await userEvent.click(screen.getByRole("option", { name: "Global" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ region: "global" }));
+  });
+
+  it("lists Stav's models at the endpoint the profile names", async () => {
+    await fillStav();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://staging-api.stav.ai/v1/");
+
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "stav",
+      "https://staging-api.stav.ai/v1",
+      "s-stav",
+    );
+  });
+
+  it("opens a Stav model stored with no region as unchanged", async () => {
+    // A profile written with no region runs in the default one, which is where
+    // the form starts - so it is the model in use, not an edit of it.
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    mount({
+      selected: {
+        id: "p-stav",
+        label: "Stav · mistralai/mistral-small-4",
+        provider: "stav",
+        model: "mistralai/mistral-small-4",
+        secret_id: "s-stav",
+        api: "chat",
+        region: null,
+        params: {},
+        fallback_profile_ids: [],
+      } as Parameters<typeof AddModel>[0]["selected"],
+    });
+
+    expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("asks no API question; the model's listing answers it", async () => {
+    await fillStav();
+    expect(screen.queryByLabelText("API")).toBeNull();
+    expect(screen.getByText("Chat Completions, chosen from the model")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "chat" }));
+  });
+
+  it("sends Responses for a model served only there", async () => {
+    await fillStav();
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /o3-pro/ }));
+    expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ model: "openai/o3-pro", api: "responses" }));
+  });
+
+  it.each(["endpoint", "key"] as const)(
+    "derives the API when a Stav model changes %s",
+    async (connection) => {
+      state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+      state.catalog = [
+        ...state.catalog,
+        capabilities("stav", "Stav.ai", {
+          supports_base_url: true,
+          apis: ["responses", "chat"],
+          native_api: "chat",
+          regions: ["eu", "eea", "global"],
+          api_from_model: true,
+        }),
+      ];
+      state.secrets = [
+        secret({ id: "s-stav", name: "Stav", purpose: "stav" }),
+        secret({ id: "s-other", name: "Other Stav", purpose: "stav" }),
+      ];
+      state.models = [{ id: "vendor/model", name: "Model", apis: ["responses"] }];
+      mount({
+        selected: {
+          id: "p-stav",
+          label: "Existing Stav",
+          provider: "stav",
+          model: "vendor/model",
+          secret_id: "s-stav",
+          api: "chat",
+          region: "eu",
+          params: {},
+          fallback_profile_ids: [],
+        } as Parameters<typeof AddModel>[0]["selected"],
+      });
+      if (connection === "endpoint") {
+        await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.stav.example/v1");
+      } else {
+        await userEvent.click(screen.getByLabelText("Key"));
+        await userEvent.click(screen.getByRole("option", { name: /Other Stav/ }));
+      }
+      expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
+      if (connection === "endpoint") {
+        await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+        expect(sent()).toEqual(
+          expect.objectContaining({ api: "responses", base_url: "https://other.stav.example/v1" }),
+        );
+      } else {
+        await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+        expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            changes: expect.objectContaining({ api: "responses", secret_id: "s-other" }),
+          }),
+        );
+      }
+    },
+  );
+
+  it("does not claim the model chose an API it did not", async () => {
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+        api_from_model: true,
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    state.models = [
+      { id: "mistralai/mistral-small-4", name: "Mistral Small 4", apis: ["chat", "responses"] },
+    ];
+    mount({
+      selected: {
+        id: "p-forced",
+        label: "Stav.ai · mistralai/mistral-small-4",
+        provider: "stav",
+        model: "mistralai/mistral-small-4",
+        secret_id: "s-stav",
+        api: "responses",
+        region: "eu",
+        params: {},
+        fallback_profile_ids: [],
+      } as Parameters<typeof AddModel>[0]["selected"],
+    });
+    expect(screen.getByText("Responses, set on this model")).toBeInTheDocument();
+  });
+
+  it("sends no region for a provider without one", async () => {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(sent()).not.toHaveProperty("region");
+  });
+});
+
 describe("a provider nobody can type a key for", () => {
   it("offers a ChatGPT sign-in where a key field would be, and runs on what it stores", async () => {
     // A key field here would take a token the person does not have: the
@@ -1446,7 +1670,11 @@ it("keeps an OpenRouter key and lists models at its selected regional endpoint",
   await userEvent.click(screen.getByLabelText("Model"));
   await userEvent.click(screen.getByRole("option", { name: /Claude test/ }));
   await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-  expect(listingRequests).toHaveBeenCalledWith("openrouter", "https://eu.openrouter.ai/api/v1");
+  expect(listingRequests).toHaveBeenCalledWith(
+    "openrouter",
+    "https://eu.openrouter.ai/api/v1",
+    undefined,
+  );
   expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({
       provider: "openrouter",

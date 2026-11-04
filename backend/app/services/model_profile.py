@@ -16,9 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.model_resolver import (
     PROVIDERS,
     ModelApi,
+    ModelRegion,
     ModelRequestSpec,
     ProviderSpec,
     ResolvedCredential,
+    api_for_model,
     get_provider,
     lacks_key,
 )
@@ -50,7 +52,7 @@ from app.repositories import (
 )
 from app.schemas.model_profile import ModelProfileUpdate
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
-from app.services.model_catalog import models_for
+from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
@@ -66,6 +68,7 @@ _ALLOWED_ENDPOINT_SCHEMES = frozenset({"http", "https"})
 # The column is a plain string; this is what turns it back into the choice
 # `create_profile` validated, and fails loudly on a value it never wrote.
 _stored_api = TypeAdapter[ModelApi | None](ModelApi | None).validate_python
+_stored_region = TypeAdapter[ModelRegion | None](ModelRegion | None).validate_python
 
 
 def _validate_model_id(provider: str, model: str) -> None:
@@ -200,7 +203,12 @@ async def _checked_endpoint(spec: ProviderSpec, base_url: str) -> str:
 
 
 def _check_shape(
-    spec: ProviderSpec, *, secret_id: UUID | None, base_url: str | None, api: ModelApi | None
+    spec: ProviderSpec,
+    *,
+    secret_id: UUID | None,
+    base_url: str | None,
+    api: ModelApi | None,
+    region: ModelRegion | None = None,
 ) -> None:
     """The rules a profile's key, endpoint and API obey together, wherever it is written.
 
@@ -219,6 +227,12 @@ def _check_shape(
         raise refused_field(
             "api",
             f"{spec.name} serves one API, so there is nothing to choose",
+            provider=spec.id,
+        )
+    if region is not None and region not in spec.regions:
+        raise refused_field(
+            "region",
+            f"{spec.name} takes no region, so there is nothing to choose",
             provider=spec.id,
         )
     if secret_id is None and not spec.keyless:
@@ -258,6 +272,7 @@ class ModelProfileService:
         secret_id: UUID | None,
         base_url: str | None = None,
         api: ModelApi | None = None,
+        region: ModelRegion | None = None,
         params: dict | None = None,
         fallback_profile_ids: list[UUID] | None = None,
     ) -> ModelProfile:
@@ -296,12 +311,20 @@ class ModelProfileService:
         _validate_model_id(provider, model)
         if base_url is not None:
             base_url = await _checked_endpoint(spec, base_url)
+        api_given = api is not None
         if api is None:
             api = spec.default_api(base_url)
-        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
+        if region is None:
+            region = spec.default_region()
+        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
         await self._check_label_free(ctx, label)
         if secret_id is not None:
             await self._check_key(ctx, secret_id, provider=provider)
+        listed = await self._listed_model(ctx, provider, model, base_url, secret_id)
+        if not api_given and spec.api_from_model and listed is not None:
+            # The model's own listing says which API it is served on (Stav.ai):
+            # a Responses-only model gets Responses without anyone choosing it.
+            api = api_for_model(listed.surfaces) or api
 
         profile = await credential_repo.create_profile(
             self.db,
@@ -312,9 +335,10 @@ class ModelProfileService:
             secret_id=secret_id,
             base_url=base_url,
             api=api,
+            region=region,
             params=params,
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
-            context_length=await self._context_length(ctx, provider, model),
+            context_length=listed.context_length if listed is not None else None,
             runs_without_key=secret_id is None,
         )
         await record_audit(
@@ -328,27 +352,24 @@ class ModelProfileService:
         )
         return profile
 
-    async def _context_length(self, ctx: AuthContext, provider: str, model: str) -> int | None:
-        """How many tokens this model accepts, as the provider's own listing says.
-
-        Read once here rather than per run, because the request path must not
-        call a provider - and stored, because the alternative source is wrong in
-        the direction that breaks a run. The `compaction` capability triggers on
-        a fraction of the context window; `genai-prices` records 1,000,000 for
-        `anthropic:claude-sonnet-4-5` against a real 200,000, so a trigger at 90%
-        lands above the ceiling and compaction never fires before the provider
-        refuses the request (#773).
-
-        The picker asked the same question moments ago and the listing is cached
-        for an hour, so this is usually free. `models_for` never raises and
-        answers its curated list when a provider cannot be reached; a model the
-        answer does not mention - a bespoke deployment, one shipped this morning,
-        or anything under a curated list that carries no lengths - records
-        nothing, and nothing means the capability resolves the window itself.
-        """
-        api_key = await OrganizationSecretService(self.db).listing_key(ctx, provider)
-        models, _ = await models_for(provider, api_key=api_key)
-        return next((entry.context_length for entry in models if entry.id == model), None)
+    async def _listed_model(
+        self,
+        ctx: AuthContext,
+        provider: str,
+        model: str,
+        base_url: str | None,
+        secret_id: UUID | None,
+    ) -> CatalogModel | None:
+        """Read creation-time metadata using the selected Stav endpoint and credential."""
+        endpoint = base_url if CUSTOM_LISTINGS.get(provider) else None
+        secrets = OrganizationSecretService(self.db)
+        api_key = (
+            await secrets.listing_key(ctx, provider, secret_id=secret_id)
+            if provider == "stav"
+            else await secrets.listing_key(ctx, provider)
+        )
+        models, _ = await models_for(provider, api_key=api_key, base_url=endpoint)
+        return next((entry for entry in models if entry.id == model), None)
 
     async def _check_label_free(self, ctx: AuthContext, label: str) -> None:
         """Refuse a label another profile in this organization already carries."""
@@ -452,12 +473,16 @@ class ModelProfileService:
             api = changes.api if changes.api is not None else spec.default_api(base_url)
         elif api == spec.default_api(profile.base_url):
             api = spec.default_api(base_url)
-        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api)
+        region: ModelRegion | None = _stored_region(profile.region)
+        if "region" in sent:
+            region = changes.region if changes.region is not None else spec.default_region()
+        _check_shape(spec, secret_id=secret_id, base_url=base_url, api=api, region=region)
 
         wanted: dict[str, object] = {
             "secret_id": secret_id,
             "base_url": base_url,
             "api": api,
+            "region": region,
             # Saved with no key means meant to run with none (`_check_shape` has
             # just allowed it); saved with one means it needs one, so a later
             # delete of that key reads as "no key" rather than as self-hosted.
@@ -613,6 +638,7 @@ class ModelProfileService:
                     secret=NoSecret(),
                     base_url=profile.base_url,
                     api=_stored_api(profile.api),
+                    region=_stored_region(profile.region),
                 )
             raise BadRequestError(
                 message=(
@@ -652,6 +678,7 @@ class ModelProfileService:
             # a gateway however carefully it stored the URL.
             base_url=profile.base_url,
             api=_stored_api(profile.api),
+            region=_stored_region(profile.region),
         )
 
     async def resolve(

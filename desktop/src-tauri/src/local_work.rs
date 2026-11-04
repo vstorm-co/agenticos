@@ -132,9 +132,13 @@ pub async fn local_pick_folder(app: AppHandle, mode: Mode) -> Result<Option<Gran
     };
     let stored = grant.clone();
     settings::update(&app, move |settings| {
+        settings
+            .coding_consents
+            .retain(|consent| !consent.is_for_folder(&stored.path));
         settings.local_grants.retain(|existing| existing.path != stored.path);
         settings.local_grants.push(stored);
     })?;
+    crate::agent_session::close_for_folder(&app, &grant.path).await;
     Ok(Some(grant))
 }
 
@@ -259,8 +263,13 @@ pub async fn local_file(app: AppHandle, root: String, path: String) -> Result<St
 #[tauri::command]
 pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> {
     let (settings, ()) = settings::update(&app, |settings| {
+        settings.coding_consents.retain(|consent| !consent.is_for_folder(&path));
         settings.local_grants.retain(|existing| existing.path != path);
     })?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        crate::agent_session::close_for_folder(&handle, &path).await;
+    });
     Ok(LocalState {
         grants: settings.local_grants,
         modes: modes(),
@@ -568,6 +577,12 @@ impl Drop for CommandTree {
 
 pub(crate) fn spawn_tree(command: tokio::process::Command) -> Result<CommandTree, Refusal> {
     use process_wrap::tokio::{CommandWrap, KillOnDrop};
+    #[cfg(windows)]
+    let command = {
+        let mut command = command;
+        command.creation_flags(0x08000000);
+        command
+    };
     let mut wrapped = CommandWrap::from(command);
     wrapped.wrap(KillOnDrop);
     #[cfg(unix)]
