@@ -1056,3 +1056,29 @@ async def mutable_instruction_material(
                 }
             )
     return material
+
+
+async def delegation_candidates(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+    after: UUID | None,
+    limit: int = 100,
+) -> list[Agent]:
+    where = _visible_clauses(
+        organization_id=organization_id,
+        user_id=user_id,
+        see_all=see_all,
+        shared_ids=shared_ids,
+        shared_with_me=False,
+        include_archived=False,
+    )
+    where.extend(
+        [Agent.status == AgentStatus.PUBLISHED.value, Agent.current_version_id.is_not(None)]
+    )
+    if after is not None:
+        where.append(Agent.id > after)
+    return list(await db.scalars(select(Agent).where(*where).order_by(Agent.id).limit(limit)))

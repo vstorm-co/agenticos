@@ -73,3 +73,50 @@ class TestContributesNoTool:
         """`search_tools` appears only once it wraps a toolset with deferred tools,
         which the factory arranges - so on its own it offers the model nothing."""
         assert _built().get_toolset() is None
+
+
+class TestLocalBm25:
+    def test_portable_strategy_uses_local_ranking(self) -> None:
+        from app.agents.capabilities.tool_search._ranking import rank_tools
+
+        assert build_tool_search("local_bm25", 5).strategy is rank_tools
+
+    def test_ranker_matches_identifiers_and_arguments_without_inventing_tools(self) -> None:
+        from pydantic_ai.models.test import TestModel
+        from pydantic_ai.tools import RunContext, ToolDefinition
+        from pydantic_ai.usage import RunUsage
+
+        from app.agents.capabilities.tool_search._ranking import rank_tools
+
+        ctx = RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        tools = [
+            ToolDefinition(name="mail_send", description="Send an email"),
+            ToolDefinition(name="mail_list", description="List recent messages"),
+            ToolDefinition(
+                name="calendar_createEvent",
+                parameters_json_schema={
+                    "type": "object",
+                    "properties": {"attendee": {"type": "string"}},
+                },
+            ),
+        ]
+        assert rank_tools(ctx, ["send email"], tools)[0] == "mail_send"
+        assert rank_tools(ctx, ["calendar attendee"], tools) == ["calendar_createEvent"]
+        assert rank_tools(ctx, ["payroll"], tools) == []
+        assert rank_tools(ctx, ["   "], tools) == []
+        assert rank_tools(ctx, ["send"], []) == []
+
+    def test_rare_operations_beat_repeated_generic_words(self) -> None:
+        from pydantic_ai.models.test import TestModel
+        from pydantic_ai.tools import RunContext, ToolDefinition
+        from pydantic_ai.usage import RunUsage
+
+        from app.agents.capabilities.tool_search._ranking import rank_tools
+
+        ctx = RunContext(deps=object(), model=TestModel(), usage=RunUsage())
+        tools = [ToolDefinition(name="reports", description="Search " * 80)]
+        tools += [
+            ToolDefinition(name=f"search_{n}", description="Search documents") for n in range(8)
+        ]
+        tools.append(ToolDefinition(name="refund_create", description="Issue a refund"))
+        assert rank_tools(ctx, ["search refund"], tools)[0] == "refund_create"

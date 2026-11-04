@@ -1,5 +1,5 @@
 ---
-source_sha: "6caa9e9791b1"
+source_sha: "3c6562c342e3"
 ---
 
 # Konsola { #the-console }
@@ -316,6 +316,10 @@ karta, która wyłącza go dla wszystkich i ustawia jego powitanie. **Ustawienia
 Asystent** to już tylko twoje własne wskazówki.
 
 ## Domyślne agenty platformy { #shipped-agent-defaults }
+
+Oba agenty startowe i nowe agenty z konsoli mają Watch a command, Background topics, Work while tools run, ograniczone wyszukiwanie wcześniejszych rozmów i wyszukiwanie narzędzi lokalnym BM25 z pięcioma wynikami. Otrzymują specjalistów research, explore i review, dynamicznych specjalistów oraz automatyczny wybór delegowania sync/async. Monitory kończą się wraz z turą i wymagają trwałej powłoki; tematy w tle przeżywają turę. Historia jest wyszukiwana tylko na żądanie, najpierw fragmenty, potem ograniczone okna transkrypcji. Grupy i uruchomienia bez nadzoru nie przeszukują prywatnej historii.
+
+Tylko dostarczany AgenticOS ma Computer use, przeglądarkę i Coding agenta. Sterowanie komputerem i kodowanie domyślnie korzystają z zatwierdzonego desktopa; kodowanie w sandboxie wymaga osobnego skonfigurowanego poświadczenia. Domyślna przeglądarka również korzysta ze sparowanego desktopa; administrator może zamiast tego skonfigurować endpoint przeglądarki wdrożenia. Nowe agenty dziedziczą wspólną konfigurację bez tych trzech narzędzi. AgenticOS przypina opublikowanego Architecta; nietknięte przypięcia są odświeżane, a własne pozostają chronione.
 
 Każda organizacja otrzymuje **AgenticOS**, agenta do codziennej pracy, oraz
 **Architect**, asystenta konfiguracji platformy. Oba mają pamięć. Nowy agent

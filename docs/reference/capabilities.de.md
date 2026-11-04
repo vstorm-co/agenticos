@@ -1,5 +1,5 @@
 ---
-source_sha: "22e37d20aac2"
+source_sha: "a9c4b5f3c7e8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2002,7 +2002,10 @@ Berechtigungsmodell es alle sehen können.
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `max_result_chars` | 2000 | 200–20000 |
+| `allow_any_agent` | false | Andere zugängliche Agenten verwenden |
 | `share_with_delegates` | keine | Capability-ids, an die dieser Agent selbst gebunden ist, außer `subagents` |
+
+`allow_any_agent` löst optional zu Beginn interaktiver Läufe weitere veröffentlichte Agenten dieser Organisation auf, die die Person ausführen darf, unter `agent-<slug>`. Explizite Pins bleiben erhalten, Vorfahren werden ausgeschlossen, use-Freigaben und API-Key-Grenzen gelten weiter. Anonyme und unbeaufsichtigte Läufe werden nicht erweitert. Standardmäßig ausgeschaltet; große Kataloge erhöhen Vorbereitung und Kontext.
 
 **Der Modus ist die Entscheidung des Autors, nicht die des Modells.**
 
@@ -2857,8 +2860,10 @@ jedem Zug bezahlt, ob es es jemals aufruft oder nicht.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, von der nativen Suche ignoriert |
+
+**`local_bm25`** bewertet Werkzeugkennungen, Beschreibungen und Argumentschemata lokal bei jedem Provider. Seltenheit und Textlänge beeinflussen die Rangfolge, Kennungen werden bevorzugt. Nur passende autorisierte Werkzeuge werden zurückgegeben, ohne Modell- oder Embedding-Aufruf. Die Ergebnisgrenze gilt weiterhin.
 
 - **`auto`** — native Tool-Suche, wo der Provider sie anbietet (Anthropic BM25 oder
   regex, OpenAI serverseitig), sonst überall der lokale Schlagwortalgorithmus.

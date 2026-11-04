@@ -11456,6 +11456,10 @@
       "share_with_delegates": {
         "title": "Von Delegierten geerbte Capabilities",
         "description": "Capabilities, die dieser Agent an seine Delegierten weitergibt, etwa einen gemeinsamen Workspace, damit einer eine Datei schreibt und ein anderer sie liest. Geteilt wird nur, was hier steht, die Delegation selbst nie."
+      },
+      "allow_any_agent": {
+        "title": "Andere zugängliche Agenten verwenden",
+        "description": "Bietet die aktuellen veröffentlichten Versionen anderer Agenten an, die diese Person in dieser Organisation ausführen darf, unter agent-<slug>. Explizite Pins behalten ihre gewählten Versionen. Der Katalog wird zu Beginn jedes interaktiven Laufs aufgelöst; unbeaufsichtigte Arbeit bleibt auf geprüfte Pins begrenzt. Große Kataloge erhöhen Vorbereitungszeit und Kontext."
       }
     },
     "system_reminders": {
@@ -11515,7 +11519,7 @@
     "tool_search": {
       "strategy": {
         "title": "Suchmethode",
-        "description": "auto: native Tool-Suche bei einem Provider, der sie hat, sonst lokaler Stichwortabgleich. keywords: immer lokal, bei jedem Provider. bm25 / regex: einen nativen Anthropic-Algorithmus erzwingen; Fehler bei einem Provider ohne native Tool-Suche."
+        "description": "auto: native Tool-Suche bei einem Provider, der sie hat, sonst lokaler Stichwortabgleich. keywords: immer lokal, bei jedem Provider. local_bm25: lokale Rangfolge für Kennungen, Beschreibungen und Argumente bei jedem Provider. bm25 / regex: einen nativen Anthropic-Algorithmus erzwingen; Fehler bei einem Provider ohne native Tool-Suche."
       },
       "max_results": {
         "title": "Treffer pro Suche",

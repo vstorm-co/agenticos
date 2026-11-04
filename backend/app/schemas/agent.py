@@ -317,8 +317,10 @@ class AgentCreate(AudienceChoice):
         default=False,
         description=(
             "Start as the AgenticOS agent does: whatever of its instructions, "
-            "capabilities, skills, platform tools, first messages and budget the spec "
+            "common capabilities, skills, platform tools, first messages and budget the spec "
             "leaves empty is filled from it - what the console's New agent sends. "
+            "Computer use, browser and coding tools remain specific to the shipped AgenticOS "
+            "unless explicitly selected. "
             "Without it, a spec with no instructions gets only the starter's instructions"
         ),
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "22e37d20aac2"
+source_sha: "a9c4b5f3c7e8"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1918,7 +1918,10 @@ publicación, la exportación a YAML y el modelo de permisos.
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `max_result_chars` | 2000 | 200–20000 |
+| `allow_any_agent` | false | Usar otros agentes accesibles |
 | `share_with_delegates` | ninguna | ids de capability a las que este agent está vinculado, salvo `subagents` |
+
+`allow_any_agent` resuelve opcionalmente otros agentes publicados de esta organización que la persona puede ejecutar, al inicio de cada ejecución interactiva, con nombres `agent-<slug>`. Conserva las fijaciones explícitas, excluye ancestros y respeta permisos use y límites de claves API. No amplía ejecuciones anónimas ni desatendidas. Está desactivado por defecto; los catálogos grandes aumentan preparación y contexto.
 
 **El modo es decisión del autor, no del modelo.**
 
@@ -2717,8 +2720,10 @@ esquema que el modelo paga en cada turno, la llame alguna vez o no.
 
 | Configuración | Valor por defecto | Valores |
 |---|---|---|
-| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignorado por la búsqueda nativa |
+
+**`local_bm25`** ordena localmente identificadores, descripciones y esquemas de argumentos en cualquier proveedor. Usa rareza de términos y normalización de longitud, favorece identificadores y devuelve solo herramientas autorizadas coincidentes. No llama a modelos ni embeddings. Sigue aplicándose el límite de resultados.
 
 - **`auto`** — búsqueda nativa de herramientas donde el provider la ofrece (BM25 o
   regex de Anthropic, del lado del servidor en OpenAI), y el algoritmo local de

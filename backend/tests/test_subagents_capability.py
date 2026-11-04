@@ -2781,3 +2781,21 @@ class TestFrames:
         """Not an error: a run emits far more events than a panel can show, and
         each one forwarded is a socket write to show a reader nothing."""
         assert frame_for(event, LABELS) is None
+
+
+@pytest.mark.parametrize("refused", [False, True])
+async def test_discovered_delegate_checks_live_access_before_spending(refused: bool) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import AuthorizationError
+
+    access = AsyncMock(side_effect=AuthorizationError(message="Revoked") if refused else None)
+    ledger = SpendLedger()
+    delegate = replace(a_delegate(model=answering(ledger=ledger)), authorize=access)
+    capability = a_capability(a_runtime(delegate, ledger=ledger))
+    answer = await delegate_to(capability, a_context())
+    access.assert_awaited_once()
+    if refused:
+        assert "Delegation refused" in answer and ledger.total_usd == 0
+    else:
+        assert "found it" in answer and ledger.total_usd == ENTRY.cost_usd

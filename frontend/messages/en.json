@@ -11577,6 +11577,10 @@
       "share_with_delegates": {
         "title": "Capabilities delegates inherit",
         "description": "Capabilities this agent passes on to its delegates, such as a shared workspace so one writes a file and another reads it. Nothing is shared unless named here, and delegation itself never is."
+      },
+      "allow_any_agent": {
+        "title": "Use other accessible agents",
+        "description": "Offer the current published versions of other agents this person may run in this organization, under agent-<slug> handles. Explicit pins keep their selected versions. The catalog is resolved at the start of each interactive run; unattended work stays limited to reviewed pins. Large catalogs increase setup time and context."
       }
     },
     "system_reminders": {
@@ -11636,7 +11640,7 @@
     "tool_search": {
       "strategy": {
         "title": "Search method",
-        "description": "auto: native tool search on a provider that supports it, local keyword matching elsewhere. keywords: always match locally, on any provider. bm25 / regex: force an Anthropic-native algorithm; errors on a provider that has no native tool search."
+        "description": "auto: native tool search on a provider that supports it, local keyword matching elsewhere. keywords: always match locally, on any provider. local_bm25: rank identifiers, descriptions and arguments locally on any provider. bm25 / regex: force an Anthropic-native algorithm; errors on a provider that has no native tool search."
       },
       "max_results": {
         "title": "Matches per search",

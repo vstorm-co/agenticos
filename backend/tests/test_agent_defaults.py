@@ -70,3 +70,18 @@ def test_shipped_workflow_guidance_is_recognized_without_treating_user_edits_as_
     row = next(row for row in history if row.instruction_variants)
     assert row.recognizes_prompt(row.instruction_variants[0])
     assert not row.recognizes_prompt("my custom prompt fingerprint")
+
+
+def test_adding_architect_pin_upgrades_old_baselines_but_preserves_custom_delegates() -> None:
+    from app.agents.spec import SubagentRef
+
+    spec = AgentSpec(name="AgenticOS")
+    previous = baseline(STARTER, spec)
+    previous.pop("subagents")
+    architect = SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())
+    target = spec.model_copy(update={"subagents": [architect]})
+    assert merge_defaults(spec, target, previous).subagents == [architect]
+    custom = SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())
+    assert merge_defaults(
+        spec.model_copy(update={"subagents": [custom]}), target, previous
+    ).subagents == [custom]

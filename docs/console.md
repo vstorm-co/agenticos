@@ -301,6 +301,10 @@ greeting. **Settings → Assistant** holds only your own tips.
 
 ## Shipped agent defaults
 
+Both starters and new console agents include Watch a command, Background topics, Work while tools run, bounded past-conversation search and tool search using local BM25 with five results. They include research, explore and review specialists, dynamic specialists and automatic sync/async delegation. Monitors end with the turn and require a persistent shell; background topics survive the turn. Past conversations are searched only on demand, with snippets before bounded transcript windows; group chats and unattended runs cannot search private history.
+
+Only the shipped AgenticOS includes Computer use, the web browser and Coding agent. Computer use and coding default to the approved desktop; sandbox coding needs its own configured credential. The shipped browser also uses the paired desktop; an administrator can instead configure a deployment browser endpoint. New console agents inherit the common setup without these three tools. AgenticOS pins the published Architect; untouched pins follow shipped refreshes while custom pins remain protected.
+
 Every organization gets **AgenticOS**, a general-purpose coworker, and
 **Architect**, the platform setup assistant. Both include memory. New agents
 created in the console start from the current AgenticOS template; their authors

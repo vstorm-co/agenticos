@@ -1,5 +1,5 @@
 ---
-source_sha: "6caa9e9791b1"
+source_sha: "3c6562c342e3"
 ---
 
 # La consola { #the-console }
@@ -325,6 +325,10 @@ usan. La página de la organización tiene una tarjeta que lo apaga para todos y
 fija su saludo. **Settings → Assistant** guarda solo tus propios consejos.
 
 ## Agentes incluidos { #shipped-agent-defaults }
+
+Ambos agentes iniciales y los nuevos agentes de consola incluyen Watch a command, Background topics, Work while tools run, búsqueda limitada de conversaciones anteriores y búsqueda local BM25 de herramientas con cinco resultados. Reciben especialistas research, explore y review, especialistas dinámicos y delegación sync/async automática. Los monitores necesitan una shell persistente y terminan con el turno; los temas en segundo plano sobreviven. Las conversaciones se buscan solo cuando hacen falta: primero fragmentos y después ventanas limitadas. Los grupos y las ejecuciones desatendidas no buscan historial privado.
+
+Solo el AgenticOS incluido tiene Computer use, navegador web y Coding agent. El control del equipo y la programación usan por defecto el escritorio autorizado; la programación en sandbox necesita credenciales configuradas. El navegador incluido también usa el escritorio vinculado; un administrador puede configurar en su lugar un endpoint de navegador del despliegue. Los agentes nuevos heredan la configuración común sin estas tres herramientas. AgenticOS fija el Architect publicado; las fijaciones intactas se actualizan y las personalizadas se conservan.
 
 Cada organización recibe **AgenticOS**, para trabajo general, y **Architect**,
 para configurar la plataforma. Ambos incluyen memoria. Los agentes creados en

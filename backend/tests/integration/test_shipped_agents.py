@@ -290,3 +290,131 @@ async def test_published_custom_tool_bindings_stay_typed_during_prompt_refresh(
     await agent_repo.update(db, agent=agent, update_data={"shipped_template": delivered})
     await ShippedAgentService(db).refresh(ctx, agent, "general/platform-assistant")
     assert agent.current_version_id == current
+
+
+async def test_starter_pins_architect_and_refreshes_only_untouched_delegate_choices(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    profile = ModelProfile(
+        organization_id=ctx.organization_id,
+        label="Model",
+        provider="openai",
+        model="gpt-4.1",
+        secret_id=await provider_key(db, ctx.organization_id),
+    )
+    db.add(profile)
+    await db.flush()
+    await AssistantService(db).state(ctx)
+    agents = await _agents(db, ctx)
+    architect, starter = agents["Architect"], agents["AgenticOS"]
+    assert architect.current_version_id is not None and starter.current_version_id is not None
+    spec = AgentSpec.model_validate(starter.draft_spec)
+    assert len(spec.subagents) == 1
+    assert spec.subagents[0].agent_id == architect.id
+    assert spec.subagents[0].agent_version_id == architect.current_version_id
+    registry = AgentRegistryService(db)
+    await registry.publish(ctx, architect.id, note="A new Architect version")
+    await AssistantService(db).state(ctx)
+    spec = AgentSpec.model_validate(starter.draft_spec)
+    assert spec.subagents[0].agent_version_id == architect.current_version_id
+    # Removing an installed pin is a deliberate tool choice, not an old empty default.
+    await registry.save_draft(ctx, starter.id, spec.model_copy(update={"subagents": []}))
+    await registry.publish(ctx, starter.id)
+    await registry.publish(ctx, architect.id, note="Another Architect version")
+    await AssistantService(db).state(ctx)
+    assert AgentSpec.model_validate(starter.draft_spec).subagents == []
+
+
+async def test_other_agent_catalog_obeys_use_grants_tenant_and_lifecycle(db: AsyncSession) -> None:
+    from dataclasses import replace
+
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.organization import OrganizationMember
+    from app.db.models.resource_grant import ResourceGrant
+    from app.db.models.user import User
+
+    owner = await _owner(db)
+    foreign = await _owner(db)
+    person = User(email=f"catalog-{uuid4()}@example.com", hashed_password="x")
+    db.add(person)
+    await db.flush()
+    db.add(
+        OrganizationMember(organization_id=owner.organization_id, user_id=person.id, role="viewer")
+    )
+    rows: list[Agent] = []
+    for name, org, status in [
+        ("allowed", owner.organization_id, "published"),
+        ("read-only", owner.organization_id, "published"),
+        ("hidden", owner.organization_id, "published"),
+        ("archived", owner.organization_id, "archived"),
+        ("draft", owner.organization_id, "draft"),
+        ("foreign", foreign.organization_id, "published"),
+    ]:
+        row = Agent(
+            organization_id=org,
+            owner_user_id=owner.user_id,
+            name=name,
+            slug=name,
+            status=status,
+            visibility="private",
+        )
+        db.add(row)
+        await db.flush()
+        version = AgentVersion(
+            agent_id=row.id,
+            organization_id=org,
+            version=1,
+            spec=AgentSpec(name=name).model_dump(mode="json"),
+        )
+        db.add(version)
+        await db.flush()
+        row.current_version_id = version.id
+        rows.append(row)
+        if name != "hidden":
+            db.add(
+                ResourceGrant(
+                    organization_id=org,
+                    resource_type="agent",
+                    resource_id=row.id,
+                    subject_user_id=person.id,
+                    level="read" if name == "read-only" else "use",
+                )
+            )
+    await db.flush()
+    ctx = replace(owner, user_id=person.id, role="viewer")
+    service = AgentRegistryService(db)
+    refs = await service.accessible_delegates(ctx, exclude=frozenset())
+    assert [ref.agent_id for ref in refs] == [rows[0].id]
+    assert await service.accessible_delegates(ctx, exclude=frozenset({rows[0].id})) == []
+    assert (
+        await service.accessible_delegates(
+            replace(ctx, subject_is_publisher_fallback=True), exclude=frozenset()
+        )
+        == []
+    )
+    assert await service.accessible_delegates(replace(ctx, user_id=None), exclude=frozenset()) == []
+
+
+async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_access(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    created = await AgentRegistryService(db).create(
+        ctx,
+        AgentSpec(name="My assistant"),
+        from_starter=True,
+        choose_model=False,
+    )
+    spec = AgentSpec.model_validate(created.draft_spec)
+    bindings = {binding.id: binding for binding in spec.capabilities}
+    assert {
+        "monitor",
+        "background_tasks",
+        "background_tools",
+        "tool_search",
+        "conversation_search",
+        "subagents",
+    } <= bindings.keys()
+    assert not (bindings.keys() & {"coding_agent", "computer_use", "browser_use"})
+    assert bindings["subagents"].config["allow_dynamic"] is True

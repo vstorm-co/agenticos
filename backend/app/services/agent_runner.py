@@ -860,6 +860,11 @@ class PausedRunState(BaseModel):
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="The delegations this run parked inside"
     )
+    discovered_delegates: dict[str, list[SubagentRef]] = Field(
+        default_factory=dict,
+        exclude_if=lambda pins: not pins,
+        description="Interactive delegate version snapshots, keyed by ancestor path; unchanged on resume",
+    )
     dynamic_specialists: list[DynamicSpecialistFrame] = Field(
         default_factory=list,
         description=(
@@ -2579,6 +2584,28 @@ class _Delegation:
     """
 
 
+def _catalog_delegate_access(ctx: AuthContext, agent_id: UUID) -> Callable[[], Awaitable[None]]:
+    async def check() -> None:
+        from app.services.access import member_context
+
+        if ctx.user_id is None or ctx.subject_is_publisher_fallback:
+            raise AuthorizationError(message="Discovered delegates need an identified member")
+        async with get_db_context() as db:
+            current = await member_context(
+                db, organization_id=ctx.organization_id, user_id=ctx.user_id
+            )
+            if current is None:
+                raise AuthorizationError(message="The delegation's member is no longer active")
+            if current.role != ctx.role or current.is_app_admin != ctx.is_app_admin:
+                raise AuthorizationError(message="Delegation authority changed; start a new run")
+            current = replace(current, api_key_id=ctx.api_key_id, key_scopes=ctx.key_scopes)
+            agent = await AgentRegistryService(db).get(current, agent_id, perm=Perm.AGENTS_RUN)
+            if agent.status != AgentStatus.PUBLISHED.value:
+                raise AuthorizationError(message="The discovered delegate is no longer published")
+
+    return check
+
+
 def _register_runtime(
     delegation: _Delegation,
     subagents: list[ResolvedSubagent],
@@ -3422,6 +3449,7 @@ class AgentRunnerService:
         local: LocalTarget | None = None,
         answer_only: bool = False,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
+        discovered_delegates: dict[str, list[SubagentRef]] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -4172,6 +4200,7 @@ class AgentRunnerService:
         delegations: list[RecordedDelegation] = []
         delegate_recorders: list[tuple[UUID, RunRecorder]] = []
         stash = DelegationStash(
+            discovered={} if discovered_delegates is None else discovered_delegates,
             resuming=resuming,
             spent=already_spent,
             started=already_started,
@@ -4766,6 +4795,44 @@ class AgentRunnerService:
                     ancestors=ancestors,
                 )
             )
+        if (
+            config.allow_any_agent
+            and delegation.routine_check is None
+            and delegation.ctx.user_id is not None
+            and not delegation.ctx.subject_is_publisher_fallback
+        ):
+            catalog_key = "/".join(str(identifier) for identifier in sorted(ancestors))
+            if catalog_key not in delegation.stash.discovered:
+                delegation.stash.discovered[catalog_key] = await self.registry.accessible_delegates(
+                    delegation.ctx,
+                    exclude=ancestors | frozenset(ref.agent_id for ref in spec.subagents),
+                )
+            refs = delegation.stash.discovered[catalog_key]
+            reserved = {delegate.name for delegate in resolved}
+            for ref in refs:
+                # A discovered delegate is this person's authority, never a publisher's loan.
+                await self.registry.get(delegation.ctx, ref.agent_id, perm=Perm.AGENTS_RUN)
+                delegate = await self._resolve_delegate(
+                    delegation,
+                    ref=ref,
+                    shared=shared,
+                    resources=resources,
+                    depth_remaining=depth_remaining,
+                    depth=depth,
+                    ancestors=ancestors,
+                )
+                handle = f"agent-{delegate.name}"
+                # An explicit specialist owns its handle; retain access using the stable UUID.
+                if handle in reserved:
+                    handle = f"agent-{ref.agent_id}"
+                resolved.append(
+                    replace(
+                        delegate,
+                        name=handle,
+                        authorize=_catalog_delegate_access(delegation.ctx, ref.agent_id),
+                    )
+                )
+                reserved.add(handle)
         if spec.external_agents:
             resolved.extend(await self._resolve_external(delegation, spec.external_agents))
         _refuse_duplicate_names(resolved)
@@ -5761,6 +5828,7 @@ class AgentRunnerService:
                     if parked.task_id is not None
                 },
                 "delegations": _delegation_frames(prepared.stash.parked, prepared.stash.registered),
+                "discovered_delegates": prepared.stash.discovered,
                 "dynamic_specialists": [
                     DynamicSpecialistFrame(
                         name=specialist.name,
@@ -6330,6 +6398,7 @@ class AgentRunnerService:
             ),
             decided=decided,
             resuming=plan.delegations,
+            discovered_delegates=state.discovered_delegates,
             already_spent=plan.spent,
             already_started=plan.started,
             # The specialists each level kept before it parked, rebuilt into that

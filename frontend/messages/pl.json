@@ -9001,6 +9001,10 @@
       "share_with_delegates": {
         "title": "Capabilities dziedziczone przez delegatów",
         "description": "Capabilities, które ten agent przekazuje delegatom, np. wspólny workspace, żeby jeden zapisał plik, a drugi go odczytał. Nic nie jest współdzielone, jeśli nie jest tu wymienione, a samo delegowanie nigdy."
+      },
+      "allow_any_agent": {
+        "title": "Korzystaj z innych dostępnych agentów",
+        "description": "Udostępnia bieżące opublikowane wersje innych agentów, których ta osoba może uruchomić w tej organizacji, pod nazwami agent-<slug>. Jawne przypięcia zachowują wybrane wersje. Katalog jest rozwiązywany na początku każdego interaktywnego uruchomienia; praca bez nadzoru korzysta wyłącznie z przejrzanych przypięć. Duży katalog wydłuża przygotowanie i zwiększa kontekst."
       }
     },
     "system_reminders": {
@@ -9060,7 +9064,7 @@
     "tool_search": {
       "strategy": {
         "title": "Metoda wyszukiwania",
-        "description": "auto: natywne wyszukiwanie narzędzi u providera, który je ma, a gdzie indziej lokalne dopasowanie słów. keywords: zawsze lokalnie, u każdego providera. bm25 / regex: wymuś natywny algorytm Anthropic; błąd u providera bez natywnego wyszukiwania narzędzi."
+        "description": "auto: natywne wyszukiwanie narzędzi u providera, który je ma, a gdzie indziej lokalne dopasowanie słów. keywords: zawsze lokalnie, u każdego providera. local_bm25: lokalny ranking identyfikatorów, opisów i argumentów u każdego providera. bm25 / regex: wymuś natywny algorytm Anthropic; błąd u providera bez natywnego wyszukiwania narzędzi."
       },
       "max_results": {
         "title": "Dopasowań na wyszukiwanie",

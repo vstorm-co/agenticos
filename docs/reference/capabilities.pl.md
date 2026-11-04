@@ -1,5 +1,5 @@
 ---
-source_sha: "22e37d20aac2"
+source_sha: "a9c4b5f3c7e8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1873,7 +1873,10 @@ eksport do YAML i model uprawnień.
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `max_result_chars` | 2000 | 200–20000 |
+| `allow_any_agent` | false | Korzystaj z innych dostępnych agentów |
 | `share_with_delegates` | brak | id capability, które ten agent sam wiąże, z wyjątkiem `subagents` |
+
+`allow_any_agent` opcjonalnie rozwiązuje innych opublikowanych agentów tej organizacji, których osoba może uruchomić, na początku interaktywnego uruchomienia, pod nazwami `agent-<slug>`. Zachowuje jawne przypięcia, wyklucza przodków, respektuje granty use i zakres klucza API. Nie poszerza dostępu anonimowego ani pracy bez nadzoru. Domyślnie jest wyłączony; duży katalog zwiększa przygotowanie i kontekst.
 
 **Tryb jest decyzją autora, nie modelu.**
 
@@ -2648,8 +2651,10 @@ niezależnie od tego, czy kiedykolwiek je wywoła.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignorowane przez wyszukiwanie natywne |
+
+**`local_bm25`** szereguje lokalnie identyfikatory, opisy i schematy argumentów narzędzi u każdego providera. Uwzględnia rzadkość słów i długość tekstu, premiuje identyfikatory, zwraca tylko pasujące dozwolone narzędzia i nie wywołuje modelu ani embeddingów. Limit wyników nadal obowiązuje.
 
 - **`auto`** — natywne wyszukiwanie narzędzi tam, gdzie provider je oferuje
   (Anthropic BM25 albo regex, OpenAI po stronie serwera), lokalny algorytm słów

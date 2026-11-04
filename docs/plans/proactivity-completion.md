@@ -150,3 +150,41 @@ exception. Final focused verification includes 25 telephone integration tests,
 47 action-consent regressions and 121 transport/channel tests. Real provider
 acceptance remains manual. Five requests completed; review is evidence against
 known defects, not a guarantee that no further defect exists.
+
+
+## Subsequent starter work-tool defaults — 2026-11-04
+
+AgenticOS, Architect and newly created console agents now include command
+monitors, durable background topics, temporary background tools, five-result
+conversation search and portable local BM25 tool search. Both starters include
+research/explore/review specialists, dynamic specialist creation and auto
+sync/async mode. Computer use, browser and coding tools are AgenticOS-only
+starter defaults and use an explicitly approved paired desktop; other agents
+can still opt into them. Existing models and custom prompt/tool choices remain
+protected during shipped refreshes. The local demo's custom starters were
+explicitly enriched through the ordinary draft/publish API for acceptance.
+
+AgenticOS receives the actual published Architect pin. Untouched pins refresh
+with it, while a removed or customized pin stays protected. Optional
+`allow_any_agent` discovery is off by default, scoped to the initiating member's
+runnable published agents, and excluded from anonymous/unattended expansion.
+Catalog versions survive an approval park; live membership/run permission is
+checked before delegating. Explicit reviewed pins retain their existing contract.
+
+The coding-account/profile and shared-project proposal is in
+`docs/design/coding-accounts.md`; those new profile connections and private cloud
+task environments are not implemented. Existing local desktop authentication
+and tool-selected credentials remain the execution paths. Personal account
+isolation must precede lifting the shared-sandbox subscription refusal.
+
+Focused verification includes PostgreSQL starter install/refresh, grant/tenant
+isolation and new-agent defaults, delegation execution/resume/refusal, bounded
+history access, local coding validation and 100% line/branch coverage for the new
+BM25 ranker. On this Python 3.15 environment, coverage needs the existing settings
+module imported before starting pytest's tracer; untraced focused tests run
+normally. This increment follows the five earlier cloud-review rounds; those
+reviews do not constitute a review of this later feature increment.
+
+Frontend implementation belongs to the parallel frontend task. This increment
+only authored the capability-config translation entries before that handoff;
+no later frontend source or layout changes belong to this backend increment.

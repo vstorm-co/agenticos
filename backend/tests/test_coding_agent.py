@@ -1596,3 +1596,23 @@ def test_personal_model_preferences_only_override_a_local_binding(runs_on: str) 
     assert isinstance(built, CodingAgent)
     assert built.model == ("haiku" if runs_on == "this_computer" else None)
     assert built.effort == ("low" if runs_on == "this_computer" else None)
+
+
+def test_local_coding_does_not_require_a_server_side_sandbox() -> None:
+    spec = AgentSpec(
+        name="Local coder",
+        capabilities=[
+            {"id": "coding_agent", "config": {"runs_on": "this_computer"}},
+        ],
+    )
+    assert _coding_agent_problems(spec) == []
+
+
+def test_invalid_coding_config_is_left_to_capability_field_validation() -> None:
+    spec = AgentSpec(
+        name="Invalid coder",
+        capabilities=[
+            {"id": "coding_agent", "config": {"runs_on": "invalid"}},
+        ],
+    )
+    assert _coding_agent_problems(spec) == []

@@ -30,7 +30,7 @@ from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.tools import DeferredToolResults
 
-from app.agents.spec import DelegationMode
+from app.agents.spec import DelegationMode, SubagentRef
 from app.db.vector_tables import VectorScope
 
 if TYPE_CHECKING:
@@ -89,6 +89,8 @@ class ResolvedSubagent:
     preferred_mode: DelegationMode | None = None
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
+    authorize: Callable[[], Awaitable[None]] | None = None
+    """A live access check for discovered delegates, never inherited by explicit pins."""
     workspace: DelegateWorkspace = "none"
     """Which workspace this delegation runs in; see `DelegateWorkspace`."""
     collection_names: tuple[str, ...] = ()
@@ -506,6 +508,9 @@ class DelegationStash:
     enclosing `task` call when the run ends, and seeds each level's fresh registry
     from the same key on the resume.
     """
+
+    discovered: dict[str, list[SubagentRef]] = field(default_factory=dict)
+    """Interactive delegate catalogs pinned by ancestor path, retained across approval parks."""
 
     parked: list[ParkedDelegation] = field(default_factory=list)
     """Filled during the run, read once when it ends. Appended to under the GIL

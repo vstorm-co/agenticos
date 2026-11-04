@@ -119,6 +119,8 @@ class AssistantService:
                             key,
                             legacy_instructions_fingerprint=row.instructions_fingerprint,
                         )
+                        if row.enabled and agent.current_version_id is None:
+                            agent = await self._publish_when_possible(ctx.organization_id, agent)
                     else:
                         starter = await shipped.starter(installer)
                         if (
@@ -390,11 +392,12 @@ class AssistantService:
         # Its skills - this platform's good practice for building agents (#2069) -
         # installed from the gallery the way a template install installs them.
         skills = await self.registry.template_skills(installer, template)
-        capabilities = list(template.capabilities)
+        capabilities = agent_templates.for_this_deployment(template.capabilities)
         # Files and code - reading a pasted agent, running it - where the
         # deployment has a sandbox to give it. Not in the template: bound there, an
         # organization with none could never publish its assistant (#2069, #2070).
         if await SandboxConnectionService(self.db).ensure_local_connection(organization_id):
+            capabilities = [binding for binding in capabilities if binding["id"] != "sandbox"]
             capabilities.append(
                 {"id": "sandbox", "config": {"backend": "service", "include_execute": True}}
             )

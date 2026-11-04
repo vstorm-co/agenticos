@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Equip shipped and new console agents with command monitors, background work, bounded conversation search, portable BM25 tool discovery and dynamic specialists. Pin Architect on AgenticOS, add optional access-checked delegation discovery, and include approved-desktop coding/computer capabilities on AgenticOS.
+
 - Offer Discord private chats as opt-in notification destinations alongside the other supported chat channels.
 
 - Important-case telephone consent for selected agents, explicit criteria and optional delay after an unacknowledged notification; shared case settlement cancels pending calls and event deduplication survives receipt expiry.

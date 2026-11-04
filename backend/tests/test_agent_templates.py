@@ -372,3 +372,36 @@ class TestShippedInstructions:
 
         assert anchors
         assert pointed_at == {}
+
+
+def test_shipped_agents_have_async_work_and_bounded_search_defaults() -> None:
+    from app.services import agent_templates
+
+    for key in ["general/agenticos", "general/platform-assistant"]:
+        template = agent_templates.get(key)
+        assert template is not None
+        bindings = {binding["id"]: binding for binding in template.capabilities}
+        assert {
+            "monitor",
+            "background_tasks",
+            "background_tools",
+            "tool_search",
+            "conversation_search",
+            "subagents",
+        } <= bindings.keys()
+        assert bindings["tool_search"]["config"] == {"strategy": "local_bm25", "max_results": 5}
+        assert bindings["conversation_search"]["config"]["max_results"] == 5
+        config = bindings["subagents"]["config"]
+        assert config["allow_dynamic"] and config["mode"] == "auto"
+        assert {entry["name"] for entry in config["inline"]} == {"research", "explore", "review"}
+        if key == "general/agenticos":
+            assert {"computer_use", "coding_agent", "browser_use"} <= bindings.keys()
+        else:
+            assert not (bindings.keys() & agent_templates.AGENTICOS_ONLY)
+    assert not (agent_templates.starter_capabilities().keys() & agent_templates.AGENTICOS_ONLY)
+
+
+def test_explicit_desktop_browser_survives_without_a_deployment_cdp_endpoint(monkeypatch):
+    monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+    binding = {"id": "browser_use", "config": {"connection": "local"}}
+    assert agent_templates.for_this_deployment((binding,)) == [binding]

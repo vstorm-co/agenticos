@@ -1,5 +1,5 @@
 ---
-source_sha: "6caa9e9791b1"
+source_sha: "3c6562c342e3"
 ---
 
 # Die Konsole { #the-console }
@@ -341,6 +341,10 @@ legt seine Begrüßung fest. **Einstellungen → Assistent** enthält nur noch I
 eigenen Tipps.
 
 ## Mitgelieferte Agenten { #shipped-agent-defaults }
+
+Beide Startagenten und neue Konsolenagenten enthalten Watch a command, Background topics, Work while tools run, begrenzte Suche in früheren Gesprächen und lokale BM25-Werkzeugsuche mit fünf Ergebnissen. Sie erhalten research-, explore- und review-Spezialisten, dynamische Spezialisten und automatische sync/async-Delegation. Monitore benötigen eine dauerhafte Shell und enden mit dem Turn; Hintergrundthemen bleiben danach bestehen. Frühere Gespräche werden nur bei Bedarf durchsucht: zuerst Ausschnitte, dann begrenzte Transkriptfenster. Gruppen und unbeaufsichtigte Läufe können keine private Historie durchsuchen.
+
+Nur der mitgelieferte AgenticOS enthält Computer use, Webbrowser und Coding agent. Desktop-Steuerung und Programmierung verwenden standardmäßig den genehmigten Desktop; Sandbox-Programmierung benötigt konfigurierte Zugangsdaten. Auch der mitgelieferte Browser verwendet den gekoppelten Desktop; alternativ kann ein Administrator einen Browser-Endpunkt des Deployments konfigurieren. Neue Agenten erben die gemeinsame Einrichtung ohne diese drei Werkzeuge. AgenticOS pinnt den veröffentlichten Architect; unveränderte Pins werden aktualisiert, eigene bleiben geschützt.
 
 Jede Organisation erhält **AgenticOS** für allgemeine Aufgaben und **Architect**
 für die Einrichtung der Plattform. Beide haben Gedächtnis. Neue Agenten in der

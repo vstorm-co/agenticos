@@ -1799,7 +1799,10 @@ the YAML export and the permission model can all see it.
 | `max_depth` | 1 | 1–3 |
 | `max_fanout` | 3 | 1–10 |
 | `max_result_chars` | 2000 | 200–20000 |
+| `allow_any_agent` | false | Use other accessible agents |
 | `share_with_delegates` | none | capability ids this agent is itself bound to, except `subagents` |
+
+`allow_any_agent` optionally resolves other runnable published agents in this organization at interactive-run start, using `agent-<slug>` handles. It preserves explicit pins, excludes ancestors, honors use grants and API-key ceilings, and does not widen anonymous or unattended runs. It is off by default; large catalogs increase setup work and context.
 
 **The mode is the author's decision, not the model's.**
 
@@ -2543,8 +2546,10 @@ it ever calls it.
 
 | Config | Default | Values |
 |---|---|---|
-| `strategy` | `auto` | `auto`, `keywords`, `bm25`, `regex` |
+| `strategy` | `auto` | `auto`, `keywords`, `local_bm25`, `bm25`, `regex` |
 | `max_results` | 10 | 1–50, ignored by native search |
+
+**`local_bm25`** ranks tool identifiers, descriptions and argument schemas locally, on every provider. It uses term rarity and length normalization, favors identifier matches, returns only matching authorized tools, and makes no embedding or model call. The result limit still applies.
 
 - **`auto`** — native tool search where the provider offers it (Anthropic BM25 or
   regex, OpenAI server-side), the local keyword algorithm everywhere else.

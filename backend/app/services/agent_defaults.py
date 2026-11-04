@@ -10,13 +10,16 @@ from pydantic import BaseModel, Field, JsonValue
 
 from app.agents.spec import AgentSpec
 
-type DefaultField = Literal["instructions", "capabilities", "mcp_servers", "skill_ids", "starters"]
+type DefaultField = Literal[
+    "instructions", "capabilities", "mcp_servers", "skill_ids", "starters", "subagents"
+]
 FIELDS: tuple[DefaultField, ...] = (
     "instructions",
     "capabilities",
     "mcp_servers",
     "skill_ids",
     "starters",
+    "subagents",
 )
 ARCHITECT = "general/platform-assistant"
 STARTER = "general/agenticos"
@@ -37,12 +40,17 @@ def baseline(key: str, spec: AgentSpec) -> dict[str, str]:
     return {"key": key, **{field: fingerprint(spec, field) for field in FIELDS}}
 
 
+def previous_fingerprint(previous: dict[str, str], field: DefaultField) -> str | None:
+    # Older tracked releases had no shipped delegate pins; custom pins stay protected.
+    return previous.get(field, digest([]) if field == "subagents" else None)
+
+
 def merge_defaults(spec: AgentSpec, target: AgentSpec, previous: dict[str, str]) -> AgentSpec:
     """Refresh each untouched field; a custom prompt does not authorize changing it."""
     update = {
         field: target.model_dump()[field]
         for field in FIELDS
-        if fingerprint(spec, field) == previous.get(field)
+        if fingerprint(spec, field) == previous_fingerprint(previous, field)
     }
     return AgentSpec.model_validate({**spec.model_dump(), **update})
 

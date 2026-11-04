@@ -21,7 +21,7 @@ isolation:
 
 import asyncio
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -55,10 +55,10 @@ from app.agents.subagent_runtime import (
 )
 from app.agents.voice import VoiceOptions
 from app.core.exceptions import AuthorizationError, BadRequestError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import RunStatus
-from app.services.agent_registry import DELEGATION_CAPABILITY_ID
+from app.services.agent_registry import DELEGATION_CAPABILITY_ID, AgentRegistryService
 from app.services.agent_runner import (
     AdmittedAs,
     AgentRunnerService,
@@ -2109,6 +2109,7 @@ class TestResumingIntoADelegation:
             exposure_id=None,
             environment_id=None,
             surface="api",
+            routine_origin_id=None,
             status=RunStatus.AWAITING_APPROVAL.value,
             paused_state={"messages": [], "tool_call_ids": {}, "delegations": [frame]},
             test_spec=None,
@@ -2254,3 +2255,141 @@ class TestADelegateIsBriefedOnWhatItCannotReach:
         assert built["spec"].instructions.startswith("Search Notion.\n\n")
         assert "has not connected their own Notion" in built["spec"].instructions
         assert built["extra_toolsets"] == []
+
+
+@pytest.mark.parametrize("unattended", [False, True])
+async def test_accessible_catalog_is_opt_in_and_does_not_widen_routines(unattended):
+    from app.agents.subagent_runtime import ResolvedSubagent
+
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    parent_id = uuid.uuid4()
+    explicit = SubagentRef(agent_id=uuid.uuid4(), agent_version_id=uuid.uuid4())
+    discovered = SubagentRef(agent_id=uuid.uuid4(), agent_version_id=uuid.uuid4())
+    spec = AgentSpec(name="Parent", subagents=[explicit])
+    config = SubagentsConfig(allow_any_agent=True)
+    delegation = MagicMock(ctx=ctx, routine_check=object() if unattended else None)
+    delegation.stash.discovered = {}
+    service.registry.get = AsyncMock()
+    service.registry.accessible_delegates = AsyncMock(return_value=[discovered])
+    service._resolve_delegate = AsyncMock(
+        side_effect=[
+            ResolvedSubagent(name="architect", description="Builds agents", build=MagicMock()),
+            ResolvedSubagent(name="researcher", description="Research", build=MagicMock()),
+        ]
+    )
+    result = await service._resolve_delegates(
+        delegation,
+        spec=spec,
+        config=config,
+        resources={},
+        depth_remaining=0,
+        depth=0,
+        ancestors=frozenset({parent_id}),
+    )
+    assert result[0].name == "architect"
+    if unattended:
+        service.registry.accessible_delegates.assert_not_awaited()
+        assert len(result) == 1
+    else:
+        service.registry.accessible_delegates.assert_awaited_once_with(
+            ctx, exclude=frozenset({parent_id, explicit.agent_id})
+        )
+        assert result[1].name == "agent-researcher"
+
+
+async def test_discovered_versions_remain_pinned_and_authorized_when_a_run_resumes():
+    from app.services.agent_runner import PausedRunState
+
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    parent_id = uuid.uuid4()
+    old = SubagentRef(agent_id=uuid.uuid4(), agent_version_id=uuid.uuid4())
+    stored = PausedRunState(
+        messages=[], tool_call_ids={}, discovered_delegates={str(parent_id): [old]}
+    )
+    restored = PausedRunState.model_validate_json(stored.model_dump_json())
+    delegation = MagicMock(ctx=ctx, routine_check=None)
+    delegation.stash.discovered = restored.discovered_delegates
+    service.registry.accessible_delegates = AsyncMock()
+    service.registry.get = AsyncMock()
+    service._resolve_delegate = AsyncMock(
+        return_value=ResolvedSubagent(
+            name="coder",
+            description="Code",
+            build=MagicMock(),
+            agent_id=old.agent_id,
+            agent_version_id=old.agent_version_id,
+        )
+    )
+    result = await service._resolve_delegates(
+        delegation,
+        spec=AgentSpec(name="Parent"),
+        config=SubagentsConfig(allow_any_agent=True),
+        resources={},
+        depth_remaining=0,
+        depth=0,
+        ancestors=frozenset({parent_id}),
+    )
+    assert result[0].agent_version_id == old.agent_version_id
+    service.registry.accessible_delegates.assert_not_awaited()
+    service.registry.get.assert_awaited_once_with(ctx, old.agent_id, perm=Perm.AGENTS_RUN)
+    service.registry.get.side_effect = AuthorizationError(message="Run grant revoked")
+    with pytest.raises(AuthorizationError, match="Run grant revoked"):
+        await service._resolve_delegates(
+            delegation,
+            spec=AgentSpec(name="Parent"),
+            config=SubagentsConfig(allow_any_agent=True),
+            resources={},
+            depth_remaining=0,
+            depth=0,
+            ancestors=frozenset({parent_id}),
+        )
+
+
+@pytest.mark.parametrize(
+    "state", ["active", "removed", "archived", "anonymous", "role-changed", "app-admin-changed"]
+)
+async def test_discovered_delegate_authorization_reloads_membership_and_retains_key_ceiling(
+    monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    from contextlib import asynccontextmanager
+
+    from app.services.agent_runner import _catalog_delegate_access
+
+    ctx = replace(_ctx(), key_scopes=frozenset({Perm.AGENTS_RUN}), api_key_id=uuid.uuid4())
+    if state == "anonymous":
+        ctx = replace(ctx, user_id=None)
+    if state == "app-admin-changed":
+        ctx = replace(ctx, is_app_admin=True)
+    current = replace(
+        _ctx(),
+        user_id=ctx.user_id,
+        organization_id=ctx.organization_id,
+        role="viewer" if state == "role-changed" else ctx.role,
+    )
+    db = _db()
+
+    @asynccontextmanager
+    async def session():
+        yield db
+
+    monkeypatch.setattr(f"{RUNNER}.get_db_context", session)
+    monkeypatch.setattr(
+        "app.services.access.member_context",
+        AsyncMock(return_value=None if state == "removed" else current),
+    )
+    agent_id = uuid.uuid4()
+    get = AsyncMock(
+        return_value=MagicMock(status="archived" if state == "archived" else "published")
+    )
+    monkeypatch.setattr(AgentRegistryService, "get", get)
+    check = _catalog_delegate_access(ctx, agent_id)
+    if state != "active":
+        with pytest.raises(AuthorizationError):
+            await check()
+    else:
+        await check()
+        refreshed = get.await_args.args[0]
+        assert refreshed.role == ctx.role
+        assert refreshed.key_scopes == ctx.key_scopes and refreshed.api_key_id == ctx.api_key_id

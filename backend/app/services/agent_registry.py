@@ -316,12 +316,27 @@ async def _sandbox_connection(
 def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     """A coding agent with nowhere to run its harness.
 
-    Claude Code and Codex run as commands in the agent's sandbox, so they need a
-    container-backed one with the shell on. Every other shape publishes and then
-    answers each task with "no shell here", which is the run-time surprise
-    publish exists to prevent.
+    A server-side harness needs a container-backed sandbox with the shell on.
+    A harness on this computer uses the paired desktop's approved folder instead,
+    so it has no server workspace dependency. Publish catches a missing server
+    shell before a task can answer "no shell here".
     """
-    if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
+    binding = next(
+        (
+            binding
+            for binding in spec.capabilities
+            if binding.id == CODING_AGENT_ID and binding.enabled
+        ),
+        None,
+    )
+    if binding is None:
+        return []
+    try:
+        coding = CodingAgentConfig.model_validate(binding.config)
+    except ValidationError:
+        # The capability validation reports the invalid field separately.
+        return []
+    if coding.runs_on == "this_computer":
         return []
     config = sandbox_config(spec)
     if config is None or config.backend not in {"service", "local"} or not config.include_execute:
@@ -1188,6 +1203,37 @@ class AgentRegistryService:
         )
         return bool(agents)
 
+    async def accessible_delegates(
+        self, ctx: AuthContext, *, exclude: frozenset[UUID]
+    ) -> list[SubagentRef]:
+        """Current published pins for a caller-opted-in interactive delegation catalog."""
+        if ctx.user_id is None or ctx.subject_is_publisher_fallback:
+            return []
+        grants = await visible_resource_ids(self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_RUN)
+        cursor: UUID | None = None
+        refs: list[SubagentRef] = []
+        while True:
+            page = await agent_repo.delegation_candidates(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                see_all=grants is None,
+                shared_ids=grants or [],
+                after=cursor,
+            )
+            if not page:
+                return refs
+            for agent in page:
+                if (
+                    agent.id not in exclude
+                    and agent.current_version_id is not None
+                    and await self.may_run(ctx, agent)
+                ):
+                    refs.append(
+                        SubagentRef(agent_id=agent.id, agent_version_id=agent.current_version_id)
+                    )
+            cursor = page[-1].id
+
     async def list_labels(
         self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False
     ) -> tuple[list[str], list[str]]:
@@ -1461,8 +1507,9 @@ class AgentRegistryService:
 
         It starts as the organization's own AgenticOS agent does: its
         instructions, which lead with the agent's own `{{agent_name}}`, and
-        whatever of its capabilities, skills, platform tools, starters and budget
-        the caller left empty. The author then edits the first paragraph and
+        whatever of its common capabilities, skills, platform tools, starters and budget
+        the caller left empty. Computer use, browser and coding remain explicit choices
+        outside the shipped AgenticOS. The author then edits the first paragraph and
         switches off what this agent should not do. Asked for rather than implied
         by an empty spec: an integration creating a bare agent over the API is
         not asking for a sandbox, the platform's tools and a budget.
@@ -1476,7 +1523,7 @@ class AgentRegistryService:
             else template.instructions
         }
         if not spec.capabilities:
-            update["capabilities"] = agent_templates.for_this_deployment(template.capabilities)
+            update["capabilities"] = list(agent_templates.starter_capabilities().values())
         if not spec.mcp_servers:
             update["mcp_servers"] = list(template.mcp_servers)
         if not spec.skill_ids:
