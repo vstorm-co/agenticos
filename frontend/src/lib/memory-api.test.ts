@@ -97,3 +97,14 @@ describe("the memory API", () => {
     );
   });
 });
+
+it("encodes whole-store searches and narrows claims before pagination", async () => {
+  await getMyClaims(false, 100, { q: "50% & invoices", kind: "decision", scope: "agent" });
+  expect(apiClient.get).toHaveBeenCalledWith(
+    "/memory/claims/mine?limit=100&skip=100&history=false&q=50%25+%26+invoices&kind=decision&scope=agent",
+  );
+  await getMyMemory(50, 50, "50% & invoices");
+  expect(apiClient.get).toHaveBeenCalledWith(
+    "/memory/mine?skip=50&limit=50&q=50%25%20%26%20invoices",
+  );
+});

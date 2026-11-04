@@ -20,7 +20,7 @@ it is somebody erasing themselves, or `MEMBERS_MANAGE` erasing a member - and th
 service is where that is decided.
 """
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -47,6 +47,7 @@ async def my_memory(
     ctx: Auth,
     skip: int = Query(0, ge=0, description="Notes to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max notes to return"),
+    q: str = Query("", max_length=200, description="Search all owned notes before pagination"),
 ) -> Any:
     """What the agents in this organization have written down about the caller.
 
@@ -55,7 +56,7 @@ async def my_memory(
     Suppressed notes are included and marked: they are the caller's own, and a
     view that hid them would be one they could not restore anything from.
     """
-    return await service.mine(ctx, skip=skip, limit=limit)
+    return await service.mine(ctx, skip=skip, limit=limit, q=q)
 
 
 @router.patch("/mine/{file_id}", response_model=MemoryNoteRead)
@@ -87,13 +88,28 @@ async def my_claims(
     skip: int = Query(0, ge=0, description="Claims to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max claims to return"),
     history: bool = Query(False, description="Include superseded, merged and retracted claims"),
+    q: str = Query(
+        "",
+        max_length=200,
+        description="Search statements, topics and agent names before pagination",
+    ),
+    kind: Literal["fact", "preference", "decision"] | None = Query(None),
+    scope: Literal["profile", "agent"] | None = Query(None),
 ) -> Any:
     """The facts, preferences and decisions recorded about the caller, with their source.
 
     Current claims by default; `history` adds what they replaced. Always the caller's
     own: no permission to ask for, and nobody else's through this route.
     """
-    return await service.my_claims(ctx, skip=skip, limit=limit, history=history)
+    return await service.my_claims(
+        ctx,
+        skip=skip,
+        limit=limit,
+        history=history,
+        q=q,
+        kind=kind,
+        scope=scope,
+    )
 
 
 @router.get("/claims/mine/{claim_id}", response_model=MemoryClaimDetail)

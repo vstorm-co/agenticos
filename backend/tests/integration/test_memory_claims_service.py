@@ -231,3 +231,64 @@ async def test_current_inventory_excludes_ended_and_not_yet_effective_claims(
         )
     with pytest.raises(ConflictError):
         await service.retract_claim(ctx, ended.id)
+
+
+async def test_browser_filters_before_paging_and_preserves_person_and_tenant_scope(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, ctx, stranger = await _setup(db)
+    key = person_owner_key(user.id)
+    for index in range(3):
+        await _say(db, org, key, agent, f"LATARNIA invoice {index}", f"invoice-{index}")
+    await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(key, None),
+        statement="LATARNIA reports first",
+        subject="report-style",
+        kind="preference",
+    )
+    await _say(db, org, person_owner_key(stranger.subject_id), agent, "LATARNIA private", "private")
+    _, other_org, other_agent, _, _ = await _setup(db)
+    await _say(db, other_org, key, other_agent, "LATARNIA another tenant", "another")
+    service = MemoryService(db)
+    result = await service.my_claims(
+        ctx, skip=1, limit=1, history=False, q="LATARNIA", kind="fact", scope="agent"
+    )
+    assert result.total == 3 and len(result.items) == 1
+    profile = await service.my_claims(
+        ctx, skip=0, limit=10, history=False, q="LATARNIA", scope="profile"
+    )
+    assert profile.total == 1 and profile.items[0].kind == "preference"
+    named = await service.my_claims(ctx, skip=0, limit=10, history=False, q="Finance")
+    assert named.total == 3
+    await _say(db, org, key, agent, "Discount 50%", "percent")
+    literal = await service.my_claims(ctx, skip=0, limit=10, history=False, q="50%")
+    assert literal.total == 1 and literal.items[0].statement == "Discount 50%"
+
+
+async def test_note_browser_searches_all_pages_without_exposing_other_stores(
+    db: AsyncSession,
+) -> None:
+    user, org, agent, ctx, stranger = await _setup(db)
+    from app.repositories import memory_repo
+
+    for owner in [user.id, stranger.subject_id]:
+        for index in range(3):
+            await memory_repo.create(
+                db,
+                organization_id=org.id,
+                agent_id=agent.id,
+                owner_key=person_owner_key(owner),
+                name=f"checklist-{index}.md",
+                description="LATARNIA checklist",
+                content="A 50% test",
+                content_format="md",
+                kind="note",
+            )
+    service = MemoryService(db)
+    page = await service.mine(ctx, skip=1, limit=1, q="checklist")
+    assert page.total == 3 and len(page.items) == 1
+    assert (await service.mine(ctx, skip=0, limit=10, q="Finance")).total == 3
+    assert (await service.mine(ctx, skip=0, limit=10, q="50%")).total == 3
+    assert (await service.mine(ctx, skip=0, limit=10, q="missing")).total == 0

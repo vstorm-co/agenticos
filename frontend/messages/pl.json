@@ -1911,9 +1911,7 @@
       "newer": "Nowsze",
       "older": "Starsze",
       "title": "Twoja pamięć",
-      "description": "Co agenci tutaj zapisali o tobie i co możesz z tym zrobić.",
-      "nothingYet": "Nic jeszcze nie zapisano",
-      "nothingYetWhy": "Agent zapisuje notatkę, gdy nauczy się czegoś, co warto zachować między rozmowami. Pusto tutaj znaczy, że żaden tego nie zrobił.",
+      "description": "Sprawdź, co zapamiętali Twoi agenci, skąd to wiedzą i kto może z tego korzystać.",
       "writtenBy": "Zapisał {agent} · {when}",
       "anAgent": "agent",
       "suppressed": "Wyłączona",
@@ -1929,7 +1927,7 @@
         "anAgent": "agenta",
         "since": "Od {when}",
         "drawnFrom": "Z {count} źródeł",
-        "correct": "Popraw",
+        "correct": "Popraw wspomnienie",
         "retract": "Przestań używać",
         "statement": "Poprawione zdanie",
         "effectiveFrom": "Obowiązuje od",
@@ -1963,6 +1961,49 @@
           "reference": "Oczekiwana odpowiedź",
           "consent": "Przejrzałem te pola i zgadzam się na ich eksport do pliku zbioru danych.",
           "download": "Pobierz zatwierdzony przypadek"
+        }
+      },
+      "browser": {
+        "memories": "Wspomnienia",
+        "notes": "Notatki",
+        "viewLabel": "Widok pamięci",
+        "searchMemories": "Szukaj w pamięci…",
+        "searchNotes": "Szukaj notatek…",
+        "typeLabel": "Typ pamięci",
+        "scopeLabel": "Kto może z tego korzystać",
+        "sourceLabel": "Źródło",
+        "recorded": "Zapisano",
+        "count": "{count, plural, one {# wpis} few {# wpisy} many {# wpisów} other {# wpisu}}",
+        "noteCount": "{count, plural, one {# notatka} few {# notatki} many {# notatek} other {# notatki}}",
+        "kind": {
+          "all": "Wszystkie typy",
+          "fact": "Fakty",
+          "preference": "Preferencje",
+          "decision": "Decyzje",
+          "other": "Inne"
+        },
+        "scope": {
+          "all": "Wszystkie zakresy",
+          "profile": "Wszyscy Twoi agenci",
+          "agent": "Tylko jeden agent"
+        },
+        "noMatches": "Brak pasujących wpisów",
+        "tryFilters": "Zmień wyszukiwanie lub wyczyść filtry.",
+        "clearFilters": "Wyczyść filtry",
+        "emptyMemories": "Jeszcze nic nie zapamiętano",
+        "emptyMemoriesHint": "Poproś agenta o zapamiętanie faktu, preferencji lub decyzji. Zobaczysz tutaj treść, źródło i zakres dostępu.",
+        "emptyNotes": "Nie ma jeszcze notatek",
+        "emptyNotesHint": "Tutaj pojawią się dłuższe notatki Twoich agentów. Fakty i preferencje znajdziesz we Wspomnieniach.",
+        "notesHint": "Dłuższe notatki i checklisty Twoich agentów. Otwórz plik, aby go przeczytać lub zdecydować, czy agent ma z niego korzystać.",
+        "retractHint": "Agent przestanie korzystać z tego wspomnienia. Wpis i jego źródło pozostaną w historii.",
+        "deleteNote": "Usunąć tę notatkę?",
+        "deleteNoteHint": "Notatka „{name}” zostanie trwale usunięta. Możesz zamiast tego wyłączyć jej używanie i później je przywrócić.",
+        "noteDetails": "Szczegóły pamięci",
+        "type": {
+          "fact": "Fakt",
+          "preference": "Preferencja",
+          "decision": "Decyzja",
+          "other": "Wspomnienie"
         }
       }
     },
@@ -6684,6 +6725,10 @@
       "workspace-graph": {
         "title": "Poznaj powiązane notatki",
         "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
+      },
+      "memory-views": {
+        "title": "Dwa rodzaje pamięci",
+        "body": "Wspomnienia to fakty, preferencje i decyzje. Notatki to dłuższe pliki i checklisty. Przeszukaj cały zbiór i otwórz wpis, aby sprawdzić źródło lub zmienić jego używanie."
       }
     },
     "chooseLanguage": "Język",

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -10,9 +11,14 @@ import { useTranslations } from "next-intl";
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("pages.settings");
+  const memory = useTranslations("pages.memory");
+  const isMemory = usePathname().endsWith("/settings/memory");
   return (
     <div className="flex flex-1 flex-col space-y-4">
-      <PageHeader title={t("settings")} description={t("manageYourAccountIntegrations")} />
+      <PageHeader
+        title={isMemory ? memory("title") : t("settings")}
+        description={isMemory ? memory("description") : t("manageYourAccountIntegrations")}
+      />
       <div data-tour="settings-tabs">
         <PageTabs tabs={SETTINGS_TABS} />
       </div>

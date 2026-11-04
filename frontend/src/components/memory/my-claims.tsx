@@ -1,232 +1,128 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Undo2 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
-
-import { DecisionEvidence } from "./decision-evidence";
-import { ErrorState } from "@/components/states";
-import { Badge, Button, Input, Textarea } from "@/components/ui";
+import { Brain, CheckCircle2, GitBranch, SlidersHorizontal, UserRound } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { ErrorState, LoadingState } from "@/components/states";
+import { Badge, ListCard, ListCardEmpty, SearchInput } from "@/components/ui";
 import { useMyClaims } from "@/hooks/use-my-claims";
-import { CLAIMS_PAGE_SIZE, type MemoryClaim, type DecisionEpisode } from "@/lib/memory-api";
+import { CLAIMS_PAGE_SIZE, type MemoryClaimFilters } from "@/lib/memory-api";
+import { ClaimDetail } from "./claim-detail";
+import { ClaimFilters, type Kind, type Scope } from "./claim-filters";
+import { MemoryPager, MemoryRow } from "./memory-list";
 
-/**
- * What is on record about you - facts, preferences and decisions - with where each
- * came from, and the two things you may do about it.
- *
- * Correct replaces a claim with your own words and keeps the old one in the
- * history: "from Monday, Piotr takes over invoices" does not erase that Anna did
- * them before. Retract takes a claim out of use without deleting anything it came
- * from. Both are yours alone: a claim shared into a project or the organization is
- * a copy, and correcting yours does not rewrite theirs.
- */
 export function MyClaims() {
   const t = useTranslations("pages.memory.claims");
-  const format = useFormatter();
+  const view = useTranslations("pages.memory.browser");
+  const [q, setQ] = useState("");
+  const [kind, setKind] = useState<Kind>("all");
+  const [scope, setScope] = useState<Scope>("all");
+  const [selected, setSelected] = useState<string | null>(null);
+  const filters: MemoryClaimFilters = {
+    q: q.trim(),
+    ...(kind === "all" ? {} : { kind }),
+    ...(scope === "all" ? {} : { scope }),
+  };
   const { page, isLoading, error, history, setHistory, skip, showPage, correct, retract } =
-    useMyClaims();
-  const [editing, setEditing] = useState<string | null>(null);
-
-  if (isLoading) return null;
-  // Said, not hidden: the notes below may load fine, and somebody looking to correct
-  // what is on record about them must not read a failed section as an empty one.
-  if (error || !page) return <ErrorState />;
-  if (page.items.length === 0 && !history && skip === 0) return null;
-
+    useMyClaims(filters);
+  const claim = page?.items.find((item) => item.id === selected);
+  const narrowed = Boolean(q.trim() || kind !== "all" || scope !== "all");
+  const reset = () => {
+    setQ("");
+    setKind("all");
+    setScope("all");
+  };
   return (
-    <section className="space-y-3" data-tour="my-claims">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-medium">{t("title")}</h3>
-          <p className="text-muted-foreground text-xs">{t("description")}</p>
-        </div>
-        <label className="text-muted-foreground flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            checked={history}
-            onChange={(event) => setHistory(event.target.checked)}
-          />
-          {t("showHistory")}
-        </label>
-      </div>
-      <ul className="divide-y rounded-lg border">
-        {page.items.map((claim) => (
-          <li key={claim.id} className="space-y-2 px-4 py-3">
-            {editing === claim.id ? (
-              <ClaimEditor
-                claim={claim}
-                onCancel={() => setEditing(null)}
-                onSave={async (statement, from, episode) => {
-                  if (await correct(claim.id, statement, from, ...(episode ? [episode] : [])))
-                    setEditing(null);
-                }}
-              />
-            ) : (
-              <ClaimRow
-                claim={claim}
-                since={
-                  claim.effective_from
-                    ? format.dateTime(new Date(claim.effective_from), { dateStyle: "medium" })
-                    : null
-                }
-                onEdit={() => setEditing(claim.id)}
-                onRetract={() => retract(claim.id)}
-              />
-            )}
-          </li>
-        ))}
-      </ul>
-      {page.total > CLAIMS_PAGE_SIZE ? (
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground text-xs">
-            {t("showing", {
-              from: skip + 1,
-              to: Math.min(skip + page.items.length, page.total),
-              total: page.total,
-            })}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={skip === 0}
-              onClick={() => showPage(Math.max(0, skip - CLAIMS_PAGE_SIZE))}
-            >
-              {t("newer")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={skip + page.items.length >= page.total}
-              onClick={() => showPage(skip + CLAIMS_PAGE_SIZE)}
-            >
-              {t("older")}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function ClaimRow({
-  claim,
-  since,
-  onEdit,
-  onRetract,
-}: {
-  claim: MemoryClaim;
-  since: string | null;
-  onEdit: () => void;
-  onRetract: () => void;
-}) {
-  const t = useTranslations("pages.memory.claims");
-  const live = claim.status === "current" || claim.status === "disputed";
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0 space-y-1">
-        <p className={live ? "text-sm" : "text-muted-foreground text-sm line-through"}>
-          {claim.statement}
-        </p>
-        {claim.episode ? <DecisionEvidence claim={claim} /> : null}
-        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-          <span>
-            {claim.scope === "profile"
-              ? t("scopeProfile")
-              : t("scopeAgent", { agent: claim.agent_name ?? t("anAgent") })}
-          </span>
-          <span>{t(`origin.${claim.origin}`)}</span>
-          {claim.origin === "consolidation" ? (
-            <span>{t("drawnFrom", { count: claim.derived_from_count })}</span>
-          ) : null}
-          {since ? <span>{t("since", { when: since })}</span> : null}
-          {claim.status !== "current" ? (
-            <Badge variant="outline">{t(`status.${claim.status}`)}</Badge>
-          ) : null}
-        </div>
-      </div>
-      {live ? (
-        <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={onEdit} aria-label={t("correct")}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onRetract} aria-label={t("retract")}>
-            <Undo2 className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ClaimEditor({
-  claim,
-  onCancel,
-  onSave,
-}: {
-  claim: MemoryClaim;
-  onCancel: () => void;
-  onSave: (
-    statement: string,
-    effectiveFrom: string | null,
-    episode?: DecisionEpisode,
-  ) => Promise<void>;
-}) {
-  const t = useTranslations("pages.memory.claims");
-  const [statement, setStatement] = useState(claim.statement);
-  const [from, setFrom] = useState("");
-  const [outcome, setOutcome] = useState(claim.episode?.actual_outcome ?? "");
-  const changed =
-    statement.trim() !== "" &&
-    (statement.trim() !== claim.statement || outcome !== (claim.episode?.actual_outcome ?? ""));
-  return (
-    <div className="space-y-2">
-      <Textarea
-        value={statement}
-        maxLength={600}
-        onChange={(event) => setStatement(event.target.value)}
-        aria-label={t("statement")}
-      />
-      {claim.episode ? (
-        <Textarea
-          aria-label={t("episode.actual")}
-          maxLength={1200}
-          value={outcome}
-          onChange={(event) => setOutcome(event.target.value)}
+    <ListCard
+      title={view("memories")}
+      namedByPage
+      fill
+      counted={isLoading || !page ? null : view("count", { count: page.total })}
+      contentClassName="p-0"
+      headerTour="my-claims"
+      controls={
+        <SearchInput
+          value={q}
+          onChange={setQ}
+          maxLength={200}
+          placeholder={view("searchMemories")}
         />
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="text-muted-foreground flex items-center gap-2 text-xs">
-          {t("effectiveFrom")}
-          <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-        </label>
-        <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            {t("cancel")}
-          </Button>
-          <Button
-            size="sm"
-            disabled={!changed}
-            onClick={() =>
-              onSave(
-                statement.trim(),
-                from ? `${from}T00:00:00Z` : null,
-                ...(claim.episode
-                  ? [
-                      {
-                        ...claim.episode,
-                        actual_outcome: outcome.trim() || null,
-                        correction: statement.trim(),
-                      },
-                    ]
-                  : []),
-              )
-            }
-          >
-            {t("save")}
-          </Button>
-        </div>
-      </div>
-    </div>
+      }
+    >
+      <ClaimFilters
+        kind={kind}
+        scope={scope}
+        history={history}
+        onKindChange={(next) => {
+          setKind(next);
+          setSelected(null);
+        }}
+        onScopeChange={setScope}
+        onHistoryChange={setHistory}
+      />
+      {isLoading ? (
+        <LoadingState variant="skeleton-list" rows={4} />
+      ) : error || !page ? (
+        <ErrorState />
+      ) : page.items.length === 0 ? (
+        <ListCardEmpty
+          icon={narrowed ? SlidersHorizontal : Brain}
+          title={view(narrowed ? "noMatches" : "emptyMemories")}
+          description={view(narrowed ? "tryFilters" : "emptyMemoriesHint")}
+          {...(narrowed ? { cta: { label: view("clearFilters"), onClick: reset } } : {})}
+        />
+      ) : (
+        <ul className="divide-y">
+          {page.items.map((item) => (
+            <MemoryRow
+              key={item.id}
+              title={item.statement}
+              icon={
+                item.kind === "decision"
+                  ? GitBranch
+                  : item.kind === "preference"
+                    ? SlidersHorizontal
+                    : CheckCircle2
+              }
+              muted={item.status !== "current" && item.status !== "disputed"}
+              onOpen={() => setSelected(item.id)}
+            >
+              <Badge variant="secondary" className="text-[11px] font-normal">
+                {view(
+                  `type.${item.kind === "fact" || item.kind === "preference" || item.kind === "decision" ? item.kind : "other"}`,
+                )}
+              </Badge>
+              <span className="inline-flex items-center gap-1.5">
+                <UserRound className="size-3" aria-hidden />
+                {item.scope === "profile" ? t("scopeProfile") : (item.agent_name ?? t("anAgent"))}
+              </span>
+              {item.status !== "current" && (
+                <Badge variant="outline" className="text-[11px]">
+                  {t(`status.${item.status}`)}
+                </Badge>
+              )}
+            </MemoryRow>
+          ))}
+        </ul>
+      )}
+      {page && !error && (
+        <MemoryPager
+          skip={skip}
+          count={page.items.length}
+          total={page.total}
+          size={CLAIMS_PAGE_SIZE}
+          onPage={showPage}
+        />
+      )}
+      {claim && (
+        <ClaimDetail
+          key={claim.id}
+          claim={claim}
+          correct={correct}
+          retract={retract}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </ListCard>
   );
 }

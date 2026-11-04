@@ -34,8 +34,10 @@ export interface MemoryPage {
 
 const ROOT = "/memory";
 
-export async function getMyMemory(skip = 0, limit = 50): Promise<MemoryPage> {
-  return apiClient.get<MemoryPage>(`${ROOT}/mine?skip=${skip}&limit=${limit}`);
+export async function getMyMemory(skip = 0, limit = 50, q = ""): Promise<MemoryPage> {
+  return apiClient.get<MemoryPage>(
+    `${ROOT}/mine?skip=${skip}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+  );
 }
 
 export async function setNoteActive(id: string, active: boolean): Promise<MemoryNote> {
@@ -120,10 +122,26 @@ export interface MemoryClaimPage {
 
 export const CLAIMS_PAGE_SIZE = 100;
 
-export async function getMyClaims(history: boolean, skip = 0): Promise<MemoryClaimPage> {
-  return apiClient.get<MemoryClaimPage>(
-    `${ROOT}/claims/mine?limit=${CLAIMS_PAGE_SIZE}&skip=${skip}&history=${history}`,
-  );
+export interface MemoryClaimFilters {
+  q?: string;
+  kind?: "fact" | "preference" | "decision";
+  scope?: "profile" | "agent";
+}
+
+export async function getMyClaims(
+  history: boolean,
+  skip = 0,
+  filters: MemoryClaimFilters = {},
+): Promise<MemoryClaimPage> {
+  const params = new URLSearchParams({
+    limit: String(CLAIMS_PAGE_SIZE),
+    skip: String(skip),
+    history: String(history),
+  });
+  if (filters.q) params.set("q", filters.q);
+  if (filters.kind) params.set("kind", filters.kind);
+  if (filters.scope) params.set("scope", filters.scope);
+  return apiClient.get<MemoryClaimPage>(`${ROOT}/claims/mine?${params}`);
 }
 
 /** Replace a claim with the person's own words; the old one stays in the history. */

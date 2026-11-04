@@ -11,8 +11,10 @@ import {
   getMyClaims,
   retractClaim,
   type DecisionEpisode,
+  type MemoryClaimFilters,
   type MemoryClaimPage,
 } from "@/lib/memory-api";
+import { useChanged } from "./use-changed";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 
@@ -31,7 +33,7 @@ interface UseMyClaimsResult {
     effectiveFrom: string | null,
     episode?: DecisionEpisode,
   ) => Promise<boolean>;
-  retract: (id: string) => Promise<void>;
+  retract: (id: string) => Promise<boolean>;
 }
 
 /**
@@ -42,12 +44,14 @@ interface UseMyClaimsResult {
  * reported, never swallowed - somebody who corrected a wrong fact and sees nothing
  * happen would believe it was fixed.
  */
-export function useMyClaims(): UseMyClaimsResult {
+export function useMyClaims(filters: MemoryClaimFilters = {}): UseMyClaimsResult {
   const queryClient = useQueryClient();
   const t = useTranslations("errors");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const [history, setHistoryState] = useState(false);
   const [skip, showPage] = useState(0);
+  if (useChanged(JSON.stringify([activeOrgId, filters.q, filters.kind, filters.scope])))
+    showPage(0);
   // The history is a different list, so the page does not carry over to it.
   const setHistory = useCallback((next: boolean) => {
     setHistoryState(next);
@@ -55,8 +59,8 @@ export function useMyClaims(): UseMyClaimsResult {
   }, []);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.memory.claims(activeOrgId ?? "current", history, skip),
-    queryFn: () => getMyClaims(history, skip),
+    queryKey: qk.memory.claims(activeOrgId ?? "current", history, skip, filters),
+    queryFn: () => getMyClaims(history, skip, filters),
   });
 
   const invalidate = () =>
@@ -108,7 +112,12 @@ export function useMyClaims(): UseMyClaimsResult {
 
   const retract = useCallback(
     async (id: string) => {
-      retraction.mutate(id);
+      try {
+        await retraction.mutateAsync(id);
+        return true;
+      } catch {
+        return false;
+      }
     },
     [retraction],
   );

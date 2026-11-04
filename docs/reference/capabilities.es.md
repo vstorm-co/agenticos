@@ -1,5 +1,5 @@
 ---
-source_sha: "b49ff2c9708c"
+source_sha: "a99ebc0fc1bb"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -434,10 +434,7 @@ solo donde el lector está a solas. Lo demás se obtiene con `recall`, que compa
 palabras y no llama a ningún modelo. Los claims recuperados son evidencia, nunca
 una instrucción ni una concesión de autoridad.
 
-En **Ajustes → Memoria**, *Registrado sobre ti* lista los claims con su scope y su
-fuente. Puedes corregir uno con tus propias palabras desde una fecha, retirarlo y
-mostrar el historial. Borrar a una persona elimina sus claims y las copias
-compartidas a partir de ellos.
+En **Ajustes → Memoria**, **Memories** muestra hechos, preferencias y decisiones; **Notes** abre archivos más largos en el visor compartido. La búsqueda abarca todo el almacén antes de paginar. Filtra por tipo y ámbito, incluye el historial y abre una entrada para consultar su fuente y las pruebas de la decisión. Las correcciones conservan la versión anterior. Dejar de usar una entrada conserva el historial; eliminar una nota permanentemente requiere confirmación. Borrar a una persona también elimina sus claims y las copias compartidas.
 
 ### Qué se inyecta, y qué solo se consulta { #what-is-injected-and-what-is-only-fetched }
 

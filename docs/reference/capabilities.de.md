@@ -1,5 +1,5 @@
 ---
-source_sha: "b49ff2c9708c"
+source_sha: "a99ebc0fc1bb"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -448,10 +448,7 @@ nur dort, wo der Leser allein ist. Alles andere holt `recall`, das Wörter abgle
 und kein Modell aufruft. Abgerufene Claims sind Belege, nie eine Anweisung und nie
 eine Berechtigung.
 
-Unter **Einstellungen → Gedächtnis** listet *Zu Ihnen gespeichert* die Claims mit
-Scope und Quelle. Sie können einen Claim mit eigenen Worten ab einem Datum
-korrigieren, zurückziehen und den Verlauf anzeigen. Das Löschen einer Person
-entfernt ihre Claims und die daraus weitergegebenen Kopien.
+Unter **Einstellungen → Gedächtnis** zeigt **Erinnerungen** Fakten, Präferenzen und Entscheidungen; **Notizen** öffnet längere Dateien im gemeinsamen Dateibetrachter. Die Suche erfasst den gesamten Bestand vor der Seiteneinteilung. Filtern Sie Erinnerungen nach Art und Bereich, blenden Sie den Verlauf ein und öffnen Sie einen Eintrag für Quelle und Entscheidungsbelege. Korrekturen bewahren die vorherige Version. Nicht mehr verwendete Einträge bleiben im Verlauf; dauerhaftes Löschen einer Notiz erfordert Bestätigung. Das Löschen einer Person entfernt auch ihre Claims und weitergegebene Kopien.
 
 ### Was eingefügt wird, und was nur abgerufen wird { #what-is-injected-and-what-is-only-fetched }
 

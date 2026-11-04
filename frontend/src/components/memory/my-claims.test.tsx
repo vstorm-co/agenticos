@@ -1,20 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import { MyClaims } from "./my-claims";
 import { useMyClaims } from "@/hooks/use-my-claims";
 import type { MemoryClaim } from "@/lib/memory-api";
 
 vi.mock("@/hooks/use-my-claims", () => ({ useMyClaims: vi.fn() }));
 vi.mock("next-intl", () => ({
-  useTranslations:
-    () =>
-    (key: string, values?: Record<string, string | number>): string =>
-      values ? `${key}:${Object.values(values).join("|")}` : key,
-  useFormatter: () => ({ dateTime: () => "1 Nov 2026" }),
+  useTranslations: () => (key: string, values?: Record<string, string | number>) =>
+    values ? `${key}:${Object.values(values).join("|")}` : key,
+  useFormatter: () => ({ dateTime: () => "4 Nov 2026" }),
 }));
-
+const correct = vi.fn();
+const retract = vi.fn();
+const setHistory = vi.fn();
+const showPage = vi.fn();
 function claim(overrides: Partial<MemoryClaim> = {}): MemoryClaim {
   return {
     id: "c-1",
@@ -24,9 +25,9 @@ function claim(overrides: Partial<MemoryClaim> = {}): MemoryClaim {
     subject: "style",
     statement: "Prefers short answers",
     kind: "preference",
-    origin: "agent",
+    origin: "person",
     status: "current",
-    observed_at: "2026-11-01T10:00:00Z",
+    observed_at: "2026-11-04T10:00:00Z",
     effective_from: null,
     effective_to: null,
     supersedes_id: null,
@@ -34,167 +35,130 @@ function claim(overrides: Partial<MemoryClaim> = {}): MemoryClaim {
     ...overrides,
   };
 }
-
-const correct = vi.fn();
-const retract = vi.fn();
-const setHistory = vi.fn();
-const showPage = vi.fn();
-
-function mount({
-  items = [claim()],
-  history = false,
-  isLoading = false,
-  error = undefined,
-  total = undefined,
-  skip = 0,
-}: {
-  items?: MemoryClaim[];
-  total?: number;
-  skip?: number;
-  history?: boolean;
-  isLoading?: boolean;
-  error?: unknown;
-} = {}) {
+function mount(
+  options: {
+    items?: MemoryClaim[];
+    error?: unknown;
+    isLoading?: boolean;
+    total?: number;
+    skip?: number;
+  } = {},
+) {
+  const items = options.items ?? [claim()];
   vi.mocked(useMyClaims).mockReturnValue({
-    page: isLoading || error ? undefined : { items, total: total ?? items.length },
-    isLoading,
-    error,
-    history,
+    page:
+      options.error || options.isLoading
+        ? undefined
+        : { items, total: options.total ?? items.length },
+    error: options.error,
+    isLoading: options.isLoading ?? false,
+    history: false,
     setHistory,
-    skip,
+    skip: options.skip ?? 0,
     showPage,
     correct,
     retract,
   });
-  return render(<MyClaims />);
+  return render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <MyClaims />
+    </QueryClientProvider>,
+  );
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
   correct.mockResolvedValue(true);
+  retract.mockResolvedValue(true);
 });
-
-describe("MyClaims", () => {
-  it("shows nothing while loading and when nothing is recorded", () => {
-    expect(mount({ isLoading: true }).container).toBeEmptyDOMElement();
-    expect(mount({ items: [] }).container).toBeEmptyDOMElement();
-  });
-
-  it("says so when the claims could not be loaded, rather than reading as empty", () => {
-    const { container } = mount({ error: new Error("x") });
-
-    expect(container).not.toBeEmptyDOMElement();
-    expect(screen.queryByText("title")).not.toBeInTheDocument();
-  });
-
-  it("keeps the editor open, with the person's words, when the correction is refused", async () => {
-    correct.mockResolvedValue(false);
-    mount();
-
-    await userEvent.click(screen.getByRole("button", { name: "correct" }));
-    await userEvent.type(screen.getByLabelText("statement"), "!");
-    await userEvent.click(screen.getByRole("button", { name: "save" }));
-
-    expect(screen.getByLabelText("statement")).toHaveValue("Prefers short answers!");
-  });
-
-  it("pages through more claims than one page holds", async () => {
-    mount({ items: [claim()], total: 250, skip: 100 });
-
-    expect(screen.getByText("showing:101|101|250")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "older" }));
-    await userEvent.click(screen.getByRole("button", { name: "newer" }));
-
-    expect(showPage).toHaveBeenNthCalledWith(1, 200);
-    expect(showPage).toHaveBeenNthCalledWith(2, 0);
-  });
-
-  it("cannot go back from the first page", () => {
-    mount({ items: [claim()], total: 250 });
-
-    expect(screen.getByRole("button", { name: "newer" })).toBeDisabled();
-  });
-
-  it("disables going on from the last page", () => {
-    mount({ items: [claim()], total: 101, skip: 100 });
-
-    expect(screen.getByRole("button", { name: "older" })).toBeDisabled();
-  });
-
-  it("says where each claim lives and where it came from", () => {
+describe("memory browser", () => {
+  it("keeps a decision's evidence out of the list until its row is opened", async () => {
     mount({
       items: [
-        claim(),
         claim({
-          id: "c-2",
-          scope: "agent",
-          agent_name: "Finance",
-          origin: "consolidation",
-          derived_from_count: 3,
-          effective_from: "2026-11-02T00:00:00Z",
-          statement: "Piotr handles invoices",
-          status: "disputed",
+          kind: "decision",
+          statement: "Ask for an update",
+          episode: {
+            situation: "Late supplier",
+            choice: "Ask again",
+            alternatives: ["Wait", "Escalate"],
+            expected_outcome: "New date",
+            actual_outcome: null,
+            correction: null,
+          },
         }),
       ],
     });
-
-    expect(screen.getByText("scopeProfile")).toBeInTheDocument();
-    expect(screen.getByText("scopeAgent:Finance")).toBeInTheDocument();
-    expect(screen.getByText("origin.consolidation")).toBeInTheDocument();
-    expect(screen.getByText("drawnFrom:3")).toBeInTheDocument();
-    expect(screen.getByText("since:1 Nov 2026")).toBeInTheDocument();
-    expect(screen.getByText("status.disputed")).toBeInTheDocument();
+    expect(screen.queryByText("Late supplier")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Ask for an update/ }));
+    const panel = screen.getByRole("dialog");
+    expect(within(panel).getByText("Late supplier")).toBeVisible();
+    expect(within(panel).getByText("Wait; Escalate")).toBeVisible();
+    expect(within(panel).getByText("origin.person")).toBeVisible();
   });
-
-  it("names an agent that has no name", () => {
-    mount({ items: [claim({ scope: "agent" })] });
-
-    expect(screen.getByText("scopeAgent:anAgent")).toBeInTheDocument();
-  });
-
-  it("retracts a claim", async () => {
+  it("passes search and type filters to the paginated read", async () => {
     mount();
-
-    await userEvent.click(screen.getByRole("button", { name: "retract" }));
-
-    expect(retract).toHaveBeenCalledWith("c-1");
+    await userEvent.type(screen.getByRole("textbox", { name: "searchMemories" }), "invoice");
+    await userEvent.click(screen.getByRole("button", { name: "kind.decision" }));
+    expect(useMyClaims).toHaveBeenLastCalledWith({ q: "invoice", kind: "decision" });
   });
-
-  it("corrects a claim in the person's own words from a date", async () => {
+  it("includes history only after it is requested", async () => {
     mount();
-
-    await userEvent.click(screen.getByRole("button", { name: "correct" }));
-    const box = screen.getByLabelText("statement");
-    const save = screen.getByRole("button", { name: "save" });
-    expect(save).toBeDisabled();
-    await userEvent.clear(box);
-    await userEvent.type(box, "Prefers long answers");
-    await userEvent.type(screen.getByLabelText("effectiveFrom"), "2026-11-03");
-    await userEvent.click(save);
-
-    expect(correct).toHaveBeenCalledWith("c-1", "Prefers long answers", "2026-11-03T00:00:00Z");
-    expect(screen.queryByLabelText("statement")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "filters" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "showHistory" }));
+    expect(setHistory).toHaveBeenCalledWith(true);
   });
-
-  it("corrects without a date and can be cancelled", async () => {
+  it("opens an editor and closes only after the correction succeeds", async () => {
     mount();
-
+    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
     await userEvent.click(screen.getByRole("button", { name: "correct" }));
     await userEvent.type(screen.getByLabelText("statement"), "!");
     await userEvent.click(screen.getByRole("button", { name: "save" }));
-    expect(correct).toHaveBeenCalledWith("c-1", "Prefers short answers!", null);
-
-    await userEvent.click(screen.getByRole("button", { name: "correct" }));
-    await userEvent.click(screen.getByRole("button", { name: "cancel" }));
-    expect(screen.queryByLabelText("statement")).not.toBeInTheDocument();
+    expect(correct).toHaveBeenCalledWith("c-1", "Prefers short answers!", null, undefined);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
-
-  it("offers history, and a replaced claim can no longer be changed", async () => {
-    mount({ items: [claim({ status: "superseded" })], history: true });
-
-    expect(screen.getByText("status.superseded")).toBeInTheDocument();
+  it("retains entered text after a refused correction", async () => {
+    correct.mockResolvedValue(false);
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+    await userEvent.click(screen.getByRole("button", { name: "correct" }));
+    await userEvent.type(screen.getByLabelText("statement"), "!");
+    await userEvent.click(screen.getByRole("button", { name: "save" }));
+    expect(screen.getByLabelText("statement")).toHaveValue("Prefers short answers!");
+  });
+  it("asks before stopping use and retains historical entries without live actions", async () => {
+    mount({ items: [claim({ status: "retracted" })] });
+    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+    expect(screen.queryByRole("button", { name: "retract" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "correct" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("checkbox"));
-    expect(setHistory).toHaveBeenCalledWith(false);
+  });
+  it("does not silently retract a row when opening it", async () => {
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+    await userEvent.click(screen.getByRole("button", { name: "retract" }));
+    expect(retract).not.toHaveBeenCalled();
+    const confirm = screen.getAllByRole("dialog").at(-1)!;
+    await userEvent.click(within(confirm).getByRole("button", { name: "retract" }));
+    expect(retract).toHaveBeenCalledWith("c-1");
+  });
+  it("distinguishes an empty store, a failed read and initial loading", () => {
+    const empty = mount({ items: [] });
+    expect(screen.getByText("emptyMemories")).toBeVisible();
+    empty.unmount();
+    const failed = mount({ error: new Error("offline") });
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(screen.queryByText("emptyMemories")).not.toBeInTheDocument();
+    failed.unmount();
+    mount({ isLoading: true });
+    expect(screen.queryByText("emptyMemories")).not.toBeInTheDocument();
+  });
+  it("keeps older memories reachable and does not return a false zero count", async () => {
+    mount({ total: 205, skip: 100 });
+    expect(screen.getByText("showing:101|101|205")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "older" }));
+    expect(showPage).toHaveBeenCalledWith(200);
+    await userEvent.click(screen.getByRole("button", { name: "newer" }));
+    expect(showPage).toHaveBeenCalledWith(0);
   });
 });

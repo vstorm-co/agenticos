@@ -2290,8 +2290,6 @@
       "older": "Daha eski",
       "title": "Belleğiniz",
       "description": "Buradaki agentların sizin hakkınızda not ettikleri ve bu notlarla ilgili yapabilecekleriniz.",
-      "nothingYet": "Henüz not alınmış bir şey yok",
-      "nothingYetWhy": "Agentlar, konuşmalar arasında saklamaya değer bir şey öğrendiklerinde not alır. Burada bir şey görünmüyorsa henüz not alan olmamıştır.",
       "externalStores": "Bu agentlar ayrıca bu sayfanın okuyamadığı bir dış hizmette bellek tutuyor: {agents}.",
       "writtenBy": "{agent} tarafından yazıldı · {when}",
       "anAgent": "bir agent",

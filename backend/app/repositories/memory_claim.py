@@ -18,6 +18,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
 
 
@@ -121,6 +122,9 @@ async def list_for_owner(
     skip: int,
     limit: int,
     in_effect: bool = False,
+    q: str = "",
+    kind: str | None = None,
+    scope: str | None = None,
 ) -> tuple[list[MemoryClaim], int]:
     """Every claim one owner holds in an organization, under any agent, and the total."""
     clause = (
@@ -128,6 +132,21 @@ async def list_for_owner(
         MemoryClaim.scope_key == scope_key,
         MemoryClaim.status.in_(list(statuses)),
         _in_effect() if in_effect else true(),
+        MemoryClaim.kind == kind if kind else true(),
+        MemoryClaim.agent_id.is_(None)
+        if scope == "profile"
+        else MemoryClaim.agent_id.is_not(None)
+        if scope == "agent"
+        else true(),
+        or_(
+            MemoryClaim.statement.icontains(q, autoescape=True),
+            MemoryClaim.subject.icontains(q, autoescape=True),
+            MemoryClaim.agent_id.in_(
+                select(Agent.id).where(Agent.name.icontains(q, autoescape=True))
+            ),
+        )
+        if q
+        else true(),
     )
     total = await db.scalar(select(func.count()).select_from(MemoryClaim).where(*clause)) or 0
     result = await db.execute(

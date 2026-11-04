@@ -168,7 +168,14 @@ async def test_a_person_lists_their_claims_and_may_ask_for_the_history() -> None
 
     assert response.status_code == 200
     assert response.json()["items"][0]["statement"] == "Prefers short answers"
-    assert listed.await_args.kwargs == {"skip": 0, "limit": 10, "history": True}
+    assert listed.await_args.kwargs == {
+        "skip": 0,
+        "limit": 10,
+        "history": True,
+        "q": "",
+        "kind": None,
+        "scope": None,
+    }
 
 
 async def test_a_claim_is_read_with_its_ancestry() -> None:
@@ -203,3 +210,31 @@ async def test_a_correction_and_a_retraction_reach_the_service_as_the_caller() -
     assert corrected.await_args.args[1] == _CLAIM_ID
     assert corrected.await_args.args[2].statement == "Prefers long answers"
     assert retracted.await_args.args[1] == _CLAIM_ID
+
+
+async def test_browser_filters_reach_the_owned_memory_service() -> None:
+    listed = AsyncMock(return_value=MemoryClaimList(items=[], total=0))
+    with patch("app.services.memory.MemoryService.my_claims", new=listed):
+        async with _client() as client:
+            response = await client.get(
+                f"{ROOT}/claims/mine?q=invoice&kind=decision&scope=agent&skip=100"
+            )
+    assert response.status_code == 200
+    assert listed.await_args.kwargs == {
+        "skip": 100,
+        "limit": 50,
+        "history": False,
+        "q": "invoice",
+        "kind": "decision",
+        "scope": "agent",
+    }
+
+
+@pytest.mark.parametrize("query", ["kind=unknown", "scope=organization", "q=" + "x" * 201])
+async def test_browser_filter_contract_refuses_invalid_input(query: str) -> None:
+    listed = AsyncMock(return_value=MemoryClaimList(items=[], total=0))
+    with patch("app.services.memory.MemoryService.my_claims", new=listed):
+        async with _client() as client:
+            response = await client.get(f"{ROOT}/claims/mine?{query}")
+    assert response.status_code == 422
+    listed.assert_not_awaited()

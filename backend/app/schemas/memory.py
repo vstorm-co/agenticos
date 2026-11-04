@@ -48,6 +48,7 @@ class MemoryNoteRead(BaseSchema):
     kind: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    written_at: datetime | None = None
     deactivated_at: datetime | None = None
     """Set while the note is suppressed - not listed, not read, not editable by any tool."""
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "b49ff2c9708c"
+source_sha: "a99ebc0fc1bb"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -428,10 +428,7 @@ czytelnik jest sam. Resztę pobiera się przez `recall`, który dopasowuje słow
 nie wywołuje modelu. Przywołane claimy są dowodem, nigdy poleceniem ani
 przyznaniem uprawnień.
 
-W **Ustawienia → Pamięć** sekcja *Zapisane o Tobie* pokazuje claimy z zakresem i
-źródłem. Możesz poprawić claim własnymi słowami od wybranej daty, wycofać go i
-pokazać historię. Wymazanie osoby usuwa jej claimy i kopie z nich udostępnione
-dalej.
+W **Ustawienia → Pamięć** zakładka **Wspomnienia** pokazuje fakty, preferencje i decyzje, a **Notatki** otwiera dłuższe pliki we wspólnej przeglądarce plików. Wyszukiwanie obejmuje cały zbiór przed stronicowaniem. Filtruj wspomnienia według typu i zakresu, włącz historię i otwórz wpis, aby zobaczyć źródło oraz szczegóły decyzji. Korekta zachowuje poprzednią wersję. Wyłączenie używania zachowuje historię; trwałe usunięcie notatki wymaga potwierdzenia. Wymazanie osoby usuwa również jej claimy i kopie udostępnione dalej.
 
 ### Co jest wstrzykiwane, a co tylko pobierane { #what-is-injected-and-what-is-only-fetched }
 

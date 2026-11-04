@@ -5178,6 +5178,10 @@
       "chat-background-tasks": {
         "title": "Background topics",
         "body": "Independent work opens a fresh topic in this project. Keep talking here; the agent returns with the result. Open or stop each task from this strip."
+      },
+      "memory-views": {
+        "title": "Two ways agents remember",
+        "body": "Memories holds facts, preferences and decisions. Notes holds longer files and checklists. Search the whole store, then open an entry to see its source and manage its use."
       }
     },
     "chooseLanguage": "Language",
@@ -5852,9 +5856,7 @@
       "newer": "Newer",
       "older": "Older",
       "title": "Your memory",
-      "description": "What the agents here have written down about you, and what you can do about it.",
-      "nothingYet": "Nothing written down yet",
-      "nothingYetWhy": "Agents write a note when they learn something worth keeping between conversations. Nothing here means none of them has.",
+      "description": "See what your agents remember, where it came from and who can use it.",
       "writtenBy": "Written by {agent} · {when}",
       "anAgent": "an agent",
       "suppressed": "Suppressed",
@@ -5870,8 +5872,8 @@
         "anAgent": "an agent",
         "since": "Since {when}",
         "drawnFrom": "Drawn from {count} sources",
-        "correct": "Correct this",
-        "retract": "Stop using this",
+        "correct": "Correct memory",
+        "retract": "Stop using",
         "statement": "Corrected statement",
         "effectiveFrom": "Holds from",
         "cancel": "Cancel",
@@ -5904,6 +5906,49 @@
           "reference": "Expected answer",
           "consent": "I have reviewed these fields and approve exporting them to a dataset file.",
           "download": "Download reviewed case"
+        }
+      },
+      "browser": {
+        "memories": "Memories",
+        "notes": "Notes",
+        "viewLabel": "Memory view",
+        "searchMemories": "Search memories…",
+        "searchNotes": "Search notes…",
+        "typeLabel": "Memory type",
+        "scopeLabel": "Who can use this",
+        "sourceLabel": "Source",
+        "recorded": "Recorded",
+        "count": "{count, plural, one {# memory} other {# memories}}",
+        "noteCount": "{count, plural, one {# note} other {# notes}}",
+        "kind": {
+          "all": "All types",
+          "fact": "Facts",
+          "preference": "Preferences",
+          "decision": "Decisions",
+          "other": "Other"
+        },
+        "scope": {
+          "all": "All scopes",
+          "profile": "All your agents",
+          "agent": "One agent only"
+        },
+        "noMatches": "No matching entries",
+        "tryFilters": "Try another search or clear the filters.",
+        "clearFilters": "Clear filters",
+        "emptyMemories": "Nothing remembered yet",
+        "emptyMemoriesHint": "Ask an agent to remember a fact, a preference or a decision. It will appear here with its source and who can use it.",
+        "emptyNotes": "No notes yet",
+        "emptyNotesHint": "Longer notes written by your agents will appear here. Facts and preferences are in Memories.",
+        "notesHint": "Longer notes and checklists kept by your agents. Open a file to read it or manage whether the agent can use it.",
+        "retractHint": "The agent will stop using this memory. The entry stays in history, along with its source.",
+        "deleteNote": "Delete this note?",
+        "deleteNoteHint": "“{name}” will be permanently deleted. You can stop using it instead and restore it later.",
+        "noteDetails": "Memory details",
+        "type": {
+          "fact": "Fact",
+          "preference": "Preference",
+          "decision": "Decision",
+          "other": "Memory"
         }
       }
     },

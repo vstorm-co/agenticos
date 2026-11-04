@@ -1,38 +1,86 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { toast } from "sonner";
 import { useMyClaims } from "./use-my-claims";
 import { apiClient } from "@/lib/api-client";
-
-vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn() },
-}));
+import type { MemoryClaimFilters } from "@/lib/memory-api";
+import { useOrgStore } from "@/stores";
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-const toastError = vi.fn();
-vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
-vi.mock("@/stores", () => ({
-  useOrgStore: (select: (state: { activeOrgId: string }) => unknown) =>
-    select({ activeOrgId: "org-1" }),
-}));
-
-const PAGE = { items: [], total: 0 };
-
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+function Wrapper({ children }: { children: ReactNode }) {
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  );
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
-
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(apiClient.get).mockResolvedValue(PAGE);
-  vi.mocked(apiClient.post).mockResolvedValue({});
+  useOrgStore.setState({ activeOrgId: "org-1" });
+  vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 250 });
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "c-1" });
 });
+it("resets pagination when the search, type or organization changes", async () => {
+  const { result, rerender } = renderHook(
+    ({ filters }: { filters: MemoryClaimFilters }) => useMyClaims(filters),
+    { wrapper: Wrapper, initialProps: { filters: {} } },
+  );
+  await waitFor(() => expect(result.current.page).toBeDefined());
+  act(() => result.current.showPage(100));
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=100&history=false",
+    ),
+  );
+  rerender({ filters: { q: "invoice", kind: "decision" } });
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=0&history=false&q=invoice&kind=decision",
+    ),
+  );
+  expect(result.current.skip).toBe(0);
+  act(() => result.current.showPage(100));
+  act(() => useOrgStore.setState({ activeOrgId: "org-2" }));
+  await waitFor(() => expect(result.current.skip).toBe(0));
+});
+it("shows history from its first page and retains the selected scope", async () => {
+  const { result } = renderHook(() => useMyClaims({ scope: "profile" }), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.page).toBeDefined());
+  act(() => result.current.showPage(100));
+  act(() => result.current.setHistory(true));
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/memory/claims/mine?limit=100&skip=0&history=true&scope=profile",
+    ),
+  );
+});
+it("reports a refused correction or retraction without claiming success", async () => {
+  const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.page).toBeDefined());
+  vi.mocked(apiClient.post).mockRejectedValue(new Error("refused"));
+  await act(async () => {
+    expect(await result.current.correct("c-1", "Corrected", null)).toBe(false);
+    expect(await result.current.retract("c-1")).toBe(false);
+  });
+});
+it("waits for accepted changes and refreshes the memory store", async () => {
+  const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.page).toBeDefined());
+  vi.mocked(apiClient.get).mockClear();
+  await act(async () => {
+    expect(await result.current.correct("c-1", "Corrected", null)).toBe(true);
+    expect(await result.current.retract("c-1")).toBe(true);
+  });
+  expect(apiClient.get).toHaveBeenCalled();
+});
+
+const PAGE = { items: [], total: 250 };
 
 describe("useMyClaims", () => {
   it("reads the live claims, and the history when asked", async () => {
-    const { result } = renderHook(() => useMyClaims(), { wrapper });
+    const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.page).toEqual(PAGE));
     expect(apiClient.get).toHaveBeenCalledWith(
       "/memory/claims/mine?limit=100&skip=0&history=false",
@@ -48,7 +96,7 @@ describe("useMyClaims", () => {
   });
 
   it("posts a correction and a retraction", async () => {
-    const { result } = renderHook(() => useMyClaims(), { wrapper });
+    const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.page).toBeDefined());
 
     await act(() => result.current.correct("c-1", "New", "2026-11-03T00:00:00Z"));
@@ -64,7 +112,7 @@ describe("useMyClaims", () => {
   });
 
   it("says whether a correction was saved, and reports a refused one", async () => {
-    const { result } = renderHook(() => useMyClaims(), { wrapper });
+    const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.page).toBeDefined());
     let saved = false;
     await act(async () => {
@@ -80,11 +128,11 @@ describe("useMyClaims", () => {
     expect(refused).toBe(false);
     await act(() => result.current.retract("c-1"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
   });
 
   it("pages, and starts a different list from its first page", async () => {
-    const { result } = renderHook(() => useMyClaims(), { wrapper });
+    const { result } = renderHook(() => useMyClaims(), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.page).toBeDefined());
 
     act(() => result.current.showPage(100));

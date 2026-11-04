@@ -5056,6 +5056,10 @@
       "workspace-graph": {
         "title": "Verknüpfte Notizen erkunden",
         "body": "Die Graphansicht ermittelt Links und Rückverweise aus Markdown und Frontmatter. Solange sie geöffnet ist, wird sie aktualisiert und verwendet nur Dateien, die Sie an diesem Ort lesen dürfen."
+      },
+      "memory-views": {
+        "title": "Zwei Arten von Gedächtnis",
+        "body": "Erinnerungen enthält Fakten, Präferenzen und Entscheidungen. Notizen enthält längere Dateien und Checklisten. Durchsuchen Sie den gesamten Bestand und öffnen Sie einen Eintrag für Quelle und Verwendung."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5131,9 +5135,7 @@
       "newer": "Neuere",
       "older": "Ältere",
       "title": "Ihr Gedächtnis",
-      "description": "Was die Agents hier über Sie notiert haben und was Sie dagegen tun können.",
-      "nothingYet": "Noch nichts notiert",
-      "nothingYetWhy": "Agents schreiben eine Notiz, wenn sie etwas erfahren, das zwischen Unterhaltungen aufzubewahren lohnt. Nichts hier heißt, keiner von ihnen hat das getan.",
+      "description": "Sehen Sie, was Ihre Agents gespeichert haben, woher es stammt und wer es nutzen kann.",
       "writtenBy": "Geschrieben von {agent} · {when}",
       "anAgent": "ein Agent",
       "suppressed": "Unterdrückt",
@@ -5149,7 +5151,7 @@
         "anAgent": "einem Agent",
         "since": "Seit {when}",
         "drawnFrom": "Aus {count} Quellen abgeleitet",
-        "correct": "Korrigieren",
+        "correct": "Erinnerung korrigieren",
         "retract": "Nicht mehr verwenden",
         "statement": "Korrigierte Aussage",
         "effectiveFrom": "Gilt ab",
@@ -5183,6 +5185,49 @@
           "reference": "Erwartete Antwort",
           "consent": "Ich habe diese Felder geprüft und stimme ihrem Export als Datensatzdatei zu.",
           "download": "Geprüften Fall herunterladen"
+        }
+      },
+      "browser": {
+        "memories": "Erinnerungen",
+        "notes": "Notizen",
+        "viewLabel": "Gedächtnisansicht",
+        "searchMemories": "Erinnerungen suchen…",
+        "searchNotes": "Notizen suchen…",
+        "typeLabel": "Art der Erinnerung",
+        "scopeLabel": "Wer dies nutzen kann",
+        "sourceLabel": "Quelle",
+        "recorded": "Erfasst",
+        "count": "{count, plural, one {# Erinnerung} other {# Erinnerungen}}",
+        "noteCount": "{count, plural, one {# Notiz} other {# Notizen}}",
+        "kind": {
+          "all": "Alle Arten",
+          "fact": "Fakten",
+          "preference": "Präferenzen",
+          "decision": "Entscheidungen",
+          "other": "Andere"
+        },
+        "scope": {
+          "all": "Alle Bereiche",
+          "profile": "Alle Ihre Agents",
+          "agent": "Nur ein Agent"
+        },
+        "noMatches": "Keine passenden Einträge",
+        "tryFilters": "Ändern Sie die Suche oder setzen Sie die Filter zurück.",
+        "clearFilters": "Filter zurücksetzen",
+        "emptyMemories": "Noch nichts gespeichert",
+        "emptyMemoriesHint": "Bitten Sie einen Agent, einen Fakt, eine Präferenz oder eine Entscheidung zu speichern. Hier sehen Sie Inhalt, Quelle und Zugriffsbereich.",
+        "emptyNotes": "Noch keine Notizen",
+        "emptyNotesHint": "Hier erscheinen längere Notizen Ihrer Agents. Fakten und Präferenzen finden Sie unter Erinnerungen.",
+        "notesHint": "Längere Notizen und Checklisten Ihrer Agents. Öffnen Sie eine Datei, um sie zu lesen oder ihre Verwendung durch den Agent zu steuern.",
+        "retractHint": "Der Agent verwendet diese Erinnerung nicht mehr. Der Eintrag und seine Quelle bleiben im Verlauf erhalten.",
+        "deleteNote": "Diese Notiz löschen?",
+        "deleteNoteHint": "„{name}“ wird dauerhaft gelöscht. Sie können die Verwendung stattdessen deaktivieren und später wiederherstellen.",
+        "noteDetails": "Gedächtnisdetails",
+        "type": {
+          "fact": "Fakt",
+          "preference": "Präferenz",
+          "decision": "Entscheidung",
+          "other": "Erinnerung"
         }
       }
     },

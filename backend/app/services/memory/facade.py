@@ -21,6 +21,7 @@ whole erasure.
 
 import logging
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -78,7 +79,7 @@ class MemoryService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def mine(self, ctx: AuthContext, *, skip: int, limit: int) -> MemoryNoteList:
+    async def mine(self, ctx: AuthContext, *, skip: int, limit: int, q: str = "") -> MemoryNoteList:
         """What the agents in this organization have written down about the caller.
 
         No permission, because there is none to ask for: this is the caller's own
@@ -87,11 +88,23 @@ class MemoryService:
         had suppressed would be one they could not restore anything from.
         """
         return await self._notes_for(
-            ctx.organization_id, person_owner_key(ctx.subject_id), skip=skip, limit=limit
+            ctx.organization_id,
+            person_owner_key(ctx.subject_id),
+            skip=skip,
+            limit=limit,
+            q=q.strip(),
         )
 
     async def my_claims(
-        self, ctx: AuthContext, *, skip: int, limit: int, history: bool
+        self,
+        ctx: AuthContext,
+        *,
+        skip: int,
+        limit: int,
+        history: bool,
+        q: str = "",
+        kind: Literal["fact", "preference", "decision"] | None = None,
+        scope: Literal["profile", "agent"] | None = None,
     ) -> MemoryClaimList:
         """The claims recorded about the caller, under every agent, current ones by default.
 
@@ -107,6 +120,9 @@ class MemoryService:
             skip=skip,
             limit=limit,
             in_effect=not history,
+            q=q.strip(),
+            kind=kind,
+            scope=scope,
         )
         names = await self._agent_names({row.agent_id for row in rows if row.agent_id})
         return MemoryClaimList(items=[_claim_read(row, names) for row in rows], total=total)
@@ -348,11 +364,16 @@ class MemoryService:
         return row
 
     async def _notes_for(
-        self, organization_id: UUID, owner_key: str, *, skip: int = 0, limit: int = 50
+        self, organization_id: UUID, owner_key: str, *, skip: int = 0, limit: int = 50, q: str = ""
     ) -> MemoryNoteList:
         """One store's page, with the agent names and the stores this cannot reach."""
         rows, total = await memory_repo.list_for_person(
-            self.db, organization_id=organization_id, owner_key=owner_key, skip=skip, limit=limit
+            self.db,
+            organization_id=organization_id,
+            owner_key=owner_key,
+            skip=skip,
+            limit=limit,
+            q=q,
         )
         names = await self._agent_names({row.agent_id for row in rows})
         items = [

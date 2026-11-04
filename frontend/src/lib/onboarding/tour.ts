@@ -1080,6 +1080,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // Optional, because the card it anchors on renders only where an agent has
   // written something - and an unmarked step waits four seconds for an element
   // an empty store never mounts (#1594).
+  { id: "memory-views", page: SETTINGS_DETAIL, target: "memory-views", optional: true },
   { id: "my-memory", page: SETTINGS_DETAIL, target: "my-memory", optional: true },
   // Optional too: the section renders only where something is on record about the person.
   { id: "my-claims", page: SETTINGS_DETAIL, target: "my-claims", optional: true },

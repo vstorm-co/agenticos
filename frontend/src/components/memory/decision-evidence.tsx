@@ -51,12 +51,15 @@ export function DecisionEvidence({ claim }: { claim: MemoryClaim }) {
   ] as const;
   return (
     <>
-      <dl className="space-y-1 text-xs">
+      <dl className="grid gap-5 text-sm sm:grid-cols-2">
         {fields.map(([label, value]) =>
           value ? (
-            <div key={label}>
-              <dt className="text-muted-foreground">{t(label)}</dt>
-              <dd className="whitespace-pre-wrap">{value}</dd>
+            <div
+              key={label}
+              className={label === "situation" || label === "choice" ? "sm:col-span-2" : undefined}
+            >
+              <dt className="text-muted-foreground mb-1.5 text-xs font-medium">{t(label)}</dt>
+              <dd className="leading-6 whitespace-pre-wrap">{value}</dd>
             </div>
           ) : null,
         )}
@@ -65,6 +68,7 @@ export function DecisionEvidence({ claim }: { claim: MemoryClaim }) {
         <Button
           variant="outline"
           size="sm"
+          className="mt-6"
           onClick={() => {
             setConfirmed(false);
             setOpen(true);

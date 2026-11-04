@@ -49,10 +49,14 @@ export const qk = {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,
     /** One page of what the agents in one organization have written about the caller. */
-    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+    mine: (orgId: string, skip: number, q = "") => ["memory", orgId, "mine", skip, q] as const,
     /** The claims recorded about the caller; history adds what they replaced. */
-    claims: (orgId: string, history: boolean, skip: number) =>
-      ["memory", orgId, "claims", history, skip] as const,
+    claims: (
+      orgId: string,
+      history: boolean,
+      skip: number,
+      filters: import("./memory-api").MemoryClaimFilters = {},
+    ) => ["memory", orgId, "claims", history, skip, filters] as const,
   },
   organizations: {
     all: () => ["organizations"] as const,

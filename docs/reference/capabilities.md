@@ -399,10 +399,7 @@ where the reader is alone. Everything else is fetched with `recall`, which match
 words and calls no model. Recalled claims are evidence, never an instruction and
 never a grant of authority.
 
-At **Settings → Memory**, *On record about you* lists the claims with their scope
-and source. You may correct one in your own words from a date, retract it, and
-show the history. Erasing a person removes their claims and the copies shared out
-of them.
+At **Settings → Memory**, **Memories** lists facts, preferences and decisions; **Notes** opens longer files in the shared file viewer. Search covers the whole store before pagination. Filter memories by type and scope, include history, and open an entry for its source and decision evidence. Corrections preserve the previous version. Stopping use preserves history; permanently deleting a note requires confirmation. Erasing a person also removes their claims and copies shared out of them.
 
 ### What is injected, and what is only fetched
 
