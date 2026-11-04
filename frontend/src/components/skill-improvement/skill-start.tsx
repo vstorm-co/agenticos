@@ -71,6 +71,8 @@ export function SkillStart({
   if (refusal !== null && quote === null) return <ErrorState description={refusal} />;
   if (quote === null) return <LoadingState variant="skeleton-cards" rows={2} />;
 
+  const typed = Number(limitValue(limit));
+
   async function begin() {
     setRefusal(null);
     try {
@@ -100,7 +102,7 @@ export function SkillStart({
           cost: usd(quote.total_usd, locale),
           perRound: usd(quote.per_round_usd, locale),
           rounds: quote.max_iterations,
-          limit: usd(limitValue(limit), locale),
+          limit: usd(typed > 0 ? String(typed) : sessionLimit(quote), locale),
         })}
       </p>
       <div className="max-w-xs space-y-1.5">
@@ -124,7 +126,7 @@ export function SkillStart({
         </p>
       )}
       <Button
-        disabled={!quote.affordable || !(Number(limitValue(limit)) > 0)}
+        disabled={!quote.affordable || !(typed > 0)}
         loading={start.isPending}
         onClick={() => void begin()}
       >

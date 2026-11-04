@@ -211,6 +211,19 @@ describe("useSkill", () => {
     await result.current.remove.mutateAsync(true);
     expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1?remove_from_agents=true");
   });
+
+  it("reads who uses the skill again when a delete is refused", async () => {
+    vi.mocked(apiClient.delete).mockRejectedValue(new Error("In use"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSkill("s1"), { wrapper: scoped });
+
+    await expect(result.current.remove.mutateAsync(true)).rejects.toThrow("In use");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["skills", "s1", "agents"] });
+  });
 });
 
 /**

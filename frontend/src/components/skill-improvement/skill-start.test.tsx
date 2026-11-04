@@ -80,6 +80,10 @@ describe("SkillStart", () => {
     await userEvent.clear(screen.getByLabelText(/Spending limit/));
     await userEvent.type(screen.getByLabelText(/Spending limit/), "1");
     expect(screen.getByText(/The limit of \$1\.00 caps the whole session/)).toBeVisible();
+    await userEvent.clear(screen.getByLabelText(/Spending limit/));
+    await userEvent.type(screen.getByLabelText(/Spending limit/), "abc");
+    expect(screen.getByText(/The limit of \$0\.35 caps the whole session/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
   });
 
   it("starts on the line with the limit set, and opens the session", async () => {

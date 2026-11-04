@@ -25,9 +25,12 @@ export function startSkillCheck(skillId: string, body: SkillCheckStart) {
   return apiClient.post<SkillCheck>(root(skillId), body);
 }
 
-/** A line's newest checks, newest first; main's when `forkId` is null. */
+/**
+ * A line's newest checks, newest first; main's when `forkId` is null. Twenty, so the
+ * checks sessions started rarely push an open one of a person's own off the page.
+ */
 export function listSkillChecks(skillId: string, forkId: string | null) {
-  const query = new URLSearchParams({ limit: "5" });
+  const query = new URLSearchParams({ limit: "20" });
   if (forkId !== null) query.set("fork_id", forkId);
   return apiClient.get<{ items: SkillCheck[]; total: number }>(`${root(skillId)}?${query}`);
 }

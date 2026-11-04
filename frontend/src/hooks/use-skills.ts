@@ -188,6 +188,8 @@ export function useSkill(skillId: string | null) {
       await invalidate();
       toast.success(t("deleted"));
     },
+    // A refusal names who uses the skill now, which the agents list may not know yet.
+    onError: () => queryClient.invalidateQueries({ queryKey: qk.skills.agents(skillId ?? "") }),
   });
 
   /**

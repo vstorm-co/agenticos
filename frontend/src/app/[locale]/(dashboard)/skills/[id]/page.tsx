@@ -102,7 +102,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
         onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
-      {skill.can_edit && <CheckRunning skillId={id} forkId={fork?.id ?? null} />}
+      {skill.can_edit && can(Perm.runsView) && (
+        <CheckRunning skillId={id} forkId={fork?.id ?? null} />
+      )}
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
