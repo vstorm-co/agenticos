@@ -6,6 +6,7 @@ import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
+import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
@@ -23,6 +24,24 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
     approvalSummary(approval.capability_tool_id, approval.context, tTools) ??
     (withArguments ? callSummary(approval.tool_args) : null)
   );
+}
+
+/**
+ * Who the call is for, as a line: the chat account, unverified, for a stranger's
+ * message (the run ran as the binding's publisher, whom it was not for), else the
+ * person the run acts for.
+ */
+function useAskedLine(approval: ToolApproval): string | null {
+  const t = useTranslations("pages.runs");
+  const chat = approval.asked_in_chat;
+  if (chat) {
+    return t(chat.bot_name ? "askedInChatThrough" : "askedInChat", {
+      platform: surfaceLabel(chat.platform, t),
+      name: chat.name,
+      bot: chat.bot_name ?? "",
+    });
+  }
+  return approval.triggered_by_email ? t("askedFor", { email: approval.triggered_by_email }) : null;
 }
 
 /** Who is asking: the delegate when one is, else the run's own agent. */
@@ -58,6 +77,7 @@ export function PendingApproval({
   const phrase = useActionPhrase();
   const ago = approval.created_at ? timeAgo(approval.created_at, tTime, locale) : null;
   const summary = useCallLine(approval, true);
+  const askedLine = useAskedLine(approval);
 
   return (
     <li>
@@ -87,9 +107,7 @@ export function PendingApproval({
               )}
               <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <AccountBadge account={approval.account} />
-                {approval.triggered_by_email && (
-                  <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
-                )}
+                {askedLine && <span>{askedLine}</span>}
                 {ago !== null && (
                   <span title={formatDateTime(approval.created_at as string, locale)}>{ago}</span>
                 )}
@@ -152,6 +170,7 @@ export function DecidedApproval({
   // newer about.
   const labelKey = DECISION_LABEL[approval.status];
   const summary = useCallLine(approval, false);
+  const askedLine = useAskedLine(approval);
 
   return (
     <li className="px-5 py-3">
@@ -182,9 +201,7 @@ export function DecidedApproval({
       )}
       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-10 text-xs">
         <AccountBadge account={approval.account} />
-        {approval.triggered_by_email && (
-          <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
-        )}
+        {askedLine && <span>{askedLine}</span>}
         {approval.decided_by_email && (
           <span>{t("decidedByWhom", { email: approval.decided_by_email })}</span>
         )}

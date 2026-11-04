@@ -5,13 +5,15 @@ timestamp, and what it must leave alone - a question asked an hour ago, a run
 parked on an approval - is decided by that `WHERE`.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from pydantic_ai_harness.ask_user import TIMED_OUT
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.db.models.agent import Agent
@@ -98,6 +100,40 @@ async def test_a_question_left_a_day_ends_its_run_and_nothing_younger_or_else(
 
 async def test_an_empty_sweep_ends_nothing(db: AsyncSession) -> None:
     assert await ApprovalService(db).expire_unanswered() == 0
+
+
+async def test_a_press_that_continued_the_run_at_the_last_moment_is_not_overwritten_by_the_sweep(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    agent = await _agent(db)
+    stale = await _parked(
+        db,
+        agent,
+        status=RunStatus.AWAITING_ANSWER,
+        parked_for=timedelta(hours=settings.QUESTION_EXPIRY_HOURS + 1),
+    )
+    run_id, organization_id = stale.id, stale.organization_id
+    await db.commit()
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as press, factory() as sweep_session:
+        claimed = await agent_run_repo.claim_parked_run(
+            press, run_id, organization_id=organization_id
+        )
+        assert claimed is not None
+        await agent_run_repo.mark_running(press, run=claimed)
+
+        sweep = asyncio.create_task(ApprovalService(sweep_session).expire_unanswered())
+        await asyncio.sleep(0.4)
+        assert not sweep.done()
+        await press.commit()
+        assert await asyncio.wait_for(sweep, 5) == 0
+        await sweep_session.rollback()
+
+    async with factory() as check:
+        row = (await check.execute(select(AgentRun).where(AgentRun.id == run_id))).scalar_one()
+    assert row.status == RunStatus.RUNNING.value
+    assert row.paused_state is not None
 
 
 def test_the_model_is_told_the_question_timed_out() -> None:

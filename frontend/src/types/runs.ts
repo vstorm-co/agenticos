@@ -25,6 +25,11 @@ export interface VoiceChain {
 export interface AgentRun {
   id: string;
   agent_id: string;
+  /**
+   * The server posts this run's continuation to the chat it was asked in, so the
+   * console must not resume it too.
+   */
+  continues_in_chat?: boolean;
   agent_version_id: string | null;
   user_id: string | null;
   surface: string;
@@ -310,6 +315,17 @@ export interface ManifestCodeRun {
 export interface ToolApproval {
   id: string;
   run_id: string;
+  /**
+   * The server posts this run's continuation to the chat it was asked in, so the
+   * console must not resume it too.
+   */
+  continues_in_chat?: boolean;
+  /**
+   * The chat account that asked, for a run an unlinked person started in a chat. It
+   * ran as the binding's publisher, so `triggered_by_*` are null. Unverified: the
+   * name is what the account's owner typed.
+   */
+  asked_in_chat?: { platform: string; name: string; bot_name: string | null } | null;
   /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
   /**
@@ -532,6 +548,8 @@ export interface SettledCall {
 
 export interface ResumedRun {
   run_id: string;
+  /** The run goes on in the chat it was asked in, which also gets its answer. */
+  continues_in_chat?: boolean;
   output: string;
   status: RunStatus;
   /**

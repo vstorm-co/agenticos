@@ -1,5 +1,5 @@
 ---
-source_sha: "88a69af9b330"
+source_sha: "7972364d6328"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -29,7 +29,7 @@ Poza jeden host - zarządzany Postgres, kilka hostów API, kilka wdrożeń - pro
 | | |
 |---|---|
 | **Host** | 4 vCPU i 8 GB RAM to uruchamia. Zobacz [dobór rozmiaru](#sizing-the-host) |
-| **Docker** | Engine 24+ z wtyczką Compose (2.24 lub nowszą) i twój użytkownik w grupie `docker`. Nic nie jest budowane na hoście: obrazy są ściągane z GHCR |
+| **Silnik kontenerów** | Engine 24+ z wtyczką Compose (2.24 lub nowszą) i twój użytkownik w grupie `docker`. Nic nie jest budowane na hoście: obrazy są ściągane z GHCR. Alternatywnie użyj [ręcznej ścieżki Podmana](#podman-support). |
 | **Dwie nazwy hostów** | jedna dla witryny, jedna dla API — zobacz [dlaczego dwie](#why-two-hostnames) |
 | **Reverse proxy** | [Traefik](#option-a-traefik) albo [Nginx](#option-b-nginx). To on terminuje TLS |
 | **Bez klucza providera** | modele czatowe i embedy są kluczowane per organizacja, w vaulcie produktu. Środowisko nie trzyma poświadczeń ani dla jednych, ani dla drugich — zobacz [Ochrona danych](data-protection.md#nothing-leaves-by-default) |
@@ -47,6 +47,94 @@ certyfikatu.
 `app.example.com` i `api.example.com` to ten kształt. Mogą to być dowolne dwie
 nazwy; czym być nie mogą, to jedną nazwą z prefiksem ścieżki, bo ciasteczka API i
 ciasteczka witryny są ograniczone do hosta.
+
+### Obsługa Podmana { #podman-support }
+
+**Podman jest wspierany w ręcznym wdrożeniu z Docker Compose jako providerem.**
+Testy wykonano na Podmanie 6.1.4 i Docker Compose v2.40.3, Fedora CoreOS 44
+(VM Podmana na macOS, ARM64, cgroups v2, SELinux enforcing). Dostarczany plik
+wymaga Compose 2.24 lub nowszego.
+
+**Nie używaj `podman-compose` 1.6.0.** Uruchomił stack i agent odpowiedział,
+ale kontrolowana nieudana migracja nie zatrzymała startu zależnej aplikacji.
+Docker Compose poprawnie odmówił startu. Providerzy mają osobne numery wersji;
+`podman-compose` 1.6.0 nie oznacza Docker Compose 1.6.0.
+
+Quickstart pozostaje przeznaczony dla Dockera i odsyła wykrytego Podmana do
+tej ręcznej ścieżki, także z `--no-sandbox`. W skonfigurowanym katalogu głównym
+repozytorium wskaż rzeczywisty plik wykonywalny Docker Compose (osobny program
+lub plugin CLI):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Sprawdź, czy `podman compose version` identyfikuje Docker Compose. Jawne `-f`
+pomija lokalny override budujący ze źródeł: ta instalacja używa opublikowanych
+obrazów. Po starcie usług wykonaj bootstrap organizacji i modelu zgodnie z
+[Instalacją](install.md).
+
+**Opcjonalny sandbox.** `pydantic-ai-backend` 0.2.39 działał z socketami Podmana
+rootful i rootless. Nie wymaga nowego backendu ani wydania. Użyj pliku
+`docker-compose-podman.yml`, aby dostosować montowanie socketu i workspace;
+przygotuj uprawnienia przed włączeniem profilu.
+
+Na natywnym Linuksie z rootless Podmanem:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+Dla rootful Linuksa włącz systemowy `podman.socket`, ustaw
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock` i przygotuj workspace przez
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Uruchom Compose
+przeciw temu silnikowi rootful. Grupa socketu to zwykle 0; przy niestandardowym
+sockecie rootful podaj jego rzeczywistą grupę w `DOCKER_GID`.
+
+Na rootless VM Podmana w macOS oba źródła bind mountów należą do linuksowej VM,
+a nie macOS. Przygotuj je wewnątrz VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Zachowaj istniejące klucze wdrożenia. Ustaw niepusty `SANDBOXD_TOKEN` i
+`SANDBOX_URL=http://sandboxd:8080` w pliku env czytanym przez stack, zgodnie z
+[konfiguracją sandboxa](sandbox.md). Następnie uruchom oba pliki:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+Override wyłącza etykietowanie SELinux tylko dla `sandboxd`, który już ma
+socket silnika. Udostępnia etykietę workspace przez `:z`, ponieważ montują go
+również sąsiednie sandboxy. Kontenery sandboxów zachowują własne etykiety i
+`no-new-privileges`; nie zmieniaj etykiety socketu ani nie wyłączaj globalnie
+SELinux. W rootless właściciel socketu mapuje się na grupę 0 w user namespace.
+
+Na serwerze użyj trwałej ścieżki workspace: `/tmp` to tylko lokalny przykład.
+Zachowaj ustawienia socketu, workspace i grupy w środowisku operatora dla
+kolejnych poleceń Compose. Hostowe `DOCKER_HOST` nie zmienia socketu montowanego
+wewnątrz `sandboxd`.
+
+Zweryfikowano run agenta przez HTTP i zapis ukończenia, pliki workspace,
+niezerowe kody wyjścia, timeouty, egzekwowane limity RAM/CPU/PID i budowanie
+obrazów runtime. Dostarczany obraz workbench czytał/zapisywał XLSX, renderował
+wykres oraz uruchamiał Node i LibreOffice. Model był deterministycznym serwerem
+testowym zgodnym z OpenAI; nie testowano runtime desktop ani każdej dystrybucji
+Linuksa. [Raport testów](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+zawiera wersje, zakres i reprodukcję błędnej obsługi migracji.
 
 ## Dobór rozmiaru hosta { #sizing-the-host }
 

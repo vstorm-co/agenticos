@@ -1644,7 +1644,8 @@ line and folds the others behind **Details**.
 
 A press acts as the person who pressed it, through their linked account: deciding
 needs `approvals:decide`, and only the person a question was put to can answer
-it. An unlinked presser is told to send `/link`. A run waits for an answer for
+it. A decision made somewhere else acts as the person who made it, an app admin
+included ([below](#decided-outside-the-chat)). An unlinked presser is told to send `/link`. A run waits for an answer for
 `QUESTION_EXPIRY_HOURS` and for a decision for `APPROVAL_EXPIRY_HOURS`, as
 anywhere else. Slack signs its presses; Mattermost signs nothing, so each button
 carries this deployment's own signature over its value and a press without it is
@@ -1661,6 +1662,58 @@ Mattermost alike. When the page needs somebody, a sign-in or a captcha, the step
 changes to *Needs you* and says what for, and names who has the browser while a
 person holds it. The link opens the console, so taking over needs a console account:
 the person the run is for, or someone who may edit the agent.
+
+### Decided outside the chat { #decided-outside-the-chat }
+
+A request put in a chat can also be decided in the console's **Approvals**, in
+the web chat or over the HTTP API. When a person does that and it settles the
+last thing the run waits for, the server continues the run as them and posts the
+answer in the chat it was asked in. The console says so instead of resuming the
+run itself, so the run is continued once. A question works the same way when the
+person it was put to answers it in the console.
+
+A decision made with an API key is recorded and does not continue the run: a run
+a person started is continued only by a person. Over the API, `continues_in_chat`
+tells a client which case it is in (see [Running an agent](api.md#running-an-agent)).
+
+Three endings that happen outside the chat each post one fixed message there, so
+nobody is left waiting on buttons that no longer do anything. The chat's open
+buttons are settled at the same time.
+
+| Ending | The chat is told |
+|---|---|
+| The run expires, after `APPROVAL_EXPIRY_HOURS` for a decision or `QUESTION_EXPIRY_HOURS` for a question | "This request expired without a decision." |
+| Someone presses **Stop** in the console | "This run was stopped from the console." |
+| A run was decided and nothing continued it within about an hour | "A decision was recorded, but the run could not continue." |
+
+The last one is a safety net. It stays quiet in two cases: when the decision is
+more than 7 days old, and when the chat was already told that the run could not
+continue. A chat hears at most one notice each time a run parks.
+
+A button pressed after the request was answered elsewhere replies "That has
+already been answered." and changes nothing.
+
+A continuation can be refused: for example when the chat started over since the
+question, its access policy now refuses the person who asked, the person who
+decided can no longer decide approvals, the bot was removed from the agent, or
+the agent can no longer be built. The chat is told once: "That was decided
+outside the chat, but the run could not continue." **Resume** on the run's page
+still works, within about an hour of the last decision. It runs as before, without the room check, and posts the
+answer only in a chat that still admits the asker. A membership check the
+platform cannot answer does not stop a continuation.
+
+A run parked before 1.29.0 has no chat recorded, so the console continues it as
+it always did. If nobody resumes it within about an hour of its last decision,
+the safety net ends it, without a message.
+
+The worker sends required replies and ending notices from durable jobs saved in
+the same transaction as the result or ending. A restart or transient send failure
+retries delivery up to three times without repeating the agent or approved tools.
+The bot, chat session and access policy are checked again before sending. A
+revoked destination receives nothing. Platforms without send idempotency can
+show a duplicate if a send succeeded but its acknowledgement was lost; this is
+at-least-once delivery, not a promise of exactly-once messages. Exhausted attempts
+are visible in **Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Next steps as buttons { #next-steps-as-buttons }
 

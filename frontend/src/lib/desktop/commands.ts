@@ -362,6 +362,8 @@ export interface LocalTarget {
   browser?: boolean;
   computer?: boolean;
   coding_agent?: "claude_code" | "codex";
+  coding_model?: string | null;
+  coding_effort?: string | null;
   model_service?: string | null;
   mcp_services?: string[];
 }
@@ -542,9 +544,54 @@ export async function getLocalAgents(): Promise<LocalAgent[]> {
   return parseLocalAgents(await invokeShell("local_agents"));
 }
 
-/** Opens the agent's own sign-in in Terminal; the person finishes it there. */
+export interface CodingChoice {
+  value: string;
+  name: string;
+}
+
+export interface CodingModelChoice extends CodingChoice {
+  efforts: CodingChoice[];
+}
+
+export interface LocalCodingOptions {
+  models: CodingModelChoice[];
+  current_model: string | null;
+  current_effort: string | null;
+}
+
+function parseCodingChoice(value: unknown): CodingChoice {
+  const fields = record(value, "a coding agent setting");
+  return { value: field(fields, "value", isString), name: field(fields, "name", isString) };
+}
+
+export function parseLocalCodingOptions(value: unknown): LocalCodingOptions {
+  const fields = record(value, "coding agent settings");
+  const models = fields.models;
+  if (!Array.isArray(models) || models.length === 0 || models.length > 128)
+    throw new ShellError("malformed", "coding model choices");
+  return {
+    current_model: field(fields, "current_model", isStringOrNull),
+    current_effort: field(fields, "current_effort", isStringOrNull),
+    models: models.map((model: unknown) => {
+      const entry = record(model, "a coding model");
+      if (!Array.isArray(entry.efforts) || entry.efforts.length > 16)
+        throw new ShellError("malformed", "coding reasoning choices");
+      return { ...parseCodingChoice(model), efforts: entry.efforts.map(parseCodingChoice) };
+    }),
+  };
+}
+
+export async function getLocalCodingOptions(id: LocalAgent["id"]): Promise<LocalCodingOptions> {
+  return parseLocalCodingOptions(await invokeShell("local_agent_options", { id }));
+}
+
+/** The agent opens browser OAuth; credentials stay with its native process. */
 export async function signInLocalAgent(id: LocalAgent["id"]): Promise<void> {
   await invokeShell("local_agent_sign_in", { id });
+}
+
+export async function prepareLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {
+  return parseLocalAgent(await invokeShell("local_agent_prepare", { id }));
 }
 
 export async function signOutLocalAgent(id: LocalAgent["id"]): Promise<LocalAgent> {

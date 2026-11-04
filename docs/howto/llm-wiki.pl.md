@@ -1,5 +1,5 @@
 ---
-source_sha: "3e585eb46567"
+source_sha: "4d5b6f999378"
 title: "Zbuduj LLM wiki, które prowadzi agent"
 description: "Daj agentowi workspace, który przetrwa między rozmowami, i plik schematu, a potem pozwól mu zamieniać surowe notatki w małe, powiązane wiki w Markdownie."
 ---
@@ -141,4 +141,15 @@ Odpowiadają na różne potrzeby. [Wyszukiwanie w wiedzy](../reference/capabilit
 
 ## Kolejne kroki { #next-steps }
 
-Spróbuj celowo dodać źródło sprzeczne z wcześniejszym i sprawdź, czy krok lint wymieni obie strony, zamiast po cichu wybrać jedną. Dla wiki, które ma czytać i rozwijać kilka osób, porównaj zakres sesji `agent` z daniem każdemu współautorowi własnego agenta przypisanego do wspólnego [pliku kontekstu](../context.md).
+Spróbuj celowo dodać źródło sprzeczne z wcześniejszym i sprawdź, czy krok lint
+wymieni obie strony, zamiast po cichu wybrać jedną.
+
+Dla zespołowego wiki użyj [projektu](../projects.md): wiele agentów współdzieli
+jego pliki i instrukcje zgodnie z uprawnieniami członków. Dla osobistego vaulta
+Desktop połącz zatwierdzony folder lokalny; nie synchronizuje się on ze
+współdzielonymi plikami projektu.
+
+Otwórz [widok grafu](../projects.md#graph-view) w eksploratorze plików, aby zobaczyć
+linki i linki przychodzące. Widok sam odczytuje notatki Markdown; agent utrzymuje
+tylko notatki i ich połączenia, bez generowania HTML App. Odświeżenie grafu nie
+wykonuje kontroli faktów opisanych w tym poradniku.

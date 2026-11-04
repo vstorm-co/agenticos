@@ -1,5 +1,5 @@
 ---
-source_sha: "6bb7a2c20513"
+source_sha: "4f0ee9feecd6"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1697,7 +1697,7 @@ resztę chowa pod **Details**.
 
 Naciśnięcie działa jako osoba, która nacisnęła, przez jej powiązane konto:
 decyzja wymaga `approvals:decide`, a na pytanie może odpowiedzieć tylko osoba,
-której je zadano. Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
+której je zadano. Decyzja podjęta gdzie indziej działa jako osoba, która ją podjęła, także gdy jest to administrator aplikacji ([niżej](#decided-outside-the-chat)). Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
 na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, jak
 wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
 więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
@@ -1715,6 +1715,57 @@ Telegramie i Mattermost. Gdy strona kogoś potrzebuje, logowania albo captchy, k
 zmienia się na *Needs you* i mówi po co, a gdy człowiek trzyma przeglądarkę, podaje,
 kto. Link otwiera konsolę, więc przejęcie wymaga konta w konsoli: osoby, w imieniu
 której działa run, albo kogoś, kto może edytować agenta.
+
+### Rozstrzygnięte poza czatem { #decided-outside-the-chat }
+
+Prośbę zadaną na czacie można też rozstrzygnąć w **Approvals** w konsoli, w czacie
+webowym albo przez API HTTP. Gdy osoba to zrobi i rozstrzygnie ostatnią rzecz, na
+którą run czekał, serwer kontynuuje run jako ona i wysyła odpowiedź na czat, na
+którym padła prośba. Konsola mówi o tym zamiast sama wznawiać run, więc run jest
+kontynuowany raz. Pytanie działa tak samo, gdy osoba, której je zadano, odpowie na
+nie w konsoli.
+
+Decyzja podjęta kluczem API jest zapisywana i nie kontynuuje runa: run rozpoczęty
+przez osobę kontynuuje tylko osoba. Przez API pole `continues_in_chat` mówi
+klientowi, w którym jest przypadku (zob. [Uruchamianie agenta](api.md#running-an-agent)).
+
+Trzy zakończenia, które dzieją się poza czatem, wysyłają tam po jednej stałej
+wiadomości, żeby nikt nie czekał na przyciski, które już nic nie robią. Otwarte
+przyciski czatu są rozliczane w tej samej chwili.
+
+| Zakończenie | Czat dostaje |
+|---|---|
+| Run wygasa, po `APPROVAL_EXPIRY_HOURS` dla decyzji albo `QUESTION_EXPIRY_HOURS` dla pytania | „This request expired without a decision." |
+| Ktoś naciska **Stop** w konsoli | „This run was stopped from the console." |
+| Run został rozstrzygnięty i nic go nie kontynuowało przez około godzinę | „A decision was recorded, but the run could not continue." |
+
+Ostatnie to siatka bezpieczeństwa. Milczy w dwóch przypadkach: gdy decyzja jest
+starsza niż 7 dni oraz gdy czat usłyszał już, że run nie mógł być kontynuowany.
+Czat dostaje najwyżej jedno powiadomienie za każdym razem, gdy run się zaparkuje.
+
+Przycisk naciśnięty po tym, jak prośba została rozstrzygnięta gdzie indziej,
+odpowiada „That has already been answered." i niczego nie zmienia.
+
+Kontynuacja może zostać odrzucona, na przykład gdy czat zaczął się od nowa od
+czasu pytania, jego polityka dostępu odmawia teraz osobie, która pytała, osoba
+rozstrzygająca nie może już rozstrzygać zatwierdzeń, bot został usunięty z agenta
+albo agenta nie da się już zbudować. Czat dostaje wtedy raz: „That was decided
+outside the chat, but the run could not continue." **Resume** na stronie runa nadal
+działa, do około godziny od ostatniej decyzji. Działa jak dawniej, bez sprawdzenia pokoju, i wysyła
+odpowiedź tylko na czat, który nadal wpuszcza pytającego. Sprawdzenie członkostwa,
+na które platforma nie umie odpowiedzieć, nie zatrzymuje kontynuacji.
+
+Run zaparkowany przed 1.29.0 nie ma zapisanego czatu, więc konsola kontynuuje go
+tak jak dawniej. Jeśli nikt go nie wznowi w ciągu około godziny od ostatniej
+decyzji, siatka bezpieczeństwa kończy go bez wiadomości.
+
+Worker wysyła wymagane odpowiedzi i powiadomienia o zakończeniu z trwałych zadań
+zapisanych w tej samej transakcji co wynik lub zakończenie. Restart lub przejściowa
+awaria wysyłki ponawia samą dostawę do trzech razy, bez powtarzania agenta ani
+zatwierdzonych narzędzi. Przed wysyłką ponownie sprawdzane są bot, sesja i dostęp
+do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysyłki
+może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
+Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 

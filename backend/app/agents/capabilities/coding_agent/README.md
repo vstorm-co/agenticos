@@ -111,7 +111,7 @@ chat already draws and a stop reason becoming the outcome.
   app lists it and opens the sign-in in Terminal). The platform never reads or stores that
   credential, so the secret is optional for this setting.
 - **Permissions.** Starting an agent needs the folder's *full access* grant - the adapter runs as
-  the person, which an OS sandbox would break - and a native confirmation on every start. Inside
+  the person, which an OS sandbox would break - and native consent remembered for that agent, folder, adapter version and connection. Revoking the folder stops its running agents and removes its consent. Inside
   a task the agent's `session/request_permission` is answered from the binding's `access`, not
   put to a person one request at a time: a parked run could not keep the session alive, so the
   approval is the capability's, once per task, as in the sandbox.

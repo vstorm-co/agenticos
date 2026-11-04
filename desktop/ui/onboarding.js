@@ -97,6 +97,9 @@ function markSteps(current, failed = false) {
 }
 
 let currentStep = "files";
+document
+  .querySelector("[data-retry-setup]")
+  .addEventListener("click", () => localForm.requestSubmit());
 
 localForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -114,6 +117,7 @@ localForm.addEventListener("submit", async (event) => {
   const progress = document.querySelector('[data-screen="progress"]');
   hideError(progress);
   document.querySelector("[data-progress-actions]").hidden = true;
+  document.querySelector("[data-progress-detail]").hidden = true;
   currentStep = "files";
   markSteps(currentStep);
   show("progress");
@@ -129,14 +133,22 @@ localForm.addEventListener("submit", async (event) => {
 async function start() {
   await listen("docker:download", ({ payload }) => {
     const label = document.querySelector("[data-local-message]");
-    if (payload && typeof payload.received === "number") {
+    if (payload && typeof payload.message === "string") {
+      label.textContent = payload.message;
+    } else if (payload && typeof payload.received === "number") {
       label.textContent =
         payload.total > 0
-          ? `Downloading Docker Desktop… ${Math.min(100, Math.floor((payload.received / payload.total) * 100))}%`
-          : `Downloading Docker Desktop… ${Math.floor(payload.received / 1024 / 1024)} MB`;
+          ? `Preparing AgenticOS… ${Math.min(100, Math.floor((payload.received / payload.total) * 100))}%`
+          : `Preparing AgenticOS… ${Math.floor(payload.received / 1024 / 1024)} MB`;
     }
   });
   await listen("local:progress", ({ payload }) => {
+    if (typeof payload.instance_id === "string")
+      localForm.querySelector("[name=instance-id]").value = payload.instance_id;
+    const detail = document.querySelector("[data-progress-detail]");
+    detail.textContent =
+      typeof payload.detail === "string" ? payload.detail : "";
+    detail.hidden = !detail.textContent;
     currentStep = payload.step;
     markSteps(currentStep);
   });
@@ -145,10 +157,18 @@ async function start() {
     invoke("startup_notice"),
   ]);
   if (state.server_url) serverField.value = state.server_url;
+  if (state.local_setup_pending) {
+    show("local");
+    await checkLocal.prepare();
+    return;
+  }
   // Somebody who has been through it - "Change Server…", or a server that
   // stopped answering - is asked where, not welcomed again.
   if (notice) {
     show(state.deployment === "local" ? "local" : "server");
+    if (state.deployment === "local") {
+      await checkLocal.resume();
+    }
     if (state.deployment !== "local") showError(serverForm, notice);
     return;
   }

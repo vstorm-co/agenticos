@@ -297,6 +297,7 @@ export type WSEventType =
   // Following a turn another socket is writing - the reader came back to a
   // conversation whose agent was still answering (`app/services/live_turn.py`).
   | "turn_attached"
+  | "background_task_turn"
   | "turn_prompt"
   | "presence"
   | "typing"

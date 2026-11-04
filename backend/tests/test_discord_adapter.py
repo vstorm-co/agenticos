@@ -1988,3 +1988,37 @@ class TestServerRoles:
         api.answer("GET", f"/guilds/{GUILD}/roles", httpx.Response(403))
         with pytest.raises(httpx.HTTPStatusError):
             await adapter.servers("tok")
+
+
+class TestChannelServer:
+    async def test_a_server_channel_names_its_server(self, adapter: DiscordAdapter, api: _Discord):
+        api.answer(
+            "GET", f"/channels/{CHANNEL}", httpx.Response(200, json={"type": 0, "guild_id": GUILD})
+        )
+        assert await adapter.channel_server("tok", CHANNEL) == GUILD
+
+    async def test_a_thread_names_the_server_it_lives_in(
+        self, adapter: DiscordAdapter, api: _Discord
+    ):
+        api.answer(
+            "GET",
+            f"/channels/{THREAD}",
+            httpx.Response(200, json={"type": 11, "parent_id": CHANNEL, "guild_id": GUILD}),
+        )
+        assert await adapter.channel_server("tok", THREAD) == GUILD
+
+    async def test_a_direct_message_has_no_server(self, adapter: DiscordAdapter, api: _Discord):
+        api.answer("GET", "/channels/dm", httpx.Response(200, json={"type": 1}))
+        assert await adapter.channel_server("tok", "dm") is None
+
+    @pytest.mark.parametrize("status", [403, 404])
+    async def test_a_channel_the_bot_cannot_see_has_no_server(
+        self, adapter: DiscordAdapter, api: _Discord, status: int
+    ):
+        api.answer("GET", "/channels/gone", httpx.Response(status))
+        assert await adapter.channel_server("tok", "gone") is None
+
+    async def test_a_failing_lookup_raises(self, adapter: DiscordAdapter, api: _Discord):
+        api.answer("GET", "/channels/broken", httpx.Response(500))
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.channel_server("tok", "broken")

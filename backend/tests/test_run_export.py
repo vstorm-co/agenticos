@@ -20,7 +20,7 @@ import pytest
 from app.core.exceptions import ExportTooLargeError, ValidationError
 from app.core.permissions import AuthContext, Scope
 from app.repositories import agent_run_repo
-from app.repositories.agent_run import ApprovalFilters, RunFilters
+from app.repositories.agent_run import ApprovalFilters, ChatAsker, RunFilters
 from app.services import run_export
 from app.services.run_export import MAX_EXPORT_ROWS, RunExportService
 
@@ -331,9 +331,49 @@ class TestApprovalsExport:
             "decided_at": None,
             "note": None,
             "created_at": _WINDOW[0],
+            "asked_in_chat": None,
         }
         row.update(overrides)
         return SimpleNamespace(**row)
+
+    @pytest.mark.security
+    async def test_the_approvals_export_names_the_chat_account_in_its_own_columns(
+        self, monkeypatch
+    ):
+        service = _service(monkeypatch)
+        stranger = self._approval(
+            triggered_by_user_id=None,
+            triggered_by_email=None,
+            asked_in_chat=ChatAsker("slack", "Ana", "Support"),
+        )
+        member = self._approval()
+        monkeypatch.setattr(
+            agent_run_repo, "list_approvals", AsyncMock(return_value=([stranger, member], 2))
+        )
+
+        result = await service.export_approvals(
+            _ctx(Scope.ALL),
+            filters=ApprovalFilters(created_from=_WINDOW[0], created_to=_WINDOW[1]),
+            oldest_first=True,
+        )
+
+        rows = _parsed(result.content)
+        header = rows[0]
+        assert header[:16] == [
+            "approval_id", "run_id", "agent_id", "agent_name", "tool_id", "tool_args",
+            "subagent_name", "subagent_agent_id", "status", "triggered_by_user_id",
+            "triggered_by_email", "decided_by_user_id", "decided_by_email", "decided_at",
+            "note", "created_at",
+        ]  # fmt: skip
+        assert header[16:] == [
+            "asked_in_chat_platform",
+            "asked_in_chat_account",
+            "asked_in_chat_bot",
+        ]
+        assert rows[1][16:] == ["slack", "Ana", "Support"]
+        assert rows[1][header.index("triggered_by_user_id")] == ""
+        assert rows[1][header.index("triggered_by_email")] == ""
+        assert rows[2][16:] == ["", "", ""]
 
     async def test_the_record_exports_with_its_resolved_emails(self, monkeypatch):
         service = _service(monkeypatch)

@@ -47,7 +47,7 @@ from app.schemas.model_profile import (
 )
 from app.services import realtime_models
 from app.services.image_models import image_providers
-from app.services.model_catalog import models_for
+from app.services.model_catalog import CUSTOM_LISTINGS, models_for
 from app.services.model_outputs import stated_outputs
 from app.services.model_profile import provider_catalog, validate_endpoint_url
 from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
@@ -79,6 +79,8 @@ async def list_provider_catalog() -> Any:
             keyless=spec.keyless,
             apis=list(spec.apis),
             native_api=spec.native_api,
+            regions=list(spec.regions),
+            api_from_model=spec.api_from_model,
         )
         for spec in provider_catalog()
     ]
@@ -118,6 +120,7 @@ async def create_model_profile(
         secret_id=data.secret_id,
         base_url=data.base_url,
         api=data.api,
+        region=data.region,
         params=data.params,
         fallback_profile_ids=data.fallback_profile_ids,
     )
@@ -387,35 +390,33 @@ async def list_video_models() -> Any:
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_provider_models(
-    provider: str, secrets: SecretSvc, ctx: Auth, base_url: str | None = None
+    provider: str,
+    secrets: SecretSvc,
+    ctx: Auth,
+    base_url: str | None = None,
+    secret_id: UUID | None = None,
 ) -> Any:
-    """What this provider offers, for the field where a model id is chosen.
-
-    Suggestions, not a constraint - the field stays free text, because a
-    provider ships a model the morning after this was cached. `source` says
-    whether the provider answered or the deployment's own list was used, so the
-    UI can be honest about which it is showing.
-
-    The key comes from the vault, when the listing needs one and the
-    organization has one. Nothing here opens it: the vault service hands back a
-    bearer token for this one outbound request, and providers that publish a
-    public list (OpenRouter) are asked without one.
-
-    `base_url` selects an OpenRouter regional or custom API. It requires
-    connection-management authority, is fetched without any vault credential,
-    and has a separate cache with no global catalog fallback.
-    """
+    """List suggestions; custom authenticated endpoints require a visible selected key."""
     if base_url is not None:
-        if provider != "openrouter":
+        if provider not in CUSTOM_LISTINGS:
             raise refused_field(
-                "base_url", "Only OpenRouter supports a custom model listing endpoint"
+                "base_url", "Only OpenRouter and Stav support a custom model listing endpoint"
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(
                 message="Managing connections is required for a custom endpoint"
             )
         base_url = await validate_endpoint_url(base_url)
-    api_key = None if base_url is not None else await secrets.listing_key(ctx, provider)
+    sends_key = base_url is None or CUSTOM_LISTINGS[provider]
+    if base_url is not None and sends_key and secret_id is None:
+        raise refused_field("secret_id", "Choose a vault key before listing this endpoint")
+    api_key = (
+        await secrets.listing_key(ctx, provider, secret_id=secret_id)
+        if sends_key and secret_id is not None
+        else await secrets.listing_key(ctx, provider)
+        if sends_key
+        else None
+    )
     models, source = await models_for(provider, api_key=api_key, base_url=base_url)
     return ProviderModelList(
         items=[
@@ -424,6 +425,7 @@ async def list_provider_models(
                 name=entry.name,
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
+                apis=[api for api in ("chat", "responses") if api in entry.surfaces],
                 chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models

@@ -333,3 +333,23 @@ it("reads optional shared directory identity while accepting older desktop respo
   invoke.mockResolvedValue([{ ...skill, shared_id: 42 }]);
   await expect(commands.getLocalSkills(["agents"])).rejects.toThrow("malformed");
 });
+
+it("reads bounded coding models with per-model reasoning choices", async () => {
+  const options = {
+    current_model: "fast",
+    current_effort: "low",
+    models: [{ value: "fast", name: "Fast", efforts: [{ value: "low", name: "Low" }] }],
+  };
+  invoke.mockResolvedValue(options);
+  await expect(commands.getLocalCodingOptions("codex")).resolves.toEqual(options);
+  expect(invoke).toHaveBeenLastCalledWith("local_agent_options", { id: "codex" });
+  for (const invalid of [
+    null,
+    {},
+    { ...options, models: [] },
+    { ...options, models: [{ ...options.models[0], efforts: false }] },
+    { ...options, models: [{ value: 2, name: "Bad", efforts: [] }] },
+  ]) {
+    expect(() => commands.parseLocalCodingOptions(invalid)).toThrow("malformed");
+  }
+});

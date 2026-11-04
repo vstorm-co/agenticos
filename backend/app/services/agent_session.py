@@ -4,6 +4,7 @@ import contextlib
 import logging
 import time
 from collections.abc import Mapping
+from contextlib import AsyncExitStack
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
@@ -198,6 +199,7 @@ class AgentSession:
         organization: Organization,
         auth_token: str | None = None,
     ) -> None:
+        self._admission_stack: AsyncExitStack | None = None
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
@@ -452,7 +454,30 @@ class AgentSession:
     async def _run_turn(self, data: dict[str, Any]) -> None:
         """Run one turn, emitting a terminal `complete` even when stopped."""
         try:
-            await self.process_message(data)
+            async with AsyncExitStack() as admission:
+                self._admission_stack = admission
+                raw_id = data.get("conversation_id", self.current_conversation_id)
+                if isinstance(raw_id, str):
+                    try:
+                        conversation_id = UUID(raw_id)
+                    except ValueError:
+                        conversation_id = None
+                    if conversation_id is not None:
+                        from app.services.conversation_turns import claim
+
+                        async with get_db_context() as db:
+                            await ConversationService(db).get_conversation(
+                                conversation_id,
+                                organization_id=self.organization_id,
+                                user_id=self.user.id,
+                                for_write=True,
+                                turn=True,
+                                include_favourite=False,
+                            )
+                        await admission.enter_async_context(
+                            claim(conversation_id, background=False)
+                        )
+                await self.process_message(data)
         except asyncio.CancelledError:
             await self._emit(
                 "complete",
@@ -462,7 +487,10 @@ class AgentSession:
                 },
             )
             raise
+        except AppException as exc:
+            await self._emit("error", {"message": exc.message})
         finally:
+            self._admission_stack = None
             # `complete` precedes persistence/trace cleanup. Free the slot before
             # inviting another prompt, so receiving this frame is an admission guarantee.
             self._turn_task = None
@@ -614,6 +642,16 @@ class AgentSession:
             await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
+        if (
+            prompt.newly_created
+            and self.current_conversation_id
+            and self._admission_stack is not None
+        ):
+            from app.services.conversation_turns import claim
+
+            await self._admission_stack.enter_async_context(
+                claim(UUID(self.current_conversation_id), background=False)
+            )
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets

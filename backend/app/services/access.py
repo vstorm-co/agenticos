@@ -283,6 +283,32 @@ async def member_context(
     )
 
 
+async def decider_context(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> AuthContext | None:
+    """`user_id` as their own request was, for work done on their behalf afterwards.
+
+    Rebuilt the way `get_auth_context` builds a console request's context: the
+    user must exist and be active, the membership is read with `member_repo.get`
+    (not `get_active`, which the request does not use), and an app admin who is no
+    member is still accepted, with no role - they hold every permission anyway.
+    `None` when none of that holds. A continuation a person's decision started
+    runs as exactly who made it, no more and no less.
+    """
+    user = await user_repo.get_by_id(db, user_id)
+    if user is None or not user.is_active:
+        return None
+    membership = await member_repo.get(db, organization_id=organization_id, user_id=user_id)
+    if membership is None and not user.is_app_admin:
+        return None
+    return AuthContext(
+        user_id=user_id,
+        organization_id=organization_id,
+        role=membership.role if membership else "",
+        is_app_admin=user.is_app_admin,
+    )
+
+
 async def acting_member(
     db: AsyncSession, organization_id: UUID | None, user_id: str | None
 ) -> AuthContext | None:

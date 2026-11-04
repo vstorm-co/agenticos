@@ -6,7 +6,9 @@ from pydantic import Field
 
 from app.schemas.base import BaseSchema
 
-MentionKind = Literal["mcp", "capability", "agent", "collection", "skill", "context"]
+MentionKind = Literal[
+    "mcp", "capability", "agent", "collection", "skill", "context", "conversation"
+]
 
 
 class MentionRef(BaseSchema):
@@ -19,7 +21,7 @@ class MentionRef(BaseSchema):
         description=(
             "The thing's id: a connection or agent id, `inline:<name>` for an inline "
             "specialist, a capability id, a collection, skill or context file id, a "
-            "catalog key for a person's own MCP account, or `platform`"
+            "catalog key for a person's own MCP account, a conversation id, or `platform`"
         ),
     )
 

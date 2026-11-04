@@ -88,11 +88,10 @@ pub fn install_panic_hook(app: &AppHandle) {
 
 async fn report(app: &AppHandle) -> Value {
     let settings = crate::settings::current(app);
-    let agents: Vec<Value> = crate::local_agents::local_agents()
-        .await
-        .into_iter()
-        .map(|agent| agent.summary())
-        .collect();
+    let agents = match crate::local_agents::local_agents(app.clone()).await {
+        Ok(agents) => json!(agents.into_iter().map(|agent| agent.summary()).collect::<Vec<_>>()),
+        Err(_) => json!({"error": "Coding agent status could not be checked."}),
+    };
     let readiness = crate::readiness::desktop_readiness(app.clone())
         .await
         .map_or_else(|error| json!({ "error": error }), |state| json!(state));
@@ -113,6 +112,7 @@ async fn report(app: &AppHandle) -> Value {
         "server": settings.server_url.as_ref().map(origin_of),
         "permissions": readiness,
         "coding_agents": agents,
+        "last_local_runtime_failure": crate::local_stack::diagnostic(),
         "last_crashes": crash,
         "note": "Holds no credentials, tokens, conversations or home-folder paths.",
     })

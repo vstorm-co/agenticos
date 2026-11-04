@@ -8,8 +8,8 @@
 //!
 //! The adapter runs as the person: an agent has to reach its own configuration
 //! and the network, which an OS sandbox for a folder would refuse. So starting
-//! one needs the folder's **full access** grant, a native confirmation on every
-//! start, and nothing else in this module widens what the folder grant says.
+//! one needs the folder's **full access** grant and remembered native consent
+//! for this agent, folder, adapter version and connection.
 //! What the agent does inside is gated by its own permission requests, which
 //! the server shows as approvals in the chat.
 
@@ -40,6 +40,7 @@ fn package(agent: AgentId) -> &'static str {
 }
 
 const MAX_SESSIONS: usize = 4;
+static CONFIRMING: Mutex<()> = Mutex::const_new(());
 /// One ACP message; larger ones are an attack or a bug, not a conversation.
 const MAX_LINE: usize = 4 << 20;
 /// What a session keeps for a caller that has not polled yet.
@@ -118,6 +119,7 @@ struct Session {
     kill: Option<oneshot::Sender<()>>,
     resume_key: Option<ResumeKey>,
     opening_call: Option<String>,
+    workspace_root: Option<std::path::PathBuf>,
 }
 
 /// Every running agent, by the id the server uses.
@@ -157,6 +159,9 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
     command
         .args(args)
         .current_dir(cwd)
+        // The adapter must use the same managed CLI that supplied its options.
+        .env_remove("CLAUDE_CODE_EXECUTABLE")
+        .env_remove("CODEX_PATH")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -231,6 +236,7 @@ fn spawn(program: &Path, args: &[String], cwd: &Path, path_env: Option<String>) 
         kill: Some(kill),
         resume_key: None,
         opening_call: None,
+        workspace_root: None,
     })
 }
 
@@ -286,6 +292,29 @@ struct SessionArgs {
     id: String,
 }
 
+/// Native approval is separate from the folder grant: adapters run unsandboxed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct Consent {
+    root: String,
+    connection: String,
+    agent: AgentId,
+    adapter: String,
+}
+
+impl Consent {
+    fn new(root: &Path, connection: &str, agent: AgentId) -> Self {
+        Self {
+            root: root.to_string_lossy().into_owned(),
+            connection: connection.to_owned(),
+            agent,
+            adapter: package(agent).to_owned(),
+        }
+    }
+    pub fn is_for_folder(&self, root: &str) -> bool {
+        self.root == root
+    }
+}
+
 async fn confirm(app: &AppHandle, agent: AgentId, root: &Path) -> bool {
     let name = crate::local_agents::name(agent);
     let (answered, answer) = oneshot::channel();
@@ -293,13 +322,15 @@ async fn confirm(app: &AppHandle, agent: AgentId, root: &Path) -> bool {
         .message(format!(
             "{name} starts in {} and runs as your account, without an operating-system sandbox. \
              It can reach other files and the network as your account can. AgenticOS applies \
-             the task's read-only or editing policy to the agent's tools. Confirm only a task you trust.",
+             the task's read-only or editing policy to the agent's tools. \
+             Remember this permission for this agent and folder on the current connection. \
+             Remove the folder in Settings to revoke it. Tool approvals and macOS permissions still apply.",
             root.display()
         ))
         .title(format!("Let {name} work on this computer?"))
         .kind(MessageDialogKind::Warning)
         .buttons(MessageDialogButtons::OkCancelCustom(
-            "Allow".into(),
+            "Allow for this folder".into(),
             "Don't allow".into(),
         ))
         .show(move |allowed| {
@@ -312,8 +343,8 @@ fn bad(error: serde_json::Error) -> Refusal {
     Refusal::new("denied", format!("The request was not understood: {error}"))
 }
 
-/// The directory of `program`, put first on `PATH`, so an adapter launched by
-/// `npx` finds the `node` installed beside it even when the app was started
+/// The directory of `program`, put first on `PATH`, so child tools find the
+/// private `node` even when the app was started
 /// from Finder and inherited no shell `PATH`.
 fn path_with(program: &Path) -> Option<String> {
     let dir = program.parent()?;
@@ -334,25 +365,32 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
     let root = local_work::granted_folder(app, &root, Mode::FullAccess)?;
     let sessions = app.state::<Sessions>();
     let slot = sessions.reserve().await?;
-    let npx = crate::local_agents::locate("npx").ok_or_else(|| {
-        Refusal::new(
-            "denied",
-            "Node.js is not installed, and the agent adapter needs it. Install Node.js 22 or later.",
-        )
-    })?;
-    if !confirm(app, agent, &root).await {
-        return Err(Refusal::new("denied", "You did not allow the agent to start."));
+    let confirmation = CONFIRMING.lock().await;
+    let before = crate::settings::current(app);
+    let consent = Consent::new(&root, &before.connection_revision, agent);
+    if !before.coding_consents.contains(&consent) {
+        if !confirm(app, agent, &root).await {
+            return Err(Refusal::new("denied", "You did not allow the agent to start."));
+        }
+        local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
+        crate::settings::update(app, |settings| {
+            if settings.connection_revision != consent.connection {
+                return false;
+            }
+            if !settings.coding_consents.contains(&consent) {
+                settings.coding_consents.push(consent.clone());
+            }
+            true
+        })
+        .map_err(|error| Refusal::new("io", error))?
+        .1
+        .then_some(())
+        .ok_or_else(|| Refusal::new("denied", "The connection changed. Start the agent again."))?;
     }
-    // npx runs from a folder of the app's own: it reads the `.npmrc` of its working
-    // directory, and a repository's `.npmrc` could name a registry that answers the
-    // pinned package's name with its own code. The agent still works in `root`, which
-    // ACP's `session/new` names.
-    let runtime = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| Refusal::new("io", e.to_string()))?
-        .join("agent-runtime");
-    std::fs::create_dir_all(&runtime).map_err(|e| Refusal::new("io", e.to_string()))?;
+    drop(confirmation);
+    let runtime = crate::coding_runtime::prepare(app)
+        .await
+        .map_err(|error| Refusal::new("io", error))?;
     let settings = crate::settings::current(app);
     let key = resume_key
         .filter(|key| key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit()))
@@ -373,14 +411,18 @@ async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Resu
                 .map(|item| item.session_id.clone())
         })
     };
+    if crate::settings::current(app).connection_revision != before.connection_revision {
+        return Err(Refusal::new("denied", "The connection changed. Start the agent again."));
+    }
     // The person can revoke or narrow the grant while the launch dialog is open.
     local_work::granted_folder(app, &root.to_string_lossy(), Mode::FullAccess)?;
     let mut session = spawn(
-        &npx,
-        &["--yes".into(), package(agent).into()],
-        &runtime,
-        path_with(&npx),
+        &runtime.node,
+        &[runtime.adapter(agent).to_string_lossy().into_owned()],
+        &runtime.directory,
+        path_with(&runtime.node),
     )?;
+    session.workspace_root = Some(root);
     session.resume_key = key;
     session.opening_call = Some(call_id.to_owned());
     let id = uuid::Uuid::new_v4().simple().to_string();
@@ -500,6 +542,24 @@ pub async fn cancel_call(app: &AppHandle, call_id: &str) {
 fn remove_opened_by(map: &mut HashMap<String, Session>, call_id: &str) {
     map.retain(|_, session| {
         if session.opening_call.as_deref() != Some(call_id) {
+            return true;
+        }
+        if let Some(kill) = session.kill.take() {
+            let _ = kill.send(());
+        }
+        false
+    });
+}
+
+/// Folder revocation ends agents that are already running there.
+pub async fn close_for_folder(app: &AppHandle, root: &str) {
+    let sessions = app.state::<Sessions>();
+    remove_for_folder(&mut *sessions.map.lock().await, Path::new(root));
+}
+
+fn remove_for_folder(map: &mut HashMap<String, Session>, root: &Path) {
+    map.retain(|_, session| {
+        if session.workspace_root.as_deref() != Some(root) {
             return true;
         }
         if let Some(kill) = session.kill.take() {
@@ -678,11 +738,56 @@ mod tests {
         assert!(sessions.reserve().await.is_err());
     }
 
+    #[tokio::test]
+    async fn revoking_one_folder_stops_only_its_agents() {
+        let mut removed = shell("sleep 60");
+        removed.workspace_root = Some("/revoked".into());
+        let stopped = Arc::clone(&removed.output);
+        let mut retained = shell("sleep 60");
+        retained.workspace_root = Some("/other".into());
+        let mut sessions = HashMap::from([("removed".into(), removed), ("retained".into(), retained)]);
+        remove_for_folder(&mut sessions, Path::new("/revoked"));
+        assert!(!sessions.contains_key("removed"));
+        assert!(sessions.contains_key("retained"));
+        let (_, _, exit) = drain(&stopped, 0).await;
+        assert!(exit.is_some());
+        sessions
+            .get_mut("retained")
+            .unwrap()
+            .kill
+            .take()
+            .unwrap()
+            .send(())
+            .unwrap();
+    }
+
+    #[test]
+    fn remembered_permission_is_scoped_and_survives_serialization() {
+        let consent = Consent::new(Path::new("/work"), "account-1", AgentId::ClaudeCode);
+        let restored: Consent = serde_json::from_str(&serde_json::to_string(&consent).unwrap()).unwrap();
+        assert_eq!(consent, restored);
+        for other in [
+            Consent::new(Path::new("/other"), "account-1", AgentId::ClaudeCode),
+            Consent::new(Path::new("/work"), "account-2", AgentId::ClaudeCode),
+            Consent::new(Path::new("/work"), "account-1", AgentId::Codex),
+            Consent {
+                adapter: "changed-version".into(),
+                ..consent.clone()
+            },
+        ] {
+            assert_ne!(consent, other);
+        }
+        assert!(consent.is_for_folder("/work"));
+        assert!(!consent.is_for_folder("/other"));
+    }
+
     #[test]
     fn the_adapters_are_pinned_to_an_exact_version() {
         for agent in [AgentId::ClaudeCode, AgentId::Codex] {
             let name = package(agent);
-            let version = name.rsplit_once('@').expect("a version").1;
+            let (package, version) = name.rsplit_once('@').expect("a version");
+            let manifest: Value = serde_json::from_str(include_str!("../../runtime/package.json")).unwrap();
+            assert_eq!(manifest["dependencies"][package], version);
             assert!(
                 version.split('.').count() == 3 && version.chars().all(|c| c.is_ascii_digit() || c == '.'),
                 "{name}"

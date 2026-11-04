@@ -142,6 +142,39 @@ describe("PendingApproval - a call from an MCP server", () => {
     expect(screen.getByText("For ada@acme.test")).toBeInTheDocument();
   });
 
+  it("names the chat account, unverified, instead of the publisher's email", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          triggered_by_email: null,
+          asked_in_chat: { platform: "slack", name: "Ana", bot_name: "Support" },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Asked in Slack by Ana (unverified), through Support"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^For /)).toBeNull();
+  });
+
+  it("leaves the bot out when its binding is gone", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          triggered_by_email: null,
+          asked_in_chat: { platform: "telegram", name: "@ana", bot_name: null },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Asked in Telegram by @ana (unverified)")).toBeInTheDocument();
+  });
+
   it("says which account the call acts as, where it names one", () => {
     inIntl(
       <PendingApproval
@@ -174,6 +207,33 @@ describe("DecidedApproval - a line of the record", () => {
   ] as const)("marks one %s as %s", (status, label) => {
     inIntl(<DecidedApproval approval={approval({ status })} onOpenRun={vi.fn()} />);
     expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("names the chat account, unverified, instead of the publisher's email", () => {
+    inIntl(
+      <DecidedApproval
+        approval={approval({
+          status: "approved",
+          triggered_by_email: null,
+          asked_in_chat: { platform: "slack", name: "Ana", bot_name: "Support" },
+        })}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Asked in Slack by Ana (unverified), through Support"),
+    ).toBeInTheDocument();
+  });
+
+  it("still says who it was for when a member asked", () => {
+    inIntl(
+      <DecidedApproval
+        approval={approval({ status: "approved", triggered_by_email: "ada@acme.test" })}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("For ada@acme.test")).toBeInTheDocument();
+    expect(screen.queryByText(/Asked in/)).toBeNull();
   });
 
   it("keeps the account on the record", () => {
