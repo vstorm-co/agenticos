@@ -836,6 +836,7 @@ class TestListing:
         awaiting = await service.awaiting(ctx)
 
         assert [item.id for item in everything] == [on_fork.id, on_main.id]
+        assert {item.created_by.id for item in everything if item.created_by} == {ctx.user_id}
         assert [item.id for item in main] == [on_main.id]
         assert [item.id for item in forked] == [on_fork.id]
         assert [(item.id, item.skill_name, item.line_name) for item in awaiting] == [

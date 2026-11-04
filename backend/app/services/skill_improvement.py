@@ -2194,6 +2194,9 @@ class SkillImprovementService:
             None if base is None else SkillVersionRef(id=base.id, number=base.number)
         )
         result.agents, result.hidden_agents = visible, hidden
+        if run.created_by_user_id is not None:
+            people = await self.versions.people(ctx, [run.created_by_user_id])
+            result.created_by = people.get(run.created_by_user_id)
         result.iterations = [
             SkillImprovementIterationRead.model_validate(item) for item in iterations
         ]

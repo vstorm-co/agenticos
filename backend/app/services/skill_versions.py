@@ -261,7 +261,7 @@ class SkillVersionService:
             raise NotFoundError(message="Fork not found", details={"fork_id": fork_id})
         return fork
 
-    async def _people(
+    async def people(
         self, ctx: AuthContext, user_ids: Sequence[UUID | None]
     ) -> dict[UUID, PersonRef]:
         """Who made what, for a caller who may read the member directory. Somebody who
@@ -299,7 +299,7 @@ class SkillVersionService:
             | {version.merged_from_id for version in versions if version.merged_from_id},
             organization_id=ctx.organization_id,
         )
-        people = await self._people(ctx, [version.created_by_user_id for version in versions])
+        people = await self.people(ctx, [version.created_by_user_id for version in versions])
         by_version, _ = await self._counts(skill)
         return [
             SkillVersionSummary(
@@ -533,7 +533,7 @@ class SkillVersionService:
         served = await skill_version_repo.forks_served_since(
             self.db, organization_id=ctx.organization_id, fork_ids=ids, since=now - ARCHIVE_AFTER
         )
-        people = await self._people(ctx, [fork.created_by_user_id for fork in forks])
+        people = await self.people(ctx, [fork.created_by_user_id for fork in forks])
         _, by_fork = await self._counts(skill)
         behind = changes_since(
             await skill_version_repo.main_digests(

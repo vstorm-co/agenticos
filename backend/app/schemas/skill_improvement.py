@@ -39,7 +39,7 @@ from app.schemas.skill_check import (
     SkillCheckFork,
     SkillCheckRead,
 )
-from app.schemas.skill_version import ReturnedToMain, SkillForkRead
+from app.schemas.skill_version import PersonRef, ReturnedToMain, SkillForkRead
 
 
 class SkillLine(BaseSchema):
@@ -212,6 +212,10 @@ class SkillImprovementRead(BaseSchema):
     line_name: str = ""
     base_version: SkillVersionRef | None = None
     created_by_user_id: UUID | None
+    created_by: PersonRef | None = Field(
+        default=None,
+        description="Who started it, for a caller who may read the member directory",
+    )
     status: ImprovementStatus
     stage: ImprovementStage | None
     iteration: int
