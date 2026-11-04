@@ -1,5 +1,5 @@
 ---
-source_sha: "fa7b95ac7503"
+source_sha: "70fdd78d5294"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1649,6 +1649,15 @@ acceso, duplicados y límite de frecuencia que cualquier otro.
 8. Pasa la app de Meta al modo **Live**. Meta no envía todos los webhooks a una app
    en modo Development, así que un bot puede parecer conectado y seguir callado.
 
+**Varios números en una misma app de Meta.** Una app de Meta tiene una sola callback
+URL, sirva los números que sirva. Registra un bot para cada número, cada uno con el
+app secret de la app, y pega en la app la callback URL de cualquiera de ellos. Cada
+mensaje llega al bot registrado para su número, y solo cuando el propio app secret de
+ese bot verifica la entrega. Mantén activo el bot cuya URL pegaste: una entrega a un
+bot desactivado se descarta. Si falla el registro de los clientes de un bot, falla
+toda la entrega y Meta la reintenta para todos los números. Para que un número tenga
+su propia URL, usa la sustitución de callback por número de Meta.
+
 **Cada POST se comprueba antes de leerse.** Meta firma cada entrega; la firma se
 compara con el app secret sobre los bytes en crudo antes de analizar o guardar nada,
 y una petición que no la supera recibe un 401. Un bot sin app secret rechaza todos
@@ -1722,9 +1731,10 @@ estar fuera de la ventana se toma como la última palabra.
 **utility** cuyo cuerpo tenga exactamente una variable, con texto fijo antes y
 después, por ejemplo `Aquí está la respuesta a tu mensaje anterior: {{1}} Escríbenos
 aquí si necesitas algo más.` Espera a que Meta la apruebe y elígela en **Late-answer
-template** (plantilla de respuesta tardía) al añadir el bot o al editarlo. La consola
-solo lista las plantillas que sirven: aprobadas, utility, con una variable en el
-cuerpo y nada más que varíe.
+template** (plantilla de respuesta tardía) al editar el bot. La consola solo lista
+las plantillas que sirven: aprobadas, utility, con una variable en el cuerpo, nada
+más que varíe y como mucho un botón de respuesta rápida. Pulsar ese botón después de
+que llegue su respuesta no cuenta como un mensaje nuevo.
 
 **Qué hace una respuesta tardía:**
 
@@ -1737,11 +1747,21 @@ cuerpo y nada más que varíe.
 - Una aprobación o una pregunta también espera al cliente. Se ofrece de nuevo cuando
   su siguiente mensaje ya se ha respondido, y mientras tanto se puede decidir en la
   consola.
+- Un aviso de que una solicitud caducó, se detuvo o no pudo continuar también sale
+  dentro de la plantilla. Sin plantilla, espera y sale cuando el cliente vuelve a
+  escribir.
 
 **Sin plantilla, o con una que Meta rechaza,** no se envía nada. El run sigue
 esperando el siguiente mensaje del cliente, la página del run dice «Not delivered» y
 por qué, y la lista de bots avisa de que el bot no tiene plantilla de respuesta
 tardía.
+
+**Antes de que se cierre la ventana.** Cuando el run de un cliente sigue esperando
+una aprobación 20 horas después de su último mensaje, el bot le envía un mensaje
+breve diciendo que la respuesta tardará un poco más, con un botón **Keep me posted**.
+Pulsarlo, o cualquier respuesta, vuelve a abrir la ventana, así que la respuesta
+puede llegar como un mensaje normal. El bot responde a la pulsación con un breve
+agradecimiento y no la pasa al agente. Cada ventana recibe como mucho un mensaje así.
 
 ### Lo que cuesta { #what-it-costs }
 

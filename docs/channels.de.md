@@ -1,5 +1,5 @@
 ---
-source_sha: "fa7b95ac7503"
+source_sha: "70fdd78d5294"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1741,6 +1741,16 @@ dieselben Zugriffs-, Duplikat- und Rate-Limit-Prüfungen wie jede andere.
    Webhook an eine App im Modus Development, sodass ein Bot verbunden aussehen und
    trotzdem stumm bleiben kann.
 
+**Mehrere Nummern in einer Meta-App.** Eine Meta-App hat eine Callback-URL, egal
+wie viele Nummern sie bedient. Registrieren Sie für jede Nummer einen Bot, jeden mit
+dem App Secret der App, und fügen Sie die Callback-URL eines beliebigen davon in die
+App ein. Jede Nachricht erreicht den Bot, der für ihre Nummer registriert ist, und
+nur, wenn das eigene App Secret dieses Bots die Zustellung bestätigt. Lassen Sie den
+Bot, dessen URL Sie eingefügt haben, aktiv: Eine Zustellung an einen deaktivierten
+Bot wird verworfen. Schlägt das Speichern der Kunden eines Bots fehl, schlägt die
+ganze Zustellung fehl, und Meta wiederholt sie für alle Nummern. Wenn eine Nummer
+eine eigene URL haben soll, nutzen Sie Metas Callback-Override pro Nummer.
+
 **Jeder POST wird geprüft, bevor er gelesen wird.** Meta signiert jede Zustellung;
 die Signatur wird über die rohen Bytes mit dem App Secret verglichen, bevor
 irgendetwas geparst oder gespeichert wird, und eine Anfrage, die das nicht besteht,
@@ -1819,8 +1829,10 @@ als das letzte Wort.
 danach, zum Beispiel `Hier ist die Antwort auf deine frühere Nachricht: {{1}} Schreib
 uns hier, wenn du noch etwas brauchst.` Warte, bis Meta sie freigibt, und wähle sie
 dann unter **Late-answer template** (Vorlage für späte Antworten), wenn du den Bot
-hinzufügst oder bearbeitest. Die Konsole listet nur Vorlagen, die taugen: freigegeben,
-Utility, eine Variable im Text und sonst nichts Veränderliches.
+bearbeitest. Die Konsole listet nur Vorlagen, die taugen: freigegeben, Utility, eine
+Variable im Text, sonst nichts Veränderliches und höchstens ein Quick-Reply-Button.
+Ein Tipp auf diesen Button, nachdem seine Antwort angekommen ist, gilt nicht als neue
+Nachricht.
 
 **Was eine späte Antwort tut:**
 
@@ -1833,10 +1845,21 @@ Utility, eine Variable im Text und sonst nichts Veränderliches.
 - Auch eine Freigabe oder eine Frage wartet auf den Kunden. Sie wird erneut angeboten,
   nachdem seine nächste Nachricht beantwortet ist, und bleibt bis dahin in der Konsole
   entscheidbar.
+- Ein Hinweis, dass eine Anfrage abgelaufen ist, gestoppt wurde oder nicht
+  weitergehen konnte, geht ebenfalls in der Vorlage hinaus. Ohne Vorlage wartet er und
+  geht hinaus, wenn der Kunde das nächste Mal schreibt.
 
 **Ohne Vorlage oder mit einer, die Meta ablehnt,** wird nichts gesendet. Der Run wartet
 weiter auf die nächste Nachricht des Kunden, die Run-Seite nennt „Not delivered“ samt
 Grund, und die Bot-Liste warnt, dass der Bot keine Vorlage für späte Antworten hat.
+
+**Bevor sich das Fenster schließt.** Wartet der Run eines Kunden 20 Stunden nach
+dessen letzter Nachricht noch auf eine Freigabe, schickt ihm der Bot eine kurze
+Nachricht, dass die Antwort etwas länger dauert, mit einem Button **Keep me posted**.
+Ein Tipp darauf oder jede Antwort öffnet das Fenster wieder, sodass die Antwort als
+gewöhnliche Nachricht ankommen kann. Auf den Tipp antwortet der Bot mit einem kurzen
+Dank und gibt ihn nicht an den Agenten weiter. Ein Fenster bekommt höchstens eine
+solche Nachricht.
 
 ### Was es kostet { #what-it-costs }
 

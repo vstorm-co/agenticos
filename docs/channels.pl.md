@@ -1,5 +1,5 @@
 ---
-source_sha: "fa7b95ac7503"
+source_sha: "70fdd78d5294"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1619,6 +1619,16 @@ inna.
    do aplikacji w trybie Development, więc bot może wyglądać na podłączonego i
    milczeć.
 
+**Kilka numerów w jednej aplikacji Mety.** Aplikacja Mety ma jeden callback URL,
+niezależnie od tego, ile numerów obsługuje. Zarejestruj bota dla każdego numeru,
+każdego z app secret tej aplikacji, i wklej do aplikacji callback URL dowolnego z
+nich. Każda wiadomość trafia do bota zarejestrowanego dla jej numeru, i tylko wtedy,
+gdy app secret tego bota potwierdza podpis dostawy. Bot, którego URL wkleiłeś, musi
+pozostać aktywny: dostawa do wyłączonego bota jest odrzucana. Jeśli zapisanie
+klientów jednego bota się nie uda, nie udaje się cała dostawa i Meta ponawia ją dla
+wszystkich numerów. Aby dać numerowi własny URL, użyj nadpisania callbacku dla
+numeru w Mecie.
+
 **Każdy POST jest sprawdzany, zanim ktokolwiek go przeczyta.** Meta podpisuje
 każde dostarczenie; podpis jest porównywany z app secretem na surowych bajtach,
 zanim cokolwiek zostanie sparsowane lub zapisane, a żądanie, które go nie
@@ -1690,9 +1700,11 @@ powodu okna uznaje za rozstrzygającą.
 **utility**, którego treść ma dokładnie jedną zmienną, ze stałym tekstem przed nią i
 po niej, na przykład `Oto odpowiedź na Twoją wcześniejszą wiadomość: {{1}} Napisz tu,
 jeśli potrzebujesz czegoś jeszcze.` Poczekaj na zatwierdzenie przez Meta, a potem
-wybierz go w polu **Late-answer template** (szablon późnej odpowiedzi), dodając bota
-albo edytując go. Konsola pokazuje tylko szablony, które się nadają: zatwierdzone,
-utility, z jedną zmienną w treści i bez niczego innego, co się zmienia.
+wybierz go w polu **Late-answer template** (szablon późnej odpowiedzi), edytując
+bota. Konsola pokazuje tylko szablony, które się nadają: zatwierdzone, utility, z
+jedną zmienną w treści, bez niczego innego, co się zmienia, i z co najwyżej jednym
+przyciskiem szybkiej odpowiedzi. Kliknięcie go po nadejściu odpowiedzi nie jest
+traktowane jako nowa wiadomość.
 
 **Co robi późna odpowiedź:**
 
@@ -1704,10 +1716,19 @@ utility, z jedną zmienną w treści i bez niczego innego, co się zmienia.
   najstarszej.
 - Zatwierdzenie albo pytanie też czeka na klienta. Wraca po odpowiedzi na jego
   następną wiadomość i do tego czasu można o nim zdecydować w konsoli.
+- Komunikat, że prośba wygasła, została zatrzymana albo nie mogła być kontynuowana,
+  też wychodzi w szablonie. Bez szablonu czeka i wychodzi, gdy klient napisze.
 
 **Bez szablonu albo z szablonem odrzuconym przez Meta** nic nie jest wysyłane. Run
 nadal czeka na następną wiadomość klienta, strona runa pisze „Not delivered” i
 dlaczego, a lista botów ostrzega, że bot nie ma szablonu późnej odpowiedzi.
+
+**Zanim okno się zamknie.** Gdy run klienta nadal czeka na zatwierdzenie 20 godzin
+po jego ostatniej wiadomości, bot wysyła mu jedną krótką wiadomość, że odpowiedź
+potrwa trochę dłużej, z przyciskiem **Keep me posted**. Kliknięcie albo dowolna
+odpowiedź ponownie otwiera okno, więc odpowiedź może przyjść jako zwykła wiadomość.
+Na kliknięcie bot odpowiada krótkim podziękowaniem i nie przekazuje go agentowi.
+Jedno okno dostaje co najwyżej jedną taką wiadomość.
 
 ### Ile to kosztuje { #what-it-costs }
 

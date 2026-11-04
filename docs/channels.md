@@ -1572,6 +1572,15 @@ duplicate and rate-limit checks as any other.
 8. Put the Meta app in **Live** mode. Meta does not send every webhook to an app in
    Development mode, so a bot can look connected and stay silent.
 
+**Several numbers on one Meta app.** A Meta app has one callback URL however many
+numbers it serves. Register a bot for each number, each with the app's secret, and
+paste any one of their callback URLs into the app. Each message reaches the bot
+registered for its number, and only when that bot's own app secret verifies the
+delivery. Keep the bot whose URL you pasted active: a delivery to a disabled bot is
+dropped. If recording one bot's customers fails, the whole delivery fails and Meta
+retries it for every number. To give a number a URL of its own, use Meta's
+per-number callback override.
+
 **Every POST is checked before it is read.** Meta signs each delivery; the
 signature is compared against the app secret over the raw bytes before anything
 is parsed or stored, and a request that fails is a 401. A bot with no app secret
@@ -1639,8 +1648,10 @@ is taken as the final word.
 whose body has exactly one variable, with fixed text before and after it, for example
 `Here is the answer to your earlier message: {{1}} Reply here if you need anything
 else.` Wait for Meta to approve it, then pick it under **Late-answer template** when
-you add the bot or edit it. The console lists only templates that qualify: approved,
-utility, and one variable in the body with nothing else that varies.
+you edit the bot. The console lists only templates that qualify: approved, utility,
+one variable in the body with nothing else that varies, and at most one quick-reply
+button. A tap on that button after its answer has arrived is not taken as a new
+message.
 
 **What a late answer does:**
 
@@ -1651,10 +1662,19 @@ utility, and one variable in the body with nothing else that varies.
 - Several late answers for one customer all wait, and go out oldest first.
 - An approval or a question waits for the customer too. It is offered again after
   their next message has been answered, and stays decidable in the console meanwhile.
+- A notice that a request expired, was stopped or could not continue goes in the
+  template too. Without one, it waits and goes out when the customer next writes.
 
 **With no template, or one Meta refuses,** nothing is sent. The run still waits for
 the customer's next message, the run page says "Not delivered" and why, and the
 bots list warns that the bot has no late-answer template.
+
+**Before the window closes.** When a customer's run is still waiting for an approval
+20 hours after their last message, the bot sends them one short message saying the
+answer is taking a little longer, with a **Keep me posted** button. A tap, or any
+reply, reopens the window, so the answer can arrive as an ordinary message. The tap
+is answered with a short thanks and is not passed to the agent. A window gets at
+most one such message.
 
 ### What it costs
 

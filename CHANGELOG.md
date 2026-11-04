@@ -41,7 +41,13 @@ Two things are versioned separately from this file and worth knowing about:
   on the bot. One that does not fit goes as a short preview, and the full answer
   follows when the customer writes again. Without a template nothing is sent, and
   the run page says why. Each late answer is a charged template message on a real
-  number.
+  number. A late-answer template may carry at most one quick-reply button, so
+  templates with more are no longer offered. A notice that a run expired, was
+  stopped or could not continue waits the same way. When a customer's run is still
+  waiting for an approval 20 hours after their last message, the bot sends one
+  "Keep me posted" message whose tap reopens the window. Several numbers on one Meta
+  app can share its callback URL: each message reaches the bot registered for its
+  number, and only when that bot's own app secret verifies the delivery.
 - A decision or an answer made in the console, the web chat or over a session API now continues a run asked in a chat, as the person who made it, and posts the answer in that chat. A key's decision is recorded and does not continue the run. (#2656)
 - `continues_in_chat` on approvals, on a run's single read and on the result of a resume or an answer. It is true when the server continues the run in its chat. (#2656)
 - A console **Stop**, an expiry and a decided run that nothing continued each tell the chat once, in one fixed message. (#2656)

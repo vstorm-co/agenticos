@@ -17,7 +17,7 @@ agent pipeline as the web chat.
 | `mattermost.py` | Mattermost |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
-| `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py`, `whatsapp_window.py`, `whatsapp_templates.py`, `whatsapp_customers.py`, `whatsapp_inbound.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list); the 24-hour window: the customer record the webhook keeps, late answers in the bot's utility template or held until the customer writes |
+| `whatsapp.py`, `whatsapp_payload.py`, `whatsapp_format.py`, `whatsapp_graph.py`, `whatsapp_window.py`, `whatsapp_templates.py`, `whatsapp_customers.py`, `whatsapp_inbound.py`, `whatsapp_nudge.py` | WhatsApp over Meta's Cloud API (#2076): HMAC-verified webhook batches grouped per customer, Markdown converted and split to 4096 UTF-16 units, the Graph client (a refused token marks the bot down in the console list); the 24-hour window: the customer record the webhook keeps, late answers and fixed chat notices in the bot's utility template or held until the customer writes, and a one-button nudge before the window closes on a run awaiting approval |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
 | `mentions.py` | `@slug` resolution, and the identity rules below |
 
@@ -102,7 +102,9 @@ makes the *other* modes refuse in a channel too (#639).
 - **WhatsApp is push only too** - Meta's `X-Hub-Signature-256` is checked over the raw body
   with the app secret (`verify_signature`), never skipped for a bot without one. A
   customer is a business-scoped user id, never a phone number, and the number is
-  never logged.
+  never logged. One Meta app has one callback URL for all its numbers, so
+  `WhatsAppInbound.route_others` hands a change for another number to the active
+  bot registered for it, and only when that bot's own app secret verifies the body.
 
 ## Adding an adapter
 
