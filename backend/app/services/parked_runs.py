@@ -14,9 +14,9 @@ because the audit lock is the last one a transaction takes.
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator
@@ -123,7 +123,7 @@ class ParkedRunService:
         )
 
     async def answer(
-        self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
+        self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[dict[str, JsonValue]]]
     ) -> Continued:
         """Answer a parked run's questions, inline; post to its chat when it has one."""
         return await self._continue(
