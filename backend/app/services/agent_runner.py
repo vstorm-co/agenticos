@@ -2316,20 +2316,36 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
-def _with_channel_mcp_approval(
+def _with_channel_service_approval(
     spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
 ) -> AgentSpec:
     """Require approval for channel writes, preserving an operator's stricter policy.
 
     Linked senders use web chat's read-only classification. An unlinked room
-    participant still needs approval for every MCP call; no member vouched for
-    releasing organization data to them. An explicit `all` still includes reads.
+    participant needs approval for every MCP or Mirage call; no member vouched
+    for releasing organization data to them. An explicit `all` still includes reads.
     This also applies to delegates and resumed runs through the shared factory.
     """
     if surface not in _CHANNEL_SURFACES:
         return spec
     return spec.model_copy(
         update={
+            "capabilities": [
+                binding.model_copy(
+                    update={
+                        "approval": "required",
+                        "tool_approval": {
+                            **binding.tool_approval,
+                            **dict.fromkeys(
+                                capability_def(MIRAGE_CAPABILITY_ID).tool_ids, "required"
+                            ),
+                        },
+                    }
+                )
+                if not linked_sender and binding.id == MIRAGE_CAPABILITY_ID
+                else binding
+                for binding in spec.capabilities
+            ],
             "mcp_servers": [
                 ref.model_copy(
                     update={
@@ -2339,7 +2355,7 @@ def _with_channel_mcp_approval(
                     }
                 )
                 for ref in spec.mcp_servers
-            ]
+            ],
         }
     )
 
@@ -3584,7 +3600,7 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
-        spec = _with_channel_mcp_approval(
+        spec = _with_channel_service_approval(
             spec, surface, linked_sender=personal_mcp_user_id is not None
         )
         # Whether a signed-in person is behind this run even where a personal
@@ -4848,7 +4864,7 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        runnable = _with_channel_mcp_approval(
+        runnable = _with_channel_service_approval(
             runnable, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
         )
         model = await self.models.resolve(

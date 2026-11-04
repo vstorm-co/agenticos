@@ -97,3 +97,10 @@ network work belongs to mounted services or the platform’s web capabilities.
 Qdrant and Langfuse are compatible with the current dependency lock. Qdrant is
 file-oriented here: its optional embedding callback and cloud inference switches
 are hidden, so terminal commands cannot start unmetered model calls.
+
+MongoDB and GridFS connect directly to one allowlisted `mongodb://` authority.
+The platform forces `directConnection=true`; SRV and replica-set discovery are
+not available because discovered hosts would bypass the exact-host allowlist.
+Unlinked channel senders need approval for all terminal tools, including reads.
+Organization-account consent rechecks the initiator’s current permissions before
+exchanging the provider code.

@@ -19,7 +19,7 @@ publish cannot read.
 import logging
 import re
 from collections.abc import Mapping, Sequence
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 from uuid import UUID
 
 import httpx
@@ -150,6 +150,8 @@ class MirageMountService:
                     raise _Unmountable(f"its {field} secret is no longer in the vault.")
                 options[field] = secret.api_key
         _check_hosts(info, options)
+        if info.name in {"mongodb", "gridfs"}:
+            options["uri"] = _direct_mongo(options["uri"])
         return [_resolved(mount, info, options, info.title)]
 
     async def _google(
@@ -272,6 +274,22 @@ def hosts_of(value: str) -> tuple[str, ...]:
         return tuple(hosts)
     except ValueError:
         return ()
+
+
+def _direct_mongo(value: MountValue) -> SecretStr:
+    if not isinstance(value, SecretStr):
+        raise _Unmountable("its MongoDB URI is not a vault credential.")
+    uri = value.get_secret_value()
+    parsed = urlsplit(uri)
+    if parsed.scheme != "mongodb" or len(hosts_of(uri)) != 1:
+        raise _Unmountable("MongoDB requires one mongodb:// host; automatic discovery is disabled.")
+    query = [
+        (key, item)
+        for key, item in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.lower() != "directconnection"
+    ]
+    query.append(("directConnection", "true"))
+    return SecretStr(parsed._replace(query=urlencode(query)).geturl())
 
 
 def address_fields(info: BackendInfo, options: Mapping[str, object]) -> tuple[str, ...]:

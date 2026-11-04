@@ -105,7 +105,7 @@ from app.schemas.mcp_connection import (
 from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
-from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
+from app.services.access import MCP_CONNECTION, accessible_ids, decider_context, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.notifications import NotificationService
@@ -2073,16 +2073,29 @@ class McpConnectionService:
             raise OAuthError("This authorization session is no longer valid - start again.")
         if _now_epoch() - payload.started_at > mcp_oauth.FLOW_TTL_SECS:
             raise OAuthError("This authorization session has expired - start again.")
-        if connection.purpose == "account" and (
-            browser_nonce is None
-            or payload.browser_nonce_digest is None
-            or not secrets.compare_digest(
-                payload.browser_nonce_digest, hashlib.sha256(browser_nonce.encode()).hexdigest()
-            )
-            or acting_user_id is None
-            or acting_user_id != payload.account_initiator_id
-        ):
-            raise OAuthError("Complete account consent in the browser and account that started it.")
+        if connection.purpose == "account":
+            if (
+                browser_nonce is None
+                or payload.browser_nonce_digest is None
+                or not secrets.compare_digest(
+                    payload.browser_nonce_digest, hashlib.sha256(browser_nonce.encode()).hexdigest()
+                )
+                or acting_user_id is None
+                or acting_user_id != payload.account_initiator_id
+            ):
+                raise OAuthError(
+                    "Complete account consent in the browser and account that started it."
+                )
+            if connection.scope == "org":
+                authority = await decider_context(
+                    self.db,
+                    organization_id=connection_scope(connection).subject_id,
+                    user_id=acting_user_id,
+                )
+                if authority is None or not authority.has(Perm.MCP_MANAGE):
+                    raise OAuthError(
+                        "Your organization access changed; start account consent again."
+                    )
         if payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
         elif payload.provider in {google_oauth.PROVIDER, microsoft_oauth.PROVIDER}:

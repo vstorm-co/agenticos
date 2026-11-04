@@ -458,7 +458,10 @@ async def test_every_database_seed_host_needs_permission(ctx, vault, accounts, m
     assert not refused.mounts
     monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["allowed.internal", "private.internal"])
     accepted = await _resolve(ctx, config)
-    assert len(accepted.mounts) == 1 and not accepted.notes
+    if scheme == "postgresql":
+        assert len(accepted.mounts) == 1 and not accepted.notes
+    else:
+        assert not accepted.mounts and "automatic discovery is disabled" in accepted.notes[0]
 
 
 @pytest.mark.parametrize(
@@ -566,3 +569,60 @@ async def test_mongodb_structured_options_reach_the_actual_backend(
     mounted = terminal.mounts[0].build()
     assert isinstance(mounted.vfs, MongoDBVFS)
     assert mounted.vfs.config.elide_fields == fields
+
+
+@pytest.mark.parametrize("backend_name", ["mongodb", "gridfs"])
+async def test_mongo_mounts_force_direct_connections(
+    ctx, vault, accounts, monkeypatch, backend_name
+):
+    from pymongo import AsyncMongoClient
+
+    vault[DSN] = ApiKeySecret(
+        api_key="mongodb://u:p@db.acme.internal/database?directConnection=false&replicaSet=rs"
+    )
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["db.acme.internal"])
+    terminal = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/db/",
+                "backend": backend_name,
+                "secrets": {"uri": str(DSN)},
+                "options": {"database": "database"} if backend_name == "gridfs" else {},
+            }
+        ),
+    )
+    assert len(terminal.mounts) == 1
+    uri = terminal.mounts[0].config["uri"]
+    assert isinstance(uri, SecretStr)
+    client: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(
+        uri.get_secret_value(), connect=False
+    )
+    try:
+        assert client.options.direct_connection is True
+    finally:
+        await client.close()
+
+
+async def test_mongo_srv_discovery_cannot_expand_an_allowed_seed(ctx, vault, accounts, monkeypatch):
+    vault[DSN] = ApiKeySecret(api_key="mongodb+srv://u:p@seed.acme.internal/database")
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["seed.acme.internal"])
+    terminal = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/db/",
+                "backend": "mongodb",
+                "secrets": {"uri": str(DSN)},
+            }
+        ),
+    )
+    assert not terminal.mounts
+    assert terminal.notes == (
+        "/db/ is not mounted: MongoDB requires one mongodb:// host; automatic discovery is disabled.",
+    )
+
+
+def test_a_direct_mongo_target_must_be_a_sealed_vault_value() -> None:
+    with pytest.raises(mirage_mounts._Unmountable, match="not a vault credential"):
+        mirage_mounts._direct_mongo("mongodb://not-a-resolved-secret/db")

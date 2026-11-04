@@ -1,5 +1,5 @@
 ---
-source_sha: "409f6dd66fd3"
+source_sha: "55cebe056435"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1342,7 +1342,7 @@ El consentimiento debe terminar en el mismo navegador y con la misma cuenta
 iniciadora de AgenticOS.
 
 
-Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL o MongoDB debe figurar en la lista permitida del despliegue.
+Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL debe figurar en la lista permitida del despliegue. MongoDB y GridFS requieren un único host `mongodb://`: la plataforma fuerza `directConnection=true` y rechaza el descubrimiento SRV. Los remitentes de canales sin cuenta vinculada necesitan aprobación para cada herramienta Mirage, incluso las lecturas; al vincular la cuenta se aplica la política habitual de carpetas del autor.
 
 ## Gráficos { #charts }
 

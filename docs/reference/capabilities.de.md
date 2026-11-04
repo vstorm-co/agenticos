@@ -1,5 +1,5 @@
 ---
-source_sha: "409f6dd66fd3"
+source_sha: "55cebe056435"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1397,7 +1397,7 @@ Die Kontoverknüpfung muss im selben Browser und mit derselben angemeldeten
 Identität abgeschlossen werden, mit der sie begonnen wurde.
 
 
-Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL- oder MongoDB-Seed-Liste muss auf der Allowlist des Deployments stehen.
+Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
 
 ## Diagramme { #charts }
 

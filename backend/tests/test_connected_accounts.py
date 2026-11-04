@@ -452,3 +452,37 @@ async def test_reconnecting_an_unreadable_old_key_rekeys_the_preserved_account(r
     )
     assert recovered.refresh_token is not None
     assert recovered.refresh_token.get_secret_value() == "replacement-refresh-token"
+
+
+@pytest.mark.parametrize("role", [None, "viewer", "owner"])
+async def test_org_consent_rechecks_current_authority_before_exchanging_a_code(
+    repo, monkeypatch, role
+):
+    org = uuid4()
+    pending = _account(scope="org", user_id=None, organization_id=org, oauth_state="state")
+    pending.oauth_pending_payload = _sealed(
+        pending, _payload(access_token=None, refresh_token=None)
+    )
+    repo.get_by_oauth_state = AsyncMock(return_value=pending)
+    context = (
+        None if role is None else AuthContext(user_id=INITIATOR, organization_id=org, role=role)
+    )
+    authority = AsyncMock(return_value=context)
+    monkeypatch.setattr(service_module, "decider_context", authority)
+    exchange = AsyncMock(return_value=(_payload(), [google_oauth.DRIVE]))
+    monkeypatch.setattr(service_module, "_complete_google_flow", exchange)
+    monkeypatch.setattr(McpConnectionService, "_name_account", AsyncMock(return_value=pending))
+    if role == "owner":
+        await McpConnectionService(AsyncMock()).oauth_callback(
+            state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+        )
+        exchange.assert_awaited_once()
+    else:
+        with pytest.raises(service_module.OAuthError, match="organization access changed"):
+            await McpConnectionService(AsyncMock()).oauth_callback(
+                state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+            )
+        exchange.assert_not_awaited()
+        repo.update.assert_not_awaited()
+    assert authority.await_count == 1
+    assert authority.await_args.kwargs == {"organization_id": org, "user_id": INITIATOR}

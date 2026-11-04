@@ -1,5 +1,5 @@
 ---
-source_sha: "409f6dd66fd3"
+source_sha: "55cebe056435"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1315,7 +1315,7 @@ Zgodę na połączenie konta należy dokończyć w tej samej przeglądarce i na 
 zalogowanym koncie, na którym ją rozpoczęto.
 
 
-Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL lub MongoDB musi znajdować się na liście dozwolonych hostów deploymentu.
+Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Nadawca z kanału bez połączonego konta wymaga zgody na każde narzędzie Mirage, także odczyt; połączenie konta przywraca zwykłe zasady folderów ustalone przez autora.
 
 ## Wykresy { #charts }
 
