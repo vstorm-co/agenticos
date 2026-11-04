@@ -25,6 +25,7 @@ import re
 from typing import Any
 from uuid import UUID
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import CapabilityToolInfo
@@ -388,7 +389,7 @@ class AgentExposureService:
             target_id=str(agent_id),
             # The values, not just the keys. "Somebody changed the binding" is not
             # an audit entry anyone can act on a month later.
-            details={"exposure_id": str(exposure.id), "changes": changes},
+            details={"exposure_id": str(exposure.id), "changes": jsonable_encoder(changes)},
         )
         return updated
 

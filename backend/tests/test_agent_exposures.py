@@ -7,6 +7,7 @@ covers, a second binding racing a unique constraint, and an exposure id borrowed
 from another agent in the same organization.
 """
 
+import json
 import uuid
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -471,6 +472,31 @@ class TestChangingABinding:
                 await service.update(
                     _ctx(), agent.id, exposure.id, ExposureUpdate(environment_id=uuid.uuid4())
                 )
+
+    async def test_an_environment_change_is_recorded_in_a_form_the_audit_can_store(self):
+        """The audit keeps the values as JSON, and an environment id is a UUID."""
+        agent = _agent()
+        service = _service(agent)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+        environment = MagicMock(agent_id=agent.id)
+        audit = AsyncMock()
+
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.agent_environment_repo") as environments,
+            patch("app.services.agent_exposure.record_audit", new=audit),
+        ):
+            exposures.get = AsyncMock(return_value=exposure)
+            exposures.update = AsyncMock(return_value=exposure)
+            environments.get = AsyncMock(return_value=environment)
+            target = uuid.uuid4()
+
+            await service.update(
+                _ctx(), agent.id, exposure.id, ExposureUpdate(environment_id=target)
+            )
+
+        details = audit.await_args.kwargs["details"]
+        assert json.loads(json.dumps(details))["changes"] == {"environment_id": str(target)}
 
     async def test_an_explicit_null_returns_the_binding_to_the_default(self):
         """`environment_id: null` is a statement, not an omission - the bot
