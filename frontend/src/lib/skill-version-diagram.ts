@@ -26,7 +26,6 @@ export type DiagramBox =
       fork: SkillFork | null;
       number: number;
       latest: boolean;
-      /** The line's newest number. */
       newest: number;
       agents: SkillAgentUsage[];
     }
