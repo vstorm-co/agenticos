@@ -10,7 +10,14 @@ from pydantic import Field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    DelegationMode,
+    SpecialistSpec,
+    StarterIcons,
+    StarterTitles,
+)
 from app.core.secret_kinds import SecretRequirement
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import AudienceChoice
@@ -259,6 +266,14 @@ class AgentRead(BaseSchema):
             "off the frozen spec, not the draft. Empty for a draft agent and for one "
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
+    )
+    starter_titles: StarterTitles = Field(
+        default_factory=dict,
+        description="Published opener card titles keyed by starter text; the message is their description.",
+    )
+    starter_icons: StarterIcons = Field(
+        default_factory=dict,
+        description="Published chat opener icons keyed by starter text; never taken from the draft.",
     )
     created_at: datetime | None = None
     updated_at: datetime | None = None

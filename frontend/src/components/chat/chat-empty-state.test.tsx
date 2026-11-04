@@ -64,6 +64,25 @@ describe("ChatEmptyState", () => {
     expect(screen.queryByText("Set up a routine")).toBeNull();
   });
 
+  it("renders the published opener icon without changing the message it sends", async () => {
+    env.agents = [
+      {
+        ...AGENT,
+        starters: ["Draft my email"],
+        starter_icons: { "Draft my email": "mail" },
+        starter_titles: { "Draft my email": "Write email" },
+      },
+    ];
+    const onPick = vi.fn();
+    render(<ChatEmptyState onPick={onPick} />);
+    const card = screen.getByRole("button", { name: /Write email\s*Draft my email/ });
+    expect(screen.getByText("Write email")).toBeInTheDocument();
+    expect(screen.getByText("Draft my email")).toBeInTheDocument();
+    expect(card.querySelector(".lucide-mail")).not.toBeNull();
+    await userEvent.click(card);
+    expect(onPick).toHaveBeenCalledWith("Draft my email");
+  });
+
   it("keeps the person's first messages and suggestions to the starter agent", () => {
     env.personal = ["Show my pipeline"];
     render(<ChatEmptyState onPick={vi.fn()} />);

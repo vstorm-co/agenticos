@@ -93,6 +93,24 @@ Starter = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200
 is dropped by `AgentSpec` rather than refused - the Builder saves as it is typed,
 and a starter cleared to retype it is not an invalid draft."""
 
+StarterIcon = Literal[
+    "message",
+    "compass",
+    "search",
+    "calendar",
+    "mail",
+    "code",
+    "chart",
+    "file",
+    "lightbulb",
+    "check",
+    "globe",
+    "sparkles",
+]
+StarterIcons = Annotated[dict[Starter, StarterIcon], Field(max_length=MAX_STARTERS)]
+StarterTitle = Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)]
+StarterTitles = Annotated[dict[Starter, StarterTitle], Field(max_length=MAX_STARTERS)]
+
 ApprovalMode = Literal["default", "required", "never"]
 
 # What a run's traces are allowed to carry. `full` is the default so nothing
@@ -1449,6 +1467,24 @@ class AgentSpec(BaseModel):
         description=(
             "First messages the chat offers whoever opens this agent with nothing "
             "said yet - one click sends one. Up to four; none shows the chat's own"
+        ),
+    )
+    starter_titles: StarterTitles = Field(
+        default_factory=dict,
+        description=(
+            "Optional short titles for chat opener cards, keyed by the exact trimmed "
+            "starter text. With a title, the starter message is shown underneath as the "
+            "description and is still the exact message sent on click. Without a title, "
+            "existing starters keep their message-only presentation."
+        ),
+    )
+    starter_icons: StarterIcons = Field(
+        default_factory=dict,
+        description=(
+            "Optional chat opener icons, keyed by the exact trimmed text in starters. "
+            "Missing entries use the message icon. Entries without a matching starter "
+            "are not displayed. Keys follow starter text limits; at most four entries. "
+            "Stored and published with the spec, including YAML export."
         ),
     )
     time_zone: str = Field(

@@ -1004,7 +1004,11 @@
     "modelRegionHint": "Where Stav.ai may run this model's requests. It answers only from endpoints in the region and refuses a request it cannot serve there.",
     "modelRegionEu": "EU only",
     "modelRegionEea": "EEA only",
-    "modelRegionGlobal": "Global"
+    "modelRegionGlobal": "Global",
+    "starterIcon": "Icon for first message {number}",
+    "starterTitle": "Title of first message {number}",
+    "starterTitlePlaceholder": "Short title (optional)",
+    "starterMessageLabel": "Message shown below the title and sent on click"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -13185,5 +13189,19 @@
     "stop": "Stop",
     "noHistory": "No background work yet",
     "historyDescription": "Completed tasks and their results will appear here."
+  },
+  "starterIcons": {
+    "message": "Message",
+    "compass": "Compass",
+    "search": "Search",
+    "calendar": "Calendar",
+    "mail": "Email",
+    "code": "Code",
+    "chart": "Chart",
+    "file": "Document",
+    "lightbulb": "Idea",
+    "check": "Checklist",
+    "globe": "Web",
+    "sparkles": "Sparkles"
   }
 }

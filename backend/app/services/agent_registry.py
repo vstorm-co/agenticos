@@ -1313,6 +1313,8 @@ class AgentRegistryService:
         version_ids = [agent.current_version_id for agent in agents if agent.current_version_id]
         budget_caps = await agent_repo.published_budget_caps(self.db, version_ids=version_ids)
         starters = await agent_repo.published_starters(self.db, version_ids=version_ids)
+        starter_icons = await agent_repo.published_starter_icons(self.db, version_ids=version_ids)
+        starter_titles = await agent_repo.published_starter_titles(self.db, version_ids=version_ids)
         published_capabilities = await agent_repo.published_capabilities(
             self.db, version_ids=version_ids
         )
@@ -1373,6 +1375,16 @@ class AgentRegistryService:
                 ),
                 starters=(
                     starters.get(agent.current_version_id, []) if agent.current_version_id else []
+                ),
+                starter_titles=(
+                    starter_titles.get(agent.current_version_id, {})
+                    if agent.current_version_id
+                    else {}
+                ),
+                starter_icons=(
+                    starter_icons.get(agent.current_version_id, {})
+                    if agent.current_version_id
+                    else {}
                 ),
                 created_at=agent.created_at,
                 updated_at=agent.updated_at,

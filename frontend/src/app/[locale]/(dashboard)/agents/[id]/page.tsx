@@ -1498,8 +1498,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
             <StartersPanel
               starters={spec.starters ?? []}
+              icons={spec.starter_icons ?? {}}
+              titles={spec.starter_titles ?? {}}
               disabled={!canEdit}
-              onChange={(starters) => update({ starters })}
+              onChange={(starters, starter_icons, starter_titles) =>
+                update({ starters, starter_icons, starter_titles })
+              }
             />
 
             {/* The model, then how it is asked: one card, apart from the

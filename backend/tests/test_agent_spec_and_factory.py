@@ -249,6 +249,32 @@ class TestStarters:
     def test_a_spec_written_before_them_has_none(self):
         assert AgentSpec.model_validate({"name": "Support"}).starters == []
 
+    def test_old_specs_need_no_icons_and_new_icons_round_trip(self) -> None:
+        assert (
+            AgentSpec.model_validate({"name": "Support", "starters": ["Help"]}).starter_icons == {}
+        )
+        spec = AgentSpec(
+            name="Support",
+            starters=["Help"],
+            starter_icons={"Help": "compass"},
+            starter_titles={"Help": "Get help"},
+        )
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+        assert spec.model_dump()["starter_icons"] == {"Help": "compass"}
+
+    def test_title_metadata_is_optional_bounded_and_trimmed(self) -> None:
+        assert AgentSpec(name="Support").starter_titles == {}
+        assert AgentSpec(
+            name="Support", starter_titles={"Help": "  Get help  "}
+        ).starter_titles == {"Help": "Get help"}
+        with pytest.raises(ValidationError):
+            AgentSpec(name="Support", starter_titles={"Help": "x" * 81})
+
+    @pytest.mark.parametrize("icons", [{"Help": "unknown"}, {str(i): "mail" for i in range(5)}])
+    def test_invalid_or_unbounded_icon_metadata_is_refused(self, icons: dict[str, str]) -> None:
+        with pytest.raises(ValidationError):
+            AgentSpec.model_validate({"name": "Support", "starter_icons": icons})
+
     def test_a_blank_one_is_dropped_and_the_rest_trimmed(self):
         """The Builder saves as it is typed; a starter cleared to retype it is not an error."""
         spec = AgentSpec(name="Support", starters=["  What can you do?  ", "", "   "])

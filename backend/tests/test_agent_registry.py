@@ -497,6 +497,14 @@ class TestList:
         with (
             patch(f"{REGISTRY_PATH}.agent_repo.published_starters", new=AsyncMock(return_value={})),
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_icons",
+                new=AsyncMock(return_value={}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities", new=AsyncMock(return_value={})
             ),
             patch(
@@ -544,6 +552,16 @@ class TestList:
                 new=AsyncMock(return_value={version_id: ["What can you do?"]}),
             ) as starters,
             patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_titles",
+                new=AsyncMock(
+                    return_value={version_id: {"What can you do?": "Explore possibilities"}}
+                ),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.agent_repo.published_starter_icons",
+                new=AsyncMock(return_value={version_id: {"What can you do?": "compass"}}),
+            ),
+            patch(
                 f"{REGISTRY_PATH}.agent_repo.published_capabilities",
                 new=AsyncMock(return_value={version_id: ["sandbox", "computer_use"]}),
             ),
@@ -561,6 +579,10 @@ class TestList:
         assert starters.call_args.kwargs["version_ids"] == [version_id]
         assert rows[0].starters == ["What can you do?"]
         assert rows[1].starters == []
+        assert rows[0].starter_icons == {"What can you do?": "compass"}
+        assert rows[1].starter_icons == {}
+        assert rows[0].starter_titles == {"What can you do?": "Explore possibilities"}
+        assert rows[1].starter_titles == {}
         assert rows[0].published_capabilities == ["sandbox", "computer_use"]
         assert rows[1].published_capabilities == []
 

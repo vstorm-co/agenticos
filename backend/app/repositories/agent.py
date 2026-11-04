@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.agents.spec import CapabilityBindingSpec
+from app.agents.spec import CapabilityBindingSpec, StarterIcon, StarterIcons, StarterTitles
 from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -328,6 +328,42 @@ async def published_starters(
         )
     )
     return {row[0]: [str(item) for item in row[1]] for row in result.all()}
+
+
+_STARTER_ICONS = TypeAdapter(StarterIcons)
+
+
+async def published_starter_icons(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, dict[str, StarterIcon]]:
+    """Chat opener icons from frozen versions; pre-icon versions have no entry."""
+    if not version_ids:
+        return {}
+    icons = AgentVersion.spec["starter_icons"]
+    result = await db.execute(
+        select(AgentVersion.id, icons).where(
+            AgentVersion.id.in_(list(version_ids)), icons.isnot(None)
+        )
+    )
+    return {row[0]: _STARTER_ICONS.validate_python(row[1]) for row in result.all()}
+
+
+_STARTER_TITLES = TypeAdapter(StarterTitles)
+
+
+async def published_starter_titles(
+    db: AsyncSession, *, version_ids: Sequence[UUID]
+) -> dict[UUID, dict[str, str]]:
+    """Card titles from frozen versions, independently of the current draft."""
+    if not version_ids:
+        return {}
+    titles = AgentVersion.spec["starter_titles"]
+    result = await db.execute(
+        select(AgentVersion.id, titles).where(
+            AgentVersion.id.in_(list(version_ids)), titles.isnot(None)
+        )
+    )
+    return {row[0]: _STARTER_TITLES.validate_python(row[1]) for row in result.all()}
 
 
 _CAPABILITY_BINDINGS = TypeAdapter(list[CapabilityBindingSpec])

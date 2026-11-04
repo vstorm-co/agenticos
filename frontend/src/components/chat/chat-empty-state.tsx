@@ -7,7 +7,6 @@ import {
   FileSearch,
   Mail,
   MapPinned,
-  MessageSquare,
   Plane,
   Sparkles,
   Table2,
@@ -15,6 +14,7 @@ import {
 
 import { useTranslations } from "next-intl";
 
+import { STARTER_ICONS } from "@/lib/starter-icons";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
 import { useMentionables } from "@/hooks/use-mentionables";
@@ -99,10 +99,10 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
   const suggestions: WelcomeSuggestion[] = starters.length
     ? starters.map((starter, index) => ({
         key: `starter-${index}`,
-        icon: MessageSquare,
-        title: starter,
+        icon: STARTER_ICONS[agent?.starter_icons?.[starter] ?? "message"],
+        title: agent?.starter_titles?.[starter]?.trim() || starter,
         prompt: starter,
-        description: "",
+        description: agent?.starter_titles?.[starter]?.trim() ? starter : "",
       }))
     : (draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
         key: p.id,

@@ -8673,7 +8673,11 @@
     "stavEndpointHint": "Zostaw puste dla api.stav.ai. Ustaw tylko dla regionalnego lub testowego endpointu Stav.ai.",
     "otariEndpointHint": "Podaj adres bramki zakończony /api/v1, zanim pobierzesz modele. Hosting: https://api.otari.ai/api/v1. UE: https://eu.api.otari.ai/api/v1.",
     "loadGatewayModels": "Pobierz modele",
-    "modelIdOtariHint": "Użyj provider:model albo aliasu/polityki routingu zdefiniowanej w Twojej bramce Otari."
+    "modelIdOtariHint": "Użyj provider:model albo aliasu/polityki routingu zdefiniowanej w Twojej bramce Otari.",
+    "starterIcon": "Ikona propozycji {number}",
+    "starterTitle": "Tytuł propozycji {number}",
+    "starterTitlePlaceholder": "Krótki tytuł (opcjonalny)",
+    "starterMessageLabel": "Wiadomość widoczna pod tytułem i wysyłana po kliknięciu"
   },
   "steps": {
     "skills-gallery": {
@@ -12960,5 +12964,19 @@
     "stop": "Zatrzymaj",
     "noHistory": "Brak historii pracy w tle",
     "historyDescription": "Tutaj pojawią się ukończone zadania i ich wyniki."
+  },
+  "starterIcons": {
+    "message": "Wiadomość",
+    "compass": "Kompas",
+    "search": "Szukaj",
+    "calendar": "Kalendarz",
+    "mail": "E-mail",
+    "code": "Kod",
+    "chart": "Wykres",
+    "file": "Dokument",
+    "lightbulb": "Pomysł",
+    "check": "Lista zadań",
+    "globe": "Internet",
+    "sparkles": "Iskry"
   }
 }

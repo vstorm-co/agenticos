@@ -85,16 +85,18 @@ export function ChatWelcome({
         </p>
       </div>
 
-      <div className={cn("grid", compact ? "mt-4 gap-1.5" : "mt-6 gap-2 sm:grid-cols-2")}>
+      <div
+        className={cn("grid auto-rows-fr", compact ? "mt-4 gap-1.5" : "mt-6 gap-2 sm:grid-cols-2")}
+      >
         {suggestions.map((suggestion) => (
-          <div key={suggestion.key} className="relative">
+          <div key={suggestion.key} className="relative h-full">
             <button
               type="button"
               onClick={() => onPick(suggestion.prompt)}
               // A filled card rather than a hairline box: four outlines on a
               // blank page read as a form to fill in, not as places to start.
               className={cn(
-                "group bg-muted/60 hover:bg-muted focus-visible:ring-ring flex w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
+                "group bg-muted/60 hover:bg-muted focus-visible:ring-ring flex h-full w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
                 compact ? "px-3 py-2.5" : "px-3 py-3",
               )}
             >
