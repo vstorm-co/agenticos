@@ -1,5 +1,5 @@
 ---
-source_sha: "a0dffce17e83"
+source_sha: "2ff962c2e301"
 ---
 
 # Sandbox { #the-sandbox }
@@ -623,6 +623,34 @@ bajty są kolumną wiersza, który zestawienie już odczytało.
 Panel **Files** w czacie i własna lista plików workspace'u rysują kafle tak samo
 jak **All files**: pierwsze linie zapisanego pliku tekstowego, a obraz jako
 miniaturę w tym samym limicie.
+
+### Pobieranie folderu jako zip { #downloading-a-folder-as-a-zip }
+
+Panel **Files** w czacie ma **Pobierz jako .zip** dla całego workspace'u oraz
+przycisk pobierania przy każdym folderze. Oba wywołują
+`GET /api/v1/conversations/{id}/workspace/archive?path=<folder>` (pusty `path` to
+cały workspace), autoryzowane tak samo jak `/workspace/raw`: przez odczyt
+rozmowy. Osoba, której udostępniono czat, może więc pobrać jego folder, a nikt
+inny nie może.
+
+Zip zawiera to, co pokazuje panel. Prefiksy i foldery narzędzi wymienione wyżej
+(`.git`, `node_modules`, `.venv`, ...) są pomijane. Lista dla zipa sięga 64
+poziomów w głąb, a nie sześciu, bo repozytorium jest głębsze niż strona kafli.
+Pliki leżą pod jednym folderem głównym nazwanym jak pobierany folder.
+
+Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` plikami albo większy niż
+`WORKSPACE_ARCHIVE_MAX_BYTES`, albo taki, którego host nie wylistował w całości,
+jest odrzucany z kodem 413; zip, w którym bez słowa brakuje plików, byłby gorszy.
+Potem pliki są czytane i strumieniowane po jednym. Jeśli po wylistowaniu plik
+urośnie ponad limit bajtów albo zniknie, strumień się zatrzymuje, a pobrany plik
+jest niekompletny i się nie otworzy.
+
+Folder na tym komputerze, w aplikacji desktopowej, nie ma takiego przycisku: on
+już jest folderem na tym komputerze.
+
+Archiwa działają też w drugą stronę: `.zip` albo `.tar.gz` załączone do czatu
+jest rozpakowywane do `uploads/` — zob. [Archiwa](file-processing.md#archives).
 
 ## Jak długo cokolwiek przeżywa { #how-long-anything-survives }
 

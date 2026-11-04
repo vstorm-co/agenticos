@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- A `.zip` or `.tar.gz` (`.tgz`) can be attached to a chat. For an agent with a workspace it is unpacked into `uploads/<id>-<name>/` with its folders kept, so a repository goes in as a tree the coding agent can run its tests in; an agent without a workspace says it cannot open it. Each archive is read whole at upload and refused with a 400 before it is stored if a member leads outside it (`../`, an absolute path), is a link or a device file, is encrypted, or the archive passes `WORKSPACE_ARCHIVE_MAX_ENTRIES` (5000), `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB unpacked) or `WORKSPACE_ARCHIVE_MAX_RATIO` (100x its compressed size). Archives sent through Slack, Telegram, Mattermost or Teams take the same path, and a refused one is named in the bot's reply. (#2479)
+- **Download as .zip** in a chat's **Files** panel, for one folder or the whole workspace, from the new `GET /api/v1/conversations/{id}/workspace/archive?path=`. It is authorised as `/workspace/raw` is, streamed one file at a time, leaves out the tooling folders the panel hides (`.git`, `node_modules`, `.venv`, ...), and refuses a folder past the same entry and byte limits with a 413 before anything is sent. (#2479)
+
 ### Security
 
 - An uploaded document's parse copy under `MEDIA_DIR/_rag_tmp` is now removed: by its ingest job when it ends (indexed, refused, its document gone, or failed on its last attempt - kept while a retry is still to come), after the commit that deletes the document, and by a new hourly `sweep-rag-scratch` job once its document is gone or no longer processing. Until now every copy stayed on the media volume for good, so the content of a deleted document, knowledge base or account was still on disk. **Operators:** nothing to run - the first sweep after the upgrade removes the copies earlier releases left, except those of documents still processing and any written in the last hour. A job queued for a document that is gone now ends at once instead of failing into a retry, and **Retry** on a dead document ingest in Background jobs is refused: retry the document from its knowledge base instead, which parses its stored file again. (#2681)

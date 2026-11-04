@@ -1,5 +1,5 @@
 ---
-source_sha: "a0dffce17e83"
+source_sha: "2ff962c2e301"
 ---
 
 # La sandbox { #the-sandbox }
@@ -638,6 +638,36 @@ bytes son una columna de la fila que el listado ya leyó.
 El panel **Files** del chat y el listado propio de un workspace dibujan sus
 mosaicos como **All files**: las primeras líneas de un archivo de texto
 almacenado, y una imagen como miniatura dentro del mismo límite.
+
+### Descargar una carpeta como zip { #downloading-a-folder-as-a-zip }
+
+El panel **Files** del chat tiene **Descargar como .zip** para el workspace entero,
+y un botón de descarga en cada carpeta. Ambos llaman a
+`GET /api/v1/conversations/{id}/workspace/archive?path=<folder>` (un `path` vacío
+es el workspace entero), que se autoriza igual que `/workspace/raw`: leyendo la
+conversación. Así, una persona con la que se compartió el chat puede descargar una
+carpeta suya, y nadie más.
+
+El zip contiene lo que muestra el panel. Los prefijos y las carpetas de
+herramientas citados arriba (`.git`, `node_modules`, `.venv`, ...) se dejan fuera.
+El listado para un zip llega a 64 niveles de profundidad, no a seis, porque un
+repositorio es más profundo que una página de mosaicos. Los archivos quedan bajo
+una carpeta superior con el nombre de la carpeta descargada.
+
+Se lista entera antes de enviar el primer byte. Una carpeta con más de
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` archivos o más de `WORKSPACE_ARCHIVE_MAX_BYTES`, o
+una que el host no pudo listar entera, se rechaza con un 413; un zip al que le
+faltan archivos sin decirlo sería peor. Después los archivos se leen y se
+transmiten de uno en uno. Si un archivo crece por encima del límite de bytes, o
+desaparece, después del listado, la transmisión se detiene y la descarga queda
+incompleta y no se abre.
+
+Una carpeta de este ordenador, en la app de escritorio, no tiene ese botón: ya es
+una carpeta de este ordenador.
+
+Los archivos comprimidos van también en la otra dirección: un `.zip` o `.tar.gz`
+adjuntado a un chat se descomprime en `uploads/`; ver
+[Archivos comprimidos](file-processing.md#archives).
 
 ## Cuánto sobrevive cada cosa { #how-long-anything-survives }
 

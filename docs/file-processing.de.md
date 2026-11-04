@@ -1,5 +1,5 @@
 ---
-source_sha: "ce58011288a1"
+source_sha: "20c2ae43ec08"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -121,6 +121,7 @@ Text in seinem Prompt.
 | **Dokument (OpenDocument)** | …opendocument.text | .odt | Absätze über `odfpy`. Als Kontext an den Prompt angehängt. |
 | **E-Mail** | application/vnd.ms-outlook | .msg | Kopfzeilen und Text aus den OLE/MAPI-Streams über `olefile` (BSD) gelesen; eingebettete Anhänge werden nur namentlich aufgelistet, nicht rekursiv extrahiert. Als Kontext an den Prompt angehängt. |
 | **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Direkt als UTF-8 dekodiert (XML nach seiner deklarierten BOM/Kodierung). Als Kontext an den Prompt angehängt. |
+| **Archiv** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Beim Hochladen vollständig gelesen und abgelehnt, wenn es unsicher ist (siehe [Archive](#archives)). Sein Text ist die Liste dessen, was es enthält. Wird in den Workspace entpackt; ein Agent ohne Workspace lehnt es ab. |
 
 ### Wohin ein Anhang geht, hängt vom Agent ab { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -139,6 +140,54 @@ bekommt die Datei statt des Textes:
 | pdf, docx, spreadsheet, document, presentation, email | geparster Text inline eingefügt | nach `uploads/` geschrieben, mit dem extrahierten Text daneben, sofern die Laufzeitumgebung sie nicht selbst lesen kann (`email` bekommt ihn immer — `lit` kann `.msg` nicht lesen); Referenz und die ersten 20 Zeilen |
 | Bild | `BinaryContent` | `BinaryContent` **und** geschrieben; die Referenz nennt den Pfad |
 | tiff | PNG-Seite(n) als `BinaryContent`, Seitengrenze vermerkt | Original-`.tiff` geschrieben; PNG-Seite(n) angezeigt, Seitengrenze vermerkt |
+| Archiv (`.zip`, `.tar.gz`) | abgelehnt: dem Modell wird gesagt, dass der Agent keinen Workspace hat, in den er es entpacken könnte, und nichts davon kommt in den Prompt | nach `uploads/<id>-<name>/` entpackt; der Verweis nennt den Ordner und den Anfang des Baums |
+
+### Archive { #archives }
+
+Ein `.zip` oder `.tar.gz` ist der Weg, einem Agent ein Repository oder einen
+beliebigen Ordner mit Dateien zu geben. Die Plattform entpackt es auf dem Server,
+bevor der Agent läuft, statt es dem Agent zum Entpacken zu übergeben. Ein
+gespeicherter Workspace hat keine Shell, in der `unzip` laufen könnte, ein
+Sandbox-Image hat es nicht sicher, und ein Archiv ist ein bekannter Weg, außerhalb
+eines Ordners zu schreiben. Eine Prüfung auf dem Server lässt sich testen; ein
+Agent, der `tar -xf` auf das Erhaltene ausführt, nicht.
+
+Das Archiv wird beim Hochladen vollständig gelesen. Das Hochladen wird mit 400
+abgelehnt und nichts gespeichert, wenn:
+
+- der Pfad eines Members aus dem Archiv herausführt (`../`), an der Wurzel
+  (`/etc/x`) oder an einem Laufwerk (`C:/`) beginnt, einen Backslash oder ein
+  Steuerzeichen enthält;
+- ein Member ein symbolischer Link, ein Hardlink, eine Gerätedatei oder ein FIFO
+  ist;
+- derselbe Pfad zweimal vorkommt oder zugleich als Datei und als Ordner;
+- ein Member verschlüsselt ist oder die Datei nicht das Archiv ist, das ihr Name
+  sagt;
+- es mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Dateien und Ordner enthält (5000),
+  auf mehr als `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB) entpackt oder auf mehr als
+  `WORKSPACE_ARCHIVE_MAX_RATIO`-mal seine eigene Größe (100) — eine
+  Dekompressionsbombe. Größen werden beim Lesen der Members gemessen, nicht aus
+  den Kopfdaten des Archivs übernommen, die falsch sein können.
+
+Die Upload-Grenze `CHAT_MAX_UPLOAD_SIZE_MB` gilt für das Archiv selbst.
+
+Für einen Agent mit Workspace werden die Members unter
+`uploads/<erste 8 Hex-Zeichen der Datei-ID>-<Archivname ohne .zip>/` geschrieben,
+ihre Ordner bleiben erhalten — `repo.zip` mit `repo/src/app.py` wird zu
+`uploads/3f2a1b9c-repo/repo/src/app.py`. Der Verweis nennt diesen Ordner und
+beginnt mit den ersten Zeilen der Member-Liste. Lehnt der Workspace einen
+Schreibvorgang mittendrin ab, wird der Ordner entfernt und dem Modell gesagt,
+dass das Archiv nicht geschrieben werden konnte — ein halb entpackter Baum wird
+also nie für einen ganzen gehalten.
+
+Ein Agent ohne Workspace hat keinen Ort zum Entpacken. Dem Modell wird gesagt,
+dass es das Archiv nicht öffnen kann, und es bekommt die Member-Liste nicht, denn
+eine Liste von Pfaden ließe es Fragen zu Code beantworten, den es nicht lesen
+kann.
+
+Um Dateien wieder herauszuholen, bietet der Bereich **Files** im Chat jeden
+Ordner und den ganzen Workspace als `.zip` an — siehe
+[Sandbox: einen Ordner herunterladen](sandbox.md#downloading-a-folder-as-a-zip).
 
 **Ein späterer Zug hat die Datei noch.** Was der Anhang dem Prompt hinzugefügt
 hat - der eingefügte Text oder der Verweis mit seinen ersten Zeilen - wird neben

@@ -1,5 +1,5 @@
 ---
-source_sha: "ce58011288a1"
+source_sha: "20c2ae43ec08"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -118,6 +118,7 @@ archivo que puede abrir, y uno sin workspace recibe el texto en su prompt.
 | **Documento (OpenDocument)** | …opendocument.text | .odt | Párrafos con `odfpy`. Se añade al prompt como contexto. |
 | **Correo** | application/vnd.ms-outlook | .msg | Cabeceras y cuerpo leídos de los streams OLE/MAPI con `olefile` (BSD); los adjuntos incrustados se listan por nombre, no se extraen de forma recursiva. Se añade al prompt como contexto. |
 | **Texto** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Se decodifica directamente como UTF-8 (XML según su BOM/codificación declarada). Se añade al prompt como contexto. |
+| **Archivo comprimido** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Se lee entero al subirlo y se rechaza si no es seguro (ver [Archivos comprimidos](#archives)). Su texto es la lista de lo que contiene. Se descomprime en el workspace; un agent sin workspace lo rechaza. |
 
 ### Adónde va un adjunto depende del agent { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -136,6 +137,52 @@ recibe el archivo en lugar del texto:
 | pdf, docx, spreadsheet, document, presentation, email | texto parseado pegado en línea | escrito en `uploads/`, con el texto extraído al lado salvo que el runtime pueda leerlo (`email` siempre lo recibe — `lit` no lee `.msg`); referencia y 20 primeras líneas |
 | imagen | `BinaryContent` | `BinaryContent` **y** escrita; la referencia nombra la ruta |
 | tiff | página(s) PNG como `BinaryContent`, con el tope de páginas indicado | `.tiff` original escrito; página(s) PNG mostradas, con el tope de páginas indicado |
+| archivo comprimido (`.zip`, `.tar.gz`) | rechazado: al modelo se le dice que el agent no tiene workspace donde descomprimirlo, y nada de él llega al prompt | descomprimido en `uploads/<id>-<nombre>/`; la referencia nombra la carpeta y el principio del árbol |
+
+### Archivos comprimidos { #archives }
+
+Un `.zip` o un `.tar.gz` es la forma de dar a un agent un repositorio, o cualquier
+carpeta de archivos. La plataforma lo descomprime en el servidor, antes de que el
+agent se ejecute, en lugar de dárselo al agent para que lo descomprima. Un
+workspace almacenado no tiene shell donde ejecutar `unzip`, no es seguro que una
+imagen de sandbox lo tenga, y un archivo comprimido es una forma conocida de
+escribir fuera de una carpeta. Una comprobación en el servidor se puede probar; un
+agent que ejecuta `tar -xf` sobre lo que recibió, no.
+
+El archivo se lee entero al subirlo. La subida se rechaza con un 400, y no se
+guarda nada, cuando:
+
+- la ruta de un miembro sale del archivo (`../`), empieza en la raíz (`/etc/x`) o
+  en una unidad (`C:/`), o contiene una barra invertida o un carácter de control;
+- un miembro es un enlace simbólico, un enlace duro, un archivo de dispositivo o
+  un FIFO;
+- la misma ruta aparece dos veces, o a la vez como archivo y como carpeta;
+- un miembro está cifrado, o el archivo no es el archivo comprimido que dice su
+  nombre;
+- contiene más de `WORKSPACE_ARCHIVE_MAX_ENTRIES` archivos y carpetas (5000), se
+  descomprime en más de `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB), o en más de
+  `WORKSPACE_ARCHIVE_MAX_RATIO` veces su propio tamaño (100): una bomba de
+  descompresión. Los tamaños se miden al leer los miembros, no se toman de las
+  cabeceras del archivo, que pueden ser falsas.
+
+El límite de subida, `CHAT_MAX_UPLOAD_SIZE_MB`, se aplica al archivo en sí.
+
+Para un agent con workspace, los miembros se escriben en
+`uploads/<primeros 8 hex del id del archivo>-<nombre del archivo sin .zip>/`,
+conservando sus carpetas: `repo.zip` con `repo/src/app.py` pasa a ser
+`uploads/3f2a1b9c-repo/repo/src/app.py`. La referencia nombra esa carpeta y
+empieza con las primeras líneas de la lista de miembros. Si el workspace rechaza
+una escritura a mitad de camino, la carpeta se elimina y al modelo se le dice que
+el archivo no se pudo escribir, así que un árbol descomprimido a medias nunca se
+toma por uno entero.
+
+Un agent sin workspace no tiene dónde descomprimirlo. Al modelo se le dice que no
+puede abrir el archivo y no recibe la lista de miembros, porque una lista de rutas
+le permitiría responder preguntas sobre código que no puede leer.
+
+Para sacar los archivos de nuevo, el panel **Files** del chat ofrece cada carpeta,
+y el workspace entero, como `.zip`: ver
+[Sandbox: descargar una carpeta](sandbox.md#downloading-a-folder-as-a-zip).
 
 **Un turno posterior sigue teniendo el archivo.** Lo que el adjunto añadió al
 prompt - el texto pegado, o la referencia con sus primeras líneas - se guarda junto
