@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "9aba1b51e57e"
+source_sha: "700242aaac3f"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -63,7 +63,8 @@ außer dem, was `mkdocs.yml` auslässt (`plans/`, `design/`, `audits/`, die
 Roadmap), und außer dieser Seite, die die Fragen und ihre Antworten zitiert. Jede
 Sprache wird in eine eigene Collection indexiert, benannt nach dem
 Embedding-Modell. Ein späterer Lauf verwendet eine Collection wieder, solange sie
-jede Seite enthält, und baut sie andernfalls neu auf. Eine normale Frage
+jede Seite in ihrer aktuellen Fassung enthält, und baut sie neu auf, wenn eine
+Seite hinzugefügt, entfernt, umbenannt oder bearbeitet wurde. Eine normale Frage
 durchsucht alle zusammen, wie es ein Agent tut, der an mehrere Collections
 gebunden ist.
 
@@ -126,7 +127,7 @@ Die Optionen:
 | `--keyless` | aus | Der Endpunkt nimmt keinen Schlüssel |
 | `--llm-model` | keiner | Ein Pydantic-AI-Modellname. Sein Provider liest seine eigene Schlüsselvariable |
 | `--answers` | aus | Beantwortet außerdem jede Frage aus dem Abgerufenen und prüft die Fakten |
-| `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu. Ein Lauf tut das von selbst, wenn sich die Zahl der Seiten geändert hat |
+| `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu. Ein Lauf tut das von selbst, wenn sich eine Seite geändert hat |
 | `--json` | keiner | Schreibt außerdem die Ergebnisse je Frage in diese Datei |
 
 Der Bericht geht auf die Standardausgabe und der Fortschritt auf die
@@ -155,7 +156,8 @@ Der veröffentlichte Korpus umfasst etwa 0,6 Millionen Tokens auf Englisch und
 1,0 Millionen auf Polnisch, gemessen mit dem Tokenizer `cl100k_base`, den die
 Embedding-Modelle von OpenAI verwenden. Mit der Chunk-Überlappung von 200 Zeichen
 sind es für das Indexieren beider Sprachen etwa 1,7 Millionen Tokens. Das wird
-einmal bezahlt und bis `--reingest` wiederverwendet.
+einmal bezahlt, und für eine Sprache erneut, wenn sich eine ihrer Seiten ändert
+oder mit `--reingest`.
 
 | Teil | Tokens je Lauf | Zum Listenpreis |
 |---|---|---|

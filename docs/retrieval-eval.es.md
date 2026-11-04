@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "9aba1b51e57e"
+source_sha: "700242aaac3f"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -62,9 +62,10 @@ El corpus es el sitio publicado: cada página Markdown bajo `docs/` excepto lo q
 `mkdocs.yml` deja fuera (`plans/`, `design/`, `audits/`, la hoja de ruta), y
 excepto esta página, que cita las preguntas y sus respuestas. Cada idioma se
 indexa en su propia colección, nombrada según el modelo de embeddings. Una
-ejecución posterior reutiliza una colección mientras contenga todas las páginas,
-y la construye de nuevo en caso contrario. Una pregunta normal busca en todas a
-la vez, como hace un agent vinculado a varias colecciones.
+ejecución posterior reutiliza una colección mientras contenga todas las páginas
+tal como están ahora, y la construye de nuevo cuando se añadió, eliminó,
+renombró o editó una página. Una pregunta normal busca en todas a la vez, como
+hace un agent vinculado a varias colecciones.
 
 Cada configuración es una pasada sobre las 34 preguntas. La búsqueda sigue el
 propio camino de la herramienta de conocimiento: la consulta se expande según
@@ -81,15 +82,16 @@ se recortan a `top_k`. Por categoría, la ejecución informa de:
 Tras cada tabla, la ejecución lista las preguntas que falló y las páginas que
 obtuvo en su lugar, que es donde está la información útil.
 
-La comprobación de la respuesta es deliberadamente simple. Un hecho coincide como
-palabra completa, las mayúsculas no importan, y una alternativa que termina en `*`
-coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). Los marcadores de
-cita como `[5]` se ignoran, así que un número de pasaje nunca cuenta como
-número de la respuesta. Un simple "no" no basta: cada pregunta negativa necesita
-también la alternativa que nombra la documentación, así que "la documentación no
-lo dice" nunca pasa. La comprobación sigue sin distinguir una respuesta correcta
-de una confundida con las mismas palabras, así que tómala como señal aproximada. `--json` escribe las páginas recuperadas y la respuesta de cada
-pregunta para quien quiera leerlas.
+La comprobación de la respuesta es deliberadamente simple. Un hecho coincide
+como palabra completa, las mayúsculas no importan, y una alternativa que termina
+en `*` coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). Los
+marcadores de cita como `[5]` se ignoran, así que un número de pasaje nunca
+cuenta como número de la respuesta. Un simple "no" no basta: cada pregunta
+negativa necesita también la alternativa que nombra la documentación, así que
+"la documentación no lo dice" nunca pasa. La comprobación sigue sin distinguir
+una respuesta correcta de una confundida con las mismas palabras, así que tómala
+como señal aproximada. `--json` escribe las páginas recuperadas y la respuesta
+de cada pregunta para quien quiera leerlas.
 
 ## Ejecutarlo { #running-it }
 
@@ -124,7 +126,7 @@ Las opciones:
 | `--keyless` | desactivado | El endpoint no requiere clave |
 | `--llm-model` | ninguno | Un nombre de modelo de Pydantic AI. Su provider lee su propia variable de clave |
 | `--answers` | desactivado | Además responde cada pregunta a partir de lo recuperado y comprueba los hechos |
-| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia el número de páginas |
+| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia una página |
 | `--json` | ninguno | Además escribe los resultados por pregunta en este archivo |
 
 El informe va a la salida estándar y el progreso a la salida de error estándar,
@@ -151,8 +153,8 @@ que compara solo ejecuciones con el mismo modelo de embeddings.
 El corpus publicado tiene unos 0,6 millones de tokens en inglés y 1,0 millones en
 polaco, medidos con el tokenizador `cl100k_base` que usan los modelos de
 embeddings de OpenAI. Con el solapamiento de fragmentos de 200 caracteres, indexar
-ambos idiomas supone unos 1,7 millones de tokens. Se paga una vez y se reutiliza
-hasta `--reingest`.
+ambos idiomas supone unos 1,7 millones de tokens. Se paga una vez, y de nuevo
+para un idioma cuando cambia una de sus páginas o con `--reingest`.
 
 | Parte | Tokens por ejecución | A precio de lista |
 |---|---|---|

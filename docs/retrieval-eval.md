@@ -57,9 +57,9 @@ The corpus is the published site: every Markdown page under `docs/` except what
 `mkdocs.yml` leaves out (`plans/`, `design/`, `audits/`, the roadmap), and
 except this page, which quotes the questions and their answers. Each language is
 indexed into its own collection, named after the embedding model. A later run
-reuses a collection while it holds every page, and builds it again otherwise. A
-normal question searches all of them together, as an agent bound to several
-collections does.
+reuses a collection while it holds every page as the page is now, and builds it
+again when a page was added, removed, renamed or edited. A normal question
+searches all of them together, as an agent bound to several collections does.
 
 Each configuration is one pass over all 34 questions. Search is the knowledge
 tool's own path: the query is expanded by `query_analysis_mode`, every query is
@@ -119,7 +119,7 @@ The options:
 | `--keyless` | off | The endpoint takes no key |
 | `--llm-model` | none | A Pydantic AI model name. Its provider reads its own key variable |
 | `--answers` | off | Also answer each question from what was retrieved, and check the facts |
-| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when the number of pages changed |
+| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page changed |
 | `--json` | none | Also write the per-question results to this file |
 
 The report goes to standard output and progress to standard error, so
@@ -146,7 +146,8 @@ compare runs with the same embedding model only.
 The published corpus is about 0.6 million tokens in English and 1.0 million in
 Polish, measured with the `cl100k_base` tokenizer that OpenAI's embedding models
 use. With the 200-character chunk overlap, indexing both languages is about 1.7
-million tokens. It is paid once and reused until `--reingest`.
+million tokens. It is paid once, and again for a language when one of its pages
+changes or with `--reingest`.
 
 | Part | Tokens per run | At list price |
 |---|---|---|

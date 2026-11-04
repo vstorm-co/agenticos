@@ -21,6 +21,7 @@ pure and tested in `backend/tests/test_retrieval_eval.py`; this file is wiring.
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -62,8 +63,8 @@ async def refuse_held_names(collections: list[str]) -> None:
     """Stop when a knowledge base already uses one of the eval's collection names.
 
     A collection name is one physical table that every organization shares, and
-    the harness drops and reads its collections unscoped. A base holding the
-    same name would lose its vectors to `--reingest`, and lend its chunks to the
+    the harness drops, rebuilds and reads its collections unscoped. A base
+    holding the same name would lose its vectors, and lend its chunks to the
     report, so the run refuses instead - as `rag-drop` refuses a held name
     (#2560). Run it against a development database, not a deployment's.
     """
@@ -89,16 +90,25 @@ async def ingest(
     docs_root: Path,
     reingest: bool,
 ) -> None:
-    """Fill `collection` with `files`, unless an earlier run already indexed all of them.
+    """Fill `collection` with `files`, unless it already holds exactly these pages.
 
-    A collection holding a different number of documents - an earlier run that
-    was interrupted, or a docs tree that gained or lost pages since - is built
-    again rather than measured: a corpus with holes measures the holes. Each
-    document is stored under its path relative to `docs/`, so a collection
-    indexed from one checkout reads the same from another.
+    "Exactly" is each page's path and content hash. A collection that differs -
+    an earlier run that was interrupted, or a page added, removed, renamed or
+    edited since - is built again rather than measured: a stale corpus measures
+    the docs as they were. Each page is stored under its path relative to
+    `docs/`, so a collection indexed from one checkout reads the same from
+    another.
     """
     stored = await store.get_documents(collection, VectorScope(tenant=None))
-    if stored and not reingest and len(stored) == len(files):
+    held = {
+        (str(info.get("source_path")), str(info.get("content_hash")))
+        for info in (document.additional_info or {} for document in stored)
+    }
+    wanted = {
+        (path.relative_to(docs_root).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in files
+    }
+    if not reingest and held == wanted:
         print(
             f"{collection}: reusing what an earlier run indexed (--reingest to rebuild)",
             file=sys.stderr,

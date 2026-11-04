@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "9aba1b51e57e"
+source_sha: "700242aaac3f"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -59,8 +59,9 @@ Korpusem jest opublikowana strona: każda strona Markdown w `docs/` poza tym, co
 `mkdocs.yml` pomija (`plans/`, `design/`, `audits/`, roadmapa), oraz poza tą
 stroną, która cytuje pytania i ich odpowiedzi. Każdy język jest indeksowany do
 własnej kolekcji, nazwanej od modelu embeddingów. Kolejny przebieg ponownie
-wykorzystuje kolekcję, dopóki zawiera ona każdą stronę, a w przeciwnym razie
-buduje ją od nowa. Zwykłe pytanie przeszukuje je wszystkie naraz, tak jak agent
+wykorzystuje kolekcję, dopóki zawiera ona każdą stronę w jej obecnej postaci, i
+buduje ją od nowa, gdy jakąś stronę dodano, usunięto, przemianowano lub
+zmieniono. Zwykłe pytanie przeszukuje je wszystkie naraz, tak jak agent
 powiązany z kilkoma kolekcjami.
 
 Każda konfiguracja to jedno przejście przez wszystkie 34 pytania. Wyszukiwanie
@@ -120,7 +121,7 @@ Opcje:
 | `--keyless` | wył. | Endpoint nie przyjmuje klucza |
 | `--llm-model` | brak | Nazwa modelu Pydantic AI. Jego provider czyta własną zmienną z kluczem |
 | `--answers` | wył. | Dodatkowo odpowiada na każde pytanie na podstawie pobranych treści i sprawdza fakty |
-| `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa. Przebieg robi to sam, gdy zmieniła się liczba stron |
+| `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa. Przebieg robi to sam, gdy zmieniła się jakaś strona |
 | `--json` | brak | Dodatkowo zapisuje wyniki dla poszczególnych pytań do tego pliku |
 
 Raport trafia na standardowe wyjście, a postęp na standardowe wyjście błędów, więc
@@ -147,8 +148,8 @@ tylko przebiegi z tym samym modelem embeddingów.
 Opublikowany korpus to około 0,6 miliona tokenów po angielsku i 1,0 miliona po
 polsku, mierzone tokenizerem `cl100k_base`, którego używają modele embeddingów
 OpenAI. Przy 200-znakowym nakładaniu się chunków indeksowanie obu języków to
-około 1,7 miliona tokenów. Płaci się za nie raz i wykorzystuje ponownie aż do
-`--reingest`.
+około 1,7 miliona tokenów. Płaci się za nie raz, a za dany język ponownie, gdy
+zmieni się jedna z jego stron, lub przy `--reingest`.
 
 | Część | Tokeny na przebieg | Po cenie katalogowej |
 |---|---|---|

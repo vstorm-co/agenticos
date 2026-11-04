@@ -8,6 +8,7 @@ the question set may contain, is held here with a fake retriever and no model.
 Imported by path, the way `test_loadtest_harness.py` reaches `loadtest/`.
 """
 
+import hashlib
 import importlib.util
 import sys
 from contextlib import asynccontextmanager
@@ -188,6 +189,33 @@ class TestTheCommittedSetCannotBeGamed:
 
         assert passing == []
 
+    @pytest.mark.parametrize(
+        ("item_id", "paraphrase"),
+        [
+            (
+                "scim-provisioning",
+                "The documentation does not state whether SCIM sync is supported.",
+            ),
+            (
+                "api-client-sdk",
+                "The documentation does not state whether an SDK exists for the HTTP API.",
+            ),
+            (
+                "redis-cluster-pl-corpus",
+                "The documentation does not say whether a Redis Cluster instance works.",
+            ),
+        ],
+    )
+    def test_a_dont_know_answer_in_its_own_words_fails(
+        self, committed, item_id: str, paraphrase: str
+    ):
+        """A paraphrase uses the question's vocabulary; a fact must be what the docs add to it."""
+        item = next(item for item in committed.items if item.id == item_id)
+
+        assert (
+            scoring.ItemResult(item=item, retrieved=(), answer=paraphrase).answer_correct is False
+        )
+
     def test_no_corpus_page_quotes_a_question(self, committed):
         """A page that repeats a question word for word would outrank the page that answers it."""
         docs = REPO_ROOT / "docs"
@@ -350,18 +378,21 @@ run = _load("run")
 
 
 class _Store:
-    """Stands in for the vector store: what it holds, and what was dropped."""
+    """Stands in for the vector store: the pages it holds, and how often it was dropped."""
 
-    def __init__(self, documents: int) -> None:
-        self.documents = documents
+    def __init__(self, held: dict[str, str] | None = None) -> None:
+        self.held = dict(held or {})
         self.dropped = 0
 
     async def get_documents(self, collection: str, scope: object) -> list[object]:
-        return [object()] * self.documents
+        return [
+            SimpleNamespace(additional_info={"source_path": path, "content_hash": digest})
+            for path, digest in self.held.items()
+        ]
 
     async def delete_collection(self, collection: str) -> None:
         self.dropped += 1
-        self.documents = 0
+        self.held = {}
 
 
 class _Ingestion:
@@ -380,7 +411,7 @@ class _Ingestion:
         if len(self.source_paths) == self.interrupt_at:
             raise KeyboardInterrupt
         self.source_paths.append(source_path)
-        self.store.documents += 1
+        self.store.held[source_path] = hashlib.sha256(path.read_bytes()).hexdigest()
         if path.name == self.fail:
             return SimpleNamespace(status=IngestionStatus.ERROR, error_message="parser refused")
         return SimpleNamespace(status=IngestionStatus.DONE, error_message=None)
@@ -394,31 +425,56 @@ def _pages(tmp_path: Path) -> list[Path]:
     return paths
 
 
+def _indexed(paths: list[Path], root: Path) -> dict[str, str]:
+    return {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in paths
+    }
+
+
 class TestIndexing:
-    async def test_a_complete_collection_is_reused(self, tmp_path: Path):
-        store = _Store(documents=2)
+    async def test_a_collection_holding_exactly_the_pages_is_reused(self, tmp_path: Path):
+        pages = _pages(tmp_path)
+        store = _Store(_indexed(pages, tmp_path))
         ingestion = _Ingestion(store)
 
-        await run.ingest(
-            store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=False
-        )
+        await run.ingest(store, ingestion, "c", pages, docs_root=tmp_path, reingest=False)
 
         assert store.dropped == 0 and ingestion.source_paths == []
 
     async def test_a_partial_collection_is_rebuilt_not_measured(self, tmp_path: Path):
-        """What an interrupted run leaves behind holds fewer documents than the corpus."""
-        store = _Store(documents=1)
+        """What an interrupted run leaves behind holds fewer pages than the corpus."""
+        pages = _pages(tmp_path)
+        store = _Store(_indexed(pages[:1], tmp_path))
         ingestion = _Ingestion(store)
 
-        await run.ingest(
-            store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=False
+        await run.ingest(store, ingestion, "c", pages, docs_root=tmp_path, reingest=False)
+
+        assert store.dropped == 1 and store.held == _indexed(pages, tmp_path)
+
+    async def test_an_edited_page_rebuilds_the_collection(self, tmp_path: Path):
+        """Same pages, same count: the stored text is still not the docs any more."""
+        pages = _pages(tmp_path)
+        store = _Store(_indexed(pages, tmp_path))
+        pages[1].write_text("edited", encoding="utf-8")
+
+        await run.ingest(store, _Ingestion(store), "c", pages, docs_root=tmp_path, reingest=False)
+
+        assert store.dropped == 1 and store.held == _indexed(pages, tmp_path)
+
+    async def test_a_renamed_page_rebuilds_the_collection(self, tmp_path: Path):
+        pages = _pages(tmp_path)
+        store = _Store(
+            {"old-name.md": hashlib.sha256(b"x").hexdigest(), **_indexed(pages[1:], tmp_path)}
         )
 
-        assert store.dropped == 1 and store.documents == 2
+        await run.ingest(store, _Ingestion(store), "c", pages, docs_root=tmp_path, reingest=False)
+
+        assert store.dropped == 1 and "old-name.md" not in store.held
 
     async def test_pages_are_stored_relative_to_the_docs(self, tmp_path: Path):
         """So a collection indexed from one checkout reads the same from another."""
-        store = _Store(documents=0)
+        store = _Store()
         ingestion = _Ingestion(store)
 
         await run.ingest(store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True)
@@ -426,7 +482,7 @@ class TestIndexing:
         assert ingestion.source_paths == ["a.md", "howto/b.md"]
 
     async def test_an_interrupted_index_is_dropped(self, tmp_path: Path):
-        store = _Store(documents=0)
+        store = _Store()
         ingestion = _Ingestion(store, interrupt_at=1)
 
         with pytest.raises(KeyboardInterrupt):
@@ -434,10 +490,10 @@ class TestIndexing:
                 store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True
             )
 
-        assert store.documents == 0 and store.dropped == 2
+        assert store.held == {} and store.dropped == 2
 
     async def test_a_page_that_fails_drops_the_collection_and_stops(self, tmp_path: Path):
-        store = _Store(documents=0)
+        store = _Store()
         ingestion = _Ingestion(store, fail="b.md")
 
         with pytest.raises(SystemExit, match=r"howto/b\.md: parser refused"):
@@ -445,7 +501,7 @@ class TestIndexing:
                 store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True
             )
 
-        assert store.documents == 0
+        assert store.held == {}
 
     def test_a_chunk_is_scored_by_its_page_key(self):
         result = SearchResult(
