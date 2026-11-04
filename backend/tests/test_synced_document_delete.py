@@ -69,6 +69,8 @@ def _row(*, vector_document_id: str | None, storage_path: str = "") -> MagicMock
         # document with no base; the delete carries that scope so it cannot
         # reach another org's rows in a shared-named collection (#1684).
         knowledge_base_id=None,
+        filename="doc.md",
+        ingestion_attempt=1,
     )
 
 

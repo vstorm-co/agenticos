@@ -266,10 +266,17 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     to every settlement so a stale one (superseded by a later retry) is ignored
     rather than notifying under the wrong attempt's dedup key. It is not the
     job's own attempt, which the queue counts.
+
+    The scratch copy at `job.filepath` is this job's alone (#2681), and it goes
+    once no attempt of the job is coming: on any return, and on a failure on the
+    last attempt. A failure the queue retries keeps it for the retry, and so does
+    a cancellation - a shutdown or a lost lease gives the job back. A job that
+    dies without reaching this is the settler's (`settle_lost_ingest`).
     """
     logger.info("Starting ingestion: %s -> %s", job.source_path, job.collection_name)
+    ended = False
     try:
-        return await _run_ingestion(
+        outcome = await _run_ingestion(
             str(job.rag_document_id),
             job.collection_name,
             job.filepath,
@@ -277,7 +284,10 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
             job.replace,
             job.attempt,
         )
+        ended = True
+        return outcome
     except Exception as exc:
+        ended = is_final_attempt()
         logger.exception("Ingestion failed for %s", job.source_path)
         await _fail_document(
             str(job.rag_document_id),
@@ -285,6 +295,19 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
             attempt=job.attempt,
         )
         raise
+    finally:
+        if ended:
+            _discard_scratch(job.filepath)
+
+
+def _discard_scratch(filepath: str) -> None:
+    """Remove a job's scratch copy without letting a failure replace the job's outcome."""
+    from app.services import rag_scratch
+
+    try:
+        rag_scratch.discard(filepath)
+    except Exception:
+        logger.exception("Could not remove the parse scratch copy of a finished ingest")
 
 
 async def sync_collection(job: SyncCollection) -> dict[str, Any]:
@@ -389,7 +412,14 @@ async def _run_ingestion(
     from app.services.rag_document import RAGDocumentService
 
     async with get_worker_db_context() as db:
-        record = await RAGDocumentService(db).get_document(rag_document_id)
+        try:
+            record = await RAGDocumentService(db).get_document(rag_document_id)
+        except NotFoundError:
+            # Deleted while the job waited - by itself, or with its knowledge base,
+            # collection, account or organization. Nothing to index and nothing a
+            # retry could change, so the job ends here (#2681).
+            logger.info("Document %s was deleted before it was parsed", rag_document_id)
+            return {"status": "deleted", "filename": source_path}
         organization_id = record.organization_id
         # Checked again here, not only at upload: the budget can be reached by
         # runs that finished while this file waited in the queue. Raising lets
@@ -463,7 +493,10 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
-        if result.refused:
+        # A failure is a refusal too once the document is no longer wanted: a delete
+        # removes the scratch copy after its commit, and a parser that had not opened
+        # it yet cannot read it (#2681).
+        if result.refused or not await _still_ingestable(rag_document_id, collection_name):
             # Skipped on purpose: the collection or its base went while the file
             # parsed. A retry cannot index it, so this ends the job instead of
             # raising into one, and it is not an error worth a traceback (#2561).
@@ -1800,11 +1833,15 @@ async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:
     A child killed by the memory watchdog or the kernel cannot mark its own row,
     so the row stayed `processing` with nothing left to finish it (Codex, #2248).
     A document the handler already settled - done, or failed with its own
-    reason - is left as it is.
+    reason - is left as it is. The job's scratch copy goes either way: no
+    attempt of it is coming (#2681).
     """
-    await _fail_document(
-        str(job.rag_document_id), error_message=_stopped(reason), attempt=job.attempt
-    )
+    try:
+        await _fail_document(
+            str(job.rag_document_id), error_message=_stopped(reason), attempt=job.attempt
+        )
+    finally:
+        _discard_scratch(job.filepath)
 
 
 async def settle_lost_collection_sync(job: SyncCollection, reason: str) -> None:

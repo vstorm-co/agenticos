@@ -89,7 +89,10 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
 )
 
 # Directories under `MEDIA_DIR` that hold files no row points at, by design: the
-# parse scratch directory is cleared by the worker that wrote it. Generated media
+# parse scratch directory holds one copy per queued or running ingest, which its
+# job removes when it ends, a document delete removes after its commit, and the
+# hourly `sweep-rag-scratch` removes once its document is gone or settled
+# (`app.services.rag_scratch`, #2681). Generated media
 # is not one of them since `generated_media` records each file (#2310), so a
 # file generated before that table existed is counted here - it has no row, and
 # goes only with its organization.
@@ -719,7 +722,8 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
     return Section(
         title=f"Files on disk with no row ({len(orphans)} under {media_dir})",
         note=(
-            "The parse scratch directory is excluded - it has no row by design. "
+            "The parse scratch directory is excluded - it has no row by design, "
+            "and an hourly sweep removes a copy whose document is gone or settled. "
             "Under generated_<organization> these are mostly files generated "
             "before generated_media recorded them, which go only with their "
             "organization; also a file whose unlink failed after its row was "

@@ -120,6 +120,10 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A teardown reservation whose drop failed for good blocks its collection's
     # name with nothing left to reattempt it (#1364).
     Schedule("sweep-teardown-reservations", jobs.SWEEP_TEARDOWN_RESERVATIONS, _HOUR),
+    # A parse scratch copy whose job was lost, or that a deployment from before
+    # #2681 never removed: the document's content, on the media volume (#2681).
+    # Its own schedule, so a failing reservation drop cannot stop it.
+    Schedule("sweep-rag-scratch", jobs.SWEEP_RAG_SCRATCH, _HOUR),
     # Daily: retention windows are measured in days, so the hour a row leaves is
     # nobody's business.
     Schedule("sweep-sandbox-operations", jobs.SWEEP_SANDBOX_OPERATIONS, _DAY),
