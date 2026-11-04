@@ -2297,3 +2297,42 @@ async def test_stav_transport_refuses_an_unsupported_legacy_http_client() -> Non
             pytest.raises(TypeError, match="Stav requires an httpx2 client"),
         ):
             _StavProvider(api_key="test", base_url="https://stav.example/v1", region="eu")
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("endpoint", [None, "https://eu.api.otari.ai/api/v1"])
+async def test_otari_creation_metadata_uses_the_selected_key(endpoint: str | None) -> None:
+    ctx, secret_id = _ctx(), uuid.uuid4()
+    selected_key = AsyncMock(return_value="otari-selected-test")
+    catalog = AsyncMock(
+        return_value=(
+            [CatalogModel(id="support-agent", name="Support", context_length=200_000)],
+            "live",
+        )
+    )
+    with (
+        patch("app.services.model_profile.models_for", new=catalog),
+        patch("app.services.model_profile.OrganizationSecretService.listing_key", new=selected_key),
+        patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+        patch(
+            "app.services.model_profile._checked_endpoint",
+            new=AsyncMock(side_effect=lambda _spec, url: url),
+        ),
+        patch(
+            "app.services.model_profile.credential_repo.create_profile",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ) as create,
+        patch("app.services.model_profile.record_audit", new=AsyncMock()),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            ctx,
+            label="Otari support",
+            provider="otari",
+            model="support-agent",
+            secret_id=secret_id,
+            base_url=endpoint,
+        )
+    selected_key.assert_awaited_once_with(ctx, "otari", secret_id=secret_id)
+    catalog.assert_awaited_once_with("otari", api_key="otari-selected-test", base_url=endpoint)
+    assert create.call_args.kwargs["context_length"] == 200_000
