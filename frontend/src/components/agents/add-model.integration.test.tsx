@@ -1244,7 +1244,7 @@ describe("choosing where a Stav model's requests run", () => {
         await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.stav.example/v1");
       } else {
         await userEvent.click(screen.getByLabelText("Key"));
-        await userEvent.click(screen.getByRole("option", { name: "Other Stav" }));
+        await userEvent.click(screen.getByRole("option", { name: /Other Stav/ }));
       }
       expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
       if (connection === "endpoint") {
