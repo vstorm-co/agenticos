@@ -8344,13 +8344,20 @@
       "deleteSkill": {
         "title": "Usunąć {name}?",
         "description": "Razem z nim znikną jego wersje i forki. Żaden agent go teraz nie używa.",
-        "used": "Nie można usunąć skilla, którego używa agent. Przenieś każdego agenta na inny skill albo usuń z niego ten skill w Builderze, a potem go usuń.",
+        "used": "Agenci używają tego skilla. Zostanie usunięty dopiero, gdy żaden go nie ma: tutaj, od razu ze wszystkich, albo po kolei w Builderze.",
         "usedBy": "{named, select, yes {{count, plural, one {Używa go 1 agent} few {Używają go # agenci} many {Używa go # agentów} other {Używa go # agenta}}: {names}{hidden, plural, =0 {.} one {, i 1, którego nie widzisz.} few {, i #, których nie widzisz.} many {, i #, których nie widzisz.} other {, i #, którego nie widzisz.}}} other {{hidden, plural, one {Używa go 1 agent, którego nie widzisz.} few {Używają go # agenci, których nie widzisz.} many {Używa go # agentów, których nie widzisz.} other {Używa go # agenta, którego nie widzisz.}}}}",
         "close": "OK",
         "cancel": "Anuluj",
         "delete": "Usuń",
         "checking": "Sprawdzamy, którzy agenci go używają…",
-        "unread": "Nie udało się odczytać, którzy agenci go używają. Skilla używanego przez agenta i tak nie da się usunąć."
+        "unread": "Nie udało się odczytać, którzy agenci go używają. Skilla używanego przez agenta i tak nie da się usunąć.",
+        "removeAndDelete": "{count, plural, one {Odepnij od # agenta i usuń} other {Odepnij od # agentów i usuń}}",
+        "removeBody": "{count, plural, one {Skill zostanie odpięty od tego agenta, a potem usunięty razem z wersjami i forkami. Tego nie da się cofnąć.} other {Skill zostanie odpięty od tych # agentów, a potem usunięty razem z wersjami i forkami. Tego nie da się cofnąć.}}",
+        "removeConfirm": "Odepnij i usuń",
+        "back": "Wstecz",
+        "locked": "{count, plural, one {Nie możesz zmieniać agenta {names}, więc nie da się go tu odpiąć. Poproś właściciela albo odepnij go w Builderze.} other {Nie możesz zmieniać agentów {names}, więc nie da się go tu odpiąć. Poproś ich właścicieli albo odepnij go w Builderze.}}",
+        "hiddenBlocks": "Części z nich nie widzisz, więc nie da się go tu odpiąć od wszystkich. Poproś admina o usunięcie.",
+        "button": "Usuń"
       },
       "usage": {
         "title": "Użycie w ostatnich {days} dniach",

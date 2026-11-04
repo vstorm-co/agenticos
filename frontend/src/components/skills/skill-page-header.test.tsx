@@ -90,4 +90,20 @@ describe("SkillPageHeader", () => {
     await userEvent.click(screen.getByRole("button", { name: "Return “returns” to main" }));
     expect(open).toHaveBeenCalledOnce();
   });
+
+  it("offers deleting the skill beside Edit to an editor", async () => {
+    const onDelete = vi.fn();
+    render(
+      <SkillPageHeader
+        skill={SKILL}
+        line={null}
+        improveHref="/skills/k1/improve/new"
+        onEdit={vi.fn()}
+        onFork={null}
+        onDelete={onDelete}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalled();
+  });
 });

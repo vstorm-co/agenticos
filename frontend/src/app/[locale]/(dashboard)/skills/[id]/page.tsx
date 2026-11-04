@@ -100,6 +100,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
+        onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
       {skill.can_edit && <CheckRunning skillId={id} forkId={fork?.id ?? null} />}
       <Tabs
@@ -185,8 +186,8 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           agentsError={agents.error}
           deleting={remove.isPending}
           onClose={() => setDeleting(false)}
-          onDelete={async () => {
-            await remove.mutateAsync();
+          onDelete={async (removeFromAgents) => {
+            await remove.mutateAsync(removeFromAgents);
             router.push(ROUTES.SKILLS);
           }}
         />

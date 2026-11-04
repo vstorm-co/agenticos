@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import Link from "next/link";
-import { GitBranch, GitMerge, Pencil, Sparkles } from "lucide-react";
+import { GitBranch, GitMerge, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -46,6 +46,7 @@ export function SkillPageHeader({
   onEdit,
   opening = false,
   onFork,
+  onDelete = null,
 }: {
   skill: Skill;
   /** The fork the page is showing, by name; null for main. */
@@ -64,6 +65,8 @@ export function SkillPageHeader({
   opening?: boolean;
   /** Offered to an editor once main has a version to start from. */
   onFork: (() => void) | null;
+  /** Deletes the whole skill, every line with it; offered to an editor. */
+  onDelete?: (() => void) | null;
 }) {
   const t = useTranslations("skills.page");
   const { can } = usePermissions();
@@ -130,6 +133,16 @@ export function SkillPageHeader({
                 : t("editFork", { name: line })
               : t("open")}
           </Button>
+          {onDelete && (
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              {t("deleteSkill.button")}
+            </Button>
+          )}
         </>
       }
     />

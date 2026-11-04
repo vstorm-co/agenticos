@@ -208,6 +208,8 @@ describe("useSkill", () => {
     await result.current.remove.mutateAsync();
     expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1");
     expect(toastSuccess).toHaveBeenCalled();
+    await result.current.remove.mutateAsync(true);
+    expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1?remove_from_agents=true");
   });
 });
 

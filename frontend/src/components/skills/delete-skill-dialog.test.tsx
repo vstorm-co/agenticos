@@ -9,8 +9,12 @@ import { DeleteSkillDialog } from "./delete-skill-dialog";
 
 const SKILL = { id: "s1", name: "returns-policy" } as Skill;
 
-const row = (name: string, via: string | null = null) =>
-  ({ agent: { id: name, name, slug: name }, via_specialist: via }) as SkillAgentUsage;
+const row = (name: string, via: string | null = null, canChange = true) =>
+  ({
+    agent: { id: name, name, slug: name },
+    via_specialist: via,
+    can_change: canChange,
+  }) as SkillAgentUsage;
 
 function open(
   agents: SkillAgentList | undefined,
@@ -116,5 +120,58 @@ describe("DeleteSkillDialog", () => {
     expect(screen.getByText(/could not be read/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onDelete).toHaveBeenCalled();
+  });
+
+  it("takes a used skill off its agents and deletes it, once confirmed", async () => {
+    const { onDelete } = open(list([row("Desk"), row("Desk", "refunds"), row("Counter")]));
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove from 2 agents and delete" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByText(/taken off these 2 agents, then deleted/)).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Desk",
+      "Counter",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Used by 2 agents: Desk and Counter.");
+    await userEvent.click(screen.getByRole("button", { name: "Remove from 2 agents and delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove and delete" }));
+    expect(onDelete).toHaveBeenCalledWith(true);
+  });
+
+  it("names the agents the reader may not change, and offers no removal", () => {
+    open(list([row("Desk"), row("Counter", null, false)]));
+
+    expect(screen.getByText(/You may not change Counter/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /and delete/ })).toBeNull();
+  });
+
+  it("offers no removal while some agents are hidden from the reader", () => {
+    open(list([row("Desk")], 1));
+
+    expect(screen.getByText(/Some of them you cannot see/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /and delete/ })).toBeNull();
+  });
+
+  it("names whom the server would not let the removal change", async () => {
+    const onDelete = vi.fn().mockRejectedValue(
+      new ApiError(409, "In use", {
+        error: {
+          code: "IN_USE",
+          message: "In use",
+          details: {
+            agents: [{ id: "a1", name: "Desk" }],
+            not_editable: [{ id: "a1", name: "Desk" }],
+          },
+        },
+      }),
+    );
+    open(list([row("Desk")]), onDelete);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove from 1 agent and delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove and delete" }));
+
+    expect(await screen.findByText(/You may not change Desk/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /and delete/ })).toBeNull();
   });
 });

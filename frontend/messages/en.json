@@ -8584,13 +8584,20 @@
       "deleteSkill": {
         "title": "Delete {name}?",
         "description": "Its versions and forks go with it. No agent uses it now.",
-        "used": "A skill an agent uses cannot be deleted. Move each agent to another skill, or remove the skill from it in the Builder, then delete it.",
+        "used": "Agents use this skill. It is deleted only once it is off all of them: here, from all of them at once, or one by one in the Builder.",
         "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
         "close": "OK",
         "cancel": "Cancel",
         "delete": "Delete",
         "checking": "Checking which agents use it…",
-        "unread": "Which agents use it could not be read. A skill an agent uses is still refused."
+        "unread": "Which agents use it could not be read. A skill an agent uses is still refused.",
+        "removeAndDelete": "{count, plural, =1 {Remove from 1 agent and delete} other {Remove from # agents and delete}}",
+        "removeBody": "{count, plural, =1 {The skill is taken off this agent, then deleted with its versions and forks. This cannot be undone.} other {The skill is taken off these # agents, then deleted with its versions and forks. This cannot be undone.}}",
+        "removeConfirm": "Remove and delete",
+        "back": "Back",
+        "locked": "{count, plural, =1 {You may not change {names}, so it cannot be taken off here. Ask its owner, or remove it there in the Builder.} other {You may not change {names}, so it cannot be taken off here. Ask their owners, or remove it there in the Builder.}}",
+        "hiddenBlocks": "Some of them you cannot see, so it cannot be taken off all of them here. Ask an admin to remove it.",
+        "button": "Delete"
       },
       "usage": {
         "title": "Use in the last {days} days",
