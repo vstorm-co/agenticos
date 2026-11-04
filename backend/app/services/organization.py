@@ -12,6 +12,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConflictError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
@@ -808,6 +809,11 @@ class OrganizationService:
                 held.add(collection)
 
         await organization_repo.get_by_id_for_update(self.db, org.id)
+        from app.repositories import telephony as phone_repo
+
+        # The org row lock fences new call intents through their foreign key.
+        if await phone_repo.organization_has_unfinished_calls(self.db, org.id):
+            raise ConflictError(message="End all telephone calls before deleting this organization")
         collections: list[str] = []
         storage_paths: list[str] = []
         deleted_bases: list[BasePurge] = []

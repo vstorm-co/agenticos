@@ -1,5 +1,5 @@
 ---
-source_sha: "5ca3ec8a61d8"
+source_sha: "1072bf10176f"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1170,6 +1170,9 @@ cliente de correo lo archive en el hilo, y con los archivos que el agente haya p
 historial citado bajo una respuesta se corta antes de que el agente lo lea. Una aprobación o una
 pregunta llega como líneas numeradas y se responde contestando solo con el número; los números se
 comportan como en SMS, y una pregunta sigue abierta un día.
+
+Las `references` entrantes deben ser una lista de cadenas sin CR ni LF; las entradas conservadas no pueden superar los 998 caracteres. Los mensajes con referencias incorrectas se ignoran antes de procesarlos. Los asuntos de varias líneas se unen en una sola antes de crear las cabeceras de respuesta.
+
 
 ## Slack { #slack }
 

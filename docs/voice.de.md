@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "4ef76b8dbb26"
+source_sha: "28e4f15b715b"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -445,3 +445,5 @@ Trage einen konservativen Minutenpreis einschließlich Zieltarif, Sprachsynthese
 
 
 Wähle die Agenten aus, die Anrufe oder Berichte anfordern dürfen. Kontakt zu wichtigen Fällen benötigt eine zusätzliche Zustimmung und deine schriftlichen Wichtigkeitskriterien. Der Agent liest Kriterien und offene Fälle des aktuellen Gesprächs mit `get_phone_contact_policy` und übergibt an `call_me` die vorhandene Fall-ID sowie seine Begründung. Null Sekunden bedeuten sofortigen Kontakt, sonst gilt die Wartezeit ab der ersten ungelesenen Benachrichtigung. Bestätigen, Lösen oder Stummschalten desselben Falls storniert einen wartenden Anruf. Pro Fall ist ein Telefonversuch erlaubt, auch nach Ablauf des Belegs. Quellkontext und aktuelle Berechtigungen bleiben erforderlich.
+
+Konten und Organisationen können nicht gelöscht werden, solange Telefonanrufe noch nicht abgeschlossen sind. Beenden Sie die Anrufe und warten Sie vor dem erneuten Löschen auf deren Endstatus; dadurch bleiben Anbieter-Callbacks und Zeitlimits wirksam. Der persönliche Export enthält alle Vorgänge, auch ohne Telefonversuch. Ihr vollständiger Inhalt zählt zur Größenbegrenzung des Exports.

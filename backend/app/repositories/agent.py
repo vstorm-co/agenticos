@@ -9,7 +9,7 @@ from collections.abc import Collection, Sequence
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 from sqlalchemy import Float, and_, bindparam, cast, false, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -22,8 +22,11 @@ from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.context import ContextFile
 from app.db.models.organization_assistant import OrganizationAssistant
+from app.db.models.project import Project
 from app.db.models.resource_grant import Visibility
+from app.db.models.skill import Skill, SkillResource
 from app.schemas.agent import LocalCodingAgent
 
 
@@ -934,3 +937,120 @@ async def binding_resources(
         )
     ).all()
     return await _attach_agents(db, usage, [(agent_id, ref) for agent_id, ref in rows])
+
+
+async def mutable_instruction_material(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_ids: Sequence[UUID],
+    context_ids: Sequence[UUID],
+    project_id: UUID | None,
+) -> list[JsonValue]:
+    """Current scalar content, bypassing the ORM identity map of long-running jobs."""
+    material: list[JsonValue] = []
+    if skill_ids:
+        rows = await db.execute(
+            select(
+                Skill.id,
+                Skill.name,
+                Skill.description,
+                Skill.content,
+                Skill.version,
+                Skill.updated_at,
+            )
+            .where(Skill.organization_id == organization_id, Skill.id.in_(skill_ids))
+            .order_by(Skill.id)
+        )
+        for identifier, name, description, content, version, updated_at in rows:
+            material.append(
+                {
+                    "kind": "skill",
+                    "id": str(identifier),
+                    "name": name,
+                    "description": description,
+                    "content": content,
+                    "version": version,
+                    "updated_at": None if updated_at is None else updated_at.isoformat(),
+                }
+            )
+        resources = await db.execute(
+            select(
+                SkillResource.skill_id,
+                SkillResource.name,
+                SkillResource.description,
+                SkillResource.content,
+                SkillResource.updated_at,
+            )
+            .join(Skill, Skill.id == SkillResource.skill_id)
+            .where(Skill.organization_id == organization_id, Skill.id.in_(skill_ids))
+            .order_by(SkillResource.skill_id, SkillResource.name)
+        )
+        for identifier, name, description, content, updated_at in resources:
+            material.append(
+                {
+                    "kind": "skill_resource",
+                    "skill_id": str(identifier),
+                    "name": name,
+                    "description": description,
+                    "content": content,
+                    "updated_at": None if updated_at is None else updated_at.isoformat(),
+                }
+            )
+    if context_ids:
+        rows = await db.execute(
+            select(
+                ContextFile.id,
+                ContextFile.name,
+                ContextFile.description,
+                ContextFile.content,
+                ContextFile.format,
+                ContextFile.mode,
+                ContextFile.enabled,
+                ContextFile.updated_at,
+            )
+            .where(ContextFile.organization_id == organization_id, ContextFile.id.in_(context_ids))
+            .order_by(ContextFile.id)
+        )
+        for (
+            identifier,
+            name,
+            description,
+            content,
+            content_format,
+            mode,
+            enabled,
+            updated_at,
+        ) in rows:
+            material.append(
+                {
+                    "kind": "context",
+                    "id": str(identifier),
+                    "name": name,
+                    "description": description,
+                    "content": content,
+                    "format": content_format,
+                    "mode": mode,
+                    "enabled": enabled,
+                    "updated_at": None if updated_at is None else updated_at.isoformat(),
+                }
+            )
+    if project_id is not None:
+        row = (
+            await db.execute(
+                select(Project.name, Project.instructions, Project.updated_at).where(
+                    Project.organization_id == organization_id, Project.id == project_id
+                )
+            )
+        ).one_or_none()
+        if row is not None:
+            material.append(
+                {
+                    "kind": "project",
+                    "id": str(project_id),
+                    "name": row.name,
+                    "instructions": row.instructions,
+                    "updated_at": None if row.updated_at is None else row.updated_at.isoformat(),
+                }
+            )
+    return material

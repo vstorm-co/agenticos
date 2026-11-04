@@ -807,3 +807,29 @@ async def test_bot_deletion_keeps_live_call_receipts_until_calls_end(
     assert (
         await channel_bot_repo.get_for_org(db, bot.id, organization_id=ctx.organization_id) is None
     )
+
+
+@pytest.mark.parametrize("target", ["account", "organization"])
+async def test_account_and_org_deletion_cannot_orphan_live_provider_calls(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    from app.db.models.organization import Organization
+    from app.db.models.user import User
+    from app.services.organization import OrganizationService
+    from app.services.user import UserService
+
+    ctx, bot, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    with pytest.raises(ConflictError, match="End all telephone calls"):
+        if target == "account":
+            await UserService(db).delete(ctx.user_id)
+        else:
+            org = await db.get(Organization, ctx.organization_id)
+            assert org is not None
+            await OrganizationService(db).purge(org)
+    assert await repo.call(db, receipt.id) is not None
+    assert await db.get(User, ctx.user_id) is not None
+    assert (
+        await channel_bot_repo.get_for_org(db, bot.id, organization_id=ctx.organization_id)
+        is not None
+    )

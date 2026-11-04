@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import load_builtins
 from app.agents.mcp import McpSourceIdentity
 from app.agents.spec import AgentSpec
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
@@ -902,3 +902,104 @@ async def test_a_pause_observed_during_the_final_consent_read_refuses_the_call(
     monkeypatch.setattr(agent_trigger_repo, "get_by_id", pause_on_read)
     with pytest.raises(AuthorizationError):
         await admitted.action_policy(world.agent.id, world.spec, tool())
+
+
+@pytest.mark.parametrize("binding", ["skill", "resource", "context", "project"])
+async def test_instruction_edits_invalidate_review_tokens_and_standing_consent(
+    db: AsyncSession, world: World, binding: str
+) -> None:
+    from app.db.models.context import ContextFile
+    from app.db.models.project import Project
+    from app.db.models.skill import Skill, SkillResource
+    from app.services.routine_actions import instruction_fingerprint
+
+    if binding in {"skill", "resource"}:
+        skill = Skill(
+            organization_id=world.org.id,
+            owner_user_id=world.ctx.user_id,
+            name="instructions",
+            description="Instructions",
+            content="Original instructions",
+        )
+        db.add(skill)
+        await db.flush()
+        world.spec.skill_ids = [skill.id]
+        if binding == "resource":
+            target = SkillResource(skill_id=skill.id, name="policy.md", content="Original policy")
+            db.add(target)
+        else:
+            target = skill
+    elif binding == "context":
+        target = ContextFile(
+            organization_id=world.org.id,
+            owner_user_id=world.ctx.user_id,
+            name="policy",
+            content="Original policy",
+        )
+        db.add(target)
+        await db.flush()
+        world.spec.context_ids = [target.id]
+    else:
+        target = Project(
+            organization_id=world.org.id,
+            owner_user_id=world.ctx.user_id,
+            name="Policy",
+            instructions="Original policy",
+            backend="state",
+        )
+        db.add(target)
+        await db.flush()
+        world.trigger.project_id = target.id
+    await db.flush()
+    world.version.spec = world.spec.model_dump(mode="json")
+    reviewed_sources(world.trigger, spec=world.spec, version_id=world.version.id)
+    await db.flush()
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    request = RoutineActions(actions=[WRITE], review_token=offered.review_token)
+    await service.replace(world.ctx, world.trigger, request)
+    authority = await capture(db, world)
+    assert (await authority.action_policy(world.agent.id, world.spec, tool())).consented_by
+    before = await instruction_fingerprint(
+        db, organization_id=world.org.id, spec=world.spec, project_id=world.trigger.project_id
+    )
+    if isinstance(target, Project):
+        original = target.instructions
+        target.instructions = "Changed instructions"
+    else:
+        original = target.content
+        target.content = "Changed instructions"
+    target.updated_at = datetime.now(UTC)
+    await db.flush()
+    with pytest.raises(ConflictError):
+        await service.replace(world.ctx, world.trigger, request)
+    # A change in a project may also invalidate source authorization itself.
+    try:
+        decision = await authority.action_policy(world.agent.id, world.spec, tool())
+    except AuthorizationError:
+        assert binding == "project"
+    else:
+        assert decision.required and decision.consented_by is None
+    if isinstance(target, Project):
+        target.instructions = original
+    else:
+        target.content = original
+    target.updated_at = datetime.now(UTC)
+    await db.flush()
+    after = await instruction_fingerprint(
+        db, organization_id=world.org.id, spec=world.spec, project_id=world.trigger.project_id
+    )
+    assert after != before
+    assert not next(
+        item
+        for item in (await service.options(world.ctx, world.trigger)).items
+        if item.tool_id == WRITE.tool_id
+    ).consented
+    # Legacy consents without an instruction revision cannot waive bound content.
+    world.trigger.action_consents = [
+        {key: value for key, value in consent.items() if key != "instructions_hash"}
+        for consent in world.trigger.action_consents
+    ]
+    await db.flush()
+    legacy = await capture(db, world)
+    assert (await legacy.action_policy(world.agent.id, world.spec, tool())).consented_by is None

@@ -1,5 +1,5 @@
 ---
-source_sha: "5ca3ec8a61d8"
+source_sha: "1072bf10176f"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1148,6 +1148,9 @@ umieścił ją w wątku, oraz z załączonymi plikami, które agent przygotował
 historia jest obcinana, zanim agent ją przeczyta. Akceptacja lub pytanie przychodzi jako ponumerowane
 linie, a odpowiada się, odpisując samym numerem; numery działają jak w SMS-ach, a pytanie zostaje
 otwarte przez dobę.
+
+Przychodzące `references` muszą być listą ciągów bez CR i LF; zachowane wpisy mogą mieć najwyżej 998 znaków. Wiadomości z nieprawidłowymi odwołaniami są ignorowane przed przetwarzaniem. Wielowierszowy temat jest składany do jednego wiersza przed utworzeniem nagłówków odpowiedzi.
+
 
 ## Slack { #slack }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "f963b395769b"
+source_sha: "0047bdd0c23a"
 ---
 
 # Governance { #governance }
@@ -781,6 +781,9 @@ Zustimmung erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationspo
 und Zustimmung werden vor jedem Werkzeug erneut geprüft. Jeder freigegebene Aufruf
 zeichnet eine genehmigte Zeile mit zustimmender Person und Argumenten auf.
 Delegierte brauchen eigene Entscheidungen und erben keine Ausnahme des Elternlaufs.
+
+
+Eine dauerhafte Aktionsfreigabe speichert auch die aktuellen Revisionen der gebundenen Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht die Ausnahme ungültig, selbst wenn die veröffentlichte Agentenversion gleich bleibt oder der alte Text später wiederhergestellt wird. Prüfen Sie die Aktionen erneut, um eine neue Ausnahme zu erteilen. Bestehende Ausnahmen ohne Revisionsfingerabdruck gelten nur für Agenten ohne solche veränderlichen Anweisungsquellen weiter.
 
 `0267_routine_action_consents.py` erzeugt keine Ausnahmen für bestehende Routinen.
 Eine bisher unbeaufsichtigte Aktion kann nun auf Bestätigung warten. Alte Worker

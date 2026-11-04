@@ -1,5 +1,5 @@
 ---
-source_sha: "4ef76b8dbb26"
+source_sha: "28e4f15b715b"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -427,3 +427,5 @@ Introduce una tarifa conservadora por minuto que cubra destino, síntesis y dem�
 
 
 Selecciona los agentes autorizados para solicitar llamadas o informes. El contacto por casos importantes requiere consentimiento adicional y tus criterios escritos de importancia. El agente consulta los criterios y casos abiertos de la conversación actual mediante `get_phone_contact_policy` y entrega a `call_me` el identificador existente y su evaluación. Cero segundos significa contacto inmediato; otro valor retrasa la llamada desde la primera notificación sin leer. Confirmar, resolver o silenciar ese caso cancela la llamada pendiente. Cada caso permite un intento telefónico, incluso después de caducar el comprobante. Se mantienen el contexto de origen y los permisos actuales.
+
+No se permite eliminar cuentas ni organizaciones mientras haya llamadas telefónicas sin finalizar. Finaliza las llamadas y espera su estado final antes de volver a intentar la eliminación; así se conservan los callbacks del proveedor y los límites de duración. La exportación personal incluye todos los casos, incluso sin intento telefónico, y todo su contenido cuenta para el límite de tamaño de la exportación.

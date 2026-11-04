@@ -253,6 +253,8 @@ class EmailAdapter(ChannelAdapter):
             len(message_id) > 998 or "\n" in message_id or "\r" in message_id
         ):
             return None
+        if _reference_ids(raw_payload.get("references")) is None:
+            return None
         attachments = self._attachments(raw_payload.get("attachments"), bot_id)
         if not text and not attachments:
             return None
@@ -290,6 +292,19 @@ class EmailAdapter(ChannelAdapter):
         return found
 
 
+def _reference_ids(value: object) -> list[str] | None:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        return None
+    references: list[str] = []
+    for item in value[-email_state.MAX_REFERENCES :]:
+        if not isinstance(item, str) or len(item) > 998 or "\r" in item or "\n" in item:
+            return None
+        references.append(item)
+    return references
+
+
 async def keep_inbound(
     bot_token: str, incoming: IncomingMessage, payload: dict[str, Any]
 ) -> email_state.Thread | None:
@@ -300,14 +315,12 @@ async def keep_inbound(
     )
     if not await email_state.reserve_attachments(incoming.bot_id, encoded_bytes):
         return None
-    references = payload.get("references")
-    chain = (
-        [str(item)[:998] for item in references[-email_state.MAX_REFERENCES :]]
-        if isinstance(references, list)
-        else []
-    )
+    chain = _reference_ids(payload.get("references"))
+    if chain is None:
+        raise ValueError("Inbound email references must be validated before storage")
+    subject = " ".join(str(payload.get("subject") or "").splitlines())[:998]
     thread = email_state.Thread(
-        subject=str(payload.get("subject") or "")[:998],
+        subject=subject,
         message_id=incoming.message_id,
         references=[*chain, *([incoming.message_id] if incoming.message_id else [])][
             -email_state.MAX_REFERENCES :
@@ -316,7 +329,7 @@ async def keep_inbound(
     await email_state.remember_thread(
         bot_token.strip().lower(),
         incoming.platform_chat_id,
-        subject=str(payload.get("subject") or "")[:998],
+        subject=subject,
         message_id=incoming.message_id,
         references=chain,
     )

@@ -17,7 +17,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, ConflictErr
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
-from app.repositories import agent_trigger_repo, mcp_connection_repo, organization_repo
+from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo, organization_repo
 from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_actions import (
     RoutineAction,
@@ -82,10 +82,35 @@ def action_key(action: RoutineAction) -> RoutineAction:
     )
 
 
+async def instruction_fingerprint(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    spec: AgentSpec,
+    project_id: UUID | None,
+) -> str | None:
+    if not spec.skill_ids and not spec.context_ids and project_id is None:
+        return None
+    material = await agent_repo.mutable_instruction_material(
+        db,
+        organization_id=organization_id,
+        skill_ids=spec.skill_ids,
+        context_ids=spec.context_ids,
+        project_id=project_id,
+    )
+    return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
+
+
 def action_review(
-    trigger: AgentTrigger, version_id: UUID, mcp: Sequence[RoutineMcpActionOption] = ()
+    trigger: AgentTrigger,
+    version_id: UUID,
+    mcp: Sequence[RoutineMcpActionOption] = (),
+    *,
+    instructions_hash: str | None = None,
 ) -> str:
     content = f"{version_id}:{action_intent(trigger)}"
+    if instructions_hash is not None:
+        content += f":instructions:{instructions_hash}"
     if mcp:
         content += json.dumps(
             [
@@ -168,16 +193,20 @@ class RoutineActionService:
         self._human(ctx, trigger)
         spec, version = await self._spec(ctx, trigger)
         mcp, unavailable = await self._mcp_options(ctx, trigger, spec)
+        instructions = await instruction_fingerprint(
+            self.db, organization_id=ctx.organization_id, spec=spec, project_id=trigger.project_id
+        )
         consented = {
             action_key(consent)
             for consent in CONSENTS.validate_python(trigger.action_consents)
             if consent.version_id == version
             and consent.intent_hash == action_intent(trigger)
             and consent.consented_by == ctx.user_id
+            and consent.instructions_hash == instructions
         }
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
         return RoutineActionOptions(
-            review_token=action_review(trigger, version, mcp),
+            review_token=action_review(trigger, version, mcp, instructions_hash=instructions),
             unavailable_sources=unavailable,
             can_waive=ctx.has(Perm.APPROVALS_DECIDE)
             and organization is not None
@@ -210,9 +239,14 @@ class RoutineActionService:
         self._human(ctx, current)
         spec, version = await self._spec(ctx, current)
         mcp, _ = await self._mcp_options(ctx, current, spec)
-        if data.actions and data.review_token != action_review(current, version, mcp):
+        instructions = await instruction_fingerprint(
+            self.db, organization_id=ctx.organization_id, spec=spec, project_id=current.project_id
+        )
+        if data.actions and data.review_token != action_review(
+            current, version, mcp, instructions_hash=instructions
+        ):
             raise ConflictError(
-                message="This routine, its published version or its connected actions changed. Review its actions again before consenting."
+                message="This routine, its published version, instructions or connected actions changed. Review its actions again before consenting."
             )
         available = {
             action_key(option)
@@ -241,6 +275,7 @@ class RoutineActionService:
                 consented_by=ctx.subject_id,
                 version_id=version,
                 intent_hash=intent,
+                instructions_hash=instructions,
             ).model_dump(mode="json")
             for key in ordered
         ]

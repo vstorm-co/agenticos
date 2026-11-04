@@ -371,6 +371,10 @@ class TestOrganizationService:
                 "app.services.organization.knowledge_base_repo.list_org_scoped",
                 new=AsyncMock(return_value=[]),
             ),
+            patch(
+                "app.repositories.telephony.organization_has_unfinished_calls",
+                new=AsyncMock(return_value=False),
+            ),
             patch("app.services.organization.organization_repo.delete", new=AsyncMock()),
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())

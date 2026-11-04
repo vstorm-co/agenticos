@@ -1,5 +1,5 @@
 ---
-source_sha: "f963b395769b"
+source_sha: "0047bdd0c23a"
 ---
 
 # Governance { #governance }
@@ -728,6 +728,9 @@ wstrzymanego przebiegu, a cofnięcie i ponowne nadanie tworzy nową tożsamość
 każdym narzędziu ponownie sprawdzane są członkostwo, uprawnienia, polityka organizacji
 i zgoda. Każde wykonanie na podstawie zgody zapisuje zatwierdzony wpis z osobą i
 argumentami. Delegaci wymagają własnych decyzji; nie pożyczają wyjątku rodzica.
+
+
+Stała zgoda na działania zapisuje także aktualne rewizje przypiętych skills, ich zasobów, plików kontekstu i instrukcji projektu. Edycja któregokolwiek unieważnia wyjątek, nawet gdy opublikowana wersja agenta się nie zmienia lub później przywrócono dawną treść. Ponownie przejrzyj działania, aby nadać nowy wyjątek. Istniejące wyjątki bez odcisku rewizji pozostają ważne tylko dla agentów bez takich zmiennych źródeł instrukcji.
 
 `0267_routine_action_consents.py` nie tworzy wyjątków istniejącym rutynom. Zmienia
 się wykonanie bez nadzoru: dotychczasowe działanie może teraz czekać na zatwierdzenie.

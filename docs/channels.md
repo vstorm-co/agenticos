@@ -1110,6 +1110,9 @@ files it in the thread, and any files the agent produced attached. History quote
 cut before the agent reads it. An approval or a question arrives as numbered lines and is answered by
 replying with just the number; the numbers behave as on SMS, and a prompt stays open for a day.
 
+Inbound `references` must be a list of strings without CR or LF; retained entries must not exceed 998 characters. Malformed references are ignored before processing the message. Folded subjects are unfolded before reply headers are created.
+
+
 ## Slack
 
 1. **api.slack.com/apps → Create New App → From scratch.** Name it and pick the

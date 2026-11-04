@@ -1,5 +1,5 @@
 ---
-source_sha: "4ef76b8dbb26"
+source_sha: "28e4f15b715b"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -420,3 +420,5 @@ Podaj ostrożną stawkę minutową obejmującą kierunek, syntezę głosu i pozo
 
 
 Wybierz agentów, którzy mogą zamawiać telefony i raporty. Kontakt w ważnej sprawie wymaga dodatkowej zgody i opisanych przez Ciebie kryteriów ważności. Agent odczytuje zasady i otwarte sprawy bieżącej rozmowy przez `get_phone_contact_policy`, a do `call_me` podaje istniejący identyfikator sprawy i uzasadnienie. Ustaw 0 dla kontaktu natychmiastowego albo opóźnienie od pierwszego nieprzeczytanego powiadomienia. Potwierdzenie, rozwiązanie lub wyciszenie tej samej sprawy anuluje oczekujący telefon. Jedna sprawa dopuszcza jedną próbę telefoniczną; deduplikacja przeżywa wygaśnięcie potwierdzenia. Nadal obowiązują kontekst źródłowy i bieżące uprawnienia.
+
+Usuwanie konta i organizacji jest odrzucane, dopóki istnieją niezakończone połączenia telefoniczne. Zakończ je i poczekaj na stan końcowy przed ponownym usuwaniem; zachowuje to obsługę callbacków dostawcy i limity czasu. Eksport osobisty obejmuje wszystkie sprawy, także bez próby połączenia, a pełna treść jest wliczana do limitu rozmiaru eksportu.

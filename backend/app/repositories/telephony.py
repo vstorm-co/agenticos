@@ -332,3 +332,25 @@ async def bot_has_unfinished_calls(
             )
         )
     )
+
+
+async def user_has_unfinished_calls(db: AsyncSession, user_id: UUID) -> bool:
+    """Whether account deletion would orphan a provider call still needing cleanup."""
+    return bool(
+        await db.scalar(
+            select(exists().where(PhoneCall.user_id == user_id, PhoneCall.finished_at.is_(None)))
+        )
+    )
+
+
+async def organization_has_unfinished_calls(db: AsyncSession, organization_id: UUID) -> bool:
+    """Whether cascading an organization would discard live provider receipts."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    PhoneCall.organization_id == organization_id, PhoneCall.finished_at.is_(None)
+                )
+            )
+        )
+    )

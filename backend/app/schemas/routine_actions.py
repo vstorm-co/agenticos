@@ -33,6 +33,7 @@ class ConsentIdentity(BaseModel):
     consented_by: UUID
     version_id: UUID
     intent_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    instructions_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 class RoutineActionConsent(RoutineActionKey, ConsentIdentity):

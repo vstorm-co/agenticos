@@ -686,6 +686,9 @@ permissions, organization policy and consent are checked again at each tool.
 Every waived call records an approved row naming its consenting person and
 arguments. Delegates require their own decisions; a parent's waiver is not lent.
 
+
+Standing action consent also records the current revisions of bound skills, skill resources, context files and project instructions. Editing any of them invalidates the exception, even if the published agent version stays the same or the old text is later restored. Review actions again to grant a new exception. Existing exceptions without a revision fingerprint remain valid only for agents without these mutable instruction sources.
+
 `0267_routine_action_consents.py` creates no exceptions for existing routines.
 This changes unattended execution: an existing action may now wait for approval.
 Drain old workers and upgrade the API and workers together before resuming duties,

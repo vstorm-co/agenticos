@@ -82,6 +82,27 @@ class PhoneCaseAttemptExport(BaseModel):
     phone_attempted_at: datetime
 
 
+class OutcomeExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    organization_id: UUID
+    kind: str
+    dedupe_key: str
+    summary: str
+    context_url: str | None
+    status: str
+    source_run_id: UUID | None
+    source_conversation_id: UUID | None
+    phone_attempted_at: datetime | None
+    last_observed_at: datetime | None
+    last_recovered_at: datetime | None
+    settled_at: datetime | None
+    settled_via: str | None
+    created_at: datetime
+    updated_at: datetime | None
+
+
 class PhoneCallExport(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -125,6 +146,7 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    outcomes: list[OutcomeExport] = Field(default_factory=list)
     phone_contacts: list[PhoneContactExport] = Field(default_factory=list)
     phone_case_attempts: list[PhoneCaseAttemptExport] = Field(default_factory=list)
     phone_calls: list[PhoneCallExport] = Field(default_factory=list)

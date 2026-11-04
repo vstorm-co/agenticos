@@ -50,7 +50,13 @@ from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
 from app.services.project import ProjectService
-from app.services.routine_actions import CONSENTS, action_intent, action_key, routine_effect
+from app.services.routine_actions import (
+    CONSENTS,
+    action_intent,
+    action_key,
+    instruction_fingerprint,
+    routine_effect,
+)
 from app.services.routine_sources import (
     RoutineSourcesRequired,
     account_identities,
@@ -495,7 +501,12 @@ class RoutineAuthority:
     async def _consent_in(
         self, db: AsyncSession, agent_id: UUID, key: RoutineAction
     ) -> UUID | None:
-        if self.routine_kind != "trigger" or agent_id != self.root_agent_id:
+        if (
+            self.routine_kind != "trigger"
+            or agent_id != self.root_agent_id
+            or not self.action_consents
+            or self.root_version_id is None
+        ):
             return None
         trigger = await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
         organization = await organization_repo.get_by_id(db, self.organization_id)
@@ -517,12 +528,24 @@ class RoutineAuthority:
             current = CONSENTS.validate_python(trigger.action_consents)
         except PydanticValidationError:
             raise _refused() from None
+        version = await agent_repo.get_version(
+            db, self.root_version_id, organization_id=self.organization_id
+        )
+        if version is None:
+            return None
+        instructions = await instruction_fingerprint(
+            db,
+            organization_id=self.organization_id,
+            spec=AgentSpec.model_validate(version.spec),
+            project_id=trigger.project_id,
+        )
         for consent in self.action_consents:
             if (
                 consent in current
                 and consent.consented_by == self.user_id
                 and consent.version_id == self.root_version_id
                 and consent.intent_hash == action_intent(trigger)
+                and consent.instructions_hash == instructions
                 and action_key(consent) == key
             ):
                 return self.user_id

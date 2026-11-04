@@ -665,3 +665,52 @@ async def test_email_state_failure_releases_the_delivery_claim(redis: _Redis) ->
         assert spawned == []
         response = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
         assert response.status_code == 200 and len(spawned) == 1
+
+
+@pytest.mark.parametrize(
+    "references", [["<ok>\r\nBcc: other@example.com"], [123], "<id>", ["x" * 999]]
+)
+async def test_invalid_reference_headers_are_refused_before_processing(
+    redis: _Redis, references: object
+) -> None:
+    webhook = TestTheWebhook()
+    bot = webhook._bot()
+    await sms_prompts.remember(str(bot.id), "ada@acme.com", ["aos:a:0"], start=1, platform="email")
+    before = dict(redis.data)
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "text": "1",
+        "message_id": "<invalid-refs>",
+        "references": references,
+    }
+    async with webhook._wired(bot) as spawned, _client(bot) as client:
+        response = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
+    assert response.status_code == 200
+    assert spawned == []
+    assert redis.data == before
+
+
+async def test_folded_subject_is_unfolded_before_outbound_serialization(redis: _Redis) -> None:
+    from email.message import EmailMessage
+
+    from app.services.channels.email import keep_inbound
+
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "text": "Hello",
+        "subject": "A long\r\n subject",
+        "references": ["<previous>"],
+        "message_id": "<current>",
+    }
+    incoming = EmailAdapter().parse_incoming(payload, "bot")
+    assert incoming is not None
+    thread = await keep_inbound("agent@acme.com", incoming, payload)
+    assert thread is not None
+    message = EmailMessage()
+    message["Subject"] = thread.subject
+    message["References"] = " ".join(thread.references)
+    assert "\n" not in str(message["Subject"])
+    assert thread.references == ["<previous>", "<current>"]
+    assert message.as_bytes()

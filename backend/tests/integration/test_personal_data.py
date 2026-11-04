@@ -1033,3 +1033,56 @@ async def test_channel_authors_are_erased_without_copying_labels_into_message_bo
     assert other.content == "A colleague's text."
     assert await db.get(User, going_id) is None
     assert await db.get(Conversation, chat.id) is not None
+
+
+async def test_export_includes_every_owned_outcome_and_bounds_the_full_content(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.outcome import Outcome
+
+    user = await _person(db, f"outcomes-{uuid4()}@example.com")
+    other = await _person(db, f"other-outcomes-{uuid4()}@example.com")
+    org, _ = await _org_and_agent(db)
+    now = datetime.now(UTC)
+    records = [
+        Outcome(
+            organization_id=org.id,
+            user_id=user.id,
+            kind="finding",
+            dedupe_key="no-phone",
+            summary="Needs attention",
+            context_url="/chat",
+            last_observed_at=now,
+        ),
+        Outcome(
+            organization_id=org.id,
+            user_id=user.id,
+            kind="finding",
+            dedupe_key="settled",
+            summary="Already resolved",
+            status="resolved",
+            settled_at=now,
+            settled_via="chat",
+            phone_attempted_at=now,
+        ),
+        Outcome(
+            organization_id=org.id,
+            user_id=other.id,
+            kind="finding",
+            dedupe_key="private",
+            summary="Another person's case",
+        ),
+    ]
+    db.add_all(records)
+    await db.flush()
+    service = PersonalDataService(db)
+    export = await service.export(user.id, actor_user_id=user.id)
+    assert {row.id for row in export.outcomes} == {records[0].id, records[1].id}
+    assert export.outcomes[0].last_observed_at == now
+    assert {row.id for row in export.phone_case_attempts} == {records[1].id}
+    records[0].summary = "x" * 50_000
+    records[0].context_url = "https://example.com/" + "x" * 50_000
+    await db.flush()
+    monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 80_000)
+    with pytest.raises(BadRequestError, match="more conversation text"):
+        await service.export(user.id, actor_user_id=user.id)

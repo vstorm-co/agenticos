@@ -1,5 +1,5 @@
 ---
-source_sha: "f963b395769b"
+source_sha: "0047bdd0c23a"
 ---
 
 # Governance { #governance }
@@ -742,6 +742,9 @@ consentir de nuevo crea una identidad nueva. Se comprueban de nuevo la pertenenc
 los permisos, la política y el consentimiento antes de cada herramienta. Cada
 llamada autorizada registra una fila aprobada con persona y argumentos. Los
 delegados requieren sus propias decisiones y no heredan la excepción del padre.
+
+
+El consentimiento permanente también registra las revisiones actuales de las skills vinculadas, sus recursos, los archivos de contexto y las instrucciones del proyecto. Cualquier edición invalida la excepción, aunque no cambie la versión publicada del agente o se restaure después el texto anterior. Revisa las acciones de nuevo para conceder otra excepción. Las excepciones existentes sin huella de revisión siguen siendo válidas solo para agentes sin estas fuentes de instrucciones modificables.
 
 `0267_routine_action_consents.py` no crea excepciones para rutinas existentes.
 Una acción antes desatendida puede esperar ahora una aprobación. Drena los workers

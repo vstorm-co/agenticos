@@ -1,5 +1,5 @@
 ---
-source_sha: "5ca3ec8a61d8"
+source_sha: "1072bf10176f"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1228,6 +1228,9 @@ ein Mailprogramm sie in den Verlauf einsortiert, und mit angehängten Dateien, d
 Unter einer Antwort zitierter Verlauf wird abgeschnitten, bevor der Agent ihn liest. Eine Freigabe oder
 Frage kommt als nummerierte Zeilen und wird beantwortet, indem man nur mit der Nummer antwortet; die
 Nummern verhalten sich wie bei SMS, und eine Frage bleibt einen Tag offen.
+
+Eingehende `references` müssen eine Liste von Zeichenketten ohne CR oder LF sein; aufbewahrte Einträge dürfen höchstens 998 Zeichen enthalten. Nachrichten mit ungültigen Referenzen werden vor der Verarbeitung ignoriert. Mehrzeilige Betreffzeilen werden vor dem Erstellen der Antwortheader zu einer Zeile zusammengeführt.
+
 
 ## Slack { #slack }
 

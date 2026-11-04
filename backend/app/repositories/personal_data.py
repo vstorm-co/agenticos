@@ -662,3 +662,28 @@ async def phone_case_attempts_of(db: AsyncSession, user_id: UUID) -> list[Outcom
             )
         )
     )
+
+
+async def outcomes_of(db: AsyncSession, user_id: UUID) -> list[Outcome]:
+    return list(
+        await db.scalars(
+            select(Outcome)
+            .where(Outcome.user_id == user_id)
+            .order_by(Outcome.created_at, Outcome.id)
+        )
+    )
+
+
+async def outcome_export_size(db: AsyncSession, user_id: UUID) -> int:
+    table = Outcome.__table__
+    if not isinstance(table, Table):
+        raise TypeError("Outcomes must map to a concrete exportable table")
+    size = await db.scalar(
+        select(
+            func.coalesce(
+                func.sum(func.length(cast(func.to_jsonb(table.table_valued()), Text)) * 2 + 1024),
+                0,
+            )
+        ).where(Outcome.user_id == user_id)
+    )
+    return int(size or 0)
