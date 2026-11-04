@@ -976,6 +976,7 @@ async def mutable_instruction_material(
             )
         resources = await db.execute(
             select(
+                SkillResource.id,
                 SkillResource.skill_id,
                 SkillResource.name,
                 SkillResource.description,
@@ -986,10 +987,11 @@ async def mutable_instruction_material(
             .where(Skill.organization_id == organization_id, Skill.id.in_(skill_ids))
             .order_by(SkillResource.skill_id, SkillResource.name)
         )
-        for identifier, name, description, content, updated_at in resources:
+        for resource_id, identifier, name, description, content, updated_at in resources:
             material.append(
                 {
                     "kind": "skill_resource",
+                    "id": str(resource_id),
                     "skill_id": str(identifier),
                     "name": name,
                     "description": description,

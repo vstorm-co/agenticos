@@ -33,8 +33,8 @@ No merge or deployment is part of this implementation authorization.
 - [x] Restrict automatic calls to selected agents, important-case criteria and
   immediate or delayed unacknowledged-case delivery; cancel on shared settlement
   and retain event deduplication after short-lived receipt expiry.
-- [x] Address the existing Codex review findings. Further rounds are deferred
-  at the maintainer’s request so manual local acceptance can start.
+- [x] Address the existing Codex review findings. On renewed request, complete
+  five sequential `@codex review` rounds on the original PR (all five reviewed; final corrections verified below).
 
 ## Authority and durable effects
 
@@ -98,9 +98,55 @@ A2A credential-fencing finding. Corrections retain telephone cleanup receipts
 after agent deletion, reconcile signed terminal cost callbacks, count complete
 claim export rows and deduplicate numbered SMS/iMessage presses. Vault credential
 generations now invalidate reviewed remote-agent accounts on replacement.
-The SMS webhook also bounds reads before signature work. Further rounds are deferred at the maintainer’s explicit request. Start the
-local application and provide hands-on acceptance instructions instead.
+The SMS webhook also bounds reads before signature work. The maintainer initially
+deferred additional reviews for manual acceptance, then explicitly requested five
+new sequential rounds on 2026-11-04. The earlier review above is historical and
+does not count toward those five.
 
 Existing earlier review findings also receive bounded streamed e-mail admission
 and queue-level serialization for budgeted routine fires and memory extraction.
 Focused verification: 148 checks including real queue concurrency contracts.
+
+
+### Renewed five-round review
+
+| Round | Request comment | Reviewed head | Result / correction |
+| --- | --- | --- | --- |
+| 1 | 6637015225 | `2cd0a5990` | Six code/security findings; fixed in `8eaf63042` |
+| 2 | 6637730841 | `8eaf63042` | Interactive telephone admission; fixed in `37bdd4728` |
+| 3 | 6637978995 | `37bdd4728` | Seven code/security findings; fixed in `5686388b1` |
+| 4 | 6638576699 | `5686388b1` | Five code/security findings; fixed in `1cb94cdff` |
+| 5 | 6639173680 | `1cb94cdff` | Three code/security findings: durable reaping, dial cancellation, SMS credential rotation; corrected in the final follow-up |
+
+Confirmed findings receive regression coverage and an individual reply before
+resolving their PR conversation. Round four verification includes 141 real-database
+tests for routine authority, action consent, personal export and telephony;
+164 focused email, account-deletion, organization and export-route tests;
+and 61 final consent/lock-order checks. Backend lint, type checks and the strict
+four-language documentation build pass. These are scoped local checks, not a
+claim that every CI or live carrier acceptance check has run.
+
+Upgrade the API and workers together after draining old workers. Apply migrations
+through `0285_member_proactivity.py`; it adds the member concurrency limit shared
+by watches and nightly jobs. Legacy mem0 bindings must be inventoried and their
+remote data explicitly erased before `0248_drop_mem0_bindings.py` can proceed;
+the migration refuses to discard retained cleanup mappings.
+
+The local acceptance environment uses the populated `agenticos_growth_demo_pr2606`
+clone, leaving the original database intact. Automatic watches remain disabled;
+telephone and BlueBubbles live-provider acceptance remains with the maintainer.
+The agent/team todo-table concept remains a design discussion, not another task
+engine implemented in this change.
+
+
+Round five produced two code findings and one security finding, all confirmed.
+Cleanup now commits the ending state and releases row locks before provider IO,
+then reloads the receipt without overwriting a terminal signed callback. A dial
+accepted after cancellation immediately finishes its retained stop intent. SMS
+credential replacement uses the same organization fence and unfinished-call
+check as deletion, before locking the bot row. The instruction fingerprint also
+includes skill-resource identity so deletion/recreation cannot restore an old
+exception. Final focused verification includes 25 telephone integration tests,
+47 action-consent regressions and 121 transport/channel tests. Real provider
+acceptance remains manual. Five requests completed; review is evidence against
+known defects, not a guarantee that no further defect exists.

@@ -710,6 +710,20 @@ class ChannelBotService:
                 reads that as everybody having left them, so replacing the token
                 takes what deleting the mappings takes.
         """
+        if data.token is not None:
+            candidate = await self.get(bot_id)
+            if candidate.platform == "sms":
+                from app.db.locks import LockScope, hold_subject
+                from app.repositories import telephony as phone_repo
+
+                # Match admission/deletion ordering: the org fence precedes the bot row.
+                await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, self._org_id)
+                if await phone_repo.bot_has_unfinished_calls(
+                    self.db, organization_id=self._org_id, bot_id=bot_id
+                ):
+                    raise ConflictError(
+                        message="End all telephone calls before replacing this SMS bot's credentials"
+                    )
         # Locked from the read: every credential below is sealed at the row's
         # recorded key version, and a rotation committing between an unlocked
         # read and this write would tag the new envelopes with a version they

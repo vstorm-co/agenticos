@@ -146,6 +146,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Persist telephone cleanup before provider requests, immediately finish cancellations accepted during dialing, and retain SMS credentials until all calls finish.
+
 - Invalidate unattended action exceptions after bound instruction edits, preserve unfinished telephone calls during account/organization deletion, export all personal outcomes with full size accounting, and reject malformed email reply references.
 
 - Run memory maintenance using its explicitly configured role/model and originating agent, without depending on a published AgenticOS starter. Recheck memory sharing after the person-erasure lock so a stale read cannot republish an erased claim, and report mutation conflicts to the agent.

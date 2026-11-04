@@ -1003,3 +1003,37 @@ async def test_instruction_edits_invalidate_review_tokens_and_standing_consent(
     await db.flush()
     legacy = await capture(db, world)
     assert (await legacy.action_policy(world.agent.id, world.spec, tool())).consented_by is None
+
+
+async def test_recreated_skill_resource_cannot_reactivate_its_previous_consent(
+    db: AsyncSession, world: World
+) -> None:
+    from app.db.models.skill import Skill, SkillResource
+
+    skill = Skill(
+        organization_id=world.org.id,
+        owner_user_id=world.ctx.user_id,
+        name="recreated-resource",
+        description="Policy",
+        content="Read policy.md",
+    )
+    db.add(skill)
+    await db.flush()
+    resource = SkillResource(skill_id=skill.id, name="policy.md", content="Original policy")
+    db.add(resource)
+    world.spec.skill_ids = [skill.id]
+    world.version.spec = world.spec.model_dump(mode="json")
+    reviewed_sources(world.trigger, spec=world.spec, version_id=world.version.id)
+    await db.flush()
+    service = RoutineActionService(db)
+    offered = await service.options(world.ctx, world.trigger)
+    await service.replace(
+        world.ctx, world.trigger, RoutineActions(actions=[WRITE], review_token=offered.review_token)
+    )
+    authority = await capture(db, world)
+    assert (await authority.action_policy(world.agent.id, world.spec, tool())).consented_by
+    await db.delete(resource)
+    await db.flush()
+    db.add(SkillResource(skill_id=skill.id, name="policy.md", content="Original policy"))
+    await db.flush()
+    assert (await authority.action_policy(world.agent.id, world.spec, tool())).consented_by is None

@@ -175,7 +175,8 @@ async def dial(
     except AppException:
         await _settle_submission(sessions, call_id, status="failed")
     else:
-        await _settle_submission(sessions, call_id, status="ringing", sid=sid)
+        if await _settle_submission(sessions, call_id, status="ringing", sid=sid):
+            await end_media(call_id, provider=adapter, sessions=sessions)
 
 
 async def _settle_submission(
@@ -184,11 +185,11 @@ async def _settle_submission(
     *,
     status: Literal["unknown", "failed", "ringing"],
     sid: str | None = None,
-) -> None:
+) -> bool:
     async with sessions() as db:
         row = await repo.call(db, call_id, lock=True)
         if row is None or row.status not in {"dialing", "unknown", "ending"}:
-            return
+            return False
         was_ending = row.status == "ending"
         if sid is not None:
             if row.provider_sid is not None and row.provider_sid != sid:
@@ -205,6 +206,7 @@ async def _settle_submission(
             row.finished_at = datetime.now(UTC)
         await repo.save(db, row)
         await db.commit()
+        return was_ending and sid is not None and row.provider_sid == sid and row.status == "ending"
 
 
 async def cap_inbound(
@@ -601,20 +603,32 @@ async def _reap_one(identifier: UUID, *, provider: PhoneProvider, sessions: Sess
             return False
         row.status = "ending"
         await repo.save(db, row)
+        sid = row.provider_sid
         try:
             auth = await _cleanup_credentials(db, row)
-            if row.provider_sid is not None:
-                await provider.hangup(auth, row.provider_sid)
-            elif not expired:
-                await db.commit()
-                return False
         except AppException:
-            logger.warning("phone_reaper_provider_unavailable", extra={"call_id": str(identifier)})
-            if not expired:
-                await db.commit()
-                return False
-            # Every admitted provider leg already has its own hard time limit.
-            # Keep the reservation when cleanup cannot confirm its final invoice.
+            auth = None
+        # Release the row lock and durably retain cleanup intent before provider IO.
+        await db.commit()
+    cleanup_available = auth is not None
+    try:
+        if auth is not None and sid is not None:
+            await provider.hangup(auth, sid)
+    except AppException:
+        cleanup_available = False
+    if not cleanup_available:
+        logger.warning("phone_reaper_provider_unavailable", extra={"call_id": str(identifier)})
+        if not expired:
+            return False
+        # Every admitted provider leg already has its own hard time limit.
+        # Keep the reservation when cleanup cannot confirm its final invoice.
+    elif sid is None and not expired:
+        return False
+    async with sessions() as db:
+        row = await repo.call(db, identifier, lock=True)
+        # A signed callback can settle the receipt while hang-up is in flight.
+        if row is None or row.status != "ending":
+            return False
         row.status = "failed"
         row.finished_at = now
         await repo.save(db, row)

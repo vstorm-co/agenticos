@@ -833,3 +833,132 @@ async def test_account_and_org_deletion_cannot_orphan_live_provider_calls(
         await channel_bot_repo.get_for_org(db, bot.id, organization_id=ctx.organization_id)
         is not None
     )
+
+
+@pytest.mark.parametrize("completion", ["crash", "callback"])
+async def test_reaper_commits_cleanup_intent_and_releases_lock_before_provider_io(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, completion: str
+) -> None:
+    import anyio
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, receipt.id)
+    assert row is not None
+    row.status = "ringing"
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    row.provider_sid = SID
+    await db.commit()
+    factory = sessions(db)
+
+    class InspectingPhone(FakePhone):
+        async def hangup(self, credentials: PhoneCredentials, sid: str) -> None:
+            # A callback uses another transaction and must not wait on provider IO.
+            with anyio.fail_after(2):
+                async with factory() as callback_db:
+                    live = await repo.call(callback_db, receipt.id, lock=True)
+                    assert live is not None and live.status == "ending"
+                    if completion == "callback":
+                        params = {
+                            "AccountSid": ACCOUNT,
+                            "CallSid": SID,
+                            "To": PERSON_NUMBER,
+                            "From": NUMBER,
+                            "CallStatus": "completed",
+                            "CallDuration": "61",
+                        }
+                        signature = twilio_signature(url(f"/status/{receipt.id}"), params, TOKEN)
+                        await PhoneWebhookService(callback_db).status(
+                            receipt.id, urlencode(params).encode(), signature
+                        )
+            if completion == "crash":
+                raise RuntimeError("Worker stopped after provider acceptance")
+            await super().hangup(credentials, sid)
+
+    if completion == "crash":
+        with pytest.raises(RuntimeError, match="Worker stopped"):
+            await reap(provider=InspectingPhone(), sessions=factory)
+        async with factory() as fresh:
+            durable = await repo.call(fresh, receipt.id)
+            assert durable is not None and durable.status == "ending"
+        retry = FakePhone()
+        assert await reap(provider=retry, sessions=factory) == 1
+        assert retry.stops == [SID]
+    else:
+        provider = InspectingPhone()
+        await reap(provider=provider, sessions=factory)
+        assert provider.stops == [SID]
+        async with factory() as fresh:
+            settled = await repo.call(fresh, receipt.id)
+            assert settled is not None and settled.status == "completed"
+            assert settled.estimated_cost_usd == Decimal("0.20")
+
+
+async def test_cancel_accepted_during_dial_is_finished_when_provider_sid_arrives(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    await db.commit()
+    factory = sessions(db)
+
+    class CancellingPhone(FakePhone):
+        async def dial(
+            self,
+            credentials: PhoneCredentials,
+            *,
+            number: str,
+            twiml: str,
+            callback: str,
+            cap_seconds: int,
+        ) -> str:
+            await end_media(receipt.id, provider=self, sessions=factory, end_reason="user")
+            assert self.stops == []
+            return await super().dial(
+                credentials, number=number, twiml=twiml, callback=callback, cap_seconds=cap_seconds
+            )
+
+    provider = CancellingPhone()
+    await dial(receipt.id, provider=provider, sessions=factory)
+    assert provider.dials == [PERSON_NUMBER] and provider.stops == [SID]
+    async with factory() as fresh:
+        settled = await repo.call(fresh, receipt.id)
+        assert settled is not None and settled.status == "completed"
+        assert settled.finished_at is not None
+
+
+async def test_sms_credential_rotation_preserves_unfinished_call_cleanup(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.schemas.channel_bot import ChannelBotUpdate
+    from app.services.channel_bot import ChannelBotService, unseal_bot_token
+
+    ctx, bot, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, receipt.id)
+    assert row is not None
+    row.status = "ringing"
+    row.provider_sid = SID
+    await db.flush()
+    service = ChannelBotService(db, ctx.organization_id)
+    before = bot.authorization_generation
+    replacement = f"{ACCOUNT}:{'x' * 32}:{NUMBER}"
+    data = ChannelBotUpdate(token=replacement)
+    with pytest.raises(ConflictError, match="End all telephone calls"):
+        await service.update(bot.id, data, ctx)
+    assert bot.authorization_generation == before
+    assert unseal_bot_token(bot) == f"{ACCOUNT}:{TOKEN}:{NUMBER}"
+    # The old signature remains valid until its call is terminal.
+    params = {
+        "AccountSid": ACCOUNT,
+        "CallSid": SID,
+        "To": PERSON_NUMBER,
+        "From": NUMBER,
+        "CallStatus": "completed",
+        "CallDuration": "61",
+    }
+    signature = twilio_signature(url(f"/status/{receipt.id}"), params, TOKEN)
+    await PhoneWebhookService(db).status(receipt.id, urlencode(params).encode(), signature)
+    updated = await service.update(bot.id, data, ctx)
+    assert updated.authorization_generation != before
+    assert unseal_bot_token(updated) == replacement
