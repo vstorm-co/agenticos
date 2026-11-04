@@ -1,5 +1,5 @@
 ---
-source_sha: "bbac8a46e45a"
+source_sha: "c27d06888238"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1547,8 +1547,9 @@ historia zostają nietknięte. Panel wymienia potem pliki, które zadanie dodał
 zmieniło, usunęło albo przeniosło, a pod nimi fragmenty zmian każdego pliku, z
 przyciskiem **Kopiuj patch**; zadanie, które niczego nie zmieniło, mówi to wprost.
 Zadanie nieudane albo przerwane po czasie też zachowuje swój diff. Pominięte są:
-`.agenticos/`, foldery narzędzi, takie jak `.git`, `.venv` i `node_modules`, oraz
-pliki większe niż 1 MiB. Patch jest zachowywany do 256 KiB i 500 plików i oznaczany
+własne foldery platformy `.agenticos/`, `skills/` i `tool_output/`, foldery
+narzędzi, takie jak `.git`, `.venv` i `node_modules`, oraz pliki większe niż 1 MiB
+już na początku zadania. Patch jest zachowywany do 256 KiB i 500 plików i oznaczany
 tam, gdzie został ucięty.
 
 **Kto czyta diff.** Jest zapisany razem z rozmową i czytany z takim samym dostępem

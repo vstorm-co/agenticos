@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hunksOf } from "./patch";
+import { capHunks, hunksOf } from "./patch";
 
 describe("hunksOf", () => {
   it("drops the header and reads each hunk's lines by their mark", () => {
@@ -48,5 +48,29 @@ describe("hunksOf", () => {
       { kind: "context", text: "" },
       { kind: "removed", text: "a" },
     ]);
+  });
+});
+
+describe("capHunks", () => {
+  const hunk = (header: string, count: number) => ({
+    header,
+    lines: Array.from({ length: count }, (_, index) => ({
+      kind: "added" as const,
+      text: `${index}`,
+    })),
+  });
+
+  it("keeps whole hunks under the limit and counts what it leaves out", () => {
+    const { hunks, hidden } = capHunks([hunk("@@ a", 3), hunk("@@ b", 4), hunk("@@ c", 5)], 5);
+
+    expect(hunks.map((kept) => [kept.header, kept.lines.length])).toEqual([
+      ["@@ a", 3],
+      ["@@ b", 2],
+    ]);
+    expect(hidden).toBe(7);
+  });
+
+  it("leaves a short diff as it is", () => {
+    expect(capHunks([hunk("@@ a", 2)])).toEqual({ hunks: [hunk("@@ a", 2)], hidden: 0 });
   });
 });

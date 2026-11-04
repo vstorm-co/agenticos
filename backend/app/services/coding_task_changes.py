@@ -13,7 +13,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.coding_task_change import CodingTaskChange
 from app.repositories import coding_task_change as change_repo
-from app.schemas.coding_change import ChangeSet
+from app.schemas.coding_task_change import ChangeSet
 from app.services.conversation import ConversationService
 
 

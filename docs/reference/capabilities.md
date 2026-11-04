@@ -1478,8 +1478,9 @@ snapshotted before the task and again after it, into a git store of the task's o
 under `/tmp` - never the repository a person cloned, whose index and history stay
 untouched. The panel then lists the files the task added, changed, removed or
 renamed, then each file's hunks, with **Copy patch**; a task that changed nothing
-says so. A failed or timed-out task keeps its diff too. Left out: `.agenticos/`,
-toolchain folders such as `.git`, `.venv` and `node_modules`, and files over 1 MiB.
+says so. A failed or timed-out task keeps its diff too. Left out: the platform's own
+`.agenticos/`, `skills/` and `tool_output/`, toolchain folders such as `.git`,
+`.venv` and `node_modules`, and files already over 1 MiB when the task starts.
 The patch is kept up to 256 KiB and 500 files, and marked where it was cut.
 
 **Who reads the diff.** It is stored with the conversation and read with the

@@ -1031,7 +1031,7 @@ include = [
     # What a coding-agent task changed, read under the conversation's own reader
     # check (#2480).
     "app/db/models/coding_task_change.py",
-    "app/schemas/coding_change.py",
+    "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
     "app/services/conversation_turns.py",
@@ -1736,7 +1736,7 @@ include = [
     # What a coding-agent task changed, read under the conversation's own reader
     # check (#2480).
     "app/db/models/coding_task_change.py",
-    "app/schemas/coding_change.py",
+    "app/schemas/coding_task_change.py",
     "app/repositories/coding_task_change.py",
     "app/services/coding_task_changes.py",
     "app/services/conversation_turns.py",

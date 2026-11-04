@@ -581,11 +581,17 @@ async def _with_changes(
                 tool_call_id=ctx.tool_call_id,
                 harness=report.harness,
             )
-    except SQLAlchemyError:
+    except SQLAlchemyError as failed:
         # The task's work is done and its report is the model's answer; a diff
-        # that could not be kept - a conversation deleted meanwhile - costs the
-        # panel its diff, not the run its result.
-        logger.exception("A coding task's changes could not be recorded")
+        # that could not be kept - a conversation deleted meanwhile, or the
+        # database itself failing - costs the panel its diff, not the run its
+        # result. Named by its class alone: the error's text carries the INSERT's
+        # parameters, which are the workspace's code (#2480).
+        logger.error(
+            "A coding task's changes in conversation %s could not be recorded: %s",
+            ctx.deps.conversation_id,
+            type(failed).__name__,
+        )
         return report
     return report.model_copy(update={"changes_id": str(kept.id)})
 

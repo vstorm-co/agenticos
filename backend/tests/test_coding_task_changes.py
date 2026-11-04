@@ -7,6 +7,7 @@ of are what is tested - not a string compared with itself.
 
 import base64
 import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -30,7 +31,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.main import app
-from app.schemas.coding_change import ChangeSet
+from app.schemas.coding_task_change import ChangeSet
 from app.services import coding_task_changes as service_module
 from app.services.coding_task_changes import CodingTaskChangeService
 
@@ -153,11 +154,106 @@ class TestTheSnapshot:
         assert [entry.path for entry in changes.files] == ["small.txt"]
 
 
-def _finish_output(statuses: str, counts: str, patch: str) -> str:
-    def encoded(text: str) -> str:
-        return base64.b64encode(text.encode()).decode()
+@needs_git
+class TestWhatTheSnapshotSurvives:
+    async def test_a_file_become_a_link_keeps_every_later_file_on_its_own_hunks(
+        self, project: Path, store_root: Path
+    ) -> None:
+        """Git writes a type change as two parts of the patch for one file."""
 
-    return f"{encoded(statuses)}\n{encoded(counts)}\n{patch}"
+        def edit(root: Path) -> None:
+            (root / "README.md").unlink()
+            (root / "README.md").symlink_to("notes.txt")
+            (root / "src" / "app.py").write_text("def total(a, b):\n    return a + b\n")
+
+        changes = await _task(project, edit)
+
+        assert changes is not None and not changes.truncated
+        readme, app_py = changes.files
+        assert readme.path == "README.md" and readme.patch is not None
+        assert readme.patch.count("diff --git ") == 2
+        assert app_py.path == "src/app.py" and app_py.patch is not None
+        assert "+    return a + b\n" in app_py.patch
+
+    async def test_content_cannot_open_a_section_of_its_own(
+        self, project: Path, store_root: Path
+    ) -> None:
+        def edit(root: Path) -> None:
+            (root / "a.txt").write_text("x\x0cdiff --git a/evil b/evil\nmore\n")
+            (root / "src" / "app.py").write_text("def total(a, b):\n    return a + b\n")
+
+        changes = await _task(project, edit)
+
+        assert changes is not None
+        a_txt, app_py = changes.files
+        assert a_txt.patch is not None
+        assert sum(line.startswith("diff --git ") for line in a_txt.patch.split("\n")) == 1
+        assert app_py.patch is not None and app_py.patch.startswith("diff --git a/src/app.py")
+
+    async def test_the_platforms_own_files_are_never_in_a_diff(
+        self, project: Path, store_root: Path
+    ) -> None:
+        """A spill in a shared workspace is somebody else's tool result."""
+        (project / "skills" / "x").mkdir(parents=True)
+        (project / "skills" / "x" / "SKILL.md").write_text("v1\n")
+
+        def edit(root: Path) -> None:
+            (root / "tool_output").mkdir()
+            (root / "tool_output" / "call_abc").write_text("somebody else's search result\n")
+            (root / "skills" / "x" / "SKILL.md").write_text("v2\n")
+
+        assert await _task(project, edit) == ChangeSet()
+
+    async def test_a_diff_git_could_not_make_is_none_not_no_changes(
+        self, project: Path, store_root: Path
+    ) -> None:
+        ctx = _ctx(Workspace(LocalWorkspaceBackend(project)))
+        baseline = await _changes.begin(ctx)
+        assert baseline is not None
+        gone = _changes.Baseline(store=baseline.store, tree="f" * 40)
+
+        assert await _changes.finish(ctx, gone) is None
+
+    @pytest.mark.skipif(
+        subprocess.run(
+            [shutil.which("find") or "find", ".", "-maxdepth", "0", "-readable"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0,
+        reason="needs a find with -readable",
+    )
+    async def test_a_file_nobody_can_read_does_not_cost_the_whole_diff(
+        self, project: Path, store_root: Path
+    ) -> None:
+        secret = project / "secret"
+        secret.write_text("x\n")
+        secret.chmod(0)
+        try:
+            changes = await _task(
+                project, lambda root: (root / "README.md").write_text("# Changed\n")
+            )
+        finally:
+            secret.chmod(0o600)
+        assert changes is not None
+        assert [entry.path for entry in changes.files] == ["README.md"]
+
+
+_SHA = "0" * 40
+
+
+def _raw(status: str, *paths: str) -> str:
+    """One `--raw -z` record: the metadata field, then its path or paths."""
+    return f":100644 100644 {_SHA} {_SHA} {status}\0" + "".join(f"{path}\0" for path in paths)
+
+
+def _finish_output(listing: str, patch: str) -> str:
+    """What `FINISH` prints for a listing and a patch, cut where the shell would cut them."""
+    listed, patched = listing.encode(), patch.encode()
+    shown = base64.b64encode(listed[: _changes.MAX_LIST_BYTES]).decode()
+    kept = patched[: _changes.MAX_PATCH_BYTES].decode("utf-8", errors="replace")
+    files = listing.count(":100644 ")
+    return f"{len(listed)}\n{len(patched)}\n{files}\n{shown}\n{kept}"
 
 
 def _patch(path: str, lines: int) -> str:
@@ -175,9 +271,13 @@ class TestTheBounds:
         monkeypatch.setattr(_changes, "MAX_PATCH_BYTES", 300)
         patch = _patch("a.txt", 5) + _patch("b.txt", 50) + _patch("c.txt", 5)
         output = _finish_output(
-            "A\0a.txt\0A\0b.txt\0A\0c.txt\0",
-            "5\t0\ta.txt\0" + "50\t0\tb.txt\0" + "5\t0\tc.txt\0",
-            patch[: _changes.MAX_PATCH_BYTES + 1],
+            _raw("A", "a.txt")
+            + _raw("A", "b.txt")
+            + _raw("A", "c.txt")
+            + "5\t0\ta.txt\0"
+            + "50\t0\tb.txt\0"
+            + "5\t0\tc.txt\0",
+            patch,
         )
 
         changes = _changes.parse(output)
@@ -186,18 +286,36 @@ class TestTheBounds:
         first, second, third = changes.files
         assert first.patch == _patch("a.txt", 5) and not first.truncated
         assert second.truncated and second.patch is not None
-        assert second.patch.endswith(_changes.TRUNCATED_MARKER)
-        # Cut where a line ends, never inside one.
-        assert second.patch.removesuffix(_changes.TRUNCATED_MARKER).endswith("\n")
+        assert second.patch.endswith("\n" + _changes.TRUNCATED_MARKER)
         assert (third.patch, third.additions) == (None, 5)
+
+    def test_undecodable_bytes_do_not_make_a_whole_patch_look_cut(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The sandbox hands back U+FFFD for each byte it cannot decode - three
+        bytes for one. The cut is the size git wrote, not the size of that text."""
+        monkeypatch.setattr(_changes, "MAX_PATCH_BYTES", 300)
+        latin = "diff --git a/l.txt b/l.txt\n@@ -0,0 +1 @@\n+" + "\ufffd" * 150 + "\n"
+        small = _patch("z.txt", 1)
+        listing = _raw("A", "l.txt") + _raw("A", "z.txt") + "1\t0\tl.txt\0" + "1\t0\tz.txt\0"
+        # 150 raw bytes of Latin-1 - well under the ceiling, as git wrote them.
+        raw_size = len(latin.encode()) - 150 * 2 + len(small.encode())
+        output = (
+            f"{len(listing.encode())}\n{raw_size}\n2\n"
+            f"{base64.b64encode(listing.encode()).decode()}\n{latin}{small}"
+        )
+
+        changes = _changes.parse(output)
+
+        assert changes is not None and not changes.truncated
+        assert [entry.patch for entry in changes.files] == [latin, small]
 
     def test_files_past_the_ceiling_are_counted_not_listed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(_changes, "MAX_FILES", 1)
         output = _finish_output(
-            "M\0a.txt\0M\0b.txt\0",
-            "1\t1\ta.txt\0" + "2\t0\tb.txt\0",
+            _raw("M", "a.txt") + _raw("M", "b.txt") + "1\t1\ta.txt\0" + "2\t0\tb.txt\0",
             "diff --git a/a.txt b/a.txt\n@@ -1 +1 @@\n-a\n+A\n"
             "diff --git a/b.txt b/b.txt\n@@ -1 +1,2 @@\n b\n+c\n",
         )
@@ -206,12 +324,26 @@ class TestTheBounds:
 
         assert changes is not None
         assert [entry.path for entry in changes.files] == ["a.txt"]
+        assert changes.files[0].patch is not None and not changes.files[0].truncated
         assert (changes.omitted, changes.truncated) == (1, True)
+
+    def test_a_list_too_long_to_read_back_is_only_counted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_changes, "MAX_LIST_BYTES", 60)
+        listing = "".join(_raw("A", f"f{index}.txt") for index in range(3))
+        listing += "".join(f"1\t0\tf{index}.txt\0" for index in range(3))
+
+        changes = _changes.parse(_finish_output(listing, ""))
+
+        assert changes == ChangeSet(omitted=3, truncated=True)
 
     def test_a_renamed_files_counts_line_up_with_the_file_after_it(self) -> None:
         output = _finish_output(
-            "R090\0old.py\0new.py\0D\0gone.bin\0",
-            "3\t1\t\0old.py\0new.py\0" + "-\t-\tgone.bin\0",
+            _raw("R090", "old.py", "new.py")
+            + _raw("D", "gone.bin")
+            + "3\t1\t\0old.py\0new.py\0"
+            + "-\t-\tgone.bin\0",
             "diff --git a/old.py b/new.py\nsimilarity index 90%\n"
             "diff --git a/gone.bin b/gone.bin\nBinary files a/gone.bin and /dev/null differ\n",
         )
@@ -228,14 +360,29 @@ class TestTheBounds:
         )
         assert (gone.status, gone.binary, gone.additions) == ("deleted", True, 0)
 
+    def test_a_patch_that_does_not_line_up_gives_no_file_anothers_hunks(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        output = _finish_output(
+            _raw("M", "a.txt") + "1\t1\ta.txt\0",
+            "diff --git a/a.txt b/a.txt\n-a\n+A\ndiff --git a/b.txt b/b.txt\n-b\n+B\n",
+        )
+
+        changes = _changes.parse(output)
+
+        assert changes is not None and changes.truncated
+        assert changes.files[0].patch is None
+        assert "did not line up" in caplog.text
+
     @pytest.mark.parametrize(
         "output",
         [
-            "not base64!\n\n",
-            _finish_output("M\0", "", ""),
-            _finish_output("M\0a.txt\0", "", ""),
+            "x\n0\n0\n\n",
+            "0\n0\n0\nnot base64!\n",
+            _finish_output(":100644 100644 a b M\0", ""),
+            _finish_output(_raw("M", "a.txt"), ""),
         ],
-        ids=["garbled", "a-status-with-no-path", "a-file-with-no-counts"],
+        ids=["no-sizes", "garbled", "a-status-with-no-path", "a-file-with-no-counts"],
     )
     def test_output_that_is_not_a_change_set_is_none(self, output: str) -> None:
         assert _changes.parse(output) is None
@@ -295,6 +442,13 @@ class TestWhenItCannotBeTaken:
         assert await _changes.finish(_ctx(shell), baseline) is None
         assert shell.ran == [_changes.FINISH, _changes.DISCARD]
 
+    async def test_a_run_stopped_while_diffing_still_removes_the_store(self) -> None:
+        shell = _Answering({_changes.FINISH: anyio.get_cancelled_exc_class()()})
+        baseline = _changes.Baseline(store="/tmp/agenticos-changes/x", tree="a" * 40)  # noqa: S108
+        with pytest.raises(anyio.get_cancelled_exc_class()):
+            await _changes.finish(_ctx(shell), baseline)
+        assert shell.ran == [_changes.FINISH, _changes.DISCARD]
+
     async def test_a_store_that_cannot_be_removed_is_logged(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -330,11 +484,10 @@ class TestReadingIt:
 
         assert await CodingTaskChangeService(MagicMock()).get(CTX, change_id) is change
 
-        repo.get_in_organization.assert_awaited_once_with(
-            repo.get_in_organization.await_args.args[0],
-            change_id,
-            organization_id=CTX.organization_id,
-        )
+        assert repo.get_in_organization.await_args.args[1:] == (change_id,)
+        assert repo.get_in_organization.await_args.kwargs == {
+            "organization_id": CTX.organization_id
+        }
         conversations.get_conversation.assert_awaited_once()
         kwargs = conversations.get_conversation.await_args.kwargs
         assert (kwargs["user_id"], kwargs["organization_id"], kwargs["ctx"]) == (
@@ -375,7 +528,9 @@ class TestReadingIt:
 
     async def test_recording_keeps_each_file_with_its_patch(self, repo: AsyncMock) -> None:
         changes = _changes.parse(
-            _finish_output("M\0a.txt\0", "1\t1\ta.txt\0", "diff --git a/a.txt b/a.txt\n-a\n+A\n")
+            _finish_output(
+                _raw("M", "a.txt") + "1\t1\ta.txt\0", "diff --git a/a.txt b/a.txt\n-a\n+A\n"
+            )
         )
         assert changes is not None
         organization, conversation = uuid4(), uuid4()

@@ -87,11 +87,28 @@ cost says it is partial.
   A credential reaches the command through its environment, never on its
   command line.
 
+## What a task changed (#2480)
+
+At `edit`, in a conversation, the workspace is snapshotted before the task and
+again after it (`_changes.py`), and the difference is kept in
+`coding_task_changes` for the task's panel; the report carries only its id, since
+the report is what the model reads back on every later turn. The snapshot is a
+git tree in a store of the task's own under `/tmp`, made with its own index and
+`find` rather than `git add`: a person's clone is never touched, and a clone
+inside the workspace is diffed file by file instead of as one commit id. The
+platform's own files (`.agenticos/`, `skills/`, `tool_output/`) and toolchain
+folders are left out - a spill in a shared workspace is another person's tool
+result. A snapshot that cannot be taken - no `git`, a timeout - costs the diff,
+never the task.
+
 ## What it does not do
 
 - Forward the harness's own permission prompts.
 - Run Codex read-only inside a container; local ACP tasks support its native read-only mode.
 - Run on the `state` workspace, which has no shell.
+- Revert a task: its store is gone once the diff is read, and a reverse patch
+  applied after later edits could undo work that is not the task's.
+- Keep a diff for a task on this computer, or one at `read_only`.
 
 ## On the person's own computer (#2576)
 

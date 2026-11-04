@@ -21,7 +21,7 @@ from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
-from app.schemas.coding_change import CodingTaskChangeRead
+from app.schemas.coding_task_change import CodingTaskChangeRead
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,

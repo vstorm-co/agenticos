@@ -17,7 +17,8 @@ from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.conversation import Conversation
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.schemas.coding_change import ChangedFile, ChangeSet
+from app.repositories import conversation_share as conversation_share_repo
+from app.schemas.coding_task_change import ChangedFile, ChangeSet
 from app.services.coding_task_changes import CodingTaskChangeService
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -105,6 +106,22 @@ async def test_a_colleague_who_may_not_read_the_conversation_reads_none(
 
     with pytest.raises(NotFoundError):
         await CodingTaskChangeService(db).get(_as(colleague, organization), recorded.id)
+
+
+async def test_somebody_the_conversation_was_shared_with_reads_it_too(
+    db: AsyncSession,
+) -> None:
+    """Whoever may read the transcript sees the diff under it, not only its owner."""
+    owner, colleague = await _person(db), await _person(db)
+    organization = await _organization(db, owner, colleague)
+    recorded = await _recorded(db, organization, owner)
+    await conversation_share_repo.create(
+        db, conversation_id=recorded.conversation_id, shared_by=owner.id, shared_with=colleague.id
+    )
+
+    change = await CodingTaskChangeService(db).get(_as(colleague, organization), recorded.id)
+
+    assert change.id == recorded.id
 
 
 async def test_somebody_in_another_organization_reads_none(db: AsyncSession) -> None:

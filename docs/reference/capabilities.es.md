@@ -1,5 +1,5 @@
 ---
-source_sha: "bbac8a46e45a"
+source_sha: "c27d06888238"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1578,9 +1578,10 @@ bajo `/tmp` - nunca en el repositorio que alguien clonó, cuyo índice e histori
 quedan intactos. El panel enumera entonces los archivos que la tarea añadió,
 cambió, eliminó o renombró, y después los fragmentos de cada archivo, con
 **Copiar parche**; una tarea que no cambió nada lo dice. Una tarea fallida o que
-agotó su tiempo también conserva su diff. Quedan fuera `.agenticos/`, las carpetas
-de herramientas como `.git`, `.venv` y `node_modules`, y los archivos de más de
-1 MiB. El parche se guarda hasta 256 KiB y 500 archivos, y se marca donde se cortó.
+agotó su tiempo también conserva su diff. Quedan fuera las carpetas propias de la
+plataforma `.agenticos/`, `skills/` y `tool_output/`, las carpetas de herramientas
+como `.git`, `.venv` y `node_modules`, y los archivos que ya superan 1 MiB al
+empezar la tarea. El parche se guarda hasta 256 KiB y 500 archivos, y se marca donde se cortó.
 
 **Quién lee el diff.** Se guarda con la conversación y se lee con el mismo acceso
 que su transcripción, así que lo ve quien pueda leer el chat; borrar el chat lo

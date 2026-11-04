@@ -55,7 +55,7 @@ function show(answer: CodingTaskChanges | Error | "pending") {
   const client = new QueryClient();
   return render(
     <QueryClientProvider client={client}>
-      <TaskChanges changeId="c-1" />
+      <TaskChanges changeId="c-1" fallback={<p>names the harness gave</p>} />
     </QueryClientProvider>,
   );
 }
@@ -80,6 +80,8 @@ describe("TaskChanges", () => {
     expect(screen.getByText("No newline at end of file").closest("tr")).toHaveClass("italic");
     expect(screen.getByText("@@ -1,2 +1,2 @@")).toBeInTheDocument();
     expect(screen.queryByText(/cut short/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not listed/)).not.toBeInTheDocument();
+    expect(screen.queryByText("names the harness gave")).not.toBeInTheDocument();
   });
 
   it("says so when the task changed nothing", async () => {
@@ -101,8 +103,57 @@ describe("TaskChanges", () => {
     );
 
     expect(await screen.findByText("Changed 4 files")).toBeInTheDocument();
-    expect(screen.getByText(/cut short\. 2 more files are not listed\./)).toBeInTheDocument();
-    expect(screen.getByText("Past the patch's limit: only its name is kept.")).toBeInTheDocument();
+    expect(screen.getByText(/so it is cut short/)).toBeInTheDocument();
+    expect(screen.getByText("2 more changed files are not listed.")).toBeInTheDocument();
+    expect(screen.getAllByText("Past the patch's limit: only its name is kept.")).toHaveLength(1);
+  });
+
+  it("says files were left out without claiming the patch was cut", async () => {
+    show(changes({ omitted: 3, truncated: true }));
+
+    expect(await screen.findByText("3 more changed files are not listed.")).toBeInTheDocument();
+    expect(screen.queryByText(/cut short/)).not.toBeInTheDocument();
+  });
+
+  it("calls a file cut before its first hunk cut, not unchanged", async () => {
+    show(
+      changes({
+        files: [
+          file({
+            path: "big.txt",
+            status: "added",
+            patch: "diff --git a/big.txt b/big.txt\n\\ The patch was cut here.\n",
+            truncated: true,
+          }),
+        ],
+        truncated: true,
+      }),
+    );
+
+    expect(
+      await screen.findByText("Past the patch's limit: only its name is kept."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/did not change/)).not.toBeInTheDocument();
+  });
+
+  it("draws the start of a long file's diff and counts the rest", async () => {
+    const lines = Array.from({ length: 450 }, (_, index) => `+line ${index}\n`).join("");
+    show(
+      changes({
+        files: [
+          file({
+            path: "gen.txt",
+            status: "added",
+            additions: 450,
+            patch: `@@ -0,0 +1,450 @@\n${lines}`,
+          }),
+        ],
+      }),
+    );
+
+    expect(await screen.findByText("line 399")).toBeInTheDocument();
+    expect(screen.queryByText("line 400")).not.toBeInTheDocument();
+    expect(screen.getByText("50 more lines - Copy patch has them.")).toBeInTheDocument();
   });
 
   it("names a renamed, a binary and a mode-only file without inventing lines", async () => {
@@ -155,5 +206,7 @@ describe("TaskChanges", () => {
     expect(
       await screen.findByText("What the task changed could not be loaded."),
     ).toBeInTheDocument();
+    // A reader the diff is refused to still sees the names the harness gave.
+    expect(screen.getByText("names the harness gave")).toBeInTheDocument();
   });
 });

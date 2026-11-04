@@ -38,3 +38,32 @@ export function hunksOf(patch: string): Hunk[] {
   }
   return hunks;
 }
+
+/** How many lines one file's diff draws; the rest is counted and left to Copy patch. */
+export const MAX_PATCH_LINES = 400;
+
+/**
+ * The hunks up to `MAX_PATCH_LINES` lines, and how many lines were left out.
+ *
+ * A task that rewrote a generated file can carry thousands of lines, and every
+ * one of them a table row: the panel draws the start of it and says how much more
+ * there is, which the copied patch still holds whole.
+ */
+export function capHunks(
+  hunks: Hunk[],
+  limit = MAX_PATCH_LINES,
+): { hunks: Hunk[]; hidden: number } {
+  const shown: Hunk[] = [];
+  let left = limit;
+  let hidden = 0;
+  for (const hunk of hunks) {
+    if (left <= 0) {
+      hidden += hunk.lines.length;
+      continue;
+    }
+    shown.push({ header: hunk.header, lines: hunk.lines.slice(0, left) });
+    hidden += Math.max(hunk.lines.length - left, 0);
+    left -= hunk.lines.length;
+  }
+  return { hunks: shown, hidden };
+}

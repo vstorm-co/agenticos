@@ -1,5 +1,5 @@
 ---
-source_sha: "bbac8a46e45a"
+source_sha: "c27d06888238"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1643,8 +1643,9 @@ Index und Historie unberührt bleiben. Das Panel listet dann die Dateien, die di
 Aufgabe hinzugefügt, geändert, gelöscht oder umbenannt hat, und darunter die Hunks
 jeder Datei, mit **Patch kopieren**; eine Aufgabe, die nichts geändert hat, sagt das.
 Auch eine fehlgeschlagene oder abgelaufene Aufgabe behält ihren Diff. Ausgelassen
-werden `.agenticos/`, Werkzeugordner wie `.git`, `.venv` und `node_modules` sowie
-Dateien über 1 MiB. Der Patch wird bis 256 KiB und 500 Dateien gespeichert und dort
+werden die eigenen Ordner der Plattform `.agenticos/`, `skills/` und `tool_output/`,
+Werkzeugordner wie `.git`, `.venv` und `node_modules` sowie Dateien, die schon zu
+Beginn der Aufgabe über 1 MiB groß sind. Der Patch wird bis 256 KiB und 500 Dateien gespeichert und dort
 markiert, wo er abgeschnitten wurde.
 
 **Wer den Diff liest.** Er wird mit der Unterhaltung gespeichert und mit demselben

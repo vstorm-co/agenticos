@@ -112,6 +112,16 @@ function Report({ report }: { report: CodingReport }) {
   const steps = report.steps ?? [];
   const files = report.files_changed ?? [];
   const refused = report.refused ?? [];
+  const names = files.length > 0 && (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground">{t("filesChanged", { count: files.length })}</span>
+      {files.map((file) => (
+        <span key={file} className="bg-foreground/[0.06] rounded px-1.5 py-0.5 font-mono">
+          {file}
+        </span>
+      ))}
+    </div>
+  );
   return (
     <>
       <div className="flex items-center gap-2 text-xs">
@@ -132,20 +142,9 @@ function Report({ report }: { report: CodingReport }) {
       </div>
       {/* The diff, where one was kept, says everything the list of names did. */}
       {report.changes_id !== undefined ? (
-        <TaskChanges changeId={report.changes_id} />
+        <TaskChanges changeId={report.changes_id} fallback={names} />
       ) : (
-        files.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-muted-foreground">
-              {t("filesChanged", { count: files.length })}
-            </span>
-            {files.map((file) => (
-              <span key={file} className="bg-foreground/[0.06] rounded px-1.5 py-0.5 font-mono">
-                {file}
-              </span>
-            ))}
-          </div>
-        )
+        names
       )}
       {steps.length > 0 && (
         <CollapsibleBlock label={t("steps", { count: steps.length })} open={false}>

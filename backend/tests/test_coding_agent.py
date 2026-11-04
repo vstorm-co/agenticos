@@ -79,7 +79,7 @@ from app.agents.spec import AgentSpec
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind
-from app.schemas.coding_change import ChangeSet
+from app.schemas.coding_task_change import ChangeSet
 from app.services.agent_registry import _coding_agent_problems
 from tests.workspaces import ShellFailing, document_workspace
 
@@ -1015,13 +1015,20 @@ class TestRunningATask:
 
 
 TREE = "a" * 40
+_SHA = "0" * 40
+_LISTING = (
+    f":100644 100644 {_SHA} {_SHA} M\0src/app.py\0".encode()
+    + f":000000 100644 {_SHA} {_SHA} A\0README.md\0".encode()
+    + b"1\t1\tsrc/app.py\0"
+    + b"2\t0\tREADME.md\0"
+)
+_PATCH = (
+    "diff --git a/src/app.py b/src/app.py\n@@ -1 +1 @@\n-a - b\n+a + b\n"
+    "diff --git a/README.md b/README.md\nnew file mode 100644\n@@ -0,0 +1,2 @@\n+# Demo\n+\n"
+)
+# What `FINISH` prints: the list's and the patch's sizes, the file count, the list, the patch.
 _TWO_FILES = (
-    base64.b64encode(b"M\0src/app.py\0A\0README.md\0").decode()
-    + "\n"
-    + base64.b64encode(b"1\t1\tsrc/app.py\0" + b"2\t0\tREADME.md\0").decode()
-    + "\n"
-    + "diff --git a/src/app.py b/src/app.py\n@@ -1 +1 @@\n-a - b\n+a + b\n"
-    + "diff --git a/README.md b/README.md\nnew file mode 100644\n@@ -0,0 +1,2 @@\n+# Demo\n+\n"
+    f"{len(_LISTING)}\n{len(_PATCH.encode())}\n2\n{base64.b64encode(_LISTING).decode()}\n{_PATCH}"
 )
 
 
@@ -1162,7 +1169,9 @@ class TestWhatATaskChanged:
         shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
         report = CodingReport.model_validate_json(await _call(shell))
         assert report.outcome == "completed" and report.changes_id is None
-        assert "could not be recorded" in caplog.text
+        assert f"in conversation {THREAD} could not be recorded: SQLAlchemyError" in caplog.text
+        # The error's own text carries the INSERT's parameters - the workspace's code.
+        assert "conversation gone" not in caplog.text
 
 
 class TestWatchingItWork:
