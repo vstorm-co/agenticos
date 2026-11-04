@@ -37,6 +37,7 @@ from app.repositories import (
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels.base import OutgoingMessage
 from app.services.channels.dedupe import claim_delivery
+from app.services.channels.handback import NOTICES
 from app.services.channels.next_steps import incoming_for_run
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter, chat_lock
@@ -273,6 +274,12 @@ async def _bot_token(bot_id: str, organization_id: UUID) -> str | None:
         return unseal_bot_token(bot) if bot is not None and bot.is_active else None
 
 
+def _log_held_failure(event: str, bot_id: str, run_id: UUID, failure: Exception) -> None:
+    logger.warning(
+        event, extra={"bot_id": bot_id, "run_id": str(run_id), "error": type(failure).__name__}
+    )
+
+
 async def _deliver_answers(
     bot_id: str,
     organization_id: UUID,
@@ -283,7 +290,9 @@ async def _deliver_answers(
     """Send the customer's held answers, oldest first; the caller holds the chat's lock.
 
     Each row owes one saved answer, sent once by its own message id; a run held twice
-    sends both, in the order they were held.
+    sends both, in the order they were held. A row may also owe a fixed notice
+    sentence, sent after its answer whatever the run's status; a notice that cannot
+    be delivered (the run or its sender is gone) is dropped, never held.
 
     A row leaves the claim only when its answer was sent, its run moved on, or a
     later step settles it. Whatever is not settled when this returns is given
@@ -323,41 +332,73 @@ async def _deliver_answers(
                 await store.done(held)
                 pending.remove(held)
                 continue
-            if not owed.admitted:
+            # A notice that is no longer deliverable is dropped, as `send_notice` drops it;
+            # an answer waits for the sender to be admitted again.
+            notice_only = held.notice is not None and not held.answer
+            if not owed.admitted and not notice_only:
                 logger.info(
                     "whatsapp_held_not_admitted",
                     extra={"bot_id": bot_id, "run_id": str(held.run_id)},
                 )
                 continue
-            prompts_owed = owed.parked and last_of_run[held.run_id] == held.id
-            if held.answer:
-                text = f"{owed.text}\n\n{FILES_NOT_DELIVERED}" if held.files else owed.text
-                try:
+            prompts_owed = owed.admitted and owed.parked and last_of_run[held.run_id] == held.id
+            sentence = NOTICES.get(held.notice) if held.notice is not None else None
+            if held.notice is not None and sentence is None:
+                logger.warning(
+                    "whatsapp_held_notice_unknown",
+                    extra={"bot_id": bot_id, "run_id": str(held.run_id), "notice": held.notice},
+                )
+            sends_notice = sentence is not None and owed.admitted
+            try:
+                if held.answer:
+                    text = f"{owed.text}\n\n{FILES_NOT_DELIVERED}" if held.files else owed.text
                     await whatsapp_adapter().send_message(
                         token,
                         OutgoingMessage(
                             platform_chat_id=chat_id, text=text, run_id=str(held.run_id)
                         ),
                     )
+            except Exception as failure:
+                _log_held_failure("whatsapp_held_send_failed", bot_id, held.run_id, failure)
+                break
+            if held.answer and sends_notice:
+                # Settled before the notice goes: a failed notice must not send the answer again.
+                try:
+                    await store.answer_sent(held, prompts_owed=prompts_owed, keep_notice=True)
                 except Exception as failure:
-                    logger.warning(
-                        "whatsapp_held_send_failed",
-                        extra={
-                            "bot_id": bot_id,
-                            "run_id": str(held.run_id),
-                            "error": type(failure).__name__,
-                        },
-                    )
+                    _log_held_failure("whatsapp_held_settle_failed", bot_id, held.run_id, failure)
                     break
+            if sends_notice:
+                try:
+                    await whatsapp_adapter().send_message(
+                        token,
+                        OutgoingMessage(
+                            platform_chat_id=chat_id,
+                            text=sentence,
+                            run_id=str(held.run_id),
+                            notice=held.notice,
+                        ),
+                    )
+                except Exception as failure:
+                    _log_held_failure("whatsapp_held_send_failed", bot_id, held.run_id, failure)
+                    break
+            if held.answer and not sends_notice:
                 await store.answer_sent(held, prompts_owed=prompts_owed)
                 pending.remove(held)
                 delivered.append(replace(held, prompts_owed=prompts_owed))
             elif prompts_owed:
+                if held.notice is not None:
+                    await store.notice_sent(held)
                 pending.remove(held)
                 delivered.append(replace(held, prompts_owed=True))
+            elif not owed.admitted and owed.parked and last_of_run[held.run_id] == held.id:
+                # The notice is dropped but the run's prompts stay held for a later delivery.
+                await store.notice_sent(held)
             else:
                 await store.done(held)
                 pending.remove(held)
+                if held.answer:
+                    delivered.append(replace(held, prompts_owed=False))
         return delivered
     finally:
         for held in pending:

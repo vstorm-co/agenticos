@@ -53,6 +53,7 @@ from app.services.channels.base import (
     read_press,
 )
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.handback import notice_key
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
 from app.services.transcript import RecordedToolCall
@@ -481,12 +482,18 @@ class ChannelPrompts:
         )
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
+        # The console's stop sentence is not an answer: a platform that must hold it
+        # holds the sentence, not the run's previous answer.
+        is_stop_notice = (
+            segment.run.status == RunStatus.CANCELLED.value and picture is None and not notices
+        )
         message = OutgoingMessage(
             platform_chat_id=platform_chat_id,
             text="\n\n".join([segment.output or "Done.", *notices]),
             image_png=picture,
             api_base_url=bot.api_base_url,
             run_id=str(segment.run.id),  # kept by the `replace` below
+            notice=notice_key(segment.output or "") if is_stop_notice else None,
         )
         try:
             await adapter.send_message(token, message)

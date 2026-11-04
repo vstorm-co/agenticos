@@ -209,6 +209,9 @@ class WhatsAppAdapter(ChannelAdapter):
         """
         text = to_whatsapp(msg.text).strip()
         reply_to = msg.reply_to_message_id
+        # A notice carries no callback data: a later `failed` status on it must not
+        # hold the run as an answer.
+        callback = None if msg.notice else msg.run_id
         try:
             uploads, refusal = await self._upload_all(creds, msg)
             if refusal is not None and not uploads and not text:
@@ -225,7 +228,7 @@ class WhatsAppAdapter(ChannelAdapter):
             )
             if caption is None and not note_only:
                 reply_to = await self._send_text(
-                    creds, msg.platform_chat_id, text, reply_to, msg.run_id
+                    creds, msg.platform_chat_id, text, reply_to, callback
                 )
             for upload in uploads:
                 await self._graph.send_media(
@@ -236,11 +239,11 @@ class WhatsAppAdapter(ChannelAdapter):
                     caption=caption,
                     filename=upload.filename,
                     reply_to=reply_to,
-                    callback=msg.run_id,
+                    callback=callback,
                 )
                 caption = reply_to = None
             if note_only:
-                await self._send_text(creds, msg.platform_chat_id, text, reply_to, msg.run_id)
+                await self._send_text(creds, msg.platform_chat_id, text, reply_to, callback)
         except WhatsAppTokenRefused:
             await connection_state.record_down(creds.bot_id, TOKEN_REFUSED)
             raise
@@ -276,8 +279,11 @@ class WhatsAppAdapter(ChannelAdapter):
         answer: bool,
         files: bool,
         refused_by_meta: bool,
+        notice: str | None = None,
     ) -> bool:
         """Hold the run; False when it was not held because the record says the window is open.
+
+        A `notice` (the key of a fixed sentence) is held as a notice: it owes no answer.
 
         A send Meta has just refused as outside the window is held without asking the
         record: Meta is the authority, and a stale record must not drop the run.
@@ -286,7 +292,9 @@ class WhatsAppAdapter(ChannelAdapter):
             await self._guarded(
                 creds,
                 run_id,
-                self._window.hold(creds.bot_id, chat_id, run_id=run_id, answer=answer, files=files),
+                self._window.hold(
+                    creds.bot_id, chat_id, run_id=run_id, answer=answer, files=files, notice=notice
+                ),
             )
             return True
         opened = await self._guarded(
@@ -299,6 +307,7 @@ class WhatsAppAdapter(ChannelAdapter):
                 answer=answer,
                 files=files,
                 now=_now(),
+                notice=notice,
             ),
         )
         return not opened
@@ -306,7 +315,10 @@ class WhatsAppAdapter(ChannelAdapter):
     async def _hold_after_token_refusal(
         self, creds: WhatsAppCredentials, msg: OutgoingMessage, has_files: bool
     ) -> None:
-        """Hold the run and say why after the token was refused; a store failure never hides the token error."""
+        """Hold the run and say why after the token was refused; a store failure never hides the token error.
+
+        A notice is held as a notice, and the run's reason (about its answers) is left alone.
+        """
         run_id = msg.run_id
         if run_id is None:
             return
@@ -315,10 +327,13 @@ class WhatsAppAdapter(ChannelAdapter):
                 creds,
                 msg.platform_chat_id,
                 run_id=run_id,
-                answer=True,
+                answer=msg.notice is None,
                 files=has_files,
                 refused_by_meta=True,
+                notice=msg.notice,
             )
+            if msg.notice is not None:
+                return
             await self._guarded(
                 creds,
                 run_id,
@@ -335,12 +350,17 @@ class WhatsAppAdapter(ChannelAdapter):
           one with a run is held and previewed by `send_held_preview`.
         - A template Meta refuses for any reason other than the token is tried once
           more as a preview when there is a run.
+        - A notice (`msg.notice`) is never previewed: in the template when it fits,
+          otherwise held as a notice and sent when the customer writes. It is sent
+          with no callback data and never touches the run's reason, which is about
+          its answers.
         - A store that fails holds nothing it cannot hold: `WhatsAppWindowUnavailable`.
           An unreadable template holds the run with a reason instead.
         """
         text = to_whatsapp(msg.text).strip()
         has_files = bool(msg.image_png or msg.attachments)
         run_id = msg.run_id
+        notice = msg.notice
         try:
             template = await self._guarded(creds, run_id, self._window.late_template(creds.bot_id))
         except WhatsAppWindowUnavailable:
@@ -350,15 +370,17 @@ class WhatsAppAdapter(ChannelAdapter):
                 creds,
                 msg.platform_chat_id,
                 run_id=run_id,
-                answer=True,
+                answer=notice is None,
                 files=has_files,
                 refused_by_meta=True,
+                notice=notice,
             )
-            await self._guarded(
-                creds,
-                run_id,
-                self._window.record_undelivered(creds.bot_id, run_id, "window_template_failed"),
-            )
+            if notice is None:
+                await self._guarded(
+                    creds,
+                    run_id,
+                    self._window.record_undelivered(creds.bot_id, run_id, "window_template_failed"),
+                )
             return
         if template is not None and fits(
             text, fixed_length=template.fixed_length, has_files=has_files
@@ -369,7 +391,7 @@ class WhatsAppAdapter(ChannelAdapter):
                     recipient=msg.platform_chat_id,
                     template=template,
                     text=flatten(text),
-                    callback=run_id,
+                    callback=None if notice else run_id,
                 )
             except WhatsAppTokenRefused:
                 await self._hold_after_token_refusal(creds, msg, has_files)
@@ -388,7 +410,7 @@ class WhatsAppAdapter(ChannelAdapter):
                 if run_id is None:
                     raise WhatsAppWindowClosed() from None
             else:
-                if run_id is not None:
+                if run_id is not None and notice is None:
                     # Delivered: a reason that stays is logged, not raised over a sent answer.
                     with suppress(WhatsAppWindowUnavailable):
                         await self._guarded(
@@ -404,12 +426,15 @@ class WhatsAppAdapter(ChannelAdapter):
             creds,
             msg.platform_chat_id,
             run_id=run_id,
-            answer=True,
+            answer=notice is None,
             files=has_files,
             refused_by_meta=refused_by_meta,
+            notice=notice,
         )
         if not held:
             await self._send_now(creds, msg)
+            return
+        if notice is not None:
             return
         await self.send_held_preview(creds.encode(), msg)
 

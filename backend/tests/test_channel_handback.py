@@ -15,6 +15,7 @@ from app.services.channels import _adapters, get_adapter, handback
 from app.services.channels.base import OutgoingMessage
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
+    NOTICES,
     REFUSED_NOTICE,
     STOPPED_NOTICE,
     STRANDED_NOTICE,
@@ -23,6 +24,7 @@ from app.services.channels.handback import (
     continues_in_chat,
     decided_by_a_person,
     ensure_channel_adapters,
+    notice_key,
     send_notice,
 )
 
@@ -164,14 +166,28 @@ async def test_a_notice_is_posted_to_the_recorded_chat_with_the_bots_current_tok
     bot = _bot()
     adapter = MagicMock(send_message=AsyncMock())
 
-    await _post(bot, MagicMock(return_value=adapter))
+    run_id = await _post(bot, MagicMock(return_value=adapter))
 
     adapter.send_message.assert_awaited_once_with(
         "tok",
         OutgoingMessage(
-            platform_chat_id="C1:1.0", text=EXPIRED_NOTICE, api_base_url=bot.api_base_url
+            platform_chat_id="C1:1.0",
+            text=EXPIRED_NOTICE,
+            api_base_url=bot.api_base_url,
+            run_id=str(run_id),
+            notice="expired",
         ),
     )
+
+
+async def test_a_sentence_that_is_not_a_notice_has_no_key() -> None:
+    adapter = MagicMock(send_message=AsyncMock())
+
+    await _post(_bot(), MagicMock(return_value=adapter), text="Something else.")
+
+    assert adapter.send_message.await_args.args[1].notice is None
+    assert notice_key("Something else.") is None
+    assert {notice_key(text) for text in NOTICES.values()} == set(NOTICES)
 
 
 @pytest.mark.parametrize("bot", [None, _bot(active=False)])

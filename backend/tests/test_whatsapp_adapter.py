@@ -1255,6 +1255,97 @@ class TestTheWindow:
         connection.down.assert_awaited_once()
 
 
+def _notice(**overrides: Any) -> OutgoingMessage:
+    return _message(
+        "This request expired without a decision.", run_id="r1", notice="expired", **overrides
+    )
+
+
+@pytest.mark.usefixtures("frozen")
+class TestANoticeOutsideTheWindow:
+    async def test_with_no_template_it_is_held_as_a_notice_and_nothing_is_raised(self, graph):
+        window = _closed()
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert window.notices == [("r1", False, False, "expired")]
+        assert window.held == []
+        assert window.undelivered == []
+        graph.send_template.assert_not_awaited()
+        graph.send_text.assert_not_awaited()
+
+    async def test_a_template_that_fits_carries_it_with_no_callback_and_holds_nothing(self, graph):
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert graph.send_template.await_args.kwargs["callback"] is None
+        assert (
+            graph.send_template.await_args.kwargs["text"]
+            == "This request expired without a decision."
+        )
+        assert window.held == [] and window.notices == []
+        assert window.undelivered == []
+
+    async def test_a_notice_too_long_for_the_template_is_held(self, graph):
+        window = _closed(template=LateTemplate(name="t", language="en", body="x" * 1000 + "{{1}}"))
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert window.notices == [("r1", False, False, "expired")]
+        graph.send_template.assert_not_awaited()
+
+    async def test_a_template_refused_for_a_notice_holds_it_and_records_no_reason(self, graph):
+        graph.send_template.side_effect = _refusal(132018)
+        window = _closed(template=TEMPLATE)
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert window.notices == [("r1", False, False, "expired")]
+        assert window.held == [] and window.undelivered == []
+
+    async def test_a_template_that_cannot_be_read_still_holds_the_notice(self, graph):
+        window = _closed(template=TEMPLATE)
+        window.late_template = AsyncMock(side_effect=RuntimeError("db"))  # type: ignore[method-assign]
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert window.notices == [("r1", False, False, "expired")]
+        assert window.undelivered == []
+
+    async def test_a_synchronous_131047_holds_it_as_a_notice(self, graph):
+        graph.send_text.side_effect = _refusal(CLOSED_WINDOW_CODE)
+        window = OpenWindow()
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert window.notices == [("r1", False, False, "expired")]
+        assert window.held == [] and window.undelivered == []
+
+    async def test_a_token_refused_on_the_template_holds_it_as_a_notice_and_leaves_the_reason(
+        self, graph, connection
+    ):
+        graph.send_template.side_effect = WhatsAppTokenRefused(code=190)
+        window = _closed(template=TEMPLATE)
+        with pytest.raises(WhatsAppTokenRefused):
+            await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert window.notices == [("r1", False, False, "expired")]
+        assert window.held == [] and window.undelivered == []
+        connection.down.assert_awaited_once_with(BOT_ID, TOKEN_REFUSED)
+
+    async def test_a_window_that_opened_meanwhile_sends_the_sentence_without_callback(self, graph):
+        window = _closed()
+        window.hold_unless_open = AsyncMock(return_value=True)  # type: ignore[method-assign]
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert graph.send_text.await_args.kwargs["callback"] is None
+        assert window.notices == []
+
+    async def test_a_hold_that_fails_raises_so_the_job_retries(self, graph):
+        window = _closed()
+        window.hold_unless_open = AsyncMock(side_effect=RuntimeError("db"))  # type: ignore[method-assign]
+        with pytest.raises(WhatsAppWindowUnavailable):
+            await _late_adapter(graph, window).send_message(TOKEN, _notice())
+
+    async def test_inside_the_window_it_is_sent_as_text_with_no_callback(self, graph):
+        window = FakeWindowStore(last_inbound_at=NOW - timedelta(hours=1))
+        await _late_adapter(graph, window).send_message(TOKEN, _notice())
+        assert graph.send_text.await_args.kwargs["callback"] is None
+        assert window.notices == [] and window.held == []
+
+    async def test_an_answer_of_the_same_run_still_carries_its_callback(self, graph):
+        window = FakeWindowStore(last_inbound_at=NOW - timedelta(hours=1))
+        await _late_adapter(graph, window).send_message(TOKEN, _message("answer", run_id="r1"))
+        assert graph.send_text.await_args.kwargs["callback"] == "r1"
+
+
 BSUID_LEAK = "US.13491208655302741918"
 
 

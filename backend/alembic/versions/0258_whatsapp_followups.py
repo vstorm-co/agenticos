@@ -1,4 +1,4 @@
-"""WhatsApp: identifier columns wide enough for a business-scoped user id (#2076).
+"""WhatsApp: wider identifier columns and a held chat notice (#2076).
 
 Revision ID: 0258_whatsapp_followups
 Revises: 0257_whatsapp_window
@@ -7,6 +7,9 @@ Create Date: 2026-11-04
 A business-scoped user id is up to 131 characters, and namespaced by organization
 (`"{organization}:{id}"`) up to 168. Every column that holds either is widened from
 100 to 255. A downgrade narrows them back and fails while a longer value is stored.
+
+A held run may also owe a fixed chat sentence (`held_notice`, its key, never its text),
+delivered when the customer writes again.
 """
 
 from collections.abc import Sequence
@@ -29,6 +32,9 @@ _COLUMNS = (
 
 
 def upgrade() -> None:
+    op.add_column(
+        "whatsapp_held_runs", sa.Column("held_notice", sa.String(length=16), nullable=True)
+    )
     for table, column in _COLUMNS:
         op.alter_column(
             table,
@@ -40,6 +46,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_column("whatsapp_held_runs", "held_notice")
     for table, column in reversed(_COLUMNS):
         op.alter_column(
             table,

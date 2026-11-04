@@ -93,12 +93,14 @@ async def hold_run(
     answer: bool,
     files: bool,
     message_id: UUID | None = None,
+    notice: str | None = None,
 ) -> bool:
     """Hold a run for this customer; True when the row is new.
 
     One row per (customer, run, saved answer): holding the same answer again ORs what
     it owes, and another answer of the run is a row of its own. `message_id` is `None`
-    for the run's prompts.
+    for the run's prompts, and a `notice` (the key of a fixed sentence) rides on that
+    row: a newer notice replaces the one held, and a hold with none keeps it.
     """
     statement = pg_insert(WhatsAppHeldRun).values(
         organization_id=customer.organization_id,
@@ -107,6 +109,7 @@ async def hold_run(
         message_id=message_id,
         held_answer=answer,
         held_files=files,
+        held_notice=notice,
     )
     result = await db.execute(
         statement.on_conflict_do_update(
@@ -114,6 +117,9 @@ async def hold_run(
             set_={
                 "held_answer": WhatsAppHeldRun.held_answer | statement.excluded.held_answer,
                 "held_files": WhatsAppHeldRun.held_files | statement.excluded.held_files,
+                "held_notice": func.coalesce(
+                    statement.excluded.held_notice, WhatsAppHeldRun.held_notice
+                ),
                 "hold_version": WhatsAppHeldRun.hold_version + 1,
             },
         ).returning(text("(xmax = 0)"))
@@ -182,7 +188,7 @@ async def run_owes_answer(db: AsyncSession, *, run_id: UUID) -> bool:
 async def has_held(
     db: AsyncSession, *, bot_id: UUID, bsuid: str, claimable_before: datetime
 ) -> bool:
-    """Whether a message should wait for a delivery: a run it could claim, or a claim still owing an answer.
+    """Whether a message should wait for a delivery: a run it could claim, or a claim still owing an answer or a notice.
 
     A claim that owes only prompts spans the routed turn, so it is not counted: a message
     arriving during that turn must reach the router and steer it.
@@ -198,6 +204,7 @@ async def has_held(
                 WhatsAppHeldRun.claimed_at < claimable_before,
                 WhatsAppHeldRun.held_answer,
                 WhatsAppHeldRun.held_files,
+                WhatsAppHeldRun.held_notice.is_not(None),
             ),
         )
         .limit(1)

@@ -16,6 +16,11 @@ import pytest
 
 from app.services.channels import whatsapp_inbound as inbound
 from app.services.channels.base import IncomingMessage, IncomingPress, OutgoingMessage
+from app.services.channels.handback import (
+    EXPIRED_NOTICE,
+    STOPPED_NOTICE,
+    STRANDED_NOTICE,
+)
 from app.services.channels.router import Admission, chat_lock
 from app.services.channels.whatsapp_customers import Held, WindowStore
 from app.services.channels.whatsapp_graph import WhatsAppGraphError
@@ -254,7 +259,10 @@ class StubStore(WindowStore):
         return self.template
 
     async def has_held(self, bot_id: str, chat_id: str, *, now: datetime) -> bool:
-        return any(row.id not in self.claimed or row.answer or row.files for row in self.rows)
+        return any(
+            row.id not in self.claimed or row.answer or row.files or row.notice is not None
+            for row in self.rows
+        )
 
     async def claim_held(self, bot_id: str, chat_id: str, *, now: datetime) -> list[Held]:
         taken = [row for row in self.rows if row.id not in self.claimed]
@@ -264,13 +272,21 @@ class StubStore(WindowStore):
     async def window(self, bot_id: str, chat_id: str, *, now: datetime) -> bool | None:
         return self.window_state
 
-    async def answer_sent(self, held: Held, *, prompts_owed: bool) -> None:
+    async def answer_sent(
+        self, held: Held, *, prompts_owed: bool, keep_notice: bool = False
+    ) -> None:
         self.settled.append(("answer_sent", held.id))
         self.rows = [
-            replace(row, answer=False, files=False) if row.id == held.id else row
+            replace(row, answer=False, files=False, notice=row.notice if keep_notice else None)
+            if row.id == held.id
+            else row
             for row in self.rows
-            if row.id != held.id or prompts_owed
+            if row.id != held.id or prompts_owed or keep_notice
         ]
+
+    async def notice_sent(self, held: Held) -> None:
+        self.settled.append(("notice_sent", held.id))
+        self.rows = [replace(row, notice=None) if row.id == held.id else row for row in self.rows]
 
     async def done(self, held: Held) -> None:
         self.settled.append(("done", held.id))
@@ -338,6 +354,7 @@ class World:
         answer: bool = True,
         files: bool = False,
         message: uuid.UUID | None = None,
+        notice: str | None = None,
     ) -> Held:
         """A row for the run's answer, or for the saved `message` it names instead."""
         return Held(
@@ -346,6 +363,7 @@ class World:
             answer=answer,
             files=files,
             message_id=message or (_answer_id(run.id) if answer else None),
+            notice=notice,
         )
 
     def say(self, text: str) -> uuid.UUID:
@@ -632,6 +650,157 @@ class TestHeldAnswers:
         await _handle(world, world.store([world.held(run, message=uuid.uuid4())]))
         assert [m.text for m in world.sent] == ["Done."]
 
+    async def test_a_held_stop_notice_is_delivered_once_before_the_message_is_routed(self, world):
+        run = world.run(status="cancelled")
+        row = world.held(run, answer=False, notice="stopped")
+        store = world.store([row])
+
+        await _handle(world, store)
+        await _handle(world, store)
+
+        assert world.order == ["answer", "route", "route"]
+        [message] = world.sent
+        assert (message.text, message.notice, message.run_id) == (
+            STOPPED_NOTICE,
+            "stopped",
+            str(run.id),
+        )
+        assert store.settled == [("done", row.id)]
+
+    async def test_a_held_answer_and_a_held_notice_go_out_oldest_first(self, world):
+        noticed, answered = world.run(status="cancelled"), world.run(answer="Report ready.")
+        store = world.store(
+            [
+                world.held(noticed, answer=False, notice="stopped"),
+                world.held(answered),
+            ]
+        )
+
+        await _handle(world, store)
+
+        assert [(m.text, m.notice) for m in world.sent] == [
+            (STOPPED_NOTICE, "stopped"),
+            ("Report ready.", None),
+        ]
+
+    async def test_a_row_owing_an_answer_and_a_notice_sends_the_answer_first(self, world):
+        run = world.run(answer="Report ready.")
+        row = world.held(run, notice="expired")
+        store = world.store([row])
+
+        await _handle(world, store)
+
+        assert [(m.text, m.notice) for m in world.sent] == [
+            ("Report ready.", None),
+            (EXPIRED_NOTICE, "expired"),
+        ]
+        assert store.settled == [("answer_sent", row.id), ("done", row.id)]
+        assert store.rows == []
+
+    async def test_a_notice_that_fails_after_its_answer_goes_alone_next_time(self, world):
+        run = world.run(answer="Report ready.")
+        row = world.held(run, notice="expired")
+        store = world.store([row])
+        world.adapter.send_message.side_effect = [None, WhatsAppGraphError(code=131000)]
+
+        def sent() -> list[str]:
+            return [c.args[1].text for c in world.adapter.send_message.await_args_list]
+
+        await _handle(world, store)
+        assert sent() == ["Report ready.", EXPIRED_NOTICE]
+        assert store.settled == [("answer_sent", row.id), ("release", row.id)]
+        assert [(r.answer, r.notice) for r in store.rows] == [(False, "expired")]
+
+        world.adapter.send_message.side_effect = None
+        await _handle(world, store)
+        assert sent() == ["Report ready.", EXPIRED_NOTICE, EXPIRED_NOTICE]
+        assert store.rows == []
+
+    async def test_a_failed_notice_send_keeps_the_row(self, world):
+        run = world.run(status="cancelled")
+        row = world.held(run, answer=False, notice="stopped")
+        store = world.store([row])
+        world.adapter.send_message.side_effect = WhatsAppGraphError(code=131000)
+
+        await _handle(world, store)
+
+        assert store.settled == [("release", row.id)]
+        assert store.rows == [row]
+
+    async def test_a_notice_for_a_run_that_is_gone_is_settled(self, world):
+        row = Held(
+            id=uuid.uuid4(), run_id=uuid.uuid4(), answer=False, files=False, notice="stopped"
+        )
+        store = world.store([row])
+
+        await _handle(world, store)
+
+        assert world.sent == [] and store.settled == [("done", row.id)]
+
+    async def test_a_notice_whose_chat_moved_is_settled_unsent(self, world):
+        run = world.run(status="cancelled")
+        row = world.held(run, answer=False, notice="stopped")
+        store = world.store([row])
+        world.sender_gone = True
+
+        await _handle(world, store)
+
+        assert world.sent == [] and store.settled == [("done", row.id)]
+
+    async def test_a_notice_whose_sender_is_refused_is_settled_unsent(self, world):
+        run = world.run(status="cancelled")
+        row = world.held(run, answer=False, notice="refused")
+        store = world.store([row])
+        world.verdict = "refused"
+
+        await _handle(world, store)
+
+        assert world.sent == [] and store.settled == [("done", row.id)]
+
+    async def test_an_unknown_notice_key_sends_nothing_and_settles_the_row(self, world):
+        run = world.run(status="cancelled")
+        row = world.held(run, answer=False, notice="not-a-sentence")
+        store = world.store([row])
+
+        await _handle(world, store)
+
+        assert world.sent == [] and store.settled == [("done", row.id)]
+
+    async def test_a_notice_row_with_prompts_owed_keeps_them_after_the_sentence(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run, answer=False, notice="stranded")
+        store = world.store([row])
+
+        await _handle(world, store)
+
+        assert [m.text for m in world.sent] == [STRANDED_NOTICE]
+        assert store.settled[0] == ("notice_sent", row.id)
+        assert world.offered == [run.id]
+        assert world.order == ["answer", "route", "offer"]
+
+    async def test_a_notice_row_whose_sender_is_refused_keeps_its_prompts(self, world):
+        run = world.run(status=PARKED)
+        row = world.held(run, answer=False, notice="stranded")
+        store = world.store([row])
+        world.verdict = "refused"
+
+        await _handle(world, store)
+
+        assert world.sent == [] and world.offered == []
+        assert store.settled == [("notice_sent", row.id), ("release", row.id)]
+        assert [r.notice for r in store.rows] == [None]
+
+    async def test_an_answer_row_that_is_not_admitted_keeps_its_notice_too(self, world):
+        run = world.run()
+        row = world.held(run, notice="expired")
+        store = world.store([row])
+        world.verdict = "refused"
+
+        await _handle(world, store)
+
+        assert world.sent == [] and store.settled == [("release", row.id)]
+        assert store.rows == [row]
+
     async def test_a_failing_window_store_still_routes_the_message(self, world, caplog):
         store = world.store([])
         store.has_held = AsyncMock(side_effect=RuntimeError("boom for US.111"))  # type: ignore[method-assign]
@@ -758,6 +927,35 @@ class TestHeldAnswers:
         assert world.routed == []
         claim.assert_awaited_once()
         assert claim.await_args.args[0].message_id == "wamid.T1"
+
+    async def test_a_show_me_tap_is_not_answered_after_an_answer_and_its_notice(self, world):
+        run = world.run()
+        store = world.store([world.held(run, notice="expired")], template=_template("Show me"))
+
+        with patch(f"{MODULE}.claim_delivery", AsyncMock()) as claim:
+            await _handle(world, store, _tap())
+
+        assert [m.text for m in world.sent] == ["the answer", EXPIRED_NOTICE]
+        assert world.routed == []
+        claim.assert_awaited_once()
+
+    async def test_a_settlement_that_fails_is_logged_as_one_and_gives_the_row_back(
+        self, world, caplog
+    ):
+        run = world.run()
+        row = world.held(run, notice="expired")
+        store = world.store([row])
+        store.answer_sent = AsyncMock(side_effect=RuntimeError("db for US.111"))  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store)
+
+        [record] = [r for r in caplog.records if r.message == "whatsapp_held_settle_failed"]
+        assert (record.bot_id, record.run_id, record.error) == (BOT, str(run.id), "RuntimeError")
+        assert not [r for r in caplog.records if r.message == "whatsapp_held_send_failed"]
+        assert "US.111" not in caplog.text
+        assert [m.text for m in world.sent] == ["the answer"]
+        assert store.settled == [("release", row.id)]
 
     async def test_another_template_button_after_a_held_answer_is_routed(self, world):
         run = world.run()

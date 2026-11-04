@@ -487,7 +487,9 @@ class TestTheStore:
         async with sessions() as db:
             return (await db.execute(select(WhatsAppHeldRun))).scalar_one()
 
-    async def _rehold(self, sessions, estate, run_id, *, answer: bool, files: bool) -> None:
+    async def _rehold(
+        self, sessions, estate, run_id, *, answer: bool, files: bool, notice: str | None = None
+    ) -> None:
         """A hold from a third session, as the late path or a reclaim makes it."""
         org, bot, _ = estate
         async with sessions() as third:
@@ -499,6 +501,7 @@ class TestTheStore:
                 run_id=run_id,
                 answer=answer,
                 files=files,
+                notice=notice,
             )
 
     async def test_a_hold_merged_after_the_claim_survives_done(self, sessions, estate) -> None:
@@ -688,6 +691,154 @@ class TestTheStore:
         store = WindowStore(sessions)
         await store.record_undelivered(str(bot.id), str(foreign), "window_no_template")
         assert await self._reason(sessions, foreign) is None
+
+    async def _notice_hold(self, store: WindowStore, bot, run_id, key: str) -> None:
+        await store.hold(
+            str(bot.id), BSUID, run_id=str(run_id), answer=False, files=False, notice=key
+        )
+
+    async def test_a_notice_is_held_on_the_runs_prompts_row_and_owes_no_answer(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False, now=T3
+        )
+        await self._notice_hold(store, bot, runs[0], "stopped")
+
+        row = await self._held_row(sessions)
+        assert (row.held_notice, row.held_answer, row.held_files, row.message_id) == (
+            "stopped",
+            False,
+            False,
+            None,
+        )
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        assert (held.notice, held.answer, held.files) == ("stopped", False, False)
+
+    async def test_a_prompts_hold_after_a_notice_keeps_the_notice(self, sessions, estate) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False, now=T3
+        )
+
+        assert (await self._held_row(sessions)).held_notice == "stopped"
+
+    async def test_a_second_notice_replaces_the_first(self, sessions, estate) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await self._notice_hold(store, bot, runs[0], "expired")
+        await self._notice_hold(store, bot, runs[0], "stopped")
+
+        assert (await self._held_row(sessions)).held_notice == "stopped"
+
+    async def test_a_notice_held_during_a_claim_survives_done(self, sessions, estate) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=False, files=False, now=T3
+        )
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await self._rehold(sessions, estate, runs[0], answer=False, files=False, notice="stopped")
+        await store.done(held)
+
+        row = await self._held_row(sessions)
+        assert (row.held_notice, row.claimed_at) == ("stopped", None)
+
+    async def test_a_notice_only_row_is_something_to_wait_for_and_to_claim(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        assert await store.has_held(str(bot.id), BSUID, now=T3)
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        assert await store.has_held(str(bot.id), BSUID, now=T3)
+        await store.notice_sent(held)
+        assert not await store.has_held(str(bot.id), BSUID, now=T3)
+
+    async def test_a_notice_sent_clears_the_notice_and_keeps_the_prompts_claim(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.record_undelivered(str(bot.id), str(runs[0]), "window_no_template")
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.notice_sent(held)
+
+        row = await self._held_row(sessions)
+        assert (row.held_notice, row.claimed_at) == (None, T3)
+        assert await self._reason(sessions, runs[0]) == "window_no_template"
+
+    async def test_a_notice_sent_after_a_hold_moved_the_version_gives_the_claim_back(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await self._rehold(sessions, estate, runs[0], answer=False, files=False, notice="stopped")
+        await store.notice_sent(held)
+
+        row = await self._held_row(sessions)
+        assert (row.held_notice, row.claimed_at) == ("stopped", None)
+
+    async def test_a_holder_whose_claim_was_taken_over_cannot_settle_the_notice(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        [first] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        later = T3 + CLAIM_LEASE + timedelta(seconds=1)
+        [second] = await store.claim_held(str(bot.id), BSUID, now=later)
+        await store.notice_sent(first)
+
+        row = await self._held_row(sessions)
+        assert (row.held_notice, row.claimed_at) == ("stopped", second.claimed_at)
+
+    async def test_an_answer_settled_to_keep_the_notice_leaves_a_notice_only_row(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.record_undelivered(str(bot.id), str(runs[0]), "window_no_template")
+        await store.hold(str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=True)
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.answer_sent(held, prompts_owed=False, keep_notice=True)
+
+        row = await self._held_row(sessions)
+        assert (row.held_answer, row.held_files, row.held_notice, row.claimed_at) == (
+            False,
+            False,
+            "stopped",
+            T3,
+        )
+        assert await self._reason(sessions, runs[0]) is None
+        await store.release(held)
+        [again] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        assert (again.answer, again.notice) == (False, "stopped")
+
+    async def test_an_answer_sent_with_prompts_owed_clears_the_notice(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold(str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False)
+        await self._notice_hold(store, bot, runs[0], "stopped")
+        async with sessions() as db:
+            rows = (await db.execute(select(WhatsAppHeldRun))).scalars().all()
+            assert len(rows) == 1 and rows[0].held_answer and rows[0].held_notice == "stopped"
+        [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.answer_sent(held, prompts_owed=True)
+
+        row = await self._held_row(sessions)
+        assert (row.held_answer, row.held_notice, row.claimed_at) == (False, None, T3)
 
     async def _reason(
         self, sessions: Callable[[], AbstractAsyncContextManager[AsyncSession]], run_id: uuid.UUID

@@ -35,6 +35,22 @@ STOPPED_NOTICE: Final = "This run was stopped from the console."
 STRANDED_NOTICE: Final = "A decision was recorded, but the run could not continue."
 REFUSED_NOTICE: Final = "That was decided outside the chat, but the run could not continue."
 
+NOTICES: Final[dict[str, str]] = {
+    "expired": EXPIRED_NOTICE,
+    "stopped": STOPPED_NOTICE,
+    "stranded": STRANDED_NOTICE,
+    "refused": REFUSED_NOTICE,
+}
+
+
+def notice_key(text: str) -> str | None:
+    """The key of the fixed sentence `text` is word for word, or None for anything else."""
+    for key, sentence in NOTICES.items():
+        if text == sentence:
+            return key
+    return None
+
+
 _SURFACE_VALUES = frozenset(surface.value for surface in CHANNEL_SURFACES)
 
 
@@ -117,6 +133,8 @@ async def send_notice(notice: ChatNotice) -> None:
             platform_chat_id=notice.destination.platform_chat_id,
             text=notice.text,
             api_base_url=bot.api_base_url,
+            run_id=str(notice.run_id),
+            notice=notice_key(notice.text),
         )
     await adapter.send_message(token, message)
 

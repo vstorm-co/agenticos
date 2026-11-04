@@ -109,6 +109,9 @@ class WhatsAppHeldRun(Base, TimestampMixin):
     )
     """The answer carried a chart or file that cannot be rebuilt from a pointer."""
 
+    held_notice: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """The key of a fixed sentence (`handback.NOTICES`) owed to the customer; never the text."""
+
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     """When a delivery took the row; older than `CLAIM_LEASE`, another may take it."""
 

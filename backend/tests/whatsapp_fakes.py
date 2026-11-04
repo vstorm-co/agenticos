@@ -11,7 +11,8 @@ class FakeWindowStore(WindowStore):
     """Answers from the values it is given and records what the adapter wrote.
 
     `record=False` is a customer with no record, which the adapter answers as it
-    always did. `held` holds `(run_id, answer, files)`.
+    always did. `held` holds `(run_id, answer, files)`; a held notice is `(run_id, answer, files, key)` in
+    `notices`.
     """
 
     def __init__(
@@ -27,6 +28,7 @@ class FakeWindowStore(WindowStore):
         self.template = template
         self.record = record
         self.held: list[tuple[str, bool, bool]] = []
+        self.notices: list[tuple[str, bool, bool, str]] = []
         self.closures: list[datetime] = []
         self.undelivered: list[tuple[str, UndeliveredReason | None]] = []
 
@@ -39,18 +41,39 @@ class FakeWindowStore(WindowStore):
     async def late_template(self, bot_id: str) -> LateTemplate | None:
         return self.template
 
+    def _hold(self, run_id: str, answer: bool, files: bool, notice: str | None) -> None:
+        if notice is not None:
+            self.notices.append((run_id, answer, files, notice))
+        else:
+            self.held.append((run_id, answer, files))
+
     async def hold_unless_open(
-        self, bot_id: str, chat_id: str, *, run_id: str, answer: bool, files: bool, now: datetime
+        self,
+        bot_id: str,
+        chat_id: str,
+        *,
+        run_id: str,
+        answer: bool,
+        files: bool,
+        now: datetime,
+        notice: str | None = None,
     ) -> bool:
         if self._open(now):
             return True
-        self.held.append((run_id, answer, files))
+        self._hold(run_id, answer, files, notice)
         return False
 
     async def hold(
-        self, bot_id: str, chat_id: str, *, run_id: str, answer: bool, files: bool
+        self,
+        bot_id: str,
+        chat_id: str,
+        *,
+        run_id: str,
+        answer: bool,
+        files: bool,
+        notice: str | None = None,
     ) -> None:
-        self.held.append((run_id, answer, files))
+        self._hold(run_id, answer, files, notice)
 
     async def close(self, bot_id: str, chat_id: str, *, at: datetime) -> bool:
         self.closures.append(at)

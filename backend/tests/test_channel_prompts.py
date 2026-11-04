@@ -356,6 +356,54 @@ class TestOffering:
             await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
         assert adapter.send_message.await_args.args[1].run_id == str(RUN)
 
+    @pytest.mark.parametrize(
+        ("status", "output", "notice"),
+        [
+            (RunStatus.CANCELLED.value, "This run was stopped from the console.", "stopped"),
+            (RunStatus.COMPLETED.value, "This run was stopped from the console.", None),
+            (RunStatus.CANCELLED.value, "Another sentence.", None),
+        ],
+    )
+    async def test_only_a_cancelled_runs_stop_sentence_is_a_notice(
+        self, status: str, output: str, notice: str | None
+    ):
+        adapter = MagicMock(send_message=AsyncMock())
+        segment = MagicMock(output=output, tool_calls=[], generated_files=frozenset())
+        segment.run.id = RUN
+        segment.run.status = status
+        with (
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
+            patch(f"{_MODULE}.drawn_picture", new=AsyncMock(return_value=None)),
+        ):
+            await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
+        assert adapter.send_message.await_args.args[1].notice == notice
+
+    @pytest.mark.parametrize(("picture", "drawn_notes"), [(b"png", []), (None, ["Chart note."])])
+    async def test_a_cancelled_run_with_a_picture_or_a_note_is_not_a_notice(
+        self, picture: bytes | None, drawn_notes: list[str]
+    ):
+        adapter = MagicMock(send_message=AsyncMock())
+        segment = MagicMock(
+            output="This run was stopped from the console.",
+            tool_calls=[],
+            generated_files=frozenset(),
+        )
+        segment.run.id = RUN
+        segment.run.status = RunStatus.CANCELLED.value
+
+        async def draw(*args: Any, notices: list[str], **kwargs: Any) -> bytes | None:
+            notices.extend(drawn_notes)
+            return picture
+
+        with (
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
+            patch(f"{_MODULE}.drawn_picture", new=draw),
+        ):
+            await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
+        assert adapter.send_message.await_args.args[1].notice is None
+
     async def test_a_question_the_chat_never_got_leaves_no_row_behind(self):
         """Codex on #2062: a call is answered once all its rows are, so an
         undelivered one held the run forever."""

@@ -318,6 +318,8 @@ class OutgoingMessage:
     api_base_url: str | None = None
     run_id: str | None = None
     """The run this message answers, or the run waiting on this prompt, so a platform that cannot deliver it now can deliver it later (WhatsApp outside its 24-hour window). `None` for anything else, which is sent now or not at all."""
+    notice: str | None = None
+    """The key of a fixed platform sentence (`handback.NOTICES`) when the text is that sentence and not an answer; a platform with a send window holds the key, never the text, and sends it without callback data."""
 
 
 CHANNEL_COMMANDS: tuple[tuple[str, str], ...] = (
