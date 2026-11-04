@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-11-04
+
 ### Added
 
 - Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
@@ -19951,7 +19953,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...HEAD
+[1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
