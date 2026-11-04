@@ -96,29 +96,59 @@ class Ceiling:
         return self.agent_monthly_usd is not None or self.organization_monthly_usd is not None
 
 
-async def served_spec(db: AsyncSession, exposure: AgentExposure) -> AgentSpec | None:
-    """The spec a binding answers with, or `None` when there is nothing published to answer.
+async def _served_version_id(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, environment_id: UUID | None
+) -> UUID | None:
+    """The version a binding of this agent to this environment answers with, if any.
 
-    The environment the binding names decides the version, and with none named it is
-    the agent's current one - the version a run on this binding would be resolved
-    to. Read inside the binding's own organization and without a caller to check:
-    this decides whether a line may be opened, not who may run the agent.
+    The environment decides it, and with none named it is the agent's current one -
+    the version a run on such a binding would be resolved to. `None` when there is
+    nothing published to answer.
     """
-    agent = await agent_repo.get(db, exposure.agent_id, organization_id=exposure.organization_id)
+    agent = await agent_repo.get(db, agent_id, organization_id=organization_id)
     if agent is None:
         return None
-    version_id = agent.current_version_id
-    if exposure.environment_id is not None:
-        environment = await agent_environment_repo.get(
-            db, exposure.environment_id, organization_id=exposure.organization_id
-        )
-        if environment is None or environment.agent_id != agent.id:
-            return None
-        version_id = environment.version_id
+    if environment_id is None:
+        return agent.current_version_id
+    environment = await agent_environment_repo.get(
+        db, environment_id, organization_id=organization_id
+    )
+    if environment is None or environment.agent_id != agent.id:
+        return None
+    return environment.version_id
+
+
+async def _spec_of_version(
+    db: AsyncSession, *, organization_id: UUID, version_id: UUID | None
+) -> AgentSpec | None:
     if version_id is None:
         return None
-    version = await agent_repo.get_version(db, version_id, organization_id=exposure.organization_id)
+    version = await agent_repo.get_version(db, version_id, organization_id=organization_id)
     return None if version is None else AgentSpec.model_validate(version.spec)
+
+
+async def spec_served_by(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID, environment_id: UUID | None
+) -> AgentSpec | None:
+    """The spec a binding of this agent to this environment answers with.
+
+    Read inside the organization and without a caller to check: this decides
+    whether a line may be opened, not who may run the agent.
+    """
+    version_id = await _served_version_id(
+        db, organization_id=organization_id, agent_id=agent_id, environment_id=environment_id
+    )
+    return await _spec_of_version(db, organization_id=organization_id, version_id=version_id)
+
+
+async def served_spec(db: AsyncSession, exposure: AgentExposure) -> AgentSpec | None:
+    """The spec an existing binding answers with, or `None` when nothing is published."""
+    return await spec_served_by(
+        db,
+        organization_id=exposure.organization_id,
+        agent_id=exposure.agent_id,
+        environment_id=exposure.environment_id,
+    )
 
 
 async def bot_served_spec(db: AsyncSession, bot_id: UUID) -> AgentSpec | None:
@@ -165,3 +195,74 @@ async def refuse_without_ceiling(
         ),
         details={"channel_bot_id": None if channel_bot_id is None else str(channel_bot_id)},
     )
+
+
+async def served_versions(
+    db: AsyncSession, *, organization_id: UUID, agent_id: UUID
+) -> dict[UUID, UUID | None]:
+    """The version each public-line binding of this agent serves now, by binding id.
+
+    Taken before a change to the agent, so `refuse_unbounded_bindings` can tell the
+    bindings the change moves from the ones it leaves alone. Empty when the agent
+    is on no bot that answers strangers.
+    """
+    return {
+        exposure.id: await _served_version_id(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            environment_id=exposure.environment_id,
+        )
+        for exposure, bot in await agent_exposure_repo.list_with_bot_for_agent(
+            db, agent_id=agent_id, organization_id=organization_id
+        )
+        if bot_answers_unlinked_direct(bot)
+    }
+
+
+async def refuse_unbounded_bindings(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    served_before: Mapping[UUID, UUID | None],
+    excluding_environment_id: UUID | None = None,
+) -> None:
+    """Refuse a change to an agent that would leave a line answering strangers with no ceiling.
+
+    `served_before` is `served_versions` taken before the change. Every binding of
+    the agent on a bot whose line answers strangers, paused ones included, is
+    judged by the version it serves once the change is in place - but only when
+    that is not the version it served before. A binding the change does not move is
+    left alone: whatever state it was already in, this change is not what put it
+    there. Call it after the change is written, inside the transaction that a
+    refusal rolls back. `excluding_environment_id` judges the bindings on that
+    environment as if they named none: what they fall back to when it is deleted.
+
+    Raises:
+        BadRequestError: For the first moved binding with neither an agent budget
+            nor an organization cap.
+    """
+    for exposure, bot in await agent_exposure_repo.list_with_bot_for_agent(
+        db, agent_id=agent_id, organization_id=organization_id
+    ):
+        if not bot_answers_unlinked_direct(bot):
+            continue
+        version_id = await _served_version_id(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            environment_id=(
+                None
+                if exposure.environment_id == excluding_environment_id
+                else exposure.environment_id
+            ),
+        )
+        if served_before.get(exposure.id) == version_id:
+            continue
+        await refuse_without_ceiling(
+            db,
+            organization_id=organization_id,
+            spec=await _spec_of_version(db, organization_id=organization_id, version_id=version_id),
+            channel_bot_id=bot.id,
+        )

@@ -139,6 +139,7 @@ from app.services.access import (
     visible_resource_ids,
 )
 from app.services.channels.base import ROOM_HANDLES
+from app.services.channels.public_line import refuse_unbounded_bindings, served_versions
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import (
     IMAGE_MIME_TYPES,
@@ -2918,7 +2919,16 @@ class AgentRegistryService:
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
+        served_before = await served_versions(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await refuse_unbounded_bindings(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            served_before=served_before,
+        )
         await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,
@@ -3082,7 +3092,16 @@ class AgentRegistryService:
         # version exists, and what serves it is a promotion. Putting the old
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
+        served_before = await served_versions(
+            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+        )
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await refuse_unbounded_bindings(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=agent.id,
+            served_before=served_before,
+        )
         await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,

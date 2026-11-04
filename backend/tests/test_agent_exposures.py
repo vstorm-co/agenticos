@@ -477,15 +477,17 @@ class TestChangingABinding:
         """The audit keeps the values as JSON, and an environment id is a UUID."""
         agent = _agent()
         service = _service(agent)
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id, environment_id=None)
         environment = MagicMock(agent_id=agent.id)
         audit = AsyncMock()
 
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
             patch("app.services.agent_exposure.agent_environment_repo") as environments,
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
             patch("app.services.agent_exposure.record_audit", new=audit),
         ):
+            bots.get_for_org = AsyncMock(return_value=_bot())
             exposures.get = AsyncMock(return_value=exposure)
             exposures.update = AsyncMock(return_value=exposure)
             environments.get = AsyncMock(return_value=environment)
@@ -503,13 +505,15 @@ class TestChangingABinding:
         goes back to serving what everyone else gets, with nothing looked up."""
         agent = _agent()
         service = _service(agent)
-        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id, environment_id=uuid.uuid4())
 
         with (
             patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
             patch("app.services.agent_exposure.agent_environment_repo") as environments,
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
             patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
         ):
+            bots.get_for_org = AsyncMock(return_value=_bot())
             exposures.get = AsyncMock(return_value=exposure)
             exposures.update = AsyncMock(return_value=exposure)
 
@@ -801,7 +805,7 @@ class TestWhatTheAgentMayLookUpHere:
                     self._exposure("mattermost", ["get_channel_info"]),
                 ]
             )
-            service._bot_names = AsyncMock(return_value={})
+            service._bots = AsyncMock(return_value={})
 
             telegram, mattermost = await service.list_for_agent(_ctx(), uuid.uuid4())
 
@@ -821,7 +825,7 @@ class TestWhatTheAgentMayLookUpHere:
         service = _service()
         with patch("app.services.agent_exposure.agent_exposure_repo") as exposures:
             exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
-            service._bot_names = AsyncMock(return_value={})
+            service._bots = AsyncMock(return_value={})
 
             (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
 
@@ -842,7 +846,7 @@ class TestWhatTheAgentMayLookUpHere:
         service = _service()
         with patch("app.services.agent_exposure.agent_exposure_repo") as exposures:
             exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
-            service._bot_names = AsyncMock(return_value={})
+            service._bots = AsyncMock(return_value={})
 
             (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
 
@@ -861,7 +865,7 @@ class TestWhatTheAgentMayLookUpHere:
             patch("app.services.agent_exposure.tool_contracts", new=AsyncMock(return_value={})),
         ):
             exposures.list_for_agent = AsyncMock(return_value=[self._exposure("slack")])
-            service._bot_names = AsyncMock(return_value={})
+            service._bots = AsyncMock(return_value={})
 
             (slack,) = await service.list_for_agent(_ctx(), uuid.uuid4())
 
@@ -925,3 +929,150 @@ class TestTheBindingTheRunAssembles:
         _with_channel_tools(spec, SimpleNamespace(tools=["get_channel_info"]))
 
         assert spec.capabilities == []
+
+
+class TestSayingThatALineAnswersStrangers:
+    """The Builder is told when binding an agent opens it to people with no account."""
+
+    OPEN = {"mode": "open", "answer_unlinked_direct": True}
+
+    @staticmethod
+    def _whatsapp(policy: object) -> MagicMock:
+        bot = _bot(platform="whatsapp", name="Front desk")
+        bot.access_policy = policy
+        return bot
+
+    @staticmethod
+    def _exposure(bot: MagicMock, agent_id: uuid.UUID) -> MagicMock:
+        return MagicMock(
+            id=uuid.uuid4(),
+            agent_id=agent_id,
+            channel_bot_id=bot.id,
+            surface="whatsapp",
+            tools=[],
+            environment_id=None,
+            session_scope=None,
+            prompt=None,
+            usage_reporting={},
+            is_active=True,
+            created_at=None,
+        )
+
+    @pytest.mark.parametrize(
+        ("policy", "expected"),
+        [(OPEN, True), ({"mode": "open"}, False), ({}, False)],
+    )
+    async def test_the_binding_reads_back_whether_its_bot_answers_strangers(self, policy, expected):
+        agent = _agent()
+        service = _service(agent)
+        bot = self._whatsapp(policy)
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+        ):
+            exposures.list_for_agent = AsyncMock(return_value=[self._exposure(bot, agent.id)])
+            bots.list_for_org = AsyncMock(return_value=[bot])
+
+            (item,) = await service.list_for_agent(_ctx(), agent.id)
+
+        assert item.public_line is expected
+
+    async def test_a_binding_whose_bot_is_gone_is_not_a_public_line(self):
+        agent = _agent()
+        service = _service(agent)
+        bot = self._whatsapp(self.OPEN)
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+        ):
+            exposures.list_for_agent = AsyncMock(return_value=[self._exposure(bot, agent.id)])
+            bots.list_for_org = AsyncMock(return_value=[])
+
+            (item,) = await service.list_for_agent(_ctx(), agent.id)
+
+        assert item.public_line is False
+
+    async def test_the_picker_says_which_bots_answer_strangers(self):
+        service = _service()
+        open_line, closed = self._whatsapp(self.OPEN), self._whatsapp({"mode": "open"})
+        slack = _bot(platform="slack")
+        slack.access_policy = self.OPEN
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+        ):
+            bots.list_for_org = AsyncMock(return_value=[open_line, closed, slack])
+            exposures.bound_agent_by_bot = AsyncMock(return_value={})
+
+            targets = await service.targets(_ctx(), uuid.uuid4())
+
+        assert [target.public_line for target in targets] == [True, False, False]
+
+    @pytest.mark.parametrize(
+        ("policy", "expected"),
+        [(OPEN, {"public_line": True}), ({"mode": "open"}, {})],
+    )
+    async def test_the_audit_entry_carries_the_flag_only_for_such_a_line(self, policy, expected):
+        agent = _agent()
+        service = _service(agent)
+        bot = self._whatsapp(policy)
+        audit = AsyncMock()
+        with (
+            patch("app.services.agent_exposure.channel_bot_repo") as bots,
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.spec_served_by", new=AsyncMock(return_value=None)),
+            patch("app.services.agent_exposure.refuse_without_ceiling", new=AsyncMock()),
+            patch("app.services.agent_exposure.record_audit", new=audit),
+        ):
+            bots.get_for_org = AsyncMock(return_value=bot)
+            exposures.bound_to_bot = AsyncMock(return_value=None)
+            exposures.create = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+
+            await service.create(_ctx(), agent.id, ExposureCreate(channel_bot_id=bot.id))
+
+        details = audit.await_args.kwargs["details"]
+        assert {key: value for key, value in details.items() if key == "public_line"} == expected
+
+
+class TestBindingAndPublishingDoNotRace:
+    """A bind and a publish each check the spending limit, so they take the same lock."""
+
+    async def test_binding_locks_the_agent(self):
+        agent = _agent()
+        service = _service(agent)
+        with patch("app.services.agent_exposure.channel_bot_repo") as bots:
+            bots.get_for_org = AsyncMock(return_value=None)
+            with pytest.raises(NotFoundError):
+                await service.create(_ctx(), agent.id, ExposureCreate(channel_bot_id=uuid.uuid4()))
+
+        assert service.agents.get.call_args.kwargs["for_update"] is True
+
+    async def test_changing_a_binding_locks_the_agent(self):
+        agent = _agent()
+        service = _service(agent)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id, is_active=True)
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        ):
+            exposures.get = AsyncMock(return_value=exposure)
+            exposures.update = AsyncMock(return_value=exposure)
+
+            await service.update(_ctx(), agent.id, exposure.id, ExposureUpdate(prompt="Short."))
+
+        assert service.agents.get.call_args.kwargs["for_update"] is True
+
+    async def test_removing_a_binding_takes_no_lock(self):
+        agent = _agent()
+        service = _service(agent)
+        exposure = MagicMock(id=uuid.uuid4(), agent_id=agent.id, surface="slack")
+        with (
+            patch("app.services.agent_exposure.agent_exposure_repo") as exposures,
+            patch("app.services.agent_exposure.record_audit", new=AsyncMock()),
+        ):
+            exposures.get = AsyncMock(return_value=exposure)
+            exposures.delete = AsyncMock()
+
+            await service.delete(_ctx(), agent.id, exposure.id)
+
+        assert service.agents.get.call_args.kwargs["for_update"] is False
