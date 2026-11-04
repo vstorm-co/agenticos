@@ -276,6 +276,11 @@ class GroupService:
         for discord_mapping in await discord_role_mapping_repo.list_for_group(
             self.db, group_id=group.id
         ):
+            if not ctx.has(Perm.CHANNELS_MANAGE):
+                raise AuthorizationError(
+                    message="Remove this group's Discord mappings with channel management permission first",
+                    details={"group_id": str(group_id)},
+                )
             if discord_mapping.role is not None and (
                 not ctx.has(Perm.ROLES_MANAGE) or discord_mapping.role not in ceiling
             ):

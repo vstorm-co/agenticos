@@ -344,6 +344,25 @@ class TestTheSync:
         assert (await _membership(db, org, bob)).role == "viewer"
         assert set(await _groups(db, bob)) == {finance.id}
 
+    @pytest.mark.parametrize(
+        "previous,unread,expected", [("admin", "viewer", "viewer"), ("viewer", "admin", "viewer")]
+    )
+    async def test_an_unread_mapping_bounds_retained_authority(
+        self, db, discord, previous, unread, expected
+    ):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        await _mapping(db, bot, await _group(db, org), role="admin")
+        await _mapping(db, bot, await _group(db, org, "Support"), guild=OTHER_GUILD, role=unread)
+        user = await _member(db, org, role=previous, source="discord")
+        account = await _linked(db, user)
+        before = await _membership(db, org, user)
+        membership_id = before.id
+        discord.give(account.platform_user_id)
+        assert not await DiscordRoleSync(db).sync(org.id, user.id)
+        after = await _membership(db, org, user)
+        assert (after.id, after.source, after.role) == (membership_id, "discord", expected)
+
     async def test_a_membership_an_administrator_made_keeps_its_role(self, db, discord):
         org, _ = await _org(db)
         bot = await _bot(db, org)
@@ -858,6 +877,26 @@ class TestMappings:
         with pytest.raises(NotFoundError):
             await service.list_mappings(self._ctx(org, owner), (await _bot(db, other)).id)
 
+    async def test_group_only_mapping_cannot_be_cascaded_without_channel_permission(
+        self, db, discord
+    ):
+        org, owner = await _org(db)
+        bot = await _bot(db, org)
+        group = await _group(db, org)
+        mapping = await _mapping(db, bot, group)
+        narrowed = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role="owner",
+            key_scopes=frozenset({Perm.MEMBERS_MANAGE, Perm.ROLES_MANAGE}),
+        )
+        with pytest.raises(AuthorizationError):
+            await GroupService(db).delete(narrowed, group.id)
+        assert await db.get(Group, group.id) is not None
+        assert await db.get(DiscordRoleMapping, mapping.id) is not None
+        await GroupService(db).delete(self._ctx(org, owner), group.id)
+        assert await discord_role_mapping_repo.list_for_bot(db, channel_bot_id=bot.id) == []
+
     @pytest.mark.parametrize(
         ("requester", "role"),
         [
@@ -1136,7 +1175,7 @@ class TestDirectoryDiscordHandover:
         else:
             assert membership.id == membership_id
             assert (membership.source, membership.role) == (
-                ("discord", "member") if outcome == "grant" else ("directory", "builder")
+                ("discord", "member") if outcome == "grant" else ("directory", "member")
             )
             assert key.revoked_at is None and grant.revoked_at is None
             assert await _groups(db, bob) == {finance.id: "manual"}
@@ -1211,7 +1250,7 @@ async def test_directory_departure_rechecks_a_membership_changed_during_discord_
             if not task.done():
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
-                    await task
+                    await asyncio.wait_for(task, 5)
     await db.refresh(key)
     await db.refresh(grant)
     assert key.revoked_at is None and grant.revoked_at is None

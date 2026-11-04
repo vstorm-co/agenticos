@@ -273,7 +273,7 @@ class TestTheSyncRacingItself:
             ),
             patch(
                 f"{SYNC}.channel_bot_repo.get_by_ids",
-                new=AsyncMock(return_value={bot_id: MagicMock(id=bot_id)}),
+                new=AsyncMock(return_value={bot_id: MagicMock(id=bot_id, access_policy={})}),
             ),
             patch(f"{SYNC}.discord_adapter", return_value=MagicMock()),
             patch(f"{SYNC}.unseal_bot_token", return_value="tok"),
@@ -342,7 +342,7 @@ class TestABotDeletedUnderTheSync:
 
         ask.assert_not_awaited()
         assert place.await_args.args == (user_id, org_id, None)
-        assert place.await_args.kwargs == {"keep": False}
+        assert place.await_args.kwargs == {"unread_roles": frozenset()}
         assert groups.await_args.kwargs == {"wanted": set(), "keep": set()}
 
 
@@ -424,10 +424,18 @@ class TestDirectoryMembershipGrant:
         org, user, bot = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         mapping = MagicMock(channel_bot_id=bot, guild_id="g", discord_role_id="7", role="member")
         service = DiscordRoleSync(_db())
+        mappings = [mapping]
+        if unknown:
+            mappings.append(
+                MagicMock(
+                    channel_bot_id=bot, guild_id="unread", discord_role_id="8", role="builder"
+                )
+            )
+            unknown = {(bot, "unread")}
         with (
             patch(
                 f"{SYNC}.discord_role_mapping_repo.list_for_org",
-                new=AsyncMock(return_value=[mapping]),
+                new=AsyncMock(return_value=mappings),
             ),
             patch(
                 f"{SYNC}.channel_identity_repo.list_for_user",
@@ -479,12 +487,14 @@ class TestDirectoryMembershipGrant:
                 new=AsyncMock(return_value={bot: MagicMock()}),
             ),
             patch(f"{SYNC}.discord_adapter", return_value=MagicMock()),
+            patch(f"{SYNC}._lookup_allowed", new=AsyncMock(return_value=True)),
             patch.object(service, "_ask", new=AsyncMock(side_effect=TimeoutError)) as ask,
         ):
             _, unknown = await service._held(
                 [mapping],
                 ["u"],
                 {},
+                user_id=uuid.uuid4(),
                 deadline=0 if expired else asyncio.get_running_loop().time() + 10,
             )
         assert unknown == {(bot, "g")}
@@ -510,3 +520,97 @@ async def test_a_discord_ask_preflight_spends_one_allowance_when_routed_to_its_t
         identity.user_id = uuid.uuid4()
         await router._sync_discord_roles(bot, identity, routed, MagicMock())
         assert meter.await_count == 2 and sync.await_count == 2
+
+
+@pytest.mark.parametrize(
+    "previous,confirmed,unread,expected",
+    [
+        ("admin", None, frozenset({"viewer"}), "viewer"),
+        ("viewer", None, frozenset({"admin"}), "viewer"),
+        ("builder", None, frozenset({"operator"}), "viewer"),
+        ("viewer", "admin", frozenset({"viewer"}), "admin"),
+        ("admin", None, frozenset(), None),
+    ],
+)
+def test_unread_roles_cannot_retain_or_add_unjustified_authority(
+    previous, confirmed, unread, expected
+):
+    from app.services.directory import retained_role
+
+    assert retained_role(previous, confirmed, unread) == expected
+
+
+@pytest.mark.parametrize("metered", [True, False])
+async def test_rest_allowance_is_shared_by_all_linked_accounts(metered, monkeypatch):
+    from app.services.channels import discord_roles
+
+    monkeypatch.setattr(discord_roles, "_lookup_windows", rate_limit.LocalWindows())
+    bot = MagicMock(id=uuid.uuid4(), access_policy={"rate_limit_rpm": 1})
+    user = uuid.uuid4()
+    service = DiscordRoleSync(_db())
+    mapping = MagicMock(channel_bot_id=bot.id, guild_id="g")
+    with (
+        patch(f"{SYNC}.channel_bot_repo.get_by_ids", AsyncMock(return_value={bot.id: bot})),
+        patch(f"{SYNC}.discord_adapter", return_value=MagicMock()),
+        patch(
+            f"{SYNC}.rate_limit.consume",
+            AsyncMock(
+                side_effect=[
+                    rate_limit.Decision(True, 0, metered=metered),
+                    rate_limit.Decision(False, 60, metered=metered),
+                ]
+            ),
+        ) as meter,
+        patch.object(service, "_ask", AsyncMock(return_value=frozenset({"7"}))) as ask,
+    ):
+        import asyncio
+
+        held, unknown = await service._held(
+            [mapping],
+            ["account-a", "account-b"],
+            {},
+            user_id=user,
+            deadline=asyncio.get_running_loop().time() + 10,
+        )
+    assert ask.await_count == 1
+    assert held == {(bot.id, "g"): frozenset({"7"})}
+    assert unknown == {(bot.id, "g")}
+    assert {call.kwargs["caller"] for call in meter.await_args_list} == {
+        f"bot:{bot.id}:user:{user}"
+    }
+
+
+async def test_expired_budget_still_uses_confirmed_payload_without_an_rpc():
+    bot, user = uuid.uuid4(), uuid.uuid4()
+    mapping = MagicMock(channel_bot_id=bot, guild_id="g")
+    service = DiscordRoleSync(_db())
+    with (
+        patch(f"{SYNC}.channel_bot_repo.get_by_ids", AsyncMock(return_value={bot: MagicMock()})),
+        patch(f"{SYNC}.discord_adapter", return_value=MagicMock()),
+        patch(f"{SYNC}._lookup_allowed", AsyncMock()) as meter,
+    ):
+        held, unknown = await service._held(
+            [mapping],
+            ["a", "b"],
+            {(bot, "g", "a"): frozenset({"7"})},
+            user_id=user,
+            deadline=0,
+        )
+    assert held == {(bot, "g"): frozenset({"7"})}
+    assert unknown == {(bot, "g")}
+    meter.assert_not_awaited()
+
+
+async def test_message_checks_for_two_accounts_share_the_linked_user_budget():
+    bot = MagicMock(id=uuid.uuid4())
+    user = uuid.uuid4()
+    router = ChannelMessageRouter()
+    with (
+        patch.object(router, "_check_rate_limit", AsyncMock()) as meter,
+        patch.object(DiscordRoleSync, "on_turn", AsyncMock()),
+    ):
+        for _ in range(2):
+            await router._sync_discord_roles(
+                bot, MagicMock(id=uuid.uuid4(), user_id=user), _incoming("discord"), MagicMock()
+            )
+    assert [call.args[1] for call in meter.await_args_list] == [f"user:{user}"] * 2

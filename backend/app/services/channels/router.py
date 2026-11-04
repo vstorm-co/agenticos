@@ -1913,7 +1913,7 @@ class ChannelMessageRouter:
         checked_for = (str(bot.id), str(identity.user_id), str(identity.id))
         if incoming.discord_roles_checked_for == checked_for:
             return
-        await self._check_rate_limit(bot, str(identity.id), surface="discord-roles")
+        await self._check_rate_limit(bot, f"user:{identity.user_id}", surface="discord-roles")
         await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
         incoming.discord_roles_checked_for = checked_for
 

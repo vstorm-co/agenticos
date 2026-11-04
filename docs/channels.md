@@ -1565,10 +1565,9 @@ and the rules about what the sync never touches, are the ones the
   a membership an administrator made keeps its role, and an owner is never
   demoted or removed. Somebody the sync admitted to the organization leaves all of
   its groups when the sync removes them, as somebody removed by hand does.
-- When Discord cannot be asked about a server, what that server's mappings gave is
-  kept, and what the other servers answered is still applied. Only Discord's own
-  answer that the member is not in the server, or no longer holds the role, takes
-  anything away.
+- If a server cannot be read, its mapped groups remain. Its possible organization roles can retain only authority the person already held; an unread `viewer` mapping cannot preserve `admin`. Confirmed grants still apply.
+
+Each reconciliation shares a ten-second network deadline. REST lookups share the bot’s `rate_limit_rpm` per linked user across all their accounts, separately from the per-user message-check allowance. Removing a mapped group also requires `channels:manage`.
 
 Unlinking the Discord account takes back what its roles gave, unless another linked
 Discord account still earns it. Deleting a mapping takes back what it gave at each

@@ -1,5 +1,5 @@
 ---
-source_sha: "febcabd0384e"
+source_sha: "e61c5738586c"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1614,10 +1614,9 @@ nie dotyka, są takie same jak w
   rolę, a właściciel nigdy nie jest degradowany ani usuwany. Ktoś, kogo
   synchronizacja przyjęła do organizacji, opuszcza wszystkie jej grupy, gdy
   synchronizacja go usuwa, tak jak ktoś usunięty ręcznie.
-- Gdy nie da się zapytać Discorda o serwer, to, co dały mapowania tego serwera,
-  zostaje, a odpowiedzi pozostałych serwerów są nadal stosowane. Tylko odpowiedź
-  samego Discorda, że członka nie ma na serwerze albo nie ma już roli, cokolwiek
-  odbiera.
+- Gdy nie można odczytać serwera, jego grupy zostają. Możliwe role organizacji zachowują tylko uprawnienia, które osoba już miała; nieczytelne mapowanie `viewer` nie zachowa `admin`. Potwierdzone nadania nadal działają.
+
+Cała synchronizacja ma wspólny limit dziesięciu sekund na sieć. Odczyty REST dzielą limit `rate_limit_rpm` bota dla użytkownika między wszystkie jego konta, osobno od limitu sprawdzeń przed wiadomością. Usunięcie zmapowanej grupy wymaga też `channels:manage`.
 
 Odłączenie konta Discorda odbiera to, co dały jego role, chyba że nadal zapewnia to
 inne połączone konto Discorda. Usunięcie mapowania odbiera to, co ono dało, przy

@@ -59,10 +59,12 @@ from app.repositories import (
     member_repo,
     user_repo,
 )
+from app.schemas.channel_bot import AccessPolicy
+from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter, register_adapter
 from app.services.channels.discord_protocol import payload_roles
-from app.services.directory import winning_role
+from app.services.directory import retained_role, winning_role
 from app.services.member import end_membership
 from app.services.proactive import ProactiveService
 
@@ -72,6 +74,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PLATFORM = "discord"
+_lookup_windows = rate_limit.LocalWindows()
 
 Seen = dict[tuple[UUID, str, str], frozenset[str]]
 """Roles already in hand, by `(bot id, server id, Discord user id)`: a guild message carries its sender's."""
@@ -101,7 +104,24 @@ def discord_adapter() -> DiscordAdapter:
 @dataclass(frozen=True)
 class DiscordMembershipGrant:
     role: str | None
-    uncertain: bool
+    unread_roles: frozenset[str]
+
+    @property
+    def uncertain(self) -> bool:
+        return bool(self.unread_roles)
+
+
+async def _lookup_allowed(bot: ChannelBot, user_id: UUID) -> bool:
+    limit = rate_limit.Limit(attempts=AccessPolicy.model_validate(bot.access_policy).rate_limit_rpm)
+    caller = f"bot:{bot.id}:user:{user_id}"
+    decision = await rate_limit.consume(surface="discord-role-lookups", caller=caller, limit=limit)
+    if decision.metered:
+        return decision.allowed
+    return _lookup_windows.consume(
+        f"discord-role-lookups:{caller}",
+        attempts=limit.attempts,
+        window_seconds=limit.window_seconds,
+    )
 
 
 class DiscordRoleSync:
@@ -121,7 +141,7 @@ class DiscordRoleSync:
 
         Returns:
             Whether every mapped server answered; `False` when Discord could not
-            be asked about one, whose mappings then kept what they gave.
+            be asked about one, whose groups are retained and whose possible roles bound retained authority.
         """
         mappings = await discord_role_mapping_repo.list_for_org(
             self.db, organization_id=organization_id
@@ -140,7 +160,13 @@ class DiscordRoleSync:
         held: dict[tuple[UUID, str], frozenset[str]] = {}
         unknown: set[tuple[UUID, str]] = set()
         if mappings and accounts:
-            held, unknown = await self._held(mappings, accounts, seen or {})
+            held, unknown = await self._held(
+                mappings,
+                accounts,
+                seen or {},
+                user_id=user_id,
+                deadline=asyncio.get_running_loop().time() + 10,
+            )
         unread = [m for m in mappings if (m.channel_bot_id, m.guild_id) in unknown]
         matched = [
             mapping
@@ -153,9 +179,8 @@ class DiscordRoleSync:
             user_id,
             organization_id,
             winning_role(roles) if roles else None,
-            # A role an unread server's mapping may still be giving: the
-            # membership stays as it is rather than follow half an answer.
-            keep=any(mapping.role is not None for mapping in unread),
+            # Unread grants can retain only authority their mappings could supply.
+            unread_roles=frozenset(mapping.role for mapping in unread if mapping.role is not None),
         ):
             await self._sync_groups(
                 user_id,
@@ -191,9 +216,9 @@ class DiscordRoleSync:
             else []
         )
         if not mappings or not accounts:
-            return DiscordMembershipGrant(None, False)
+            return DiscordMembershipGrant(None, frozenset())
         held, unknown = await self._held(
-            mappings, accounts, {}, deadline=asyncio.get_running_loop().time() + 10
+            mappings, accounts, {}, user_id=user_id, deadline=asyncio.get_running_loop().time() + 10
         )
         roles = [
             mapping.role
@@ -202,7 +227,15 @@ class DiscordRoleSync:
             and mapping.discord_role_id
             in held.get((mapping.channel_bot_id, mapping.guild_id), frozenset())
         ]
-        return DiscordMembershipGrant(winning_role(roles) if roles else None, bool(unknown))
+        return DiscordMembershipGrant(
+            winning_role(roles) if roles else None,
+            frozenset(
+                mapping.role
+                for mapping in mappings
+                if mapping.role is not None
+                and (mapping.channel_bot_id, mapping.guild_id) in unknown
+            ),
+        )
 
     async def on_turn(
         self, bot: ChannelBot, identity: ChannelIdentity, raw: dict[str, Any]
@@ -239,14 +272,15 @@ class DiscordRoleSync:
         accounts: list[str],
         seen: Seen,
         *,
-        deadline: float | None = None,
+        user_id: UUID,
+        deadline: float,
     ) -> tuple[dict[tuple[UUID, str], frozenset[str]], set[tuple[UUID, str]]]:
         """The roles held in each `(bot, server)` the mappings name, across the person's accounts.
 
         Also returns the pairs Discord could not be asked about for one of the
         accounts: a partial answer would read the unasked account as every role
         taken away, so such a pair is unknown rather than empty. Confirmed roles
-        still grant access; uncertainty only prevents removals.
+        still grant access; unread mappings bound any retained authority.
         """
         bots = await channel_bot_repo.get_by_ids(
             self.db, {mapping.channel_bot_id for mapping in mappings}
@@ -254,26 +288,30 @@ class DiscordRoleSync:
         adapter = discord_adapter()
         held: dict[tuple[UUID, str], frozenset[str]] = defaultdict(frozenset)
         unknown: set[tuple[UUID, str]] = set()
-        for bot_id, guild_id in sorted({(m.channel_bot_id, m.guild_id) for m in mappings}):
+        pairs = sorted({(m.channel_bot_id, m.guild_id) for m in mappings})
+        secrets.SystemRandom().shuffle(pairs)
+        accounts = list(accounts)
+        secrets.SystemRandom().shuffle(accounts)
+        for bot_id, guild_id in pairs:
             bot = bots.get(bot_id)
             if bot is None:
                 continue
             for account in accounts:
                 roles = seen.get((bot_id, guild_id, account))
                 if roles is None:
-                    if deadline is None:
-                        roles = await self._ask(adapter, bot, guild_id, account)
-                    else:
-                        remaining = deadline - asyncio.get_running_loop().time()
-                        if remaining <= 0:
-                            unknown.add((bot_id, guild_id))
-                            continue
-                        try:
-                            async with asyncio.timeout(remaining):
-                                roles = await self._ask(adapter, bot, guild_id, account)
-                        except TimeoutError:
-                            unknown.add((bot_id, guild_id))
-                            continue
+                    remaining = deadline - asyncio.get_running_loop().time()
+                    if remaining <= 0:
+                        unknown.add((bot_id, guild_id))
+                        continue
+                    try:
+                        async with asyncio.timeout(remaining):
+                            if not await _lookup_allowed(bot, user_id):
+                                unknown.add((bot_id, guild_id))
+                                continue
+                            roles = await self._ask(adapter, bot, guild_id, account)
+                    except TimeoutError:
+                        unknown.add((bot_id, guild_id))
+                        continue
                     if roles is None:
                         unknown.add((bot_id, guild_id))
                         continue
@@ -305,13 +343,18 @@ class DiscordRoleSync:
         return roles if roles is not None else frozenset()
 
     async def _place(
-        self, user_id: UUID, organization_id: UUID, role: str | None, *, keep: bool
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        role: str | None,
+        *,
+        unread_roles: frozenset[str],
     ) -> bool:
         """Admit, update or remove the Discord-managed membership. Returns whether one is held after.
 
         With no role to admit by, a membership somebody else made still takes
-        the mapped groups; a Discord-managed one ends. With `keep`, one that is
-        already held is left as it is.
+        the mapped groups; a Discord-managed one ends. Unread mappings can preserve
+        authority only within the permissions the current role already held.
         """
         membership = await member_repo.get(
             self.db, organization_id=organization_id, user_id=user_id, for_update=True
@@ -341,12 +384,9 @@ class DiscordRoleSync:
             await ProactiveService(self.db).queue_welcome(organization_id, user_id)
             await self._audit("discord.member_added", user_id, organization_id, {"role": role})
             return True
-        if (
-            keep
-            or membership.source != MembershipSource.DISCORD
-            or membership.role == OrgRoleName.OWNER
-        ):
+        if membership.source != MembershipSource.DISCORD or membership.role == OrgRoleName.OWNER:
             return True
+        role = retained_role(membership.role, role, unread_roles)
         if role is None:
             previous = membership.role
             await end_membership(self.db, membership)

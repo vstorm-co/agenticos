@@ -125,8 +125,7 @@ connected-app consent and unrelated group memberships.
 
 No remaining grant removes
 the membership normally. An unreadable Discord admission mapping, including the
-ten-second network budget expiring, keeps the membership unchanged until a later
-sign-in. Manual memberships and owners are never taken over. The handovers are
+ten-second network budget expiring, preserves the membership until a later sign-in, but limits its role to authority justified by both the prior role and a possible unread grant. Manual memberships and owners are never taken over. The handovers are
 audited as `directory.member_taken_over` and `directory.member_handed_to_discord`.
 Group memberships retain their own source and reconciliation rules.
 

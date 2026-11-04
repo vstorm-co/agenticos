@@ -1,5 +1,5 @@
 ---
-source_sha: "febcabd0384e"
+source_sha: "e61c5738586c"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1647,10 +1647,9 @@ sobre lo que la sincronización nunca toca son las de la
   conserva su rol, y a un propietario nunca se le degrada ni se le quita. Quien
   entró en la organización por la sincronización sale de todos sus grupos cuando
   la sincronización lo quita, como quien se quita a mano.
-- Cuando no se puede preguntar a Discord por un servidor, se conserva lo que
-  dieron las asignaciones de ese servidor, y lo que respondieron los demás
-  servidores se aplica igualmente. Solo la propia respuesta de Discord de que el
-  miembro no está en el servidor, o ya no tiene el rol, quita algo.
+- Si un servidor no se puede leer, sus grupos asignados se conservan. Los posibles roles de organización solo conservan autoridad ya existente; una asignación `viewer` sin leer no conserva `admin`. Las concesiones confirmadas siguen aplicándose.
+
+Cada reconciliación comparte un presupuesto de red de diez segundos. Las consultas REST comparten el `rate_limit_rpm` del bot por usuario entre todas sus cuentas vinculadas, separado del límite de comprobaciones por mensaje. Borrar un grupo asignado también requiere `channels:manage`.
 
 Desvincular la cuenta de Discord retira lo que dieron sus roles, salvo que otra
 cuenta de Discord vinculada lo siga ganando. Borrar una asignación retira lo que dio

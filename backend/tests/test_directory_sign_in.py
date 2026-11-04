@@ -266,7 +266,7 @@ async def test_a_directory_membership_deleted_during_discord_lookup_is_not_ended
         ),
         patch(
             "app.services.channels.discord_roles.DiscordRoleSync.membership_grant",
-            new=AsyncMock(return_value=DiscordMembershipGrant(None, False)),
+            new=AsyncMock(return_value=DiscordMembershipGrant(None, frozenset())),
         ),
         patch("app.services.directory.sync.end_membership", new=AsyncMock()) as end,
     ):

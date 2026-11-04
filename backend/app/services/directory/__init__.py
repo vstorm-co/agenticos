@@ -23,7 +23,7 @@ from app.services.directory.kerberos import GssapiTicketAcceptor
 from app.services.directory.ldap_directory import LdapConfig, LdapDirectory
 from app.services.directory.mappings import DirectoryMappingService
 from app.services.directory.sign_in import DirectorySignInService
-from app.services.directory.sync import DirectorySyncService, winning_role
+from app.services.directory.sync import DirectorySyncService, retained_role, winning_role
 
 
 def build_directory(settings: Settings) -> Directory | None:
@@ -48,5 +48,6 @@ __all__ = [
     "DirectorySyncService",
     "build_directory",
     "build_ticket_acceptor",
+    "retained_role",
     "winning_role",
 ]

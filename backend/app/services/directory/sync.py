@@ -34,7 +34,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.permissions import OrgRoleName
+from app.core.permissions import OrgRoleName, assignable_roles
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.organization import MembershipSource
 from app.repositories import directory_mapping_repo, group_repo, member_repo
@@ -72,6 +72,20 @@ def winning_role(mapped: Iterable[str]) -> str:
     # so this is a row written some other way. The least a member can hold.
     logger.warning("directory_mapping_unknown_role", extra={"roles": sorted(roles)})
     return OrgRoleName.VIEWER.value
+
+
+def retained_role(previous: str, confirmed: str | None, unread: frozenset[str]) -> str | None:
+    """Keep only authority both the prior role and an unread mapping could justify.
+
+    Builder and operator are not ordered by authority. Intersect their actual
+    assignable-role sets instead of comparing ROLE_PRECEDENCE positions. Proven
+    grants may still promote; uncertain grants never add permissions.
+    """
+    held = assignable_roles(previous) | {previous}
+    candidates = {confirmed} if confirmed is not None else set()
+    for role in unread:
+        candidates.update(held & (assignable_roles(role) | {role}))
+    return winning_role(candidates) if candidates else None
 
 
 class DirectorySyncService:
@@ -149,6 +163,21 @@ class DirectorySyncService:
             ):
                 continue
             if grant.uncertain:
+                bounded = retained_role(membership.role, grant.role, grant.unread_roles)
+                if bounded is not None and bounded != membership.role:
+                    previous = membership.role
+                    await member_repo.update_role(self.db, membership, role=bounded)
+                    await self._audit(
+                        "directory.role_changed",
+                        user_id,
+                        membership.organization_id,
+                        {
+                            "from": previous,
+                            "to": bounded,
+                            "provider": provider,
+                            "reason": "discord_unconfirmed",
+                        },
+                    )
                 continue
             if grant.role is not None:
                 previous = membership.role
