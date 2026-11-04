@@ -17,17 +17,22 @@ mod activity;
 mod agent_session;
 mod appearance;
 mod blobby;
+mod coding_options;
+mod coding_runtime;
 mod computer_access;
 mod console;
 mod context;
 mod device;
 mod diagnostics;
 mod docker_install;
+mod docker_runtime;
 mod dropped;
 mod local_agents;
+mod local_backup;
 mod local_browser;
 mod local_fs;
 mod local_instances;
+mod local_preflight;
 mod local_services;
 mod local_skills;
 mod local_stack;
@@ -39,9 +44,11 @@ mod onboarding_permissions;
 mod pinned;
 mod quick_ask;
 mod readiness;
+mod runtime_installer;
 mod screen;
 mod settings;
 mod shortcuts;
+mod tls;
 mod updater;
 mod webview_profile;
 mod widgets;
@@ -463,6 +470,14 @@ async fn connect(app: AppHandle, window: WebviewWindow, url: String) -> Result<(
 /// Point the shell at a console that answers, remember where it lives, and
 /// review this connection, including for an existing account.
 async fn arrive(app: &AppHandle, window: &WebviewWindow, server: Url, deployment: Deployment) -> Result<(), String> {
+    if deployment == Deployment::Server {
+        let pending = runtime_installer::pending_path(app)?;
+        match std::fs::remove_file(pending) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
+    }
     let _transition = device::transition(app).await;
     managed::check(app, &server)?;
     app.state::<SignInProof>().clear()?;
@@ -490,6 +505,7 @@ struct OnboardingState {
     server_url: Option<Url>,
     deployment: Option<Deployment>,
     platform: &'static str,
+    local_setup_pending: bool,
 }
 
 #[tauri::command]
@@ -499,6 +515,7 @@ fn onboarding_state(app: AppHandle) -> OnboardingState {
         server_url: settings.server_url,
         deployment: settings.deployment,
         platform: appearance::platform(),
+        local_setup_pending: runtime_installer::pending_path(&app).is_ok_and(|path| path.is_file()),
     }
 }
 
@@ -552,9 +569,49 @@ async fn set_up_local(app: AppHandle, window: WebviewWindow, owner: local_stack:
     arrive(&app, &window, console, Deployment::Local).await
 }
 
+/// Resume only the saved managed instance, preserving its connection and session.
+#[tauri::command]
+async fn resume_local(app: AppHandle, window: WebviewWindow) -> Result<bool, String> {
+    let settings = settings::current(&app);
+    if settings.deployment != Some(Deployment::Local) {
+        return Ok(false);
+    }
+    let Some(instance) = local_instances::selected(&app)?.filter(|instance| instance.installed) else {
+        return Ok(false);
+    };
+    let url = instance.url();
+    managed::check(&app, &url)?;
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        local_stack::control_instance(&handle, &instance, local_stack::Control::Start)?;
+        local_stack::wait_for_instance(&instance)?;
+        local_stack::verify_instance_sessions(&instance)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    let _transition = device::transition(&app).await;
+    if settings::current(&app).connection_revision != settings.connection_revision {
+        return Err("The connection changed while the workspace was starting.".into());
+    }
+    managed::check(&app, &url)?;
+    console::grant(&app, &url)?;
+    window.navigate(home(&url)).map_err(|e| e.to_string())?;
+    start_companions(&app, &url, &settings);
+    Ok(true)
+}
+
 /// Use the AgenticOS already answering on this computer - a `make dev` stack, or one set up before.
 #[tauri::command]
 async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<String>) -> Result<(), String> {
+    if settings::current(&app).deployment == Some(Deployment::Local) {
+        if let Some(selected) = local_instances::selected(&app)?.filter(|instance| instance.installed) {
+            let same = instance_id.as_deref().is_some_and(|id| id == selected.id)
+                || (instance_id.is_none() && selected.url().as_str() == local_stack::CONSOLE);
+            if same {
+                return resume_local(app, window).await.map(|_| ());
+            }
+        }
+    }
     let console = if let Some(id) = instance_id {
         let instance = local_instances::find(&app, &id)?;
         if !instance.installed {
@@ -566,7 +623,7 @@ async fn use_local(app: AppHandle, window: WebviewWindow, instance_id: Option<St
         let destination = url.clone();
         tauri::async_runtime::spawn_blocking(move || {
             local_stack::control_instance(&handle, &instance, local_stack::Control::Start)?;
-            local_stack::wait_for_console(&url)?;
+            local_stack::wait_for_instance(&instance)?;
             local_stack::verify_instance_sessions(&instance)
         })
         .await
@@ -1342,6 +1399,7 @@ fn install_menu(app: &AppHandle, settings: &Settings) -> tauri::Result<TrayIcon>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tls::initialize();
     tauri::Builder::default()
         // First, and it has to be: on Windows and Linux opening a registered
         // scheme *starts the executable again*, and a desktop sign-in always
@@ -1419,6 +1477,7 @@ pub fn run() {
             local_instances,
             set_up_local,
             use_local,
+            resume_local,
             open_docker_download,
             docker_install::download_docker,
             docker_install::open_docker,
@@ -1444,6 +1503,8 @@ pub fn run() {
             local_work::local_files,
             local_work::local_file,
             local_agents::local_agents,
+            local_agents::local_agent_prepare,
+            coding_options::local_agent_options,
             local_agents::local_agent_sign_in,
             local_agents::local_agent_sign_out,
             local_skills::local_skills,
@@ -1495,7 +1556,15 @@ pub fn run() {
             // Right-click on the Dock icon: "New Chat With" the pinned agents.
             #[cfg(target_os = "macos")]
             pinned::dock::install(handle, &settings.pinned_agents);
-            let (start, notice) = console_start(settings.server_url.clone());
+            let local = (settings.deployment == Some(Deployment::Local)).then(|| local_instances::selected(handle));
+            let (start, notice) = match local {
+                Some(Ok(Some(instance))) if instance.installed => (
+                    WebviewUrl::App("index.html".into()),
+                    Some("Starting your saved workspace.".into()),
+                ),
+                Some(Err(error)) => (WebviewUrl::App("index.html".into()), Some(error)),
+                _ => console_start(settings.server_url.clone()),
+            };
             app.manage(StartupNotice(Mutex::new(notice.or(unreadable))));
             app.manage(PendingScreenshot(Mutex::new(None)));
             let reached = matches!(start, WebviewUrl::External(_));

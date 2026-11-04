@@ -1,5 +1,5 @@
 ---
-source_sha: "67bbfa3d0698"
+source_sha: "9b75ff556dac"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,7 +9,7 @@ source_sha: "67bbfa3d0698"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el navegador, conecta documentos y herramientas y ejecútalos en infraestructura bajo tu control.
+Plataforma de agentes de IA de código abierto y autoalojada para los compañeros de IA de tu empresa. Crea, ejecuta y gobierna agentes en tus propios servidores y modelos: chat compartido, RAG, skills, navegador real, MCP, presupuestos, aprobaciones y registro de auditoría.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -20,6 +20,7 @@ Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el 
 </p>
 
 <p class="agenticos-hero__links" markdown>
+<a href="https://vstorm-co.github.io/vstormos-landing/">AgenticOS</a> ·
 **Documentación**: <a href="https://vstorm-co.github.io/agenticos/">vstorm-co.github.io/agenticos</a><br>
 **Código fuente**: <a href="https://github.com/vstorm-co/agenticos">github.com/vstorm-co/agenticos</a>
 </p>
@@ -32,6 +33,10 @@ Empieza con una respuesta verificable basada en un manual. Después prueba un bo
 
 Tu equipo se encarga de la operación. Los modelos, el análisis de documentos, los embeddings, las herramientas y las trazas pueden usar servicios externos según la configuración.
 
+
+Conecta pasos tipados, llamadas a agentes y herramientas MCP en el editor visual de [Workflows](https://vstorm-co.github.io/agenticos/es/workflows/). Guarda resultados estructurados en [Virtual Tables](https://vstorm-co.github.io/agenticos/es/virtual-tables/), inicia trabajo con [Routines](https://vstorm-co.github.io/agenticos/es/triggers/) y revisa runs y aprobaciones. Las [llamadas de voz](https://vstorm-co.github.io/agenticos/es/voice/) y la [app de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) permiten usar los mismos agentes publicados.
+
+Empieza por una tarea concreta: una [LLM wiki en un Project](https://vstorm-co.github.io/agenticos/es/projects/), un [widget de agente en una web](https://vstorm-co.github.io/agenticos/es/channels/) o un equipo que comparte archivos e instrucciones del proyecto. El widget ofrece la conversación; las recomendaciones y acciones del carrito necesitan tu catálogo, integración de herramientas y comprobaciones de permisos.
 
 ---
 
@@ -141,6 +146,10 @@ alrededor.
 </div>
 
 ## Requisitos { #requirements }
+
+Los despliegues Podman usan la [ruta manual con Docker Compose](deploy.md#podman-support)
+y un override adicional para el socket sandbox y los permisos del workspace.
+El inicio rápido admite Docker; `podman-compose` 1.6.0 no está soportado.
 
 Docker y Docker Compose. Esa es la lista entera — Postgres (con pgvector),
 Redis, la API, el worker y la consola arrancan todos juntos.

@@ -1,16 +1,18 @@
 """Channel prompts against Postgres: what a press can find, and in what order (#2064)."""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import RunStatus
 from app.db.models.channel_bot import ChannelBot
-from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION
+from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION, ChannelPrompt
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import agent_run_repo, channel_prompt_repo
@@ -338,3 +340,163 @@ async def test_offering_a_run_twice_leaves_one_set_of_rows_and_answering_it_sett
         )
     assert adapter.send_prompt.await_count == 4
     assert len(await channel_prompt_repo.for_run(db, run_id=run_id, bot_id=bot.id)) == 2
+
+
+async def _approval_prompt(
+    db: AsyncSession, org: Organization, bot: ChannelBot, run_id: uuid.UUID, *, tool: str = "t"
+):
+    from app.db.models.agent_run import ApprovalStatus, ToolApproval
+
+    run = await agent_run_repo.get_run(db, run_id, organization_id=org.id)
+    assert run is not None
+    approval = ToolApproval(
+        organization_id=org.id,
+        run_id=run_id,
+        agent_id=run.agent_id,
+        tool_id=tool,
+        tool_args={},
+        status=ApprovalStatus.PENDING.value,
+    )
+    db.add(approval)
+    await db.flush()
+    prompt = await channel_prompt_repo.create(
+        db,
+        organization_id=org.id,
+        bot_id=bot.id,
+        run_id=run_id,
+        platform_chat_id="C1",
+        kind=APPROVAL,
+        approval_id=approval.id,
+        choices=["Approve", "Reject"],
+    )
+    return approval, prompt
+
+
+async def _question_prompt(
+    db: AsyncSession,
+    org: Organization,
+    bot: ChannelBot,
+    run_id: uuid.UUID,
+    *,
+    call: str = "q",
+    index: int = 0,
+):
+    return await channel_prompt_repo.create(
+        db,
+        organization_id=org.id,
+        bot_id=bot.id,
+        run_id=run_id,
+        platform_chat_id="C1",
+        kind=QUESTION,
+        tool_call_id=call,
+        question_index=index,
+        choices=["A"],
+        allow_custom=True,
+    )
+
+
+@pytest.mark.security
+async def test_settling_marks_every_open_approval_and_question_of_the_run_and_nothing_else(
+    db: AsyncSession,
+) -> None:
+    org, bot, run_a = await _estate(db)
+    _, _, run_b = await _estate(db)
+    _, open_approval = await _approval_prompt(db, org, bot, run_a)
+    open_question = await _question_prompt(db, org, bot, run_a)
+    _, answered = await _approval_prompt(db, org, bot, run_a)
+    await channel_prompt_repo.answer(db, prompt=answered, value={"decision": "approved"})
+    follow_up = await channel_prompt_repo.create(
+        db,
+        organization_id=org.id,
+        bot_id=bot.id,
+        run_id=run_a,
+        platform_chat_id="C1",
+        kind=FOLLOW_UP,
+        choices=["More"],
+        chat_type="group",
+    )
+    other = await _question_prompt(db, org, bot, run_b)
+
+    settled = await channel_prompt_repo.settle_open(db, run_id=run_a, by="stopped")
+
+    assert settled == 2
+    for row in (open_approval, open_question):
+        await db.refresh(row)
+        assert row.answered_at is not None and row.answer == {"settled": "stopped"}
+    await db.refresh(answered)
+    assert answered.answer == {"decision": "approved"}
+    await db.refresh(follow_up)
+    await db.refresh(other)
+    assert follow_up.answered_at is None and other.answered_at is None
+
+
+@pytest.mark.security
+async def test_settling_one_approval_leaves_the_runs_other_approval_pressable(
+    db: AsyncSession,
+) -> None:
+    org, bot, run_id = await _estate(db)
+    first, _ = await _approval_prompt(db, org, bot, run_id)
+    _, second_prompt = await _approval_prompt(db, org, bot, run_id)
+
+    settled = await channel_prompt_repo.settle_open(
+        db, run_id=run_id, by="decided", approval_id=first.id
+    )
+
+    assert settled == 1
+    await db.refresh(second_prompt)
+    assert second_prompt.answered_at is None
+
+
+async def test_a_row_a_press_holds_is_skipped_not_waited_for(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    org, bot, run_id = await _estate(db)
+    _, held = await _approval_prompt(db, org, bot, run_id)
+    free = await _question_prompt(db, org, bot, run_id)
+    await db.commit()
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as presser, factory() as settler:
+        assert await channel_prompt_repo.claim(presser, held.id, bot_id=bot.id) is not None
+
+        settled = await asyncio.wait_for(
+            channel_prompt_repo.settle_open(settler, run_id=run_id, by="decided"), 2
+        )
+        await settler.commit()
+        await presser.rollback()
+
+    assert settled == 1
+    async with factory() as check:
+        rows = {
+            row.id: row.answered_at
+            for row in (
+                await check.execute(
+                    select(ChannelPrompt).where(ChannelPrompt.id.in_([held.id, free.id]))
+                )
+            ).scalars()
+        }
+    assert rows[held.id] is None and rows[free.id] is not None
+
+
+async def test_a_typed_answer_after_settling_finds_the_new_question(db: AsyncSession) -> None:
+    org, bot, run_id = await _estate(db)
+    run = await agent_run_repo.get_run(db, run_id, organization_id=org.id)
+    assert run is not None and run.user_id is not None
+    run.status = RunStatus.AWAITING_ANSWER.value
+    await _question_prompt(db, org, bot, run_id, call="old")
+
+    await channel_prompt_repo.settle_open(db, run_id=run_id, by="answered")
+    # Same transaction, same `created_at`: the index is what puts the new row
+    # after the old one, so only a real settle lets `claim_typed` skip the old.
+    fresh = await _question_prompt(db, org, bot, run_id, call="new", index=1)
+
+    found = await channel_prompt_repo.claim_typed(
+        db, bot_id=bot.id, platform_chat_id="C1", user_id=run.user_id
+    )
+    assert found is not None and found.id == fresh.id
+
+
+async def test_settling_a_run_with_nothing_open_settles_nothing(db: AsyncSession) -> None:
+    _, _, run_id = await _estate(db)
+
+    assert await channel_prompt_repo.settle_open(db, run_id=run_id, by="expired") == 0

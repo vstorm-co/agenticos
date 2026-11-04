@@ -132,6 +132,20 @@ class RunSurface(enum.StrEnum):
     PROACTIVE = "proactive"
 
 
+# The chat platforms a person reaches an agent through. A run parked on one of
+# them can be continued in the chat it was asked in.
+CHANNEL_SURFACES = frozenset(
+    {
+        RunSurface.SLACK,
+        RunSurface.TELEGRAM,
+        RunSurface.MATTERMOST,
+        RunSurface.TEAMS,
+        RunSurface.DISCORD,
+        RunSurface.WHATSAPP,
+    }
+)
+
+
 class RunOrder(enum.StrEnum):
     """What run history is sorted by.
 
@@ -395,6 +409,15 @@ class AgentRun(Base, TimestampMixin):
     # the answer was delivered, together with a held run; cleared when it is. A
     # raw UPDATE (`agent_run_repo.mark_undelivered`), so `updated_at` is left alone.
     undelivered_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    # Set when the chat was told this park could not continue, so the safety net
+    # does not tell it a second time; cleared when the run leaves the queue. A
+    # column rather than a `paused_state` key: `PausedRunState` is
+    # `extra="forbid"`, so a key there would make the run unreadable to an older
+    # process on a rollback or a rolling deploy.
+    chat_notice_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         # Monthly spend, per organization. Read before *every* model request to

@@ -632,3 +632,57 @@ async def test_a_next_step_tap_with_a_delivery_id_reaches_the_run_once():
     assert adapter.settle_prompt.await_count == 1
     assert adapter.acknowledge.await_count == 1
     assert any(key.startswith("channel:pressed:") for key in seen)
+
+
+class TestTheSenderRebuiltForARun:
+    async def _rebuild(self, monkeypatch, *, run_identity=True, same_conversation=True):
+        from types import SimpleNamespace
+
+        from app.repositories import channel_identity_repo, channel_session_repo
+        from app.services.channels.next_steps import incoming_for_run
+
+        conversation, bot = uuid.uuid4(), uuid.uuid4()
+        run = SimpleNamespace(
+            channel_identity_id=uuid.uuid4() if run_identity else None,
+            conversation_id=conversation,
+        )
+        monkeypatch.setattr(
+            channel_identity_repo,
+            "get_by_id",
+            AsyncMock(return_value=SimpleNamespace(platform="slack", platform_user_id="U7")),
+        )
+        monkeypatch.setattr(
+            channel_session_repo,
+            "get_by_bot_and_chat",
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    conversation_id=conversation if same_conversation else uuid.uuid4(),
+                    chat_type="group",
+                )
+            ),
+        )
+        return bot, await incoming_for_run(AsyncMock(), run, bot_id=bot, platform_chat_id="C1:1.0")
+
+    async def test_the_sender_rebuilt_for_a_run_is_its_own_in_its_own_chat(self, monkeypatch):
+        bot, incoming = await self._rebuild(monkeypatch)
+
+        assert incoming == IncomingMessage(
+            platform="slack",
+            bot_id=str(bot),
+            platform_user_id="U7",
+            platform_chat_id="C1:1.0",
+            chat_type="group",
+            text="",
+        )
+
+    async def test_no_sender_is_rebuilt_for_a_chat_that_moved_to_another_conversation(
+        self, monkeypatch
+    ):
+        _, incoming = await self._rebuild(monkeypatch, same_conversation=False)
+
+        assert incoming is None
+
+    async def test_no_sender_is_rebuilt_for_a_run_with_no_chat_account(self, monkeypatch):
+        _, incoming = await self._rebuild(monkeypatch, run_identity=False)
+
+        assert incoming is None

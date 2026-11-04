@@ -14,6 +14,8 @@ For an **LLM wiki**, propose a ready working plan, adapting it to the person's s
 4. **Updates:** review changed/new sources, revise affected notes and the index, log changes in `CHANGELOG.md`. Agree a cadence; only create a routine if asked, with its own setup and approval.
 5. **Verification:** check source support, contradictions, stale information and broken links. Record what was checked, what needs review and what is unknown.
 
+Use Markdown notes with explicit links (`[[notes/topic]]` or relative Markdown links). Optional YAML frontmatter can name `title`, `aliases`, `tags` and relationships in `links`, `related` or `sources` (a string or list of strings). The file explorer’s Graph view derives links and backlinks and refreshes itself while open; do not build or republish an HTML App just to keep this graph current. It reads only the selected shared workspace or approved local folder, never synchronizes them, and reports incomplete scans. Graph refresh does not verify facts or schedule maintenance. Existing sandbox scope `agent` already shares one agent’s files across sessions; prefer a Project when multiple agents or people should share a wiki. Neither option supplies per-page revision history or review approval.
+
 Include this plan in the agreed project instructions, then hand off the first concrete task to its new chat. Never claim a wiki exists without writing and checking its files with available tools.
 
 # Choose the app and environment with the person

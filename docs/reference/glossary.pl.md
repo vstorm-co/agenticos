@@ -1,5 +1,5 @@
 ---
-source_sha: "a3eb7d20c3c2"
+source_sha: "f881e8d07906"
 ---
 
 # Słownik { #glossary }
@@ -85,6 +85,7 @@ w [Capabilities](capabilities.md).
 | Pamięć (mem0) | `memory_mem0` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
+| Tematy w tle | `background_tasks` |
 | Obserwuj polecenie | `monitor` |
 | Sandbox | `sandbox` |
 | Skille | `skills` |

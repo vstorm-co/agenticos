@@ -1,5 +1,5 @@
 ---
-source_sha: "16e90e7b2f27"
+source_sha: "3e5746cd74c2"
 ---
 
 # Instalacja { #install }
@@ -37,6 +37,10 @@ Wszystko poniżej to to, co on robi — na wypadek, gdybyś wolał zrobić to sa
 ma kroku, który on wykonuje, a którego ty nie możesz.
 
 ## Wymagania { #requirements }
+
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
 
 | Żeby | Potrzebujesz |
 |---|---|

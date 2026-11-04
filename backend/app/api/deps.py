@@ -95,6 +95,7 @@ from app.services.ws_auth import authenticate_socket_key, authenticate_socket_to
 from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.conversation_tasks import ConversationTaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
@@ -163,6 +164,13 @@ def get_push_service(db: DBSession) -> PushService:
 
 
 PushSvc = Annotated[PushService, Depends(get_push_service)]
+
+
+def get_conversation_task_service(db: DBSession) -> ConversationTaskService:
+    return ConversationTaskService(db)
+
+
+ConversationTaskSvc = Annotated[ConversationTaskService, Depends(get_conversation_task_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:
@@ -810,6 +818,18 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
+
+from app.services.parked_runs import ParkedRunService
+
+
+def get_parked_run_service(
+    db: DBSession, runner: AgentRunnerSvc, approvals: ApprovalSvc
+) -> ParkedRunService:
+    """Create ParkedRunService from the runner and approvals services of the same request."""
+    return ParkedRunService(db, runner=runner, approvals=approvals)
+
+
+ParkedRunSvc = Annotated[ParkedRunService, Depends(get_parked_run_service)]
 
 from app.services.run_export import RunExportService
 

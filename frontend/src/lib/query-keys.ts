@@ -10,6 +10,11 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  conversationTasks: {
+    all: (tenant: string) => ["conversation-tasks", tenant] as const,
+    list: (tenant: string, conversationId: string | null | undefined) =>
+      ["conversation-tasks", tenant, conversationId] as const,
+  },
   auth: {
     me: () => ["auth", "me"] as const,
   },
@@ -250,10 +255,12 @@ export const qk = {
     // What one provider offers, for the model field's suggestions. Keyed per
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
-    models: (providerId: string, baseUrl?: string) =>
-      baseUrl
-        ? (["providers", providerId, "models", baseUrl] as const)
-        : (["providers", providerId, "models"] as const),
+    models: (providerId: string, baseUrl?: string, secretId?: string) =>
+      secretId
+        ? (["providers", providerId, "models", baseUrl ?? "", secretId] as const)
+        : baseUrl
+          ? (["providers", providerId, "models", baseUrl] as const)
+          : (["providers", providerId, "models"] as const),
     // Which providers can draw an image and what each may be asked to draw with.
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
@@ -627,6 +634,9 @@ export const qk = {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
   },
+  wikiGraph: {
+    source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
+  },
   projects: {
     all: () => ["projects"] as const,
     list: (query: { search: string; skip: number; limit: number }) =>
@@ -745,6 +755,7 @@ export const qk = {
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     agents: () => ["desktop", "agents"] as const,
+    codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
     skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,

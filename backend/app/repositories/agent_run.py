@@ -1,6 +1,6 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -21,12 +21,15 @@ from sqlalchemy import (
 )
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
     AgentRun,
     ApprovalDecidedVia,
     ApprovalStatus,
@@ -36,6 +39,8 @@ from app.db.models.agent_run import (
     RunSurface,
     ToolApproval,
 )
+from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
@@ -383,6 +388,17 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     """
     run.status = RunStatus.RUNNING.value
     run.ended_at = None
+    # The next park starts unannounced.
+    run.chat_notice_sent_at = None
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def record_chat_notice(db: AsyncSession, *, run: AgentRun, at: datetime) -> AgentRun:
+    """Remember that the run's chat was told this park could not continue."""
+    run.chat_notice_sent_at = at
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -1956,6 +1972,34 @@ async def get_approval(
 
 
 @dataclass(frozen=True)
+class ChatAsker:
+    """The chat account behind a run that ran as the binding's publisher.
+
+    Unverified: a platform display name is whatever its owner typed, so the
+    reader is told which account asked and never given a name to trust.
+
+    Attributes:
+        platform: The chat platform the account is on.
+        name: The display name, else `@handle`, else the platform's user id.
+        bot_name: The bot the chat reached the agent through, or `None` once
+            the binding is gone.
+    """
+
+    platform: str
+    name: str
+    bot_name: str | None
+
+
+def chat_account_name(identity: ChannelIdentity) -> str:
+    """How a chat account is named to a reader: display name, handle, then id."""
+    if identity.platform_display_name:
+        return identity.platform_display_name
+    if identity.platform_username:
+        return f"@{identity.platform_username}"
+    return identity.platform_user_id
+
+
+@dataclass(frozen=True)
 class ApprovalRow:
     """One row of the approvals queue, with the three names resolved.
 
@@ -1979,6 +2023,9 @@ class ApprovalRow:
             as themselves - a widget's visitor is anonymous - and for a run whose
             user has since been deleted, since that column is `SET NULL`.
         triggered_by_email: That person, as something readable.
+        asked_in_chat: The chat account that asked, for a run that ran as the
+            binding's publisher. Then both `triggered_by_*` fields are null: the
+            publisher did not trigger it, and naming them is what this replaces.
         decided_by_email: Who decided, for the record view. Null while the call is
             pending, and after a decider's account is deleted - the decision
             outlives the account, which is the point of an audit trail.
@@ -2007,6 +2054,12 @@ class ApprovalRow:
     decided_via: str
     note: str | None
     created_at: datetime | None
+    parked_in_chat: bool = False
+    """The run is on a chat platform with its chat recorded: the run half of
+    `handback.continues_in_chat`, as SQL sees it."""
+    continues_in_chat: bool = False
+    """Set by the service, which knows who is asking."""
+    asked_in_chat: ChatAsker | None = None
 
 
 @dataclass(frozen=True)
@@ -2019,7 +2072,8 @@ class ApprovalFilters:
             different view of the same rows and deliberately has no buttons.
         triggered_by_user_id: Whose runs. Read off `agent_runs`, not off the
             approval, because an approval belongs to a run and a run belongs to a
-            person.
+            person. A chat stranger's run is left out: it ran under the
+            publisher's user id, but the publisher did not trigger it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
     """
@@ -2061,6 +2115,13 @@ async def list_approvals(
     narrowing = filters or ApprovalFilters()
     triggered_by = aliased(User)
     decided_by = aliased(User)
+    chat_identity = aliased(ChannelIdentity)
+    chat_exposure = aliased(AgentExposure)
+    chat_bot = aliased(ChannelBot)
+    # A chat account asked, and the run stood in under the binding's publisher.
+    asked_by_stranger = AgentRun.initiated_by_publisher_fallback & (
+        AgentRun.channel_identity_id.is_not(None)
+    )
     clauses: list[ColumnElement[bool]] = [ToolApproval.organization_id == organization_id]
     clauses.append(
         ToolApproval.status.in_(list(narrowing.statuses))
@@ -2069,6 +2130,7 @@ async def list_approvals(
     )
     if narrowing.triggered_by_user_id is not None:
         clauses.append(AgentRun.user_id == narrowing.triggered_by_user_id)
+        clauses.append(~asked_by_stranger)
     if narrowing.created_from is not None:
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:
@@ -2082,6 +2144,15 @@ async def list_approvals(
             AgentRun.user_id,
             triggered_by.email,
             decided_by.email,
+            AgentRun.surface.in_([surface.value for surface in CHANNEL_SURFACES])
+            # A destination that lacks a required key reads as absent, as
+            # `handback.chat_destination` reads it (it logs and returns None).
+            & AgentRun.paused_state["channel_destination"].has_all(
+                array(["bot_id", "platform_chat_id", "private_chat"])
+            ),
+            asked_by_stranger,
+            chat_identity,
+            chat_bot.name,
         )
         # Inner for the agent and the run, outer for the two people. Both those
         # foreign keys are `ON DELETE CASCADE`, so an approval cannot outlive
@@ -2093,6 +2164,12 @@ async def list_approvals(
         .join(AgentRun, AgentRun.id == ToolApproval.run_id)
         .outerjoin(triggered_by, triggered_by.id == AgentRun.user_id)
         .outerjoin(decided_by, decided_by.id == ToolApproval.decided_by_user_id)
+        # Each of these reaches at most one row: an identity by its key, a
+        # binding by its key, and a bot by the binding's, so none multiplies
+        # the page or the count.
+        .outerjoin(chat_identity, chat_identity.id == AgentRun.channel_identity_id)
+        .outerjoin(chat_exposure, chat_exposure.id == AgentRun.exposure_id)
+        .outerjoin(chat_bot, chat_bot.id == chat_exposure.channel_bot_id)
         .where(*clauses)
         .order_by(ordering, ToolApproval.id)
         .offset(skip)
@@ -2112,16 +2189,36 @@ async def list_approvals(
             subagent_name=approval.subagent_name,
             subagent_agent_id=approval.subagent_agent_id,
             status=approval.status,
-            triggered_by_user_id=run_user_id,
-            triggered_by_email=triggered_email,
+            triggered_by_user_id=None if stranger else run_user_id,
+            triggered_by_email=None if stranger else triggered_email,
             decided_by_user_id=approval.decided_by_user_id,
             decided_by_email=decided_email,
             decided_at=approval.decided_at,
             decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
+            parked_in_chat=bool(parked_in_chat),
+            asked_in_chat=(
+                ChatAsker(
+                    platform=identity.platform,
+                    name=chat_account_name(identity),
+                    bot_name=bot_name,
+                )
+                if stranger and identity is not None
+                else None
+            ),
         )
-        for approval, agent_name, run_user_id, triggered_email, decided_email in rows.all()
+        for (
+            approval,
+            agent_name,
+            run_user_id,
+            triggered_email,
+            decided_email,
+            parked_in_chat,
+            stranger,
+            identity,
+            bot_name,
+        ) in rows.all()
     ]
     count_query = (
         select(func.count(ToolApproval.id))
@@ -2202,6 +2299,45 @@ async def list_stale_approvals(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def list_stranded_runs(
+    db: AsyncSession,
+    *,
+    decided_before: datetime,
+    surfaces: Collection[str],
+    limit: int = 500,
+) -> list[tuple[AgentRun, datetime]]:
+    """Runs waiting on approval whose every call was decided before `decided_before`.
+
+    With nothing pending, nobody can decide such a run again, so only a
+    continuation can move it; one that never came leaves it parked for ever. Each
+    run comes back with the time of its last decision. Voice runs are the call's
+    and are left out, as in :func:`list_stale_approvals`.
+
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the sweep, which ends each run in its own organization.
+    Do not copy this shape into anything a route can reach. Oldest run first.
+    """
+    last_decided = func.max(ToolApproval.decided_at)
+    result = await db.execute(
+        select(AgentRun, last_decided)
+        .join(ToolApproval, ToolApproval.run_id == AgentRun.id)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            AgentRun.surface.in_(surfaces),
+            AgentRun.modality != "voice",
+        )
+        .group_by(AgentRun.id)
+        .having(
+            func.count().filter(ToolApproval.status == ApprovalStatus.PENDING.value) == 0,
+            last_decided < decided_before,
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
+    )
+    # The HAVING clause drops a run with no decision, so the filter keeps every row.
+    return [(run, decided_at) for run, decided_at in result.all() if decided_at is not None]
 
 
 async def beat_run(db: AsyncSession, *, run_id: UUID, at: datetime) -> None:

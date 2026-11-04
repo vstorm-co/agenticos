@@ -48,6 +48,8 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        channel_tasks,
+        conversation_tasks,
         diagnostics_tasks,
         generated_media_tasks,
         invitation_tasks,
@@ -67,8 +69,14 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
+            Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
+            Handler(
+                jobs.RECONCILE_CONVERSATION_TASKS, _each_tick(conversation_tasks.reconcile_tasks)
+            ),
             Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
@@ -137,9 +145,15 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import project_tasks, rag_tasks
+    from app.worker.tasks import conversation_tasks, project_tasks, rag_tasks
 
     return {
+        jobs.RUN_CONVERSATION_TASK.kind: _settler(
+            jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
+        ),
+        jobs.RETURN_CONVERSATION_TASK.kind: _settler(
+            jobs.RETURN_CONVERSATION_TASK, conversation_tasks.settle_lost_return
+        ),
         jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
             jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies
         ),

@@ -42,11 +42,117 @@ Two things are versioned separately from this file and worth knowing about:
   follows when the customer writes again. Without a template nothing is sent, and
   the run page says why. Each late answer is a charged template message on a real
   number.
+- A decision or an answer made in the console, the web chat or over a session API now continues a run asked in a chat, as the person who made it, and posts the answer in that chat. A key's decision is recorded and does not continue the run. (#2656)
+- `continues_in_chat` on approvals, on a run's single read and on the result of a resume or an answer. It is true when the server continues the run in its chat. (#2656)
+- A console **Stop**, an expiry and a decided run that nothing continued each tell the chat once, in one fixed message. (#2656)
 
 ### Changed
 
 - A conversation a Microsoft Teams bot starts is now titled "Microsoft Teams Chat"
   instead of "Teams Chat". Existing conversations keep their title.
+- **A session API client that decides a chat run no longer resumes it.** Read `continues_in_chat` and skip `POST /runs/{id}/resume` when it is true; a late resume answers 400 with the run's status. (#2656)
+- Chat runs whose approvals were all decided but never continued are now ended about an hour after the last decision. (#2656)
+- On the first sweep after upgrading, such runs decided more than 7 days ago are ended without a chat message. (#2656)
+- Schema: `agent_runs` gains a nullable `chat_notice_sent_at`, which records that a chat was told its run could not continue. No backfill. (#2656)
+
+### Fixed
+
+- Chat buttons answered elsewhere no longer act on a stale question. (#2656)
+- A Discord run parked before its server was removed from the bot's approved servers is no longer continued by a console decision; the server is read from Discord again and one that cannot be confirmed is refused. (#2656)
+- A chat button pressed at the moment the request is decided elsewhere is now closed instead of staying open. (#2656)
+- The question sweep no longer overwrites an answer pressed at the last moment. (#2656)
+- The approvals queue, the dashboard widget, the CSV export, the approval email and the in-app approval notification name the chat account instead of the publisher for an unlinked asker, and filtering the queue by the publisher no longer lists those calls. Who receives the email is unchanged. (#2656)
+
+## [1.43.0] - 2026-11-04
+
+### Added
+
+- Browse a live fullscreen graph of Markdown notes in project, sandbox and Desktop folder
+  file explorers. Wiki links, inline Markdown links and frontmatter relationships
+  supply the graph and backlinks, refreshed without an agent-generated App. Coloured
+  points, thin links and optional arrows fill the canvas, with floating panels,
+  folder/tag groups and the shared file tree for notes and attachments.
+
+## [1.42.0] - 2026-11-04
+
+### Added
+
+- Support manual Podman deployments through Docker Compose, add a sandbox override for socket and SELinux workspace access, and direct quickstart users to that path. Document the reproduced migration dependency failure in podman-compose 1.6.0.
+
+## [1.41.0] - 2026-11-04
+
+### Added
+
+- Connect Stav models with a vault API key and an EU (default), EEA or global region. Region restrictions remain enforced when request settings include custom headers; existing profiles retain their settings. Model catalogs choose Chat Completions or Responses from the model’s advertised surfaces. Custom Stav catalogs use the selected visible vault key, with credential-isolated caching.
+
+## [1.40.0] - 2026-11-03
+
+### Added
+
+- Delegate explicit work to durable background topics in the same project, keep talking in the source conversation, inspect or stop each task, and receive one source-bound result turn. Tasks retain pinned agent versions, ordinary budgets and approvals, the selected main model and exact local device; interrupted external actions are not automatically replayed.
+- Choose a local Claude Code/Codex model and reasoning level per conversation from the installed harness's reported choices, including resumed coding sessions. Reference recent accessible conversations in the `@` menu through the existing Past conversations capability.
+
+## [1.39.2] - 2026-11-03
+
+### Fixed
+
+- Deleting an account no longer deadlocks with an ingest that is recording the embedding spend of a document in that account's personal knowledge base. The deletion now locks the personal organization before it deletes the documents under it. An ingest whose organization is deleted while it runs no longer fails when it records its spend. In the rare case that a knowledge collection is created during the deletion and is busy, the deletion now returns 409 and deletes nothing, so it can be retried.
+
+## [1.39.1] - 2026-11-03
+
+### Changed
+
+- Deleting a document, reading its chunks and expanding a search hit to its neighbouring chunks no longer scan the collection. Each knowledge-base collection table now has an index on the document id: new collections get it when they are created, and migration `0252_index_rag_parent_doc_id` adds it to existing ones. On a 300k-chunk collection these operations went from 40–100 ms to under 1 ms.
+
+  **Upgrade action (optional, large deployments):** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
+
+  ```sql
+  SELECT format('CREATE INDEX CONCURRENTLY IF NOT EXISTS %I ON %I (parent_doc_id)',
+                table_name || '_parent_idx', table_name)
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND column_name = 'metadata'
+    AND data_type = 'jsonb' AND table_name LIKE 'rag\_%' ESCAPE '\'
+  \gexec
+  ```
+
+  The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
+
+
+## [1.39.0] - 2026-11-03
+
+### Added
+
+- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
+- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
+
+### Fixed
+
+- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
+- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
+
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
+
+
+## [1.38.4] - 2026-11-03
+
+### Fixed
+
+- Deleting the last knowledge base on a collection name deletes the same rows on every path (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop`): the base's own document rows and its tenant's unfiled rows, with their files, before the vector table is dropped. A tenant is the base's organization, or, for an app-scoped base, the rows with no organization that `rag-ingest` writes. `DELETE /kb/{id}` used to leave the tenant's unfiled rows and files behind the dropped table, for its next base on the name to list again; for an app-scoped base it now deletes the `rag-ingest` rows under the name. The collection drop used to delete every row under the name whichever tenant it belonged to, including another organization's unfiled rows and files, which the caller had no authority over. Another tenant's rows now stay, marked as failed because their chunks went with the table: an upload has to be uploaded again, and a sync indexes a synced document again. `POST /rag/documents/{id}/retry` refuses an organization's document filed under no knowledge base, whose retry would index it where its base does not read. After a drop by an organization's base, `rag-drop` of the same name, which no base then holds, removes the `rag-ingest` rows left under it. The three paths run one teardown.
+
+## [1.38.3] - 2026-11-03
+
+### Fixed
+
+- Background-job audit and table-retention integration tests no longer depend on
+  PostgreSQL returning rows in insertion order.
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
+## [1.38.2] - 2026-11-03
+
+### Fixed
+
+- Initialize the desktop TLS crypto provider before plugins and background connections start. Paired computers can connect to the server again instead of leaving local Claude Code or Codex chats waiting for the computer.
 
 ## [1.38.1] - 2026-11-03
 
@@ -19841,7 +19947,17 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...HEAD
+[1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
+[1.42.0]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...v1.42.0
+[1.41.0]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...v1.41.0
+[1.40.0]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...v1.40.0
+[1.39.2]: https://github.com/vstorm-co/agenticos/compare/v1.39.1...v1.39.2
+[1.39.1]: https://github.com/vstorm-co/agenticos/compare/v1.39.0...v1.39.1
+[1.39.0]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...v1.39.0
+[1.38.4]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...v1.38.4
+[1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
+[1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0

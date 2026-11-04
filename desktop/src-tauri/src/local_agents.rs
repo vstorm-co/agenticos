@@ -4,7 +4,7 @@
 //! Signing in belongs to each agent's own command. The app never reads the
 //! files an agent keeps its credentials in and never copies a token: it runs
 //! the agent's own `auth status` to learn the state, opens the agent's own
-//! sign-in in Terminal, and runs its own sign-out.
+//! sign-in in the browser, and runs its own sign-out.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -61,7 +61,7 @@ pub(crate) fn name(id: AgentId) -> &'static str {
 }
 
 /// How long an agent's own command may take to answer a status question.
-const PROBE_SECONDS: u64 = 8;
+const PROBE_SECONDS: u64 = 30;
 
 /// One agent's state on this computer.
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -199,6 +199,8 @@ fn first_line(output: &str) -> Option<String> {
 /// Run an agent's own command and return what it printed, stdout then stderr.
 async fn run(program: &Path, args: &[&str]) -> Option<String> {
     let mut command = tokio::process::Command::new(program);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
     command
         .args(args)
         .stdin(Stdio::null())
@@ -221,135 +223,82 @@ async fn run(program: &Path, args: &[&str]) -> Option<String> {
         .flatten()
 }
 
-async fn probe(spec: &Spec) -> Agent {
-    let Some(path) = locate(spec.program) else {
-        return Agent {
+fn cli(app: &AppHandle, spec: &Spec) -> Result<Option<(PathBuf, Vec<String>)>, String> {
+    if let Some(runtime) = crate::coding_runtime::existing(app)? {
+        return runtime.cli(spec.id).map(Some);
+    }
+    Ok(locate(spec.program).map(|path| (path, Vec::new())))
+}
+
+async fn probe(app: &AppHandle, spec: &Spec) -> Result<Agent, String> {
+    let Some((path, prefix)) = cli(app, spec)? else {
+        return Ok(Agent {
             id: spec.id,
             name: spec.name,
             installed: false,
             path: None,
             version: None,
             signed_in: None,
-        };
+        });
     };
-    let (version, status) = tokio::join!(run(&path, &["--version"]), run(&path, spec.status));
-    Agent {
+    let version_args: Vec<&str> = prefix.iter().map(String::as_str).chain(["--version"]).collect();
+    let status_args: Vec<&str> = prefix
+        .iter()
+        .map(String::as_str)
+        .chain(spec.status.iter().copied())
+        .collect();
+    let (version, status) = tokio::join!(run(&path, &version_args), run(&path, &status_args));
+    Ok(Agent {
         id: spec.id,
         name: spec.name,
         installed: true,
         path: Some(path.display().to_string()),
         version: version.as_deref().and_then(first_line),
         signed_in: status.as_deref().and_then(|text| parse_status(spec.id, text)),
-    }
+    })
 }
 
 /// Every known agent and its state on this computer.
 #[tauri::command]
-pub async fn local_agents() -> Vec<Agent> {
-    let (claude, codex) = tokio::join!(probe(&SPECS[0]), probe(&SPECS[1]));
-    vec![claude, codex]
+pub async fn local_agents(app: AppHandle) -> Result<Vec<Agent>, String> {
+    let (claude, codex) = tokio::join!(probe(&app, &SPECS[0]), probe(&app, &SPECS[1]));
+    Ok(vec![claude?, codex?])
 }
 
-/// A shell script that runs the agent's own sign-in, for Terminal to open: the
-/// sign-in is interactive (a browser, sometimes a code), so it needs a terminal.
-fn sign_in_script(program: &Path, args: &[&str]) -> String {
-    let quote = |text: &str| format!("'{}'", text.replace('\'', "'\\''"));
-    let words: Vec<String> = std::iter::once(program.display().to_string())
-        .chain(args.iter().map(|arg| (*arg).to_owned()))
-        .map(|word| quote(&word))
-        .collect();
-    format!("#!/bin/sh\nexec {}\n", words.join(" "))
+/// Explicit preparation installs only inside AgenticOS's private data directory.
+#[tauri::command]
+pub async fn local_agent_prepare(app: AppHandle, id: AgentId) -> Result<Agent, String> {
+    crate::coding_runtime::prepare(&app).await?;
+    probe(&app, spec(id)).await
 }
 
-/// Keep terminal arguments separate from shell syntax, including program paths
-/// containing spaces or metacharacters. The terminal owns the interactive login.
-async fn open_terminal(program: &Path, args: &[&str]) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        use base64::Engine;
-        let quote = |text: &str| format!("'{}'", text.replace('\'', "''"));
-        let script = format!(
-            "& {} {}",
-            quote(&program.to_string_lossy()),
-            args.iter().map(|arg| quote(arg)).collect::<Vec<_>>().join(" ")
-        );
-        let encoded: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
-        let mut command = tokio::process::Command::new("powershell.exe");
-        command.args([
-            "-NoProfile",
-            "-NoExit",
-            "-EncodedCommand",
-            &base64::engine::general_purpose::STANDARD.encode(encoded),
-        ]);
-        command.creation_flags(0x00000010); // CREATE_NEW_CONSOLE: sign-in needs a visible terminal.
-        command
-    };
-    #[cfg(not(target_os = "windows"))]
-    let mut command = {
-        let (terminal, separator) = [
-            ("x-terminal-emulator", "-e"),
-            ("gnome-terminal", "--"),
-            ("konsole", "-e"),
-            ("xterm", "-e"),
-            ("kitty", "--"),
-            ("alacritty", "-e"),
-        ]
-        .into_iter()
-        .find_map(|(name, separator)| locate(name).map(|path| (path, separator)))
-        .ok_or_else(|| {
-            "No supported terminal was found. Run the agent's sign-in command in your terminal.".to_owned()
-        })?;
-        let mut command = tokio::process::Command::new(terminal);
-        command.arg(separator).arg(program).args(args);
-        command
-    };
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("The sign-in terminal could not open: {error}"))?;
-    tauri::async_runtime::spawn(async move {
-        let _ = child.wait().await;
-    });
-    Ok(())
-}
-
-/// Open the agent's own sign-in in Terminal. The person finishes it there.
+/// The agent owns browser OAuth. Its output stays in the native process and no token reaches the console.
 #[tauri::command]
 pub async fn local_agent_sign_in(app: AppHandle, id: AgentId) -> Result<(), String> {
-    use tauri::Manager;
-    use tauri_plugin_opener::OpenerExt;
-
-    let spec = spec(id);
-    let program = locate(spec.program).ok_or_else(|| format!("{} is not installed.", spec.name))?;
-    if !cfg!(target_os = "macos") {
-        return open_terminal(&program, spec.login).await;
-    }
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("agent-sign-in");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let script = dir.join(format!("{}.command", spec.program));
-    std::fs::write(&script, sign_in_script(&program, spec.login)).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())?;
-    }
-    app.opener()
-        .open_path(script.display().to_string(), Some("Terminal"))
-        .map_err(|e| e.to_string())
+    let runtime = crate::coding_runtime::prepare(&app).await?;
+    let (program, prefix) = runtime.cli(id)?;
+    let mut command = tokio::process::Command::new(program);
+    command
+        .current_dir(&runtime.directory)
+        .args(prefix)
+        .args(spec(id).login);
+    crate::coding_runtime::run(command, "sign in to the coding agent").await
 }
 
 /// Run the agent's own sign-out, then report its state.
 #[tauri::command]
-pub async fn local_agent_sign_out(id: AgentId) -> Result<Agent, String> {
+pub async fn local_agent_sign_out(app: AppHandle, id: AgentId) -> Result<Agent, String> {
     let spec = spec(id);
-    let program = locate(spec.program).ok_or_else(|| format!("{} is not installed.", spec.name))?;
-    run(&program, spec.logout)
+    let (program, prefix) = cli(&app, spec)?.ok_or_else(|| format!("{} is not installed.", spec.name))?;
+    let args: Vec<&str> = prefix
+        .iter()
+        .map(String::as_str)
+        .chain(spec.logout.iter().copied())
+        .collect();
+    run(&program, &args)
         .await
         .ok_or_else(|| format!("{} did not answer the sign-out.", spec.name))?;
-    Ok(probe(spec).await)
+    probe(&app, spec).await
 }
 
 #[cfg(test)]
@@ -425,15 +374,6 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("agenticos-agents-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
-    }
-
-    #[test]
-    fn sign_in_script_quotes_every_word() {
-        let script = sign_in_script(Path::new("/Users/o'brien/bin/claude"), &["auth", "login"]);
-        assert_eq!(
-            script,
-            "#!/bin/sh\nexec '/Users/o'\\''brien/bin/claude' 'auth' 'login'\n"
-        );
     }
 
     #[test]

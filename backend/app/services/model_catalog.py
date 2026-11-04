@@ -23,6 +23,7 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -79,6 +80,10 @@ class CatalogModel:
     # most of them: absent means "not stated", never "text only", because a
     # picker that filtered on a guess would hide models that do work.
     output_modalities: tuple[str, ...] = ()
+    # Which APIs the provider serves the model on, where its listing says -
+    # Stav.ai's `stav_surfaces`, `("chat", "messages", "responses")`. Empty
+    # means not stated.
+    surfaces: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +114,9 @@ class ListingSpec:
     # OpenRouter and the Hugging Face router both answer
     # `architecture.output_modalities`; nobody else states it at all.
     modalities_path: str | None = None
+    # Dotted path to the list of APIs a model is served on, where the listing
+    # says. Only Stav.ai states it (`stav_surfaces`).
+    surfaces_path: str | None = None
 
 
 # Loaded from data rather than written out here. Every field is declarative - a
@@ -250,11 +258,14 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
         name = row.get(spec.name_field) if spec.name_field else None
         context = row.get(spec.context_field) if spec.context_field else None
         modalities = _modalities(row, spec.modalities_path)
+        surfaces = _modalities(row, spec.surfaces_path)
         if bounded and (
             len(raw) > MAX_CATALOG_FIELD
             or (isinstance(name, str) and len(name) > MAX_CATALOG_FIELD)
             or len(modalities) > 16
             or any(len(entry) > 32 for entry in modalities)
+            or len(surfaces) > 16
+            or any(len(entry) > 32 for entry in surfaces)
         ):
             raise ValueError("The model catalog has oversized fields")
         models.append(
@@ -263,6 +274,7 @@ def _read_listing(payload: Any, spec: ListingSpec, *, bounded: bool = False) -> 
                 name=name if isinstance(name, str) and name else model_id,
                 context_length=context if isinstance(context, int) else None,
                 output_modalities=modalities,
+                surfaces=surfaces,
             )
         )
     return sorted(models, key=lambda entry: listing_order(entry.id))
@@ -394,6 +406,16 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
     return (curated, "curated") if curated else ([], "unlisted")
 
 
+CUSTOM_LISTINGS: dict[str, bool] = {"openrouter": False, "stav": True}
+"""Providers whose model list can be read at an endpoint the caller names, and
+whether the vault key goes with that request.
+
+OpenRouter's list is public, so a regional OpenRouter is asked with no key.
+Stav's needs one, and the key sent is the one the profile will send to that same
+endpoint on every run - listing there reaches no host the profile does not.
+"""
+
+
 async def models_for(
     provider: str, *, api_key: str | None = None, base_url: str | None = None
 ) -> tuple[list[CatalogModel], CatalogSource]:
@@ -408,15 +430,18 @@ async def models_for(
         provider: The provider id, as `PROVIDERS` spells it.
         api_key: A key for the provider, where its listing needs one. Only
             OpenRouter's is public.
-        base_url: A validated OpenRouter endpoint, authorized by the caller.
-            Its catalog never uses the global curated fallback.
+        base_url: A validated endpoint for a provider in `CUSTOM_LISTINGS`,
+            authorized by the caller. Its catalog never uses the global curated
+            fallback.
     """
     spec = LISTINGS.get(provider)
     curated = list(curated_models(provider))
     cache_key = provider
     if base_url is not None:
-        if provider != "openrouter" or spec is None:
-            raise ValueError("Custom model listing endpoints are supported only for OpenRouter")
+        if provider not in CUSTOM_LISTINGS or spec is None:
+            raise ValueError(
+                "Custom model listing endpoints are supported only for OpenRouter and Stav"
+            )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")
         spec = replace(spec, url=f"{endpoint}/models")
@@ -425,6 +450,9 @@ async def models_for(
 
     if spec is None or (spec.auth_header is not None and api_key is None):
         return _fallback(curated)
+
+    if spec.auth_header is not None and api_key is not None:
+        cache_key = f"{cache_key}:{hashlib.sha256(api_key.encode()).hexdigest()}"
 
     try:
         models = await _listed(cache_key, spec, api_key, custom=base_url is not None)
@@ -486,8 +514,6 @@ async def _listed(
     Raises:
         Exception: Whatever the fetch raised; the caller decides what a failure means.
     """
-    # Public provider and endpoint identify a catalog. Credentials never form
-    # cache keys; a regional catalog cannot inherit the global response.
     async with _lock:
         entry = _cache.get(cache_key)
         if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:

@@ -773,9 +773,8 @@ def whatsapp_adapter() -> WhatsAppAdapter:
     """The registered adapter, or one registered now.
 
     The API registers it at startup; the job worker (`python -m app.worker`) never
-    does, so code that will send from the worker - a trigger's result, a
-    proactive message - asks for it here, as `teams_adapter()` is asked. Nothing
-    calls it yet.
+    does, so code that sends from the worker - an expiry or stranded-run notice -
+    asks for it here, as `teams_adapter()` is asked.
     """
     from app.services.channels import get_adapter, register_adapter
 

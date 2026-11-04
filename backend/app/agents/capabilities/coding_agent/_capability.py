@@ -10,6 +10,16 @@ from pydantic_ai.toolsets import AbstractToolset
 from app.agents.capabilities.coding_agent._harness import LABELS, Access, Harness
 from app.agents.capabilities.coding_agent._toolset import RunsOn, SignIn, build_coding_toolset
 
+LOCAL_CODING_PREFERENCES = "coding_agent.local_preferences"
+
+
+@dataclass(frozen=True)
+class CodingPreferences:
+    """Session choices resolved from the initiating person's local chat controls."""
+
+    model: str | None = None
+    effort: str | None = None
+
 
 @dataclass
 class CodingAgent(AbstractCapability[AgentDepsT]):
@@ -23,6 +33,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
     harness: Harness = "claude_code"
     access: Access = "edit"
     model: str | None = None
+    effort: str | None = None
     base_url: str | None = None
     timeout_seconds: int = 900
     # Unsealed from the vault by the factory; `repr=False` for the reason
@@ -63,6 +74,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
                 harness=self.harness,
                 access=self.access,
                 model=self.model,
+                effort=self.effort,
                 base_url=self.base_url,
                 api_key=self.api_key,
                 sign_in=self.sign_in,

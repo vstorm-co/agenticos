@@ -102,7 +102,7 @@ export function FocusedRun({
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const { run, isLoading, error } = useRun(runId);
   const { runs: delegated } = useDelegatedRuns(runId);
-  const resume = useResumeRun();
+  const resume = useResumeRun({ continuesInChat: run?.continues_in_chat ?? false });
   // What is on screen is the answer being held, which during a step is the run
   // stepped away from. Nothing that navigates may act on it: its neighbours are
   // its own, so an arrow pressed twice quickly would otherwise walk back to

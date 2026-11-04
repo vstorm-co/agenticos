@@ -1,5 +1,5 @@
 ---
-source_sha: "16e90e7b2f27"
+source_sha: "3e5746cd74c2"
 ---
 
 # Installation { #install }
@@ -39,6 +39,10 @@ Alles Weitere unten ist das, was es tut, falls Sie es lieber selbst machen - und
 es gibt keinen Schritt darin, den Sie nicht machen können.
 
 ## Voraussetzungen { #requirements }
+
+Podman-Installationen verwenden den [manuellen Docker-Compose-Weg](deploy.md#podman-support)
+mit zusätzlichem Override für Sandbox-Socket und Workspace-Berechtigungen. Der
+Quickstart unterstützt Docker; `podman-compose` 1.6.0 wird nicht unterstützt.
 
 | Um es zu | Brauchen Sie |
 |---|---|

@@ -4,6 +4,7 @@
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
@@ -167,6 +168,8 @@ __all__ = [
     "User",
     "Session",
     "Conversation",
+    "ConversationTask",
+    "ConversationTurnClaim",
     "Message",
     "ToolCall",
     "ChatFile",

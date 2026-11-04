@@ -34,7 +34,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => ({
   ApiError: (await importOriginal<typeof import("@/lib/api-client")>()).ApiError,
   apiClient: { post, get },
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // The outbox's copy on the device is `device-cache`'s to test; here, what the
 // hook hands it and what it does with what comes back.
 const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
@@ -1571,6 +1571,112 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("keeps a rejected step refused when a chat run's batch mixes both", async () => {
+    post.mockImplementation((url: string) =>
+      Promise.resolve(url.startsWith("/approvals/") ? { continues_in_chat: true } : {}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_call", { tool_call_id: "tc-2", tool_name: "delete_row", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "delete_row", args: {} },
+      ],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }, { type: "reject" }]);
+    });
+
+    const steps = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .map((part) => part.toolCall);
+    expect(steps.find((call) => call?.id === "tc-1")?.status).toBe("completed");
+    expect(steps.find((call) => call?.id === "tc-2")).toMatchObject({
+      status: "error",
+      result: "Refused",
+    });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+  });
+
+  it("settles nothing on screen when a chat run's decision has no open turn", async () => {
+    post.mockResolvedValue({ continues_in_chat: true });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+    expect(toast.info).toHaveBeenCalled();
+  });
+
+  it("records the decisions on a chat run and leaves its continuation to the server", async () => {
+    // A chat run is continued by the server once its last call is decided; a
+    // resume from here would answer that chat twice.
+    post.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.startsWith("/approvals/")
+          ? { status: "approved", run_id: "r-1", continues_in_chat: true }
+          : {},
+      ),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "look",
+      parent_task_id: null,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/approvals/ar-1", { approved: true });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+    expect(result.current.pendingApproval).toBeNull();
+    const steps = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .filter((part) => part.toolCall !== undefined)
+      .map((part) => part.toolCall);
+    expect(steps.find((call) => call?.id === "tc-1")).toMatchObject({
+      status: "completed",
+      result: "Continued in the chat this was asked in",
+    });
+    expect(steps.some((call) => call?.status === "running")).toBe(false);
+    // A panel is not tied to a run, so a decision on a chat run leaves it alone.
+    expect(result.current.delegations[0]?.status).toBe("running");
+    expect(toast.info).toHaveBeenCalledWith(
+      "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
+    );
+  });
+
   it("re-opens the panel when the continuation parks again", async () => {
     // A resume runs the agent, and the agent can reach a second gated call. Nothing
     // announces that here - the continuation runs over HTTP, so no
@@ -1698,6 +1804,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("marks a refused call refused, on the turn it was drawn in", async () => {
+    post.mockResolvedValue({});
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
@@ -3836,6 +3943,37 @@ describe("useChat - a question its person came back to", () => {
     });
     expect(messages.at(-1)?.content).toBe("Here it is, casually.");
     expect(result.current.pendingQuestions).toBeNull();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("answers a chat run's question here and says the answer also went to the chat", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "Here it is, casually.",
+      status: "completed",
+      continues_in_chat: true,
+      settled: [{ tool_call_id: "ask-1", result: '{"Tone": ["Casual"]}' }],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    const messages = useChatStore.getState().messages;
+    expect(messages[0]?.toolCalls?.[0]).toMatchObject({ status: "completed" });
+    expect(messages.at(-1)?.content).toBe("Here it is, casually.");
+    expect(toast.info).toHaveBeenCalledWith(
+      "The answer is also sent to the chat this was asked in.",
+    );
   });
 
   it("puts the question back when the answer never landed", async () => {
@@ -4132,6 +4270,21 @@ describe("useChat - coming back to a turn still being written", () => {
       }),
     );
   }
+
+  it("attributes a background answer to its agent without inventing a user message", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("background_task_turn", { conversation_id: "c-other", agent_id: "wrong" });
+    receive("background_task_turn", { conversation_id: "c-1", agent_id: "background-agent" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "The research is ready." });
+    expect(streaming()).toMatchObject({
+      agentId: "background-agent",
+      content: "The research is ready.",
+    });
+    expect(useChatStore.getState().messages.filter((m) => m.role === "user")).toHaveLength(1);
+  });
 
   it("asks to follow the conversation's turn once its transcript is here", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
@@ -5046,7 +5199,29 @@ it("sends a per-chat coding choice alongside its approved folder", () => {
       folder: "/approved",
       mode: "full_access",
       coding_agent: "codex",
+      coding_model: null,
+      coding_effort: null,
     });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
+it("sends the person's chosen coding model and effort without changing the main model", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/approved", mode: "full_access" });
+  store.setCoding(null, "codex");
+  store.setCodingPreferences(null, { model: "chosen-coding-model", effort: "low" });
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("work on this"));
+    expect(lastFrame().local).toMatchObject({
+      coding_agent: "codex",
+      coding_model: "chosen-coding-model",
+      coding_effort: "low",
+    });
+    expect(lastFrame().model_profile_id).not.toBe("chosen-coding-model");
   } finally {
     store.set(null, null);
     store.resetDraft();

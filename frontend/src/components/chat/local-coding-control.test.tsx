@@ -25,6 +25,7 @@ const env = vi.hoisted(() => ({
 vi.mock("@/hooks/use-desktop", () => ({
   useDeviceStatus: () => ({ data: { linked: env.linked } }),
   useDeviceLink: () => ({ link: { mutateAsync: env.link } }),
+  useLocalCodingOptions: () => ({ data: undefined, error: null }),
   useLocalAgents: () => ({ state: { data: [] } }),
   useLocalFolders: () => ({ pick: { mutateAsync: env.pick } }),
 }));

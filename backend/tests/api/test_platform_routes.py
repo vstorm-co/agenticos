@@ -23,6 +23,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -43,6 +44,7 @@ from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBrea
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.ml import MLService
+from app.services.parked_runs import Continued, DecidedApproval
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
 from app.services.transcript import RecordedToolCall
@@ -1354,6 +1356,9 @@ class TestResumeConveysAFailedContinuation:
         run_id = uuid4()
 
         class _Failing:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock(surface="web")
+
             async def resume(self, *args: Any, **kwargs: Any) -> Any:
                 raise RunExecutionError(
                     details={"run_id": str(run_id), "status": "failed"}
@@ -1394,6 +1399,9 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         )
 
         class _Resuming:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock(surface="web")
+
             async def resume(self, *args: Any, **kwargs: Any) -> Any:
                 return RunSegment(
                     output="",
@@ -1442,6 +1450,34 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             9,
             2,
         )
+
+
+class TestAContinuationSaysWhereItsAnswerGoes:
+    async def test_a_continuation_result_says_whether_its_answer_goes_to_the_chat(self) -> None:
+        from app.api.routes.v1._run_results import run_result
+
+        run = MagicMock(
+            id=uuid4(),
+            conversation_id=None,
+            status="completed",
+            cost_usd=Decimal("0"),
+            cost_is_partial=False,
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+        )
+        segment = RunSegment(output="done", run=run, tool_calls=[], settled={})
+        service = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+
+        told = await run_result(service, ctx, segment, continues_in_chat=True)
+        plain = await run_result(service, ctx, segment)
+
+        assert told.continues_in_chat is True
+        assert plain.continues_in_chat is False
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -2193,6 +2229,7 @@ class TestAQuestionTheRunParkedOn:
     ) -> None:
         run = self._run()
         service = MagicMock(
+            get_run=AsyncMock(return_value=MagicMock(surface="web")),
             answer=AsyncMock(
                 return_value=RunSegment(
                     output="Done, casually.", run=run, tool_calls=[], settled={}
@@ -2208,6 +2245,47 @@ class TestAQuestionTheRunParkedOn:
         assert response.status_code == 200
         assert response.json()["output"] == "Done, casually."
         assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+
+    async def test_a_decision_answers_with_whether_it_continues_in_the_chat(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        approval = SimpleNamespace(
+            id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            tool_id="send_email",
+            tool_args={},
+            status="approved",
+            created_at=datetime(2026, 11, 3, tzinfo=UTC),
+            decided_at=datetime(2026, 11, 3, tzinfo=UTC),
+        )
+        parked = MagicMock(decide=AsyncMock(return_value=DecidedApproval(approval, True)))
+        async with as_role(
+            only(Perm.APPROVALS_DECIDE), {deps.get_parked_run_service: lambda: parked}
+        ) as client:
+            response = await client.post(_url(f"/approvals/{approval.id}"), json={"approved": True})
+
+        assert response.status_code == 200
+        assert response.json()["continues_in_chat"] is True
+
+    async def test_a_resume_answers_with_whether_its_answer_goes_to_the_chat(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        segment = RunSegment(output="Sent.", run=run, tool_calls=[], settled={})
+        parked = MagicMock(resume=AsyncMock(return_value=Continued(segment, True)))
+        runner = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        overrides = {
+            deps.get_parked_run_service: lambda: parked,
+            deps.get_agent_runner_service: lambda: runner,
+        }
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.post(_url(f"/runs/{run.id}/resume"))
+
+        assert response.status_code == 200
+        assert response.json()["continues_in_chat"] is True
 
     async def test_an_answer_with_nothing_in_it_is_refused_before_the_service(
         self, as_role: ClientFactory, synthetic_roles: None

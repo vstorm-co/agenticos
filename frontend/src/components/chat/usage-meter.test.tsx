@@ -29,6 +29,7 @@ function workspace(overrides: Partial<ConversationWorkspace> = {}): Conversation
     items: [],
     total: 0,
     bytes_total: 1024,
+    truncated: false,
     bytes_limit: 4096,
     unreadable_reason: null,
     ...overrides,

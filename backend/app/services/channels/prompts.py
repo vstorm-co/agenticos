@@ -17,6 +17,7 @@ presser is told to link, like an unlinked sender.
 
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime
 from functools import cache
@@ -378,18 +379,17 @@ class ChannelPrompts:
                 return
             segment = await self._settle(ctx, prompt, choice)
         except AppException as exc:
+            await self._close_if_decided_elsewhere(ctx, prompt)
             await say(exc.message)
             return
         if segment is not None:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
-            await self._send_segment(bot, press.platform, prompt.platform_chat_id, segment)
-            await self.offer(
+            await self.deliver(
                 bot,
                 platform=press.platform,
                 platform_chat_id=prompt.platform_chat_id,
-                run_id=prompt.run_id,
+                segment=segment,
             )
-            self._follow_ups(bot, segment, prompt.platform_chat_id)
         else:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
 
@@ -439,18 +439,31 @@ class ChannelPrompts:
         try:
             segment = await self._settle(ctx, prompt, None, typed=text.strip())
         except AppException as exc:
+            await self._close_if_decided_elsewhere(ctx, prompt)
             await say(exc.message)
             return True
         if segment is None:
             # The call has more questions still open; this one is taken.
             await say(self._chosen(prompt))
             return True
+        await self.deliver(
+            bot, platform=platform, platform_chat_id=platform_chat_id, segment=segment
+        )
+        return True
+
+    async def deliver(
+        self, bot: ChannelBot, *, platform: str, platform_chat_id: str, segment: RunSegment
+    ) -> None:
+        """Post a continued run's answer, then what it is waiting on, then its next steps.
+
+        The one order every continuation uses, whoever continued the run: a press
+        in the chat, or a decision made somewhere else.
+        """
         await self._send_segment(bot, platform, platform_chat_id, segment)
         await self.offer(
-            bot, platform=platform, platform_chat_id=platform_chat_id, run_id=prompt.run_id
+            bot, platform=platform, platform_chat_id=platform_chat_id, run_id=segment.run.id
         )
         self._follow_ups(bot, segment, platform_chat_id)
-        return True
 
     async def _send_segment(
         self, bot: ChannelBot, platform: str, platform_chat_id: str, segment: RunSegment
@@ -517,20 +530,7 @@ class ChannelPrompts:
         parked = await agent_run_repo.claim_parked_run(
             self.db, prompt.run_id, organization_id=ctx.organization_id
         )
-        previous_calls: list[RecordedToolCall] = []
-        if parked is not None and parked.paused_state is not None:
-            state = PausedRunState.model_validate(parked.paused_state)
-            pending_ids = set(state.tool_call_ids.values()) | set(state.questions)
-            previous_calls = [
-                RecordedToolCall(
-                    tool_call_id=part.tool_call_id,
-                    tool_name=part.tool_name,
-                    args=part.args_as_dict(raise_if_invalid=False),
-                )
-                for message in ModelMessagesTypeAdapter.validate_python(state.messages)
-                for part in message.parts
-                if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
-            ]
+        previous_calls = self.inherited_calls(parked)
         savepoint = await self.db.begin_nested()
         try:
             segment = await (
@@ -545,15 +545,67 @@ class ChannelPrompts:
         if savepoint.is_active:
             await savepoint.commit()
         if segment is not None:
-            # A return from an approved call has no new ToolCallPart: recover its
-            # trusted name from the paused transcript, not from the result body.
-            completed = [
-                replace(call, result=segment.settled[call.tool_call_id])
-                for call in previous_calls
-                if call.tool_call_id in segment.settled
-            ]
-            if completed:
-                segment = replace(segment, tool_calls=[*completed, *segment.tool_calls])
+            segment = self.with_inherited(segment, previous_calls)
+        return segment
+
+    async def _close_if_decided_elsewhere(self, ctx: AuthContext, prompt: ChannelPrompt) -> None:
+        """Mark the prompt answered when its request was settled outside this press.
+
+        `settle_open` skips a row a press holds, so a console decision that lands
+        meanwhile leaves this one open for ever. The approval's or the run's own
+        state says whether that happened; a refusal for any other reason (not
+        yours, link first) finds both still waiting and leaves the buttons alone.
+        """
+        if prompt.kind == APPROVAL:
+            if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
+                return
+            approval = await agent_run_repo.get_approval(
+                self.db, prompt.approval_id, organization_id=ctx.organization_id
+            )
+            if approval is None or approval.status == ApprovalStatus.PENDING.value:
+                return
+            by = "decided"
+        else:
+            run = await agent_run_repo.get_run(
+                self.db, prompt.run_id, organization_id=ctx.organization_id
+            )
+            if run is None or run.status == RunStatus.AWAITING_ANSWER.value:
+                return
+            by = "answered"
+        await channel_prompt_repo.answer(self.db, prompt=prompt, value={"settled": by})
+
+    @staticmethod
+    def inherited_calls(run: AgentRun | None) -> list[RecordedToolCall]:
+        """The calls a parked run is waiting on, named from its paused transcript."""
+        if run is None or run.paused_state is None:
+            return []
+        state = PausedRunState.model_validate(run.paused_state)
+        pending_ids = set(state.tool_call_ids.values()) | set(state.questions)
+        return [
+            RecordedToolCall(
+                tool_call_id=part.tool_call_id,
+                tool_name=part.tool_name,
+                args=part.args_as_dict(raise_if_invalid=False),
+            )
+            for message in ModelMessagesTypeAdapter.validate_python(state.messages)
+            for part in message.parts
+            if isinstance(part, ToolCallPart) and part.tool_call_id in pending_ids
+        ]
+
+    @staticmethod
+    def with_inherited(segment: RunSegment, inherited: Sequence[RecordedToolCall]) -> RunSegment:
+        """Put the return of each call the run inherited ahead of what it did next.
+
+        A return from an approved call has no new ToolCallPart: its trusted name
+        comes from the paused transcript, not from the result body.
+        """
+        completed = [
+            replace(call, result=segment.settled[call.tool_call_id])
+            for call in inherited
+            if call.tool_call_id in segment.settled
+        ]
+        if completed:
+            return replace(segment, tool_calls=[*completed, *segment.tool_calls])
         return segment
 
     async def _decide(
