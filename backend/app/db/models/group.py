@@ -64,6 +64,7 @@ class Group(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_group_id_org"),
         UniqueConstraint("organization_id", "name", name="uq_group_org_name"),
         # Zero is a department that can never be answered, not a tighter cap.
         CheckConstraint(

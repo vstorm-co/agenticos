@@ -17,7 +17,7 @@ organization.
 
 import uuid
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,7 +38,6 @@ class DiscordRoleMapping(Base, TimestampMixin):
     )
     channel_bot_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("channel_bots.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -51,7 +50,6 @@ class DiscordRoleMapping(Base, TimestampMixin):
     discord_role_name: Mapped[str] = mapped_column(String(100), nullable=False)
     group_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("groups.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -65,6 +63,18 @@ class DiscordRoleMapping(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["channel_bot_id", "organization_id"],
+            ["channel_bots.id", "channel_bots.organization_id"],
+            name="discord_role_mappings_channel_bot_id_fkey",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["group_id", "organization_id"],
+            ["groups.id", "groups.organization_id"],
+            name="discord_role_mappings_group_id_fkey",
+            ondelete="CASCADE",
+        ),
         UniqueConstraint(
             "channel_bot_id", "guild_id", "discord_role_id", name="uq_discord_role_mapping"
         ),

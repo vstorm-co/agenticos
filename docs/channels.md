@@ -1583,6 +1583,10 @@ Not yet: one connection serves a bot in at most 2,500 servers, past which Discor
 asks for sharding and the bot stops with that reason. The channel members, details
 and search tools are not offered on Discord.
 
+Directory access takes priority when both sources grant membership. At sign-in,
+a directory grant takes over the Discord-managed row; when it ends, a remaining
+Discord grant takes over without revoking credentials. See [membership handover](directory.md#what-the-sync-never-touches).
+
 ## A bot that cannot start stops, rather than retrying
 
 Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord

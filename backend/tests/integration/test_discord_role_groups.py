@@ -27,6 +27,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.db.models.api_key import ApiKey
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
@@ -34,7 +35,8 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.discord_role_mapping import DiscordRoleMapping
 from app.db.models.group import Group, GroupMember
-from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.oauth import OAuthClient, OAuthGrant
+from app.db.models.organization import MembershipSource, Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import discord_role_mapping_repo, member_repo
 from app.schemas.channel_bot import ChannelBotUpdate
@@ -44,7 +46,11 @@ from app.services.channel_link import ChannelLinkService
 from app.services.channels import discord_roles
 from app.services.channels.base import IncomingMessage
 from app.services.channels.discord_protocol import Server, ServerRole
-from app.services.channels.discord_roles import DiscordRoleSync, sweep_discord_roles
+from app.services.channels.discord_roles import (
+    DiscordMembershipGrant,
+    DiscordRoleSync,
+    sweep_discord_roles,
+)
 from app.services.channels.router import ChannelMessageRouter
 from app.services.directory import DirectorySyncService
 from app.services.discord_role_mapping import DiscordRoleMappingService
@@ -1040,3 +1046,234 @@ class TestMappings:
 
         remaining = (await db.execute(select(DiscordRoleMapping))).scalars().all()
         assert len(remaining) == 1
+
+
+@pytest.mark.security
+class TestDirectoryDiscordHandover:
+    async def _credentials(
+        self, db: AsyncSession, org: Organization, user: User
+    ) -> tuple[ApiKey, OAuthGrant]:
+        client = OAuthClient(client_id=uuid.uuid4().hex, info={})
+        db.add(client)
+        await db.flush()
+        grant = OAuthGrant(
+            client_id=client.client_id,
+            user_id=user.id,
+            organization_id=org.id,
+            scopes=["agents:run"],
+        )
+        db.add(grant)
+        await db.flush()
+        key = ApiKey(
+            user_id=user.id,
+            organization_id=org.id,
+            name="Keep me",
+            prefix=uuid.uuid4().hex[:16],
+            key_hash="a" * 64,
+            scopes=["agents:run"],
+            oauth_grant_id=grant.id,
+        )
+        db.add(key)
+        await db.flush()
+        return key, grant
+
+    async def test_directory_takes_priority_without_revoking_existing_access(self, db, discord):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        finance, manual = await _group(db, org), await _group(db, org, "Hand added")
+        await _mapping(db, bot, finance, role="builder")
+        bob = await _user(db)
+        account = await _linked(db, bob)
+        discord.give(account.platform_user_id, FINANCE)
+        await DiscordRoleSync(db).sync(org.id, bob.id)
+        membership_id = (await _membership(db, org, bob)).id
+        db.add(GroupMember(group_id=manual.id, user_id=bob.id, source="manual"))
+        db.add(DirectoryGroupMapping(organization_id=org.id, external_group="staff", role="member"))
+        await db.flush()
+        key, grant = await self._credentials(db, org, bob)
+
+        await DirectorySyncService(db).apply(bob.id, ["staff"], provider="oidc")
+        discord.give(account.platform_user_id)
+        await DiscordRoleSync(db).sync(org.id, bob.id)
+
+        membership = await _membership(db, org, bob)
+        assert (membership.id, membership.source, membership.role) == (
+            membership_id,
+            "directory",
+            "member",
+        )
+        await db.refresh(key)
+        await db.refresh(grant)
+        assert key.revoked_at is None and grant.revoked_at is None
+        assert await _groups(db, bob) == {manual.id: "manual"}
+
+    @pytest.mark.parametrize("outcome", ["grant", "none", "unreadable"])
+    async def test_directory_departure_checks_discord_before_revoking_credentials(
+        self, db, discord, outcome
+    ):
+        org, _ = await _org(db)
+        bot = await _bot(db, org)
+        finance = await _group(db, org)
+        await _mapping(db, bot, finance, role="member")
+        bob = await _member(db, org, role="builder", source="directory")
+        account = await _linked(db, bob)
+        discord.give(account.platform_user_id, *([FINANCE] if outcome == "grant" else []))
+        discord.down = outcome == "unreadable"
+        db.add(GroupMember(group_id=finance.id, user_id=bob.id, source="manual"))
+        await db.flush()
+        key, grant = await self._credentials(db, org, bob)
+        membership_id = (await _membership(db, org, bob)).id
+
+        await DirectorySyncService(db).apply(bob.id, [], provider="ldap")
+
+        membership = await _membership(db, org, bob)
+        await db.refresh(key)
+        await db.refresh(grant)
+        if outcome == "none":
+            assert membership is None
+            assert key.revoked_at is not None and grant.revoked_at is not None
+            assert await _groups(db, bob) == {}
+        else:
+            assert membership.id == membership_id
+            assert (membership.source, membership.role) == (
+                ("discord", "member") if outcome == "grant" else ("directory", "builder")
+            )
+            assert key.revoked_at is None and grant.revoked_at is None
+            assert await _groups(db, bob) == {finance.id: "manual"}
+
+    @pytest.mark.parametrize(
+        "source,role", [("manual", "viewer"), ("discord", "owner"), ("directory", "owner")]
+    )
+    async def test_directory_never_takes_over_manual_or_owner_memberships(
+        self, db, discord, source, role
+    ):
+        org, _ = await _org(db)
+        bob = await _member(db, org, source=source, role=role)
+        db.add(DirectoryGroupMapping(organization_id=org.id, external_group="staff", role="member"))
+        await db.flush()
+        await DirectorySyncService(db).apply(bob.id, ["staff"], provider="oidc")
+        membership = await _membership(db, org, bob)
+        assert (membership.source, membership.role) == (source, role)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("takeover", ["manual", "owner"])
+async def test_directory_departure_rechecks_a_membership_changed_during_discord_lookup(
+    db, engine, discord, takeover
+):
+    import contextlib
+
+    org, _ = await _org(db)
+    bot = await _bot(db, org)
+    finance = await _group(db, org)
+    await _mapping(db, bot, finance, role="member")
+    bob = await _member(db, org, source="directory")
+    account = await _linked(db, bob)
+    discord.give(account.platform_user_id)
+    key, grant = await TestDirectoryDiscordHandover()._credentials(db, org, bob)
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    looked_up, proceed = asyncio.Event(), asyncio.Event()
+    original = DiscordRoleSync.membership_grant
+
+    async def lookup(
+        sync: DiscordRoleSync, organization_id: uuid.UUID, user_id: uuid.UUID
+    ) -> DiscordMembershipGrant:
+        result = await original(sync, organization_id, user_id)
+        looked_up.set()
+        await proceed.wait()
+        return result
+
+    async def sign_in() -> None:
+        async with factory() as session:
+            await DirectorySyncService(session).apply(bob.id, [], provider="oidc")
+            await session.commit()
+
+    with patch.object(DiscordRoleSync, "membership_grant", new=lookup):
+        task = asyncio.create_task(sign_in())
+        try:
+            await asyncio.wait_for(looked_up.wait(), 5)
+            async with factory() as administrator:
+                member = await member_repo.get(
+                    administrator, organization_id=org.id, user_id=bob.id, for_update=True
+                )
+                assert member is not None
+                await member_repo.update_role(
+                    administrator,
+                    member,
+                    role="owner" if takeover == "owner" else "viewer",
+                    source=None if takeover == "owner" else MembershipSource.MANUAL,
+                )
+                await administrator.commit()
+            proceed.set()
+            await asyncio.wait_for(task, 5)
+        finally:
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+    await db.refresh(key)
+    await db.refresh(grant)
+    assert key.revoked_at is None and grant.revoked_at is None
+    member = await _membership(db, org, bob)
+    assert member is not None
+    assert member.role == ("owner" if takeover == "owner" else "viewer")
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("foreign_parent", ["bot", "group"])
+async def test_mapping_constraint_rejects_cross_organization_parents(
+    db: AsyncSession, foreign_parent: str
+):
+    from sqlalchemy.exc import IntegrityError
+
+    org, _ = await _org(db)
+    foreign, _ = await _org(db)
+    bot, other_bot = await _bot(db, org), await _bot(db, foreign)
+    group, other_group = await _group(db, org), await _group(db, foreign)
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(
+                DiscordRoleMapping(
+                    organization_id=org.id,
+                    channel_bot_id=other_bot.id if foreign_parent == "bot" else bot.id,
+                    group_id=other_group.id if foreign_parent == "group" else group.id,
+                    guild_id=GUILD,
+                    discord_role_id=FINANCE,
+                    guild_name="Acme",
+                    discord_role_name="Finance",
+                )
+            )
+            await db.flush()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("existing", [True, False])
+async def test_confirmed_sender_role_survives_another_linked_accounts_lookup_failure(
+    db: AsyncSession, discord, existing: bool
+):
+    org, _ = await _org(db)
+    bot = await _bot(db, org)
+    group = await _group(db, org)
+    await _mapping(db, bot, group, role="member")
+    bob = await _member(db, org) if existing else await _user(db)
+    unread, sender = await _linked(db, bob), await _linked(db, bob)
+
+    async def unavailable(_token: str, _guild: str, _user: str):
+        raise httpx.ConnectError("Discord unavailable for second account")
+
+    with (
+        patch.object(discord, "member_roles", new=unavailable),
+        patch.object(
+            discord_roles.channel_identity_repo,
+            "list_for_user",
+            new=AsyncMock(return_value=[unread, sender]),
+        ),
+    ):
+        assert not await DiscordRoleSync(db).sync(
+            org.id, bob.id, seen={(bot.id, GUILD, sender.platform_user_id): frozenset({FINANCE})}
+        )
+    membership = await _membership(db, org, bob)
+    assert membership is not None
+    assert membership.source == ("manual" if existing else "discord")
+    assert await _groups(db, bob) == {group.id: "discord"}

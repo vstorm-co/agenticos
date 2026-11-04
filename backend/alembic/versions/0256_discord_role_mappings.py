@@ -37,6 +37,8 @@ def _sources(values: str) -> None:
 
 
 def upgrade() -> None:
+    op.create_unique_constraint("uq_channel_bot_id_org", "channel_bots", ["id", "organization_id"])
+    op.create_unique_constraint("uq_group_id_org", "groups", ["id", "organization_id"])
     op.create_table(
         "discord_role_mappings",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -57,8 +59,8 @@ def upgrade() -> None:
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
-            ["channel_bot_id"],
-            ["channel_bots.id"],
+            ["channel_bot_id", "organization_id"],
+            ["channel_bots.id", "channel_bots.organization_id"],
             name=op.f("discord_role_mappings_channel_bot_id_fkey"),
             ondelete="CASCADE",
         ),
@@ -69,8 +71,8 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
-            ["group_id"],
-            ["groups.id"],
+            ["group_id", "organization_id"],
+            ["groups.id", "groups.organization_id"],
             name=op.f("discord_role_mappings_group_id_fkey"),
             ondelete="CASCADE",
         ),
@@ -106,3 +108,5 @@ def downgrade() -> None:
     op.execute("UPDATE group_members SET source = 'manual' WHERE source = 'discord'")
     _sources("'manual', 'directory'")
     op.drop_table("discord_role_mappings")
+    op.drop_constraint("uq_group_id_org", "groups", type_="unique")
+    op.drop_constraint("uq_channel_bot_id_org", "channel_bots", type_="unique")

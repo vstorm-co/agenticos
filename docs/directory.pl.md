@@ -1,5 +1,5 @@
 ---
-source_sha: "8c879a4f5e7d"
+source_sha: "68b09dc9c9ff"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -106,8 +106,7 @@ czego drugi nie ma, więc kolejność jest tu podana wprost, a nie wyliczana.
 
 ### Czego synchronizacja nigdy nie dotyka { #what-the-sync-never-touches }
 
-Synchronizacja zmienia tylko wiersze, które sama utworzyła. Wynikają z tego
-cztery reguły:
+Automatyczna synchronizacja członkostwa przestrzega czterech reguł:
 
 - **Członkostwo utworzone przez administratora zachowuje swoją rolę.** Ktoś
   zaproszony ręcznie zachowuje nadaną mu rolę, nawet jeśli pasuje do niego
@@ -123,10 +122,20 @@ cztery reguły:
 Do organizacji osobistej nigdy nie dołącza się przez mapowanie i nie można dla
 niej utworzyć mapowania.
 
-Członkostwo utworzone przez [mapowanie roli Discorda](channels.md#discord-roles) jest
-oznaczone **Discord**, a nie **directory**. Każda synchronizacja zmienia tylko własne
-wiersze, więc logowanie nigdy nie usuwa kogoś, kogo dodała rola Discorda, a
-synchronizacja Discorda nigdy nie usuwa kogoś, kogo dodał katalog.
+Gdy mapowanie katalogu i [mapowanie roli Discorda](channels.md#discord-roles)
+jednocześnie dają dostęp, przy logowaniu pierwszeństwo ma katalog: przejmuje
+członkostwo zarządzane przez Discorda i nadaje rolę katalogu. Utrata roli Discorda
+nie usuwa wtedy osoby z organizacji. Gdy znika dostęp z katalogu, logowanie
+najpierw sprawdza, czy połączone konto Discorda nadal daje członkostwo. Jeśli tak,
+ten sam wiersz przechodzi pod kontrolę **Discorda**, bez cofania kluczy API,
+zgód aplikacji ani niezależnych członkostw w grupach.
+
+Brak obu uprawnień powoduje
+zwykłe usunięcie. Gdy Discord nie odpowiada lub wyczerpie się dziesięciosekundowy
+budżet sieciowy, członkostwo zostaje bez zmian do kolejnego logowania. Członkostwa
+ręczne i właściciele nigdy nie są przejmowani. Audyt zapisuje
+`directory.member_taken_over` i `directory.member_handed_to_discord`.
+Członkostwa w grupach zachowują własne źródło i reguły synchronizacji.
 
 !!! warning "Usunięcie mapowania usuwa ludzi, których ono umieściło"
 

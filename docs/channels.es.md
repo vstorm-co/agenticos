@@ -1,5 +1,5 @@
 ---
-source_sha: "4f0ee9feecd6"
+source_sha: "febcabd0384e"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1665,6 +1665,10 @@ Todavía no: una conexión sirve a un bot en como mucho 2500 servidores, por enc
 de los cuales Discord exige sharding y el bot se detiene con ese motivo. Las
 herramientas de miembros del canal, detalles y búsqueda de canales no se ofrecen en
 Discord.
+
+Cuando ambas fuentes conceden pertenencia, el directorio tiene prioridad al iniciar
+sesión. Al terminar su acceso, un rol vigente de Discord asume la misma pertenencia
+sin revocar claves. Véase [el traspaso de pertenencia](directory.md#what-the-sync-never-touches).
 
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

@@ -18,7 +18,11 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+)
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
@@ -1906,8 +1910,12 @@ class ChannelMessageRouter:
         """
         if identity.user_id is None:
             return
+        checked_for = (str(bot.id), str(identity.user_id), str(identity.id))
+        if incoming.discord_roles_checked_for == checked_for:
+            return
         await self._check_rate_limit(bot, str(identity.id), surface="discord-roles")
         await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
+        incoming.discord_roles_checked_for = checked_for
 
     async def _check_rate_limit(
         self, bot: ChannelBot, identity_id: str, *, surface: str = "channel"

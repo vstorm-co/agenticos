@@ -7,7 +7,7 @@ the mapped groups - and taken out again where no mapping names them any more.
 
 Four rules keep that from undoing anybody's decision:
 
-- **The sync touches only rows it made.** A membership an administrator created
+- **Manual memberships stay manual.** A membership an administrator created
   or took over (`source = manual`) keeps its role whatever the directory says;
   a group membership added by hand stays when the directory would remove it.
 - **An owner is never demoted or removed by it.** Ownership moves through
@@ -61,8 +61,8 @@ def normalize_groups(groups: Iterable[str]) -> frozenset[str]:
 def winning_role(mapped: Iterable[str]) -> str:
     """The role several matching mappings resolve to, by `ROLE_PRECEDENCE`.
 
-    Shared with the Discord sync (#2569), so one person matched in both ways is
-    resolved by the same order whichever sync runs.
+    Shared with the Discord sync (#2569) for each source's matching mappings.
+    Directory ownership takes priority separately when both sources admit.
     """
     roles = set(mapped)
     for role in ROLE_PRECEDENCE:
@@ -101,6 +101,8 @@ class DirectorySyncService:
             groups: The groups the identity provider reported for them, verbatim.
             provider: Which sign-in reported them (`ldap`, `oidc`), for the audit trail.
         """
+        from app.services.channels.discord_roles import DiscordRoleSync
+
         matched = await directory_mapping_repo.list_matching(
             self.db, external_groups=normalize_groups(groups)
         )
@@ -128,6 +130,37 @@ class DirectorySyncService:
             if membership.organization_id in by_organization:
                 continue
             if membership.role == OrgRoleName.OWNER:
+                continue
+            grant = await DiscordRoleSync(self.db).membership_grant(
+                membership.organization_id, user_id
+            )
+            # Discord was read without a row lock. Re-read ownership under the lock:
+            # an administrator may have taken this membership over during that call.
+            membership = await member_repo.get(
+                self.db,
+                organization_id=membership.organization_id,
+                user_id=user_id,
+                for_update=True,
+            )
+            if (
+                membership is None
+                or membership.source != MembershipSource.DIRECTORY
+                or membership.role == OrgRoleName.OWNER
+            ):
+                continue
+            if grant.uncertain:
+                continue
+            if grant.role is not None:
+                previous = membership.role
+                await member_repo.update_role(
+                    self.db, membership, role=grant.role, source=MembershipSource.DISCORD
+                )
+                await self._audit(
+                    "directory.member_handed_to_discord",
+                    user_id,
+                    membership.organization_id,
+                    {"from": previous, "to": grant.role, "provider": provider},
+                )
                 continue
             await end_membership(self.db, membership)
             await self._audit(
@@ -173,9 +206,21 @@ class DirectorySyncService:
                 {"role": role, "provider": provider},
             )
             return
-        if membership.source != MembershipSource.DIRECTORY:
+        if membership.role == OrgRoleName.OWNER or membership.source == MembershipSource.MANUAL:
             return
-        if membership.role == OrgRoleName.OWNER or membership.role == role:
+        if membership.source == MembershipSource.DISCORD:
+            previous = membership.role
+            await member_repo.update_role(
+                self.db, membership, role=role, source=MembershipSource.DIRECTORY
+            )
+            await self._audit(
+                "directory.member_taken_over",
+                user_id,
+                organization_id,
+                {"from": previous, "to": role, "provider": provider},
+            )
+            return
+        if membership.role == role:
             return
         previous = membership.role
         await member_repo.update_role(self.db, membership, role=role)

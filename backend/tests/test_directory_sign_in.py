@@ -243,3 +243,32 @@ class TestWinningRole:
 
     def test_the_first_role_of_the_precedence_wins(self):
         assert winning_role(["viewer", "operator", "admin"]) == "admin"
+
+
+@pytest.mark.security
+async def test_a_directory_membership_deleted_during_discord_lookup_is_not_ended_twice():
+    from app.services.channels.discord_roles import DiscordMembershipGrant
+
+    org, user = uuid.uuid4(), uuid.uuid4()
+    with (
+        patch(
+            "app.services.directory.sync.directory_mapping_repo.list_matching",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.directory.sync.member_repo.list_for_user_by_source",
+            new=AsyncMock(return_value=[MagicMock(organization_id=org, role="member")]),
+        ),
+        patch("app.services.directory.sync.member_repo.get", new=AsyncMock(return_value=None)),
+        patch(
+            "app.services.directory.sync.group_repo.organizations_with_directory_groups",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.channels.discord_roles.DiscordRoleSync.membership_grant",
+            new=AsyncMock(return_value=DiscordMembershipGrant(None, False)),
+        ),
+        patch("app.services.directory.sync.end_membership", new=AsyncMock()) as end,
+    ):
+        await DirectorySyncService(_db()).apply(user, [], provider="oidc")
+    end.assert_not_awaited()

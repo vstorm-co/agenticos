@@ -406,3 +406,107 @@ class TestTheSweepOrder:
 
 def test_a_mapping_row_says_which_role_it_maps():
     assert "guild=1100, role=7" in repr(DiscordRoleMapping(guild_id="1100", discord_role_id="7"))
+
+
+@pytest.mark.security
+class TestDirectoryMembershipGrant:
+    @pytest.mark.parametrize(
+        "roles,unknown,expected",
+        [
+            (frozenset({"7"}), set(), ("member", False)),
+            (frozenset(), set(), (None, False)),
+            (frozenset({"7"}), {"unread"}, ("member", True)),
+        ],
+    )
+    async def test_grant_distinguishes_a_known_role_from_an_incomplete_answer(
+        self, roles, unknown, expected
+    ):
+        org, user, bot = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        mapping = MagicMock(channel_bot_id=bot, guild_id="g", discord_role_id="7", role="member")
+        service = DiscordRoleSync(_db())
+        with (
+            patch(
+                f"{SYNC}.discord_role_mapping_repo.list_for_org",
+                new=AsyncMock(return_value=[mapping]),
+            ),
+            patch(
+                f"{SYNC}.channel_identity_repo.list_for_user",
+                new=AsyncMock(
+                    return_value=[
+                        MagicMock(platform="discord", platform_user_id="u", is_active=True)
+                    ]
+                ),
+            ),
+            patch.object(
+                service, "_held", new=AsyncMock(return_value=({(bot, "g"): roles}, unknown))
+            ),
+        ):
+            grant = await service.membership_grant(org, user)
+        assert (grant.role, grant.uncertain) == expected
+
+    @pytest.mark.parametrize("mapped,linked", [(False, True), (True, False)])
+    async def test_no_admission_mapping_or_linked_account_grants_nothing(self, mapped, linked):
+        service = DiscordRoleSync(_db())
+        with (
+            patch(
+                f"{SYNC}.discord_role_mapping_repo.list_for_org",
+                new=AsyncMock(return_value=[MagicMock(role="member" if mapped else None)]),
+            ),
+            patch(
+                f"{SYNC}.channel_identity_repo.list_for_user",
+                new=AsyncMock(
+                    return_value=[MagicMock(platform="discord", is_active=False)]
+                    if not linked
+                    else []
+                ),
+            ),
+            patch.object(service, "_held", new=AsyncMock()) as held,
+        ):
+            grant = await service.membership_grant(uuid.uuid4(), uuid.uuid4())
+        assert (grant.role, grant.uncertain) == (None, False)
+        held.assert_not_awaited()
+
+    @pytest.mark.parametrize("expired", [True, False])
+    async def test_network_budget_exhaustion_keeps_the_admission_uncertain(self, expired):
+        import asyncio
+
+        bot = uuid.uuid4()
+        mapping = MagicMock(channel_bot_id=bot, guild_id="g")
+        service = DiscordRoleSync(_db())
+        with (
+            patch(
+                f"{SYNC}.channel_bot_repo.get_by_ids",
+                new=AsyncMock(return_value={bot: MagicMock()}),
+            ),
+            patch(f"{SYNC}.discord_adapter", return_value=MagicMock()),
+            patch.object(service, "_ask", new=AsyncMock(side_effect=TimeoutError)) as ask,
+        ):
+            _, unknown = await service._held(
+                [mapping],
+                ["u"],
+                {},
+                deadline=0 if expired else asyncio.get_running_loop().time() + 10,
+            )
+        assert unknown == {(bot, "g")}
+        assert ask.await_count == (0 if expired else 1)
+
+
+@pytest.mark.security
+async def test_a_discord_ask_preflight_spends_one_allowance_when_routed_to_its_thread():
+    from dataclasses import replace
+
+    bot = MagicMock(id=uuid.uuid4())
+    identity = MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())
+    incoming = _incoming("discord")
+    router = ChannelMessageRouter()
+    with (
+        patch.object(router, "_check_rate_limit", new=AsyncMock()) as meter,
+        patch.object(DiscordRoleSync, "on_turn", new=AsyncMock()) as sync,
+    ):
+        await router._sync_discord_roles(bot, identity, incoming, MagicMock())
+        routed = replace(incoming, platform_chat_id="new-thread")
+        await router._sync_discord_roles(bot, identity, routed, MagicMock())
+        assert meter.await_count == 1 and sync.await_count == 1
+        identity.user_id = uuid.uuid4()
+        await router._sync_discord_roles(bot, identity, routed, MagicMock())
+        assert meter.await_count == 2 and sync.await_count == 2

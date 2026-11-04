@@ -1,5 +1,5 @@
 ---
-source_sha: "4f0ee9feecd6"
+source_sha: "febcabd0384e"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1633,6 +1633,10 @@ Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, pow
 których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
 członków kanału, jego szczegółów i wyszukiwania kanałów nie są oferowane na
 Discordzie.
+
+Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
+Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
+cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
 
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

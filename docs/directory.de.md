@@ -1,5 +1,5 @@
 ---
-source_sha: "8c879a4f5e7d"
+source_sha: "68b09dc9c9ff"
 ---
 
 # Verzeichnisanmeldung und Gruppen { #directory-sign-in-and-groups }
@@ -117,8 +117,7 @@ Reihenfolge hier festgelegt statt hergeleitet.
 
 ### Was die Synchronisierung nie anfasst { #what-the-sync-never-touches }
 
-Die Synchronisierung ändert nur Zeilen, die sie selbst angelegt hat. Daraus
-folgen vier Regeln:
+Für den automatischen Mitgliedschaftsabgleich gelten vier Regeln:
 
 - **Eine Mitgliedschaft, die ein Administrator angelegt hat, behält ihre Rolle.**
   Wer von Hand eingeladen wurde, behält die vergebene Rolle, selbst wenn eine
@@ -134,11 +133,21 @@ folgen vier Regeln:
 Einer persönlichen Organisation wird nie über eine Zuordnung beigetreten, und für
 eine solche kann keine Zuordnung angelegt werden.
 
-Eine Mitgliedschaft, die eine [Discord-Rollenzuordnung](channels.md#discord-roles)
-angelegt hat, ist mit **Discord** markiert statt mit **directory**. Jede
-Synchronisierung ändert nur ihre eigenen Zeilen, daher entfernt eine Anmeldung nie
-jemanden, den eine Discord-Rolle aufgenommen hat, und die Discord-Synchronisierung
-nie jemanden, den das Verzeichnis aufgenommen hat.
+Wenn eine Verzeichniszuordnung und eine [Discord-Rollenzuordnung](channels.md#discord-roles)
+den Zugang gewähren, hat das Verzeichnis bei der Anmeldung Vorrang: Es übernimmt
+die von Discord verwaltete Mitgliedschaft mit der Verzeichnisrolle. Der Verlust
+der Discord-Rolle entfernt diese Person dann nicht. Entfällt die Verzeichnisfreigabe,
+prüft die Anmeldung zuerst, ob ein verknüpftes Discord-Konto weiterhin Zugang gewährt.
+Dann wechselt dieselbe Mitgliedschaft zu **Discord**; API-Schlüssel, App-Einwilligungen
+und unabhängige Gruppenmitgliedschaften bleiben erhalten.
+
+Gewährt keine Quelle Zugang,
+wird die Mitgliedschaft regulär entfernt. Kann Discord nicht antworten oder läuft
+das Netzwerkbudget von zehn Sekunden ab, bleibt die Mitgliedschaft bis zur nächsten
+Anmeldung unverändert. Manuelle Mitgliedschaften und Eigentümer werden nie übernommen.
+Das Audit protokolliert `directory.member_taken_over` und
+`directory.member_handed_to_discord`. Gruppenmitgliedschaften behalten ihre eigene
+Quelle und ihre Abgleichregeln.
 
 !!! warning "Eine Zuordnung zu löschen entfernt die Menschen, die sie eingeordnet hat"
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "4f0ee9feecd6"
+source_sha: "febcabd0384e"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1755,6 +1755,10 @@ Zuordnung als `discord.mapping_created` oder `discord.mapping_deleted`.
 Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
 verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die Tools für
 Kanalmitglieder, Kanaldetails und Kanalsuche werden auf Discord nicht angeboten.
+
+Wenn beide Quellen Zugang gewähren, hat das Verzeichnis bei der Anmeldung Vorrang.
+Entfällt diese Freigabe, übernimmt eine verbleibende Discord-Rolle dieselbe
+Mitgliedschaft ohne Schlüssel zu widerrufen. Siehe [Mitgliedschaftsübergabe](directory.md#what-the-sync-never-touches).
 
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 

@@ -1245,6 +1245,7 @@ class DiscordAdapter(ChannelAdapter):
         name = str(command.get("name") or "")
         user = interaction_user(data)
         attachments: list[IncomingAttachment] = []
+        checked_for: tuple[str, str, str] | None = None
         if command.get("type") == 3 and name == ASK_ABOUT:
             target = (
                 (command.get("resolved") or {})
@@ -1284,21 +1285,21 @@ class DiscordAdapter(ChannelAdapter):
                 )
                 return
             key, guild = self._interaction_key(data, message_id=None)
-            refusal = await refusal_before_publishing(
-                IncomingMessage(
-                    platform=self.platform,
-                    bot_id=bot_id,
-                    platform_user_id=str(user.get("id") or ""),
-                    platform_chat_id=key,
-                    chat_type="group" if guild else "private",
-                    text=question,
-                    raw=data,
-                    platform_username=user.get("username"),
-                    platform_display_name=user.get("global_name"),
-                    message_id=interaction_id,
-                    addressed=True,
-                )
+            preflight = IncomingMessage(
+                platform=self.platform,
+                bot_id=bot_id,
+                platform_user_id=str(user.get("id") or ""),
+                platform_chat_id=key,
+                chat_type="group" if guild else "private",
+                text=question,
+                raw=data,
+                platform_username=user.get("username"),
+                platform_display_name=user.get("global_name"),
+                message_id=interaction_id,
+                addressed=True,
             )
+            refusal = await refusal_before_publishing(preflight)
+            checked_for = preflight.discord_roles_checked_for
             if refusal is not None:
                 await self._complete_ask_response(app_id, token, refusal)
                 return
@@ -1349,6 +1350,7 @@ class DiscordAdapter(ChannelAdapter):
                     message_id=interaction_id,
                     addressed=True,
                     attachments=attachments,
+                    discord_roles_checked_for=checked_for,
                 )
             ),
             name=f"discord-command:{bot_id}",

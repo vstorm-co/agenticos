@@ -100,7 +100,7 @@ out.
 
 ### What the sync never touches
 
-The sync only changes rows it made itself. Four rules follow from that:
+Automatic membership reconciliation respects these four rules:
 
 - **A membership an administrator made keeps its role.** Somebody invited by hand
   keeps the role they were given, even if a mapping matches them. They still join
@@ -115,10 +115,20 @@ The sync only changes rows it made itself. Four rules follow from that:
 A personal organization is never joined through a mapping, and a mapping cannot
 be created for one.
 
-A membership a [Discord role mapping](channels.md#discord-roles) made is marked
-**Discord** rather than **directory**. Each sync changes only its own rows, so a
-sign-in never removes somebody a Discord role placed, and the Discord sync never
-removes somebody the directory placed.
+When both a directory mapping and a [Discord role mapping](channels.md#discord-roles)
+admit somebody, the directory takes priority at sign-in: it takes over a
+Discord-managed membership with the directory's role. Losing the Discord role
+then cannot remove that person. When the directory grant ends, sign-in checks
+whether a linked Discord account still grants membership before removing it.
+A remaining grant transfers the same row to **Discord**, preserving API keys,
+connected-app consent and unrelated group memberships.
+
+No remaining grant removes
+the membership normally. An unreadable Discord admission mapping, including the
+ten-second network budget expiring, keeps the membership unchanged until a later
+sign-in. Manual memberships and owners are never taken over. The handovers are
+audited as `directory.member_taken_over` and `directory.member_handed_to_discord`.
+Group memberships retain their own source and reconciliation rules.
 
 !!! warning "Deleting a mapping removes the people it placed"
 

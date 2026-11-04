@@ -30,11 +30,13 @@ role changes as they happen, but only to a bot holding the privileged Server
 Members Intent, which a bot here does not request.
 """
 
+import asyncio
 import logging
 import secrets
 from collections import defaultdict
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -96,6 +98,12 @@ def discord_adapter() -> DiscordAdapter:
     return adapter
 
 
+@dataclass(frozen=True)
+class DiscordMembershipGrant:
+    role: str | None
+    uncertain: bool
+
+
 class DiscordRoleSync:
     """Applies an organization's Discord role mappings to one person."""
 
@@ -137,8 +145,7 @@ class DiscordRoleSync:
         matched = [
             mapping
             for mapping in mappings
-            if (mapping.channel_bot_id, mapping.guild_id) not in unknown
-            and mapping.discord_role_id
+            if mapping.discord_role_id
             in held.get((mapping.channel_bot_id, mapping.guild_id), frozenset())
         ]
         roles = [mapping.role for mapping in matched if mapping.role is not None]
@@ -157,6 +164,45 @@ class DiscordRoleSync:
                 keep={m.group_id for m in unread},
             )
         return not unknown
+
+    async def membership_grant(
+        self, organization_id: UUID, user_id: UUID
+    ) -> DiscordMembershipGrant:
+        """Read a directory leaver's remaining Discord grant before any membership lock.
+
+        Group-only mappings cannot admit somebody. Unread admission mappings keep
+        the current membership until Discord can answer; the whole network phase
+        gets ten seconds of the sign-in budget.
+        """
+        mappings = [
+            mapping
+            for mapping in await discord_role_mapping_repo.list_for_org(
+                self.db, organization_id=organization_id
+            )
+            if mapping.role is not None
+        ]
+        accounts = (
+            [
+                identity.platform_user_id
+                for identity in await channel_identity_repo.list_for_user(self.db, user_id=user_id)
+                if identity.platform == PLATFORM and identity.is_active
+            ]
+            if mappings
+            else []
+        )
+        if not mappings or not accounts:
+            return DiscordMembershipGrant(None, False)
+        held, unknown = await self._held(
+            mappings, accounts, {}, deadline=asyncio.get_running_loop().time() + 10
+        )
+        roles = [
+            mapping.role
+            for mapping in mappings
+            if mapping.role is not None
+            and mapping.discord_role_id
+            in held.get((mapping.channel_bot_id, mapping.guild_id), frozenset())
+        ]
+        return DiscordMembershipGrant(winning_role(roles) if roles else None, bool(unknown))
 
     async def on_turn(
         self, bot: ChannelBot, identity: ChannelIdentity, raw: dict[str, Any]
@@ -188,13 +234,19 @@ class DiscordRoleSync:
             await self.sync(organization_id, user_id)
 
     async def _held(
-        self, mappings: list[DiscordRoleMapping], accounts: list[str], seen: Seen
+        self,
+        mappings: list[DiscordRoleMapping],
+        accounts: list[str],
+        seen: Seen,
+        *,
+        deadline: float | None = None,
     ) -> tuple[dict[tuple[UUID, str], frozenset[str]], set[tuple[UUID, str]]]:
         """The roles held in each `(bot, server)` the mappings name, across the person's accounts.
 
         Also returns the pairs Discord could not be asked about for one of the
         accounts: a partial answer would read the unasked account as every role
-        taken away, so such a pair is unknown rather than empty.
+        taken away, so such a pair is unknown rather than empty. Confirmed roles
+        still grant access; uncertainty only prevents removals.
         """
         bots = await channel_bot_repo.get_by_ids(
             self.db, {mapping.channel_bot_id for mapping in mappings}
@@ -209,10 +261,22 @@ class DiscordRoleSync:
             for account in accounts:
                 roles = seen.get((bot_id, guild_id, account))
                 if roles is None:
-                    roles = await self._ask(adapter, bot, guild_id, account)
+                    if deadline is None:
+                        roles = await self._ask(adapter, bot, guild_id, account)
+                    else:
+                        remaining = deadline - asyncio.get_running_loop().time()
+                        if remaining <= 0:
+                            unknown.add((bot_id, guild_id))
+                            continue
+                        try:
+                            async with asyncio.timeout(remaining):
+                                roles = await self._ask(adapter, bot, guild_id, account)
+                        except TimeoutError:
+                            unknown.add((bot_id, guild_id))
+                            continue
                     if roles is None:
                         unknown.add((bot_id, guild_id))
-                        break
+                        continue
                 held[(bot_id, guild_id)] |= roles
         return held, unknown
 
