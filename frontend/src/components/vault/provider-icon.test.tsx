@@ -13,15 +13,6 @@ vi.mock("@/components/icons/custom-icons", async () => {
 });
 
 describe("ProviderIcon", () => {
-  it("can use text color inside a control without changing the default brand mark", () => {
-    const { container, rerender } = render(<ProviderIcon provider="openrouter" />);
-    const brandFill = container.querySelector("svg")?.getAttribute("fill");
-    rerender(<ProviderIcon provider="openrouter" mono />);
-    expect(container.querySelector("svg")).toHaveAttribute("fill", "currentColor");
-    rerender(<ProviderIcon provider="openrouter" />);
-    expect(container.querySelector("svg")).toHaveAttribute("fill", brandFill);
-  });
-
   it.each(["acme", "otari", "keenable"])("draws a deployment-supplied mark for %s", (provider) => {
     const { container } = render(<ProviderIcon provider={provider} />);
     const mark = container.firstElementChild as HTMLElement;

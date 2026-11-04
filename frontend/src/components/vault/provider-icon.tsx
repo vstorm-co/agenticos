@@ -30,8 +30,6 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
 export const MARKED_PROVIDERS: readonly string[] = Object.keys(PROVIDER_GLYPHS);
 
 interface ProviderIconProps {
-  /** Use text color for generated marks inside compact form controls. */
-  mono?: boolean;
   /** The catalog id, e.g. `openai` or `google_cloud`. */
   provider: string;
   /**
@@ -71,12 +69,12 @@ interface ProviderIconProps {
  * Always decorative. Every place this is used prints the provider beside it,
  * and an icon that repeated the name would make a screen reader say it twice.
  */
-export function ProviderIcon({ provider, brand, className, mono = false }: ProviderIconProps) {
+export function ProviderIcon({ provider, brand, className }: ProviderIconProps) {
   const custom = useCustomIcons();
   const glyph = (brand && BRAND_GLYPHS[brand as BrandName]) || PROVIDER_GLYPHS[provider];
   const size = cn("h-5 w-5 shrink-0", className);
 
-  if (glyph) return <GlyphIcon glyph={glyph} mono={mono} aria-hidden className={size} />;
+  if (glyph) return <GlyphIcon glyph={glyph} aria-hidden className={size} />;
   if (custom.has(provider)) return <CustomMark name={provider} className={size} />;
   const ServiceMark = SERVICE_MARKS[provider];
   if (ServiceMark) return <ServiceMark aria-hidden className={cn(size, "text-foreground")} />;
