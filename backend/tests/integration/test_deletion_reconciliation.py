@@ -904,9 +904,9 @@ class TestConcurrentSelfDeletes:
         arrivals = 0
         real_lock = user_repo.get_by_id_for_update
 
-        async def locking(db: Any, uid: uuid.UUID) -> Any:
+        async def locking(db: Any, uid: uuid.UUID, *, nowait: bool = False) -> Any:
             nonlocal arrivals
-            locked = await real_lock(db, uid)
+            locked = await real_lock(db, uid, nowait=nowait)
             arrivals += 1
             if arrivals >= 2:
                 both_hold_one.set()

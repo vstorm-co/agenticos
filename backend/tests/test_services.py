@@ -15,7 +15,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.schemas.user import UserCreate, UserUpdate
-from app.services.user import _DUMMY_HASH, UserService
+from app.services.user import _DUMMY_HASH, UserService, _LockedAccount
 
 
 class MockUser:
@@ -509,7 +509,6 @@ class TestUserServicePostgresql:
         """Test deleting user."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
-            patch("app.services.user.organization_repo") as mock_org_repo,
             # The two erasure steps of `delete` are repositories of their own:
             # the files to unlink, and the purge of what no cascade reaches.
             # `tests/integration/test_personal_data.py` is where both are tested
@@ -517,13 +516,18 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(
+                    return_value=_LockedAccount(user=mock_user, heirs=frozenset(), app_admins=())
+                ),
+            ),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])
             mock_purge.return_value.purge = AsyncMock()
             mock_generated.return_value.forget_user = AsyncMock()
-            mock_org_repo.list_created_by = AsyncMock(return_value=[])
-            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
             result = await user_service.delete(mock_user.id)
@@ -539,15 +543,19 @@ class TestUserServicePostgresql:
         run inside the transaction a rollback could undo (#1421)."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
-            patch("app.services.user.organization_repo") as mock_org_repo,
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
             patch("app.services.user.spawn_after_commit") as spawned,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(
+                    return_value=_LockedAccount(user=mock_user, heirs=frozenset(), app_admins=())
+                ),
+            ),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
-            mock_org_repo.list_created_by = AsyncMock(return_value=[])
-            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
             mock_personal.attachment_paths_of = AsyncMock(return_value=["chat/a/receipt.pdf"])
             mock_purge.return_value.purge = AsyncMock()
@@ -576,14 +584,18 @@ class TestUserServicePostgresql:
 
         with (
             patch("app.services.user.user_repo") as mock_repo,
-            patch("app.services.user.organization_repo") as mock_org_repo,
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(
+                    return_value=_LockedAccount(user=mock_user, heirs=frozenset(), app_admins=())
+                ),
+            ),
             patch.object(user_service, "_release_owned_rows", new=released),
         ):
-            mock_org_repo.list_created_by = AsyncMock(return_value=[])
-            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
             mock_repo.delete = AsyncMock(return_value=mock_user)
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])
             mock_purge.return_value.purge = AsyncMock()
@@ -599,14 +611,17 @@ class TestUserServicePostgresql:
     async def test_delete_not_found(self, user_service: UserService):
         """A missing user is refused up front, before any teardown is attempted."""
         with (
-            patch("app.services.user.user_repo") as mock_repo,
-            patch("app.services.user.organization_repo") as mock_org_repo,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(side_effect=NotFoundError(message="User not found")),
+            ),
+            patch.object(user_service, "_release_owned_rows", new=AsyncMock()) as released,
         ):
-            mock_org_repo.list_created_by = AsyncMock(return_value=[])
-            mock_repo.get_by_id_for_update = AsyncMock(return_value=None)
-
             with pytest.raises(NotFoundError):
                 await user_service.delete(uuid4())
+
+            released.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_an_admin_cannot_suspend_their_own_account(self, user_service: UserService):
@@ -704,7 +719,6 @@ class TestUserServicePostgresql:
     ):
         with (
             patch("app.services.user.user_repo") as mock_repo,
-            patch("app.services.user.organization_repo") as mock_org_repo,
             # The two erasure steps of `delete` are repositories of their own:
             # the files to unlink, and the purge of what no cascade reaches.
             # `tests/integration/test_personal_data.py` is where both are tested
@@ -712,14 +726,20 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(
+                    return_value=_LockedAccount(
+                        user=mock_user, heirs=frozenset(), app_admins=(uuid4(), uuid4())
+                    )
+                ),
+            ),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])
             mock_purge.return_value.purge = AsyncMock()
             mock_generated.return_value.forget_user = AsyncMock()
-            mock_org_repo.list_created_by = AsyncMock(return_value=[])
-            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
-            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[uuid4(), uuid4()])
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
             await user_service.admin_delete(mock_user.id, acting_admin_id=uuid4())
@@ -736,9 +756,17 @@ class TestUserServicePostgresql:
         whichever request re-reads it after the other commits is refused."""
         with (
             patch("app.services.user.user_repo") as mock_repo,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(
+                    return_value=_LockedAccount(
+                        user=mock_user, heirs=frozenset(), app_admins=(mock_user.id,)
+                    )
+                ),
+            ),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
-            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[mock_user.id])
             mock_repo.delete = AsyncMock()
 
             with pytest.raises(AuthorizationError):
@@ -755,7 +783,6 @@ class TestUserServicePostgresql:
         lone_admin = uuid4()
         with (
             patch("app.services.user.user_repo") as mock_repo,
-            patch("app.services.user.organization_repo") as mock_org_repo,
             # The two erasure steps of `delete` are repositories of their own:
             # the files to unlink, and the purge of what no cascade reaches.
             # `tests/integration/test_personal_data.py` is where both are tested
@@ -763,14 +790,20 @@ class TestUserServicePostgresql:
             patch("app.services.user.personal_data_repo") as mock_personal,
             patch("app.services.user.PersonalDataService") as mock_purge,
             patch("app.services.user.GeneratedMediaService") as mock_generated,
+            patch.object(
+                user_service,
+                "_lock_account",
+                new=AsyncMock(
+                    return_value=_LockedAccount(
+                        user=mock_user, heirs=frozenset(), app_admins=(lone_admin,)
+                    )
+                ),
+            ),
             patch.object(user_service, "_release_owned_rows", new=AsyncMock()),
         ):
             mock_personal.attachment_paths_of = AsyncMock(return_value=[])
             mock_purge.return_value.purge = AsyncMock()
             mock_generated.return_value.forget_user = AsyncMock()
-            mock_org_repo.list_created_by = AsyncMock(return_value=[])
-            mock_repo.get_by_id_for_update = AsyncMock(return_value=mock_user)
-            mock_repo.app_admin_ids_for_update = AsyncMock(return_value=[lone_admin])
             mock_repo.delete = AsyncMock(return_value=mock_user)
 
             await user_service.admin_delete(mock_user.id, acting_admin_id=lone_admin)

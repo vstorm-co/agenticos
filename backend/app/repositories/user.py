@@ -44,13 +44,21 @@ async def get_by_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> list[User]:
     return list(result.scalars().all())
 
 
-async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
-    """Fetch a user row and acquire a SELECT FOR UPDATE lock."""
-    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+async def get_by_id_for_update(
+    db: AsyncSession, user_id: UUID, *, nowait: bool = False
+) -> User | None:
+    """Fetch a user row and acquire a SELECT FOR UPDATE lock.
+
+    `nowait=True` raises (SQLSTATE `55P03`) instead of waiting when another
+    transaction holds a conflicting lock on the row.
+    """
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update(nowait=nowait))
     return result.scalar_one_or_none()
 
 
-async def get_by_id_for_no_key_update(db: AsyncSession, user_id: UUID) -> User | None:
+async def get_by_id_for_no_key_update(
+    db: AsyncSession, user_id: UUID, *, nowait: bool = False
+) -> User | None:
     """Fetch a user row and acquire a SELECT FOR NO KEY UPDATE lock.
 
     Weaker than FOR UPDATE: it serialises against another FOR UPDATE (so two
@@ -58,10 +66,11 @@ async def get_by_id_for_no_key_update(db: AsyncSession, user_id: UUID) -> User |
     with the FOR KEY SHARE an unrelated foreign-key write takes on this row - a
     channel identity relinked to this user, say - so locking a delete's heirs
     this way does not deadlock against those writes (#1134). `key_share=True`
-    is SQLAlchemy's spelling of FOR NO KEY UPDATE.
+    is SQLAlchemy's spelling of FOR NO KEY UPDATE. `nowait` as on
+    `get_by_id_for_update`.
     """
     result = await db.execute(
-        select(User).where(User.id == user_id).with_for_update(key_share=True)
+        select(User).where(User.id == user_id).with_for_update(key_share=True, nowait=nowait)
     )
     return result.scalar_one_or_none()
 
@@ -94,7 +103,7 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
     )
 
 
-async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:
+async def app_admin_ids_for_update(db: AsyncSession, *, nowait: bool = False) -> list[UUID]:
     """Every app admin's id, locked, in a fixed order.
 
     The lock is on the *set* rather than on one row, because what has to hold is
@@ -106,9 +115,13 @@ async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:
     `ORDER BY id` is what keeps that from being a deadlock instead: rows are
     locked in the order they are returned, so two requests taking the same set
     take it in the same order and one waits rather than both holding half of it.
+    `nowait` as on `get_by_id_for_update`.
     """
     result = await db.execute(
-        select(User.id).where(User.is_app_admin.is_(True)).order_by(User.id).with_for_update()
+        select(User.id)
+        .where(User.is_app_admin.is_(True))
+        .order_by(User.id)
+        .with_for_update(nowait=nowait)
     )
     return list(result.scalars().all())
 

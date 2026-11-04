@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Deleting an account no longer deadlocks with that person's own writes in their personal organization, such as creating a knowledge base, or with a failed ingest of their document being recorded. The deletion answered 500 and a retry succeeded. It now never waits for the person's user row while it holds their personal organization: it lets both go, waits, and tries again, and after five busy attempts it returns 409 and deletes nothing. The failed-ingest settlement now takes the document's organization and uploader before it marks the document failed. (#2682)
+
 ## [1.45.0] - 2026-11-04
 
 ### Added
