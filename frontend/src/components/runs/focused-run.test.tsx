@@ -26,12 +26,13 @@ import type { AgentRun } from "@/types/runs";
 
 const useRunMock = vi.fn();
 const prefetched = vi.fn();
+const useResumeRunMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useRun: (runId: string) => useRunMock(runId),
   useDelegatedRuns: () => ({ runs: [], total: 0, isLoading: false }),
   usePermissions: () => ({ can: () => true, isLoading: false }),
   usePrefetchRuns: (ids: unknown[]) => prefetched(ids),
-  useResumeRun: () => ({ mutate: vi.fn(), isPending: false }),
+  useResumeRun: (options?: unknown) => useResumeRunMock(options),
   useAgent: () => ({ agent: undefined }),
 }));
 vi.mock("@/components/runs/run-timeline", () => ({
@@ -95,9 +96,23 @@ function renderRun(runId = "run-2", onFocusRun = vi.fn()) {
 beforeEach(() => {
   useRunMock.mockReset();
   prefetched.mockReset();
+  useResumeRunMock.mockReset();
+  useResumeRunMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
 });
 
 describe("stepping to a neighbour", () => {
+  it("tells the resume a run outside any chat does not continue in one", () => {
+    serve({ run: run() });
+    renderRun();
+    expect(useResumeRunMock).toHaveBeenCalledWith({ continuesInChat: false });
+  });
+
+  it("passes whether the run continues in its chat to the resume", () => {
+    serve({ run: run({ continues_in_chat: true }) });
+    renderRun();
+    expect(useResumeRunMock).toHaveBeenCalledWith({ continuesInChat: true });
+  });
+
   it("says when the run repaired malformed tool arguments, and only then (#2105)", () => {
     serve({ run: run({ tool_args_repaired: 2 }) });
     renderRun();

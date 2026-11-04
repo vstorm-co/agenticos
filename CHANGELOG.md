@@ -23,6 +23,58 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
 
+### Fixed
+
+- The MCP servers Connected filter includes accessible organization and personal
+  accounts across catalog pages, including custom servers, with one card per
+  service and consistent filtering, result counts and pagination.
+- Saved MCP server links reopen accounts whose registry checks failed. URL grouping
+  preserves case-sensitive paths and query values, and reauthorization uses each
+  account's saved endpoint.
+
+## [1.45.0] - 2026-11-04
+
+### Added
+
+- Map a role in a Discord bot's server to a group of the organization, from the bot's row on **Channels** (#2569). A linked member who holds the role joins the group before each message to the bot and by a `sync-discord-roles` job every 15 minutes, and leaves it when the role is taken away. A mapping can also name an organization role, which admits linked holders who are not members yet. The sync changes only memberships it made, marked **Discord**: group memberships added by hand, directory memberships and owners are left alone, and Discord users who have not linked an account get nothing. Migration `0256_discord_role_mappings` adds the `discord_role_mappings` table and the `discord` membership source.
+
+### Fixed
+
+- Directory and Discord grants hand over the same organization membership instead of revoking API keys, connected-app consent and unrelated groups while the other source still grants access. The directory takes priority at sign-in; an unreadable Discord grant preserves the current membership. (#2674)
+
+## [1.44.0] - 2026-11-04
+
+### Added
+
+- A decision or an answer made in the console, the web chat or over a session API now continues a run asked in a chat, as the person who made it, and posts the answer in that chat. A key's decision is recorded and does not continue the run. (#2656)
+- `continues_in_chat` on approvals, on a run's single read and on the result of a resume or an answer. It is true when the server continues the run in its chat. (#2656)
+- A console **Stop**, an expiry and a decided run that nothing continued each tell the chat once, in one fixed message. (#2656)
+
+### Changed
+
+- **A session API client that decides a chat run no longer resumes it.** Read `continues_in_chat` and skip `POST /runs/{id}/resume` when it is true; a late resume answers 400 with the run's status. (#2656)
+- Chat runs whose approvals were all decided but never continued are now ended about an hour after the last decision. (#2656)
+- On the first sweep after upgrading, such runs decided more than 7 days ago are ended without a chat message. (#2656)
+- Schema: `agent_runs` gains a nullable `chat_notice_sent_at`, which records that a chat was told its run could not continue. No backfill. (#2656)
+
+### Fixed
+
+- Chat buttons answered elsewhere no longer act on a stale question. (#2656)
+- A Discord run parked before its server was removed from the bot's approved servers is no longer continued by a console decision; the server is read from Discord again and one that cannot be confirmed is refused. (#2656)
+- A chat button pressed at the moment the request is decided elsewhere is now closed instead of staying open. (#2656)
+- The question sweep no longer overwrites an answer pressed at the last moment. (#2656)
+- The approvals queue, the dashboard widget, the CSV export, the approval email and the in-app approval notification name the chat account instead of the publisher for an unlinked asker, and filtering the queue by the publisher no longer lists those calls. Who receives the email is unchanged. (#2656)
+
+## [1.43.0] - 2026-11-04
+
+### Added
+
+- Browse a live fullscreen graph of Markdown notes in project, sandbox and Desktop folder
+  file explorers. Wiki links, inline Markdown links and frontmatter relationships
+  supply the graph and backlinks, refreshed without an agent-generated App. Coloured
+  points, thin links and optional arrows fill the canvas, with floating panels,
+  folder/tag groups and the shared file tree for notes and attachments.
+
 ## [1.42.0] - 2026-11-04
 
 ### Added
@@ -81,6 +133,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
 
 - Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
+
 
 ## [1.38.4] - 2026-11-03
 
@@ -19896,7 +19949,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...HEAD
+[1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
+[1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
+[1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...v1.41.0
 [1.40.0]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...v1.40.0

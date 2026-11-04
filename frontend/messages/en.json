@@ -2274,6 +2274,9 @@
       "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
       "chosen": "{agent} · {folder}"
     },
+    "continuesInTheChat": "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
+    "continuedInTheChat": "Continued in the chat this was asked in",
+    "answerAlsoInTheChat": "The answer is also sent to the chat this was asked in.",
     "reasoning": {
       "levels": {
         "default": "Default",
@@ -2459,7 +2462,8 @@
         "waiting": "waiting {ago}",
         "description": "Runs paused on a tool call, waiting for a decision.",
         "someAgent": "An agent",
-        "forPerson": "for {email} · waiting {ago}"
+        "forPerson": "for {email} · waiting {ago}",
+        "forChatAccount": "for {name} (unverified) · waiting {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -4409,6 +4413,10 @@
         "title": "Connected channels",
         "body": "The platforms this organization is reachable on. A channel belongs to the organization, not one agent, so the same bot can serve every agent bound to it."
       },
+      "channels-discord-roles": {
+        "title": "Discord roles",
+        "body": "Map a role in a Discord server to a group here. Linked members who hold the role join the group, and leave it when the role is taken away."
+      },
       "channels-new": {
         "title": "Reach agents where people are",
         "body": "Register a chat platform - Slack, Telegram, Mattermost - and any agent can be bound to answer there. The bot's token is sealed in the vault. Add one here."
@@ -5100,6 +5108,14 @@
       "workflow-step-view": {
         "title": "Focus on one panel",
         "body": "On a phone, choose step settings, input or output to give the active panel the available space. Switching panels keeps your draft."
+      },
+      "project-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
+      },
+      "workspace-graph": {
+        "title": "Explore linked notes",
+        "body": "Graph view derives links and backlinks from Markdown and frontmatter. It refreshes while open, using only files you can read in this location."
       },
       "chat-coding-settings": {
         "title": "Coding model and reasoning",
@@ -6145,6 +6161,7 @@
       "credentialStored": "Stored. Leave blank to keep it.",
       "credentialUnset": "Not set.",
       "editBot": "Edit {bot}",
+      "mapDiscordRoles": "Discord roles for {bot}",
       "editChannel": "Edit channel",
       "editChannelDescription": "Change what this bot is called, or replace one of its credentials. A credential is never read back, so a field left blank keeps the value already stored.",
       "mattermostServerUrl": "Server URL",
@@ -6688,6 +6705,8 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
+      "askedInChat": "Asked in {platform} by {name} (unverified)",
+      "askedInChatThrough": "Asked in {platform} by {name} (unverified), through {bot}",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",
@@ -6733,7 +6752,11 @@
       "stepApprovalEdited": "Edited",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "decisionApprovedInChat": "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
+      "decisionRejectedInChat": "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
+      "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
+      "alreadyContinuing": "This run is already continuing in its chat."
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -10193,6 +10216,7 @@
     "membersBody": "Who this group reaches. People marked Directory were placed by the directory sign-in sync, which removes them again when the directory stops listing them.",
     "nobodyYet": "Nobody is in this group yet.",
     "directoryMemberHint": "Placed by the directory sign-in sync, which removes them when the directory stops listing them. Removing them here lasts until their next sign-in.",
+    "discordMemberHint": "Placed by the Discord role sync, which removes them when they lose the Discord role. Removing them here lasts until their next message to a bot.",
     "addMember": "Add a member",
     "chooseMember": "Choose a member",
     "everyoneIsIn": "Everyone is already in this group",
@@ -10349,6 +10373,34 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "discordRoles": {
+    "badge": "Discord",
+    "memberHint": "Kept in step by the Discord role sync, which removes this membership when the person loses the Discord role that admitted them. Changing the role here takes it over, and the sync leaves it alone from then on.",
+    "title": "Discord roles for {bot}",
+    "howItWorks": "A linked member who holds a mapped role in one of this bot's servers is placed in the group before each message to the bot, and by a sync every 15 minutes. They leave the group when the role is taken away. Group memberships added by hand are never removed. Discord users who have not linked their account get nothing.",
+    "empty": "No roles mapped yet.",
+    "row": "{server} · @{role} → {group}",
+    "deleteNamed": "Delete the mapping for @{role}",
+    "addMapping": "Map a role",
+    "deleteTitle": "Delete this mapping?",
+    "deleteBody": "The people @{role} placed leave its group, and the organization if it admitted them, at their next message to a bot or the next sync.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "add": "Add",
+    "mappingAdded": "Role mapped. People who hold it are placed at their next message to the bot.",
+    "mappingDeleted": "Mapping deleted",
+    "server": "Server",
+    "discordRole": "Discord role",
+    "group": "Group",
+    "orgRole": "Admit as",
+    "pickServer": "Choose a server",
+    "loadingServers": "Asking Discord…",
+    "pickRole": "Choose a role",
+    "pickGroup": "Choose a group",
+    "membersOnly": "Existing members only",
+    "membersOnlyHint": "Only people who are already members of this organization are placed in the group.",
+    "admitsHint": "A linked holder who is not a member yet joins this organization with the role above, and leaves it when the Discord role is taken away."
   },
   "apiKeys": {
     "title": "API keys",
@@ -12568,5 +12620,52 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Graph view",
+    "files": "File view",
+    "search": "Find a note, alias or tag",
+    "refresh": "Refresh",
+    "loading": "Reading Markdown notes…",
+    "automatic": "Refreshes every 30 seconds while visible",
+    "failed": "Could not read this workspace. Retry or check your access.",
+    "counts": "{pages, plural, =1 {1 note} other {# notes}} · {links, plural, =1 {1 link} other {# links}}",
+    "partial": "This graph is incomplete",
+    "limits": "The scan reads up to 200 notes, 256 KiB per file and 8 MiB in total, with up to 256 relationships per note and 2048 across the graph. Refresh after editing, or narrow the file set. Aliases and tags share a limit of 128 entries per note and 4096 across the graph.",
+    "skipped": "Skipped: {path}",
+    "unreadable": "Could not read: {path}",
+    "invalidFrontmatter": "Invalid YAML frontmatter. Metadata ignored for these notes: {paths}",
+    "empty": "Add Markdown notes with wiki links, Markdown links or frontmatter relationships to build a graph.",
+    "open": "Open note",
+    "notes": "Notes",
+    "noMatches": "No matching notes",
+    "outgoing": "Links to",
+    "backlinks": "Backlinks",
+    "none": "None",
+    "unresolved": "Unresolved links",
+    "missing": "{target} — missing from this scan",
+    "ambiguous": "{target} — more than one matching note",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset view",
+    "overview": "Graph overview",
+    "details": "Note details",
+    "closeDetails": "Close note details",
+    "showLabels": "Show all labels",
+    "showArrows": "Show direction arrows",
+    "fileBrowser": "Files",
+    "allFiles": "All files",
+    "clearFolder": "Clear folder filter",
+    "filterFolder": "Filter graph to {path}",
+    "fileBrowserHint": "Only indexed Markdown notes appear in the graph. Other files open in the file viewer.",
+    "groups": "Groups",
+    "resetFilters": "Reset filters",
+    "groupBy": "Group by",
+    "folders": "Folders",
+    "tags": "Tags",
+    "toggleGroup": "Toggle group {group}",
+    "rootFolder": "Root folder",
+    "untagged": "Untagged",
+    "visibleNotes": "{visible} of {total} notes visible"
   }
 }

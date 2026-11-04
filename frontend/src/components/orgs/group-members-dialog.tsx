@@ -4,6 +4,7 @@ import { Crown, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DirectoryBadge } from "@/components/orgs/directory-badge";
+import { DiscordBadge } from "@/components/orgs/discord-badge";
 import { GroupMemberAdd } from "@/components/orgs/group-member-add";
 import { MemberIdentity } from "@/components/orgs/member-identity";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -72,6 +73,9 @@ export function GroupMembersDialog({ orgId, group, canManage, onClose }: GroupMe
                 <MemberIdentity member={member} className="flex-1" />
                 {member.source === "directory" && (
                   <DirectoryBadge explanation={t("directoryMemberHint")} />
+                )}
+                {member.source === "discord" && (
+                  <DiscordBadge explanation={t("discordMemberHint")} />
                 )}
                 {member.is_lead && (
                   <Badge variant="secondary" className="gap-1">

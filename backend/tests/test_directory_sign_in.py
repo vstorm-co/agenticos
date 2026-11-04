@@ -239,9 +239,68 @@ class TestTheSyncRacingItself:
 class TestWinningRole:
     def test_a_role_outside_the_catalog_resolves_to_the_least_a_member_holds(self):
         """The schema forbids it, so such a row was written some other way - fail low."""
-        assert winning_role([MagicMock(role="superuser")]) == "viewer"
+        assert winning_role(["superuser"]) == "viewer"
 
     def test_the_first_role_of_the_precedence_wins(self):
-        mappings = [MagicMock(role="viewer"), MagicMock(role="operator"), MagicMock(role="admin")]
+        assert winning_role(["viewer", "operator", "admin"]) == "admin"
 
-        assert winning_role(mappings) == "admin"
+
+@pytest.mark.security
+async def test_a_directory_membership_deleted_during_discord_lookup_is_not_ended_twice():
+    from app.services.channels.discord_roles import DiscordMembershipGrant
+
+    org, user = uuid.uuid4(), uuid.uuid4()
+    with (
+        patch(
+            "app.services.directory.sync.directory_mapping_repo.list_matching",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.directory.sync.member_repo.list_for_user_by_source",
+            new=AsyncMock(return_value=[MagicMock(organization_id=org, role="member")]),
+        ),
+        patch("app.services.directory.sync.member_repo.get", new=AsyncMock(return_value=None)),
+        patch(
+            "app.services.directory.sync.group_repo.organizations_with_directory_groups",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.channels.discord_roles.DiscordRoleSync.membership_grant",
+            new=AsyncMock(return_value=DiscordMembershipGrant(None, frozenset())),
+        ),
+        patch("app.services.directory.sync.end_membership", new=AsyncMock()) as end,
+    ):
+        await DirectorySyncService(_db()).apply(user, [], provider="oidc")
+    end.assert_not_awaited()
+
+
+async def test_directory_handovers_share_one_deadline_across_organizations():
+    from app.services.channels.discord_roles import DiscordMembershipGrant
+
+    user = uuid.uuid4()
+    with (
+        patch(
+            "app.services.directory.sync.directory_mapping_repo.list_matching",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.directory.sync.member_repo.list_for_user_by_source",
+            AsyncMock(
+                return_value=[
+                    MagicMock(organization_id=uuid.uuid4(), role="member") for _ in range(3)
+                ]
+            ),
+        ),
+        patch("app.services.directory.sync.member_repo.get", AsyncMock(return_value=None)),
+        patch(
+            "app.services.directory.sync.group_repo.organizations_with_directory_groups",
+            AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.channels.discord_roles.DiscordRoleSync.membership_grant",
+            AsyncMock(return_value=DiscordMembershipGrant(None, frozenset())),
+        ) as lookup,
+    ):
+        await DirectorySyncService(_db()).apply(user, [], provider="oidc")
+    deadlines = [call.kwargs["deadline"] for call in lookup.await_args_list]
+    assert len(deadlines) == 3 and len(set(deadlines)) == 1

@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.42.0"
+version = "1.45.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -757,6 +757,9 @@ include = [
     "app/services/channels/prompts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
+    "app/services/channels/handback.py",
+    "app/services/channels/continuation.py",
+    "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
@@ -1119,6 +1122,13 @@ include = [
     "app/api/routes/v1/directory_mappings.py",
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
+    # Discord server roles mapped to groups, and the sync that applies them (#2569).
+    "app/db/models/discord_role_mapping.py",
+    "app/repositories/discord_role_mapping.py",
+    "app/schemas/discord_role_mapping.py",
+    "app/services/discord_role_mapping.py",
+    "app/services/channels/discord_roles.py",
+    "app/worker/tasks/channel_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.
@@ -1415,6 +1425,9 @@ include = [
     "app/services/channels/prompts.py",
     # Next steps offered as buttons, a press of which is the next message (#2301).
     "app/services/channels/next_steps.py",
+    "app/services/channels/handback.py",
+    "app/services/channels/continuation.py",
+    "app/services/parked_runs.py",
     "app/services/channels/slack_answer.py",
     "app/services/channels/slack_app.py",
     "app/services/channels/slack_manifest.py",
@@ -1807,6 +1820,13 @@ include = [
     "app/api/routes/v1/directory_mappings.py",
     "app/api/routes/v1/directory_auth.py",
     "app/api/routes/v1/_directory_handoff.py",
+    # Discord server roles mapped to groups, and the sync that applies them (#2569).
+    "app/db/models/discord_role_mapping.py",
+    "app/repositories/discord_role_mapping.py",
+    "app/schemas/discord_role_mapping.py",
+    "app/services/discord_role_mapping.py",
+    "app/services/channels/discord_roles.py",
+    "app/worker/tasks/channel_tasks.py",
     # Node contracts, registry and graph validation (#1786). Mirrors the
     # capability registry's split: typed definitions in code, a graph checked
     # against them before it can be published.

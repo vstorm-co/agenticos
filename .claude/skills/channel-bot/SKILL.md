@@ -35,6 +35,7 @@ labels as well. `build_message_history` carries opaque identity references;
 normalization and approval resumption. `ChannelReferencePart` marks reference-only
 parts omitted from run manifests. Screen editable reference values with the input
 policy, keeping fixed transport metadata out of question checks. Keep JSON envelopes out of `Message.content`.
+A decision made outside the chat (console, web chat, session API) continues the run through `app/services/channels/continuation.py`, and the endings made outside it (expiry, stop, a stranded run) post through `handback.post_notice`.
 Channel metadata remains request-only reference data, outside system instructions
 and the guarded input. Never infer identity or authorization from display labels.
 

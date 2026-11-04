@@ -60,7 +60,7 @@ async def test_a_discord_bot_cannot_be_switched_to_a_webhook(webhook: dict[str, 
         pytest.raises(BadRequestError) as refused,
     ):
         service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-        await service.update(bot.id, ChannelBotUpdate(**webhook))
+        await service.update(bot.id, ChannelBotUpdate(**webhook), MagicMock())
     assert refused.value.details["fields"][0]["field"] == "webhook_mode"
     update.assert_not_awaited()
 
@@ -131,9 +131,14 @@ class TestPublishingAQuestionAsTheBot:
         return router
 
     async def _ask(self, router: ChannelMessageRouter) -> str | None:
-        with patch(
-            "app.services.channels.router.channel_bot_repo.get_for_inbound",
-            AsyncMock(return_value=self._bot),
+        # The role sync runs first so the membership check sees what the
+        # sender's roles give; it has its own tests and reads the database.
+        with (
+            patch(
+                "app.services.channels.router.channel_bot_repo.get_for_inbound",
+                AsyncMock(return_value=self._bot),
+            ),
+            patch.object(ChannelMessageRouter, "_sync_discord_roles", AsyncMock()),
         ):
             return await router.refusal_before_publishing(self._incoming(), MagicMock())
 
@@ -273,7 +278,9 @@ async def test_an_update_cannot_store_discord_approvals_on_another_platform() ->
     ):
         with pytest.raises(BadRequestError):
             await service.update(
-                row.id, ChannelBotUpdate(access_policy=AccessPolicy(discord_guild_ids=["100"]))
+                row.id,
+                ChannelBotUpdate(access_policy=AccessPolicy(discord_guild_ids=["100"])),
+                MagicMock(),
             )
         saved.assert_not_awaited()
 

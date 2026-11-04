@@ -709,6 +709,18 @@ def get_org_channel_bot_service(db: DBSession, org: ActiveOrg) -> ChannelBotServ
 
 OrgChannelBotSvc = Annotated[ChannelBotService, Depends(get_org_channel_bot_service)]
 
+from app.services.discord_role_mapping import DiscordRoleMappingService
+
+
+def get_discord_role_mapping_service(db: DBSession) -> DiscordRoleMappingService:
+    """Create DiscordRoleMappingService instance with database session."""
+    return DiscordRoleMappingService(db)
+
+
+DiscordRoleMappingSvc = Annotated[
+    DiscordRoleMappingService, Depends(get_discord_role_mapping_service)
+]
+
 from app.services.model_profile import ModelProfileService
 
 
@@ -807,6 +819,18 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
+
+from app.services.parked_runs import ParkedRunService
+
+
+def get_parked_run_service(
+    db: DBSession, runner: AgentRunnerSvc, approvals: ApprovalSvc
+) -> ParkedRunService:
+    """Create ParkedRunService from the runner and approvals services of the same request."""
+    return ParkedRunService(db, runner=runner, approvals=approvals)
+
+
+ParkedRunSvc = Annotated[ParkedRunService, Depends(get_parked_run_service)]
 
 from app.services.run_export import RunExportService
 
