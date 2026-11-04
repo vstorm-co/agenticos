@@ -616,6 +616,19 @@ describe("AgentMap pan and zoom", () => {
     expect(content.style.transform).toContain("translate(50px, 25px)");
   });
 
+  it("forgets a press released outside the map, so a later move does not pan", () => {
+    const { content, viewport } = draw();
+    const capture = vi.fn();
+    viewport.setPointerCapture = capture;
+
+    pointer(viewport, "pointerdown", { pointerId: 1, clientX: 100, clientY: 100 });
+    pointer(document.body, "pointerup", { pointerId: 1 });
+    pointer(viewport, "pointermove", { pointerId: 1, clientX: 300, clientY: 300 });
+
+    expect(capture).not.toHaveBeenCalled();
+    expect(content.style.transform).toContain("translate(0px, 0px)");
+  });
+
   it("stops panning when the pointer is released", () => {
     const { content, viewport } = draw();
     viewport.setPointerCapture = vi.fn();
