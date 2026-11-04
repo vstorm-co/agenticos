@@ -1,5 +1,5 @@
 ---
-source_sha: "2ff962c2e301"
+source_sha: "88717bae14a3"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -671,17 +671,22 @@ daraus herunterladen, und sonst niemand.
 Das Zip enthält, was der Bereich zeigt. Die oben genannten Präfixe und
 Werkzeugordner (`.git`, `node_modules`, `.venv`, ...) bleiben draußen. Die
 Auflistung für ein Zip reicht 64 Ebenen tief statt sechs, weil ein Repository
-tiefer ist als eine Seite voller Kacheln. Die Dateien liegen unter einem obersten
-Ordner, der wie der heruntergeladene Ordner heißt.
+tiefer ist als eine Seite voller Kacheln, und fragt den Host nach bis zu 100.000
+Einträgen, weil der Host auch die ausgeblendeten Ordner auflistet. Die Dateien
+liegen unter einem obersten Ordner, der wie der heruntergeladene Ordner heißt.
 
 Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner
 mit mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Dateien oder mehr als
 `WORKSPACE_ARCHIVE_MAX_BYTES`, oder einer, den der Host nicht vollständig
 auflisten konnte, wird mit 413 abgelehnt; ein Zip, dem stillschweigend Dateien
 fehlen, wäre schlimmer. Danach werden die Dateien einzeln gelesen und gestreamt.
-Wächst eine Datei nach der Auflistung über die Byte-Grenze oder verschwindet sie,
-bricht der Stream ab, und der Download ist unvollständig und lässt sich nicht
-öffnen.
+
+Eine Datei, die sich nach dem Start des Downloads nicht lesen lässt, wird
+ausgelassen und mit dem Grund in einer `NOT-INCLUDED.txt` oben im Zip genannt. Das
+ist eine Datei, die seit der Auflistung gelöscht wurde, oder eine, die größer ist
+als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`, standardmäßig
+8 MiB). Wachsen die Dateien nach der Auflistung über die Byte-Grenze, bricht der
+Stream ab, und der Download ist unvollständig und lässt sich nicht öffnen.
 
 Ein Ordner auf diesem Computer, in der Desktop-App, hat keine solche Schaltfläche:
 Er ist bereits ein Ordner auf diesem Computer.

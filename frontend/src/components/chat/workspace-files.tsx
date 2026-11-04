@@ -19,7 +19,7 @@ import { cn, formatBytes } from "@/lib/utils";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { treeOf, type WorkspaceTreeNode } from "@/lib/workspace-tree";
 import { suffixOf, resolveFileKind } from "@/lib/file-kinds";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import {
   downloadConversationFolder,
   workspaceFileAccess,
@@ -164,7 +164,9 @@ export function WorkspaceFiles({
     source?.kind === "conversation" && files.length > 0
       ? (folder: string) =>
           void downloadConversationFolder(source.id, folder).catch((err: unknown) =>
-            toast.error(getErrorMessage(err, tErrors, t("zipFailed"))),
+            // The server's refusal - a folder too large, one gone - says why in
+            // its own words; anything else is the browser's, in English.
+            toast.error(err instanceof ApiError ? getErrorMessage(err, tErrors) : t("zipFailed")),
           )
       : null;
 

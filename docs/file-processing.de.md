@@ -1,5 +1,5 @@
 ---
-source_sha: "20c2ae43ec08"
+source_sha: "265f1ab5cde8"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -175,10 +175,12 @@ Für einen Agent mit Workspace werden die Members unter
 `uploads/<erste 8 Hex-Zeichen der Datei-ID>-<Archivname ohne .zip>/` geschrieben,
 ihre Ordner bleiben erhalten — `repo.zip` mit `repo/src/app.py` wird zu
 `uploads/3f2a1b9c-repo/repo/src/app.py`. Der Verweis nennt diesen Ordner und
-beginnt mit den ersten Zeilen der Member-Liste. Lehnt der Workspace einen
-Schreibvorgang mittendrin ab, wird der Ordner entfernt und dem Modell gesagt,
-dass das Archiv nicht geschrieben werden konnte — ein halb entpackter Baum wird
-also nie für einen ganzen gehalten.
+beginnt mit den ersten Zeilen der Member-Liste. Die Members werden einzeln
+geschrieben, sodass immer nur einer im Speicher liegt. Lehnt der Workspace einen
+Schreibvorgang mittendrin ab oder wird der Turn während des Entpackens gestoppt,
+wird der Ordner entfernt: Dem Modell wird gesagt, dass das Archiv nicht
+geschrieben werden konnte, und ein halb entpackter Baum wird nie für einen ganzen
+gehalten.
 
 Ein Agent ohne Workspace hat keinen Ort zum Entpacken. Dem Modell wird gesagt,
 dass es das Archiv nicht öffnen kann, und es bekommt die Member-Liste nicht, denn
@@ -431,6 +433,11 @@ Dateitypen und das Größenlimit für Chat-Uploads: Von den Anhängen, die ein P
 liefert, werden nur die ersten 10 pro Nachricht berücksichtigt, und 25 MiB pro
 Nachricht. Ein ausgelassener Anhang wird mit dem Grund aufgeführt, und ein Testlauf
 holt nichts ab.
+
+Ein `.zip` oder `.tar.gz` wird als `type_not_allowed`
+ausgelassen: Ein Chat prüft ein Archiv Member für Member, bevor er es entpackt
+(siehe [Archive](#archives)), und ein Archiv, das ein Workflow erhält, prüft
+nichts.
 
 Eine HTML-Datei in einem Workflow, etwa eine gespeicherte Seite oder ein Anhang,
 wird von [`html.parse`](reference/workflow-nodes.md#html-parse) gelesen, nicht von

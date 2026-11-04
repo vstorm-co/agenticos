@@ -1,5 +1,5 @@
 ---
-source_sha: "20c2ae43ec08"
+source_sha: "265f1ab5cde8"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -171,10 +171,11 @@ Para un agent con workspace, los miembros se escriben en
 `uploads/<primeros 8 hex del id del archivo>-<nombre del archivo sin .zip>/`,
 conservando sus carpetas: `repo.zip` con `repo/src/app.py` pasa a ser
 `uploads/3f2a1b9c-repo/repo/src/app.py`. La referencia nombra esa carpeta y
-empieza con las primeras líneas de la lista de miembros. Si el workspace rechaza
-una escritura a mitad de camino, la carpeta se elimina y al modelo se le dice que
-el archivo no se pudo escribir, así que un árbol descomprimido a medias nunca se
-toma por uno entero.
+empieza con las primeras líneas de la lista de miembros. Los miembros se escriben
+de uno en uno, así que solo hay uno en memoria a la vez. Si el workspace rechaza
+una escritura a mitad de camino, o el turno se detiene durante la descompresión, la
+carpeta se elimina: al modelo se le dice que el archivo no se pudo escribir, y un
+árbol descomprimido a medias nunca se toma por uno entero.
 
 Un agent sin workspace no tiene dónde descomprimirlo. Al modelo se le dice que no
 puede abrir el archivo y no recibe la lista de miembros, porque una lista de rutas
@@ -415,6 +416,11 @@ sondeo que leyó el buzón. Siguen la lista de tipos de archivo permitidos y el 
 de tamaño de subida del chat: de los adjuntos que lista un buzón solo se consideran
 los 10 primeros por mensaje, y 25 MiB por mensaje. Uno que se deja fuera se lista
 con el motivo, y una ejecución de prueba no descarga nada.
+
+Un `.zip` o `.tar.gz`
+se deja fuera como `type_not_allowed`: un chat comprueba un archivo comprimido
+miembro a miembro antes de descomprimirlo (ver
+[Archivos comprimidos](#archives)), y nada comprueba uno que recibe un workflow.
 
 Un archivo HTML en un workflow, como una página guardada o un adjunto, lo lee
 [`html.parse`](reference/workflow-nodes.md#html-parse), no `text.extract`, que lee

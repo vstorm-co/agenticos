@@ -1,5 +1,5 @@
 ---
-source_sha: "20c2ae43ec08"
+source_sha: "265f1ab5cde8"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -166,9 +166,11 @@ Dla agenta z workspace'em elementy są zapisywane w
 `uploads/<pierwsze 8 znaków hex id pliku>-<nazwa archiwum bez .zip>/` z
 zachowaniem folderów — `repo.zip` zawierające `repo/src/app.py` staje się
 `uploads/3f2a1b9c-repo/repo/src/app.py`. Odwołanie podaje ten folder i zaczyna
-się od pierwszych linii listy elementów. Jeśli workspace w połowie odmówi zapisu,
-folder jest usuwany, a model dowiaduje się, że archiwum nie dało się zapisać —
-więc nigdy nie bierze w połowie rozpakowanego drzewa za całe.
+się od pierwszych linii listy elementów. Elementy są zapisywane po jednym, więc w
+pamięci jest naraz tylko jeden. Jeśli workspace w połowie odmówi zapisu albo turn
+zostanie zatrzymany w trakcie rozpakowywania, folder jest usuwany: model dowiaduje
+się, że archiwum nie dało się zapisać, i nigdy nie bierze w połowie rozpakowanego
+drzewa za całe.
 
 Agent bez workspace'u nie ma gdzie go rozpakować. Model dowiaduje się, że nie
 może otworzyć archiwum, i nie dostaje listy elementów, bo lista ścieżek
@@ -398,6 +400,11 @@ czytał skrzynkę. Obowiązuje je lista dozwolonych typów plików i limit rozmi
 uploadu czatu: z załączników podanych przez skrzynkę brane jest pod uwagę tylko
 pierwsze 10 na wiadomość, oraz 25 MiB na wiadomość. Pominięty załącznik jest
 wypisany z powodem, a testowy run niczego nie pobiera.
+
+`.zip` albo `.tar.gz` jest
+pomijany jako `type_not_allowed`: czat sprawdza archiwum element po elemencie,
+zanim je rozpakuje (zob. [Archiwa](#archives)), a archiwum, które dostaje workflow,
+nie sprawdza nic.
 
 Plik HTML w workflow, na przykład zapisaną stronę albo załącznik, czyta
 [`html.parse`](reference/workflow-nodes.md#html-parse), a nie `text.extract`, który

@@ -230,6 +230,14 @@ _ZIP_MAX_DEPTH = 64
 The panel shows six levels because it is a page; a zip of a repository is the
 repository, and `src/pkg/sub/module/tests/fixtures/x.json` is an ordinary path."""
 
+_ZIP_LISTED_ENTRIES = 100_000
+"""How many entries a folder's zip asks the host to list - the host's own ceiling.
+
+Not `WORKSPACE_ARCHIVE_MAX_ENTRIES`, which bounds the files that go *in* the
+zip: the host walks everything, the tooling folders `browsable` leaves out
+included, so a project with a `node_modules` of thirty thousand files and a
+dozen of its own would be refused for files nobody asked to download."""
+
 
 @dataclass(frozen=True)
 class WorkspaceContents:
@@ -2207,7 +2215,9 @@ class SandboxWorkspaceService:
         whole before a byte is sent, so a folder past the bounds is refused with
         a status rather than cut off mid-download. The listing reaches deeper
         than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts short is refused
-        rather than zipped incomplete.
+        rather than zipped incomplete. A file the host will not serve once the
+        stream has started - past its own per-read ceiling, or gone since the
+        listing - is left out and named in the zip's `NOT-INCLUDED.txt`.
 
         Args:
             folder: As the listing spells it; empty for the whole workspace.
@@ -2257,8 +2267,7 @@ class SandboxWorkspaceService:
                         row.session_id or row.scope_key,
                         folder,
                         max_depth=_ZIP_MAX_DEPTH,
-                        # Folders count as entries too, and are not what the bound is for.
-                        max_entries=settings.WORKSPACE_ARCHIVE_MAX_ENTRIES * 2,
+                        max_entries=_ZIP_LISTED_ENTRIES,
                     )
                 )
             except Exception as exc:
@@ -2268,7 +2277,7 @@ class SandboxWorkspaceService:
         if tree.truncated:
             raise ExportTooLargeError(
                 message="This folder is too large to download as one zip. Download a smaller folder.",
-                details={"max_entries": settings.WORKSPACE_ARCHIVE_MAX_ENTRIES},
+                details={"max_listed": _ZIP_LISTED_ENTRIES, "max_depth": _ZIP_MAX_DEPTH},
             )
         return list(tree.entries)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "2ff962c2e301"
+source_sha: "88717bae14a3"
 ---
 
 # La sandbox { #the-sandbox }
@@ -651,16 +651,22 @@ carpeta suya, y nadie más.
 El zip contiene lo que muestra el panel. Los prefijos y las carpetas de
 herramientas citados arriba (`.git`, `node_modules`, `.venv`, ...) se dejan fuera.
 El listado para un zip llega a 64 niveles de profundidad, no a seis, porque un
-repositorio es más profundo que una página de mosaicos. Los archivos quedan bajo
-una carpeta superior con el nombre de la carpeta descargada.
+repositorio es más profundo que una página de mosaicos, y pide al host hasta 100.000
+entradas, porque el host lista también las carpetas ocultas. Los archivos quedan
+bajo una carpeta superior con el nombre de la carpeta descargada.
 
 Se lista entera antes de enviar el primer byte. Una carpeta con más de
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` archivos o más de `WORKSPACE_ARCHIVE_MAX_BYTES`, o
 una que el host no pudo listar entera, se rechaza con un 413; un zip al que le
 faltan archivos sin decirlo sería peor. Después los archivos se leen y se
-transmiten de uno en uno. Si un archivo crece por encima del límite de bytes, o
-desaparece, después del listado, la transmisión se detiene y la descarga queda
-incompleta y no se abre.
+transmiten de uno en uno.
+
+Un archivo que no se puede leer una vez empezada la descarga se deja fuera y se
+nombra, con el motivo, en un `NOT-INCLUDED.txt` en la parte superior del zip. Es un
+archivo borrado después del listado, o uno mayor que el propio límite de lectura
+del host (`SANDBOXD_MAX_READ_BYTES`, 8 MiB por defecto). Si los archivos crecen por
+encima del límite de bytes después del listado, la transmisión se detiene, y la
+descarga queda incompleta y no se abre.
 
 Una carpeta de este ordenador, en la app de escritorio, no tiene ese botón: ya es
 una carpeta de este ordenador.

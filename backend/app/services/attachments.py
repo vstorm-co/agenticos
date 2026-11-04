@@ -35,9 +35,10 @@ from app.core.config import settings
 from app.db.models.chat_file import ChatFile
 from app.db.session import get_db_context
 from app.repositories import chat_file_repo
+from app.services.file_storage import ARCHIVE_FILE_TYPE as ARCHIVE
 from app.services.file_storage import get_file_storage, resolve_format
 from app.services.file_upload import TiffConversion, cap_text, tiff_pages_to_png
-from app.services.workspace_archive import read_archive, unpack_into, unpacked_name
+from app.services.workspace_archive import unpack_into, unpacked_name
 
 if TYPE_CHECKING:
     from pydantic_ai_harness import GuardrailResult
@@ -55,9 +56,6 @@ _TEXT_BEARING = {"pdf", "docx", "spreadsheet", "document", "presentation", "emai
 """File types whose extracted text is worth writing beside the original."""
 
 _LIT_READABLE = {"pdf", "docx", "spreadsheet", "document", "presentation"}
-
-ARCHIVE = "archive"
-"""The `file_type` of a `.zip` or `.tar.gz`, which is unpacked rather than written (#2479)."""
 """What a `lit`-carrying runtime reads itself, so the sibling is redundant there.
 `email` is deliberately absent: `lit` cannot read a `.msg`, so it always gets one."""
 
@@ -800,17 +798,16 @@ class AttachmentRouter:
 async def _put(workspace: Workspace, chat_file: ChatFile, path: str, data: bytes) -> None:
     """Write one attachment at `path`: its bytes, or for an archive its tree.
 
-    The archive is read again rather than trusted from the upload's check: the
-    rows that reach here were validated when they were stored, and re-reading
-    costs one inflate on the file pool against writing whatever the store holds.
+    The archive is checked again rather than trusted from the upload's check:
+    the rows that reach here were validated when they were stored, and checking
+    costs an inflate on the file pool against writing whatever the store holds.
     """
     if chat_file.file_type != ARCHIVE:
         await workspace.write_bytes(path, data)
         return
-    members = await run_blocking(
-        read_archive, data, resolve_format(chat_file.mime_type, chat_file.filename)
+    await unpack_into(
+        workspace, path, data, resolve_format(chat_file.mime_type, chat_file.filename)
     )
-    await unpack_into(workspace, path, members)
 
 
 async def load_attached_files(

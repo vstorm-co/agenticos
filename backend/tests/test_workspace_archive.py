@@ -19,11 +19,11 @@ from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, ExportTooLargeError
 from app.services.workspace_archive import (
+    NOT_INCLUDED,
     ArchiveMember,
-    archive_format,
     manifest,
-    read_archive,
     safe_member_path,
+    scan_archive,
     stream_zip,
     unpack_into,
     unpacked_name,
@@ -74,6 +74,22 @@ def _special(name: str, kind: bytes, linkname: str = "") -> tarfile.TarInfo:
     return info
 
 
+async def _unpacked(data: bytes, fmt: str) -> dict[str, bytes]:
+    """What unpacking `data` writes, read back out of a stored workspace."""
+    document = CappedStateBackend(max_bytes=64 * 1024 * 1024)
+    await unpack_into(document_workspace(document), "root", data, fmt)
+    return {
+        path.removeprefix("/root/"): document.read_bytes(path)
+        for path in document.files
+        if path.startswith("/root/")
+    }
+
+
+def _read(data: bytes, fmt: str) -> list[ArchiveMember]:
+    """`scan_archive`, which every refusal below is also checked through on unpack."""
+    return scan_archive(data, fmt)
+
+
 REPO = (
     ("repo/README.md", b"# repo\n"),
     ("repo/src/app.py", b"print('hi')\n"),
@@ -82,12 +98,6 @@ REPO = (
 
 
 class TestTheNamesAnArchiveCarries:
-    def test_zip_and_both_tar_spellings_are_archives(self):
-        assert archive_format("Repo.ZIP") == "zip"
-        assert archive_format("repo.tar.gz") == "targz"
-        assert archive_format("repo.tgz") == "targz"
-        assert archive_format("notes.gz") is None
-
     def test_the_folder_is_named_after_the_archive(self):
         assert unpacked_name("repo.tar.gz") == "repo"
         assert unpacked_name("repo.zip") == "repo"
@@ -97,27 +107,35 @@ class TestTheNamesAnArchiveCarries:
 
 
 class TestASafeArchiveUnpacksToTheSameTree:
-    def test_a_zip(self):
-        members = read_archive(_zip(*REPO, ("repo/empty/", b"")), "zip")
+    async def test_a_zip(self):
+        data = _zip(*REPO, ("repo/empty/", b""))
+        members = _read(data, "zip")
 
-        files = {member.path: member.data for member in members if not member.is_dir}
-        assert files == dict(REPO)
+        assert {m.path: m.size for m in members if not m.is_dir} == {
+            path: len(body) for path, body in REPO
+        }
+        # A scan keeps sizes, never bytes.
+        assert all(member.data == b"" for member in members)
         assert ArchiveMember(path="repo/empty", is_dir=True) in members
+        assert await _unpacked(data, "zip") == dict(REPO)
 
-    def test_a_tar_gz(self):
+    async def test_a_tar_gz(self):
         folder = tarfile.TarInfo("./repo/docs")
         folder.type = tarfile.DIRTYPE
         root = tarfile.TarInfo(".")
         root.type = tarfile.DIRTYPE
-        members = read_archive(_tar(root, folder, folder, *REPO), "targz")
+        data = _tar(root, folder, folder, *REPO)
+        members = _read(data, "targz")
 
-        files = {member.path: member.data for member in members if not member.is_dir}
-        assert files == dict(REPO)
+        assert await _unpacked(data, "targz") == dict(REPO)
         # The root entry `.` is not a folder of its own, and a folder named twice is one.
         assert [member.path for member in members if member.is_dir] == ["repo/docs"]
 
+    def test_a_zip_root_entry_is_not_a_folder_of_its_own(self):
+        assert [m.path for m in _read(_zip(("./", b""), ("a.txt", b"1")), "zip")] == ["a.txt"]
+
     def test_the_manifest_opens_on_a_count_and_lists_the_tree(self):
-        text = manifest(read_archive(_zip(*REPO, ("repo/empty/", b"")), "zip"))
+        text = manifest(_read(_zip(*REPO, ("repo/empty/", b"")), "zip"))
 
         assert text.splitlines()[0] == "3 files, 50 bytes unpacked"
         assert "repo/src/app.py" in text
@@ -139,11 +157,11 @@ class TestAnArchiveThatWritesOutsideIsRefused:
     )
     def test_a_member_name_that_leaves_the_folder(self, name):
         with pytest.raises(BadRequestError):
-            read_archive(_zip((name, b"x")), "zip")
+            _read(_zip((name, b"x")), "zip")
 
     def test_a_tar_member_that_climbs_out(self):
         with pytest.raises(BadRequestError, match=r"\.\."):
-            read_archive(_tar(("../../etc/cron.d/x", b"x")), "targz")
+            _read(_tar(("../../etc/cron.d/x", b"x")), "targz")
 
     @pytest.mark.parametrize(
         "member",
@@ -157,20 +175,20 @@ class TestAnArchiveThatWritesOutsideIsRefused:
     )
     def test_a_link_or_a_device_in_a_tar(self, member):
         with pytest.raises(BadRequestError, match="link or a special file"):
-            read_archive(_tar(member), "targz")
+            _read(_tar(member), "targz")
 
     def test_a_symlink_in_a_zip(self):
         with pytest.raises(BadRequestError, match="link or a special file"):
-            read_archive(_zip(("repo/link", b"/etc/passwd"), mode=stat.S_IFLNK | 0o777), "zip")
+            _read(_zip(("repo/link", b"/etc/passwd"), mode=stat.S_IFLNK | 0o777), "zip")
 
     def test_a_zip_entry_marked_a_folder_by_its_mode_is_a_folder(self):
-        members = read_archive(_zip(("repo/dir", b""), mode=stat.S_IFDIR | 0o755), "zip")
+        members = _read(_zip(("repo/dir", b""), mode=stat.S_IFDIR | 0o755), "zip")
 
         assert members == [ArchiveMember(path="repo/dir", is_dir=True)]
 
     def test_an_encrypted_zip(self):
         with pytest.raises(BadRequestError, match="encrypted"):
-            read_archive(_zip(("a.txt", b"x"), encrypted=True), "zip")
+            _read(_zip(("a.txt", b"x"), encrypted=True), "zip")
 
     @pytest.mark.parametrize(
         "members",
@@ -183,43 +201,53 @@ class TestAnArchiveThatWritesOutsideIsRefused:
     )
     def test_one_path_twice(self, members):
         with pytest.raises(BadRequestError, match="same path twice"):
-            read_archive(_zip(*members), "zip")
+            _read(_zip(*members), "zip")
 
     def test_a_folder_named_where_a_file_is(self):
         with pytest.raises(BadRequestError, match="same path twice"):
-            read_archive(_zip(("a", b"1"), ("a/", b"")), "zip")
+            _read(_zip(("a", b"1"), ("a/", b"")), "zip")
 
     def test_a_file_with_no_name(self):
         with pytest.raises(BadRequestError, match="no name"):
-            read_archive(_tar(("./", b"x")), "targz")
+            _read(_tar(("./", b"x")), "targz")
 
 
 @pytest.mark.security
 class TestAnArchiveThatSpendsTheServerIsRefused:
     def test_a_zip_bomb_by_ratio(self):
         with pytest.raises(BadRequestError, match="decompression bomb"):
-            read_archive(_zip(("zeros", b"\0" * (4 * 1024 * 1024))), "zip")
+            _read(_zip(("zeros", b"\0" * (4 * 1024 * 1024))), "zip")
 
     def test_a_tar_gz_bomb_stops_inflating_at_the_bound(self, monkeypatch):
         # The members' own count never gets to see it: the stream is bounded first.
         monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_RATIO", 1)
         with pytest.raises(BadRequestError, match="too large once unpacked"):
-            read_archive(_tar(("zeros", b"\0" * (4 * 1024 * 1024))), "targz")
+            _read(_tar(("zeros", b"\0" * (4 * 1024 * 1024))), "targz")
 
     def test_past_the_byte_limit(self, monkeypatch):
         monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_BYTES", 10)
         with pytest.raises(BadRequestError, match="too large once unpacked"):
-            read_archive(_zip(("a.txt", b"x" * 11)), "zip")
+            _read(_zip(("a.txt", b"x" * 11)), "zip")
 
     def test_too_many_entries_in_a_zip(self, monkeypatch):
         monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 2)
         with pytest.raises(BadRequestError, match="too many files"):
-            read_archive(_zip(("a", b"1"), ("b", b"2"), ("c", b"3")), "zip")
+            _read(_zip(("a", b"1"), ("b", b"2"), ("c", b"3")), "zip")
+
+    def test_a_folder_named_over_and_over_still_counts(self, monkeypatch):
+        """A tar may repeat one folder's header as often as it likes; each is a
+        header read, and the entry bound is what limits how many get read."""
+        folder = tarfile.TarInfo("a")
+        folder.type = tarfile.DIRTYPE
+        monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 5)
+
+        with pytest.raises(BadRequestError, match="too many files"):
+            _read(_tar(*[folder] * 6), "targz")
 
     def test_too_many_entries_in_a_tar(self, monkeypatch):
         monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 2)
         with pytest.raises(BadRequestError, match="too many files"):
-            read_archive(_tar(("a", b"1"), ("b", b"2"), ("c", b"3")), "targz")
+            _read(_tar(("a", b"1"), ("b", b"2"), ("c", b"3")), "targz")
 
     @pytest.mark.parametrize(
         ("data", "fmt", "named"),
@@ -231,13 +259,13 @@ class TestAnArchiveThatSpendsTheServerIsRefused:
     )
     def test_a_file_that_is_not_the_archive_it_claims(self, data, fmt, named):
         with pytest.raises(BadRequestError, match=f"could not be read as a \\{named}"):
-            read_archive(data, fmt)
+            _read(data, fmt)
 
     def test_a_gz_that_is_not_a_tar(self):
         import gzip
 
         with pytest.raises(BadRequestError, match="could not be read"):
-            read_archive(gzip.compress(b"just text, not a tar " * 40), "targz")
+            _read(gzip.compress(b"just text, not a tar " * 40), "targz")
 
 
 @pytest.mark.security
@@ -250,9 +278,9 @@ class TestMemberNames:
 class TestUnpackingIntoAWorkspace:
     async def test_the_tree_lands_under_the_folder(self):
         document = CappedStateBackend(max_bytes=1024 * 1024)
-        members = read_archive(_zip(*REPO, ("repo/empty/", b"")), "zip")
+        data = _zip(*REPO, ("repo/empty/", b""), ("repo/src/", b""))
 
-        await unpack_into(document_workspace(document), "uploads/ab12cd34-repo", members)
+        await unpack_into(document_workspace(document), "uploads/ab12cd34-repo", data, "zip")
 
         assert document.read_bytes("uploads/ab12cd34-repo/repo/src/app.py") == b"print('hi')\n"
         assert document.exists("uploads/ab12cd34-repo/repo/empty")
@@ -260,10 +288,10 @@ class TestUnpackingIntoAWorkspace:
     async def test_a_refused_write_leaves_no_partial_tree(self):
         # A partial tree would read, to the next turn's `exists`, as unpacked.
         document = CappedStateBackend(max_bytes=40)
-        members = read_archive(_zip(("a.txt", b"x" * 30), ("b.txt", b"y" * 30)), "zip")
+        data = _zip(("a.txt", b"x" * 30), ("b.txt", b"y" * 30))
 
         with pytest.raises(OSError):
-            await unpack_into(document_workspace(document), "uploads/x-repo", members)
+            await unpack_into(document_workspace(document), "uploads/x-repo", data, "zip")
 
         assert not document.exists("uploads/x-repo/a.txt")
         assert not document.exists("uploads/x-repo")
@@ -273,7 +301,56 @@ class TestUnpackingIntoAWorkspace:
         workspace.remove = AsyncMock(side_effect=WorkspaceError("gone"))
 
         with pytest.raises(WorkspaceError, match="shell filesystem write failed"):
-            await unpack_into(workspace, "uploads/x-repo", [ArchiveMember("a.txt", b"1")])
+            await unpack_into(workspace, "uploads/x-repo", _zip(("a.txt", b"1")), "zip")
+
+    async def test_a_stopped_turn_leaves_no_partial_tree(self):
+        """Stop during an unpack is the commonest way out of one, and is a
+        cancellation rather than an error - the clean-up has to run for it too."""
+        import anyio
+
+        document = CappedStateBackend(max_bytes=1024 * 1024)
+        workspace = document_workspace(document)
+        written = anyio.Event()
+        original = workspace.write_bytes
+
+        async def slow_write(path: str, data: bytes) -> None:
+            await original(path, data)
+            written.set()
+            await anyio.sleep(10)
+
+        workspace.write_bytes = slow_write
+        data = _zip(("a.txt", b"1"), ("b.txt", b"2"))
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(unpack_into, workspace, "uploads/x-repo", data, "zip")
+            await written.wait()
+            group.cancel_scope.cancel()
+
+        assert not document.exists("uploads/x-repo/a.txt")
+        assert not document.exists("uploads/x-repo")
+
+    async def test_an_unsafe_archive_writes_nothing_at_all(self):
+        document = CappedStateBackend(max_bytes=1024 * 1024)
+
+        with pytest.raises(BadRequestError):
+            await unpack_into(
+                document_workspace(document),
+                "uploads/x-repo",
+                _zip(("a.txt", b"1"), ("../b.txt", b"2")),
+                "zip",
+            )
+
+        assert not document.exists("uploads/x-repo")
+        assert not document.exists("uploads/x-repo/a.txt")
+
+    def test_a_member_past_the_bound_is_refused_when_it_is_read_to_be_kept(self, monkeypatch):
+        # The unpack reads each member in one bounded read; one byte over refuses it.
+        from app.services.workspace_archive import _members
+
+        monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_BYTES", 10)
+
+        with pytest.raises(BadRequestError, match="too large once unpacked"):
+            list(_members(_zip(("a.txt", b"x" * 11)), "zip", keep=True))
 
 
 class TestZippingAFolder:
@@ -284,6 +361,7 @@ class TestZippingAFolder:
     def test_backend_spellings_are_one_folder(self):
         assert zip_folder("./uploads/") == "uploads"
         assert zip_folder("/uploads") == "uploads"
+        assert zip_folder(".") == ""
 
     def test_only_the_folder_is_picked_under_its_own_name(self):
         picked, name = zip_members(
@@ -331,6 +409,34 @@ class TestZippingAFolder:
                 "repo/a.py": b"a" * 1000,
                 "repo/sub/b.py": b"b",
             }
+
+    async def test_a_file_that_cannot_be_read_is_named_rather_than_breaking_the_zip(self):
+        from app.core.exceptions import NotFoundError
+
+        async def read(path: str) -> bytes:
+            if path == "/repo/big.bin":
+                raise BadRequestError(message="File is 9437184 bytes, over the read limit")
+            if path == "/repo/gone.txt":
+                raise NotFoundError(message="No such file")
+            return b"kept"
+
+        chunks = [
+            chunk
+            async for chunk in stream_zip(
+                [
+                    ("/repo/a.py", "repo/a.py"),
+                    ("/repo/big.bin", "repo/big.bin"),
+                    ("/repo/gone.txt", "repo/gone.txt"),
+                ],
+                read,
+            )
+        ]
+
+        with zipfile.ZipFile(io.BytesIO(b"".join(chunks))) as archive:
+            assert archive.read("repo/a.py") == b"kept"
+            note = archive.read(f"repo/{NOT_INCLUDED}").decode()
+        assert "repo/big.bin: File is 9437184 bytes, over the read limit" in note
+        assert "repo/gone.txt: No such file" in note
 
     @pytest.mark.security
     async def test_a_file_that_grew_past_the_bound_stops_the_stream(self, monkeypatch):

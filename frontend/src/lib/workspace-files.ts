@@ -133,16 +133,18 @@ const WHOLE_WORKSPACE = "workspace";
 /**
  * Save one folder of a conversation's workspace as `<folder>.zip` (#2479).
  *
- * Named on this side rather than from the response's `Content-Disposition`: the
- * name is the folder's own last segment, which is what the server names it too,
- * and `apiClient.raw` hands back the body rather than its headers.
+ * Named here by the rule the server names it by - the folder's last segment, or
+ * `workspace` for the whole of it - rather than parsed out of the response's
+ * `Content-Disposition`, which the server writes in RFC 5987's `filename*` form
+ * for any name a person may have chosen.
  */
 export async function downloadConversationFolder(
   conversationId: string,
   folder: string,
 ): Promise<void> {
   const blob = await readConversationFolderZip(conversationId, folder);
-  saveBlob(blob, `${folder.split("/").filter(Boolean).pop() ?? WHOLE_WORKSPACE}.zip`);
+  const segments = folder.split("/").filter((segment) => segment !== "" && segment !== ".");
+  saveBlob(blob, `${segments.at(-1) ?? WHOLE_WORKSPACE}.zip`);
 }
 
 /** The id an attachment is filed under, ahead of its own name - `uploads/<8 hex>-<name>`. */

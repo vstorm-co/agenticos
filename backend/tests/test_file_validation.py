@@ -160,6 +160,12 @@ class TestArchives:
         assert classify_file("application/zip", "report.docx") == "docx"
         assert classify_file("application/zip", "notes.txt") == "text"
 
+    def test_a_text_file_labelled_an_archive_is_stored_as_text(self):
+        from app.services.file_storage import canonical_mime
+
+        assert canonical_mime("application/zip", "notes.txt") == "text/plain"
+        assert canonical_mime("application/gzip", "run.py") == "text/x-python"
+
     def test_a_contradicting_type_on_an_archive_is_refused(self):
         assert validate("image/png", 1024, "repo.zip")[0] is False
         assert validate("text/plain", 1024, "repo.zip")[0] is False

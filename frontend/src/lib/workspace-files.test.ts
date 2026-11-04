@@ -155,6 +155,7 @@ describe("downloading a folder", () => {
     ["uploads/3f2a1b9c-repo", "uploads%2F3f2a1b9c-repo", "3f2a1b9c-repo.zip"],
     ["/out/", "%2Fout%2F", "out.zip"],
     ["", "", "workspace.zip"],
+    [".", ".", "workspace.zip"],
   ])("asks the archive route for %j and saves it as %s", async (folder, encoded, saved) => {
     const names: string[] = [];
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (

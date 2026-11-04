@@ -12,6 +12,7 @@ vi.mock("@/lib/desktop/shell", async (original) => ({
   invokeShell: localInvoke,
 }));
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
@@ -720,11 +721,17 @@ describe("the workspace panel", () => {
       );
     });
 
-    it("says so when the server refuses the folder", async () => {
+    it.each([
+      [
+        new ApiError(413, "This folder is too large to download as one zip."),
+        "This folder is too large to download as one zip.",
+      ],
+      [new TypeError("network error"), "The folder could not be downloaded."],
+    ])("says why a download failed, in the reader's language (%s)", async (failure, said) => {
       const { toast } = await import("sonner");
       const error = vi.spyOn(toast, "error");
       vi.mocked(apiClient.get).mockResolvedValue(repo());
-      vi.mocked(apiClient.raw).mockRejectedValue(new Error("too large"));
+      vi.mocked(apiClient.raw).mockRejectedValue(failure);
 
       draw(
         <WorkspaceFiles
@@ -737,7 +744,7 @@ describe("the workspace panel", () => {
       await openPanel();
       await userEvent.click(await screen.findByRole("button", { name: "Download as .zip" }));
 
-      await waitFor(() => expect(error).toHaveBeenCalled());
+      await waitFor(() => expect(error).toHaveBeenCalledWith(said));
     });
 
     it("offers nothing to zip in a workspace with no files", async () => {

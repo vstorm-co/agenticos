@@ -150,10 +150,11 @@ For an agent with a workspace, the members are written under
 `uploads/<first 8 hex of the file id>-<archive name without .zip>/`, with their
 folders kept — `repo.zip` holding `repo/src/app.py` becomes
 `uploads/3f2a1b9c-repo/repo/src/app.py`. The reference names that folder and
-starts with the first lines of the list of members. If the workspace refuses a
-write part of the way through, the folder is removed and the model is told the
-archive could not be written, so a half-unpacked tree is never taken for a whole
-one.
+starts with the first lines of the list of members. The members are written one
+at a time, so only one member is in memory at once. If the workspace refuses a
+write part of the way through, or the turn is stopped during the unpack, the
+folder is removed: the model is told the archive could not be written, and a
+half-unpacked tree is never taken for a whole one.
 
 An agent without a workspace has nowhere to unpack it. The model is told that it
 cannot open the archive and is not given the list of members, because a list of
@@ -378,6 +379,10 @@ the poll that read the mailbox. They follow the chat-upload file type allowlist 
 size limit: of the attachments a mailbox lists, only the first 10 per message are
 considered, and 25 MiB per message. One left out is listed with the reason, and a
 test run fetches nothing.
+
+A `.zip` or `.tar.gz` is left out as `type_not_allowed`:
+a chat checks an archive member by member before it unpacks it (see
+[Archives](#archives)), and nothing checks one that a workflow receives.
 
 An HTML file in a workflow, such as a stored page or an attachment, is read by
 [`html.parse`](reference/workflow-nodes.md#html-parse), not by `text.extract`, which

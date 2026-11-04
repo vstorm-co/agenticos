@@ -1672,14 +1672,14 @@ class TestDownloadingAFolderAsAZip:
         from pydantic_ai_backends import remote as remote_module
 
         made: list[object] = []
-        asked: list[tuple[str, int]] = []
+        asked: list[tuple[str, int, int]] = []
 
         class _Archive(_ClosesItsClient):
             def __init__(self, url, token="", timeout=None):
                 made.append(self)
 
             def tree(self, session_id, path=".", *, max_depth, max_entries):
-                asked.append((path, max_depth))
+                asked.append((path, max_depth, max_entries))
                 return WorkspaceTree(
                     entries=[
                         {"name": "out", "path": "out", "is_dir": True, "size": 0},
@@ -1705,7 +1705,9 @@ class TestDownloadingAFolderAsAZip:
             "out/a.py": b"out/a.py",
             "out/deep/b.py": b"out/deep/b.py",
         }
-        assert asked == [("out", 64)]
+        # Deep, and as many entries as the host will list: tooling folders are
+        # walked too, and must not be what refuses the download.
+        assert asked == [("out", 64, 100_000)]
         # One for the listing, one shared by every read.
         assert len(made) == 2
         assert all(archive.closed for archive in made)
@@ -1761,7 +1763,7 @@ class TestDownloadingAFolderAsAZip:
                 _ctx(), conversation_id=uuid4(), folder=""
             )
 
-    async def test_a_file_gone_since_the_listing_stops_the_stream(
+    async def test_a_file_gone_since_the_listing_is_named_in_the_zip(
         self, monkeypatch, mock_db_session
     ):
         from pydantic_ai_backends import remote as remote_module
@@ -1787,8 +1789,12 @@ class TestDownloadingAFolderAsAZip:
             _ctx(), conversation_id=uuid4(), folder=""
         )
 
-        with pytest.raises(NotFoundError):
-            await _unzipped(folder)
+        assert await _unzipped(folder) == {
+            "workspace/NOT-INCLUDED.txt": (
+                b"These files could not be read, and are not in this zip:\n\n"
+                b"workspace/a: No such file\n"
+            )
+        }
 
     async def test_a_chat_with_no_workspace_has_nothing_to_zip(self, monkeypatch, mock_db_session):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))

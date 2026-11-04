@@ -174,6 +174,19 @@ async def test_an_executable_is_listed_by_name_and_never_fetched(store, monkeypa
     store.token.assert_not_awaited()
 
 
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("name", "content_type"),
+    [("repo.zip", "application/zip"), ("repo.tar.gz", "application/octet-stream")],
+)
+async def test_an_archive_from_a_mailbox_is_not_staged(store, monkeypatch, name, content_type):
+    """A chat reads an archive whole before it unpacks it; nothing here would (#2479)."""
+    adapter = _adapter(monkeypatch)
+    result = await _run(_message(_item("a1", name=name, content_type=content_type)))
+    assert _reasons(result) == ["type_not_allowed"]
+    assert adapter.asked == [] and store.saved == []
+
+
 async def test_bytes_that_contradict_their_type_are_not_stored(store, monkeypatch):
     _adapter(monkeypatch, a1=b"this is not a png")
     result = await _run(_message(_item("a1", name="logo.png", content_type="image/png")))

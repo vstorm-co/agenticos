@@ -23,6 +23,7 @@ from app.services.conversation import ConversationService
 from app.services.file_storage import (
     ALLOWED_EXTENSIONS,
     ALLOWED_MIME_TYPES,
+    ARCHIVE_FILE_TYPE,
     canonical_mime,
     classify_file,
     expected_container,
@@ -41,7 +42,7 @@ _WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "imag
 from app.services.office_archive import safe_unzip
 from app.services.office_archive import zip_has_too_many_members as zip_has_too_many_members
 from app.services.office_convert import libreoffice_convert
-from app.services.workspace_archive import manifest, read_archive
+from app.services.workspace_archive import manifest, scan_archive
 
 logger = logging.getLogger(__name__)
 
@@ -1041,16 +1042,19 @@ class FileUploadService(DocumentText):
         # route and the inline-conversion path read one trustworthy field (#1591).
         resolved_mime = canonical_mime(content_type, filename)
         file_type = self.classify_file(resolved_mime, filename)
-        if file_type == "archive":
+        if file_type == ARCHIVE_FILE_TYPE:
             # Read whole now, on the file pool, so an archive that could never be
             # unpacked - a `../` member, a link, a bomb - is refused here with a
             # 400 rather than stored and found out on the turn it was sent with
             # (#2479). What it holds becomes its text: the reference a model gets
             # opens on the top of the tree.
             members = await run_blocking(
-                read_archive, file_data, resolve_format(resolved_mime, filename)
+                scan_archive, file_data, resolve_format(resolved_mime, filename)
             )
-            parsed_content: str | None = manifest(members)
+            # Capped as any parse is: member names count towards no other bound.
+            parsed_content: str | None = cap_text(
+                manifest(members), settings.CHAT_PARSED_TEXT_MAX_CHARS
+            )
         else:
             # Read the declared charset before `canonical_mime` discards it, so a
             # non-UTF-8 text file the caller labelled still decodes (#1654 review).

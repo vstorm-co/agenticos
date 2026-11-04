@@ -1,5 +1,5 @@
 ---
-source_sha: "2ff962c2e301"
+source_sha: "88717bae14a3"
 ---
 
 # Sandbox { #the-sandbox }
@@ -635,16 +635,22 @@ inny nie może.
 
 Zip zawiera to, co pokazuje panel. Prefiksy i foldery narzędzi wymienione wyżej
 (`.git`, `node_modules`, `.venv`, ...) są pomijane. Lista dla zipa sięga 64
-poziomów w głąb, a nie sześciu, bo repozytorium jest głębsze niż strona kafli.
-Pliki leżą pod jednym folderem głównym nazwanym jak pobierany folder.
+poziomów w głąb, a nie sześciu, bo repozytorium jest głębsze niż strona kafli, i
+prosi host o najwyżej 100 000 wpisów, bo host listuje też ukryte foldery. Pliki
+leżą pod jednym folderem głównym nazwanym jak pobierany folder.
 
 Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` plikami albo większy niż
 `WORKSPACE_ARCHIVE_MAX_BYTES`, albo taki, którego host nie wylistował w całości,
 jest odrzucany z kodem 413; zip, w którym bez słowa brakuje plików, byłby gorszy.
-Potem pliki są czytane i strumieniowane po jednym. Jeśli po wylistowaniu plik
-urośnie ponad limit bajtów albo zniknie, strumień się zatrzymuje, a pobrany plik
-jest niekompletny i się nie otworzy.
+Potem pliki są czytane i strumieniowane po jednym.
+
+Plik, którego nie da się przeczytać po rozpoczęciu pobierania, jest pomijany i
+wymieniony, z powodem, w `NOT-INCLUDED.txt` na górze zipa. To plik usunięty po
+wylistowaniu albo większy niż własny limit odczytu hosta
+(`SANDBOXD_MAX_READ_BYTES`, domyślnie 8 MiB). Jeśli po wylistowaniu pliki urosną
+ponad limit bajtów, strumień się zatrzymuje, a pobrany plik jest niekompletny i się
+nie otworzy.
 
 Folder na tym komputerze, w aplikacji desktopowej, nie ma takiego przycisku: on
 już jest folderem na tym komputerze.

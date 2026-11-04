@@ -239,6 +239,9 @@ _FORMAT_TO_MIME = {
     "targz": _GZIP_MIME,
 }
 
+ARCHIVE_FILE_TYPE = "archive"
+"""The `file_type` of a `.zip` or `.tar.gz`, which is unpacked rather than written (#2479)."""
+
 _FORMAT_TO_FILE_TYPE = {
     "png": "image",
     "jpeg": "image",
@@ -255,8 +258,8 @@ _FORMAT_TO_FILE_TYPE = {
     "pptx": "presentation",
     "odp": "presentation",
     "msg": "email",
-    "zip": "archive",
-    "targz": "archive",
+    "zip": ARCHIVE_FILE_TYPE,
+    "targz": ARCHIVE_FILE_TYPE,
     "text": "text",
 }
 
@@ -354,7 +357,10 @@ def canonical_mime(mime_type: str | None, filename: str) -> str:
             return _XLSM_MIME
         return known
     normalized = normalize_media_type(mime_type)
-    if normalized in ALLOWED_MIME_TYPES:
+    # A text type only: an archive type on a text file's name is the weak claim
+    # `resolve_format` already overruled, and must not be what the file is
+    # stored - and then served - as.
+    if normalized in _TEXT_MIME_TYPES:
         return normalized
     return _EXTENSION_TO_TEXT_MIME.get(file_extension(filename), "text/plain")
 
