@@ -1383,7 +1383,10 @@
       "storedSuffix": "{size} stored",
       "title": "Files",
       "beforeStart": "Files you attach and files the agent writes appear here once the conversation starts.",
-      "onThisComputer": "In {folder} on this computer"
+      "onThisComputer": "In {folder} on this computer",
+      "downloadAll": "Download as .zip",
+      "downloadFolder": "Download {name} as .zip",
+      "zipFailed": "The folder could not be downloaded."
     },
     "generateShareLink": "Generate share link",
     "helpful": "Helpful",

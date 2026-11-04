@@ -14,7 +14,11 @@
  * not here - they are `file-kinds.ts`, which answers that for every surface.
  */
 
-import { readConversationFile, readConversationFileBytes } from "./conversation-workspace-api";
+import {
+  readConversationFile,
+  readConversationFileBytes,
+  readConversationFolderZip,
+} from "./conversation-workspace-api";
 import { readLocalFile } from "./desktop/commands";
 import { saveBlob, type FileAccess, type FileText } from "./file-access";
 import { readProjectBytes, readProjectText } from "./projects-api";
@@ -121,6 +125,24 @@ export function workspaceFileAccess(source: FileSource, path: string): FileAcces
       saveBlob(blob, path.split("/").filter(Boolean).pop() ?? "file");
     },
   };
+}
+
+/** What a whole workspace's zip is called, where there is no folder to name it after. */
+const WHOLE_WORKSPACE = "workspace";
+
+/**
+ * Save one folder of a conversation's workspace as `<folder>.zip` (#2479).
+ *
+ * Named on this side rather than from the response's `Content-Disposition`: the
+ * name is the folder's own last segment, which is what the server names it too,
+ * and `apiClient.raw` hands back the body rather than its headers.
+ */
+export async function downloadConversationFolder(
+  conversationId: string,
+  folder: string,
+): Promise<void> {
+  const blob = await readConversationFolderZip(conversationId, folder);
+  saveBlob(blob, `${folder.split("/").filter(Boolean).pop() ?? WHOLE_WORKSPACE}.zip`);
 }
 
 /** The id an attachment is filed under, ahead of its own name - `uploads/<8 hex>-<name>`. */

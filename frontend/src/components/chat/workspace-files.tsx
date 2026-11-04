@@ -4,7 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
+import { AlertTriangle, Download, FolderOpen, Info, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { FileCard, FileViewer, FileIcon, PathTree } from "@/components/files";
 import { useConversationWorkspace } from "@/hooks";
@@ -18,7 +19,12 @@ import { cn, formatBytes } from "@/lib/utils";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { treeOf, type WorkspaceTreeNode } from "@/lib/workspace-tree";
 import { suffixOf, resolveFileKind } from "@/lib/file-kinds";
-import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
+import { getErrorMessage } from "@/lib/api-error";
+import {
+  downloadConversationFolder,
+  workspaceFileAccess,
+  type FileSource,
+} from "@/lib/workspace-files";
 import type { ConversationFile } from "@/lib/conversation-workspace-api";
 import type { ChatMessageFile } from "@/types";
 
@@ -139,12 +145,28 @@ export function WorkspaceFiles({
   // spells a path as the backend spells it - `./uploads/x` from a shell, `x`
   // from a glob, `/uploads/x` from a stored workspace - and a match anchored on
   // one of those showed the same file twice under the others (#1039).
-  const stored = new Set(files.map((file) => file.path.split("/").filter(Boolean).pop() ?? ""));
+  //
+  // Every segment rather than only the last: an archive is unpacked into a folder
+  // named the same way, `uploads/<eight hex>-repo/...`, so the folder is the copy.
+  const stored = new Set(
+    (workspace?.items ?? []).flatMap((file) => file.path.split("/").filter(Boolean)),
+  );
   const unstored = attachments.filter((file) => {
     const prefix = file.id.replaceAll("-", "").slice(0, 8);
     return ![...stored].some((name) => name.startsWith(`${prefix}-`));
   });
   const count = files.length + unstored.length;
+
+  // Only for the server's workspace: the archive route is the conversation's, and a
+  // folder on this computer is already a folder on this computer.
+  const tErrors = useTranslations("errors");
+  const zipFolder =
+    source?.kind === "conversation" && files.length > 0
+      ? (folder: string) =>
+          void downloadConversationFolder(source.id, folder).catch((err: unknown) =>
+            toast.error(getErrorMessage(err, tErrors, t("zipFailed"))),
+          )
+      : null;
 
   return (
     <>
@@ -193,6 +215,17 @@ export function WorkspaceFiles({
                     <FolderOpen className="h-4 w-4" aria-hidden />
                     {t("title")}
                   </p>
+                  {zipFolder && (
+                    <button
+                      type="button"
+                      title={t("downloadAll")}
+                      onClick={() => zipFolder("")}
+                      className="text-muted-foreground hover:text-foreground ml-auto inline-flex items-center gap-1 rounded-md p-1 text-xs"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden />
+                      {t("downloadAll")}
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-label={t("close")}
@@ -252,6 +285,7 @@ export function WorkspaceFiles({
                     files={workspace?.items ?? []}
                     selectedPath={reading?.path ?? null}
                     onOpen={setReading}
+                    onZipFolder={zipFolder}
                   />
                 )}
 
@@ -316,10 +350,13 @@ function WorkspaceTree({
   files,
   selectedPath,
   onOpen,
+  onZipFolder,
 }: {
   files: ConversationFile[];
   selectedPath: string | null;
   onOpen: (file: ConversationFile) => void;
+  /** Download one folder as a `.zip`, where the workspace has a route for it. */
+  onZipFolder: ((path: string) => void) | null;
 }) {
   const t = useTranslations("chat.files");
   const tFiles = useTranslations("files");
@@ -351,6 +388,21 @@ function WorkspaceTree({
       onSelect={(node) => {
         if (node.file) onOpen(node.file);
       }}
+      renderFolderMeta={
+        onZipFolder
+          ? (node) => (
+              <button
+                type="button"
+                aria-label={t("downloadFolder", { name: node.label })}
+                title={t("downloadFolder", { name: node.label })}
+                onClick={() => onZipFolder(node.path)}
+                className="text-muted-foreground hover:text-foreground hover:bg-foreground/5 touch:size-11 mr-1 flex size-7 shrink-0 items-center justify-center rounded-md focus-visible:outline-offset-[-2px]"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            )
+          : undefined
+      }
       renderFile={(node) => (
         <>
           <FileIcon name={node.label} className="text-muted-foreground size-4 shrink-0" />
