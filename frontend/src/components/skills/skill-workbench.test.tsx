@@ -34,7 +34,6 @@ const SKILL: Skill = {
   description: "How refunds and their exceptions are handled.",
   content: "## Refunds\n\nWithin 30 days, no questions asked.",
   category: null,
-  enabled: true,
   version: 3,
   visibility: "organization",
   owner_user_id: null,
@@ -74,8 +73,8 @@ const description = () => screen.getByLabelText("Description");
  * deliberate second step.
  */
 async function content() {
-  const source = screen.getByRole("button", { name: "Source" });
-  if (source.getAttribute("aria-pressed") !== "true") await userEvent.click(source);
+  const source = screen.queryByRole("button", { name: "Source" });
+  if (source) await userEvent.click(source);
   return screen.getByLabelText("SKILL.md source");
 }
 const save = () => screen.getByRole("button", { name: "Save" });
@@ -85,7 +84,7 @@ describe("SkillWorkbench", () => {
     renderWorkbench();
     expect(description()).toHaveValue(SKILL.description);
     expect(await content()).toHaveValue(SKILL.content);
-    expect(screen.getByRole("switch", { name: "Enabled" })).toBeChecked();
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
   });
 
   it("cannot be saved until something is actually different", async () => {
@@ -110,12 +109,11 @@ describe("SkillWorkbench", () => {
     const { onSave } = renderWorkbench();
     await userEvent.clear(description());
     await userEvent.type(description(), "When a customer disputes a charge.");
-    await userEvent.click(screen.getByRole("switch", { name: "Enabled" }));
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
     await userEvent.click(save());
     expect(onSave).toHaveBeenCalledWith({
       description: "When a customer disputes a charge.",
       content: SKILL.content,
-      enabled: false,
       category: null,
     });
   });
@@ -162,7 +160,7 @@ describe("SkillWorkbench", () => {
     expect(await content()).toHaveAttribute("readonly");
     expect(description()).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Category")).toHaveAttribute("readonly");
-    expect(screen.getByRole("switch", { name: "Enabled" })).toBeDisabled();
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
@@ -223,7 +221,7 @@ describe("the skill's files", () => {
   it("shows the body when nothing in the tree is selected", () => {
     renderWorkbench({ skill: withFile });
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -236,7 +234,6 @@ describe("the skill's files", () => {
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     expect(screen.getByRole("treeitem", { selected: true })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
     expect(screen.getByLabelText("references/workflows.md source")).toHaveValue(
       "1. Ask. 2. Escalate.",
     );
@@ -250,7 +247,7 @@ describe("the skill's files", () => {
     await userEvent.type(await content(), "\n\nExcept gift cards.");
 
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^SKILL\.md$/ }));
 
     expect(await content()).toHaveValue(`${SKILL.content}\n\nExcept gift cards.`);
   });
@@ -259,7 +256,6 @@ describe("the skill's files", () => {
     skillHooks.loaded.resource = { content: "old" };
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
     await userEvent.type(screen.getByLabelText("references/workflows.md source"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Save file" }));
@@ -276,7 +272,7 @@ describe("the skill's files", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
     expect(skillHooks.removeResource.mutateAsync).toHaveBeenCalledWith("r-1");
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -314,7 +310,7 @@ describe("the skill's files", () => {
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "New" }));
 
-    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^SKILL\.md$/ }));
 
     expect(screen.queryByLabelText("Path")).toBeNull();
   });
@@ -358,7 +354,7 @@ describe("the skill's files", () => {
       new File(["a"], "huge.md", { type: "text/markdown" }),
     );
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toBeInTheDocument();
   });
 
   it("closes the pane even when the delete is refused", async () => {
@@ -372,7 +368,7 @@ describe("the skill's files", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -388,4 +384,63 @@ describe("the skill's files", () => {
     expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Save file" })).toBeNull();
   });
+});
+
+it("offers deletion from the editor's resource menu", async () => {
+  const onDelete = vi.fn();
+  renderWorkbench({ onDelete });
+  await userEvent.click(screen.getByRole("button", { name: "More actions for refund-policy" }));
+  expect(onDelete).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("menuitem", { name: "Delete refund-policy" }));
+  expect(onDelete).toHaveBeenCalledOnce();
+});
+
+it("does not offer the resource menu to a reader", () => {
+  renderWorkbench({ canEdit: false, onDelete: vi.fn() });
+  expect(screen.queryByRole("button", { name: "More actions for refund-policy" })).toBeNull();
+});
+
+it("disables destructive actions while a save is pending", () => {
+  renderWorkbench({ isSaving: true, onDelete: vi.fn() });
+  expect(screen.getByRole("button", { name: "More actions for refund-policy" })).toBeDisabled();
+});
+
+it("blocks deleting a skill while one of its files is being added", () => {
+  skillHooks.addResource.isPending = true;
+  renderWorkbench({ onDelete: vi.fn() });
+  expect(screen.getByRole("button", { name: "More actions for refund-policy" })).toBeDisabled();
+});
+
+it("reveals skill metadata without resetting its edited description", async () => {
+  renderWorkbench();
+  const toggle = screen.getByRole("button", { name: /^Description / });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await userEvent.type(description(), " revised");
+  await userEvent.click(toggle);
+  await userEvent.click(toggle);
+  expect(description()).toHaveValue(SKILL.description + " revised");
+});
+
+it("shows only one auxiliary panel and closes files after choosing a document", async () => {
+  skillHooks.loaded.resource = { content: "reference" };
+  renderWorkbench({
+    skill: {
+      ...SKILL,
+      resources: [
+        { id: "r-1", name: "references/workflows.md", description: "Reference", size_bytes: 2048 },
+      ],
+    },
+  });
+  const metadata = screen.getByRole("button", { name: /^Description / });
+  const files = screen.getByRole("button", { name: "Files" });
+  expect(files).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(metadata);
+  await userEvent.click(files);
+  expect(metadata).toHaveAttribute("aria-expanded", "false");
+  expect(files).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+  expect(files).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByLabelText("references/workflows.md source")).toHaveValue("reference");
 });

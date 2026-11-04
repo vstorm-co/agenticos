@@ -48,7 +48,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="table" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : byUser.length === 0 ? (
@@ -62,7 +62,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
           <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-muted-foreground border-border border-b text-xs">
+                <tr className="text-muted-foreground border-foreground/8 border-b text-xs">
                   <th className="py-1.5 text-left font-medium">{t("columns.person")}</th>
                   <th className="py-1.5 text-right font-medium">{t("columns.runs")}</th>
                   <th className="py-1.5 text-right font-medium">{t("columns.cost")}</th>
@@ -71,7 +71,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
               </thead>
               <tbody>
                 {byUser.map((person) => (
-                  <tr key={person.user_id} className="border-border/60 border-b last:border-0">
+                  <tr key={person.user_id} className="border-foreground/8 border-b last:border-0">
                     {/* The same row the members table and the admin lists draw:
                         a face, the name, and the address under it when there is
                         one. A bare name cannot tell two colleagues apart, which

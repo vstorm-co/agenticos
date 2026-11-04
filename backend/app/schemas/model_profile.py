@@ -13,11 +13,12 @@ anything not in it.
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
-from app.agents.model_resolver import ModelApi
+from app.agents.model_resolver import ModelApi, ModelRegion, lacks_key
 from app.core.secret_kinds import SecretKind
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.services.model_outputs import listed_model_outputs
 
 
 class ProviderInfo(BaseSchema):
@@ -30,6 +31,9 @@ class ProviderInfo(BaseSchema):
     )
     supports_base_url: bool = Field(
         description="Whether a custom endpoint can be stored; false means it would be ignored"
+    )
+    requires_base_url: bool = Field(
+        default=False, description="Whether a gateway destination must be selected explicitly"
     )
     keyless: bool = Field(
         description=(
@@ -48,6 +52,22 @@ class ProviderInfo(BaseSchema):
             "The API a profile gets on the provider's own endpoint when it names none. "
             "With a `base_url` the default is `chat`. Null where `apis` is empty."
         )
+    )
+    api_from_model: bool = Field(
+        default=False,
+        description=(
+            "Whether a profile's API is chosen from the model's own listing when it names "
+            "none: Chat Completions where the model is served on it, else Responses. True "
+            "only for Stav.ai, whose listing states it per model (`apis` on each model)."
+        ),
+    )
+    regions: list[ModelRegion] = Field(
+        default_factory=list,
+        description=(
+            "Where a profile on this provider may run its requests - `eu`, `eea`, `global` - "
+            "for a provider that takes a region. The first is the default. Empty for every "
+            "provider without the choice."
+        ),
     )
 
 
@@ -90,8 +110,75 @@ class ModelProfileCreate(BaseSchema):
             "endpoint, which serves Responses."
         ),
     )
+    region: ModelRegion | None = Field(
+        default=None,
+        description=(
+            "Where the requests may run: `eu`, `eea` or `global`. Accepted only for a "
+            "provider whose catalog entry lists `regions`, and stored for every profile on "
+            "one. Omitted, it is the first of `regions`."
+        ),
+    )
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[UUID] = Field(default_factory=list)
+
+
+class ModelProfileUpdate(BaseSchema):
+    """A change to a model profile, applied in place so its id stays (#2478).
+
+    Every agent names its model by profile id, so changing the key or the
+    endpoint here moves every agent on the profile at once - the reason to edit
+    rather than add a second profile and repoint each agent. The provider and the
+    model id are not editable: another model is another profile.
+
+    Partial: only the fields sent change. For `secret_id`, `base_url` and `api`
+    an explicit `null` clears the value, under the same rules creation applies;
+    `label` and `params` cannot be cleared, and `null` leaves them as they are.
+    """
+
+    label: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="A new name, unique in the organization. `null` keeps the current one.",
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The vault secret to key the model with. It has to be this organization's, "
+            "visible to the caller, and stored for the profile's provider. `null` is "
+            "accepted only for a keyless provider that keeps an endpoint. A new "
+            "`base_url` checks the stored key the same way: the endpoint is where the "
+            "key is sent."
+        ),
+    )
+    base_url: str | None = Field(
+        default=None,
+        max_length=512,
+        description=(
+            "Where to send the request. `null` returns the profile to the provider's own "
+            "API, which a keyless profile with no key cannot do."
+        ),
+    )
+    api: ModelApi | None = Field(
+        default=None,
+        description=(
+            "`responses` or `chat`, for a provider whose catalog entry lists `apis`. "
+            "`null` stores the default for the endpoint. Omitted, the stored choice "
+            "stays, unless it was the old endpoint's default and `base_url` changes - "
+            "then it moves to the new endpoint's default, as on creation."
+        ),
+    )
+    region: ModelRegion | None = Field(
+        default=None,
+        description=(
+            "`eu`, `eea` or `global`, for a provider whose catalog entry lists `regions`. "
+            "`null` stores the provider's default. Omitted, the stored choice stays."
+        ),
+    )
+    params: dict[str, Any] | None = Field(
+        default=None,
+        description="Replaces the profile's default model settings. `null` keeps them.",
+    )
 
 
 class ModelProfileRead(BaseSchema, TimestampSchema):
@@ -110,6 +197,16 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
     base_url: str | None = None
     #: Null for every provider that serves one API.
     api: ModelApi | None = None
+    #: Null for every provider that takes no region.
+    region: ModelRegion | None = None
+    runs_without_key: bool = Field(
+        default=False,
+        description=(
+            "Whether the profile was saved to run with no key - a self-hosted model or a "
+            "gateway that authenticates nothing. False on a profile whose key was deleted, "
+            "which `missing_key` then reports."
+        ),
+    )
     params: dict[str, Any] = Field(default_factory=dict)
     fallback_profile_ids: list[str] = Field(default_factory=list)
     context_length: int | None = Field(
@@ -121,6 +218,49 @@ class ModelProfileRead(BaseSchema, TimestampSchema):
             "and not that the model accepts none."
         ),
     )
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def output_modalities(self) -> list[str]:
+        """What the model emits - `["text"]`, `["audio"]` - where the platform knows.
+
+        Empty means not known, which is every custom endpoint (a `base_url`,
+        whatever the provider) and most models:
+        absent is *not* text-only, the same rule as a provider listing's field.
+        """
+        return list(
+            listed_model_outputs(self.provider, self.model, base_url=self.base_url).modalities
+        )
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def chat_capable(self) -> bool:
+        """Whether an agent can run on this model (#2487).
+
+        False only for a model the platform knows is something else - a
+        text-to-speech, transcription, image, video or embedding model. Agent and
+        chat model pickers leave those out; the profile stays listed so it can be
+        removed. A model it cannot classify is true, and so is every profile
+        with a `base_url`: the catalogs describe the vendor's API, not that server.
+        """
+        return listed_model_outputs(self.provider, self.model, base_url=self.base_url).chat
+
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def missing_key(self) -> bool:
+        """Whether the profile has nothing to authenticate with, so no run can use it (#2478).
+
+        True when its key was deleted from the vault or never set, on any provider
+        that needs one. A keyless provider with an endpoint - an Ollama on this
+        network - is false. Agent and chat model pickers leave such a profile out
+        and mark it "no key"; publish refuses it until it gets a key.
+        """
+        return lacks_key(
+            self.provider,
+            secret_id=self.secret_id,
+            base_url=self.base_url,
+            runs_without_key=self.runs_without_key,
+        )
 
 
 class ModelProfileList(BaseSchema):
@@ -143,6 +283,21 @@ class ProviderModelRead(BaseSchema):
             '`["text", "image"]`. Empty means the listing says nothing, which is most of '
             "them: absent is *not* text-only, so a client filtering on it must treat an empty "
             "list as unknown rather than as a refusal."
+        ),
+    )
+    apis: list[ModelApi] = Field(
+        default_factory=list,
+        description=(
+            "The APIs the provider says this model is served on - `chat`, `responses` - "
+            "where its listing states it (Stav.ai). Empty means not stated."
+        ),
+    )
+    chat_capable: bool = Field(
+        default=True,
+        description=(
+            "Whether an agent can run on this model. False only for one the platform knows "
+            "is something else - text to speech, transcription, image, video or embeddings - "
+            "which a picker for an agent's model leaves out (#2487). Unknown is true."
         ),
     )
 
@@ -221,6 +376,80 @@ class RealtimeProviderRead(BaseSchema):
 
 class RealtimeProviderList(BaseSchema):
     items: list[RealtimeProviderRead]
+    total: int
+
+
+class TextToSpeechVoiceRead(BaseSchema):
+    """One voice a provider offers to every account."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="How it sounds, where the provider says")
+
+
+class TextToSpeechModelRead(BaseSchema):
+    """One model that speaks."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+    max_characters: int = Field(
+        description="The most text one request takes; longer is sent in parts"
+    )
+    takes_instructions: bool = Field(description="Whether it reads a direction on how to speak")
+    voices: list[TextToSpeechVoiceRead] = Field(
+        description="The voices this model can speak in. Empty where voices belong to the account"
+    )
+
+
+class TextToSpeechProviderRead(BaseSchema):
+    """One provider that can speak, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `elevenlabs`")
+    name: str = Field(description="What to show")
+    formats: list[str] = Field(description="Audio formats it returns, by file extension")
+    account_voices: bool = Field(
+        description="Whether voices belong to the account, so a binding names one by id"
+    )
+    models: list[TextToSpeechModelRead]
+
+
+class TextToSpeechProviderList(BaseSchema):
+    items: list[TextToSpeechProviderRead]
+    total: int
+
+
+class VideoModelRead(BaseSchema):
+    """One model that makes video, and what it can make."""
+
+    id: str = Field(description="The id stored on the binding")
+    name: str = Field(description="What to show")
+    description: str = Field(description="When to reach for this one rather than another")
+    min_seconds: int = Field(description="The shortest clip it makes")
+    max_seconds: int = Field(description="The longest clip it makes")
+    duration_choosable: bool = Field(
+        description="Whether a call may ask for a length; where not, the model decides"
+    )
+    aspect_ratios: list[str] = Field(
+        description="Aspect ratios it renders; the first is the default"
+    )
+    resolutions: list[str] = Field(description="Resolutions it renders; the first is the default")
+    audio: Literal["always", "optional", "never"] = Field(
+        description="Whether a clip carries sound: always, on request, or never"
+    )
+    first_frame: bool = Field(description="Whether it can start from an image")
+
+
+class VideoProviderRead(BaseSchema):
+    """One provider that can make video, and what may be chosen on it."""
+
+    provider: str = Field(description="The catalog id, e.g. `byteplus`")
+    name: str = Field(description="What to show")
+    models: list[VideoModelRead]
+
+
+class VideoProviderList(BaseSchema):
+    items: list[VideoProviderRead]
     total: int
 
 

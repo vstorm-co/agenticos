@@ -7,6 +7,7 @@ import {
   LinkRequestDialog,
   useLinkRequests,
 } from "@/components/artifacts/artifact-frame";
+import { useAskingGate } from "@/hooks/use-artifact-actions";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { clampHeight, visualFrameUrl, type VisualKind } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
@@ -126,7 +127,8 @@ export function VisualFrame({
   const finalSent = useRef(false);
   const growths = useRef(0);
   const alive = useRef(0);
-  const [pending, setPending] = useLinkRequests(frame);
+  const asking = useAskingGate();
+  const [pending, closeLink] = useLinkRequests(frame, asking);
   const box = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(0);
   const handlers = useRef({ onError, onRendered, onSvg, onStall, onFollowUp });
@@ -307,7 +309,7 @@ export function VisualFrame({
           </div>
         </div>
       )}
-      <LinkRequestDialog pending={pending} onDone={() => setPending(null)} />
+      <LinkRequestDialog pending={pending} onDone={closeLink} />
     </>
   );
 }

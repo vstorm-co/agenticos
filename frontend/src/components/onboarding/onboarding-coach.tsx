@@ -1,5 +1,7 @@
 "use client";
 
+import { isRendered } from "@/lib/rendered";
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
@@ -7,7 +9,6 @@ import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 
 import {
-  activateTab,
   isTypingTarget,
   onlyHiddenMatches,
   revealDisclosures,
@@ -16,6 +17,7 @@ import {
 } from "@/components/onboarding/spotlight";
 import { Button, IconButton } from "@/components/ui";
 import { useOnboardingFlow } from "@/hooks/use-onboarding-flow";
+import { activateTab } from "@/lib/activate-tab";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { AGENT_BUILDER, pageKey } from "@/lib/onboarding/tour";
@@ -346,7 +348,10 @@ export function OnboardingCoach() {
         router.push(step.page);
         return; // this effect re-runs once the navigation lands
       }
-      if (step.activate) {
+      const targetIsVisible = step.target
+        ? [...document.querySelectorAll(`[data-tour="${step.target}"]`)].some(isRendered)
+        : false;
+      if (step.activate && !targetIsVisible) {
         const trigger = await waitForElement(`[data-tour="${step.activate}"]`, signal);
         if (signal.aborted) return;
         if (trigger instanceof HTMLElement) activateTab(trigger);

@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,7 @@ from app.db.models.organization import (
     Organization,
     OrganizationMember,
     OrgRole,
+    ProactiveTiming,
 )
 from app.db.models.user import User
 from app.repositories._search import contains_ci
@@ -38,6 +40,21 @@ async def get_by_id_for_update(db: AsyncSession, org_id: UUID) -> Organization |
         select(Organization).where(Organization.id == org_id).with_for_update()
     )
     return result.scalar_one_or_none()
+
+
+async def hold_key_share(db: AsyncSession, org_id: UUID) -> None:
+    """Take `FOR KEY SHARE` on the organization row.
+
+    What a foreign key referencing the row takes on insert, taken earlier: a
+    transaction about to lock a row inside the organization and then insert
+    something referencing it holds the organization first, the order a
+    teardown that locks the organization `FOR UPDATE` takes them in (#2682).
+    """
+    await db.execute(
+        select(Organization.id)
+        .where(Organization.id == org_id)
+        .with_for_update(read=True, key_share=True)
+    )
 
 
 async def list_all(db: AsyncSession) -> list[Organization]:
@@ -214,6 +231,77 @@ async def update(
     return org
 
 
+async def set_proactive_limit(
+    db: AsyncSession, org: Organization, *, limit_usd: Decimal
+) -> Organization:
+    """Set what background work may spend per person per month; zero switches it off (#2301)."""
+    org.proactive_limit_usd = limit_usd
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_proactivity(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    enabled: bool,
+    model_profile_id: UUID | None,
+    days: list[int],
+    hour: int,
+    timing: ProactiveTiming,
+) -> Organization:
+    """Write whether the platform works on its own initiative here, on what and when (#2301)."""
+    org.proactive_enabled = enabled
+    org.proactive_model_profile_id = model_profile_id
+    org.proactive_days = days
+    org.proactive_hour = hour
+    org.proactive_timing = timing
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_watch_policy(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    enabled: bool,
+    min_minutes: int,
+) -> Organization:
+    """Write whether people here may watch their connections, and how often at most."""
+    org.proactive_watches_enabled = enabled
+    org.proactive_watch_min_minutes = min_minutes
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def stop_proactivity_on(
+    db: AsyncSession, *, organization_id: UUID, model_profile_id: UUID
+) -> None:
+    """Switch the organization's proactive work off if it runs on this model (#2301)."""
+    await db.execute(
+        sql_update(Organization)
+        .where(
+            Organization.id == organization_id,
+            Organization.proactive_model_profile_id == model_profile_id,
+        )
+        .values(proactive_enabled=False, proactive_watches_enabled=False)
+    )
+
+
+async def set_welcome_dm(
+    db: AsyncSession, org: Organization, *, enabled: bool, text: str | None
+) -> Organization:
+    """Write whether new members are greeted in the chat apps, and with what (#2301)."""
+    org.welcome_dm_enabled = enabled
+    org.welcome_dm_text = text
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_monthly_budget(
     db: AsyncSession, org: Organization, *, limit_usd: Decimal | None
 ) -> Organization:
@@ -253,6 +341,19 @@ async def set_chat_approval_waiver(
     argument and so cannot express a boolean somebody deliberately set to false.
     """
     org.chat_may_waive_approvals = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_public_live_data(
+    db: AsyncSession, org: Organization, *, allowed: bool
+) -> Organization:
+    """Allow or forbid a page's data reaching anonymous visitors here (#1975).
+
+    Its own function for the reason :func:`set_chat_approval_waiver` is.
+    """
+    org.public_live_data = allowed
     await db.flush()
     await db.refresh(org)
     return org

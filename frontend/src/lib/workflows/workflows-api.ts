@@ -1,0 +1,205 @@
+/**
+ * API client for the workflow registry and the node catalog (#1786/#1787).
+ *
+ * Thin wrappers over `apiClient`, one per route in
+ * `backend/app/api/routes/v1/workflows.py`. The editor's hooks
+ * (`use-workflows.ts`) call these; components never call them directly.
+ */
+
+import { apiClient } from "@/lib/api-client";
+import type { UsableMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import type {
+  WorkflowApprovalsSummary,
+  WorkflowExport,
+  WorkflowImported,
+  NodeCatalog,
+  WorkflowCreate,
+  WorkflowDetail,
+  WorkflowDraftUpdate,
+  WorkflowList,
+  WorkflowPublish,
+  WorkflowPublished,
+  WorkflowRead,
+  WorkflowSettings,
+  WorkflowStats,
+  WorkflowsSummary,
+  WorkflowUpdate,
+  WorkflowVersionDetail,
+  WorkflowVersionList,
+  WorkflowVersionRestore,
+} from "@/lib/workflows/types";
+
+const ROOT = "/workflows";
+
+/** What the workflow's real runs did over the last `days` days. */
+export async function getWorkflowStats(workflowId: string, days: number): Promise<WorkflowStats> {
+  return apiClient.get<WorkflowStats>(`${ROOT}/${workflowId}/stats`, {
+    params: { days: String(days) },
+  });
+}
+
+/** The real runs of every workflow the caller may see, on the inclusive days given. */
+export async function getWorkflowsSummary(from: string, to: string): Promise<WorkflowsSummary> {
+  return apiClient.get<WorkflowsSummary>(`${ROOT}/summary`, { params: { from, to } });
+}
+
+/** What people decided on the approval steps of every workflow the caller may see, on the inclusive days given. */
+export async function getWorkflowApprovalsSummary(
+  from: string,
+  to: string,
+): Promise<WorkflowApprovalsSummary> {
+  return apiClient.get<WorkflowApprovalsSummary>("/workflow-approvals/stats", {
+    params: { from, to },
+  });
+}
+
+/** Every registered node type, for the editor's palette. */
+export async function getNodeCatalog(): Promise<NodeCatalog> {
+  return apiClient.get<NodeCatalog>(`${ROOT}/node-catalog`);
+}
+
+/** One page of the workflows this member can see — their own, plus what was shared. */
+export async function listWorkflows(params?: {
+  skip?: number;
+  limit?: number;
+}): Promise<WorkflowList> {
+  const query =
+    params && (params.skip !== undefined || params.limit !== undefined)
+      ? {
+          params: {
+            skip: String(params.skip ?? 0),
+            limit: String(params.limit ?? 50),
+          },
+        }
+      : undefined;
+  return apiClient.get<WorkflowList>(ROOT, query);
+}
+
+/** Create a workflow in draft, with an empty graph. It cannot run until published. */
+export async function createWorkflow(input: WorkflowCreate): Promise<WorkflowRead> {
+  return apiClient.post<WorkflowRead>(ROOT, input);
+}
+
+/** One workflow with the graph currently being edited. */
+export async function getWorkflow(workflowId: string): Promise<WorkflowDetail> {
+  return apiClient.get<WorkflowDetail>(`${ROOT}/${workflowId}`);
+}
+
+/** The organization's MCP servers a step of this workflow may bind, for whoever may edit it. */
+export async function listWorkflowMcpConnections(
+  workflowId: string,
+): Promise<UsableMcpConnectionRecord[]> {
+  const data = await apiClient.get<{ items: UsableMcpConnectionRecord[] }>(
+    `${ROOT}/${workflowId}/mcp-connections`,
+  );
+  return data.items;
+}
+
+/** Rename a workflow, or change its description or tags. Its handle stays. */
+export async function updateWorkflow(
+  workflowId: string,
+  update: WorkflowUpdate,
+): Promise<WorkflowDetail> {
+  return apiClient.patch<WorkflowDetail>(`${ROOT}/${workflowId}`, update);
+}
+
+/** Switch on or pause the trigger the published version starts from on its own. */
+/** Replace what a workflow is run with - the workflow's, so every later run takes it. */
+export async function updateWorkflowSettings(
+  workflowId: string,
+  settings: WorkflowSettings,
+): Promise<WorkflowDetail> {
+  return apiClient.put<WorkflowDetail>(`${ROOT}/${workflowId}/settings`, settings);
+}
+
+export async function setWorkflowActive(
+  workflowId: string,
+  active: boolean,
+): Promise<WorkflowDetail> {
+  return apiClient.put<WorkflowDetail>(`${ROOT}/${workflowId}/active`, { is_active: active });
+}
+
+/** Retire a workflow, keeping its versions and runs; its trigger is paused. */
+export async function archiveWorkflow(workflowId: string): Promise<WorkflowDetail> {
+  return apiClient.post<WorkflowDetail>(`${ROOT}/${workflowId}/archive`);
+}
+
+/** Bring an archived workflow back; its trigger stays paused. */
+export async function unarchiveWorkflow(workflowId: string): Promise<WorkflowDetail> {
+  return apiClient.post<WorkflowDetail>(`${ROOT}/${workflowId}/unarchive`);
+}
+
+/** Permanently remove a workflow, its versions, runs and shares. */
+export async function deleteWorkflow(workflowId: string): Promise<void> {
+  await apiClient.delete<void>(`${ROOT}/${workflowId}`);
+}
+
+/** Every published version of this workflow, newest first. Lean - no graphs. */
+export async function listWorkflowVersions(
+  workflowId: string,
+  before?: number,
+): Promise<WorkflowVersionList> {
+  const url = `${ROOT}/${workflowId}/versions`;
+  return before === undefined
+    ? apiClient.get<WorkflowVersionList>(url)
+    : apiClient.get<WorkflowVersionList>(url, { params: { before: String(before) } });
+}
+
+/** One published version with its frozen graph, for a read-only preview. */
+export async function getWorkflowVersion(
+  workflowId: string,
+  versionId: string,
+): Promise<WorkflowVersionDetail> {
+  return apiClient.get<WorkflowVersionDetail>(`${ROOT}/${workflowId}/versions/${versionId}`);
+}
+
+/**
+ * Replace the draft graph, if it is still at `expected_revision`.
+ *
+ * A stale revision answers `REVISION_CONFLICT` (409) naming the current one; the
+ * autosave that owns this call reads it and retries. The response carries the
+ * new `draft_revision` the next save must send.
+ */
+export async function updateWorkflowDraft(
+  workflowId: string,
+  update: WorkflowDraftUpdate,
+): Promise<WorkflowDetail> {
+  return apiClient.patch<WorkflowDetail>(`${ROOT}/${workflowId}/draft`, update);
+}
+
+/**
+ * Validate the draft graph server-side, freeze it as the version that runs, and
+ * switch on the trigger it starts from.
+ */
+export async function publishWorkflow(
+  workflowId: string,
+  publish: WorkflowPublish,
+): Promise<WorkflowPublished> {
+  return apiClient.post<WorkflowPublished>(`${ROOT}/${workflowId}/publish`, publish);
+}
+
+/**
+ * Replace the draft with a published version's frozen graph, if the draft is
+ * still at `expected_revision`. The version is unchanged and no version is
+ * created; the response is the draft at its new revision.
+ */
+export async function restoreWorkflowVersion(
+  workflowId: string,
+  versionId: string,
+  restore: WorkflowVersionRestore,
+): Promise<WorkflowDetail> {
+  return apiClient.post<WorkflowDetail>(
+    `${ROOT}/${workflowId}/versions/${versionId}/restore`,
+    restore,
+  );
+}
+
+/** The workflow's draft as a file: no ids of this deployment, no secret values. */
+export async function exportWorkflow(workflowId: string): Promise<WorkflowExport> {
+  return apiClient.get<WorkflowExport>(`/workflows/${workflowId}/export`);
+}
+
+/** A new draft workflow from an exported file, and every pin it could not carry. */
+export async function importWorkflow(file: unknown): Promise<WorkflowImported> {
+  return apiClient.post<WorkflowImported>("/workflows/import", file);
+}

@@ -91,7 +91,7 @@ const CARD =
  * so the row never overflows and the arrows never appear.
  */
 const CHIP =
-  "border-border bg-card relative flex w-44 shrink-0 items-center gap-2 rounded-lg border p-1.5";
+  "border-foreground/10 bg-card relative flex w-56 shrink-0 items-center gap-2.5 rounded-xl border px-2.5 py-2 shadow-none";
 
 export function FileCard({
   name,
@@ -169,27 +169,9 @@ export function FileCard({
   );
 
   if (compact) {
-    return (
-      <div
-        className={cn(
-          CHIP,
-          onRemove !== undefined && "pr-8",
-          onOpen !== undefined && "hover:border-foreground/30 transition-colors",
-          className,
-        )}
-      >
-        {/* The whole chip opens the file, under the remove button where there
-            is one - a chip in the transcript is a file to read (#927's tile
-            stacked eight pastes into a wall of empty pages). */}
-        {onOpen !== undefined && (
-          <button
-            type="button"
-            onClick={onOpen}
-            aria-label={t("openFile", { name })}
-            className="absolute inset-0 rounded-lg"
-          />
-        )}
-        <span className="bg-muted/60 relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded">
+    const compactBody = (
+      <>
+        <span className="bg-foreground/[0.04] relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg">
           {isImage && imageUrl != null ? (
             <Image src={imageUrl} alt={name} fill className="object-cover" unoptimized />
           ) : (
@@ -208,11 +190,32 @@ export function FileCard({
             {name}
           </span>
           {meta !== "" && (
-            <span className="text-muted-foreground truncate font-mono text-xs tracking-wide uppercase">
-              {meta}
-            </span>
+            <span className="text-muted-foreground truncate text-[11px]">{meta}</span>
           )}
         </span>
+      </>
+    );
+    return (
+      <div
+        className={cn(
+          CHIP,
+          onRemove !== undefined && "pr-8",
+          onOpen !== undefined && "hover:border-foreground/30 transition-colors",
+          className,
+        )}
+      >
+        {onOpen !== undefined ? (
+          <button
+            type="button"
+            onClick={onOpen}
+            aria-label={t("openFile", { name })}
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md text-left"
+          >
+            {compactBody}
+          </button>
+        ) : (
+          compactBody
+        )}
 
         {onRemove !== undefined && (
           // Its own hit area rather than a 12px glyph in a corner: at chip height
@@ -283,14 +286,14 @@ export function PendingFileCard({
   if (compact) {
     return (
       <div className={CHIP}>
-        <span className="bg-muted/60 flex h-7 w-7 shrink-0 items-center justify-center rounded">
+        <span className="bg-foreground/[0.04] flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
           <Spinner className="text-muted-foreground h-3.5 w-3.5" />
         </span>
         <span className="flex min-w-0 flex-col">
           <span title={name} className="truncate text-xs leading-tight font-medium">
             {name}
           </span>
-          <span className="text-muted-foreground truncate font-mono text-xs tracking-wide uppercase">
+          <span className="text-muted-foreground truncate text-[11px]">
             {t("uploading", { size: formatBytes(size) })}
           </span>
         </span>

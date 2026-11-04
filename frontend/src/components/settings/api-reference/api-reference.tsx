@@ -5,7 +5,8 @@ import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
-import { ErrorState, LoadingState } from "@/components/states";
+import { ErrorState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui";
 import { usePublicOpenApi } from "@/hooks";
 import { buildReference, humanizeTag, matchesQuery } from "@/lib/openapi/reference";
@@ -19,6 +20,7 @@ import { ApiReferenceIntro } from "./api-reference-intro";
 export function ApiReference() {
   const t = useTranslations("apiReference");
   const tc = useTranslations("common");
+  const ts = useTranslations("states");
   const { apiUrl } = usePublicConfig();
   const { document, isLoading, error, refetch } = usePublicOpenApi();
   const [query, setQuery] = useState("");
@@ -33,7 +35,33 @@ export function ApiReference() {
       .filter((group) => group.operations.length > 0);
   }, [document, query]);
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={6} />;
+  if (isLoading)
+    return (
+      <div className="space-y-6" role="status" aria-label={ts("loading")}>
+        <ApiReferenceIntro baseUrl={apiUrl} version={undefined} />
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start" aria-hidden>
+          <div className="space-y-3 lg:w-56 lg:shrink-0">
+            <Skeleton className="h-9 w-full" />
+            {[0, 1, 2].map((group) => (
+              <Skeleton key={group} className="h-7 w-full" />
+            ))}
+          </div>
+          <div className="min-w-0 flex-1 space-y-6">
+            {[0, 1, 2].map((group) => (
+              <section
+                key={group}
+                className="border-border bg-card space-y-3 rounded-xl border px-3 py-3"
+              >
+                <Skeleton className="h-5 w-40" />
+                {[0, 1, 2].map((row) => (
+                  <Skeleton key={row} className="h-10 w-full" />
+                ))}
+              </section>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   if (error || !document) {
     return (
       <ErrorState

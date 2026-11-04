@@ -265,3 +265,112 @@ def test_the_children_run_on_this_interpreter() -> None:
         ChildPool(size=0, handlers=HANDLERS, memory_limit_bytes=None, max_jobs=1).command[0]
         == sys.executable
     )
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_partial_pool_start_reaps_every_process(
+    monkeypatch: pytest.MonkeyPatch, cancelled: bool
+) -> None:
+    from app.worker.child import READY
+
+    created: list[asyncio.subprocess.Process] = []
+    spawned = asyncio.Event()
+    launch = asyncio.create_subprocess_exec
+    issued = 0
+
+    async def create(
+        *args: str, stdin: int | None = None, stdout: int | None = None
+    ) -> asyncio.subprocess.Process:
+        nonlocal issued
+        marker = READY if issued == 0 else "bad startup"
+        issued += 1
+        script = (
+            "import time; time.sleep(30)"
+            if cancelled
+            else f"import time; print({marker!r}, flush=True); time.sleep(30)"
+        )
+        process = await launch(sys.executable, "-c", script, stdin=stdin, stdout=stdout)
+        created.append(process)
+        if len(created) == 2:
+            spawned.set()
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create)
+    children = ChildPool(size=2, handlers=HANDLERS, memory_limit_bytes=None, max_jobs=1)
+    starting = asyncio.create_task(children.start())
+    try:
+        await asyncio.wait_for(spawned.wait(), timeout=5)
+        if cancelled:
+            starting.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await starting
+        else:
+            with pytest.raises(ChildStartFailed):
+                await starting
+        assert all(process.returncode is not None for process in created)
+        assert not children._children
+    finally:
+        if not starting.done():
+            starting.cancel()
+        await asyncio.gather(starting, return_exceptions=True)
+        await children.close()
+        for process in created:
+            if process.returncode is None:
+                process.kill()
+            await process.wait()
+
+
+@pytest.mark.parametrize("watchdog", [False, True])
+async def test_stdin_backpressure_does_not_bypass_job_bounds(watchdog: bool) -> None:
+    from app.worker.child import READY
+
+    children = ChildPool(
+        size=1,
+        handlers=HANDLERS,
+        memory_limit_bytes=1 if watchdog else None,
+        max_jobs=1,
+        watch_every=0.01,
+        start_timeout=5,
+        command=(
+            sys.executable,
+            "-c",
+            f"import time; print({READY!r}, flush=True); time.sleep(30)",
+        ),
+    )
+    await children.start()
+    try:
+        async with asyncio.timeout(5):
+            outcome = await _run(
+                children, "test-ok", {"large": "x" * 2_000_000}, timeout=timedelta(seconds=0.1)
+            )
+        if watchdog:
+            assert isinstance(outcome, Died) and "memory watchdog" in outcome.reason
+        else:
+            assert isinstance(outcome, Failed) and "timed out" in outcome.error
+    finally:
+        await children.close()
+
+
+async def test_a_child_that_closes_stdin_cannot_hold_a_failed_write_open() -> None:
+    from app.worker.child import READY
+
+    children = ChildPool(
+        size=1,
+        handlers=HANDLERS,
+        memory_limit_bytes=None,
+        max_jobs=1,
+        watch_every=0.01,
+        command=(
+            sys.executable,
+            "-c",
+            f"import os,time; os.close(0); print({READY!r}, flush=True); time.sleep(30)",
+        ),
+    )
+    await children.start()
+    try:
+        async with asyncio.timeout(5):
+            outcome = await _run(children, "test-ok", {"large": "x" * 2_000_000})
+        assert isinstance(outcome, Died)
+        assert "closed its connection without exiting" in outcome.reason
+    finally:
+        await children.close()

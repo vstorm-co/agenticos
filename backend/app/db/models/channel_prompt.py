@@ -9,7 +9,8 @@ was never offered for.
 
 One row per approval, and one per question: an `ask_user_question` call asks one
 to ten, each its own message, and the call is answered once every one of its
-rows has been.
+rows has been. And one per answer that ended with next steps (#2301): its
+`choices` are the steps, and a press is the presser saying one of them.
 """
 
 import uuid
@@ -35,6 +36,7 @@ from app.db.base import Base, TimestampMixin
 
 APPROVAL = "approval"
 QUESTION = "question"
+FOLLOW_UP = "follow_up"
 
 
 class ChannelPrompt(Base, TimestampMixin):
@@ -42,7 +44,8 @@ class ChannelPrompt(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint(
             "(kind = 'approval' AND approval_id IS NOT NULL)"
-            " OR (kind = 'question' AND tool_call_id IS NOT NULL AND question_index IS NOT NULL)",
+            " OR (kind = 'question' AND tool_call_id IS NOT NULL AND question_index IS NOT NULL)"
+            " OR (kind = 'follow_up' AND chat_type IS NOT NULL)",
             name="ck_channel_prompts_kind",
         ),
         # A question's call is answered once all its rows are: read by run and call.
@@ -79,6 +82,9 @@ class ChannelPrompt(Base, TimestampMixin):
     )
     """A question that takes an answer in the person's own words: their next
     message in the chat answers it, rather than starting a turn."""
+    chat_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """For next steps, the kind of chat a press is replayed into as a message -
+    `private` or `group` - which the press itself does not say."""
     answer: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

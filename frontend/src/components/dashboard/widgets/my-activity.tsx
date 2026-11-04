@@ -30,7 +30,7 @@ export function MyActivityWidget({ title, hint, period, seeAll, options }: Dashb
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !usage || !usage.total_runs ? (

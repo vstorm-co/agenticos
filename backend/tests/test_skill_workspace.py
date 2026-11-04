@@ -335,3 +335,34 @@ def test_which_skill_a_path_belongs_to(path: str, expected: str | None):
     from app.services.skill_workspace import _skill_of
 
     assert _skill_of(path) == expected
+
+
+@pytest.mark.parametrize("name,description", [("x" * 65, "short"), ("normal", "x" * 501)])
+async def test_overlong_proposal_metadata_is_refused_without_altering_workspace(
+    name, description, caplog
+):
+    from app.services.skill_workspace import MaterialisedSkills
+
+    _, workspace = _document()
+    path = f"{SKILLS_ROOT}/{name}/SKILL.md"
+    body = f"---\nname: {name}\ndescription: {description}\n---\nKeep the original instructions."
+    await workspace.write_text(path, body)
+    await workspace.write_text(
+        f"{SKILLS_ROOT}/valid/SKILL.md", "---\ndescription: Valid\n---\nValid instructions"
+    )
+    changes = await collect_changes(workspace, MaterialisedSkills())
+    assert [change.name for change in changes] == ["valid"]
+    assert await workspace.read_text(path) == body
+    assert "skill_change_metadata_out_of_bounds" in caplog.text
+
+
+async def test_proposal_metadata_accepts_exact_column_limits():
+    from app.services.skill_workspace import MaterialisedSkills
+
+    _, workspace = _document()
+    name, description = "x" * 64, "x" * 500
+    await workspace.write_text(
+        f"{SKILLS_ROOT}/{name}/SKILL.md", f"---\ndescription: {description}\n---\nBody"
+    )
+    changes = await collect_changes(workspace, MaterialisedSkills())
+    assert changes[0].name == name and changes[0].description == description

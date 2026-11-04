@@ -33,7 +33,14 @@ export function MyMemory() {
   if (error || !page) return <ErrorState />;
 
   if (page.items.length === 0 && page.external_stores.length === 0) {
-    return <EmptyState icon={Brain} title={t("nothingYet")} description={t("nothingYetWhy")} />;
+    return (
+      <EmptyState
+        className="flex-1"
+        icon={Brain}
+        title={t("nothingYet")}
+        description={t("nothingYetWhy")}
+      />
+    );
   }
 
   return (

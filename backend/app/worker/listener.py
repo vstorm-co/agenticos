@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Callable
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import asyncpg
 
@@ -18,32 +19,48 @@ from app.worker.runtime import Listen
 
 logger = logging.getLogger(__name__)
 
+CONNECTION_ERRORS = (OSError, asyncpg.PostgresError, asyncpg.InterfaceError, TimeoutError)
+
 
 def asyncpg_dsn(sqlalchemy_url: str) -> str:
     """The application's `postgresql+asyncpg://` URL in the form asyncpg itself takes."""
-    return sqlalchemy_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    parts = urlsplit(sqlalchemy_url.replace("postgresql+asyncpg://", "postgresql://", 1))
+    # SQLAlchemy consumes `ssl` as a connect argument; asyncpg's DSN parser
+    # consumes `sslmode` and would send `ssl` to Postgres as a server setting.
+    query = [
+        ("sslmode" if key == "ssl" else key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+    ]
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 def listener(dsn: str, *, reconnect_cap: float = 30.0, check_every: float = 30.0) -> Listen:
     """A loop that listens on `dsn` and calls back with each notified pool, until cancelled."""
 
     async def listen(notify: Callable[[str], None]) -> None:
-        failures = 0
+        delay = min(2.0, reconnect_cap)
         while True:
             try:
                 connection = await asyncpg.connect(dsn)
-            except OSError, asyncpg.PostgresError, TimeoutError:
-                failures += 1
+                try:
+                    await _serve(connection, notify, check_every)
+                    delay = min(2.0, reconnect_cap)
+                    logger.warning("background_listener_disconnected")
+                finally:
+                    if not connection.is_closed():
+                        try:
+                            await connection.close(timeout=10.0)
+                        except CONNECTION_ERRORS:
+                            # Cleanup must not mask cancellation or the failure that
+                            # caused it. The connection is discarded either way.
+                            logger.warning("background_listener_close_failed", exc_info=True)
+                        finally:
+                            if not connection.is_closed():
+                                connection.terminate()
+            except CONNECTION_ERRORS:
                 logger.warning("background_listener_connect_failed", exc_info=True)
-                await asyncio.sleep(min(2.0**failures, reconnect_cap))
-                continue
-            failures = 0
-            try:
-                await _serve(connection, notify, check_every)
-                logger.warning("background_listener_disconnected")
-            finally:
-                if not connection.is_closed():
-                    await connection.close()
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, reconnect_cap)
 
     return listen
 
@@ -71,5 +88,5 @@ async def _until_lost(
             return
         try:
             await asyncio.wait_for(connection.execute("SELECT 1"), timeout=10)
-        except OSError, asyncpg.PostgresError, asyncpg.InterfaceError, TimeoutError:
+        except CONNECTION_ERRORS:
             return

@@ -1,10 +1,13 @@
+import { useChatControlsStore } from "@/stores/chat-controls-store";
+import { projectFolderKey, useProjectFoldersStore } from "@/stores/project-folders-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { useChat } from "./use-chat";
 import { useVisualImagesStore, useVisualStreamStore } from "@/stores/visual-stream-store";
 import { ApiError } from "@/lib/api-error";
@@ -26,8 +29,23 @@ import {
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
 const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { post, get } }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+  // The real error class: `usePermissions` reads a refusal by it.
+  ApiError: (await importOriginal<typeof import("@/lib/api-client")>()).ApiError,
+  apiClient: { post, get },
+}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+// The outbox's copy on the device is `device-cache`'s to test; here, what the
+// hook hands it and what it does with what comes back.
+const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
+  keepOutbox: vi.fn(() => Promise.resolve()),
+  keptOutbox: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+}));
+vi.mock("@/lib/offline/device-cache", () => ({
+  keepOutbox,
+  keptOutbox,
+  readThrough: (_key: string, fetch: () => Promise<unknown>) => fetch(),
+}));
 
 const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   sent: vi.fn(),
@@ -36,6 +54,7 @@ const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
   reopen: vi.fn(),
   socket: {
     onMessage: null as ((event: MessageEvent) => void) | null,
+    onMessageBatch: null as ((events: readonly MessageEvent[]) => void) | null,
     onClose: null as (() => void) | null,
     url: "",
     protocols: undefined as string[] | undefined,
@@ -53,7 +72,10 @@ const { sent, socket, connect, disconnect, reopen } = vi.hoisted(() => ({
  * caller's permissions the same way, for whether a reloaded parked run may have
  * its approval panel rebuilt.
  */
-function makeWrapper(permissions: string[] = []) {
+function makeWrapper(
+  permissions: string[] = [],
+  organizations: { id: string; chat_may_waive_approvals: boolean }[] = [],
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -61,13 +83,16 @@ function makeWrapper(permissions: string[] = []) {
     // Seeded rather than fetched: these tests count requests, and an
     // organizations or permissions query going out would be a request none of
     // them made.
-    client.setQueryData(qk.organizations.list(), []);
-    client.setQueryData(qk.organizations.permissions("current"), {
-      organization_id: "org-1",
-      role: "member",
-      is_app_admin: false,
-      permissions: permissions.map((permission) => ({ permission, scope: "all" })),
-    });
+    client.setQueryData(qk.organizations.list(), organizations);
+    client.setQueryData(
+      qk.organizations.permissions(useOrgStore.getState().activeOrgId ?? "current"),
+      {
+        organization_id: "org-1",
+        role: "member",
+        is_app_admin: false,
+        permissions: permissions.map((permission) => ({ permission, scope: "all" })),
+      },
+    );
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   };
 }
@@ -81,9 +106,11 @@ vi.mock("./use-websocket", () => ({
     url: string;
     protocols?: () => string[] | undefined;
     onMessage?: (event: MessageEvent) => void;
+    onMessageBatch?: (events: readonly MessageEvent[]) => void;
     onClose?: () => void;
   }) => {
     socket.onMessage = options.onMessage ?? null;
+    socket.onMessageBatch = options.onMessageBatch ?? null;
     socket.onClose = options.onClose ?? null;
     socket.url = options.url;
     // Called, because the real hook calls it when it opens a socket rather than
@@ -138,11 +165,12 @@ function parkedTurn() {
 }
 
 beforeEach(() => {
+  useChatControlsStore.setState({ byScope: {} });
   vi.clearAllMocks();
   socket.isConnected = true;
   socket.getProtocols = null;
   useAgentSelectionStore.setState({ selectedAgentId: null });
-  useAuthStore.setState({ accessToken: "t-1" });
+  useAuthStore.setState({ accessToken: "t-1", user: null });
   useOrgStore.setState({ activeOrgId: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
@@ -217,6 +245,47 @@ describe("useChat - replying to a message", () => {
 });
 
 describe("useChat - attributing the answer", () => {
+  it("keeps creation, answer persistence and completion ordered inside one delivery batch", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+    const events = [
+      { type: "conversation_created", data: { conversation_id: "created" } },
+      { type: "model_request_start", data: {} },
+      { type: "text_delta", data: { index: 0, content: "hello back" } },
+      { type: "message_saved", data: { message_id: "saved" } },
+      { type: "complete", data: {} },
+      { type: "session_ready", data: {} },
+    ].map((frame) => new MessageEvent("message", { data: JSON.stringify(frame) }));
+    act(() => socket.onMessageBatch?.(events));
+    const messages = useChatStore.getState().messages;
+    expect(messages.every((message) => message.conversationId === "created")).toBe(true);
+    expect(messages.find((message) => message.role === "assistant")).toMatchObject({
+      id: "saved",
+      content: "hello back",
+      isStreaming: false,
+    });
+    expect(result.current.isProcessing).toBe(false);
+  });
+  it("applies a burst of text deltas as one transcript update", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("hello"));
+    receive("model_request_start", {});
+    let changes = 0;
+    const unsubscribe = useChatStore.subscribe((state, previous) => {
+      if (state.messages !== previous.messages) changes++;
+    });
+    const events = Array.from(
+      { length: 200 },
+      (_, n) =>
+        new MessageEvent("message", {
+          data: JSON.stringify({ type: "text_delta", data: { index: 0, content: `${n} ` } }),
+        }),
+    );
+    act(() => socket.onMessageBatch?.(events));
+    unsubscribe();
+    expect(changes).toBe(1);
+    expect(streaming()?.content).toBe(Array.from({ length: 200 }, (_, n) => `${n} `).join(""));
+  });
   it("credits the answer to the agent the turn was sent to", () => {
     useAgentSelectionStore.getState().select("agent-1");
 
@@ -322,6 +391,7 @@ describe("useChat - the streamed answer", () => {
     receive("text_delta", { index: 0, content: "first" });
     receive("final_result", { output: "first" });
     receive("complete", {});
+    receive("session_ready", {});
 
     receive("model_request_start", {});
 
@@ -363,6 +433,60 @@ describe("useChat - the streamed answer", () => {
       status: "completed",
       result: "3 passages",
     });
+  });
+
+  const SPEAKS_POLISH = {
+    id: "u-1",
+    email: "ada@example.com",
+    is_active: true,
+    created_at: "2026-10-21T00:00:00Z",
+    locale: "pl" as const,
+  };
+
+  it("switches the account's language when an agent was asked to", () => {
+    // What "switch to English" in a chat does (#2301): the console follows the
+    // account, so the page changes as the agent's call answers.
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "agenticos_set_my_language",
+      args: { locale: "en" },
+    });
+    receive("tool_result", { tool_call_id: "tc-1", content: '{"locale": "en"}' });
+
+    expect(useAuthStore.getState().user?.locale).toBe("en");
+  });
+
+  it("leaves the language alone for any other tool", () => {
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "web_search", args: {} });
+    receive("tool_result", { tool_call_id: "tc-1", content: '{"locale": "en"}' });
+
+    expect(useAuthStore.getState().user?.locale).toBe("pl");
+  });
+
+  it("shows the role an agent saved for the person without a reload (#2301)", () => {
+    useAuthStore.setState({ user: SPEAKS_POLISH });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "agenticos_set_my_profile",
+      args: { job_title: "Head of sales" },
+    });
+    receive("tool_result", {
+      tool_call_id: "tc-1",
+      content: '{"job_title": "Head of sales", "about": null}',
+    });
+
+    expect(useAuthStore.getState().user).toMatchObject({ job_title: "Head of sales" });
   });
 
   it("ignores a tool frame with no message open", () => {
@@ -664,17 +788,20 @@ describe("useChat - failures and interruptions", () => {
     expect(useChatStore.getState().messages).toEqual([]);
   });
 
-  it("stops a turn on request and clears everything waiting on it", () => {
+  it("stops a turn on request and clears everything waiting on it", async () => {
+    post.mockResolvedValue("Not performed: the run was stopped.");
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_approval_required", {
       action_requests: [{ id: "ar-1", tool_name: "send_email", args: {} }],
+      run_id: "r-1",
       review_configs: [],
     });
 
     act(() => result.current.stopGeneration());
 
-    expect(frame(0)).toEqual({ type: "stop" });
+    await waitFor(() => expect(result.current.pendingApproval).toBeNull());
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
     expect(streaming()?.isStreaming).toBe(false);
     expect(result.current.isProcessing).toBe(false);
     expect(result.current.pendingApproval).toBeNull();
@@ -759,6 +886,53 @@ describe("useChat - streaming a delegation", () => {
       text: "the last word",
       costUsd: 0.0042,
     });
+  });
+
+  it.each(["Not performed: the run was stopped.", null])(
+    "settles waiting delegates after Stop returns %s",
+    async (settled) => {
+      post.mockResolvedValue(settled);
+      const { result } = renderHook(() => useChat(), { wrapper: decider });
+      receive("model_request_start", {});
+      startDelegation("t1");
+      receive("subagent_awaiting_approval", {
+        kind: "subagent_awaiting_approval",
+        task_id: "t1",
+        subagent: "researcher",
+        depth: 0,
+      });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+        review_configs: [],
+      });
+      receive("complete", {});
+      expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
+      act(() => result.current.stopGeneration());
+      await waitFor(() => expect(result.current.pendingApproval).toBeNull());
+      expect(result.current.delegations[0]?.status).toBe("cancelled");
+    },
+  );
+
+  it("keeps another run's delegation panel unchanged when stopping an older run", async () => {
+    get.mockResolvedValue(true);
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    startDelegation("other-task");
+    receive("subagent_awaiting_approval", {
+      kind: "subagent_awaiting_approval",
+      task_id: "other-task",
+      subagent: "researcher",
+      depth: 0,
+    });
+    receive("complete", {});
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    expect(result.current.delegations[0]?.status).toBe("awaiting_approval");
   });
 
   it("closes a delegate's panel into a waiting state when it stops for a person", () => {
@@ -1019,6 +1193,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
 
     receive("complete", {});
+    receive("session_ready", {});
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
   });
 
@@ -1114,6 +1289,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("complete", {});
+    receive("session_ready", {});
 
     receive("message_saved", { message_id: "m-real" });
 
@@ -1127,6 +1303,7 @@ describe("useChat - the conversation a turn belongs to", () => {
   it("renames nothing when there is no temporary message to rename", () => {
     renderHook(() => useChat(), { wrapper });
     receive("complete", {});
+    receive("session_ready", {});
 
     receive("message_saved", { message_id: "m-real" });
 
@@ -1139,6 +1316,7 @@ describe("useChat - the conversation a turn belongs to", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(listener).toHaveBeenCalled();
     expect(result.current.isProcessing).toBe(false);
@@ -1191,6 +1369,7 @@ describe("useChat - a sandbox still being opened", () => {
     receive("sandbox_preparing", {});
 
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.sandboxPreparing).toBe(false);
   });
@@ -1259,6 +1438,7 @@ describe("useChat - the summary of its own history", () => {
       window_tokens: 5_000,
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.compactionImpossible).toMatchObject({ overhead_tokens: 3_843 });
   });
@@ -1293,6 +1473,7 @@ describe("useChat - the summary of its own history", () => {
     });
 
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.compacting).toBeNull();
   });
@@ -1390,6 +1571,112 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("keeps a rejected step refused when a chat run's batch mixes both", async () => {
+    post.mockImplementation((url: string) =>
+      Promise.resolve(url.startsWith("/approvals/") ? { continues_in_chat: true } : {}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_call", { tool_call_id: "tc-2", tool_name: "delete_row", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "delete_row", args: {} },
+      ],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }, { type: "reject" }]);
+    });
+
+    const steps = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .map((part) => part.toolCall);
+    expect(steps.find((call) => call?.id === "tc-1")?.status).toBe("completed");
+    expect(steps.find((call) => call?.id === "tc-2")).toMatchObject({
+      status: "error",
+      result: "Refused",
+    });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+  });
+
+  it("settles nothing on screen when a chat run's decision has no open turn", async () => {
+    post.mockResolvedValue({ continues_in_chat: true });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+    expect(toast.info).toHaveBeenCalled();
+  });
+
+  it("records the decisions on a chat run and leaves its continuation to the server", async () => {
+    // A chat run is continued by the server once its last call is decided; a
+    // resume from here would answer that chat twice.
+    post.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.startsWith("/approvals/")
+          ? { status: "approved", run_id: "r-1", continues_in_chat: true }
+          : {},
+      ),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("subagent_start", {
+      kind: "subagent_start",
+      task_id: "t1",
+      subagent: "researcher",
+      depth: 0,
+      mode: "sync",
+      prompt: "look",
+      parent_task_id: null,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/approvals/ar-1", { approved: true });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+    expect(result.current.pendingApproval).toBeNull();
+    const steps = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .filter((part) => part.toolCall !== undefined)
+      .map((part) => part.toolCall);
+    expect(steps.find((call) => call?.id === "tc-1")).toMatchObject({
+      status: "completed",
+      result: "Continued in the chat this was asked in",
+    });
+    expect(steps.some((call) => call?.status === "running")).toBe(false);
+    // A panel is not tied to a run, so a decision on a chat run leaves it alone.
+    expect(result.current.delegations[0]?.status).toBe("running");
+    expect(toast.info).toHaveBeenCalledWith(
+      "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
+    );
+  });
+
   it("re-opens the panel when the continuation parks again", async () => {
     // A resume runs the agent, and the agent can reach a second gated call. Nothing
     // announces that here - the continuation runs over HTTP, so no
@@ -1416,6 +1703,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1467,6 +1755,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1498,6 +1787,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1514,6 +1804,7 @@ describe("useChat - approvals and questions", () => {
   });
 
   it("marks a refused call refused, on the turn it was drawn in", async () => {
+    post.mockResolvedValue({});
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
@@ -1523,6 +1814,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "reject" }]);
@@ -1591,7 +1883,15 @@ describe("useChat - approvals and questions", () => {
     // reload, but the panel with the decision was gone, so the only way to finish
     // the run was the approvals queue on another page (#601).
     get.mockResolvedValue([
-      { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: { to: "a@b.c" } },
+      {
+        id: "ar-1",
+        tool_call_id: "tc-1",
+        tool_name: "send_email",
+        tool_args: { to: "a@b.c" },
+        // The stable id and the names its sentence is written from come back with it.
+        capability_tool_id: "send_email",
+        context: { recipient: "Ada" },
+      },
       // A run parked before the tool-call mapping was stored has no id to
       // resolve a card with; the decision is still offered.
       { id: "ar-2", tool_call_id: null, tool_name: "execute", tool_args: {} },
@@ -1602,10 +1902,19 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper: decider });
     await act(async () => {});
 
-    expect(get.mock.calls).toEqual([["/runs/r-1/parked"]]);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toEqual([
+      ["/runs/r-1/parked"],
+    ]);
     expect(result.current.pendingApproval).toEqual({
       actionRequests: [
-        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: { to: "a@b.c" } },
+        {
+          id: "ar-1",
+          tool_call_id: "tc-1",
+          tool_name: "send_email",
+          args: { to: "a@b.c" },
+          capability_tool_id: "send_email",
+          context: { recipient: "Ada" },
+        },
         { id: "ar-2", tool_call_id: "", tool_name: "execute", args: {} },
       ],
       reviewConfigs: [
@@ -1617,7 +1926,45 @@ describe("useChat - approvals and questions", () => {
     });
   });
 
-  it("asks nothing without approvals:decide", async () => {
+  it.each([
+    ["approval", "parked", parkedTurn],
+    ["question", "questions", askedTurn],
+  ] as const)(
+    "keeps Stop available when restoring a %s fails for an approver",
+    async (_, path, turn) => {
+      get.mockImplementation(async (url: string) => {
+        if (url.endsWith("/can-stop")) return true;
+        throw new Error("restore failed");
+      });
+      post.mockResolvedValue("Not performed: the run was stopped.");
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore.getState().addMessage(turn());
+      const { result } = renderHook(() => useChat(), { wrapper: decider });
+      await waitFor(() => expect(get).toHaveBeenCalledWith(`/runs/r-1/${path}`));
+      await waitFor(() => expect(result.current.canStopParked).toBe(true));
+      expect(result.current.pendingApproval).toBeNull();
+      expect(result.current.pendingQuestions).toBeNull();
+      act(() => result.current.stopGeneration());
+      await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+      expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    },
+  );
+
+  it("lets an approver stop a run whose approvals were already decided elsewhere", async () => {
+    get.mockImplementation(async (url: string) => (url.endsWith("/can-stop") ? true : []));
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    expect(result.current.pendingApproval).toBeNull();
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true));
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+  });
+
+  it("checks only stopping authority without approvals:decide", async () => {
     // The endpoint is gated on the permission deciding takes, so a caller
     // without it would 403 on every reopened conversation. The stored step
     // still says the run is waiting; there is just no decision to offer.
@@ -1627,8 +1974,131 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     await act(async () => {});
 
-    expect(get).not.toHaveBeenCalled();
+    expect(get).toHaveBeenCalledWith("/runs/r-1/can-stop", { signal: expect.any(AbortSignal) });
     expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("lets the owner stop a restored approval without deciding it", async () => {
+    get.mockResolvedValue(true);
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    expect(result.current.pendingApproval).toBeNull();
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.canStopParked).toBe(false));
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+  });
+
+  it("finds the owner's earlier parked run behind another person's approval", async () => {
+    get.mockImplementation(async (url: string) => url === "/runs/r-1/can-stop");
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    useChatStore.getState().addMessage({ ...parkedTurn(), id: "other", runId: "other-run" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.canStopParked).toBe(true));
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/runs/r-1/cancel"));
+  });
+
+  it("does not offer another person's parked run to a member", async () => {
+    get.mockResolvedValue(false);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    expect(result.current.canStopParked).toBe(false);
+  });
+
+  it.each(["pending", "resolved"])(
+    "drops owner-only Stop when decision permission arrives with lookup %s",
+    async (lookup) => {
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+      });
+      client.setQueryData(qk.organizations.list(), []);
+      const setPermissions = (decide: boolean) =>
+        client.setQueryData(qk.organizations.permissions("current"), {
+          organization_id: "org-1",
+          role: decide ? "admin" : "member",
+          is_app_admin: false,
+          permissions: decide ? [{ permission: "approvals:decide", scope: "all" }] : [],
+        });
+      setPermissions(false);
+      const Wrap = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+      let finish!: (allowed: boolean) => void;
+      const pending = new Promise<boolean>((resolve) => {
+        finish = resolve;
+      });
+      get.mockImplementation(async (url: string) =>
+        url.endsWith("/can-stop")
+          ? lookup === "pending"
+            ? pending
+            : true
+          : [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", tool_args: {} }],
+      );
+      post.mockResolvedValue({ run_id: "r-1", status: "completed", output: "Done." });
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      useChatStore.getState().addMessage(parkedTurn());
+      const { result } = renderHook(() => useChat(), { wrapper: Wrap });
+      await waitFor(() =>
+        expect(get).toHaveBeenCalledWith("/runs/r-1/can-stop", { signal: expect.any(AbortSignal) }),
+      );
+      if (lookup === "resolved")
+        await waitFor(() => expect(result.current.canStopParked).toBe(true));
+      await act(async () => {
+        setPermissions(true);
+      });
+      await waitFor(() => expect(result.current.pendingApproval).not.toBeNull());
+      await act(async () => finish(true));
+      expect(result.current.canStopParked).toBe(false);
+      await act(async () => result.current.sendResumeDecisions([{ type: "approve" }]));
+      expect(result.current.pendingApproval).toBeNull();
+      expect(result.current.canStopParked).toBe(false);
+    },
+  );
+
+  it("waits for known permissions before asking about owner-only Stop", async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(qk.organizations.list(), []);
+    let finish!: (permissions: unknown) => void;
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    get.mockImplementation(async (url: string) => (url === "/me/permissions" ? pending : []));
+    const Wrap = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    renderHook(() => useChat(), { wrapper: Wrap });
+    await act(async () => {});
+    expect(get.mock.calls.map(([url]) => url)).toEqual(["/me/permissions"]);
+    await act(async () =>
+      finish({
+        organization_id: "org-1",
+        role: "admin",
+        is_app_admin: false,
+        permissions: [{ permission: "approvals:decide", scope: "all" }],
+      }),
+    );
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+    expect(get.mock.calls.some(([url]) => url.endsWith("/can-stop"))).toBe(true);
+  });
+
+  it("automatically retries a temporary authority failure without another message", async () => {
+    get.mockRejectedValueOnce(new Error("offline")).mockResolvedValue(true);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(parkedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.canStopParked).toBe(true), { timeout: 4000 });
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
   it("asks about a run once, not on every store update", async () => {
@@ -1651,7 +2121,7 @@ describe("useChat - approvals and questions", () => {
 
     // Once for the run - and an answer of "nothing pending" leaves the panel
     // down rather than inventing one: the calls were decided somewhere else.
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
   });
 
   it("leaves a parked step from before runs were stamped on messages alone", async () => {
@@ -1677,7 +2147,7 @@ describe("useChat - approvals and questions", () => {
     const { result } = renderHook(() => useChat(), { wrapper: decider });
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
     expect(result.current.pendingApproval).toBeNull();
   });
 
@@ -1687,16 +2157,18 @@ describe("useChat - approvals and questions", () => {
     // switch effect exists to prevent - Approve would decide a call the person
     // is no longer looking at.
     let resolveParked!: (rows: unknown) => void;
-    get.mockReturnValue(
-      new Promise((resolve) => {
-        resolveParked = resolve;
-      }),
+    get.mockImplementation((url: string) =>
+      url.endsWith("/can-stop")
+        ? Promise.resolve(false)
+        : new Promise((resolve) => {
+            resolveParked = resolve;
+          }),
     );
     useConversationStore.getState().setCurrentConversationId("c-1");
     useChatStore.getState().addMessage(parkedTurn());
     const { result } = renderHook(() => useChat(), { wrapper: decider });
     await act(async () => {});
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
 
     act(() => {
       useConversationStore.getState().setCurrentConversationId("c-2");
@@ -1725,9 +2197,10 @@ describe("useChat - approvals and questions", () => {
     expect(get).not.toHaveBeenCalled();
 
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
   });
 
   it("takes a pending question off screen when another conversation is opened", () => {
@@ -1801,6 +2274,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1837,6 +2311,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1871,6 +2346,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1922,6 +2398,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
 
     await act(async () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
@@ -1951,6 +2428,7 @@ describe("useChat - approvals and questions", () => {
       review_configs: [],
     });
     receive("complete", {});
+    receive("session_ready", {});
     const before = useChatStore.getState().messages.length;
 
     await act(async () => {
@@ -2290,6 +2768,7 @@ describe("useChat - what goes out with a turn", () => {
 
     rerender({ id: "c-1" });
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("again"));
     expect(frame(1)).not.toHaveProperty("project_id");
   });
@@ -2302,6 +2781,7 @@ describe("useChat - what goes out with a turn", () => {
 
     act(() => result.current.setModelProfile("p-1"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).toMatchObject({ model_profile_id: "p-1" });
@@ -2317,6 +2797,7 @@ describe("useChat - what goes out with a turn", () => {
 
     act(() => result.current.setApprovalMode("ask_all"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).toMatchObject({ approval_mode: "ask_all" });
@@ -2330,6 +2811,7 @@ describe("useChat - what goes out with a turn", () => {
 
     act(() => result.current.setApprovalMode("follow_agent"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(frame(1)).not.toHaveProperty("approval_mode");
@@ -2519,6 +3001,35 @@ describe("useChat - a socket that went away mid-answer", () => {
     expect(result.current.interrupted).toBe(true);
   });
 
+  it("re-reads a turn the chat page left streaming when it comes back (#2301)", () => {
+    // Leaving the chat unmounts this hook and its socket, but the store keeps
+    // the half-drawn turn: back on the page its timer ran on, and a question it
+    // parked on never returned as a card.
+    const first = renderHook(() => useChat(), { wrapper });
+    act(() => first.result.current.sendMessage("hej"));
+    receive("model_request_start", {});
+    first.unmount();
+
+    const onTurnInterrupted = vi.fn();
+    const { rerender } = renderHook(({ callback }) => useChat({ onTurnInterrupted: callback }), {
+      wrapper,
+      initialProps: { callback: onTurnInterrupted },
+    });
+    const nextCallback = vi.fn();
+    rerender({ callback: nextCallback });
+
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+    expect(nextCallback).not.toHaveBeenCalled();
+  });
+
+  it("re-reads nothing on a page opened with no turn left streaming", () => {
+    const onTurnInterrupted = vi.fn();
+    const { rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
+    rerender();
+
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
   it("says nothing about a socket that came back with no turn in flight", () => {
     const onTurnInterrupted = vi.fn();
     const { result, rerender } = renderHook(() => useChat({ onTurnInterrupted }), { wrapper });
@@ -2567,6 +3078,7 @@ describe("useChat - a socket that went away mid-answer", () => {
 
     act(() => result.current.sendMessage("never mind, this instead"));
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
@@ -2618,7 +3130,8 @@ describe("useChat - a socket that went away mid-answer", () => {
       vi.advanceTimersByTime(100);
     });
 
-    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(result.current.queuedMessages).toHaveLength(0);
+    // Switching threads cancels this queue; the reconnect only follows.
     // The reconnect asks to follow the interrupted turn; nothing queued went out.
     const sentNotFollowing = sent.mock.calls.filter(
       ([sentFrame]) => (sentFrame as { type?: string }).type !== "attach",
@@ -2695,6 +3208,7 @@ describe("useChat - a socket that went away mid-answer", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("first"));
     receive("complete", {});
+    receive("session_ready", {});
     act(() => result.current.sendMessage("second"));
 
     expect(result.current.detachedTurnPending).toBe(false);
@@ -2702,6 +3216,70 @@ describe("useChat - a socket that went away mid-answer", () => {
 });
 
 describe("useChat - the outbound queue", () => {
+  it("waits for session readiness after the result and the saved answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat(), { wrapper });
+      act(() => result.current.sendMessage("first"));
+      receive("model_request_start", {});
+      receive("final_result", { output: "answer" });
+      act(() => result.current.sendMessage("second"));
+      receive("message_saved", { message_id: "saved" });
+      receive("complete", {});
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+      receive("session_ready", {});
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(
+        sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+      ).toEqual(["first", "second"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["conversation", "new-chat-to-existing", "organization", "account", "unmount", "clear"])(
+    "cancels a scheduled send after %s changes",
+    async (changed) => {
+      vi.useFakeTimers();
+      try {
+        useConversationStore.setState({
+          currentConversationId: changed === "new-chat-to-existing" ? null : "c-1",
+        });
+        const { result, unmount } = renderHook(() => useChat(), { wrapper });
+        act(() => result.current.sendMessage("first"));
+        act(() => result.current.sendMessage("belongs to c-1"));
+        receive("complete", {});
+        receive("session_ready", {});
+        act(() => {
+          if (changed === "conversation" || changed === "new-chat-to-existing")
+            useConversationStore.setState({ currentConversationId: "c-2" });
+          else if (changed === "organization") {
+            get.mockResolvedValue({ permissions: [] });
+            useOrgStore.setState({ activeOrgId: "org-other" });
+          } else if (changed === "account")
+            useAuthStore.setState({
+              user: {
+                id: "other",
+                email: "other@example.test",
+                is_active: true,
+                created_at: "2026-01-01T00:00:00Z",
+              },
+            });
+          else if (changed === "unmount") unmount();
+          else result.current.clearQueued();
+          vi.advanceTimersByTime(100);
+        });
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        expect(
+          sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+        ).toEqual(["first"]);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("queues what is sent to wait for the answer, and drains it when the agent is idle", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -2713,6 +3291,7 @@ describe("useChat - the outbound queue", () => {
     expect(sent).toHaveBeenCalledTimes(1);
 
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
@@ -2751,6 +3330,7 @@ describe("useChat - the outbound queue", () => {
 
     act(() => result.current.sendMessage("second", undefined, undefined, [drive]));
     receive("complete", {});
+    receive("session_ready", {});
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
@@ -2931,6 +3511,7 @@ describe("what the person cannot reach", () => {
 
     receive("personal_services_unavailable", { services: [NOTION] });
     receive("complete", {});
+    receive("session_ready", {});
 
     expect(result.current.personalGaps).toEqual([NOTION]);
   });
@@ -3045,6 +3626,7 @@ describe("useChat - watching a browse", () => {
 
     browserFrame("browser_opened", { step: 0, goal: "g", max_steps: 25 });
     browserFrame("browser_frame", { step: 1, image: "data:image/jpeg;base64,AAA" });
+    browserFrame("browser_control_error", { step: 1, detail: "Outside allowed domains" });
     browserFrame("browser_step", {
       step: 1,
       operation: "CLICK",
@@ -3056,6 +3638,7 @@ describe("useChat - watching a browse", () => {
     expect(result.current.browses[0]).toMatchObject({
       image: "data:image/jpeg;base64,AAA",
       imageStep: 1,
+      controlError: "Outside allowed domains",
       outcome: "blocked",
       detail: "Sign in first",
     });
@@ -3142,12 +3725,187 @@ describe("useChat - a question its person came back to", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     await act(async () => {});
 
-    expect(get.mock.calls).toEqual([["/runs/r-1/questions"]]);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/questions"))).toEqual([
+      ["/runs/r-1/questions"],
+    ]);
     expect(result.current.pendingQuestions?.[0]).toMatchObject({
       question: "How formal?",
       header: "Tone",
       allowCustom: true,
     });
+  });
+
+  it("stops a restored question by its parked run id without resuming it", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
+    expect(useChatStore.getState().messages[0]?.wasStopped).toBe(true);
+  });
+
+  it("keeps the question available when stopping fails", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(new Error("Network down"));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(result.current.pendingQuestions).not.toBeNull();
+    expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
+  });
+
+  it("does not toast a failed stop after its chat unmounts", async () => {
+    get.mockResolvedValue(ASKED);
+    let refuse!: (error: Error) => void;
+    post.mockReturnValue(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result, unmount } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    unmount();
+    await act(async () => refuse(new Error("offline")));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("ignores a cancellation error after leaving its conversation", async () => {
+    get.mockResolvedValue(ASKED);
+    let refuse!: (error: Error) => void;
+    post.mockReturnValue(
+      new Promise((_, reject) => {
+        refuse = reject;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    await act(async () => refuse(new Error("offline")));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(result.current.isStopping).toBe(false);
+  });
+
+  it("does not clear another conversation after a delayed stop", async () => {
+    get.mockResolvedValue(ASKED);
+    let finish!: () => void;
+    post.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    receive("connect_account", { server_id: "new", name: "New connection" });
+    const connection = result.current.pendingConnection;
+    expect(connection).not.toBeNull();
+    await act(async () => finish());
+    expect(result.current.pendingConnection).toEqual(connection);
+  });
+
+  it("blocks competing responses and repeated Stop while cancellation is pending", async () => {
+    get.mockResolvedValue(ASKED);
+    let finish!: (result: string) => void;
+    post.mockReturnValue(
+      new Promise<string>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    expect(result.current.isStopping).toBe(true);
+    await act(async () => {
+      result.current.stopGeneration();
+      result.current.sendAskUserResponses([]);
+      await result.current.sendResumeDecisions([]);
+      result.current.sendConnectionResponse(true);
+    });
+    expect(post.mock.calls).toEqual([["/runs/r-1/cancel"]]);
+    expect(sent.mock.calls.map(([value]) => value.type)).toEqual(["attach"]);
+    await act(async () => finish("Not performed: the run was stopped."));
+    expect(result.current.isStopping).toBe(false);
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: "Not performed: the run was stopped.",
+    });
+  });
+
+  it("keeps another run's approval after stopping the restored question", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue("Not performed: the run was stopped.");
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    useChatStore.getState().addMessage({
+      ...askedTurn(),
+      id: "other-message",
+      runId: "other-run",
+      toolCalls: [{ id: "approve-other", name: "execute", args: {}, status: "awaiting_approval" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    receive("tool_approval_required", {
+      run_id: "other-run",
+      action_requests: [],
+      review_configs: [],
+    });
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(result.current.pendingApproval?.runId).toBe("other-run");
+  });
+
+  it("refetches the exact result if the run was already cancelled", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue(null);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const refetch = vi.fn();
+    const { result } = renderHook(() => useChat({ onTurnInterrupted: refetch }), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it("dismisses a stale question and refetches when another tab already resumed it", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockRejectedValue(
+      new ApiError(400, "Already running", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Already running",
+          details: { run_id: "r-1", status: "running" },
+        },
+      }),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const refetch = vi.fn();
+    const { result } = renderHook(() => useChat({ onTurnInterrupted: refetch }), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
+    act(() => result.current.stopGeneration());
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(refetch).toHaveBeenCalledOnce();
+    expect(useChatStore.getState().messages[0]?.wasStopped).not.toBe(true);
   });
 
   it("answers over HTTP, closes the step and draws the continuation", async () => {
@@ -3185,6 +3943,37 @@ describe("useChat - a question its person came back to", () => {
     });
     expect(messages.at(-1)?.content).toBe("Here it is, casually.");
     expect(result.current.pendingQuestions).toBeNull();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("answers a chat run's question here and says the answer also went to the chat", async () => {
+    get.mockResolvedValue(ASKED);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "Here it is, casually.",
+      status: "completed",
+      continues_in_chat: true,
+      settled: [{ tool_call_id: "ask-1", result: '{"Tone": ["Casual"]}' }],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    await act(async () => {
+      result.current.sendAskUserResponses([{ answer: "", selected: ["Casual"], skipped: false }]);
+    });
+
+    const messages = useChatStore.getState().messages;
+    expect(messages[0]?.toolCalls?.[0]).toMatchObject({ status: "completed" });
+    expect(messages.at(-1)?.content).toBe("Here it is, casually.");
+    expect(toast.info).toHaveBeenCalledWith(
+      "The answer is also sent to the chat this was asked in.",
+    );
   });
 
   it("puts the question back when the answer never landed", async () => {
@@ -3320,7 +4109,7 @@ describe("useChat - a question its person came back to", () => {
     act(() => useChatStore.getState().addMessage({ ...askedTurn(), id: "m-2", runId: "r-1" }));
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/questions"))).toHaveLength(2);
     expect(result.current.pendingQuestions?.[0]).toMatchObject({ question: "How formal?" });
   });
 
@@ -3353,7 +4142,7 @@ describe("useChat - a question its person came back to", () => {
     });
     await act(async () => {});
 
-    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/questions"))).toHaveLength(1);
     expect(result.current.pendingQuestions).toBeNull();
   });
 
@@ -3482,6 +4271,21 @@ describe("useChat - coming back to a turn still being written", () => {
     );
   }
 
+  it("attributes a background answer to its agent without inventing a user message", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("background_task_turn", { conversation_id: "c-other", agent_id: "wrong" });
+    receive("background_task_turn", { conversation_id: "c-1", agent_id: "background-agent" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "The research is ready." });
+    expect(streaming()).toMatchObject({
+      agentId: "background-agent",
+      content: "The research is ready.",
+    });
+    expect(useChatStore.getState().messages.filter((m) => m.role === "user")).toHaveLength(1);
+  });
+
   it("asks to follow the conversation's turn once its transcript is here", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     expect(sent).not.toHaveBeenCalled();
@@ -3534,6 +4338,7 @@ describe("useChat - coming back to a turn still being written", () => {
     receive("model_request_start", {});
     receive("text_delta", { index: 0, content: "Writing index.html" });
     expect(streaming()?.content).toContain("Writing index.html");
+    receive("message_saved", { message_id: "stored-answer" });
 
     receive("turn_followed_to_end", { conversation_id: "c-1" });
     expect(result.current.isProcessing).toBe(false);
@@ -3717,4 +4522,747 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
     expect(result.current.isProcessing).toBe(false);
   });
+});
+
+describe("useChat - the outbox (#2097)", () => {
+  // A failed expectation skips a test's own `useRealTimers`; the next test's
+  // `waitFor` would wait on a clock nobody advances.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Ask, queue `queued` behind it, and let the first turn end so the queue drains. */
+  async function drainOne(result: { current: ReturnType<typeof useChat> }, queued: string) {
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage(queued));
+    receive("complete", {});
+    receive("session_ready", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+  }
+
+  it("keeps what is queued under its conversation, and lets it go once it is sent", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+
+    await drainOne(result, "second");
+
+    expect(keepOutbox).toHaveBeenCalledWith("c-1", [
+      expect.objectContaining({ content: "second" }),
+    ]);
+    expect(keepOutbox).toHaveBeenLastCalledWith("c-1", []);
+    expect(frame(1).message).toBe("second");
+    vi.useRealTimers();
+  });
+
+  it("brings a conversation's outbox back when it is opened, and sends it", async () => {
+    vi.useFakeTimers();
+    keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(keptOutbox).toHaveBeenCalledWith("c-1");
+    expect(lastFrame().message).toBe("written on the train");
+    vi.useRealTimers();
+  });
+
+  it("holds a kept message while the network is gone, saying it waits", async () => {
+    socket.isConnected = false;
+    keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(1));
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("puts what was kept ahead of what was typed while it was being read", async () => {
+    socket.isConnected = false;
+    let answer!: (kept: unknown[]) => void;
+    keptOutbox.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("typed just now"));
+
+    await act(async () => {
+      answer([
+        { id: "q-1", content: "written on the train" },
+        { id: result.current.queuedMessages[0]!.id, content: "typed just now" },
+      ]);
+    });
+
+    expect(result.current.queuedMessages.map((q) => q.content)).toEqual([
+      "written on the train",
+      "typed just now",
+    ]);
+  });
+
+  it("takes a new chat's queue along when the chat gets its id", async () => {
+    socket.isConnected = false;
+    let conversationId: string | null = null;
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    await act(async () => {});
+    act(() => result.current.sendMessage("the first question"));
+    expect(keepOutbox).toHaveBeenLastCalledWith(null, [
+      expect.objectContaining({ content: "the first question" }),
+    ]);
+
+    receive("conversation_created", { conversation_id: "c-new" });
+    conversationId = "c-new";
+    rerender();
+
+    expect(keepOutbox).toHaveBeenCalledWith(null, []);
+    expect(keepOutbox).toHaveBeenLastCalledWith("c-new", [
+      expect.objectContaining({ content: "the first question" }),
+    ]);
+  });
+
+  it("puts a queued message the server refused back, saying why, instead of a dead question", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await drainOne(result, "second");
+    act(() => result.current.sendMessage("third"));
+
+    receive("error", { message: "The monthly budget is spent." });
+    receive("session_ready", {});
+
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ content: "second", refused: "The monthly budget is spent." }),
+      expect.objectContaining({ content: "third" }),
+    ]);
+    const texts = useChatStore.getState().messages.map((message) => message.content);
+    expect(texts).not.toContain("second");
+    expect(texts.join(" ")).not.toContain("budget");
+
+    // Held: the refused one is at the head, and the queue is the order they go in.
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(sent).toHaveBeenCalledTimes(2);
+
+    const refused = result.current.queuedMessages[0]!;
+    act(() => result.current.retryQueued(refused.id));
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(frame(2).message).toBe("second");
+    expect(result.current.queuedMessages).toEqual([expect.objectContaining({ content: "third" })]);
+    vi.useRealTimers();
+  });
+
+  it("leaves a refusal after the message was saved where it was", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await act(async () => {});
+    await drainOne(result, "second");
+
+    receive("user_prompt", { content: "second" });
+    receive("error", { message: "The model failed." });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    const texts = useChatStore.getState().messages.map((message) => message.content);
+    expect(texts).toContain("second");
+    vi.useRealTimers();
+  });
+
+  it("does not take a message typed straight in for a queued one", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("typed"));
+
+    receive("error", { message: "Pick an agent." });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(useChatStore.getState().messages.at(-1)?.content).toContain("Pick an agent.");
+  });
+
+  it("takes the queue off the screen on a switch without dropping it from the device", () => {
+    socket.isConnected = false;
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    act(() => result.current.sendMessage("later"));
+    keepOutbox.mockClear();
+
+    act(() => result.current.clearQueued());
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(keepOutbox).not.toHaveBeenCalled();
+  });
+});
+
+it("sends the chosen folder, browser, model and MCP grants with a new turn", () => {
+  const target = {
+    folder: "/approved",
+    mode: "read_only" as const,
+    browser: true,
+    model_service: "model-grant",
+    mcp_services: ["mcp-grant"],
+  };
+  useWorkOnStore.getState().set(null, target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("read the project"));
+    expect(lastFrame().local).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});
+
+it("files the local target when the conversation is created with settings closed", () => {
+  const target = { folder: "/approved", mode: "full_access" as const };
+  useWorkOnStore.getState().set(null, target);
+  try {
+    const initialProps: { conversationId?: string } = {};
+    const { result, rerender } = renderHook(
+      ({ conversationId }: { conversationId?: string }) => useChat({ conversationId }),
+      { wrapper, initialProps },
+    );
+    act(() => result.current.sendMessage("read local files"));
+    expect(lastFrame().local).toEqual(target);
+    receive("conversation_created", { conversation_id: "created-local" });
+    expect(useWorkOnStore.getState().targetFor(null)).toEqual(target);
+    expect(useWorkOnStore.getState().targetFor("created-local")).toEqual(target);
+    receive("complete", {});
+    receive("session_ready", {});
+    rerender({ conversationId: "created-local" });
+    sent.mockClear();
+    act(() => result.current.sendMessage("and now?"));
+    expect(lastFrame().conversation_id).toBe("created-local");
+    expect(lastFrame().local).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});
+
+it("sends the inherited local project target on the first frame and keeps it after creation", () => {
+  const target = { folder: "/approved/project", mode: "read_only" as const };
+  useConversationStore.getState().setPendingProjectId("p-local");
+  useWorkOnStore.getState().applyProject("alice:org:p-local", target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("read my project files"));
+    expect(lastFrame().project_id).toBe("p-local");
+    expect(lastFrame().local).toEqual(target);
+    receive("conversation_created", { conversation_id: "project-created" });
+    expect(useWorkOnStore.getState().targetFor("project-created")).toEqual(target);
+  } finally {
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
+    useConversationStore.getState().setPendingProjectId(null);
+  }
+});
+
+it("resolves the project folder even when sending beats project metadata rendering", () => {
+  const target = { folder: "/approved/instant", mode: "read_only" as const };
+  const key = projectFolderKey("u-1", "org-a", "p-instant");
+  if (!key) throw new Error("Expected authenticated project key");
+  useAuthStore.setState({
+    user: {
+      id: "u-1",
+      email: "test@example.com",
+      is_active: true,
+      created_at: "2026-10-25T00:00:00Z",
+    },
+  });
+  useOrgStore.setState({ activeOrgId: "org-a" });
+  useConversationStore.getState().setPendingProjectId("p-instant");
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: false,
+  };
+  useProjectFoldersStore.getState().bind(key, target);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("inspect local project"));
+    expect(lastFrame().local).toEqual(target);
+    expect(lastFrame().project_id).toBe("p-instant");
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+    useProjectFoldersStore.setState({ byProject: {} });
+    useWorkOnStore.setState({ byConversation: {}, draft: null, draftProjectKey: null });
+  }
+});
+
+it("adopts the persisted prompt id before reconciling a live transcript", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("A question"));
+  const temporary = useChatStore.getState().messages[0]!;
+  receive("user_prompt", { message_id: "stored-question", content: "A question" });
+  expect(useChatStore.getState().messages[0]).toMatchObject({
+    id: "stored-question",
+    isTemporaryId: false,
+    renderKey: temporary.id,
+  });
+});
+
+it("holds queued prompts when the socket drops after completion but before admission is ready", async () => {
+  vi.useFakeTimers();
+  try {
+    const { result, rerender } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first"));
+    act(() => result.current.sendMessage("waiting"));
+    receive("complete", {});
+    socket.isConnected = false;
+    rerender();
+    socket.isConnected = true;
+    rerender();
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(result.current.interrupted).toBe(true);
+    expect(result.current.queuedMessages.map((message) => message.content)).toEqual(["waiting"]);
+    expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("waits for the followed turn to detach before releasing a queued prompt", async () => {
+  vi.useFakeTimers();
+  try {
+    const { result } = renderHook(() => useChat({ conversationId: "followed" }), { wrapper });
+    receive("turn_attached", { conversation_id: "followed" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "An answer" });
+    act(() => result.current.sendMessage("next question"));
+    receive("complete", {});
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(0);
+    receive("turn_followed_to_end", { conversation_id: "followed" });
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(
+      sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+    ).toEqual(["next question"]);
+    expect(streaming()?.isStreaming).toBe(false);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it.each(["saved-question", null])(
+  "reconciles its own prompt when reconnect replay carries %s",
+  (messageId) => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const sender = { user_id: "me", name: "Me", has_avatar: false, avatar_color: null };
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "local",
+        clientMessageId: "nonce",
+        role: "user",
+        content: "repeat",
+        timestamp: new Date(),
+        conversationId: "c-1",
+        isTemporaryId: true,
+        sender,
+      }),
+    );
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: messageId,
+      client_message_id: "nonce",
+      content: "repeat",
+      sender,
+    });
+    const prompts = useChatStore.getState().messages.filter((item) => item.role === "user");
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]?.id).toBe(messageId ?? "local");
+    expect(prompts[0]?.renderKey).toBe("local");
+    expect(prompts[0]?.isTemporaryId).toBe(messageId === null);
+  },
+);
+
+it("sends the prompt correlation retained beside its authenticated author", () => {
+  useAuthStore.setState({
+    user: {
+      id: "me",
+      email: "me@example.com",
+      full_name: "Me",
+      is_active: true,
+      created_at: "2026-10-01",
+      avatar_url: "/avatar/me",
+      avatar_color: 1,
+    },
+  });
+  const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+  act(() => result.current.sendMessage("repeat"));
+  const prompt = useChatStore.getState().messages.find((message) => message.role === "user");
+  expect(prompt?.clientMessageId).toEqual(expect.any(String));
+  expect(lastFrame().client_message_id).toBe(prompt?.clientMessageId);
+  expect(prompt?.sender).toEqual({ user_id: "me", name: "Me", has_avatar: true, avatar_color: 1 });
+});
+
+describe("useChat - next steps arrive after the answer", () => {
+  function saved(id = "answer-1", conversationId = "c-1") {
+    return {
+      id,
+      conversationId,
+      role: "assistant" as const,
+      content: "Original answer",
+      timestamp: new Date(),
+      isStreaming: false,
+    };
+  }
+  it("updates only the saved answer while another answer is streaming", () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    useChatStore.setState({
+      messages: [saved(), { ...saved("answer-2"), isStreaming: true, content: "Still writing" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    const before = useChatStore.getState().messages[1];
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: "answer-1",
+      steps: ["Make a table"],
+    });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.args.steps).toEqual([
+      "Make a table",
+    ]);
+    expect(useChatStore.getState().messages[1]).toBe(before);
+    expect(result.current.isProcessing).toBe(false);
+  });
+  it("keeps a very fast result until message_saved renames its bubble", async () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Answer" });
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: "saved-1",
+      steps: ["Make a table"],
+    });
+    receive("message_saved", { message_id: "saved-1", conversation_id: "c-1" });
+    await waitFor(() =>
+      expect(
+        useChatStore.getState().messages.find((m) => m.id === "saved-1")?.toolCalls?.[0]?.args
+          .steps,
+      ).toEqual(["Make a table"]),
+    );
+  });
+  it("drops another conversation's late result and malformed events", () => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    useChatStore.setState({ messages: [saved()] });
+    renderHook(() => useChat(), { wrapper });
+    const before = useChatStore.getState().messages[0];
+    receive("next_steps", {
+      conversation_id: "c-2",
+      message_id: "answer-1",
+      steps: ["Make a table"],
+    });
+    receive("next_steps", { conversation_id: "c-1", message_id: "answer-1", steps: [1] });
+    expect(useChatStore.getState().messages[0]).toBe(before);
+  });
+});
+
+it("bounds suggestions waiting for a saved bubble", async () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  renderHook(() => useChat(), { wrapper });
+  for (let i = 0; i <= 20; i++)
+    receive("next_steps", {
+      conversation_id: "c-1",
+      message_id: `saved-${i}`,
+      steps: ["Make a table"],
+    });
+  receive("model_request_start", {});
+  receive("message_saved", { message_id: "saved-20", conversation_id: "c-1" });
+  await waitFor(() =>
+    expect(
+      useChatStore.getState().messages.find((m) => m.id === "saved-20")?.toolCalls,
+    ).toHaveLength(1),
+  );
+  act(() =>
+    useChatStore.getState().addMessage({
+      id: "saved-0",
+      conversationId: "c-1",
+      role: "assistant",
+      content: "Older",
+      timestamp: new Date(),
+    }),
+  );
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === "saved-0")?.toolCalls,
+  ).toBeUndefined();
+});
+
+it("discards pending suggestions when the conversation changes", () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  renderHook(() => useChat(), { wrapper });
+  receive("next_steps", {
+    conversation_id: "c-1",
+    message_id: "old-answer",
+    steps: ["Make a table"],
+  });
+  act(() => useConversationStore.setState({ currentConversationId: "c-2" }));
+  act(() => useConversationStore.setState({ currentConversationId: "c-1" }));
+  act(() =>
+    useChatStore.getState().addMessage({
+      id: "old-answer",
+      conversationId: "c-1",
+      role: "assistant",
+      content: "Old answer",
+      timestamp: new Date(),
+    }),
+  );
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === "old-answer")?.toolCalls,
+  ).toBeUndefined();
+});
+
+it("refreshes the conversation bill even when the helper offers no buttons", async () => {
+  useConversationStore.setState({ currentConversationId: "c-1" });
+  get.mockResolvedValue({ cost: null });
+  renderHook(() => useChat(), { wrapper });
+  receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
+  await waitFor(() =>
+    expect(get).toHaveBeenCalledWith("/conversations/c-1/messages?skip=0&limit=1"),
+  );
+  expect(useChatStore.getState().messages).toHaveLength(0);
+});
+
+it.each(["account", "organization"])(
+  "does not apply a late helper bill after changing %s",
+  async (changed) => {
+    useConversationStore.setState({ currentConversationId: "c-1" });
+    const bill = { input_tokens: 10, output_tokens: 20, cost_usd: "0.25", cost_is_partial: false };
+    let resolve!: (value: { cost: typeof bill }) => void;
+    const pendingBill = new Promise<{ cost: typeof bill }>((done) => {
+      resolve = done;
+    });
+    get.mockImplementation((path: string) => {
+      if (path === "/me/permissions") {
+        return Promise.resolve({
+          organization_id: "new-org",
+          role: "member",
+          is_app_admin: false,
+          permissions: [],
+        });
+      }
+      if (path === "/conversations/c-1/messages?skip=0&limit=1") return pendingBill;
+      throw new Error(`Unexpected GET ${path}`);
+    });
+    renderHook(() => useChat(), { wrapper });
+    receive("next_steps", { conversation_id: "c-1", message_id: "answer", steps: [] });
+    act(() => {
+      if (changed === "organization") useOrgStore.setState({ activeOrgId: "new-org" });
+      else
+        useAuthStore.setState({
+          user: {
+            id: "new-account",
+            email: "new@example.com",
+            full_name: "New",
+            is_active: true,
+            created_at: "2026-10-01",
+          },
+        });
+      resolve({ cost: bill });
+    });
+    await act(async () => {});
+    expect(useConversationStore.getState().currentCost).not.toEqual(bill);
+  },
+);
+
+it("sends a browser-only override without a folder or sandbox target", () => {
+  const store = useWorkOnStore.getState();
+  store.setBrowser(null, true);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("open the local browser"));
+    expect(lastFrame().local).toEqual({ browser: true });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("keeps a finished browser preview through a follow-up turn", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("browser_opened", {
+    kind: "browser_opened",
+    call_id: "c1",
+    step: 0,
+    goal: "first",
+    navigable: true,
+    tab_id: "main",
+  });
+  receive("browser_finished", {
+    kind: "browser_finished",
+    call_id: "c1",
+    step: 1,
+    outcome: "done",
+  });
+  act(() => result.current.sendMessage("continue on that page"));
+  expect(result.current.browses).toHaveLength(1);
+  expect(result.current.browses[0]).toMatchObject({ tabId: "main", outcome: "done" });
+});
+
+it("sends a screen-only override without giving the agent a local folder", () => {
+  const store = useWorkOnStore.getState();
+  store.setComputer(null, true);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("use my computer"));
+    expect(lastFrame().local).toEqual({ computer: true });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("sends no local field when a chat chose no skills", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("no skills"));
+  expect(lastFrame().local).toBeUndefined();
+});
+
+it("sends the skill sources a chat chose, alone, without a folder", () => {
+  const store = useWorkOnStore.getState();
+  store.setSkills(null, ["claude", "codex"]);
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("skills only"));
+    expect(lastFrame().local).toEqual({ skills: ["claude", "codex"] });
+    expect(store.targetFor(null)).toBeNull();
+  } finally {
+    store.resetDraft();
+  }
+});
+
+it("sends the skill sources together with the folder the chat works in", () => {
+  const store = useWorkOnStore.getState();
+  store.setSkills(null, ["agents"]);
+  store.set(null, { folder: "/Users/me/work", mode: "full_access" });
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("skills in a folder"));
+    expect(lastFrame().local).toEqual({
+      folder: "/Users/me/work",
+      mode: "full_access",
+      skills: ["agents"],
+    });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
+it("reads approval-waiver policy for the active organization", () => {
+  useOrgStore.setState({ activeOrgId: "org-1" });
+  const { result } = renderHook(() => useChat(), {
+    wrapper: makeWrapper(
+      ["approvals:decide"],
+      [
+        { id: "elsewhere", chat_may_waive_approvals: false },
+        { id: "org-1", chat_may_waive_approvals: true },
+      ],
+    ),
+  });
+  act(() => result.current.sendMessage("hello"));
+  expect(lastFrame()).not.toHaveProperty("approval_mode");
+});
+
+const nativeStop = vi.hoisted(() => ({ handler: (_payload: unknown) => {} }));
+vi.mock("./use-desktop", async (original) => {
+  const real = await original<typeof import("./use-desktop")>();
+  return {
+    ...real,
+    useShellEvent: (...args: Parameters<typeof real.useShellEvent>) => {
+      if (args[0] === "desktop:stop-conversation") nativeStop.handler = args[1];
+      real.useShellEvent(...args);
+    },
+  };
+});
+it("stops the originating live conversation from the desktop activity command", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    window: "main",
+    version: "0.2.0",
+    vibrancy: false,
+  };
+  useConversationStore.getState().setCurrentConversationId("native-chat");
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Keep working"));
+  expect(result.current.isProcessing).toBe(true);
+  act(() => nativeStop.handler("native-chat"));
+  expect(sent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "stop" }));
+  delete window.__AGENTICOS_SHELL__;
+});
+
+it("sends a per-chat coding choice alongside its approved folder", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/approved", mode: "full_access" });
+  store.setCoding(null, "codex");
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("use the local coding agent"));
+    expect(lastFrame().local).toEqual({
+      folder: "/approved",
+      mode: "full_access",
+      coding_agent: "codex",
+      coding_model: null,
+      coding_effort: null,
+    });
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
+it("sends the person's chosen coding model and effort without changing the main model", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/approved", mode: "full_access" });
+  store.setCoding(null, "codex");
+  store.setCodingPreferences(null, { model: "chosen-coding-model", effort: "low" });
+  try {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("work on this"));
+    expect(lastFrame().local).toMatchObject({
+      coding_agent: "codex",
+      coding_model: "chosen-coding-model",
+      coding_effort: "low",
+    });
+    expect(lastFrame().model_profile_id).not.toBe("chosen-coding-model");
+  } finally {
+    store.set(null, null);
+    store.resetDraft();
+  }
+});
+
+it("retains the server-recorded file origin after composer workspace changes", () => {
+  renderHook(() => useChat(), { wrapper });
+  receive("user_prompt", { file_source: { kind: "local", id: "original-source" } });
+  receive("model_request_start", {});
+  act(() => useWorkOnStore.getState().set(null, { folder: "/different", mode: "full_access" }));
+  receive("text_delta", { index: 0, content: "Done" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", id: "original-source" });
+  useWorkOnStore.setState({ byConversation: {}, draft: null });
+});
+
+it("keeps local folder mappings private while recording only opaque turn origins", () => {
+  const store = useWorkOnStore.getState();
+  store.set(null, { folder: "/private/original", mode: "full_access" });
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Make a file"));
+  act(() => store.set(null, { folder: "/private/different", mode: "full_access" }));
+  receive("user_prompt", { file_source: { kind: "local", id: "opaque-source" } });
+  expect(store.fileRootFor("opaque-source")).toBe("/private/original");
+  receive("model_request_start", {});
+  receive("text_delta", { index: 0, content: "Done" });
+  expect(streaming()?.fileSource).toEqual({ kind: "local", id: "opaque-source" });
+  expect(JSON.stringify(streaming()?.fileSource)).not.toContain("/private");
+  useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
+});
+
+it("does not file a pending local origin under a newly selected organization", () => {
+  const store = useWorkOnStore.getState();
+  const organization = useOrgStore.getState().activeOrgId;
+  store.set(null, { folder: "/private/original", mode: "full_access" });
+  const { result } = renderHook(() => useChat(), { wrapper });
+  act(() => result.current.sendMessage("Make a file"));
+  act(() => useOrgStore.setState({ activeOrgId: "other-organization" }));
+  receive("user_prompt", { file_source: { kind: "local", id: "late-source" } });
+  expect(store.fileRootFor("late-source")).toBeUndefined();
+  act(() => useOrgStore.setState({ activeOrgId: organization }));
+  expect(store.fileRootFor("late-source")).toBeUndefined();
+  useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
 });

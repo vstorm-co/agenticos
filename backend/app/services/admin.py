@@ -105,6 +105,8 @@ class AdminService:
                 "name": org.name,
                 "slug": org.slug,
                 "is_personal": org.is_personal,
+                "has_avatar": bool(org.avatar_url),
+                "avatar_color": org.avatar_color,
                 "member_count": member_count,
                 "agent_count": agent_count,
                 # Null when an organization has no owner at all - possible after
@@ -117,6 +119,16 @@ class AdminService:
             for org, member_count, agent_count, owner_user_id, owner_email, owner_name in rows
         ]
         return {"items": items, "total": total}
+
+    async def organization_avatar_path(self, organization_id: UUID) -> str:
+        """Avatar storage path for the app-admin-only organization directory."""
+        org = await organization_repo.get_by_id(self.db, organization_id)
+        if org is None or not org.avatar_url:
+            raise NotFoundError(
+                message="Organization avatar not found",
+                details={"organization_id": organization_id},
+            )
+        return org.avatar_url
 
     async def get_organization_detail(self, org_id: UUID, *, actor_user_id: UUID) -> dict[str, Any]:
         """One organization in full for the deployment admin, and record that they looked.
@@ -156,6 +168,8 @@ class AdminService:
             "name": org.name,
             "slug": org.slug,
             "is_personal": org.is_personal,
+            "has_avatar": bool(org.avatar_url),
+            "avatar_color": org.avatar_color,
             "member_count": member_count,
             "agent_count": agent_count,
             "owner_user_id": owner_user_id,

@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const data = await backendFetch("/api/v1/users/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const body = await request.json();
     const data = await backendFetch("/api/v1/users/me", {

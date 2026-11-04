@@ -119,3 +119,39 @@ async def test_each_owner_reads_only_their_own_consented_accounts(db: AsyncSessi
     # An MCP read never offers an account as a server to bind.
     servers, _ = await mcp_connection_repo.list_for_user(db, user_id=ana.id)
     assert [row.id for row in servers] == [server.id]
+
+
+async def test_long_account_identities_and_pending_rows_stay_outside_mcp(db: AsyncSession) -> None:
+    user = await _person(db)
+    organization = await _organization(db, user)
+    email = "a" * 64 + "@workspace.example.com"
+    account = McpConnection(
+        organization_id=organization.id,
+        created_by_user_id=user.id,
+        scope="org",
+        name="google-account-long",
+        url="https://www.googleapis.com",
+        purpose="account",
+        catalog_key="google",
+        label=email[:64],
+        account_email=email,
+        auth_type="oauth",
+        secret_key_version=1,
+        oauth_pending_payload="pending",
+    )
+    db.add(account)
+    await db.flush()
+    pending = await mcp_connection_repo.get_pending_account(
+        db,
+        provider="google",
+        organization_id=organization.id,
+    )
+    assert pending is not None and pending.id == account.id and pending.account_email == email
+    assert (
+        await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            db,
+            organization_id=organization.id,
+            catalog_key="google",
+        )
+        is None
+    )

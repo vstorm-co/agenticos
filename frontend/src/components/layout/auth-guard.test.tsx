@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthGuard } from "./auth-guard";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { useAuthStore } from "@/stores";
 
@@ -24,9 +24,14 @@ vi.mock("@/lib/api-client", async () => {
 // depends on it, and a fresh function per render would re-run the effect on every
 // state change and stage the same token twice.
 const adoptSession = vi.hoisted(() => vi.fn());
-vi.mock("@/hooks/use-auth", () => ({
+// Whether a failed check leaves the apps signed in offline - `use-auth`'s rule,
+// tested there; here, what the guard does with its answer.
+const offline = vi.hoisted(() => ({ stays: false }));
+vi.mock("@/hooks/use-auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-auth")>()),
   useAdoptSession: () => adoptSession,
   readSession: () => apiClient.get("/auth/me"),
+  stayOffline: () => offline.stays,
 }));
 
 // One router object across renders, as `next/navigation` hands out: a fresh one per
@@ -40,6 +45,7 @@ const PENDING_FOR_FLOW = `${ROUTES.INVITATION_PENDING}?flow=${FLOW}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  offline.stays = false;
   useAuthStore.getState().logout();
 });
 
@@ -51,7 +57,56 @@ function renderGuard() {
   );
 }
 
+describe("the dashboard guard, offline in the apps (#2097)", () => {
+  it("leaves the kept account on its page rather than sending it to sign in", async () => {
+    offline.stays = true;
+    vi.mocked(apiClient.get).mockRejectedValue(new TypeError("Failed to fetch"));
+
+    renderGuard();
+
+    expect(await screen.findByText("the dashboard")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("a session check while the server is unavailable", () => {
+  it.each([429, 500, 503])("keeps the login cookie on a %i and offers a retry", async (status) => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(status, "Unavailable"));
+    renderGuard();
+    expect(await screen.findByText("Your session could not be checked")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.queryByText("the dashboard")).not.toBeInTheDocument();
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      id: "u-1",
+      email: "person@example.com",
+      access_token: "fresh",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(adoptSession).toHaveBeenCalledWith(
+        { id: "u-1", email: "person@example.com" },
+        "fresh",
+      ),
+    );
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
+
 describe("the dashboard guard, refusing", () => {
+  it("redirects an already open agent page when the session is revoked", async () => {
+    window.history.replaceState(null, "", "/agents/a-1?tab=spec");
+    useAuthStore.setState({ isAuthenticated: true });
+    vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));
+    renderGuard();
+    expect(screen.getByText("the dashboard")).toBeInTheDocument();
+    await act(async () => useAuthStore.getState().logout());
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        `${ROUTES.LOGIN}?returnTo=${encodeURIComponent("/agents/a-1?tab=spec")}`,
+      ),
+    );
+  });
+
   it("carries the whole address to login - path, query and fragment", async () => {
     window.history.replaceState(null, "", "/agents/a-1?tab=spec#monthly");
     vi.mocked(apiClient.get).mockRejectedValue(new Error("401"));

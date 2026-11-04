@@ -52,7 +52,7 @@ vi.mock("@/hooks", () => ({
   useKnowledgeBases: () => ({ kbs: [], isLoading: false }),
   useSkills: () => ({ skills: [], total: 0, isLoading: false }),
   useSecrets: () => ({ secrets: [], isLoading: false, listError: null }),
-  useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+  useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
   useSecretPurposes: () => ({ purposes: [], isLoading: false }),
 }));
 

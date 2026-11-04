@@ -14,7 +14,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
+from app.agents.model_resolver import PROVIDERS
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
+from app.api.public_api import PUBLIC
+from app.core.exceptions import AuthorizationError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
     ImageModelRead,
@@ -23,6 +27,7 @@ from app.schemas.model_profile import (
     ModelProfileCreate,
     ModelProfileList,
     ModelProfileRead,
+    ModelProfileUpdate,
     ProviderCatalog,
     ProviderInfo,
     ProviderModelList,
@@ -33,13 +38,23 @@ from app.schemas.model_profile import (
     SpeechToTextModelRead,
     SpeechToTextProviderList,
     SpeechToTextProviderRead,
+    TextToSpeechModelRead,
+    TextToSpeechProviderList,
+    TextToSpeechProviderRead,
+    TextToSpeechVoiceRead,
+    VideoModelRead,
+    VideoProviderList,
+    VideoProviderRead,
 )
 from app.services import realtime_models
 from app.services.image_models import image_providers
-from app.services.model_catalog import models_for
-from app.services.model_profile import provider_catalog
+from app.services.model_catalog import CUSTOM_LISTINGS, models_for
+from app.services.model_outputs import stated_outputs
+from app.services.model_profile import provider_catalog, validate_endpoint_url
 from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
+from app.services.text_to_speech_models import providers as text_to_speech_providers
+from app.services.video_models import providers as video_providers
 
 router = APIRouter()
 
@@ -63,8 +78,11 @@ async def list_provider_catalog() -> Any:
             secret_kind=spec.secret_kind,
             supports_base_url=spec.supports_base_url,
             keyless=spec.keyless,
+            requires_base_url=spec.requires_base_url,
             apis=list(spec.apis),
             native_api=spec.native_api,
+            regions=list(spec.regions),
+            api_from_model=spec.api_from_model,
         )
         for spec in provider_catalog()
     ]
@@ -74,10 +92,14 @@ async def list_provider_catalog() -> Any:
 @router.get(
     "/model-profiles",
     response_model=ModelProfileList,
-    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+    dependencies=[PUBLIC, Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
-    """Selectable models. Readable by anyone who can see agents - the Builder's dropdown."""
+    """Selectable models. Readable by anyone who can see agents - the Builder's dropdown.
+
+    Public, so a key - and the Architect, choosing the model a draft publishes
+    on - can read which models the organization has (#2301).
+    """
     items = await service.list_profiles(ctx)
     return ModelProfileList(items=items, total=len(items))
 
@@ -100,9 +122,30 @@ async def create_model_profile(
         secret_id=data.secret_id,
         base_url=data.base_url,
         api=data.api,
+        region=data.region,
         params=data.params,
         fallback_profile_ids=data.fallback_profile_ids,
     )
+
+
+@router.patch(
+    "/model-profiles/{profile_id}",
+    response_model=ModelProfileRead,
+    dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
+)
+async def update_model_profile(
+    profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
+) -> Any:
+    """Change a model's key, endpoint, API, settings or name in place.
+
+    The profile keeps its id, so every agent on it uses the change from its next
+    run - rotating a key is one call rather than a new model and a republish of
+    each agent. Gated like creating one: `connections:manage`, and a new key - or
+    a new endpoint for the stored key, which is where the key is sent - must be
+    one the caller can see in the vault. Answers with the profile; the key itself
+    is never in a response.
+    """
+    return await service.update_profile(ctx, profile_id, data)
 
 
 @router.delete(
@@ -112,6 +155,14 @@ async def create_model_profile(
     dependencies=[Depends(require(Perm.CONNECTIONS_MANAGE))],
 )
 async def delete_model_profile(profile_id: UUID, service: ModelProfileSvc, ctx: Auth) -> None:
+    """Delete a model no agent uses.
+
+    Refused with `409 IN_USE` while an agent's draft, served version or an
+    environment's pinned version names the profile anywhere - its model, a
+    reviewer, a specialist, a capability - archived agents included.
+    `details.agents` lists the ones the caller can see by id, name and whether
+    they are archived, and `details.hidden_agents` counts the rest.
+    """
     await service.delete_profile(ctx, profile_id)
 
 
@@ -241,25 +292,141 @@ async def list_realtime_models() -> Any:
 
 
 @router.get(
+    "/text-to-speech-models",
+    response_model=TextToSpeechProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_text_to_speech_models() -> Any:
+    """Which providers can speak a text aloud, with which models, voices and formats.
+
+    The same shape and the same reasoning as `/image-models`: the catalog is the
+    platform's, so a console that kept a copy would hold one a catalog change makes
+    wrong. Voices are listed per model because OpenAI's older models speak in only
+    some of its voices. A provider whose voices belong to the account - ElevenLabs -
+    lists none and says so in `account_voices`, and a binding names one by id.
+
+    No credential is read. This says what the deployment can offer, not what this
+    organization has a key for - the secret field beside it does that.
+
+    Declared before `/{provider}/models`, which would otherwise match
+    "text-to-speech-models" as a provider.
+    """
+    offered = text_to_speech_providers()
+    return TextToSpeechProviderList(
+        items=[
+            TextToSpeechProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                formats=list(entry.formats),
+                account_voices=entry.account_voices,
+                models=[
+                    TextToSpeechModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        max_characters=model.max_characters,
+                        takes_instructions=model.takes_instructions,
+                        voices=[
+                            TextToSpeechVoiceRead(
+                                id=voice.id, name=voice.name, description=voice.description
+                            )
+                            for voice in entry.voices_for(model)
+                        ],
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
+    )
+
+
+@router.get(
+    "/video-models",
+    response_model=VideoProviderList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_video_models() -> Any:
+    """Which providers can make a video, and what each of their models can make.
+
+    The same shape and the same reasoning as `/image-models`. Each model states the
+    lengths, aspect ratios and resolutions it takes and whether its clips carry
+    sound, because the providers differ on every one and the Builder offers only
+    what the chosen model can make. No credential is read.
+
+    Declared before `/{provider}/models`, which would otherwise match
+    "video-models" as a provider.
+    """
+    offered = video_providers()
+    return VideoProviderList(
+        items=[
+            VideoProviderRead(
+                provider=entry.provider,
+                name=entry.name,
+                models=[
+                    VideoModelRead(
+                        id=model.id,
+                        name=model.name,
+                        description=model.description,
+                        min_seconds=model.min_seconds,
+                        max_seconds=model.max_seconds,
+                        duration_choosable=model.duration_choosable,
+                        aspect_ratios=list(model.aspect_ratios),
+                        resolutions=list(model.resolutions),
+                        audio=model.audio,
+                        first_frame=model.first_frame,
+                    )
+                    for model in entry.models
+                ],
+            )
+            for entry in offered
+        ],
+        total=len(offered),
+    )
+
+
+@router.get(
     "/{provider}/models",
     response_model=ProviderModelList,
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
-async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> Any:
-    """What this provider offers, for the field where a model id is chosen.
-
-    Suggestions, not a constraint - the field stays free text, because a
-    provider ships a model the morning after this was cached. `source` says
-    whether the provider answered or the deployment's own list was used, so the
-    UI can be honest about which it is showing.
-
-    The key comes from the vault, when the listing needs one and the
-    organization has one. Nothing here opens it: the vault service hands back a
-    bearer token for this one outbound request, and providers that publish a
-    public list (OpenRouter) are asked without one.
-    """
-    api_key = await secrets.listing_key(ctx, provider)
-    models, source = await models_for(provider, api_key=api_key)
+async def list_provider_models(
+    provider: str,
+    secrets: SecretSvc,
+    ctx: Auth,
+    base_url: str | None = None,
+    secret_id: UUID | None = None,
+) -> Any:
+    """List suggestions; custom authenticated endpoints require a visible selected key."""
+    if (
+        base_url is None
+        and (spec := PROVIDERS.get(provider)) is not None
+        and spec.requires_base_url
+    ):
+        return ProviderModelList(items=[], total=0, source="unlisted")
+    if base_url is not None:
+        if provider not in CUSTOM_LISTINGS:
+            raise refused_field(
+                "base_url",
+                "Only OpenRouter, Stav and Otari support a custom model listing endpoint",
+            )
+        if not ctx.has(Perm.CONNECTIONS_MANAGE):
+            raise AuthorizationError(
+                message="Managing connections is required for a custom endpoint"
+            )
+        base_url = await validate_endpoint_url(base_url)
+    sends_key = base_url is None or CUSTOM_LISTINGS[provider]
+    if base_url is not None and sends_key and secret_id is None:
+        raise refused_field("secret_id", "Choose a vault key before listing this endpoint")
+    api_key = (
+        await secrets.listing_key(ctx, provider, secret_id=secret_id)
+        if sends_key and secret_id is not None
+        else await secrets.listing_key(ctx, provider)
+        if sends_key
+        else None
+    )
+    models, source = await models_for(provider, api_key=api_key, base_url=base_url)
     return ProviderModelList(
         items=[
             ProviderModelRead(
@@ -267,6 +434,8 @@ async def list_provider_models(provider: str, secrets: SecretSvc, ctx: Auth) -> 
                 name=entry.name,
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
+                apis=[api for api in ("chat", "responses") if api in entry.surfaces],
+                chat_capable=stated_outputs(provider, entry.id, entry.output_modalities).chat,
             )
             for entry in models
         ],

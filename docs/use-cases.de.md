@@ -1,12 +1,12 @@
 ---
-source_sha: "ab1e8540de48"
+source_sha: "607874ad6395"
 title: "Eine erste Aufgabe wählen"
-description: "29 Tutorials: Dokumente, Support, Recherche, Automatisierung, Produktivität und Inhalt, jedes mit einer Prüfung, die Sie selbst durchführen können."
+description: "30 Tutorials: Dokumente, Support, Recherche, Automatisierung, Produktivität und Inhalt, jedes mit einer Prüfung, die Sie selbst durchführen können."
 ---
 
 # Eine erste Aufgabe wählen { #choose-a-first-task }
 
-Beginnen Sie mit einer Aufgabe, deren Ergebnis jemand im Team beurteilen kann. Jedes der 29 Tutorials unten gibt Ihnen eine synthetische Eingabe, die Konfiguration, den genauen Prompt, Referenzprüfungen, die üblichen Fehler und was Sie festhalten sollten. Sie sind Ausgangspunkte mit Referenz-Runs, keine Kundenfallstudien oder Erfolgsquoten-Behauptungen.
+Beginnen Sie mit einer Aufgabe, deren Ergebnis jemand im Team beurteilen kann. Jedes der 30 Tutorials unten gibt Ihnen eine synthetische Eingabe, die Konfiguration, den genauen Prompt, Referenzprüfungen, die üblichen Fehler und was Sie festhalten sollten. Sie sind Ausgangspunkte mit Referenz-Runs, keine Kundenfallstudien oder Erfolgsquoten-Behauptungen.
 
 Die letzte Spalte nennt, wann die Maintainer ein Tutorial zuletzt am Produkt ausgeführt haben. Ein festgehaltener Run deckt genau das ab, was der Beispielblock der Seite beschreibt: eine Konfiguration, ein Datum und ein Modell. Er ist kein Beleg dafür, dass Ihre Konfiguration dieselben Prüfungen besteht. Ein Tutorial, das ein Drittanbieter-Konto braucht, das die Maintainer nicht verbunden haben, trägt *Noch nicht festgehalten*.
 
@@ -29,6 +29,7 @@ Die letzte Spalte nennt, wann die Maintainer ein Tutorial zuletzt am Produkt aus
 | [Eine Handbuchfrage in Slack beantworten](howto/slack-handbook-assistant.md) | Der Dokumenten-Agent, der in einem Slack-Thread antwortet | Noch nicht festgehalten |
 | [Eingehende Support-Anfragen aus Ihrer eigenen App triagieren](howto/support-ticket-triage.md) | Tickets aus Ihrer App, klassifiziert über einen signierten Webhook | v0.0.504, 25. September 2026 |
 | [Ihren Posteingang triagieren und Antworten entwerfen](howto/email-triage.md) | Neue E-Mails, gelesen von einem Gmail-Trigger und zu Antwortentwürfen verarbeitet | Noch nicht festgehalten |
+| [E-Mails mit einem freigegebenen Entwurf beantworten](howto/answer-mail-with-approved-draft.md) | Ein Workflow, der eine Antwort entwirft, eine Person um Freigabe bittet und sie in den Thread schreibt | Noch nicht festgehalten |
 | [Fragen neuer Mitarbeiter mit Context-Dateien und Skills beantworten](howto/onboarding-helpdesk.md) | Feststehender Kontext und Verfahrens-Skills für neue Mitarbeiter | v0.0.504, 25. September 2026 |
 
 ## Recherche und Analyse { #research-and-analysis }

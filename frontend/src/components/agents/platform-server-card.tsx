@@ -214,8 +214,12 @@ function PlatformBindingDialog({
                       <label htmlFor={`platform-tool-${tool.name}`} className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="font-mono text-xs">{tool.name}</span>
-                          {tool.writes && (
-                            <Badge variant="outline">{t("platformWritesBadge")}</Badge>
+                          {tool.writes ? (
+                            <Badge variant="outline">
+                              {tool.ungated ? t("platformUngatedBadge") : t("platformWritesBadge")}
+                            </Badge>
+                          ) : (
+                            tool.held && <Badge variant="outline">{t("platformHeldBadge")}</Badge>
                           )}
                         </span>
                         <span className="text-muted-foreground block text-xs">

@@ -7,6 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 
+import { useProjectFolder } from "@/hooks/use-project-folder";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
+import { useWorkOnStore } from "@/stores/work-on-store";
 import { ProjectPickerDialog } from "@/components/projects/project-picker-dialog";
 import { useConversations } from "@/hooks/use-conversations";
 import { useProjectOfConversation } from "@/hooks/use-projects";
@@ -44,6 +48,8 @@ export function ProjectChip({
   const { data: started } = useProjectOfConversation(conversationId);
   const projectId = conversationId === null ? pending : (started ?? null);
 
+  const shell = useShell();
+  const local = useProjectFolder(projectId);
   const { data: project, isError: unreadable } = useQuery({
     queryKey: qk.projects.detail(projectId ?? ""),
     queryFn: () => getProject(projectId as string),
@@ -57,9 +63,7 @@ export function ProjectChip({
   useEffect(() => {
     if (arrived === null || tookArrival.current) return;
     tookArrival.current = true;
-    // Clears any project chosen before, so it goes first.
-    void startNewChat();
-    setPending(arrived);
+    void startNewChat(arrived);
     setUrlParam("project", null);
   }, [arrived, setPending, startNewChat]);
   // A choice that cannot be read - a deleted project, one no longer shared, a
@@ -73,6 +77,17 @@ export function ProjectChip({
       selectAgent(project.default_agent_id);
     }
   }, [arrived, conversationId, project, selectAgent]);
+
+  useEffect(() => {
+    if (conversationId !== null || !isDesktopShell(shell) || !local.available) return;
+    if (pending === null) {
+      useWorkOnStore.getState().applyProject(null, null);
+    } else if (local.scopeKey !== null) {
+      // This personal preference is independent of metadata loading. The server
+      // still checks project access before starting any local operation.
+      useWorkOnStore.getState().applyProject(local.scopeKey, local.target);
+    }
+  }, [conversationId, shell, local.available, local.scopeKey, local.target, pending]);
 
   return (
     <>

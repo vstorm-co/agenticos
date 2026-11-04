@@ -3,6 +3,7 @@
 import { Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { AgentAvatar } from "./agent-avatar";
 import { cn } from "@/lib/utils";
 import type { AgentUsage } from "@/types/agents";
 
@@ -27,7 +28,23 @@ export function UsedBy({ agents, className }: { agents?: AgentUsage[]; className
       className={cn("text-muted-foreground flex min-w-0 items-center gap-1 text-xs", className)}
       title={agents.map((agent) => agent.name).join(", ") || undefined}
     >
-      <Bot className="h-3.5 w-3.5 shrink-0" />
+      {agents.length === 0 ? (
+        <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      ) : (
+        <span className="flex shrink-0 -space-x-1.5" aria-hidden>
+          {agents.slice(0, NAMED).map((agent) => (
+            <AgentAvatar
+              key={agent.id}
+              agentId={agent.id}
+              slug={agent.slug ?? agent.id}
+              hasAvatar={agent.has_avatar}
+              colorSlot={agent.avatar_color}
+              size="sm"
+              unframed
+            />
+          ))}
+        </span>
+      )}
       <span className="truncate">
         {agents.length === 0
           ? t("usedByNobody")

@@ -176,6 +176,16 @@ describe("rendering an answer", () => {
     markdown(`[Revenue dashboard](${href})`);
 
     expect(screen.getByRole("link", { name: "Revenue dashboard" })).toBeInTheDocument();
+    // An app wears the app mark, not the Apps section's as well.
+    expect(screen.getByRole("link").querySelectorAll("svg")).toHaveLength(1);
+  });
+
+  it("marks a console page the agent links to with its section's icon", () => {
+    markdown("Here are your routines: [Routines](/routines?highlight=routines-create)");
+
+    const link = screen.getByRole("link", { name: "Routines" });
+    expect(link.querySelector(".lucide-timer-reset")).not.toBeNull();
+    expect(link).not.toHaveAttribute("target");
   });
 
   it("shows a fenced block's language, and offers it for copying", () => {
@@ -271,6 +281,47 @@ describe("rendering an answer", () => {
     markdown("See [the docs](https://docs.example/guide).");
 
     const link = screen.getByRole("link", { name: /the docs/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it.each([
+    ["a protocol-relative address", "//evil.example/login"],
+    ["another scheme with no slashes", "https:evil.example/login"],
+    ["an upper-case scheme with one slash", "HTTPS:/evil.example/login"],
+  ])("opens %s, which leaves the console, in a new tab (#2550)", (_, href) => {
+    // The test console is on http://localhost:3000; each of these resolves to
+    // evil.example, and a click without a target would take this tab there.
+    expect(new URL(href, window.location.origin).host).toBe("evil.example");
+    markdown(`Sign in [here](${href}).`);
+
+    const link = screen.getByRole("link", { name: /here/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("keeps a backslash from naming another host", () => {
+    // The parser reads `/\host` as `//host`, but Markdown percent-encodes the
+    // backslash first, so the link is a path on this console.
+    markdown("Sign in [here](/\\evil.example/login).");
+
+    const link = screen.getByRole("link", { name: "here" });
+    expect(link).toHaveAttribute("href", "/%5Cevil.example/login");
+    expect(link).not.toHaveAttribute("target");
+  });
+
+  it("knows the service behind an address written without its scheme", () => {
+    const { container } = markdown("See [the repo](//github.com/acme/ledgerly).");
+
+    const link = screen.getByRole("link", { name: "the repo" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(container.querySelector(".lucide-external-link")).toBeNull();
+  });
+
+  it("still opens an absolute address on this console in a new tab", () => {
+    markdown(`[settings](${window.location.origin}/settings/profile)`);
+
+    const link = screen.getByRole("link", { name: /settings/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
@@ -412,4 +463,18 @@ describe("images, and who is reading them", () => {
 
     expect(screen.getByRole("link", { name: /not loaded/i })).toBeInTheDocument();
   });
+});
+
+it("renders direct video links in documents without autoplay and leaves chat links alone", () => {
+  const content = "[Demo](https://cdn.example.com/demo.mp4)";
+  const { container, rerender } = render(<MarkdownContent content={content} documentMedia />);
+  expect(container.querySelector("video")).toHaveAttribute("controls");
+  expect(container.querySelector("video")).not.toHaveAttribute("autoplay");
+  expect(container.querySelector("video")).toHaveAttribute("preload", "none");
+  rerender(<MarkdownContent content={content} />);
+  expect(container.querySelector("video")).toBeNull();
+  expect(screen.getByRole("link", { name: "Demo" })).toHaveAttribute(
+    "href",
+    "https://cdn.example.com/demo.mp4",
+  );
 });

@@ -1,18 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, BookOpen, FilePlus, Upload } from "lucide-react";
+import { useId, useMemo, useState } from "react";
+import { AlertTriangle, BookOpen, ChevronDown, FolderOpen, FilePlus, Upload } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  DialogFooter,
-  Input,
-  Label,
-  Switch,
-} from "@/components/ui";
+import { Alert, AlertDescription, Button, DialogFooter, Textarea, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
+import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
 import { FilePane, FileTree, NewFileForm, UploadButton } from "@/components/skills/skill-files";
 import { CategoryInput } from "@/components/skills/category-input";
@@ -35,6 +28,7 @@ interface SkillWorkbenchProps {
   categorySuggestions?: string[];
   onSave: (edit: SkillEdit) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
 /**
@@ -61,19 +55,23 @@ export function SkillWorkbench({
   categorySuggestions = [],
   onSave,
   onCancel,
+  onDelete,
 }: SkillWorkbenchProps) {
   const t = useTranslations("skills");
   const { addResource, saveResource, removeResource, uploadResources } = useSkill(skill.id);
 
   const [description, setDescription] = useState(skill.description);
   const [content, setContent] = useState(skill.content);
-  const [enabled, setEnabled] = useState(skill.enabled);
   // Held as text while it is edited; whitespace-only means "no category", so
   // clearing the field is how a skill leaves its shelf.
   const [category, setCategory] = useState(skill.category ?? "");
   // `null` is the body. Every other value is a resource id.
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [metadataOpen, setMetadataOpen] = useState(false);
+  const metadataId = useId();
+  const filesId = useId();
+  const [filesOpen, setFilesOpen] = useState(false);
 
   const files = useMemo(() => skill.resources ?? [], [skill.resources]);
   const tree = useMemo(() => buildTree(files), [files]);
@@ -83,7 +81,6 @@ export function SkillWorkbench({
   const changed =
     description !== skill.description ||
     content !== skill.content ||
-    enabled !== skill.enabled ||
     editedCategory !== skill.category;
 
   const upload = async (picked: File[]) => {
@@ -92,25 +89,60 @@ export function SkillWorkbench({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none">
-      {/* Above the split rather than inside the body pane: the description and
-          the switch are facts about the skill, not about the file being read,
-          and they have to stay reachable while somebody is in `checklist.md`.
-          Every column is label / control / helper from the top, so the three
-          inputs share one line - bottom-aligning them by helper text put the
-          category box at whatever height its wrapped helper left it. */}
-      <div className="flex flex-wrap items-start gap-4 rounded-md border p-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex shrink-0 items-center gap-2 md:hidden">
+        <button
+          type="button"
+          className="touch:min-h-11 flex h-8 min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-xs"
+          aria-expanded={metadataOpen}
+          aria-controls={metadataId}
+          onClick={() => {
+            setMetadataOpen(!metadataOpen);
+            setFilesOpen(false);
+          }}
+        >
+          <span className="shrink-0 font-medium">{t("description3")}</span>{" "}
+          <span className="sr-only">{description}</span>
+          <ChevronDown
+            className={cn("size-4 shrink-0", metadataOpen && "rotate-180")}
+            aria-hidden
+          />
+        </button>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-expanded={filesOpen}
+          aria-controls={filesId}
+          onClick={() => {
+            setFilesOpen(!filesOpen);
+            setMetadataOpen(false);
+          }}
+        >
+          <FolderOpen aria-hidden />
+          {t("files3")}
+        </Button>
+      </div>
+      <div
+        id={metadataId}
+        className={cn(
+          "flex shrink-0 flex-wrap items-start gap-4 rounded-md border p-3 max-md:max-h-[35dvh] max-md:overflow-y-auto",
+          !metadataOpen && "max-md:hidden",
+        )}
+      >
         <div className="min-w-0 flex-1 basis-72 space-y-1.5">
           <Label htmlFor="skill-description">{t("description3")}</Label>
-          <Input
+          <Textarea
             id="skill-description"
+            rows={2}
+            className="min-h-20 resize-y"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             readOnly={!canEdit}
           />
           <p className="text-muted-foreground text-xs">{t("onlyPartModelReads2")}</p>
+          <p className="text-muted-foreground text-xs">{t("markdownLoadedOnlyAfter")}</p>
         </div>
-        <div className="w-56 shrink-0 space-y-1.5">
+        <div className="w-full shrink-0 space-y-1.5 md:w-56">
           <Label htmlFor="skill-category">{t("category2")}</Label>
           <CategoryInput
             id="skill-category"
@@ -122,23 +154,16 @@ export function SkillWorkbench({
           />
           <p className="text-muted-foreground text-xs">{t("groupsListingNeverReaches")}</p>
         </div>
-        <div className="shrink-0 space-y-1.5">
-          <Label htmlFor="skill-enabled">{t("enabled")}</Label>
-          {/* Centered on the input row: the switch is shorter than an input,
-              and sitting on the row's top edge it reads as misplaced. */}
-          <div className="flex h-9 items-center">
-            <Switch
-              id="skill-enabled"
-              checked={enabled}
-              onCheckedChange={setEnabled}
-              disabled={!canEdit}
-            />
-          </div>
-        </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
-        <div className="flex min-h-0 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:grid-rows-1">
+        <div
+          id={filesId}
+          className={cn(
+            "flex min-h-0 shrink-0 flex-col gap-2 max-md:max-h-[30dvh] md:shrink",
+            !filesOpen && "max-md:hidden",
+          )}
+        >
           {canEdit && (
             // One row of three, above the tree: stacked below it they wrapped
             // onto two lines and read as an afterthought under a tall empty box.
@@ -150,6 +175,7 @@ export function SkillWorkbench({
                 onClick={() => {
                   setAdding(true);
                   setOpenId(null);
+                  setFilesOpen(false);
                 }}
               >
                 <FilePlus className="h-3.5 w-3.5" />
@@ -163,12 +189,13 @@ export function SkillWorkbench({
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-48 max-md:min-h-24">
+          <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-36">
             <button
               type="button"
               onClick={() => {
                 setOpenId(null);
                 setAdding(false);
+                setFilesOpen(false);
               }}
               aria-current={openId === null && !adding}
               className={cn(
@@ -185,15 +212,14 @@ export function SkillWorkbench({
               onOpen={(id) => {
                 setOpenId(id);
                 setAdding(false);
+                setFilesOpen(false);
               }}
             />
           </div>
         </div>
 
-        {/* On a phone the dialog scrolls as one column (`create-skill-dialog`
-            does the same), so the file pane needs a height of its own -
-            squeezed into what was left of 90vh it showed one line of the file. */}
-        <div className="flex min-h-0 flex-col max-md:min-h-[22rem]">
+        {/* The reader takes the remaining height; saving stays within reach below it. */}
+        <div className="flex min-h-0 flex-1 flex-col">
           {adding ? (
             <NewFileForm
               busy={addResource.isPending}
@@ -201,6 +227,7 @@ export function SkillWorkbench({
               onSubmit={async (draft) => {
                 await addResource.mutateAsync(draft);
                 setAdding(false);
+                setFilesOpen(false);
               }}
             />
           ) : selected ? (
@@ -217,15 +244,7 @@ export function SkillWorkbench({
               }}
             />
           ) : (
-            <FileEditor
-              name={BODY}
-              content={content}
-              canEdit={canEdit}
-              onChange={setContent}
-              footer={
-                <p className="text-muted-foreground text-xs">{t("markdownLoadedOnlyAfter")}</p>
-              }
-            />
+            <FileEditor name={BODY} content={content} canEdit={canEdit} onChange={setContent} />
           )}
         </div>
       </div>
@@ -237,21 +256,37 @@ export function SkillWorkbench({
         </Alert>
       )}
 
-      <DialogFooter>
-        <ShareResourceButton
-          resourceType="skill"
-          resourceId={skill.id}
-          name={skill.name}
-          canManage={canEdit}
-          className="sm:mr-auto"
-        />
+      <DialogFooter className="shrink-0 flex-row items-center max-md:pt-2">
+        <div className="mr-auto flex items-center gap-2">
+          <ShareResourceButton
+            compact
+            resourceType="skill"
+            resourceId={skill.id}
+            name={skill.name}
+            canManage={canEdit}
+          />
+          {canEdit && onDelete && (
+            <ResourceActions
+              name={skill.name}
+              onDelete={onDelete}
+              disabled={
+                isSaving ||
+                addResource.isPending ||
+                saveResource.isPending ||
+                removeResource.isPending ||
+                uploadResources.isPending
+              }
+            />
+          )}
+        </div>
         <Button variant="outline" onClick={onCancel}>
           {canEdit ? t("cancel2") : t("close")}
         </Button>
         {canEdit && (
           <Button
-            onClick={() => onSave({ description, content, enabled, category: editedCategory })}
-            disabled={!changed || !description.trim() || isSaving}
+            onClick={() => onSave({ description, content, category: editedCategory })}
+            loading={isSaving}
+            disabled={!changed || !description.trim()}
           >
             {t("save")}
           </Button>

@@ -37,11 +37,24 @@ The kinds are the shapes that actually exist, and no more:
     A Google OAuth client's `client_id` and `client_secret`, for connecting a
     mailbox a trigger reads. The same two fields as GitHub's and a separate kind
     on purpose: a kind names what a credential is *for*.
+`smtp_account`
+    SMTP host, port, encryption, sender and credentials sealed together. A workflow
+    references only its id; an editor cannot redirect its password to another host.
+`http_credential`
+    A token a workflow's HTTP step sends, and the origins it may be sent to -
+    for the same reason `git_token` carries its host: the URL is the step's
+    editor's to type, and the credential is not theirs to aim.
 `entra_app`
     A Microsoft Entra app registration - tenant, client id and client secret -
     that a SharePoint or OneDrive sync source reads a site with. Three fields,
     because a client secret is useless without the tenant and the app it
     belongs to.
+`microsoft_oauth_app`
+    The same three fields for an app registration a person signs in through, to
+    connect an Outlook mailbox a trigger reads. A separate kind from `entra_app`
+    for the reason Google's client is separate from GitHub's: one is spent with
+    the app's own permissions, the other with the delegated ones of whoever
+    consents.
 `openai_codex`
     A ChatGPT sign-in for the Codex backend: an access token, the refresh token
     that renews it and the ChatGPT account both belong to. Not typed by anybody -
@@ -59,11 +72,13 @@ import json
 from dataclasses import replace
 from enum import StrEnum
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
 from pydantic import (
     AfterValidator,
     BaseModel,
     ConfigDict,
+    EmailStr,
     Field,
     PlainSerializer,
     SecretStr,
@@ -90,6 +105,9 @@ class SecretKind(StrEnum):
     GOOGLE_OAUTH_APP = "google_oauth_app"
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
+    HTTP_CREDENTIAL = "http_credential"
+    SMTP_ACCOUNT = "smtp_account"
+    MICROSOFT_OAUTH_APP = "microsoft_oauth_app"
     OPENAI_CODEX = "openai_codex"
 
 
@@ -142,7 +160,8 @@ class _SecretBase(BaseModel):
     def hint(self) -> str:
         """Four characters an operator can recognise this credential by.
 
-        Never the whole credential: every field that authenticates is a
+        SMTP accounts deliberately return an empty hint, including for short passwords.
+        Other authentication fields are a
         :data:`CredentialStr`, at least :data:`MIN_CREDENTIAL_LENGTH` long.
         Taken from the field that identifies the credential rather than from the
         one that authenticates it where the two differ - an AWS access key id is
@@ -315,6 +334,115 @@ class GitTokenSecret(_SecretBase):
         return self.host.lower().removesuffix(":443") == expected.lower()
 
 
+class SmtpAccountSecret(_SecretBase):
+    """SMTP credentials sealed with their destination and sender identity."""
+
+    kind: Literal[SecretKind.SMTP_ACCOUNT] = SecretKind.SMTP_ACCOUNT
+    host: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9.-]*$",
+        title="SMTP server",
+        description="Hostname or IPv4 address, without a scheme or port.",
+    )
+    port: int = Field(default=587, ge=1, le=65535, title="Port")
+    tls_mode: Literal["starttls", "implicit"] = Field(
+        default="starttls",
+        title="Encryption",
+        description="STARTTLS usually uses port 587; implicit TLS usually uses 465. Certificates are always verified.",
+    )
+    username: str = Field(min_length=1, max_length=255, title="Username")
+    password: SealedStr = Field(
+        min_length=1,
+        max_length=4096,
+        title="Password",
+        description="Mailbox password or app password. Stored encrypted; never returned.",
+    )
+    from_email: EmailStr = Field(title="Sender email")
+    from_name: str = Field(default="", max_length=255, pattern=r"^[^\r\n]*$", title="Sender name")
+
+    @property
+    def hint(self) -> str:
+        return ""
+
+
+class HttpCredentialSecret(_SecretBase):
+    """A token a workflow's HTTP step may send, and the only origins it may go to.
+
+    A kind of its own, like `git_token`, because an `http.request` node sends its
+    credential to a URL the node's editor types - and a URL may be bound from a
+    run's input. With any API key eligible, anyone who could edit a workflow could
+    point the step at a server of their own and read the organization's model key
+    out of the header. Here the origins are part of what the vault holds, set by
+    whoever added the token and sealed with it, and the step refuses to send it
+    anywhere else - checked on the URL it is about to dial, after binding.
+    """
+
+    kind: Literal[SecretKind.HTTP_CREDENTIAL] = SecretKind.HTTP_CREDENTIAL
+    token: CredentialStr = Field(
+        title="Token", description="What is sent: a bearer token, an API key or a password"
+    )
+    username: str | None = Field(
+        default=None,
+        max_length=255,
+        title="Username",
+        description="Only for basic authentication, where the token is the password",
+    )
+    origins: tuple[str, ...] = Field(
+        min_length=1,
+        max_length=10,
+        title="Allowed origins",
+        description="Where it may be sent, e.g. https://api.example.com or https://crm.example.com:8443",
+    )
+
+    @field_validator("origins")
+    @classmethod
+    def _origins_are_origins(cls, origins: tuple[str, ...]) -> tuple[str, ...]:
+        normalized: list[str] = []
+        for given in origins:
+            origin = _origin_of(given)
+            if origin is None:
+                raise ValueError(
+                    f"{given!r} is not an origin - write a scheme and a host, "
+                    "e.g. https://api.example.com, with no path"
+                )
+            normalized.append(origin)
+        return tuple(normalized)
+
+    @property
+    def hint(self) -> str:
+        return self.token.get_secret_value()[-4:]
+
+    def allows(self, url: str) -> bool:
+        """Whether a request to `url` may carry this credential."""
+        origin = _origin_of(url, strip_path=True)
+        return origin is not None and origin in self.origins
+
+
+def _origin_of(url: str, *, strip_path: bool = False) -> str | None:
+    """`scheme://host[:port]` of `url`, lower-cased with a default port dropped.
+
+    `None` for anything that is not an `http`/`https` URL with a host. With
+    `strip_path`, a path and query are ignored; without it they make the value
+    something other than an origin, which is what the caller compares against.
+    """
+    parts = urlsplit(url.strip())
+    if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
+        return None
+    if not strip_path and (parts.path not in ("", "/") or parts.query or parts.fragment):
+        return None
+    if parts.username is not None or parts.password is not None:
+        return None
+    try:
+        port = parts.port
+    except ValueError:
+        return None
+    scheme = parts.scheme.lower()
+    host = f"[{parts.hostname}]" if ":" in parts.hostname else parts.hostname.lower()
+    default = 443 if scheme == "https" else 80
+    return f"{scheme}://{host}" if port in (None, default) else f"{scheme}://{host}:{port}"
+
+
 class EntraAppSecret(_SecretBase):
     """A Microsoft Entra app registration a SharePoint or OneDrive source signs in as.
 
@@ -475,6 +603,42 @@ class GoogleOAuthAppSecret(_SecretBase):
         return self.client_id[-4:]
 
 
+class MicrosoftOAuthAppSecret(_SecretBase):
+    """A Microsoft app registration a person signs in through: tenant, client id, secret.
+
+    The fields of `entra_app` and deliberately not that kind. An `entra_app` is
+    spent through the client credentials flow, with application permissions an
+    administrator granted for the whole tenant; this one through a sign-in, with
+    the delegated `Mail.Read` of whoever connects - so it reaches their mailbox and
+    the shared ones they can already open, nothing more. Filing both under one kind
+    would put a tenant-wide credential in a consent flow, or the reverse.
+    """
+
+    kind: Literal[SecretKind.MICROSOFT_OAUTH_APP] = SecretKind.MICROSOFT_OAUTH_APP
+    tenant_id: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]*$",
+        title="Tenant ID",
+        description=(
+            "The directory (tenant) id or domain - or organizations, for an app "
+            "registered as multitenant"
+        ),
+    )
+    client_id: str = Field(
+        pattern=r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+        title="Client ID",
+        description="The app registration's application (client) id",
+    )
+    client_secret: CredentialStr = Field(
+        title="Client secret", description="The secret's value, not its id"
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
+
+
 StorableSecret = Annotated[
     ApiKeySecret
     | AzureOpenAISecret
@@ -485,6 +649,9 @@ StorableSecret = Annotated[
     | GoogleOAuthAppSecret
     | GitTokenSecret
     | EntraAppSecret
+    | SmtpAccountSecret
+    | HttpCredentialSecret
+    | MicrosoftOAuthAppSecret
     | OpenAICodexSecret,
     Field(discriminator="kind"),
 ]
@@ -499,7 +666,9 @@ TypedSecret = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | GitTokenSecret
-    | EntraAppSecret,
+    | EntraAppSecret
+    | SmtpAccountSecret
+    | HttpCredentialSecret,
     Field(discriminator="kind"),
 ]
 """What a person may type into the vault: :data:`StorableSecret` but a ChatGPT sign-in.
@@ -521,6 +690,9 @@ SecretValue = Annotated[
     | GoogleOAuthAppSecret
     | GitTokenSecret
     | EntraAppSecret
+    | SmtpAccountSecret
+    | HttpCredentialSecret
+    | MicrosoftOAuthAppSecret
     | OpenAICodexSecret,
     Field(discriminator="kind"),
 ]
@@ -579,6 +751,26 @@ def unseal_secret(
     return value
 
 
+def unseal_kind[Kind: _SecretBase](
+    ciphertext: str, *, model: type[Kind], scope: VaultScope, key_version: int = 1
+) -> Kind:
+    """Open an envelope as one specific kind - for a caller that only takes that kind.
+
+    `unseal_secret` answers with the union of every kind, which a caller holding a
+    row it already filtered by kind would otherwise have to narrow again. The same
+    refusal, and the same care that the plaintext reaches no message.
+
+    Raises:
+        BadRequestError: The envelope cannot be opened or does not hold that kind.
+    """
+    try:
+        return model.model_validate_json(unseal(ciphertext, scope=scope, key_version=key_version))
+    except ValidationError:
+        raise BadRequestError(
+            message="Stored secret is not a usable payload", details={"recorded": model.__name__}
+        ) from None
+
+
 class SecretKindInfo(BaseModel):
     """One kind as the Builder and the Settings forms render it.
 
@@ -604,10 +796,17 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
+    SecretKind.HTTP_CREDENTIAL: HttpCredentialSecret,
+    SecretKind.SMTP_ACCOUNT: SmtpAccountSecret,
+    SecretKind.MICROSOFT_OAUTH_APP: MicrosoftOAuthAppSecret,
     SecretKind.OPENAI_CODEX: OpenAICodexSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
+    SecretKind.SMTP_ACCOUNT: (
+        "SMTP account",
+        "Send workflow emails through your own mail server. Server, sender and credentials are stored together.",
+    ),
     SecretKind.API_KEY: ("API key", "A single token, sent as-is to the service."),
     SecretKind.AZURE_OPENAI: (
         "Azure OpenAI",
@@ -644,6 +843,15 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "Microsoft Entra app",
         "An app registration's tenant, client id and client secret - for reading "
         "SharePoint sites and OneDrive folders through Microsoft Graph.",
+    ),
+    SecretKind.HTTP_CREDENTIAL: (
+        "HTTP credential",
+        "A token a workflow's HTTP step sends, and the origins it may be sent to.",
+    ),
+    SecretKind.MICROSOFT_OAUTH_APP: (
+        "Microsoft OAuth app",
+        "An app registration's tenant, client id and client secret, used to connect "
+        "an Outlook mailbox a trigger reads.",
     ),
     SecretKind.OPENAI_CODEX: (
         "ChatGPT sign-in",
@@ -700,6 +908,37 @@ class SecretCondition(BaseModel):
         return str(getattr(config, self.field, None)) in self.equals
 
 
+class PurposesByValue(BaseModel):
+    """Which services a key may be for, by the value of one config field.
+
+    `required_when` doubles as the purpose where the gating field's values *are*
+    service ids - web search's `tavily`. A field whose values are not, and that
+    decides the key on every value, needs the translation written down: the coding
+    agent's `claude_code` runs on an Anthropic key and its `codex` on an OpenAI key
+    or a ChatGPT sign-in. Data for the same reason a condition is: the Builder's
+    picker narrows on exactly what publish will accept (#2485).
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    field: str = Field(description="Which config field decides")
+    purposes: dict[str, tuple[str, ...]] = Field(
+        description=(
+            "For each value of that field, the purposes a key for it may have. "
+            "`custom` is always accepted besides these; a value missing here "
+            "narrows nothing."
+        )
+    )
+    open_when_set: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "For a value of that field, another config field which, once set, "
+            "points the key at an endpoint the platform cannot name - Claude "
+            "Code's `base_url` - so any key fits."
+        ),
+    )
+
+
 class SecretRequirement(BaseModel):
     """A secret a capability needs, as it declares it in `register(...)`.
 
@@ -739,6 +978,13 @@ class SecretRequirement(BaseModel):
             "with a username and password or be reached without one."
         ),
     )
+    purposes_by: PurposesByValue | None = Field(
+        default=None,
+        description=(
+            "Which services the key may be for, by a config field whose values are "
+            "not service ids themselves. Read before `required_when` and `purpose`."
+        ),
+    )
     also_accepts: tuple[SecretKind, ...] = Field(
         default=(),
         description=(
@@ -750,6 +996,30 @@ class SecretRequirement(BaseModel):
     def accepts(self, kind: str) -> bool:
         """Whether a secret of `kind` satisfies this requirement."""
         return kind == self.kind.value or kind in {also.value for also in self.also_accepts}
+
+    def purposes_for(self, config: BaseModel | None) -> tuple[str, ...] | None:
+        """Which services a key for this configuration may be for, or `None`.
+
+        The Builder's `purposesOf` reads the same three sources in the same order.
+        A field mapped to purposes says so outright, unless the endpoint field
+        named for its value is set, when nothing narrows. Otherwise a capability
+        offering several services gates its key on the choice, so the conditional
+        field *is* the service; and one with a single service names it. `custom`
+        fits any of them, which is the caller's to allow.
+        """
+        if self.purposes_by is not None and config is not None:
+            value = str(getattr(config, self.purposes_by.field, None))
+            endpoint = self.purposes_by.open_when_set.get(value)
+            if endpoint is not None and getattr(config, endpoint, None):
+                return None
+            mapped = self.purposes_by.purposes.get(value)
+            if mapped is not None:
+                return mapped
+        if self.required_when is not None and config is not None:
+            chosen = getattr(config, self.required_when.field, None)
+            if isinstance(chosen, str) and chosen:
+                return (chosen,)
+        return None if self.purpose is None else (self.purpose,)
 
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:

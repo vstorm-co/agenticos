@@ -72,6 +72,14 @@ class SpeechToTextModel:
     name: str
     description: str
     language_field: LanguageField = "language"
+    chat: bool = False
+    """Whether the same id may also hold a conversation on the provider's chat API.
+
+    True where that is not ruled out, so the id is not refused as a
+    transcription-only model (#2487). `voxtral-mini-latest` is an alias: an
+    earlier Voxtral it pointed to answered on chat completions, and nothing
+    states what it points to today - and an unknown model is never refused.
+    """
 
 
 @dataclass(frozen=True)

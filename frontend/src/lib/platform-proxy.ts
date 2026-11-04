@@ -36,6 +36,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { CONSOLE_TAB_HEADER } from "@/lib/console-tab";
 import { bffRefusal } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -121,7 +122,7 @@ function acceptsGzip(header: string | null): boolean {
  */
 export function platformProxy(): ProxyHandlers {
   const forward: Handler = async (request) => {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) {
       return bffRefusal("NOT_AUTHENTICATED", 401);
     }

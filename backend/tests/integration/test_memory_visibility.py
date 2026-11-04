@@ -300,3 +300,34 @@ class TestWhichSpecTheDisclosureReads:
         page = await MemoryService(db)._notes_for(organization.id, person_owner_key(user.id))
 
         assert page.external_stores == ["Support"]
+
+
+@pytest.mark.parametrize("single_agent", [False, True])
+async def test_memory_erasure_collects_draft_and_retained_versions_inside_one_tenant(
+    db: AsyncSession, single_agent: bool
+) -> None:
+    from app.repositories import agent_repo
+
+    organization, user = await _tenant(db)
+    foreign_org, foreign_user = await _tenant(db)
+    agent = await _agent(db, organization, user, "Local")
+    foreign = await _agent(db, foreign_org, foreign_user, "Foreign")
+    for row, owner in [(agent, organization), (foreign, foreign_org)]:
+        row.draft_spec = {"capabilities": [{"id": "draft"}]}
+        for number, capability in [(1, "retired"), (2, "published")]:
+            db.add(
+                AgentVersion(
+                    agent_id=row.id,
+                    organization_id=owner.id,
+                    version=number,
+                    spec={"capabilities": [{"id": capability}]},
+                )
+            )
+    await db.flush()
+    snapshots = await agent_repo.memory_erasure_capabilities(
+        db, organization_id=organization.id, agent_id=agent.id if single_agent else None
+    )
+    assert {held_id for held_id, _ in snapshots} == {agent.id}
+    assert len(snapshots) == 3
+    for capability in ["draft", "retired", "published"]:
+        assert (agent.id, [{"id": capability}]) in snapshots

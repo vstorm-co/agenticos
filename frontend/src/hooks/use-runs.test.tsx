@@ -23,7 +23,7 @@ vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
   return { ...actual, apiClient: { get: vi.fn(), post: vi.fn() } };
 });
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -348,6 +348,59 @@ describe("useApprovals", () => {
     expect(toast.success).toHaveBeenCalledWith("Rejected");
   });
 
+  it("leaves a decision on a chat run to the server and says so", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      status: "approved",
+      run_id: "run-9",
+      continues_in_chat: true,
+    });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    expect(apiClient.post).not.toHaveBeenCalledWith("/runs/run-9/resume");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
+    );
+  });
+
+  it("says a rejection on a chat run is answered in the chat", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      status: "rejected",
+      run_id: "run-9",
+      continues_in_chat: true,
+    });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: false });
+
+    expect(apiClient.post).not.toHaveBeenCalledWith("/runs/run-9/resume");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
+    );
+  });
+
+  it("still resumes a run that does not continue in a chat", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({
+      status: "approved",
+      run_id: "run-9",
+      continues_in_chat: false,
+    });
+    const { result } = renderHook(() => useApprovals(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.decide.mutateAsync({ id: "ap1", approved: true });
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalledWith("/runs/run-9/resume"));
+  });
+
   it("resumes the run once its last outstanding call is decided", async () => {
     // A decision is a click; continuing the run is a separate call the backend
     // keeps apart on purpose. The queue used to make only the first, which left
@@ -501,6 +554,155 @@ describe("useResumeRun", () => {
 
     expect(toast.error).toHaveBeenCalledWith("Approvals are still pending");
   });
+
+  it("keeps quiet when a chat run's resume lost the race to its own continuation", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "This run is not waiting for approval", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This run is not waiting for approval",
+          details: { run_id: "r", status: "running" },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toBeInstanceOf(ApiError);
+
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.info).toHaveBeenCalledWith("This run is already continuing in its chat.");
+  });
+
+  it.each([
+    ["completed", 400, true],
+    ["running", 500, false],
+  ])(
+    "treats a %s refusal with status %i as quiet only when it is %s",
+    async (status, code, quiet) => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(code, "refused", {
+          error: { code: "X", message: "refused", details: { run_id: "r", status } },
+        }),
+      );
+      const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+
+      await expect(result.current.mutateAsync("run-9")).rejects.toBeInstanceOf(ApiError);
+
+      expect(vi.mocked(toast.error).mock.calls.length).toBe(quiet ? 0 : 1);
+    },
+  );
+
+  it("toasts a chat run's resume that failed with something other than a refusal", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(new Error("Network down"));
+    const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toThrow("Network down");
+
+    expect(toast.error).toHaveBeenCalledWith("Network down");
+  });
+
+  it("still toasts a chat run's resume refused because it was stopped", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "This run is not waiting for approval", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This run is not waiting for approval",
+          details: { run_id: "r", status: "cancelled" },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toBeInstanceOf(ApiError);
+
+    expect(toast.error).toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("still toasts a not-waiting refusal for a run outside any chat", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockRejectedValue(
+      new ApiError(400, "This run is not waiting for approval", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This run is not waiting for approval",
+          details: { run_id: "r", status: "running" },
+        },
+      }),
+    );
+    const { result } = renderHook(() => useResumeRun(), { wrapper });
+
+    await expect(result.current.mutateAsync("run-9")).rejects.toBeInstanceOf(ApiError);
+
+    expect(toast.error).toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it("says a resumed chat run's answer goes to the chat", async () => {
+    const { toast } = await import("sonner");
+    vi.mocked(apiClient.post).mockResolvedValue({ run_id: "run-9", status: "running" });
+    const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+
+    await result.current.mutateAsync("run-9");
+
+    expect(toast.success).toHaveBeenCalledWith(
+      "Run resumed. Its answer is also sent to the chat it was asked in.",
+    );
+  });
+});
+
+describe("resuming a chat run that parked again", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(["awaiting_approval", "awaiting_answer"])(
+    "refreshes a %s run after a lost resume race",
+    async (status) => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(400, "Waiting", {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Waiting",
+            details: status === "awaiting_approval" ? { pending: ["new-approval"] } : { status },
+          },
+        }),
+      );
+      vi.mocked(apiClient.get).mockResolvedValue({ id: "r", status, continues_in_chat: true });
+      const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+      await expect(result.current.mutateAsync("r")).rejects.toBeInstanceOf(ApiError);
+      expect(apiClient.get).toHaveBeenCalledWith("/runs/r");
+      expect(toast.info).toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["failed", "cancelled", "refresh-failed", "not-chat"])(
+    "keeps the error visible when the latest run is %s",
+    async (state) => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(400, "Waiting", {
+          error: { code: "BAD_REQUEST", message: "Waiting", details: { pending: ["a"] } },
+        }),
+      );
+      if (state === "refresh-failed")
+        vi.mocked(apiClient.get).mockRejectedValue(new Error("offline"));
+      else
+        vi.mocked(apiClient.get).mockResolvedValue({
+          id: "r",
+          status: state === "not-chat" ? "awaiting_approval" : state,
+          continues_in_chat: state !== "not-chat",
+        });
+      const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+      await expect(result.current.mutateAsync("r")).rejects.toBeInstanceOf(ApiError);
+      expect(toast.error).toHaveBeenCalled();
+      expect(toast.info).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("useSpend", () => {
@@ -604,10 +806,41 @@ describe("useRunManifest", () => {
   it("surfaces the 404 rather than retrying it three times", async () => {
     // A run that recorded nothing is an answer, not a hiccup: retried, the panel
     // that says so arrives three round trips late.
-    vi.mocked(apiClient.get).mockRejectedValue(new ApiError(404, "nothing recorded"));
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(404, "nothing recorded"))
+      .mockResolvedValueOnce({ id: "run-1", status: "completed" })
+      .mockRejectedValueOnce(new ApiError(404, "nothing recorded"));
 
     const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
 
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
+    expect(apiClient.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("finds a record committed between the initial 404 and the status read", async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(404, "not settled yet"))
+      .mockResolvedValueOnce({ id: "run-1", status: "completed" })
+      .mockResolvedValueOnce({ run_id: "run-1", transcript: [{ kind: "response" }] });
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
+    await waitFor(() => expect(result.current.manifest).toBeDefined());
+    expect(result.current.error).toBeNull();
+  });
+
+  it("keeps an open active run loading until its manifest is written", async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce(new ApiError(404, "not settled"))
+      .mockResolvedValueOnce({ id: "run-1", status: "running" })
+      .mockResolvedValueOnce({ run_id: "run-1", transcript: [{ kind: "response" }] });
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
+    await waitFor(() => expect(result.current.manifest).toBeDefined());
+    expect(result.current.error).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a refused manifest without polling or reading the run", async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new ApiError(403, "refused"));
+    const { result } = renderHook(() => useRunManifest("run-1"), { wrapper });
     await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
     expect(apiClient.get).toHaveBeenCalledTimes(1);
   });

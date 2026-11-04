@@ -1,0 +1,37 @@
+# A Postgres for the backend test suite, and nothing else. `make docker-test-db`
+# starts it, `make test` and its siblings point pytest at it, and
+# `make docker-test-db-down` removes it. It is a separate project from `make dev`
+# (`-p agenticos-test`), so it never shares a volume, a network or a name with the
+# development database.
+#
+# It is throwaway on purpose. The integration suite empties ~90 tables before every
+# test, and each TRUNCATE gives every table a fresh relation file that Postgres must
+# fsync. On WSL2 or a Docker volume an fsync costs ~7 ms, which turned a ten-minute
+# suite into a three-hour one. Durability is worth nothing here - the database is
+# created and dropped by the test process itself - so fsync, WAL flushing and
+# full-page writes are off and the data directory is RAM (tmpfs). Never point
+# anything you want to keep at this container: a crash loses the cluster, by design.
+#
+# Same image as `docker-compose.yml`: the RAG tests run `CREATE EXTENSION vector`.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s

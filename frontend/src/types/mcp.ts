@@ -41,6 +41,10 @@ export interface McpCatalogEntry {
    * than as suspect - the curated catalog is what those responses held.
    */
   reviewed?: boolean;
+  /** A saved server outside the curated catalog and mirrored registry. */
+  custom?: boolean;
+  /** Accessible accounts grouped by the listing API; null uses legacy matching. */
+  connection_ids?: string[] | null;
   /** Brand mark to draw, by name. Null falls back to a monogram. */
   icon: string | null;
   /** The last catalog check found it answering as this entry says (#2103). */
@@ -90,6 +94,9 @@ export interface McpCatalog {
 export type McpConnectionState =
   "not-connected" | "needs-authorization" | "disabled" | "error" | "connected";
 
+/** Whether any accessible account has been saved for a server. */
+export type McpServerStateFilter = "all" | "connected" | "not-connected";
+
 /** One tool of this deployment's own MCP server, as a binding chooses from (#2190). */
 export interface PlatformMcpTool {
   name: string;
@@ -97,6 +104,10 @@ export interface PlatformMcpTool {
   description: string;
   /** Whether it changes something - held for approval under `approval: writes`. */
   writes: boolean;
+  /** Runs without approval under every policy: it changes only the caller's own preference. */
+  ungated?: boolean;
+  /** A read held for approval all the same: it releases a whole past conversation. */
+  held?: boolean;
 }
 
 export interface PlatformMcpToolList {

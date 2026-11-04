@@ -539,6 +539,31 @@ class TestReadingTheThreadWeWereBroughtInto:
         assert "U1: co tu widzisz?" in prompt
         assert "U2: looks like a chart" in prompt
 
+    async def test_thread_context_preserves_the_original_time_and_speaker(self) -> None:
+        directory = self._directory(
+            [
+                ChannelPost(
+                    author="Aga",
+                    text="I'll arrive in four minutes; @Luke @Mike",
+                    posted_at=datetime(2026, 10, 29, 10, tzinfo=UTC),
+                ),
+                ChannelPost(
+                    author="Luke",
+                    text="On my way",
+                    posted_at=datetime(2026, 10, 29, 10, 1, tzinfo=UTC),
+                ),
+            ]
+        )
+        found = await self._backfill(
+            self._incoming(chat_id="C1:old-thread", message_id="new-question"), directory
+        )
+        prompt = found[0].parts[0].content
+        assert "[2026-10-29T10:00:00+00:00] Aga:" in prompt
+        assert "[2026-10-29T10:01:00+00:00] Luke: On my way" in prompt
+        assert "context was fetched at" in prompt
+        assert "not from now" in prompt
+        assert "not to everyone mentioned" in prompt
+
     async def test_it_is_one_request_rather_than_a_turn_per_message(self):
         """Replaying other people's messages as alternating turns would put words
         in the agent's mouth it never said - the reason a widget's greeting is
@@ -920,3 +945,55 @@ class TestWhenTheThreadIsRead:
         assert found == []
         assert read_ok is True
         directory.history.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("old_files", "version", "text_ok", "files_ok"),
+    [
+        (True, 0, True, True),
+        (True, 0, False, True),
+        (True, 1, True, True),
+        (False, 0, True, True),
+        (False, 0, True, False),
+        (False, 0, False, True),
+    ],
+)
+async def test_text_refresh_does_not_download_previously_backfilled_files(
+    monkeypatch: pytest.MonkeyPatch, old_files: bool, version: int, text_ok: bool, files_ok: bool
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services.channels import router as module
+
+    service = module.ChannelMessageRouter()
+    marker = datetime(2026, 10, 28, tzinfo=UTC) if old_files else None
+    session = SimpleNamespace(thread_backfilled_at=marker, thread_history_version=version)
+    transcript = AsyncMock(return_value=(["timestamped text"], text_ok))
+    files = AsyncMock(return_value=(["file"], [], files_ok))
+    monkeypatch.setattr(service, "_thread_backfill", transcript)
+    monkeypatch.setattr(service, "_thread_files", files)
+    updates: list[dict[str, object]] = []
+
+    async def update(_db: object, *, db_session: object, update_data: dict[str, object]) -> None:
+        updates.append(update_data)
+        for key, value in update_data.items():
+            setattr(db_session, key, value)
+
+    monkeypatch.setattr(module.channel_session_repo, "update", update)
+    result = await service._thread_context(
+        MagicMock(), MagicMock(), MagicMock(), MagicMock(), session, MagicMock(), []
+    )
+    if old_files:
+        files.assert_not_awaited()
+        assert session.thread_backfilled_at == marker
+        assert result[1] == []
+    else:
+        files.assert_awaited_once()
+        assert (session.thread_backfilled_at is not None) == files_ok
+    if old_files and version == 1:
+        transcript.assert_not_awaited()
+        assert updates == []
+    else:
+        transcript.assert_awaited_once()
+        assert session.thread_history_version == (1 if text_ok else 0)

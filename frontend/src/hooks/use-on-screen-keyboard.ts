@@ -37,14 +37,26 @@ export function useOnScreenKeyboard(): void {
   useEffect(() => {
     const root = document.documentElement;
     const viewport = window.visualViewport;
+    let frame: number | null = null;
     const fit = () => {
       if (!viewport) return;
       // In layout pixels: a pinch-zoom (a trackpad's on a Mac, two fingers on a
       // phone) shrinks the visual viewport by its scale, and the shell followed
       // it - the console cut off at the height of the zoomed-in fragment. A
       // keyboard shrinks it at a scale of 1, so that still makes room.
-      root.style.setProperty(APP_HEIGHT, `${Math.round(viewport.height * viewport.scale)}px`);
+      const height = `${Math.round(viewport.height * viewport.scale)}px`;
+      if (root.style.getPropertyValue(APP_HEIGHT) !== height)
+        root.style.setProperty(APP_HEIGHT, height);
       if (viewport.scale === 1 && window.scrollY !== 0) window.scrollTo(0, 0);
+    };
+    // Keyboard animations can report several viewport sizes per paint. Only
+    // apply the latest one, avoiding repeated layout work in the same frame.
+    const resized = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        fit();
+      });
     };
     const touch = window.matchMedia?.("(pointer: coarse)").matches === true;
     const focused = (event: FocusEvent) => {
@@ -53,11 +65,18 @@ export function useOnScreenKeyboard(): void {
     const blurred = () => root.removeAttribute(TYPING);
 
     fit();
-    viewport?.addEventListener("resize", fit);
+    viewport?.addEventListener("resize", resized);
+    // iOS can reveal the old caret position after its resize event. The shell
+    // already fits the keyboard then, so this late page pan must be undone too.
+    viewport?.addEventListener("scroll", resized);
+    window.addEventListener("scroll", resized, { passive: true });
     document.addEventListener("focusin", focused);
     document.addEventListener("focusout", blurred);
     return () => {
-      viewport?.removeEventListener("resize", fit);
+      viewport?.removeEventListener("resize", resized);
+      viewport?.removeEventListener("scroll", resized);
+      window.removeEventListener("scroll", resized);
+      if (frame !== null) window.cancelAnimationFrame(frame);
       document.removeEventListener("focusin", focused);
       document.removeEventListener("focusout", blurred);
       root.style.removeProperty(APP_HEIGHT);

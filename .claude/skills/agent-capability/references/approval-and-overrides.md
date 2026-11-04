@@ -43,6 +43,17 @@ enforcement a tool has to remember to call is enforcement a new tool will forget
   schedule, a webhook — refuses the call and says so.
 - **A refusal is an answer, not a crash.** Both a rejection and a missing channel
   come back to the model as tool output.
+- **A description never blocks the ask.** A tool whose arguments are ids can name
+  them for the approver: `register(..., describers={tool_id: describe})`, where
+  `describe(deps, args)` returns `{"view": ..., "table": ...}` resolved as
+  `deps.run_person` through the services, or `None` for anything that person may
+  not see. Name ids, never record contents: the context is stored on the row and
+  read by every approver. The channel runs the describer only for a call it is
+  about to record, so a resumed call is not described again; any error or a slow
+  answer parks the call without one. The frontend sentence is `approvalSummary` on
+  the tool's row in `frontend/src/lib/tool-catalog.ts`, looked up by the stable
+  tool id the approval carries as `capability_tool_id`, so a renamed tool keeps
+  it. See `virtual_tables/_describe.py`.
 
 ## What is *not* gated
 

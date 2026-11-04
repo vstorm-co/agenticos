@@ -172,9 +172,12 @@ class TestAccepting:
             create_member = stub("member_repo.create", AsyncMock())
             record_use = stub("invitation_repo.record_use", AsyncMock())
             mark_accepted = stub("invitation_repo.accept", AsyncMock())
+            welcome = stub("ProactiveService.queue_welcome", AsyncMock())
 
             await InvitationService(MagicMock()).accept("tok", user.id)
 
+        # Whoever gets in is greeted in the organization's chat apps (#2301).
+        welcome.assert_awaited_once_with(invite.organization_id, user.id)
         return create_member, record_use, mark_accepted
 
     @pytest.mark.anyio

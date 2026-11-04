@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, KeyRound, Plus } from "lucide-react";
+import { Check, KeyRound, Plus, Save } from "lucide-react";
 
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
+import { hasKey, runsAgents } from "@/lib/model-profiles";
 import { ModelCombobox } from "@/components/agents/model-combobox";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { InlineSecret } from "@/components/vault/inline-secret";
@@ -27,12 +28,17 @@ import {
   useSecrets,
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
-import type { ModelApi, ModelProfile, ProviderInfo } from "@/types/providers";
+import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
   /** Called with the new model once it exists, so the picker can select it. */
   onCreated: (profile: ModelProfile) => void;
+  /**
+   * Balance each started creation - or edit of `selected` - including one whose
+   * form unmounts while awaiting it.
+   */
+  onCreationPendingChange?: (pending: boolean) => void;
   /**
    * The model the agent runs on today, which this form *starts on*.
    *
@@ -115,11 +121,13 @@ export function soleKeyedProvider(
 export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
   if (providerId === undefined) return { key: "agents.pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
+  if (providerId === "otari") return "anthropic:claude-sonnet-4-6";
   return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
 
 /** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
+  if (providerId === "otari") return "agents.modelIdOtariHint";
   if (providerId === "openrouter") {
     return "agents.modelIdOpenRouterHint";
   }
@@ -143,6 +151,9 @@ export function placeholderWords(
 ): string {
   return typeof placeholder === "string" ? placeholder : t(placeholder.key);
 }
+
+/** The key select's value for "no key": Radix refuses an empty string as an item's value. */
+const NO_KEY = "none";
 
 /** The same rule the backend applies, so the button says no before the server does. */
 export function modelIdIsWellFormed(providerId: string, model: string): boolean {
@@ -181,14 +192,43 @@ function markable(acceptsEndpoint: boolean): { fields: readonly string[] } {
   return { fields: acceptsEndpoint ? ["model", "base_url", "secret_id"] : ["model", "secret_id"] };
 }
 
-export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelProps) {
+/** Keep endpoint variants readable and respect the profile label's 128-character limit. */
+export function endpointProfileLabel(
+  base: string,
+  endpoint: string,
+  existing: readonly string[],
+  defaultEndpoint: string,
+): string {
+  const location = (
+    endpoint
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, "") || defaultEndpoint
+  ).slice(0, 64);
+  const desired = `${base.slice(0, 125 - location.length)} · ${location}`;
+  let result = desired;
+  let index = 2;
+  while (existing.includes(result)) {
+    const suffix = ` (${index++})`;
+    result = `${desired.slice(0, 128 - suffix.length)}${suffix}`;
+  }
+  return result;
+}
+
+export function AddModel({
+  onCreated,
+  onCreationPendingChange,
+  onCancel,
+  disabled,
+  selected,
+}: AddModelProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
   // `placeholderWords`. The chat's picker resolves the same keys from its own
   // namespace, so they cannot be relative to either caller's.
   const tRoot = useTranslations();
-  const { createProfile, catalog } = useModelProviders();
+  const { createProfile, updateProfile, catalog, profiles = [] } = useModelProviders();
   const { purposes } = useSecretPurposes();
   const { secrets } = useSecrets();
   const { can } = usePermissions();
@@ -207,9 +247,14 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
+  const [gatewayDiscovery, setGatewayDiscovery] = useState<{
+    endpoint: string;
+    secretId: string;
+  } | null>(null);
   // `null` until somebody picks, so the select follows the endpoint the way the
   // service's default does - typing a vLLM address moves it to Chat Completions.
   const [pickedApi, setPickedApi] = useState<ModelApi | null>(null);
+  const [pickedRegion, setPickedRegion] = useState<ModelRegion | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
@@ -245,7 +290,40 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
   const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
   // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
   // provider there is nothing to choose and the field is not drawn.
-  const choosesApi = (capabilities?.apis.length ?? 0) > 1;
+  // What the provider publishes, where it publishes anything. Cached hard: a
+  // catalog changes when a provider ships a model, not while a form is open.
+  // The keys already stored for this provider. A secret's purpose *is* the
+  // provider id, which is what makes this a lookup rather than a convention.
+  const keys = secrets.filter((secret) => secret.purpose === providerId);
+  // A self-hosted model in use that runs with no key on purpose. The form offers
+  // "no key" for it and starts there, instead of on the provider's first key: that
+  // key is a suggestion for a new model, and saved onto this one it would be sent
+  // to the endpoint for every agent on it (#2478).
+  const offersNoKey =
+    selected !== undefined &&
+    selected.secret_id === null &&
+    hasKey(selected) &&
+    providerId === selected.provider;
+  const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
+  const endpoint = baseUrl.trim().replace(/\/+$/, "");
+  const manualDiscovery = providerId === "otari" || (capabilities?.requires_base_url ?? false);
+  const confirmedGateway =
+    gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
+  const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
+
+  const {
+    models: suggestions,
+    refused,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(
+    providerId,
+    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
+    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
+  );
+  // Stav.ai says per model which API it is served on, so nobody is asked.
+  const apiFromModel = capabilities?.api_from_model ?? false;
+  const choosesApi = (capabilities?.apis.length ?? 0) > 1 && !apiFromModel;
   // Before anybody picks: the model in use's own choice while its provider and
   // endpoint are the ones on screen, and otherwise the default for what is - so
   // pointing the model in use at a vLLM does not carry Responses there with it.
@@ -255,14 +333,31 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     baseUrl.trim() === (selected.base_url ?? "")
       ? selected.api
       : defaultApi(capabilities, baseUrl);
-  const api = choosesApi ? (pickedApi ?? startingApi) : null;
-  // The keys already stored for this provider. A secret's purpose *is* the
-  // provider id, which is what makes this a lookup rather than a convention.
-  const keys = secrets.filter((secret) => secret.purpose === providerId);
-  const chosenKey = secretId || keys[0]?.id || "";
-  // What the provider publishes, where it publishes anything. Cached hard: a
-  // catalog changes when a provider ships a model, not while a form is open.
-  const { models: suggestions, source, isLoading: loadingModels } = useProviderModels(providerId);
+  // Preserve stored API choices; derive new profiles from advertised surfaces.
+  const listedApis = suggestions.find((entry) => entry.id === model.trim())?.apis ?? [];
+  const modelApi: ModelApi | null = listedApis.includes("chat")
+    ? "chat"
+    : (listedApis.find((entry) => entry === "responses") ?? null);
+  const storedApi =
+    selected !== undefined &&
+    providerId === selected.provider &&
+    model.trim() === selected.model &&
+    chosenKey === (selected.secret_id ?? "") &&
+    baseUrl.trim().replace(/\/+$/, "") === (selected.base_url ?? "").replace(/\/+$/, "")
+      ? (selected.api ?? null)
+      : null;
+  const api = choosesApi
+    ? (pickedApi ?? startingApi)
+    : apiFromModel
+      ? (storedApi ?? modelApi)
+      : null;
+  // Existing profiles retain their region; new profiles use the provider default.
+  const regions = capabilities?.regions ?? [];
+  const startingRegion =
+    selected?.region != null && providerId === selected.provider
+      ? selected.region
+      : (regions[0] ?? null);
+  const region = regions.length > 0 ? (pickedRegion ?? startingRegion) : null;
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
@@ -285,16 +380,51 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     label.trim() === "" &&
     baseUrl.trim() === (selected.base_url ?? "") &&
     api === (selected.api ?? null) &&
+    // A Stav profile stored with no region runs in the default one, which is
+    // where the form starts, so that is not a change.
+    region === (selected.region ?? regions[0] ?? null) &&
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and a submit that ignored this
-    // would select the old profile and silently drop the key just picked.
-    (secretId === "" || secretId === (selected.secret_id ?? ""));
+    // would select the old profile and silently drop the key just picked. A model
+    // whose key was deleted is changed by the key this form offers it, too -
+    // "In use" above a model nothing can run on would be the wrong answer.
+    (secretId === ""
+      ? hasKey(selected) || chosenKey === ""
+      : secretId === (selected.secret_id ?? ""));
 
+  // The model in use with only its key, endpoint or API changed: that is an
+  // edit of the model, not a second one (#2478). Every agent names a model by
+  // its id, so saving it in place moves all of them at once - and adding a
+  // second profile under the same derived name was refused as a duplicate. A
+  // name typed in, or another provider or model, is a new model as before.
+  const editing =
+    selected !== undefined &&
+    !unchanged &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    label.trim() === "";
+
+  const endpointChanged =
+    selected !== undefined &&
+    provider?.id === selected.provider &&
+    model.trim() === selected.model &&
+    baseUrl.trim().replace(/\/+$/, "") !== (selected.base_url ?? "").replace(/\/+$/, "");
+  const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
+  // Whether this model cannot run without an endpoint: a keyless provider with
+  // no key to use. Only then is the field a question with an Ollama address for
+  // an example. `keyless` alone is true of OpenAI too, because OpenAI-compatible
+  // servers exist - so an OpenAI model with a key showed `localhost:11434` in its
+  // empty Endpoint field, which read as an address filled in for it (#2478).
+  const endpointRequired =
+    (capabilities?.requires_base_url ?? false) ||
+    ((capabilities?.keyless ?? false) && chosenKey === "");
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
-    modelIdIsWellFormed(provider.id, model.trim());
+    modelIdIsWellFormed(provider.id, model.trim()) &&
+    (!(capabilities?.requires_base_url ?? false) || baseUrl.trim() !== "") &&
+    (!loadingModels || customEndpoint);
 
   // Both ways of choosing a key, because a refusal that outlives the value it
   // named accuses the one the reader has just picked.
@@ -303,13 +433,63 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
     setFailure(NO_FAILURE);
   };
 
-  const submit = async () => {
+  const update = async () => {
+    /* v8 ignore next -- `editing` is only true with a selection and a provider */
+    if (selected === undefined || provider === undefined) return;
+    setFailure(NO_FAILURE);
+    onCreationPendingChange?.(true);
+    try {
+      await updateProfile.mutateAsync({
+        id: selected.id,
+        // All three, every time: the server compares them with what is stored
+        // and writes only what differs, so what the form shows is what is saved.
+        changes: {
+          secret_id: chosenKey || null,
+          base_url: customEndpoint ? baseUrl.trim() : null,
+          api,
+          // Only where the provider takes one; every other payload stays as it was.
+          ...(region !== null ? { region } : {}),
+        },
+      });
+    } catch (error) {
+      setFailure(submitFailure(error, markable(acceptsEndpoint), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
+    }
+  };
+
+  const submit = async (separate = false) => {
     /* v8 ignore next -- the id comes from the list this select was built from */
     if (provider === undefined) return;
     setFailure(NO_FAILURE);
+    // Every caller selects what this creates as a model to talk to - an agent's,
+    // or the one describing a document's images - so a model the provider's
+    // listing says is speech or embeddings is refused before a profile exists for
+    // it (#2487). The listing is the provider's own API: an endpoint of the
+    // reader's says nothing about it.
+    const notChat = { fields: { model: t("notAChatModelRefused", { model: model.trim() }) } };
+    if (!customEndpoint && refused.includes(model.trim())) {
+      setFailure({ ...NO_FAILURE, ...notChat });
+      return;
+    }
+    onCreationPendingChange?.(true);
     try {
+      const baseLabel = `${provider.label} · ${model.trim()}`;
+      const labels = [
+        ...profiles.map((profile) => profile.label),
+        ...(selected ? [selected.label] : []),
+      ];
+      const automaticLabel =
+        separate || labels.includes(baseLabel)
+          ? endpointProfileLabel(
+              baseLabel,
+              customEndpoint ? baseUrl : "",
+              labels,
+              t("defaultEndpoint"),
+            )
+          : baseLabel;
       const profile = await createProfile.mutateAsync({
-        label: label.trim() || `${provider.label} · ${model.trim()}`,
+        label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
         // `null`, not `""`: the API distinguishes "no key, this is self-hosted"
@@ -317,11 +497,18 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
         secret_id: chosenKey || null,
         // Only when the provider has one. Sending it otherwise is refused rather
         // than dropped, which is the right refusal but a pointless round trip.
-        base_url: acceptsEndpoint && baseUrl.trim() !== "" ? baseUrl.trim() : null,
+        base_url: customEndpoint ? baseUrl.trim() : null,
         // Sent even when it is the default, so what the select shows is what is
         // stored - and a refusal, were there one, would be about this field.
         api,
+        ...(region !== null ? { region } : {}),
       });
+      // An id the listing did not classify still reaches here; the server
+      // classifies the profile it created, and that answer is final.
+      if (!runsAgents(profile)) {
+        setFailure({ ...NO_FAILURE, ...notChat });
+        return;
+      }
       onCreated(profile);
     } catch (error) {
       // Caught, not left to reject: an unhandled rejection here is Next.js's
@@ -330,6 +517,8 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
       // gives (#898) - so what is left for the line above the button is a
       // permission, a fault, or a conflict on the derived name.
       setFailure(submitFailure(error, markable(acceptsEndpoint), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
     }
   };
 
@@ -346,6 +535,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               setModel("");
               setBaseUrl("");
               setPickedApi(null);
+              setPickedRegion(null);
               setFailure(NO_FAILURE);
             }}
           >
@@ -411,7 +601,7 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           {/* One key needs no question. The vault has exactly one OpenRouter
               key in most organizations, and a select with a single option is a
               decision somebody has to make about nothing. */}
-          {keys.length === 1 && (
+          {keys.length === 1 && !offersNoKey && (
             <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <KeyRound className="h-3.5 w-3.5" />
               {t.rich("usingKey", {
@@ -422,14 +612,18 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
             </p>
           )}
 
-          {keys.length > 1 && (
+          {(keys.length > 1 || (offersNoKey && keys.length > 0)) && (
             <>
               <Label htmlFor="add-model-key">{t("key")}</Label>
-              <Select value={chosenKey} onValueChange={chooseKey}>
+              <Select
+                value={chosenKey || NO_KEY}
+                onValueChange={(value) => chooseKey(value === NO_KEY ? "" : value)}
+              >
                 <SelectTrigger id="add-model-key">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {offersNoKey && <SelectItem value={NO_KEY}>{t("noKeyForEndpoint")}</SelectItem>}
                   {keys.map((secret) => (
                     <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
                       {/* The provider is the filter this list was built with, so
@@ -490,35 +684,72 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           for the rest would collect a URL the client drops, and the API refuses
           it - which is the right refusal and a pointless one to walk into. */}
       {provider !== undefined && acceptsEndpoint && (
-        <FormField
-          htmlFor="add-model-endpoint"
-          label={t("endpoint")}
-          error={failure.fields.base_url}
-          description={
-            capabilities?.keyless === true
-              ? t("gatewayLitellmProxyModel")
-              : t("optionalPointModelAt")
-          }
-        >
-          <Input
-            id="add-model-endpoint"
-            value={baseUrl}
-            onChange={(event) => {
-              setBaseUrl(event.target.value);
-              setFailure(NO_FAILURE);
-            }}
-            placeholder={
-              capabilities?.keyless === true
-                ? "http://localhost:11434/v1"
-                : t("leaveEmptyProviderS")
+        <div className="space-y-2">
+          <FormField
+            htmlFor="add-model-endpoint"
+            label={t("endpoint")}
+            error={failure.fields.base_url}
+            description={
+              providerId === "openrouter"
+                ? t("openRouterEndpointHint")
+                : providerId === "stav"
+                  ? t("stavEndpointHint")
+                  : providerId === "otari"
+                    ? t("otariEndpointHint")
+                    : endpointRequired
+                      ? t("gatewayLitellmProxyModel")
+                      : t("optionalPointModelAt")
             }
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </FormField>
+          >
+            <Input
+              id="add-model-endpoint"
+              value={baseUrl}
+              onChange={(event) => {
+                setBaseUrl(event.target.value);
+                setFailure(NO_FAILURE);
+              }}
+              placeholder={
+                capabilities?.requires_base_url
+                  ? "https://gateway.example/api/v1"
+                  : endpointRequired
+                    ? "http://localhost:11434/v1"
+                    : t("leaveEmptyProviderS")
+              }
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </FormField>
+          {manualDiscovery && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!endpoint || !chosenKey || loadingModels}
+              onClick={() => setGatewayDiscovery({ endpoint, secretId: chosenKey })}
+            >
+              {t("loadGatewayModels")}
+            </Button>
+          )}
+        </div>
       )}
 
-      {provider !== undefined && api !== null && (
+      {provider !== undefined && apiFromModel && (
+        <div className="space-y-1.5">
+          <Label>{t("modelApi")}</Label>
+          <p className="text-sm">
+            {api === null
+              ? t("modelApiFromModelPending")
+              : // "chosen from the model" only when it is: a profile saved with
+                // another API through the API keeps it, and says only which.
+                t(api === modelApi ? "modelApiFromModel" : "modelApiStored", {
+                  api: api === "responses" ? t("modelApiResponses") : t("modelApiChat"),
+                })}
+          </p>
+          <p className="text-muted-foreground text-xs">{t("modelApiFromModelHint")}</p>
+        </div>
+      )}
+
+      {provider !== undefined && choosesApi && api !== null && (
         <FormField
           htmlFor="add-model-api"
           label={t("modelApi")}
@@ -538,6 +769,37 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
               {capabilities?.apis.map((entry) => (
                 <SelectItem key={entry} value={entry}>
                   {entry === "responses" ? t("modelApiResponses") : t("modelApiChat")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
+
+      {provider !== undefined && region !== null && (
+        <FormField
+          htmlFor="add-model-region"
+          label={t("modelRegion")}
+          description={t("modelRegionHint")}
+        >
+          <Select
+            value={region}
+            onValueChange={(value) => {
+              setPickedRegion(regions.find((entry) => entry === value) ?? null);
+              setFailure(NO_FAILURE);
+            }}
+          >
+            <SelectTrigger id="add-model-region">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {regions.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {entry === "eu"
+                    ? t("modelRegionEu")
+                    : entry === "eea"
+                      ? t("modelRegionEea")
+                      : t("modelRegionGlobal")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -575,19 +837,54 @@ export function AddModel({ onCreated, onCancel, disabled, selected }: AddModelPr
           was a 403. */}
       {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
 
-      <div className="flex items-center gap-2 pt-1">
-        {unchanged ? (
+      {/* Said before the button rather than after the save: the change reaches
+          every agent on this model, not only the one being built. */}
+      {editing && selected !== undefined && !endpointChanged && (
+        <p className="text-muted-foreground text-xs">
+          {t("updateModelHint", { label: selected.label })}
+        </p>
+      )}
+
+      {editing && endpointChanged && (
+        <p className="text-muted-foreground text-xs">{t("separateEndpointHint")}</p>
+      )}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {editing && endpointChanged && (
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled || !canSubmit || createProfile.isPending}
+            onClick={() => void submit(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addSeparateModel")}
+          </Button>
+        )}
+        {unchanged && (
           // A state, not an action: there is nothing to add until a field changes.
           <span className="text-muted-foreground inline-flex h-8 items-center gap-1.5 text-sm">
             <Check className="text-success h-4 w-4" />
             {t("modelInUse")}
           </span>
-        ) : (
+        )}
+        {editing && (
+          <Button
+            type="button"
+            size="sm"
+            variant={endpointChanged ? "outline" : "default"}
+            disabled={disabled || !canSubmit || updateProfile.isPending}
+            onClick={update}
+          >
+            <Save className="h-4 w-4" />
+            {t("updateModel")}
+          </Button>
+        )}
+        {!unchanged && !editing && (
           <Button
             type="button"
             size="sm"
             disabled={disabled || !canSubmit || createProfile.isPending}
-            onClick={submit}
+            onClick={() => void submit()}
           >
             <Plus className="h-4 w-4" />
             {t("addModel")}

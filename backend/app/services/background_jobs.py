@@ -39,7 +39,7 @@ from app.schemas.background_job import (
     JobStatus,
     KindActivityRead,
 )
-from app.worker.jobs import TASKS, Payload, Priority, Task
+from app.worker.jobs import INGEST_DOCUMENT, MOVE_PROJECT_WORKSPACE, TASKS, Payload, Priority, Task
 
 
 async def enqueue[P: Payload](
@@ -213,11 +213,24 @@ class BackgroundJobService:
 
         Raises:
             NotFoundError: No such job.
-            BadRequestError: The job is not dead.
+            BadRequestError: The job is not dead, or is a kind that cannot run
+                again: a workspace transfer, or a document ingest - its parse
+                copy went with it (#2681), and the document's own retry writes
+                a new one.
             AlreadyExistsError: A newer job for the same work is already queued,
                 and two queued copies of one dedupe key cannot exist.
         """
         job = await background_job_repo.get(self.db, job_id)
+        if job is not None and job.kind == MOVE_PROJECT_WORKSPACE.kind:
+            raise BadRequestError(
+                message="Start a new transfer in the project's sandbox settings; retired transfer copies cannot be reused",
+                details={"job_id": str(job_id)},
+            )
+        if job is not None and job.kind == INGEST_DOCUMENT.kind:
+            raise BadRequestError(
+                message="Retry the document from its knowledge base; a dead ingest's parse copy is gone",
+                details={"job_id": str(job_id)},
+            )
         if (
             job is not None
             and job.dedupe_key is not None
@@ -246,17 +259,14 @@ class BackgroundJobService:
 
         Raises:
             NotFoundError: No such job.
-            BadRequestError: The job is not queued, or is of a kind whose document
-                or sync log would be left in progress for good.
+            BadRequestError: The job is not queued, or is of a kind that is not
+                cancellable (`TaskKind.uncancellable_because` says why).
         """
         job = await background_job_repo.get(self.db, job_id)
         task = None if job is None else TASKS.get(job.kind)
         if task is not None and not task.cancellable:
             raise BadRequestError(
-                message=(
-                    f"A {task.kind} job cannot be cancelled: its document or sync would stay "
-                    "in progress with nothing left to finish it. Pause the kind instead."
-                ),
+                message=f"A {task.kind} job cannot be cancelled: {task.uncancellable_because}",
                 details={"job_id": str(job_id), "kind": task.kind},
             )
         if not await background_job_repo.cancel_queued(self.db, job_id):

@@ -6,6 +6,7 @@ import { FileText, Lock, Plus } from "lucide-react";
 
 import { toast } from "sonner";
 
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ContextCard } from "@/components/context/context-card";
 import { ContextEditor } from "@/components/context/context-editor";
@@ -16,6 +17,7 @@ import {
   type ContextDraftFields,
 } from "@/components/context/file-name";
 import { FileDropOverlay } from "@/components/files";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -62,7 +64,7 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "touch:min-h-11 touch-manipulation rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         active
           ? "bg-primary text-primary-foreground border-transparent"
           : "text-muted-foreground hover:bg-accent hover:text-foreground border-border",
@@ -106,7 +108,12 @@ export default function ContextPage() {
 
   const [selected, setSelected] = useState<ContextFileSummary | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ContextFileSummary | null>(null);
-  const { file, save } = useContextFile(selected?.id ?? null);
+  const {
+    file,
+    error: fileError,
+    refetch: refetchFile,
+    save,
+  } = useContextFile(selected?.id ?? null);
   const [createOpen, setCreateOpen] = useState(false);
   // Files somebody dropped, oldest first. Each one opens the create dialog
   // prefilled and is taken off the queue once it has been created, because the
@@ -114,7 +121,7 @@ export default function ContextPage() {
   // must not answer it for anybody.
   const [dropped, setDropped] = useState<ContextDraft[]>([]);
 
-  const canEdit = can(Perm.contextEdit);
+  const canCreate = can(Perm.contextEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || groupId !== null;
@@ -170,7 +177,7 @@ export default function ContextPage() {
     setDropped(drafts);
   }
 
-  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canEdit });
+  const { isDragging } = useFileDrop({ onFiles: acceptDropped, disabled: !canCreate });
   const draft = dropped[0] ?? null;
 
   const isBusy = isLoading || isLoadingPermissions;
@@ -180,7 +187,7 @@ export default function ContextPage() {
       title={t("context")}
       description={t("contextStandingKnowledge")}
       actions={
-        canEdit ? (
+        canCreate ? (
           <Button data-tour="context-new" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
             {t("newContext")}
@@ -192,7 +199,7 @@ export default function ContextPage() {
 
   if (!isBusy && !can(Perm.contextView)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <EmptyState
           icon={Lock}
@@ -205,9 +212,9 @@ export default function ContextPage() {
 
   if (isBusy) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
-        <ListCard namedByPage title={t("contextFiles")} counted={null}>
+        <ListCard layout="grid" namedByPage title={t("contextFiles")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -216,22 +223,57 @@ export default function ContextPage() {
 
   const controls =
     isFiltering || total > 0 ? (
-      <SearchInput
-        value={query}
-        onChange={(next) => {
-          setQuery(next);
-          setPage(0);
-        }}
-        placeholder={t("searchContext")}
-        className="sm:w-56"
-      />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <SearchInput
+          value={query}
+          onChange={(next) => {
+            setQuery(next);
+            setPage(0);
+          }}
+          placeholder={t("searchContext")}
+          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+        />
+        <ListFilters compact active={Number(groupId !== null) + Number(sort !== "name")}>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <GroupFilter
+              value={groupId}
+              onChange={(next) => {
+                setGroupId(next);
+                setPage(0);
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
+              <span className="text-muted-foreground text-xs">{t("sort")}</span>
+              <Chip
+                active={sort === "name"}
+                onClick={() => {
+                  setSort("name");
+                  setPage(0);
+                }}
+              >
+                {t("name")}
+              </Chip>
+              <Chip
+                active={sort === "updated"}
+                onClick={() => {
+                  setSort("updated");
+                  setPage(0);
+                }}
+              >
+                {t("recentlyUpdated")}
+              </Chip>
+            </div>
+          </div>
+        </ListFilters>
+      </div>
     ) : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {header}
 
       <ListCard
+        layout="grid"
         data-tour="context-list"
         namedByPage
         title={t("contextFiles")}
@@ -240,39 +282,6 @@ export default function ContextPage() {
         controls={controls}
       >
         <div className="space-y-4">
-          {(total > 0 || isFiltering) && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <GroupFilter
-                value={groupId}
-                onChange={(next) => {
-                  setGroupId(next);
-                  setPage(0);
-                }}
-              />
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="text-muted-foreground text-xs">{t("sort")}</span>
-                <Chip
-                  active={sort === "name"}
-                  onClick={() => {
-                    setSort("name");
-                    setPage(0);
-                  }}
-                >
-                  {t("name")}
-                </Chip>
-                <Chip
-                  active={sort === "updated"}
-                  onClick={() => {
-                    setSort("updated");
-                    setPage(0);
-                  }}
-                >
-                  {t("recentlyUpdated")}
-                </Chip>
-              </div>
-            </div>
-          )}
-
           {error ? (
             <ErrorState
               description={getErrorMessage(error, tErrors)}
@@ -287,12 +296,12 @@ export default function ContextPage() {
               description={
                 isFiltering
                   ? t("namesDescriptionsSearched")
-                  : canEdit
+                  : canCreate
                     ? t("addSomethingYourAgents")
                     : t("nobodyHasAddedContext")
               }
               cta={
-                canEdit && !isFiltering
+                canCreate && !isFiltering
                   ? {
                       label: (
                         <>
@@ -307,15 +316,9 @@ export default function ContextPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {files.map((entry) => (
-                  <ContextCard
-                    key={entry.id}
-                    file={entry}
-                    canEdit={canEdit}
-                    onOpen={() => setSelected(entry)}
-                    onDelete={() => setPendingDelete(entry)}
-                  />
+                  <ContextCard key={entry.id} file={entry} onOpen={() => setSelected(entry)} />
                 ))}
               </div>
               <Pager
@@ -341,18 +344,40 @@ export default function ContextPage() {
           <DialogContent className={cn(DIALOG_FILL, DIALOG_BROAD)}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription>{t("nameHowItIsReferred")}</DialogDescription>
+              <DialogDescription className="max-md:sr-only">
+                {t("nameHowItIsReferred")}
+              </DialogDescription>
             </DialogHeader>
-            {file === undefined ? (
-              <LoadingState variant="skeleton-panel" rows={2} />
+            {fileError ? (
+              <ErrorState
+                description={getErrorMessage(fileError, tErrors)}
+                cta={{ label: tc("retry"), onClick: () => void refetchFile() }}
+              />
+            ) : file === undefined ? (
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3"
+                role="status"
+                aria-label={tc("loading")}
+              >
+                <div className="space-y-4 rounded-md border p-3" aria-hidden>
+                  <div className="flex flex-wrap gap-4">
+                    <Skeleton className="h-20 w-40" />
+                    <Skeleton className="h-20 w-32" />
+                    <Skeleton className="h-20 w-16" />
+                  </div>
+                  <Skeleton className="h-20 w-full" />
+                </div>
+                <Skeleton className="min-h-[22rem] w-full flex-1" />
+              </div>
             ) : (
               <ContextEditor
                 key={file.id}
                 file={file}
-                canEdit={canEdit}
+                canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}
+                onDelete={() => setPendingDelete(selected)}
               />
             )}
           </DialogContent>
@@ -398,6 +423,7 @@ export default function ContextPage() {
           loading={remove.isPending}
           onConfirm={async () => {
             await remove.mutateAsync(pendingDelete.id);
+            if (selected?.id === pendingDelete.id) setSelected(null);
             setPendingDelete(null);
           }}
         />

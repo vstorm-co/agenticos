@@ -38,6 +38,7 @@ from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
 from app.core.maintenance import publish as publish_maintenance
+from app.core.vault import VaultScope, current_key_version, seal
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.updates import writable
 from app.repositories import deployment_settings_repo, organization_repo
@@ -51,6 +52,8 @@ from app.schemas.deployment_settings import (
     NoticeRead,
     SignupMode,
 )
+from app.schemas.push import ApnsKeyUpdate, ApnsRead
+from app.services.apns import ApnsService, check_key
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.notifications import NotificationService
 
@@ -59,6 +62,16 @@ logger = logging.getLogger(__name__)
 ImageKind = Literal["logo", "favicon"]
 
 _IMAGE_COLUMN: dict[ImageKind, str] = {"logo": "logo_path", "favicon": "favicon_path"}
+
+# The organization's APNs key and whose it is, set and cleared together.
+APNS_COLUMNS = (
+    "apns_private_key",
+    "apns_key_version",
+    "apns_key_id",
+    "apns_team_id",
+    "apns_topic",
+    "apns_sandbox",
+)
 
 _SUFFIX = {
     "image/jpeg": ".jpg",
@@ -240,6 +253,46 @@ class DeploymentSettingsService:
         )
         await notifications.configuration_changed(entry, recipients=audience)
         return await self.read()
+
+    async def set_apns_key(self, *, actor_user_id: UUID, data: ApnsKeyUpdate) -> ApnsRead:
+        """Keep the organization's APNs key (#2097), sealed under the
+        deployment's scope, replacing any before it. The audit entry says the
+        push key changed, never what it is."""
+        pem = data.private_key.get_secret_value().strip()
+        check_key(pem)
+        sealed = seal(pem, scope=VaultScope.deployment(), key_version=current_key_version())
+        await deployment_settings_repo.upsert(
+            self.db,
+            update_data={
+                "apns_private_key": sealed.ciphertext,
+                "apns_key_version": sealed.key_version,
+                "apns_key_id": data.key_id,
+                "apns_team_id": data.team_id,
+                "apns_topic": data.topic,
+                "apns_sandbox": data.environment == "sandbox",
+            },
+        )
+        await self._audit_fields(actor_user_id, ["apns"])
+        return await ApnsService(self.db).read()
+
+    async def clear_apns_key(self, *, actor_user_id: UUID) -> ApnsRead:
+        """Stop pushing to iPhones. Their tokens stay, for a key set again."""
+        await deployment_settings_repo.upsert(self.db, update_data=dict.fromkeys(APNS_COLUMNS))
+        await self._audit_fields(actor_user_id, ["apns"])
+        return ApnsRead(configured=False)
+
+    async def _audit_fields(self, actor_user_id: UUID, fields: list[str]) -> None:
+        notifications = NotificationService(self.db)
+        # Before the audit entry, never after it, as in `update`.
+        audience = await notifications.hold_configuration_audience()
+        entry = await record_audit(
+            self.db,
+            actor_user_id=actor_user_id,
+            action="deployment.settings_updated",
+            target_type="deployment",
+            details={"fields": fields},
+        )
+        await notifications.configuration_changed(entry, recipients=audience)
 
     async def _check_default_organization(self, organization_id: UUID) -> None:
         """Refuse an organization that does not exist, or one that is somebody's own.

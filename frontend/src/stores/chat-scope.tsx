@@ -19,7 +19,7 @@ import { createSourcesPanelStore } from "./sources-panel-store";
  * overwriting the other. Its conversation is addressed to `agentId` from the
  * first render; keyed by whoever renders it to start a clean one.
  */
-export function ChatScope({ agentId, children }: { agentId: string; children: ReactNode }) {
+export function ChatScope({ agentId, children }: { agentId: string | null; children: ReactNode }) {
   const [stores] = useState<ChatScopeStores>(() => ({
     chat: createChatStore(),
     conversation: createConversationStore(),

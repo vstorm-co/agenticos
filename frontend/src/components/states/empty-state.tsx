@@ -12,7 +12,7 @@ interface EmptyStateProps {
   cta?: { label: string; href?: string; onClick?: () => void };
   secondaryCta?: { label: string; href?: string; onClick?: () => void };
   className?: string;
-  /** When true, fills its parent (use inside a flex/grid cell). Default: tall padding. */
+  /** When true, fills its parent (use inside a flex/grid cell). Default: content-sized padding. */
   fill?: boolean;
 }
 
@@ -29,19 +29,21 @@ export function EmptyState({
     <div
       className={cn(
         "border-border bg-card flex flex-col items-center justify-center rounded-xl border text-center",
-        fill ? "h-full px-6 py-16" : "px-6 py-20",
+        fill ? "h-full px-5 py-6" : "px-5 py-6 sm:px-6 sm:py-8",
         className,
       )}
     >
-      {Icon && <SectionGlyph icon={Icon} className="mb-5" />}
-      <h3 className="text-foreground text-base font-semibold tracking-tight">{title}</h3>
+      {Icon && <SectionGlyph icon={Icon} className="mb-4" />}
+      <h3 className="text-foreground max-w-full text-base font-semibold tracking-tight break-words">
+        {title}
+      </h3>
       {description && (
         <p className="text-muted-foreground mt-1.5 max-w-sm text-sm leading-relaxed text-pretty">
           {description}
         </p>
       )}
       {(cta || secondaryCta) && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {cta && <CtaButton variant="default" {...cta} />}
           {secondaryCta && <CtaButton variant="outline" {...secondaryCta} />}
         </div>

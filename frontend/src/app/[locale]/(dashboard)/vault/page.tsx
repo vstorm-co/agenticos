@@ -51,8 +51,7 @@ export default function VaultPage() {
   // The backend gates writes on secrets:edit, not connections:manage - a
   // Member holds it at OWN scope, so the "Add key" button must not vanish
   // for them.
-  const canManage = can(Perm.secretsEdit);
-  // A connected account's consent comes back here, through the MCP callback.
+  const canCreate = can(Perm.secretsEdit);
   useMcpOAuthOutcome();
 
   const [secretOpen, setSecretOpen] = useState(false);
@@ -63,9 +62,9 @@ export default function VaultPage() {
   // draws a different shape from what follows is a layout jump on every load.
   if (secretsLoading)
     return (
-      <div className="space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         <PageHeader title={t("vault")} description={t(VAULT_DESCRIPTION)} />
-        <ListCard namedByPage title={t("keys")} counted={null} contentClassName="p-0">
+        <ListCard fill namedByPage title={t("keys")} counted={null} contentClassName="p-0">
           {[0, 1, 2].map((row) => (
             <div
               key={row}
@@ -83,12 +82,12 @@ export default function VaultPage() {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("vault2")}
         description={t(VAULT_DESCRIPTION)}
         actions={
-          canManage ? (
+          canCreate ? (
             <Button data-tour="vault-new" onClick={() => setSecretOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("addKey")}
@@ -98,6 +97,7 @@ export default function VaultPage() {
       />
 
       <ListCard
+        fill
         data-tour="vault-keys"
         namedByPage
         title={t("keys")}
@@ -115,7 +115,7 @@ export default function VaultPage() {
             title={t("noKeysYet")}
             description={t("addOneBecomesSelectable")}
             cta={
-              canManage
+              canCreate
                 ? {
                     label: (
                       <>
@@ -132,7 +132,6 @@ export default function VaultPage() {
           <SecretsTable
             secrets={secrets}
             purposes={purposes}
-            canManage={canManage}
             onShare={setSharing}
             onRotate={setRotating}
             onDelete={(secret) => removeSecret.mutate(secret.id)}
@@ -166,7 +165,11 @@ export default function VaultPage() {
             <DialogDescription>{t("whoCanBindKey")}</DialogDescription>
           </DialogHeader>
           {sharing && (
-            <SharingPanel resourceType="secret" resourceId={sharing.id} canManage={canManage} />
+            <SharingPanel
+              resourceType="secret"
+              resourceId={sharing.id}
+              canManage={sharing.can_edit === true}
+            />
           )}
         </DialogContent>
       </Dialog>

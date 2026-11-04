@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open tickets</title>
+  <link rel="stylesheet" href="lib/agenticos-3.css">
+  <script src="lib/lucide-1.46.0.min.js"></script>
+  <script src="lib/agenticos-3.js"></script>
+</head>
+<body>
+  <!--
+    Bound to one saved view, published with
+      bindings: {"tickets": {"view": "<view id>", "fields": {"title": "Title",
+                 "status": "Status", "assignee": "Assignee", "opened": "Opened"}}}
+    The records are read each time somebody opens the page, as that person.
+    Change the binding name, the text and the badge tones; leave the drawing
+    to AO.records.
+  -->
+  <main class="ao-page">
+    <header class="ao-header">
+      <div>
+        <div class="ao-eyebrow"><i data-lucide="ticket"></i>Support</div>
+        <h1>Open tickets</h1>
+        <p class="ao-subtitle">Everything the support queue has not closed yet, newest first.</p>
+        <div class="ao-meta">
+          <span class="ao-live">Live</span>
+          <span><i data-lucide="database"></i>Tickets table, the Open view</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="ao-section">
+      <div class="ao-section-header">
+        <div>
+          <h2 class="ao-section-title"><i data-lucide="list"></i>Tickets</h2>
+          <p class="ao-section-desc" id="count"></p>
+        </div>
+      </div>
+      <!-- AO.records draws the table, or the loading, empty and unavailable states, in here. -->
+      <div id="tickets"></div>
+    </section>
+
+    <footer class="ao-footer">
+      <span><i data-lucide="info"></i>Refresh in the viewer to read the records again.</span>
+    </footer>
+  </main>
+
+  <script>
+    // The words the states use, in the page's language.
+    const text = {
+      loading: "Loading tickets…",
+      unavailable: "These tickets are not available to you.",
+      empty: "No open tickets.",
+      truncated: "Showing the first {count} tickets.",
+    };
+
+    // Until the first data arrives, a loading line.
+    AO.records("#tickets", null, { text });
+
+    agenticos.onData(function (data) {
+      const tickets = data.tickets;
+      AO.records("#tickets", tickets, {
+        columns: ["title", "status", "assignee", "opened"],
+        // A choice's tone by its label; a label not listed is a plain badge.
+        badges: { status: { Open: "warning", "In progress": "info", Blocked: "danger" } },
+        text,
+      });
+      document.getElementById("count").textContent =
+        tickets.status === "ok" ? AO.format.number(tickets.count) + " open" : "";
+    });
+  </script>
+</body>
+</html>

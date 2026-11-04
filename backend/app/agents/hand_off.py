@@ -28,7 +28,7 @@ from pydantic_ai.workspaces import Workspace
 
 from app.agents.capabilities.budget import BudgetExceeded, SpendShare, booked_to
 from app.agents.deps import AgentDeps
-from app.agents.factory import BuiltAgent
+from app.agents.factory import BuiltAgent, answer_text
 from app.core.exceptions import AppException
 
 logger = logging.getLogger(__name__)
@@ -128,6 +128,9 @@ class CallWorker:
             # The call's question card, which the twin's `ask_user` reaches and
             # which its delegates inherit from these deps.
             built.deps.ask_questions = ctx.deps.ask_questions
+            # The same provenance set, not a copy: a clip the twin makes may start
+            # from an image the call drew, and what the twin makes is the call's.
+            built.deps.generated_files = ctx.deps.generated_files
             task_id = f"hand-off-{uuid4().hex[:12]}"
             started_at = datetime.now(UTC)
             error: str | None = None
@@ -164,7 +167,7 @@ class CallWorker:
                         )
                     )
             self._history = result.all_messages()
-            return result.output
+            return answer_text(result.output)
 
     async def _forward(
         self, _ctx: RunContext[AgentDeps], events: AsyncIterable[AgentStreamEvent]

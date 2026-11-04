@@ -263,7 +263,7 @@ class MirageConfig(BaseModel):
 def _build(ctx: CapabilityBuildContext) -> Mirage | None:
     """The terminal over the mounts the runner resolved, or nothing without them."""
     terminal = ctx.resources.get(MIRAGE_MOUNTS_RESOURCE)
-    if not isinstance(terminal, ResolvedTerminal) or not terminal.mounts:
+    if not isinstance(terminal, ResolvedTerminal) or not (terminal.mounts or terminal.notes):
         return None
     config = ctx.config if isinstance(ctx.config, MirageConfig) else None
     from app.agents.capabilities.mirage._capability import Mirage

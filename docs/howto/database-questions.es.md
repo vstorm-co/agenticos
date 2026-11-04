@@ -1,5 +1,5 @@
 ---
-source_sha: "351588808d86"
+source_sha: "0ac33e6fdc56"
 title: "Responde preguntas desde tu base de datos"
 description: "Conecta un servidor MCP de Postgres autoalojado, detrás de un rol de solo lectura y un esquema de solo vistas, y deja que un agent lo consulte."
 ---
@@ -132,16 +132,18 @@ private/internal address '::1'. SSRF protection does not allow requests to
 internal networks.
 ```
 
-La URL de una conexión MCP se rechaza incondicionalmente para cualquier
-dirección loopback, privada, link-local o de CGNAT compartido — no hay
-excepción para desarrollo local, porque la misma comprobación también
-protege una `cdp_url` y cada salto de descubrimiento OAuth. Ver
+La URL de una conexión MCP se rechaza para cualquier
+dirección loopback, privada, link-local o de CGNAT compartido, salvo que el
+operador liste su host en
+[`MCP_ALLOWED_HOSTS`](../configuration.md#project-settings). Ver
 [una URL que este deployment no debe alcanzar se rechaza](../mcp.md#a-connection).
 Un servidor MCP de Postgres alcanzable solo en `localhost` o en una dirección
 de red privada — el sitio habitual donde se ejecuta uno por primera vez — no
-se puede conectar desde la propia máquina de este deployment. Alcanzarlo
-necesita una dirección enrutable: un host pequeño con una IP pública o
-alcanzable por VPN, o un túnel, delante del servidor.
+se puede conectar desde la propia máquina de este deployment.
+
+Para conectarlo, ejecútalo con su propio nombre de host en la red del deployment y
+lista ese nombre, nunca `localhost`. O pon una dirección enrutable delante de
+él: un host pequeño con una IP pública o alcanzable por VPN, o un túnel.
 
 El SQL de arriba se ejecutó y se comprobó directamente contra Postgres; el
 rechazo del rol y los totales de las vistas citados son reales. Lo que no se
@@ -162,7 +164,8 @@ porque el servidor nunca fue alcanzable para conectarlo.
 
 - **La conexión se rechaza con un mensaje de SSRF.** La dirección del
   servidor es loopback, privada o de otro modo interna a la propia red de
-  este deployment — ver arriba. Pon una dirección enrutable delante de él.
+  este deployment — ver arriba. Pon una dirección enrutable delante de él, o lista su host en
+  `MCP_ALLOWED_HOSTS`.
 - **El agent lee la tabla base en vez de las vistas.** A `shop_readonly` se
   le concedió acceso sobre `public` además de `reporting`, o el esquema de
   la tabla base nunca se le revocó. Vuelve a ejecutar el `REVOKE` de arriba.

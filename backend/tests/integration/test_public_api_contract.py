@@ -43,6 +43,7 @@ READS = (
     "/agents/capabilities",
     "/agents/templates",
     "/agents/prompt-variables",
+    "/agents/ceiling",
     "/runs",
     "/approvals",
     "/spend",

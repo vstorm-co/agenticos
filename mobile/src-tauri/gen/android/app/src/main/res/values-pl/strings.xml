@@ -1,0 +1,59 @@
+<resources>
+    <string name="shortcut_call">Rozmowa</string>
+    <string name="shortcut_call_long">Zadzwoń do agenta</string>
+    <string name="shortcut_dictate">Dyktuj</string>
+    <string name="shortcut_dictate_long">Podyktuj wiadomość</string>
+    <string name="shortcut_chat">Czat</string>
+    <string name="shortcut_chat_long">Otwórz czat</string>
+    <string name="shortcut_approvals">Akceptacje</string>
+    <string name="shortcut_approvals_long">Akceptacje czekające na Ciebie</string>
+    <string name="tile_ask">Zapytaj AgenticOS</string>
+    <string name="widget_description">Co czeka na Ciebie i co jest w toku</string>
+    <string name="widget_never">Otwórz AgenticOS</string>
+    <!-- What the widget picker shows before any count. -->
+    <string name="widget_approvals_preview">czeka na Ciebie</string>
+    <string name="widget_running_preview">w toku</string>
+    <plurals name="widget_approvals">
+        <item quantity="one">czeka na Ciebie</item>
+        <item quantity="few">czekają na Ciebie</item>
+        <item quantity="many">czeka na Ciebie</item>
+        <item quantity="other">czeka na Ciebie</item>
+    </plurals>
+    <plurals name="widget_running">
+        <item quantity="one">w toku</item>
+        <item quantity="few">w toku</item>
+        <item quantity="many">w toku</item>
+        <item quantity="other">w toku</item>
+    </plurals>
+    <!-- What device management may set (app_restrictions.xml). -->
+    <string name="managed_server_url">Adres serwera</string>
+    <string name="managed_server_url_hint">Serwer AgenticOS, z którym łączy się aplikacja.</string>
+    <string name="managed_server_locked">Tylko ten serwer</string>
+    <string name="managed_biometric_lock">Blokada biometryczna</string>
+    <string-array name="managed_lock_entries">
+        <item>Decyduje użytkownik</item>
+        <item>Zawsze włączona</item>
+        <item>Zawsze wyłączona</item>
+    </string-array>
+    <!-- The composer's attach sheet and the offer of a photo just taken. -->
+    <string name="attach_title">Dodaj do wiadomości</string>
+    <string name="attach_camera">Aparat</string>
+    <string name="attach_photos">Zdjęcia</string>
+    <string name="attach_files">Pliki</string>
+    <string name="attach_add">Dodaj</string>
+    <string name="attach_photo">Zdjęcie</string>
+    <string name="attach_allow_recent">Pokaż tu ostatnie zdjęcia</string>
+    <string name="attach_offer">Dodać zdjęcie sprzed chwili?</string>
+    <string name="attach_offer_dismiss">Nie teraz</string>
+    <plurals name="attach_add_n">
+        <item quantity="one">Dodaj %d zdjęcie</item>
+        <item quantity="few">Dodaj %d zdjęcia</item>
+        <item quantity="many">Dodaj %d zdjęć</item>
+        <item quantity="other">Dodaj %d zdjęcia</item>
+    </plurals>
+    <string name="push_channel">Powiadomienia</string>
+    <string name="widget_budget_left">budżetu zostało</string>
+    <string name="widget_pinned_name">Przypięci agenci</string>
+    <string name="widget_pinned_description">Zacznij rozmowę z przypiętym agentem</string>
+    <string name="widget_pinned_empty">Przypnij agenta w AgenticOS, aby był tutaj</string>
+</resources>

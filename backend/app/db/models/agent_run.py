@@ -114,10 +114,34 @@ class RunSurface(enum.StrEnum):
     MATTERMOST = "mattermost"
     # Another system's agent sent it a task over A2A (#2092).
     A2A = "a2a"
+    TEAMS = "teams"
+    DISCORD = "discord"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
     SCHEDULE = "schedule"
+    # A workflow's `agent.run` step: the run a graph asked for, at the version the
+    # step pins, as the workflow run's principal (#1789).
+    WORKFLOW = "workflow"
+    # Work the platform did for a person on its own initiative, in the background
+    # (#2301): noticing a request they keep repeating, writing their first
+    # messages. Metered against the organization's per-person proactivity limit.
+    FOLLOW_UPS = "follow_ups"
+    """Optional next-step generation after a saved answer; never an active chat turn."""
+    PROACTIVE = "proactive"
+
+
+# The chat platforms a person reaches an agent through. A run parked on one of
+# them can be continued in the chat it was asked in.
+CHANNEL_SURFACES = frozenset(
+    {
+        RunSurface.SLACK,
+        RunSurface.TELEGRAM,
+        RunSurface.MATTERMOST,
+        RunSurface.TEAMS,
+        RunSurface.DISCORD,
+    }
+)
 
 
 class RunOrder(enum.StrEnum):
@@ -266,6 +290,11 @@ class AgentRun(Base, TimestampMixin):
     # continue on exactly what it was running.
     test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
+    # Only a completed run that reached workspace attachment setup closes their window.
+    earlier_attachments_checked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+
     # The run this one was delegated from, and the delegation's own id inside it.
     # Both null for a run somebody started, which is every run except a
     # delegation to a published agent - an inline specialist has no agent to
@@ -367,6 +396,20 @@ class AgentRun(Base, TimestampMixin):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stamped every few seconds by the process executing the run
+    # (`app.services.run_heartbeat`), so a run whose process died is told apart
+    # from a slow one in minutes rather than hours. A raw UPDATE, not the ORM,
+    # so it leaves `updated_at` - the run's last transition - alone.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Set when the chat was told this park could not continue, so the safety net
+    # does not tell it a second time; cleared when the run leaves the queue. A
+    # column rather than a `paused_state` key: `PausedRunState` is
+    # `extra="forbid"`, so a key there would make the run unreadable to an older
+    # process on a rollback or a rolling deploy.
+    chat_notice_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         # Monthly spend, per organization. Read before *every* model request to
@@ -464,6 +507,16 @@ class ToolApproval(Base, TimestampMixin):
     )
     tool_id: Mapped[str] = mapped_column(String(64), nullable=False)
     tool_args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # The stable id the capability declares the tool under. `tool_id` is the name the
+    # model called, which a binding may have renamed, so a surface that words the
+    # call by tool reads this one. Null for a tool no capability owns, and on rows
+    # parked before it was stored.
+    capability_tool_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The ids in `tool_args` as names - `{"view": "Closed tickets"}` - resolved by
+    # the tool's describer as the run's person when the call was parked, so the
+    # card and the queue can say what is being approved in words. Null when the
+    # tool has no describer or describing it failed; the arguments stay the record.
+    context: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
 
     # Which delegate asked, when the ask came from inside a delegation. `agent_id`
     # above is the agent whose *run* this is - the one the queue is scoped by and

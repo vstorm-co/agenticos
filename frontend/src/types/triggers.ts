@@ -8,6 +8,8 @@
  * split the shape CHECK enforces server-side.
  */
 
+import type { LocalTarget } from "@/lib/desktop/commands";
+
 /** Which of the two concepts a trigger is. Mirrors the backend's `TriggerType`. */
 export type TriggerType = "schedule" | "event";
 
@@ -22,7 +24,17 @@ export type ScheduleKind = "interval" | "cron";
 export type TriggerOverlap = "skip" | "queue" | "allow";
 
 /** Where an event trigger's fire comes from. Mirrors the backend's `EventSource`. */
-export type EventSource = "github" | "gmail" | "webhook";
+export type EventSource =
+  | "github"
+  | "gmail"
+  | "google_calendar"
+  | "google_drive"
+  | "hubspot"
+  | "microsoft_files"
+  | "outlook"
+  | "outlook_calendar"
+  | "webhook"
+  | "zendesk";
 
 export interface Trigger {
   id: string;
@@ -49,15 +61,21 @@ export interface Trigger {
   can_manage: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
+  /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
+  teams_conversation_id?: string | null;
   /**
    * Whether a fire acts as the person who made it - their memory and their own
    * MCP connections (#2027). Only they may turn it on.
    */
   runs_as_creator: boolean;
+  /** A folder on the creator's own computer each fire works in, or null for the sandbox (#2305). */
+  local_target?: LocalTarget | null;
   trigger_type: TriggerType;
   schedule_kind: ScheduleKind;
   interval_seconds: number | null;
   cron_expression: string | null;
+  /** The IANA zone a cron is read in; null reads it in UTC. */
+  time_zone: string | null;
   /** A schedule's overlap policy; an event trigger carries `skip` and ignores it. */
   overlap: TriggerOverlap;
   event_source: EventSource | null;
@@ -83,7 +101,7 @@ export interface Trigger {
    * so a partial fixture need not carry them - the live `TriggerRead` always does.
    */
   portal_key?: string | null;
-  delivery_mode?: "auto_webhook" | "manual" | "polling" | null;
+  delivery_mode?: "auto_webhook" | "app_webhook" | "manual" | "polling" | null;
   connection_id?: string | null;
   /**
    * Where a preset points - a repository, a channel - carried on `TriggerRead` so
@@ -112,10 +130,14 @@ export interface TriggerCreate {
   name?: string | null;
   trigger_type: TriggerType;
   environment_id?: string | null;
+  teams_conversation_id?: string | null;
   runs_as_creator?: boolean;
+  local_target?: LocalTarget | null;
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
+  /** A cron's IANA zone; omitted, the server takes the caller's own. */
+  time_zone?: string | null;
   /** Schedules only; the server stores `skip` when omitted. */
   overlap?: TriggerOverlap;
   event_source?: EventSource | null;
@@ -163,9 +185,12 @@ export interface TriggerUpdate {
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
   cron_expression?: string | null;
+  time_zone?: string | null;
   overlap?: TriggerOverlap;
   is_active?: boolean;
   environment_id?: string | null;
+  teams_conversation_id?: string | null;
   runs_as_creator?: boolean;
+  local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;
 }

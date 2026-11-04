@@ -11,7 +11,7 @@ built once, off the loop, and never on a host this deployment has not allowed.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 from uuid import uuid4
 
 import pytest
@@ -284,8 +284,9 @@ class TestForgettingAPerson:
     """The half the database cannot reach - and the half a partial wipe hides in."""
 
     async def test_it_deletes_exactly_that_persons_namespace(self):
-        client = MagicMock()
-        client.delete_users = AsyncMock()
+        from mem0 import AsyncMemoryClient
+
+        client = create_autospec(AsyncMemoryClient, instance=True)
         with patch.object(client_module, "_client", AsyncMock(return_value=client)):
             await client_module.mem0_forget_person(
                 base_url=None,
@@ -295,7 +296,7 @@ class TestForgettingAPerson:
                 owner_key=PERSON_KEY,
             )
 
-        assert client.delete_users.await_args.kwargs["user_ids"] == [f"{ORG}:{AGENT}:{PERSON_KEY}"]
+        assert client.delete_users.await_args.kwargs == {"user_id": f"{ORG}:{AGENT}:{PERSON_KEY}"}
 
     async def test_a_failure_is_raised_rather_than_reported_as_forgotten(self):
         """Somebody told their memory is gone stops asking, so a mem0 that refused
@@ -499,3 +500,92 @@ class TestAReadOnlyRun:
 
         assert out == _READ_ONLY
         remember.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_agent_erasure_deletes_only_its_namespaced_owners() -> None:
+    from mem0 import AsyncMemoryClient
+
+    client = create_autospec(AsyncMemoryClient, instance=True)
+    client.users.return_value = {
+        "results": [
+            {"type": "user", "name": namespace(ORG, AGENT, PERSON_KEY)},
+            {"type": "user", "name": namespace(ORG, AGENT, ROOM)},
+            {"type": "user", "name": namespace(uuid4(), AGENT, PERSON_KEY)},
+            {"type": "user", "name": namespace(ORG, uuid4(), PERSON_KEY)},
+            {"type": "agent", "name": namespace(ORG, AGENT, PERSON_KEY)},
+        ]
+    }
+    with patch.object(client_module, "_client", AsyncMock(return_value=client)):
+        await client_module.mem0_forget_agent(
+            base_url=None, api_key="k", organization_id=ORG, agent_id=AGENT
+        )
+    assert [call.kwargs for call in client.delete_users.await_args_list] == [
+        {"user_id": namespace(ORG, AGENT, PERSON_KEY)},
+        {"user_id": namespace(ORG, AGENT, ROOM)},
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload", [{"results": [], "next": "page-2"}, {"results": [], "count": 2}, {"bad": "shape"}]
+)
+async def test_agent_erasure_refuses_an_incomplete_namespace_inventory(payload: object) -> None:
+    client = MagicMock(users=AsyncMock(return_value=payload), delete_users=AsyncMock())
+    with (
+        patch.object(client_module, "_client", AsyncMock(return_value=client)),
+        pytest.raises(ExternalServiceError),
+    ):
+        await client_module.mem0_forget_agent(
+            base_url=None, api_key="k", organization_id=ORG, agent_id=AGENT
+        )
+    client.delete_users.assert_not_awaited()
+
+
+@pytest.mark.parametrize("whole_agent", [False, True])
+async def test_repeated_external_erasure_tolerates_an_already_absent_namespace(
+    whole_agent: bool,
+) -> None:
+    from mem0.exceptions import MemoryNotFoundError
+
+    client = MagicMock(
+        users=AsyncMock(
+            return_value={"results": [{"type": "user", "name": namespace(ORG, AGENT, PERSON_KEY)}]}
+        ),
+        delete_users=AsyncMock(side_effect=MemoryNotFoundError("already erased", "not_found")),
+    )
+    with patch.object(client_module, "_client", AsyncMock(return_value=client)):
+        if whole_agent:
+            await client_module.mem0_forget_agent(
+                base_url=None, api_key="k", organization_id=ORG, agent_id=AGENT
+            )
+        else:
+            await client_module.mem0_forget_person(
+                base_url=None,
+                api_key="k",
+                organization_id=ORG,
+                agent_id=AGENT,
+                owner_key=PERSON_KEY,
+            )
+    client.delete_users.assert_awaited_once()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("fail_listing", [False, True])
+async def test_agent_erasure_provider_failures_are_reported_explicitly(fail_listing: bool) -> None:
+    client = MagicMock(
+        users=AsyncMock(
+            return_value={"results": [{"type": "user", "name": namespace(ORG, AGENT, PERSON_KEY)}]}
+        ),
+        delete_users=AsyncMock(),
+    )
+    failing = client.users if fail_listing else client.delete_users
+    failing.side_effect = RuntimeError("provider unavailable")
+    with (
+        patch.object(client_module, "_client", AsyncMock(return_value=client)),
+        pytest.raises(ExternalServiceError, match="Could not delete the agent") as refused,
+    ):
+        await client_module.mem0_forget_agent(
+            base_url=None, api_key="k", organization_id=ORG, agent_id=AGENT
+        )
+    assert refused.value.details == {"operation": "forget_agent"}
+    assert "provider unavailable" not in refused.value.message

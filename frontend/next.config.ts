@@ -62,6 +62,11 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  allowedDevOrigins: process.env.PUBLIC_SITE_URL
+    ? [new URL(process.env.PUBLIC_SITE_URL).hostname]
+    : undefined,
+  // next-intl owns locale rewrites; Next must preserve their internal paths.
+  skipProxyUrlNormalize: true,
   pageExtensions: ["ts", "tsx"],
   // The development badge sits in the corner the console's own controls use.
   devIndicators: false,

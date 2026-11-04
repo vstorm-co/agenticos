@@ -12,9 +12,12 @@ is a file in this repository.
 `prewarm` builds every entry of the allowlist when the service starts, so each
 one is a `pip install` at start-up and an image on the host for as long as it is
 cached, and an agent asked to open a PDF got whichever alias its spec happened to
-name. `workbench` is the one image worth building - two languages, the tools to
-navigate a repository, the libraries to read what a user attaches, and a network -
-and a deployment that wants a second one adds it here.
+name. `workbench` is the image worth building for nearly everything - two
+languages, the tools to navigate a repository, the libraries to read what a user
+attaches, and a network - and it stays first, because the first entry is what an
+agent naming no runtime gets. `desktop` is the second, and the one other thing an
+agent cannot get from `workbench`: a display, XFCE and Firefox for `computer_use`
+to drive. A deployment that wants a third adds it here.
 
 One catalogue, two readers, and that is the point:
 
@@ -149,6 +152,14 @@ def allowlist_value(*, network_mode: Literal["none", "bridge"] = "none") -> str:
     return json.dumps(entries, separators=(",", ":"), sort_keys=False)
 
 
+DESKTOP_RUNTIME = "desktop"
+"""The runtime with a display, which computer use's sandbox desktop drives.
+
+Named here because publish refuses a sandbox desktop on any other, and the
+catalogue entry and that refusal must not drift apart
+(`tests/test_sandbox_runtime_catalog.py`)."""
+
+
 DOCUMENT_PARSER = "liteparse"
 """The package that makes a PDF, a `.docx` and a spreadsheet readable in place.
 
@@ -192,8 +203,8 @@ def runtime_briefing(alias: str | None) -> str | None:
     extractor rather than calling `lit`, and both learned otherwise by failing
     inside somebody's request.
 
-    `DEFAULT_INSTRUCTIONS` says a prompt should not list an agent's tools, and
-    this does not: which *tools* it has depends on its spec and changes when
+    The starter agent's instructions name none of its tools, and neither does
+    this: which *tools* an agent has depends on its spec and changes when
     somebody toggles one. What is installed in an image is a fact about the image.
 
     Args:

@@ -9,7 +9,7 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground",
+        default: "border-transparent bg-foreground/8 text-foreground",
         secondary: "border-transparent bg-secondary text-secondary-foreground",
         // Tinted, not filled - and the text is `foreground`, not the tone.
         //

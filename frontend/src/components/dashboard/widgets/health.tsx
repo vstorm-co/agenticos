@@ -32,7 +32,7 @@ const ICON: Record<string, LucideIcon> = {
 const NAMED = new Set(Object.keys(ICON));
 
 const TILE: Record<CheckStatus, string> = {
-  healthy: "bg-success/12 text-success",
+  healthy: "bg-foreground/[0.04] text-muted-foreground",
   unhealthy: "bg-destructive/12 text-destructive",
   unconfigured: "bg-muted text-muted-foreground",
   not_checked: "bg-muted text-muted-foreground",
@@ -71,7 +71,7 @@ export function HealthWidget({ title, hint, seeAll, options }: DashboardWidgetPr
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant={style === "list" ? "list" : "services"} />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !health || health.checks.length === 0 ? (

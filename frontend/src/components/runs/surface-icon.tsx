@@ -1,4 +1,15 @@
-import { CalendarClock, Code2, Globe, MessageSquare, Mic, Network, Zap } from "lucide-react";
+import {
+  BellRing,
+  CalendarClock,
+  Code2,
+  Globe,
+  MessageSquare,
+  Mic,
+  Network,
+  Workflow,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";
@@ -23,11 +34,14 @@ const MARKS = {
   web: MessageSquare,
   embed: Globe,
   api: Code2,
+  follow_ups: Sparkles,
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
   // Another system's agent, which A2A names by no brand of its own.
   a2a: Network,
+  teams: brandMark("microsoftteams"),
+  discord: brandMark("discord"),
   // Nobody sat at a keyboard for these two: a clock for the run a schedule was
   // due to make, a bolt for the one an event fired. They are in this table and
   // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
@@ -35,6 +49,10 @@ const MARKS = {
   // is a 422, and the branch that writes these surfaces adds them there.
   schedule: CalendarClock,
   trigger: Zap,
+  // A workflow's `agent.run` step - the workflows module's own mark, so a run a
+  // graph asked for is recognisable as one.
+  workflow: Workflow,
+  proactive: BellRing,
 } as const;
 
 /** The display name beside the mark - "Mattermost", not the enum's lowercase. */
@@ -42,12 +60,17 @@ const LABEL_KEYS = {
   web: "surfaceWeb",
   embed: "surfaceEmbed",
   api: "surfaceApi",
+  follow_ups: "surfaceFollowUps",
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
   a2a: "surfaceA2a",
+  teams: "surfaceTeams",
+  discord: "surfaceDiscord",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
+  workflow: "surfaceWorkflow",
+  proactive: "surfaceProactive",
 } as const;
 
 /**

@@ -1,0 +1,159 @@
+import { describe, expect, it, vi } from "vitest";
+
+import type { NodeDefinition, WorkflowGraph } from "@/lib/workflows/types";
+
+import {
+  declaredFields,
+  entryGraph,
+  isTrigger,
+  sampleRunInput,
+  startsByHand,
+  triggerNodeOf,
+  TRIGGER_CATEGORY,
+} from "./triggers";
+
+function graph(definitionId: string, config: Record<string, unknown> = {}): WorkflowGraph {
+  return {
+    entry_node_id: "n1",
+    nodes: [
+      {
+        id: "n1",
+        definition_id: definitionId,
+        definition_version: 1,
+        config,
+        layout: { x: 0, y: 0 },
+      },
+    ],
+    edges: [],
+    bindings: [],
+    scopes: [],
+  };
+}
+
+describe("triggers", () => {
+  it("tells a trigger by its category, and finds the graph's", () => {
+    const trigger = { category: TRIGGER_CATEGORY } as NodeDefinition;
+    expect(isTrigger(trigger)).toBe(true);
+    expect(isTrigger({ category: "tables" })).toBe(false);
+    expect(isTrigger(null)).toBe(false);
+    const g = graph("trigger.webhook");
+    expect(triggerNodeOf(g, new Map([["n1", trigger]]))?.id).toBe("n1");
+    expect(triggerNodeOf(g, new Map([["n1", null]]))).toBeNull();
+  });
+
+  it("reads the fields a run starts with from a Manual, API or called entry only", () => {
+    expect(declaredFields(null)).toEqual([]);
+    expect(
+      declaredFields(graph("trigger.webhook", { fields: [{ name: "a", type: "text" }] })),
+    ).toEqual([]);
+    expect(
+      declaredFields(graph("core.input", { fields: [{ name: "a", type: "text" }] })).map(
+        (field) => field.name,
+      ),
+    ).toEqual(["a"]);
+    expect(
+      declaredFields(graph("trigger.workflow_call", { fields: [{ name: "b", type: "text" }] })),
+    ).toHaveLength(1);
+  });
+
+  it("starts by hand only a version from Manual or API, or from no trigger", () => {
+    expect(startsByHand(null)).toBe(true);
+    expect(startsByHand("core.input")).toBe(true);
+    expect(startsByHand("trigger.webhook")).toBe(false);
+    expect(startsByHand("trigger.workflow_call")).toBe(false);
+  });
+
+  it("samples a test run's input in the shape the draft's trigger hands on", () => {
+    vi.useFakeTimers({ now: new Date("2026-09-29T09:00:00Z") });
+    expect(sampleRunInput(null)).toEqual({});
+    expect(sampleRunInput(graph("core.input"))).toEqual({});
+    expect(sampleRunInput(graph("trigger.chat"))).toMatchObject({ prompt: "Hello" });
+    expect(sampleRunInput(graph("trigger.webhook"))).toEqual({ body: {}, delivery_id: "test" });
+    expect(sampleRunInput(graph("trigger.schedule", { input: { r: "eu" } }))).toEqual({
+      fired_at: "2026-09-29T09:00:00.000Z",
+      input: { r: "eu" },
+    });
+    expect(sampleRunInput(graph("trigger.schedule")).input).toEqual({});
+    expect(
+      sampleRunInput(graph("trigger.table_record", { table: { table_id: "tbl" } })),
+    ).toMatchObject({ table_id: "tbl", values: {}, fields: {} });
+    expect(sampleRunInput(graph("trigger.table_record")).table_id).toMatch(/^0{8}-/);
+    expect(sampleRunInput(graph("trigger.gmail"))).toMatchObject({ subject: "Hello" });
+    expect(sampleRunInput(graph("trigger.outlook"))).toEqual({
+      message_id: "sample",
+      sender: "Ada Lovelace <ada@example.com>",
+      to: "",
+      subject: "Hello",
+      text: "",
+      snippet: "",
+      labels: [],
+    });
+    expect(sampleRunInput(graph("trigger.github", { repository: "acme/api" }))).toMatchObject({
+      event: "issues",
+      repository: "acme/api",
+    });
+    expect(sampleRunInput(graph("trigger.github")).repository).toBe("owner/repository");
+    expect(sampleRunInput(graph("trigger.channel_message", { bot_id: "bot-1" }))).toMatchObject({
+      bot_id: "bot-1",
+      text: "Hello",
+      sender: { platform_user_id: "U0SAMPLE" },
+    });
+    expect(sampleRunInput(graph("trigger.channel_message")).bot_id).toMatch(/^0{8}-/);
+    expect(sampleRunInput(graph("trigger.workflow_failed"))).toMatchObject({
+      workflow_name: "sample",
+      error: { code: "SAMPLE_FAILURE" },
+    });
+    vi.useRealTimers();
+  });
+});
+
+it("isolates the reachable branch of an independent start and terminates a cycle", () => {
+  const base = graph("trigger.manual");
+  const start = base.nodes[0]!;
+  const g: WorkflowGraph = {
+    ...base,
+    nodes: [
+      start,
+      { ...start, id: "out", definition_id: "core.output" },
+      { ...start, id: "other" },
+    ],
+    edges: [
+      {
+        id: "edge",
+        source_node_id: "n1",
+        source_port: "out",
+        target_node_id: "out",
+        target_port: "in",
+      },
+      {
+        id: "cycle",
+        source_node_id: "out",
+        source_port: "out",
+        target_node_id: "n1",
+        target_port: "in",
+      },
+      {
+        id: "other",
+        source_node_id: "other",
+        source_port: "out",
+        target_node_id: "other",
+        target_port: "in",
+      },
+    ],
+    bindings: [
+      { target_node_id: "out", target_field: "text", source: { kind: "literal", value: "Done" } },
+      {
+        target_node_id: "other",
+        target_field: "text",
+        source: { kind: "literal", value: "Hidden" },
+      },
+    ],
+  };
+  expect(entryGraph(g, "n1")).toEqual({
+    ...g,
+    nodes: g.nodes.slice(0, 2),
+    edges: g.edges.slice(0, 2),
+    bindings: g.bindings.slice(0, 1),
+    scopes: [],
+  });
+});

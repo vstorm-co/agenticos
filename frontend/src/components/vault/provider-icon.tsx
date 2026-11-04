@@ -21,6 +21,7 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   custom: KeyRound,
   sandboxd: Box,
   daytona: Box,
+  e2b: Box,
   mem0: Brain,
   // No icon set carries LiteLLM; its own mark is the bullet-train emoji.
   litellm: TrainFront,

@@ -35,9 +35,15 @@ export interface IngestingDocument {
   status: string;
 }
 
+/**
+ * `alsoPending` keeps the poll going when something beyond `documents` is still
+ * ingesting - a batch larger than the loaded page settles there long before it
+ * settles everywhere (#2486). Its flipping counts as a change, as a status does.
+ */
 export function usePollWhileIngesting(
   documents: readonly IngestingDocument[],
   refresh: () => void,
+  alsoPending = false,
 ): void {
   const delayRef = useRef(POLL_MIN_MS);
   const signatureRef = useRef("");
@@ -63,10 +69,10 @@ export function usePollWhileIngesting(
     // Ids and statuses, order-independent: a new document appearing and a
     // status flipping are both "something happened", and both mean the next
     // poll should be a fast one.
-    const signature = documents
+    const signature = `${alsoPending}|${documents
       .map((document) => `${document.id}:${document.status}`)
       .sort()
-      .join("|");
+      .join("|")}`;
     if (signature !== signatureRef.current) {
       signatureRef.current = signature;
       delayRef.current = POLL_MIN_MS;
@@ -76,7 +82,11 @@ export function usePollWhileIngesting(
     // The set this replaced held `pending`, which nothing writes to a
     // `RAGDocument` - a fourth copy of the vocabulary, and a fourth chance to
     // be wrong about it (#356).
-    if (!documents.some((document) => ragStatus(document.status).tone === "progress")) return;
+    if (
+      !alsoPending &&
+      !documents.some((document) => ragStatus(document.status).tone === "progress")
+    )
+      return;
 
     const timeout = setTimeout(() => {
       delayRef.current = Math.min(Math.round(delayRef.current * POLL_FACTOR), POLL_MAX_MS);
@@ -84,5 +94,5 @@ export function usePollWhileIngesting(
       setPolls((count) => count + 1);
     }, delayRef.current);
     return () => clearTimeout(timeout);
-  }, [documents, polls]);
+  }, [documents, alsoPending, polls]);
 }

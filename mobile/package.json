@@ -1,0 +1,13 @@
+{
+  "name": "agenticos-mobile",
+  "private": true,
+  "scripts": {
+    "android": "tauri android dev",
+    "ios": "tauri ios dev",
+    "build:android": "tauri android build",
+    "build:ios": "tauri ios build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

@@ -22,6 +22,11 @@ export type ApprovalMode = "default" | "required" | "never";
  * would be passed over for. An absent key means the value the capability
  * declared in code.
  */
+export interface LocalCodingAgent {
+  harness: "claude_code" | "codex";
+  access: "edit" | "read_only";
+}
+
 export interface ToolOverride {
   name?: string;
   description?: string;
@@ -388,6 +393,8 @@ export interface AgentSpec {
   instructions: string;
   /** Custom variables the instructions may use. Optional here, always on the wire. */
   variables?: PromptVariableSpec[];
+  /** Up to four first messages an empty chat offers. Optional here, always on the wire. */
+  starters?: string[];
   /** `system`, `user` (the person's own) or an IANA zone, for `{{current_time}}`. */
   time_zone?: string;
   model_profile_id?: string | null;
@@ -410,6 +417,12 @@ export interface AgentSpec {
   external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /**
+   * The JSON Schema of the agent's answer, when it answers with data rather than
+   * prose - an object of this shape, validated before the run ends. Null or
+   * absent is a free-text answer.
+   */
+  output_schema?: Record<string, unknown> | null;
   /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
   loop_guard?: LoopGuardSpec;
   /** Second models that review the run while it goes; defaulted to none server side. */
@@ -458,6 +471,11 @@ export interface Agent {
   shared_groups?: string[];
   owner_user_id: string | null;
   current_version_id: string | null;
+  /**
+   * The workflow whose step configures this agent, when one does. Such an agent
+   * is changed in that step - versioned with the workflow - never here.
+   */
+  workflow_id?: string | null;
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */
@@ -512,6 +530,15 @@ export interface Agent {
    * profile has been deleted. Listing only.
    */
   published_model?: PublishedModel | null;
+  /** Enabled bindings from the frozen version; absent on older servers. */
+  published_capabilities?: string[] | null;
+  /**
+   * The coding agent the published version runs on the person's own computer, or
+   * null when it runs none there; the composer names it. Listing only.
+   */
+  local_coding_agent?: LocalCodingAgent | null;
+  /** The published version's first messages, which an empty chat offers. Listing only. */
+  starters?: string[];
   created_at?: string;
   /**
    * `null` until the row is first updated - `TimestampSchema.updated_at` is
@@ -524,6 +551,23 @@ export interface Agent {
 
 export interface AgentDetail extends Agent {
   draft_spec: AgentSpec;
+}
+
+/**
+ * The deployment's agents-per-organization limit, and whether this organization
+ * is at it - from `GET /agents/ceiling`. Mirrors the backend `AgentCeiling`.
+ */
+export interface AgentCeiling {
+  /** Agents the deployment allows per organization; null is no limit. */
+  limit: number | null;
+  /**
+   * Agents the organization holds, archived ones excluded - including ones the
+   * caller cannot see, which is why it is null unless the caller sees every
+   * agent in the organization. Null too when there is no limit.
+   */
+  held: number | null;
+  /** Whether a new agent would be refused for the limit. */
+  at_limit: boolean;
 }
 
 export interface AgentList {
@@ -698,7 +742,7 @@ export interface CapabilityCatalogEntry {
    */
   voice: "live" | "hand_off" | "never";
   /**
-   * How the starter agent (the Claude Code like template) binds this capability,
+   * How the starter agent (the AgenticOS template) binds this capability,
    * or null where it does not. Marked Recommended, and what a new agent starts with.
    */
   recommended: CapabilityBindingSpec | null;
@@ -770,6 +814,8 @@ export interface JsonSchemaProperty {
    * side outlives the value it was written for without anyone noticing.
    */
   "x-enum-labels"?: Record<string, string>;
+  /** Help for the selected option, kept out of the menu label. */
+  "x-enum-descriptions"?: Record<string, string>;
   /**
    * Whether this string is paragraphs rather than a value.
    *
@@ -798,6 +844,18 @@ export interface JsonSchemaProperty {
    */
   "x-placeholder"?: string;
   /**
+   * A description shown on hover over the label instead of under the field:
+   * set by a form for one that only says the label again.
+   */
+  "x-hint"?: string;
+  /**
+   * Values a field suggests without restricting itself to them.
+   *
+   * The open counterpart of `enum`: the backend validates a plain string, so the
+   * form offers these and still accepts anything else. `x-enum-labels` names them.
+   */
+  "x-suggestions"?: string[];
+  /**
    * Whether this field is folded under "Advanced settings" (#2070).
    *
    * A capability marks limits, cache lifetimes, prompts and tuning this way
@@ -810,13 +868,18 @@ export interface JsonSchemaProperty {
    * `model-profile` is one of the organization's model profiles, chosen from
    * the same picker the Builder uses for the agent's own model.
    */
-  "x-widget"?: "model-profile";
+  "x-widget"?:
+    "model-profile" | "browser-connection" | "computer-environment" | "coding-environment";
   /**
    * The choices an enum offers for each value of another field of the form -
    * the coding agent's models, which depend on its harness. A choice the other
    * field no longer allows is cleared when that field changes.
    */
-  "x-enum-when"?: { field: string; choices: Record<string, string[]> };
+  "x-enum-when"?: {
+    field: string;
+    choices: Record<string, string[]>;
+    unless?: { field: string; equals: string[] };
+  };
   /**
    * Show this field only while another field of the same form holds one of
    * these values - a proxy's address under "Through a proxy" and nowhere else.
@@ -827,14 +890,16 @@ export interface JsonSchemaProperty {
    * What a `list[...]` holds. Only `{"type": "string"}` is rendered; anything
    * else is the richer editor the generated form deliberately does not grow.
    */
-  items?: { type?: string };
+  items?: { type?: string; enum?: unknown[] };
   /** A `Literal | None` arrives as branches, one carrying the values. */
   anyOf?: {
     type?: string;
     enum?: unknown[];
     format?: string;
-    items?: { type?: string };
+    items?: { type?: string; enum?: unknown[] };
     "x-enum-labels"?: Record<string, string>;
+    /** Help for the selected option, kept out of the menu label. */
+    "x-enum-descriptions"?: Record<string, string>;
   }[];
 }
 
@@ -842,4 +907,7 @@ export interface JsonSchemaProperty {
 export interface AgentUsage {
   id: string;
   name: string;
+  slug?: string;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
 }

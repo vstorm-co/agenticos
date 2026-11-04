@@ -65,6 +65,9 @@ class Schedule:
 
 
 SCHEDULES: tuple[Schedule, ...] = (
+    Schedule(
+        "reconcile-conversation-tasks", jobs.RECONCILE_CONVERSATION_TASKS, timedelta(seconds=15)
+    ),
     # Fire the agent triggers that have come due.
     Schedule("check-agent-triggers", jobs.CHECK_AGENT_TRIGGERS, _MINUTE),
     # Read the connected accounts nobody pushes to. Its own schedule rather than
@@ -81,24 +84,55 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A call a dead worker left is billed by the minute, and its heartbeat goes
     # stale 45 s after the worker died (#54).
     Schedule("reap-voice-calls", jobs.REAP_VOICE_CALLS, _MINUTE),
+    # The workflow engine's sweeps. Postgres holds a run's position and every
+    # outbox row has its own job, so the poll is only the backstop for a job that
+    # died or was lost; the reconcile outlasts the 120 s dispatch lease
+    # several times over; a workflow schedule's floor is one minute; and a table
+    # trigger is promised within about ten seconds.
+    Schedule("workflow-dispatch-poll", jobs.WORKFLOW_DISPATCH_POLL, _MINUTE),
+    Schedule("workflow-reconcile", jobs.WORKFLOW_RECONCILE, timedelta(seconds=30)),
+    Schedule("workflow-schedules-check", jobs.WORKFLOW_SCHEDULES_CHECK, _MINUTE),
+    Schedule("workflow-table-triggers", jobs.WORKFLOW_TABLE_TRIGGERS, timedelta(seconds=10)),
+    # Count each alert rule's matching log lines over its window (the shortest is five
+    # minutes), so an alert is at most a minute late.
+    Schedule("workflow-log-alerts", jobs.WORKFLOW_LOG_ALERTS, _MINUTE),
+    # A run whose process died stops beating; a chat says "Working" over it
+    # until this ends it, so it is looked for every minute (#2301).
+    Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _MINUTE),
+    # Queue a look for each watch that has come due (#2301). Each watch keeps its
+    # own cadence, the most often fifteen minutes; this only finds whose turn it is.
+    Schedule("watch-sweep", jobs.WATCH_SWEEP, _MINUTE),
     # Renew OAuth tokens near expiry and dial every organization server: often
     # enough that a dead grant is noticed within a coffee break.
     Schedule("sweep-mcp-connections", jobs.SWEEP_MCP_CONNECTIONS, timedelta(minutes=15)),
+    # Take back what a Discord role gave somebody who lost it or left the server
+    # (#2569). Their next turn would, but somebody who left stops taking turns.
+    Schedule("sync-discord-roles", jobs.SYNC_DISCORD_ROLES, timedelta(minutes=15)),
     # Hourly, against thresholds measured in hours or days: an approval or an
-    # invitation expiring forty minutes late has cost nobody anything, and a
-    # crashed run reaped late is still reaped, which nothing else would do.
+    # invitation expiring forty minutes late has cost nobody anything.
+    # The platform's look at each person's week (#2301): hourly, because who is
+    # due depends on their own clock - each is thought about once a night, early
+    # in their morning, so what it proposes is waiting when they start.
+    Schedule("send-diagnostics", jobs.SEND_DIAGNOSTICS, _HOUR),
+    Schedule("proactive-sweep", jobs.PROACTIVE_SWEEP, _HOUR),
     Schedule("expire-approvals", jobs.EXPIRE_APPROVALS, _HOUR),
     Schedule("expire-invitations", jobs.EXPIRE_INVITATIONS, _HOUR),
-    Schedule("reap-stale-runs", jobs.REAP_STALE_RUNS, _HOUR),
     # A teardown reservation whose drop failed for good blocks its collection's
     # name with nothing left to reattempt it (#1364).
     Schedule("sweep-teardown-reservations", jobs.SWEEP_TEARDOWN_RESERVATIONS, _HOUR),
+    # A parse scratch copy whose job was lost, or that a deployment from before
+    # #2681 never removed: the document's content, on the media volume (#2681).
+    # Its own schedule, so a failing reservation drop cannot stop it.
+    Schedule("sweep-rag-scratch", jobs.SWEEP_RAG_SCRATCH, _HOUR),
     # Daily: retention windows are measured in days, so the hour a row leaves is
     # nobody's business.
     Schedule("sweep-sandbox-operations", jobs.SWEEP_SANDBOX_OPERATIONS, _DAY),
     Schedule("apply-retention", jobs.APPLY_RETENTION, _DAY),
     Schedule("sweep-notifications", jobs.SWEEP_NOTIFICATIONS, _DAY),
     Schedule("sweep-background-jobs", jobs.SWEEP_BACKGROUND_JOBS, _DAY),
+    Schedule("workflow-run-retention", jobs.WORKFLOW_RUN_RETENTION, _DAY),
+    # Generated images, speech and video past `GENERATED_MEDIA_RETENTION_DAYS` (#2310).
+    Schedule("sweep-generated-media", jobs.SWEEP_GENERATED_MEDIA, _DAY),
     # A report covers the period its occurrence names, so one that arrives while
     # the last is still sending waits rather than being dropped: a skipped tick
     # would be a week nobody is ever sent.
@@ -197,5 +231,11 @@ async def _fire(db: AsyncSession, schedule: Schedule, occurrence: datetime) -> U
 
 
 def _spread(index: int, count: int) -> timedelta:
-    """A share of a minute: spread enough to keep the sweeps apart, and no daily one waits a day."""
-    return _MINUTE * index / max(count, 1)
+    """A share of a minute: spread enough to keep the sweeps apart, and no daily one waits a day.
+
+    No two schedules may start at the same instant, and one whose interval is
+    shorter than its share starts one interval out instead
+    (`background_schedule.declare`). In `count + 1` shares, so no share of the
+    current set lands on such a clamped start; `test_background_schedules` checks it.
+    """
+    return _MINUTE * index / (count + 1)

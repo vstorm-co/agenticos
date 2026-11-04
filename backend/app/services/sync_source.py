@@ -177,6 +177,10 @@ class SyncSourceService:
             collection_name=collection_name,
             is_active=is_active,
         )
+        return self.as_list(sources)
+
+    def as_list(self, sources: list[SyncSource]) -> SyncSourceList:
+        """Sources a caller already resolved, as the API lists them."""
         return SyncSourceList(items=[self._to_read(s) for s in sources], total=len(sources))
 
     async def get_source(self, source_id: str) -> SyncSource:

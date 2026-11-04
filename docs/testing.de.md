@@ -1,5 +1,5 @@
 ---
-source_sha: "4610ace395a3"
+source_sha: "76c60cd662bd"
 ---
 
 # Tests { #testing }
@@ -79,13 +79,9 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-Etwa fünf Minuten seriell, gegen die zwölf von CI parallel — dort ist der
-Backend-Job `test` die lange Stange, die #520 kürzt. Die Gleichheit wird gepflegt
-statt behauptet: Der Workflow ruft diese Targets auf, statt ihre Befehle zu
-wiederholen, und `tests/test_ci_parity.py` scheitert, wenn ein gatender Job einen
-Schritt bekommt, den `make check` nicht ausführt. Sie ist viermal auseinander
-gedriftet — siehe [Befehle](commands.md#before-a-pull-request) dazu, was `check`
-auslässt und warum.
+CI führt unabhängige Prüfungen parallel aus. Der Workflow verwendet dieselben
+Makefile-Targets wie lokale Prüfungen; `tests/test_ci_parity.py` sichert deren
+Übereinstimmung. Bewusste Ausnahmen stehen unter [Befehle](commands.md#before-a-pull-request).
 
 !!! info "CI führt womöglich weniger Jobs aus als `check`, und das ist keine Drift"
 
@@ -538,14 +534,45 @@ Tests zurückgesetzt.**
 
 Die Fixture `schema_url` führt `create_all` ein einziges Mal aus. Die
 funktionsskopierte Fixture `engine` gibt dann jedem Test eine leere Datenbank,
-indem sie jede Modelltabelle `TRUNCATE`-t — und jede Tabelle löscht, die ein Test
-außerhalb der Modelle angelegt hat, ein zur Laufzeit entstandenes
-`rag_<collection>` oder eine Sortierprobe —, statt das Schema neu zu bauen.
+indem sie jede Modelltabelle `TRUNCATE`-t, die eine Zeile enthält — und jede Tabelle
+löscht, die ein Test außerhalb der Modelle angelegt hat, ein zur Laufzeit entstandenes
+`rag_<collection>` oder eine Sortierprobe —, statt das Schema neu zu bauen. Ein
+`EXISTS` je Tabelle findet die befüllten, und jede Sequenz wird an Ort und Stelle
+zurückgesetzt, sodass auch eine leere Tabelle, deren Identity weitergezählt hat, wieder
+bei 1 beginnt.
 
 Früher lief vor *jedem* Test `drop_all` + `create_all`: ~0,4 s DDL, was nahezu die
 gesamte Laufzeit einer Suite war, deren Zusicherungen Mikrosekunden an
 Postgres-Arbeit sind. Es einmal zu bauen kürzte `tests/integration` von ~125 s auf
 ~50 s ([#215](https://github.com/vstorm-co/agenticos/issues/215)).
+
+**`make test`, `make test-fast`, `make test-integration` und `make test-cov` laufen gegen
+ein Wegwerf-Postgres, nicht gegen Ihr Entwicklungs-Postgres.**
+
+`make docker-test-db` startet es aus `docker-compose.test.yml` (ein eigenes Projekt,
+`agenticos-test`, auf `localhost:5433`); diese Targets starten es selbst und richten
+pytest darauf aus. Es läuft mit `fsync=off`, `synchronous_commit=off` und
+`full_page_writes=off`, sein Datenverzeichnis liegt auf `tmpfs` — ein Absturz verliert
+also den Cluster, was nicht schadet, weil die Suite darin ihre eigene Datenbank anlegt
+und wieder löscht.
+
+Der Grund ist fsync. Jedes `TRUNCATE` gibt jeder berührten Tabelle neue
+Relationsdateien, die Postgres flushen muss, und unter WSL2 oder auf einem
+Docker-Volume kostet ein Flush ~7 ms: Ein voller Lauf dauerte etwa drei Stunden, wo CI
+zehn Minuten braucht. Ohne Flush ist derselbe Lauf so schnell wie in CI, und die
+Entwicklungsdatenbank bleibt unberührt und dauerhaft.
+
+```bash
+make docker-test-db        # starten (idempotent); wartet, bis es gesund ist
+make docker-test-db-down   # stoppen und die Daten verwerfen
+make test TEST_DB_PORT=5434          # anderer Port, wenn 5433 belegt ist
+make test TEST_DB=external           # kein Container: die Datenbank aus POSTGRES_* / .env
+```
+
+Ein eingegrenzter `pytest`-Lauf geht nicht durch `make`; richten Sie ihn selbst darauf
+aus:
+`POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres uv run pytest tests/integration/test_x.py`.
+CI setzt `CI`, was `TEST_DB=external` wählt — sein Service-Container ist die Datenbank.
 
 `TRUNCATE` statt eines Transaktions-Rollbacks, weil die Tests der API-Abläufe über
 das echte `get_db_session` committen und ihre Zeilen ein Rollback überleben.
@@ -615,10 +642,10 @@ Umgebung, die nicht antworten kann, und die beiden sind in der Ausgabe von pytes
 nicht zu unterscheiden.
 
 `make test-migrations` gibt es weiterhin und ist weiterhin das, was nach einer
-Änderung an `alembic/versions/` von Hand zu laufen hat, aber es zeigt auf das, was
-`backend/.env` sagt, und das ist auf einem Laptop die Datenbank mit Ihrer eigenen
-Arbeit darin. Bevorzugen Sie `uv run pytest tests/test_migrations.py`, das sie
-nicht erreichen kann.
+Änderung an `alembic/versions/` von Hand zu laufen hat, und es läuft auf einem Laptop
+gegen eine eigene Datenbank im wegwerfbaren Test-Postgres (:5433), kann also die
+Datenbank mit Ihrer eigenen Arbeit nicht erreichen. In CI (`TEST_DB=external`) nutzt es die
+Datenbank, die `POSTGRES_*` nennt. `uv run pytest tests/test_migrations.py` ist die schnellere Prüfung.
 
 ## Die Tests des Workers { #the-workers-tests }
 
@@ -660,3 +687,21 @@ importiert hat, und prüft den Payload, so wie die Fixture `queued_fires` in
   heißt, zwei Listen in `backend/pyproject.toml` zu bearbeiten.
 - Die Reihenfolge wird in jedem Lauf gemischt; spielen Sie einen Fehlschlag mit
   dem ausgegebenen Seed nach, bevor Sie irgendetwas über die Änderung schließen.
+
+## Verteilung in CI { #ci-distribution }
+
+Die Backend-Suite misst den gesamten Anwendungscode einmal. Der Plattformbericht
+verlangt weiterhin 100% Abdeckung; `make coverage-all REUSE_COVERAGE=1` berichtet
+über geerbten Code aus denselben Daten, ohne die Tests erneut auszuführen.
+
+Frontend-Lint, Produktionsbuild und vier Test-Shards laufen unabhängig. Die Shards
+behalten die Dateiisolierung bei; ein zusammengeführter Bericht prüft die
+unveränderten Abdeckungsschwellen. Der erforderliche Check `test-frontend` schlägt
+bei fehlenden, unerwartet übersprungenen oder erfolglosen Jobs und Shards fehl.
+E2E verwendet den Produktionsbuild in vier Shards mit jeweils eigener Datenbank,
+eigenem Redis, Backend, Seed und Stub-Server. Dateien innerhalb eines Shards
+laufen weiterhin seriell und ohne Wiederholungen.
+
+CI-PostgreSQL verwendet ein flüchtiges Datenverzeichnis im RAM und deaktiviert
+fsync, synchrone Commits und vollständige Seitenabbilder nur im Service-Container.
+Produktions- und Entwicklungsdatenbanken behalten ihre normalen Dauerhaftigkeitseinstellungen.

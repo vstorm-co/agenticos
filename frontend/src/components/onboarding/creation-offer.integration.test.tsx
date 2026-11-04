@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CreationOffer } from "./creation-offer";
 import { qk } from "@/lib/query-keys";
 import { useOnboardingStore } from "@/stores/onboarding-store";
+import type { AgentCeiling } from "@/types/agents";
 import type { Permission } from "@/types/permissions";
 
 const rig = vi.hoisted(() => ({ can: (_permission: Permission): boolean => true }));
@@ -15,13 +16,23 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 
 // The offer reads the query cache to know whether a create is worth offering at
-// all — the MCP catalog, and how many agents the organization has — so every
-// render needs a client, and `seed` fills whichever of those a test is about.
+// all — the MCP catalog, how many agents the organization has and its agent
+// limit — so every render needs a client, and `seed` fills whichever of those a
+// test is about. The ceiling defaults to "no limit".
 function renderOffer(
   node: ReactElement,
-  seed: { catalog?: { items: unknown[] }; agents?: number; anyRunnable?: boolean } = {},
+  seed: {
+    catalog?: { items: unknown[] };
+    agents?: number;
+    anyRunnable?: boolean;
+    ceiling?: AgentCeiling;
+  } = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(
+    qk.agents.ceiling(),
+    seed.ceiling ?? { limit: null, held: null, at_limit: false },
+  );
   if (seed.catalog) client.setQueryData(qk.mcpServers.catalog(), seed.catalog);
   if (seed.anyRunnable !== undefined) {
     client.setQueryData(qk.agents.anyRunnable(), seed.anyRunnable);
@@ -117,6 +128,20 @@ describe("CreationOffer", () => {
     // ending, it is not gated on the agent count (#910).
     useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
     renderOffer(<CreationOffer />, { agents: 6 });
+    expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
+  });
+
+  it("makes no agent offer at the organization's agent limit", () => {
+    // The flow's first target is New agent, disabled at the limit, and the coach
+    // would wait on it with no way forward.
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
+    renderOffer(<CreationOffer />, { agents: 6, ceiling: { limit: 6, held: 6, at_limit: true } });
+    expect(screen.queryByText("Create your first agent?")).toBeNull();
+  });
+
+  it("offers it below the limit", () => {
+    useOnboardingStore.setState({ offer: "create-agent", offerFromTour: false });
+    renderOffer(<CreationOffer />, { agents: 5, ceiling: { limit: 6, held: 5, at_limit: false } });
     expect(screen.getByText("Create your first agent?")).toBeInTheDocument();
   });
 

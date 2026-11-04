@@ -32,33 +32,54 @@ interface ProviderCapabilities {
   name: string;
   secret_kind: string;
   supports_base_url: boolean;
+  requires_base_url?: boolean;
   keyless: boolean;
   apis: ("chat" | "responses")[];
   native_api: "chat" | "responses" | null;
+  regions?: ("eu" | "eea" | "global")[];
+  api_from_model?: boolean;
 }
 
 const state = {
   purposes: [] as SecretPurpose[],
   catalog: [] as ProviderCapabilities[],
   secrets: [] as Secret[],
-  models: [] as { id: string; name: string; context_length?: number | null }[],
+  profiles: [] as { label: string }[],
+  models: [] as {
+    id: string;
+    name: string;
+    context_length?: number | null;
+    apis?: ("chat" | "responses")[];
+  }[],
+  refused: [] as string[],
   source: "live" as "live" | "curated" | null,
   loadingModels: false,
   createProfile: { mutateAsync: vi.fn(), isPending: false },
+  updateProfile: { mutateAsync: vi.fn(), isPending: false },
   permissions: [] as Permission[],
 };
 
+const listingRequests = vi.fn();
 const onCreatedSecret = { handler: undefined as ((id: string) => void) | undefined };
 
 vi.mock("@/hooks", () => ({
-  useModelProviders: () => ({ createProfile: state.createProfile, catalog: state.catalog }),
+  useModelProviders: () => ({
+    createProfile: state.createProfile,
+    updateProfile: state.updateProfile,
+    catalog: state.catalog,
+    profiles: state.profiles,
+  }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
-  useProviderModels: () => ({
-    models: state.models,
-    source: state.source,
-    isLoading: state.loadingModels,
-  }),
+  useProviderModels: (...args: [string, string?, string?]) => {
+    listingRequests(...args);
+    return {
+      models: state.models,
+      refused: state.refused,
+      source: state.source,
+      isLoading: state.loadingModels,
+    };
+  },
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
   }),
@@ -138,16 +159,19 @@ beforeEach(() => {
   state.purposes = [purpose("openai", "OpenAI"), purpose("openrouter", "OpenRouter")];
   // What each provider's SDK actually reads. `openai` takes an endpoint, is
   // keyless because OpenAI-compatible servers exist, and serves both of its
-  // APIs; `openrouter` does none of that.
+  // APIs; OpenRouter keeps its native API at a configurable endpoint.
   state.catalog = [
     capabilities("openai", "OpenAI", OPENAI_CAPABILITIES),
-    capabilities("openrouter", "OpenRouter"),
+    capabilities("openrouter", "OpenRouter", { supports_base_url: true }),
   ];
   state.secrets = [];
+  state.profiles = [];
   state.models = [{ id: "gpt-5", name: "GPT-5", context_length: 400_000 }];
+  state.refused = [];
   state.source = "live";
   state.loadingModels = false;
   state.createProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
+  state.updateProfile = { mutateAsync: vi.fn().mockResolvedValue({ id: "p-1" }), isPending: false };
   // The form only exists for a caller holding `connections:manage`, and most of
   // what is asserted below is about the form rather than about the vault - so
   // the default caller may also store a key, and the tests that care say so.
@@ -394,6 +418,64 @@ describe("the add-model form", () => {
     expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
   });
 
+  it("waits for provider metadata before adding a native model", async () => {
+    state.secrets = [secret()];
+    state.loadingModels = true;
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "unclassified-model");
+    await userEvent.click(screen.getByText("not in the list"));
+    expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+    // A custom server's names are independent of the vendor listing.
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://local/v1");
+    expect(screen.getByRole("button", { name: "Add model" })).toBeEnabled();
+  });
+
+  it("refuses a model the listing says is not a chat model before creating it", async () => {
+    // Hidden from the suggestions, but the field is free text, and what this
+    // creates is selected as a model to talk to (#2487).
+    state.secrets = [secret()];
+    state.refused = ["gpt-4o-mini-tts"];
+    const { onCreated } = mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-4o-mini-tts");
+    await userEvent.click(screen.getByText("not in the list"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(
+      screen.getByText(
+        "gpt-4o-mini-tts is not a chat model - an agent cannot run on it. Choose a chat model.",
+      ),
+    ).toBeInTheDocument();
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("does not select a profile the server says is not a chat model", async () => {
+    state.secrets = [secret()];
+    state.createProfile = {
+      mutateAsync: vi.fn().mockResolvedValue({ id: "p-1", chat_capable: false }),
+      isPending: false,
+    };
+    const { onCreated } = mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-4o-mini-tts");
+    await userEvent.click(screen.getByText("not in the list"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(
+      await screen.findByText(
+        "gpt-4o-mini-tts is not a chat model - an agent cannot run on it. Choose a chat model.",
+      ),
+    ).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
   it("puts a refusal under the field that caused it", async () => {
     // Every refusal this endpoint gives is about the model id, and an unhandled
     // rejection here is Next's full-screen overlay for what is a typo.
@@ -548,8 +630,10 @@ describe("pointing a model somewhere other than the provider's own API", () => {
   it("offers none for a provider that would ignore it", async () => {
     // Storing one would look configured and change nothing about where the
     // request went, which is worse than not offering it at all.
+    state.purposes.push(purpose("groq", "Groq"));
+    state.catalog.push(capabilities("groq", "Groq"));
     mount();
-    await pickProvider("OpenRouter");
+    await pickProvider("Groq");
     expect(screen.queryByLabelText("Endpoint")).toBeNull();
   });
 
@@ -565,6 +649,25 @@ describe("pointing a model somewhere other than the provider's own API", () => {
     expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ base_url: "https://gateway.acme/v1" }),
     );
+  });
+
+  it("leaves a listing-refused id alone on an endpoint of the reader's", async () => {
+    // The listing is the provider's own API; an OpenAI-compatible server may
+    // serve a chat model under the same id (#2487).
+    state.secrets = [secret()];
+    state.refused = ["whisper-1"];
+    const { onCreated } = mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "whisper-1");
+    await userEvent.click(screen.getByText("not in the list"));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://vllm:8000/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "whisper-1", base_url: "http://vllm:8000/v1" }),
+    );
+    expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
   });
 
   it("sends null when it was left empty, not an empty string", async () => {
@@ -988,6 +1091,223 @@ describe("choosing which of OpenAI's APIs a model's requests go to", () => {
   });
 });
 
+describe("choosing where a Stav model's requests run", () => {
+  /**
+   * Stav takes a region on every request. The form shows it only for a
+   * provider whose catalog entry lists regions, starts on the first (EU), and
+   * sends the choice.
+   */
+  async function fillStav() {
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+        api_from_model: true,
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    state.models = [
+      { id: "mistralai/mistral-small-4", name: "Mistral Small 4", apis: ["chat", "responses"] },
+      { id: "openai/o3-pro", name: "o3-pro", apis: ["responses"] },
+    ];
+    mount();
+    await pickProvider("Stav.ai");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /mistral-small-4/ }));
+  }
+
+  function sent() {
+    return state.createProfile.mutateAsync.mock.calls.at(-1)?.[0];
+  }
+
+  it("is not offered for a provider without regions", async () => {
+    mount();
+    await pickProvider("OpenAI");
+    expect(screen.queryByLabelText("Region")).toBeNull();
+  });
+
+  it("starts in the EU and sends it", async () => {
+    await fillStav();
+    expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ provider: "stav", region: "eu" }));
+  });
+
+  it("sends the region somebody picked", async () => {
+    await fillStav();
+    await userEvent.click(screen.getByLabelText("Region"));
+    await userEvent.click(screen.getByRole("option", { name: "Global" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ region: "global" }));
+  });
+
+  it("lists Stav's models at the endpoint the profile names", async () => {
+    await fillStav();
+    await userEvent.type(screen.getByLabelText("Endpoint"), "https://staging-api.stav.ai/v1/");
+
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "stav",
+      "https://staging-api.stav.ai/v1",
+      "s-stav",
+    );
+  });
+
+  it("opens a Stav model stored with no region as unchanged", async () => {
+    // A profile written with no region runs in the default one, which is where
+    // the form starts - so it is the model in use, not an edit of it.
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    mount({
+      selected: {
+        id: "p-stav",
+        label: "Stav · mistralai/mistral-small-4",
+        provider: "stav",
+        model: "mistralai/mistral-small-4",
+        secret_id: "s-stav",
+        api: "chat",
+        region: null,
+        params: {},
+        fallback_profile_ids: [],
+      } as Parameters<typeof AddModel>[0]["selected"],
+    });
+
+    expect(screen.getByLabelText("Region")).toHaveTextContent("EU only");
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("asks no API question; the model's listing answers it", async () => {
+    await fillStav();
+    expect(screen.queryByLabelText("API")).toBeNull();
+    expect(screen.getByText("Chat Completions, chosen from the model")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ api: "chat" }));
+  });
+
+  it("sends Responses for a model served only there", async () => {
+    await fillStav();
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /o3-pro/ }));
+    expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(sent()).toEqual(expect.objectContaining({ model: "openai/o3-pro", api: "responses" }));
+  });
+
+  it.each(["endpoint", "key"] as const)(
+    "derives the API when a Stav model changes %s",
+    async (connection) => {
+      state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+      state.catalog = [
+        ...state.catalog,
+        capabilities("stav", "Stav.ai", {
+          supports_base_url: true,
+          apis: ["responses", "chat"],
+          native_api: "chat",
+          regions: ["eu", "eea", "global"],
+          api_from_model: true,
+        }),
+      ];
+      state.secrets = [
+        secret({ id: "s-stav", name: "Stav", purpose: "stav" }),
+        secret({ id: "s-other", name: "Other Stav", purpose: "stav" }),
+      ];
+      state.models = [{ id: "vendor/model", name: "Model", apis: ["responses"] }];
+      mount({
+        selected: {
+          id: "p-stav",
+          label: "Existing Stav",
+          provider: "stav",
+          model: "vendor/model",
+          secret_id: "s-stav",
+          api: "chat",
+          region: "eu",
+          params: {},
+          fallback_profile_ids: [],
+        } as Parameters<typeof AddModel>[0]["selected"],
+      });
+      if (connection === "endpoint") {
+        await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.stav.example/v1");
+      } else {
+        await userEvent.click(screen.getByLabelText("Key"));
+        await userEvent.click(screen.getByRole("option", { name: /Other Stav/ }));
+      }
+      expect(screen.getByText("Responses, chosen from the model")).toBeInTheDocument();
+      if (connection === "endpoint") {
+        await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+        expect(sent()).toEqual(
+          expect.objectContaining({ api: "responses", base_url: "https://other.stav.example/v1" }),
+        );
+      } else {
+        await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+        expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+          expect.objectContaining({
+            changes: expect.objectContaining({ api: "responses", secret_id: "s-other" }),
+          }),
+        );
+      }
+    },
+  );
+
+  it("does not claim the model chose an API it did not", async () => {
+    state.purposes = [...state.purposes, purpose("stav", "Stav.ai")];
+    state.catalog = [
+      ...state.catalog,
+      capabilities("stav", "Stav.ai", {
+        supports_base_url: true,
+        apis: ["responses", "chat"],
+        native_api: "chat",
+        regions: ["eu", "eea", "global"],
+        api_from_model: true,
+      }),
+    ];
+    state.secrets = [secret({ id: "s-stav", name: "Stav", purpose: "stav" })];
+    state.models = [
+      { id: "mistralai/mistral-small-4", name: "Mistral Small 4", apis: ["chat", "responses"] },
+    ];
+    mount({
+      selected: {
+        id: "p-forced",
+        label: "Stav.ai · mistralai/mistral-small-4",
+        provider: "stav",
+        model: "mistralai/mistral-small-4",
+        secret_id: "s-stav",
+        api: "responses",
+        region: "eu",
+        params: {},
+        fallback_profile_ids: [],
+      } as Parameters<typeof AddModel>[0]["selected"],
+    });
+    expect(screen.getByText("Responses, set on this model")).toBeInTheDocument();
+  });
+
+  it("sends no region for a provider without one", async () => {
+    state.secrets = [secret()];
+    mount();
+    await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    await userEvent.click(screen.getByRole("option", { name: /gpt-5/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+
+    expect(sent()).not.toHaveProperty("region");
+  });
+});
+
 describe("a provider nobody can type a key for", () => {
   it("offers a ChatGPT sign-in where a key field would be, and runs on what it stores", async () => {
     // A key field here would take a token the person does not have: the
@@ -1016,6 +1336,17 @@ describe("a provider nobody can type a key for", () => {
 
 describe("the model the agent is already on", () => {
   /** The profile shape this form is handed, and the row the organization has for it. */
+  /** An OpenAI-compatible gateway that authenticates nothing: no key, on purpose. */
+  function selfHosted() {
+    return inUse({
+      provider: "openai",
+      model: "gpt-5",
+      secret_id: null,
+      base_url: "http://gw/v1",
+      api: "chat",
+    });
+  }
+
   function inUse(overrides: Record<string, unknown> = {}) {
     return {
       id: "p-1",
@@ -1053,16 +1384,26 @@ describe("the model the agent is already on", () => {
     expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
   });
 
-  it("creates rather than reuses once an endpoint has been typed", async () => {
-    // The second half of the narrowing, and the one that would have been a defect
-    // rather than an annoyance: reusing here would select the old profile and throw
-    // away the endpoint somebody had just entered.
+  it("updates the model in place once an endpoint has been typed", async () => {
+    // Reusing here would select the old profile and throw away the endpoint
+    // somebody had just entered; adding a second profile under the same derived
+    // name was refused as a duplicate (#2478). It is an edit of this model.
     state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
-    mount({ selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }) });
+    const { onCreated } = mount({
+      selected: inUse({ provider: "openai", model: "gpt-5", base_url: null, api: "responses" }),
+    });
 
-    await userEvent.type(screen.getByLabelText("Endpoint"), "http://localhost:11434/v1");
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://vllm:8000/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
 
-    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add model" })).not.toBeInTheDocument();
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: "s-1", base_url: "http://vllm:8000/v1", api: "chat" },
+    });
+    expect(state.createProfile.mutateAsync).not.toHaveBeenCalled();
+    // The same profile: there is nothing new to select.
+    expect(onCreated).not.toHaveBeenCalled();
   });
 
   it("says which of the two things the button will do", async () => {
@@ -1090,7 +1431,7 @@ describe("the model the agent is already on", () => {
     expect(screen.getByText("In use")).toBeInTheDocument();
   });
 
-  it("creates rather than reuses once another API has been picked", async () => {
+  it("updates rather than reuses once another API has been picked", async () => {
     state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
     mount({
       selected: inUse({ provider: "openai", model: "gpt-5", base_url: null, api: "chat" }),
@@ -1099,7 +1440,7 @@ describe("the model the agent is already on", () => {
     await userEvent.click(screen.getByLabelText("API"));
     await userEvent.click(screen.getByRole("option", { name: "Responses" }));
 
-    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Update model" })).toBeInTheDocument();
   });
 
   it("leaves the stored API behind once the endpoint changes", async () => {
@@ -1114,10 +1455,11 @@ describe("the model the agent is already on", () => {
     expect(screen.getByLabelText("API")).toHaveTextContent("Chat Completions");
   });
 
-  it("creates rather than reuses once a different key has been picked", async () => {
+  it("moves the model to a different key in place", async () => {
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and reusing here would select
-    // the old profile with the old key and drop the one just picked.
+    // the old profile with the old key and drop the one just picked. Saved on
+    // the same profile, so every agent on it moves with it (#2478).
     state.secrets = [
       secret({ id: "s-1", purpose: "openrouter", name: "Router key" }),
       secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
@@ -1128,6 +1470,300 @@ describe("the model the agent is already on", () => {
     await userEvent.click(screen.getByLabelText("Key"));
     await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
 
-    expect(screen.getByRole("button", { name: "Add model" })).toBeInTheDocument();
+    // Said before it is pressed: the change is not this agent's alone.
+    expect(screen.getByText(/Everything that uses this model switches with it/)).toHaveTextContent(
+      "OpenRouter · openai/gpt-5.5",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: "s-2", base_url: null, api: null },
+    });
   });
+
+  it("offers a model whose key was deleted the key the vault has", async () => {
+    // `secret_id` went NULL with the key. "In use" above it would say nothing
+    // needs doing, when nothing can run on it until it has a key again.
+    state.secrets = [secret({ id: "s-9", purpose: "openrouter", name: "New router key" })];
+    mount({ selected: inUse({ secret_id: null, missing_key: true }) });
+
+    expect(screen.queryByText("In use")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: "s-9", base_url: null, api: null },
+    });
+  });
+
+  it("keeps a self-hosted model keyless when only its endpoint changes", async () => {
+    // The form falls back on the provider's first key for a new model. On a
+    // shared self-hosted one that would key it, and send the key to the endpoint
+    // for every agent on it, with nobody having picked it.
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({
+      selected: inUse({
+        provider: "openai",
+        model: "gpt-5",
+        secret_id: null,
+        base_url: "http://gw/v1",
+        api: "chat",
+      }),
+    });
+
+    await userEvent.clear(screen.getByLabelText("Endpoint"));
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://gw2/v1");
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: null, base_url: "http://gw2/v1", api: "chat" },
+    });
+  });
+
+  it("says the self-hosted model has no key rather than naming one it will not send", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    expect(screen.getByLabelText("Key")).toHaveTextContent("No key - the endpoint needs none");
+    expect(screen.queryByText(/Using/)).not.toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("will not take away the endpoint a keyless model needs", async () => {
+    // Without a key OpenAI has nowhere to send the request; the server refuses
+    // it, so the button does before it.
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    await userEvent.clear(screen.getByLabelText("Endpoint"));
+
+    expect(screen.getByRole("button", { name: "Update model" })).toBeDisabled();
+  });
+
+  it("keys a self-hosted model only with a key somebody picked", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI prod/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+      id: "p-1",
+      changes: { secret_id: "s-1", base_url: "http://gw/v1", api: "chat" },
+    });
+  });
+
+  it("goes back to no key once that is picked again", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount({ selected: selfHosted() });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /OpenAI prod/ }));
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /No key/ }));
+
+    expect(screen.getByText("In use")).toBeInTheDocument();
+  });
+
+  it("is a new model again once it is given a name of its own", async () => {
+    state.secrets = [
+      secret({ id: "s-1", purpose: "openrouter", name: "Router key" }),
+      secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
+    ];
+    mount({ selected: inUse({ secret_id: "s-1" }) });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Name it something else" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Router, second account");
+
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ label: "Router, second account", secret_id: "s-2" }),
+    );
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("puts a refused edit under the field it was about", async () => {
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    state.updateProfile.mutateAsync = vi.fn().mockRejectedValue(
+      new ApiError(400, "A model endpoint must include a host", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "A model endpoint must include a host",
+          details: {
+            fields: [{ field: "base_url", message: "A model endpoint must include a host" }],
+          },
+        },
+      }),
+    );
+    mount({ selected: inUse({ provider: "openai", model: "gpt-5", base_url: null }) });
+
+    await userEvent.type(screen.getByLabelText("Endpoint"), "http://");
+    await userEvent.click(screen.getByRole("button", { name: "Update model" }));
+
+    expect(await screen.findByText("A model endpoint must include a host")).toBeInTheDocument();
+  });
+  it.each([
+    [null, "https://eu.openrouter.ai/api/v1", "eu.openrouter.ai/api/v1"],
+    ["https://eu.openrouter.ai/api/v1", "", "Default API"],
+  ])(
+    "saves the same provider and model at a different endpoint as a separate profile",
+    async (oldEndpoint, endpoint, suffix) => {
+      state.profiles = [{ label: "Existing shared model" }];
+      state.secrets = [secret({ id: "s-1", purpose: "openrouter", name: "Router key" })];
+      state.createProfile.mutateAsync.mockResolvedValue({ id: "new-profile" });
+      const { onCreated } = mount({ selected: inUse({ base_url: oldEndpoint }) });
+      const field = screen.getByLabelText("Endpoint");
+      await userEvent.clear(field);
+      if (endpoint) await userEvent.type(field, endpoint);
+      await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+      expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "openrouter",
+          model: "openai/gpt-5.5",
+          base_url: endpoint || null,
+          label: `OpenRouter · openai/gpt-5.5 · ${suffix}`,
+        }),
+      );
+      expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+      expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: "new-profile" }));
+    },
+  );
+});
+
+describe("the endpoint field's example", () => {
+  it("does not offer a local model server's address to a model with a key", async () => {
+    // OpenAI is `keyless` because OpenAI-compatible servers exist, and the field
+    // used to show `http://localhost:11434/v1` for it: grey text in an empty
+    // field that read as an endpoint filled in after a key was switched (#2478).
+    state.secrets = [secret({ id: "s-1", purpose: "openai", name: "OpenAI prod" })];
+    mount();
+    await pickProvider("OpenAI");
+
+    const endpoint = screen.getByLabelText("Endpoint");
+    expect(endpoint).toHaveValue("");
+    expect(endpoint).toHaveAttribute("placeholder", "Leave empty for the provider's own API");
+  });
+
+  it("shows one where the endpoint is what the model needs", async () => {
+    state.secrets = [];
+    mount();
+    await pickProvider("OpenAI");
+
+    expect(screen.getByLabelText("Endpoint")).toHaveAttribute(
+      "placeholder",
+      "http://localhost:11434/v1",
+    );
+  });
+});
+
+it("keeps an OpenRouter key and lists models at its selected regional endpoint", async () => {
+  state.secrets = [secret({ purpose: "openrouter", name: "OpenRouter prod" })];
+  state.models = [{ id: "anthropic/claude-test", name: "Claude test" }];
+  mount();
+  await pickProvider("OpenRouter");
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.openrouter.ai/api/v1");
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("option", { name: /Claude test/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  expect(listingRequests).toHaveBeenCalledWith(
+    "openrouter",
+    "https://eu.openrouter.ai/api/v1",
+    undefined,
+  );
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      provider: "openrouter",
+      model: "anthropic/claude-test",
+      base_url: "https://eu.openrouter.ai/api/v1",
+      secret_id: "s-1",
+    }),
+  );
+});
+
+it("creates an Otari profile using its selected vault key and gateway model selector", async () => {
+  state.purposes = [...state.purposes, purpose("otari", "Otari")];
+  state.catalog = [
+    ...state.catalog,
+    capabilities("otari", "Otari", { supports_base_url: true, requires_base_url: true }),
+  ];
+  state.secrets = [secret({ id: "s-otari", name: "Otari key", purpose: "otari" })];
+  state.models = [{ id: "anthropic:claude-sonnet-4-6", name: "Claude" }];
+  mount();
+  await pickProvider("Otari");
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.otari.ai/api/v1");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "s-otari");
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://eu.api.otari.ai/api/v1",
+    "s-otari",
+  );
+  expect(screen.queryByLabelText("Region")).toBeNull();
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("option", { name: /anthropic:claude-sonnet-4-6/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      provider: "otari",
+      model: "anthropic:claude-sonnet-4-6",
+      secret_id: "s-otari",
+      base_url: "https://eu.api.otari.ai/api/v1",
+      api: null,
+    }),
+  );
+});
+
+it("never discovers Otari on auto-selection or typing and reconfirms a changed destination or key", async () => {
+  listingRequests.mockClear();
+  state.purposes = [purpose("otari", "Otari")];
+  state.catalog = [
+    capabilities("otari", "Otari", { supports_base_url: true, requires_base_url: true }),
+  ];
+  state.secrets = [
+    secret({ id: "otari-a", name: "Otari A", purpose: "otari" }),
+    secret({ id: "otari-b", name: "Otari B", purpose: "otari" }),
+  ];
+  state.models = [];
+  mount();
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a");
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), "support-agent");
+  await userEvent.click(screen.getByText("not in the list"));
+  expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://gateway.company/api/v1");
+  expect(
+    listingRequests.mock.calls.filter(
+      ([provider, url]) => provider === "otari" && url !== undefined,
+    ),
+  ).toHaveLength(0);
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://gateway.company/api/v1",
+    "otari-a",
+  );
+  await userEvent.clear(screen.getByLabelText("Endpoint"));
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://other.company/api/v1");
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-a");
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://other.company/api/v1",
+    "otari-a",
+  );
+  await userEvent.click(screen.getByLabelText("Key"));
+  await userEvent.click(screen.getByRole("option", { name: /Otari B/ }));
+  expect(listingRequests).toHaveBeenLastCalledWith("otari", undefined, "otari-b");
+  await userEvent.click(screen.getByRole("button", { name: "Load models" }));
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://other.company/api/v1",
+    "otari-b",
+  );
 });

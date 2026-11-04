@@ -19,12 +19,11 @@ export interface BrowserPanelState {
 }
 
 /**
- * Which browse is open full screen.
+ * Which browse is open beside the chat or expanded.
  *
  * Only that. The browses themselves live in `use-chat`, with the delegations and
  * for the same reason - they belong to a turn, and this belongs to a person's
- * window. Nothing here opens itself: a browse shows under its message, and
- * opening it full screen is somebody's decision.
+ * window. The selected browse stays independent of the last one that emitted an event.
  */
 const browserPanelState: StateCreator<BrowserPanelState> = (set) => ({
   openCallId: null,

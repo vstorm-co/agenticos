@@ -14,21 +14,119 @@ import { cn } from "@/lib/utils";
  * so, and its Retry refetches only that widget's query.
  */
 
-export function WidgetSkeleton({ rows = 3, className }: { rows?: number; className?: string }) {
+export function WidgetSkeleton({
+  rows = 3,
+  variant = "list",
+  className,
+  columns = 4,
+}: {
+  rows?: number;
+  columns?: 3 | 4;
+  variant?: "list" | "metrics" | "chart" | "gallery" | "bars" | "table" | "services";
+  className?: string;
+}) {
   const t = useTranslations("dashboard.states");
   return (
     <div
       role="status"
       aria-label={t("loading")}
-      className={cn("animate-pulse space-y-3 py-1", className)}
+      className={cn(
+        "flex min-h-0 flex-1 animate-pulse flex-col gap-4 py-1 motion-reduce:animate-none",
+        className,
+      )}
     >
-      {Array.from({ length: rows }, (_, index) => (
+      {variant === "metrics" ? (
         <div
-          key={index}
-          className="bg-muted h-4 rounded"
-          style={{ width: `${100 - index * 18}%` }}
-        />
-      ))}
+          aria-hidden
+          className={cn(
+            "grid gap-5",
+            columns === 3 ? "grid-cols-3" : "grid-cols-2 @[40rem]/widget:grid-cols-4",
+          )}
+        >
+          {Array.from({ length: columns }, (_, index) => (
+            <div key={index} className="space-y-3">
+              <div className="bg-muted h-3 w-16 rounded" />
+              <div className="bg-muted h-7 w-20 max-w-full rounded" />
+              <div className="bg-muted h-3 w-12 rounded" />
+            </div>
+          ))}
+        </div>
+      ) : variant === "bars" ? (
+        <div aria-hidden className="space-y-5">
+          {Array.from({ length: rows }, (_, index) => (
+            <div key={index} className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <div className="bg-muted h-3 w-2/5 rounded" />
+                <div className="bg-muted h-3 w-8 rounded" />
+              </div>
+              <div
+                className="bg-muted h-1.5 rounded-full"
+                style={{ width: `${90 - index * 15}%` }}
+              />
+            </div>
+          ))}
+        </div>
+      ) : variant === "services" ? (
+        <div aria-hidden className="grid grid-cols-[repeat(auto-fit,minmax(4.25rem,1fr))] gap-4">
+          {Array.from({ length: 5 }, (_, index) => (
+            <div key={index} className="flex flex-col items-center gap-2">
+              <div className="bg-muted size-9 rounded-xl" />
+              <div className="bg-muted h-3 w-14 rounded" />
+              <div className="bg-muted h-2.5 w-10 rounded" />
+            </div>
+          ))}
+        </div>
+      ) : variant === "table" ? (
+        <div aria-hidden className="space-y-4">
+          {Array.from({ length: rows + 1 }, (_, index) => (
+            <div
+              key={index}
+              className={cn(
+                "grid items-center gap-4",
+                columns === 3 ? "grid-cols-[2fr_1fr_1fr]" : "grid-cols-[2fr_1fr_1fr_1fr]",
+              )}
+            >
+              {Array.from({ length: columns }, (_, cell) => (
+                <div key={cell} className={cn("bg-muted h-3 rounded", index === 0 && "w-3/4")} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : variant === "gallery" ? (
+        <div aria-hidden className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {Array.from({ length: rows }, (_, index) => (
+            <div key={index} className="space-y-2">
+              <div className="bg-muted h-3 w-3/4 rounded" />
+              <div className="bg-muted aspect-[4/3] rounded-lg" />
+            </div>
+          ))}
+        </div>
+      ) : variant === "chart" ? (
+        <div aria-hidden className="flex min-h-24 flex-1 flex-col gap-5">
+          <div className="bg-muted h-7 w-20 shrink-0 rounded" />
+          <div className="border-foreground/8 flex min-h-16 flex-1 items-end gap-2 border-b pb-2">
+            {[35, 55, 45, 70, 50, 80, 65, 90].map((height, index) => (
+              <div
+                key={index}
+                className="bg-muted flex-1 rounded-t"
+                style={{ height: `${height}%` }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div aria-hidden className="space-y-4">
+          {Array.from({ length: rows }, (_, index) => (
+            <div key={index} className="flex items-center gap-3">
+              <div className="bg-muted size-8 shrink-0 rounded-lg" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="bg-muted h-3 rounded" style={{ width: `${75 - index * 12}%` }} />
+                <div className="bg-muted h-2.5 w-2/5 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -48,34 +146,19 @@ export function WidgetEmptyBody({
   icon?: LucideIcon;
 }) {
   return (
-    // Dimmed, and it brightens under the pointer. On a young deployment
-    // fourteen of these are on one page - approvals, channels, routines,
-    // sandboxes, ratings, sync, notifications - each one a full-height card
-    // reporting that nothing has happened, at the same contrast as the cards
-    // carrying real numbers. At equal weight the page reads as mostly absence
-    // and the eye has to work out which cards are worth stopping at.
-    //
-    // So a waiting card recedes: enough contrast to be read when looked at,
-    // little enough to be skipped when not. The hover is what keeps that from
-    // reading as *disabled* - a card that answers the pointer is one that will
-    // hold something later, and the header above it stays at full strength
-    // either way, so the card never stops saying what it is.
-    //
-    // `motion-safe` on the transition only: somebody who turned motion down
-    // still gets the hover, without the fade.
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center opacity-60 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:transition-none">
-      {/* A dashed plate, not a bare glyph: it reads as a slot waiting to be
-          filled rather than as a status icon reporting a fault. */}
+    <div className="flex flex-1 items-center justify-center gap-3 py-3">
       <span
         aria-hidden
-        className="border-foreground/15 text-muted-foreground flex size-9 items-center justify-center rounded-xl border border-dashed"
+        className="bg-foreground/[0.04] text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl"
       >
         <Icon className="size-4" />
       </span>
-      <p className="text-foreground/80 text-sm font-medium">{title}</p>
-      {description ? (
-        <p className="text-muted-foreground max-w-60 text-xs leading-relaxed">{description}</p>
-      ) : null}
+      <div className="max-w-64 min-w-0 space-y-1 text-left">
+        <p className="text-foreground text-sm font-medium">{title}</p>
+        {description ? (
+          <p className="text-muted-foreground text-xs leading-relaxed">{description}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

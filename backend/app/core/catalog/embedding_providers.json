@@ -7,7 +7,11 @@
     "models": [
       { "model": "text-embedding-3-small", "dim": 1536 },
       { "model": "text-embedding-3-large", "dim": 3072 },
-      { "model": "text-embedding-ada-002", "dim": 1536 }
+      { "model": "text-embedding-ada-002", "dim": 1536 },
+      { "model": "mistralai/mistral-embed-2312", "dim": 1024 },
+      { "model": "mistralai/codestral-embed-2505", "dim": 1536 },
+      { "model": "google/gemini-embedding-2", "dim": 3072 },
+      { "model": "google/gemini-embedding-001", "dim": 3072 }
     ]
   },
   {

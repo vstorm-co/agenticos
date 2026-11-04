@@ -1,5 +1,5 @@
 ---
-source_sha: "39262f89eb46"
+source_sha: "075c8058de14"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -100,6 +100,9 @@ secreto tiene un **kind**, y el kind decide qué campos existen.
 | `github_oauth_app` | El client id público de una GitHub OAuth App y su secreto |
 | `git_token` | Un access token para git sobre HTTPS, y el único host al que puede enviarse |
 | `entra_app` | El tenant id, el client id y el client secret de un registro de aplicación de Microsoft Entra |
+| `http_credential` | Un token que envía un paso HTTP de un workflow, un nombre de usuario opcional y los orígenes a los que puede enviarse |
+| `smtp_account` | Servidor SMTP, puerto, TLS, remitente y credenciales sellados juntos para el correo de workflows |
+| `microsoft_oauth_app` | Los mismos tres campos, para un registro de aplicación con el que inician sesión las personas |
 | `openai_codex` | Un inicio de sesión de ChatGPT: un access token, un refresh token y el id de cuenta |
 | `none` | No es un secreto — la marca para un endpoint que no necesita credencial |
 
@@ -120,10 +123,23 @@ dos, y una clave que se vuelve privada después deja de usarse. A diferencia de
 `github_oauth_app`, estas claves se nombran por id, así que puede haber varias
 guardadas a la vez.
 
+El selector de claves identifica las claves visibles que son privadas o están
+compartidas solo con algunas personas y explica que primero deben compartirse
+con la organización. Identifica por separado el inicio de sesión de ChatGPT:
+permite acceder a modelos mediante una suscripción de ChatGPT y no sustituye
+una clave de API de OpenAI para las funciones de voz. El selector nunca cambia automáticamente el acceso.
+
 `git_token` lleva su host porque una fuente de sincronización Git envía el token a
 una URL que elige quien edita la fuente. Atado al host con el que se añadió, el
 token no puede dirigirse a otro servidor editando la fuente, y ninguna otra clave
 puede ocupar su lugar.
+
+`http_credential` es la regla de `git_token` para un paso [`http.request`](reference/workflow-nodes.md#http-request) de un workflow: la URL del paso la escribe quien edita el workflow, y puede venir de la entrada de un run, así que los orígenes a los que puede ir el token se sellan con él, como `https://api.example.com`. El paso comprueba el origen de la URL que va a llamar, y de cada redirección que sigue, y no envía el token a ningún otro sitio. Ningún otro tipo de secreto puede sustituirlo.
+
+El campo de secreto de un paso de workflow ofrece **New secret**: el propio
+formulario del vault, fijado al tipo que acepta el campo y guardado como `custom`,
+el único propósito que admite cualquier forma. El secreto nuevo queda elegido al
+guardar. Su valor va al vault y a ningún otro sitio, y el grafo guarda solo su id.
 
 `entra_app` es la identidad con la que inicia sesión una fuente de sincronización
 de SharePoint u OneDrive. Su alcance se fija en Microsoft Entra, no aquí: los
@@ -132,6 +148,14 @@ un token no dice cuáles son. Concédele `Sites.Selected` sobre el único sitio 
 lee la fuente — consulta [Configurar SharePoint y
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Su pista
 son los cuatro últimos caracteres del client id, que es público, y no del secreto.
+
+`microsoft_oauth_app` tiene los mismos campos y se gasta de otra manera: el flujo
+de conexión del trigger de Outlook inicia sesión de una persona a través de él, con
+el `Mail.Read` delegado de quien consiente - su propio buzón y los compartidos que
+ya puede abrir -, mientras que un `entra_app` actúa con los permisos de aplicación
+concedidos para todo el inquilino. Como `github_oauth_app`, debe ser visible para
+la organización y debe haber exactamente uno. Consulta
+[Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `openai_codex` es el único kind que nadie teclea. Se guarda [iniciando sesión con
 ChatGPT](models.md#running-on-a-chatgpt-subscription), y cambia mientras se usa:
@@ -162,7 +186,12 @@ truncado mientras el formulario sigue abierto.
 
 **Providers de modelos.** Los nombra un [perfil de modelo](models.md). El gasto se
 atribuye al secreto al que resolvió el run, y así «qué clave está costando más»
-tiene respuesta.
+tiene respuesta. Asignar una clave a un perfil se la presta a todos los que se
+ejecutan sobre él, así que crear o editar un perfil - su clave o su endpoint -
+requiere `secrets:view` sobre esa clave. Una clave borrada deja sus perfiles
+marcados con `missing_key` hasta que reciban otra, también uno delante de un
+gateway. Solo un perfil guardado sin clave a propósito sigue ejecutándose sin
+ella ([Un perfil sin clave](models.md#a-profile-without-a-key)).
 
 **Voz a texto.** Una clave de API cuyo propósito es el proveedor, nombrada por
 id junto al proveedor y el modelo allí donde se configura la voz a texto: la
@@ -193,7 +222,11 @@ atender llamadas hasta que se elija otra.
 
 **Capabilities.** Una capability declara que necesita una credencial de un *kind*
 dado — nunca una instancia. El código dice «necesito una clave de API»; la
-`secret_id` de un binding dice cuál. Mira
+`secret_id` de un binding dice cuál. Donde el binding nombra el servicio para el
+que es la clave - el provider elegido, o el único servicio de la capability, como
+mem0 -, publicar rechaza una clave guardada para otro servicio, porque se enviaría
+al provider equivocado en cada llamada. Una clave `custom`, como lo es toda clave
+guardada antes de que existieran los propósitos, se acepta. Mira
 [el catálogo de capabilities](reference/capabilities.md#what-a-binding-may-change).
 
 **Conexiones MCP.** Bearer tokens y cargas útiles de OAuth, selladas a la
@@ -227,6 +260,12 @@ signing secret de un bot de canal. Nunca se devuelve ni se registra en claro; la
 verificación lo desella, compara en tiempo constante, y una entrega que falla es un
 403. Mira [Conceptos](concepts.md#trigger).
 
+**Webhooks de workflows.** La clave HMAC con la que se firman las entregas de un
+webhook de workflow, generada por la plataforma, sellada para la organización y
+guardada en la fila del webhook con su `key_version`. Se muestra una vez, cuando se
+crea o se sustituye, y nunca más; una rotación de la clave maestra la vuelve a
+envolver junto con el resto. Consulta [Workflows](workflows.md#a-webhook-or-a-schedule).
+
 **Embeds.** Un widget `jwt` verifica los tokens de visitante contra un signing
 secret HS256 que guarda el backend del cliente. Está sellado a la organización del
 agent y registra su `key_version` como cualquier otra fila sellada, de modo que una
@@ -251,6 +290,8 @@ organización puede traer su propia clave:
 | Logfire | [Observabilidad](reference/spec.md#observability) por agent — trazas a un proyecto propio |
 | LlamaParse | Parseo de PDF, facturado a la clave propia de la organización |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — la capability entera, que guarda las memorias semánticas de un agent en un servicio mem0 (en la nube o autoalojado) en vez de aquí. En este despliegue no se guarda nada, así que mem0 factura su propio embedding por fuera y enviar memorias a la nube de mem0 es una decisión de residencia de datos que nombra el Builder. Una `base_url` autoalojada tiene que ser https y estar en la lista de permitidos `MEM0_ALLOWED_HOSTS`, para que la clave del vault nunca se envíe a un origen controlado por el agent. No hay consola de operador para estas memorias: mem0 tiene su propio almacén, su propio listado y su propio borrado. |
+| ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — voz con las voces de la cuenta de ElevenLabs de la organización |
+| BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — los modelos de vídeo Seedance de ByteDance |
 
 ## Lo que nunca ocurre { #what-never-happens }
 

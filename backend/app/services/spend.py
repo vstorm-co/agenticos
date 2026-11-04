@@ -10,6 +10,9 @@ the half of the bill no run carries - and a run a retention sweep hard-deleted
 leaves its month's figure on `purged_run_spend`, because a bill that fell as
 history was retired would be a cap that stopped enforcing (#1420).
 
+Direct workflow decision and embedding fees are recorded separately from agent
+runs, once per attempt, and survive workflow retention as well.
+
 `assert_organization_within_budget` is the same decision
 :class:`~app.agents.capabilities.budget.BudgetGuard` makes before a model
 request, made before work that spends outside a run - accepting a document
@@ -30,6 +33,9 @@ from app.repositories import (
     ingestion_spend_repo,
     organization_repo,
     retention_repo,
+)
+from app.repositories import (
+    workflow_run as workflow_run_repo,
 )
 
 
@@ -88,7 +94,10 @@ async def organization_spend_since(
     purged_spend = await retention_repo.sum_purged_cost_since(
         db, organization_id=organization_id, since=since, until=until
     )
-    return run_spend + ingestion_spend + purged_spend
+    workflow_spend = await workflow_run_repo.node_spend_since(
+        db, organization_id=organization_id, since=since, until=until
+    )
+    return run_spend + ingestion_spend + purged_spend + workflow_spend
 
 
 async def organization_monthly_spend(

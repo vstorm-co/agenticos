@@ -1,13 +1,14 @@
 import { type NextRequest } from "next/server";
 
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
   const { id } = await params;
   try {

@@ -1,5 +1,5 @@
 ---
-source_sha: "b04c9562a2e8"
+source_sha: "5586ac2f392a"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,7 +9,7 @@ source_sha: "b04c9562a2e8"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el navegador, conecta documentos y herramientas y ejecútalos en infraestructura bajo tu control.
+Plataforma de agentes de IA de código abierto y autoalojada para los compañeros de IA de tu empresa. Crea, ejecuta y gobierna agentes en tus propios servidores y modelos: chat compartido, RAG, skills, navegador real, MCP, presupuestos, aprobaciones y registro de auditoría.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -20,6 +20,7 @@ Pon a los agents de IA a trabajar en las tareas de tu equipo. Crea agents en el 
 </p>
 
 <p class="agenticos-hero__links" markdown>
+<a href="https://vstorm-co.github.io/vstormos-landing/">AgenticOS</a> ·
 **Documentación**: <a href="https://vstorm-co.github.io/agenticos/">vstorm-co.github.io/agenticos</a><br>
 **Código fuente**: <a href="https://github.com/vstorm-co/agenticos">github.com/vstorm-co/agenticos</a>
 </p>
@@ -32,6 +33,10 @@ Empieza con una respuesta verificable basada en un manual. Después prueba un bo
 
 Tu equipo se encarga de la operación. Los modelos, el análisis de documentos, los embeddings, las herramientas y las trazas pueden usar servicios externos según la configuración.
 
+
+Conecta pasos tipados, llamadas a agentes y herramientas MCP en el editor visual de [Workflows](https://vstorm-co.github.io/agenticos/es/workflows/). Guarda resultados estructurados en [Virtual Tables](https://vstorm-co.github.io/agenticos/es/virtual-tables/), inicia trabajo con [Routines](https://vstorm-co.github.io/agenticos/es/triggers/) y revisa runs y aprobaciones. Las [llamadas de voz](https://vstorm-co.github.io/agenticos/es/voice/) y la [app de escritorio](https://vstorm-co.github.io/agenticos/es/desktop/) permiten usar los mismos agentes publicados.
+
+Empieza por una tarea concreta: una [LLM wiki en un Project](https://vstorm-co.github.io/agenticos/es/projects/), un [widget de agente en una web](https://vstorm-co.github.io/agenticos/es/channels/) o un equipo que comparte archivos e instrucciones del proyecto. El widget ofrece la conversación; las recomendaciones y acciones del carrito necesitan tu catálogo, integración de herramientas y comprobaciones de permisos.
 
 ---
 
@@ -142,6 +147,10 @@ alrededor.
 
 ## Requisitos { #requirements }
 
+Los despliegues Podman usan la [ruta manual con Docker Compose](deploy.md#podman-support)
+y un override adicional para el socket sandbox y los permisos del workspace.
+El inicio rápido admite Docker; `podman-compose` 1.6.0 no está soportado.
+
 Docker y Docker Compose. Esa es la lista entera — Postgres (con pgvector),
 Redis, la API, el worker y la consola arrancan todos juntos.
 
@@ -229,8 +238,8 @@ agent en marzo* tiene respuesta.
 ## Compruébalo { #check-it }
 
 Publícalo y se ejecuta igual en todas las superficies: el chat de la consola,
-una página alojada, un widget incrustado, la API HTTP, Slack, Telegram,
-Mattermost.
+una página alojada, un widget incrustado, la API HTTP, Slack, Teams, Telegram,
+Mattermost, Discord.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -254,7 +263,7 @@ vino la pregunta.
 | **[Conocimiento](file-processing.md)** | Retrieval sobre tus documentos con tres parsers de PDF, tu propio chunking, OCR y descripción de imágenes — por colección, anulable por subida. Sincronización con Google Drive y S3 |
 | **[Skills](skills.md)** | Conocimiento escrito que el agent carga solo cuando decide que es relevante |
 | **[Gobernanza](governance.md)** | Budgets mensuales, aprobación humana, un rastro de auditoría, alertas por agent |
-| **[Superficies](channels.md)** | Chat web, una página alojada sin inicio de sesión, un widget incrustable, la API HTTP, un WebSocket en crudo para tu propio frontend, Slack, Telegram, Mattermost — un solo runner detrás de todas |
+| **[Superficies](channels.md)** | Chat web, una página alojada sin inicio de sesión, un widget incrustable, la API HTTP, un WebSocket en crudo para tu propio frontend, Slack, Teams, Telegram, Mattermost, Discord — un solo runner detrás de todas |
 | **[Secretos](secrets.md)** | Sellados por organización. Ninguna respuesta, línea de log ni entrada de auditoría lleva jamás una clave en texto plano |
 
 [La lista completa de funciones →](features.md)

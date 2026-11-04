@@ -17,6 +17,7 @@ import { BudgetHeadroomWidget } from "./budget-headroom";
 import { DepartmentQualityWidget } from "./department-quality";
 import { DepartmentSpendWidget } from "./department-spend";
 import { ConversationsWidget } from "./conversations";
+import { BackgroundTasksWidget } from "./background-tasks";
 import { BackgroundJobsWidget } from "./background-jobs";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
@@ -48,7 +49,12 @@ import { SpendWidget } from "./spend";
 import { ActivityRhythmWidget } from "./activity-rhythm";
 import { ChannelsWidget } from "./channels";
 import { RoutinesWidget } from "./routines";
+import { SuggestionsWidget } from "./suggestions";
 import { KnowledgeWidget } from "./knowledge";
+import { TablesWidget } from "./tables-widget";
+import { WorkflowsWidget } from "./workflows-widget";
+import { ApprovalOutcomesWidget } from "./approval-outcomes";
+import { WorkflowLogsWidget } from "./workflow-logs";
 import { SummaryWidget } from "./summary";
 import { SurfacesWidget } from "./surfaces";
 import { TopOrgsWidget } from "./top-orgs";
@@ -60,10 +66,16 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "activity-rhythm": ActivityRhythmWidget,
   channels: ChannelsWidget,
   routines: RoutinesWidget,
+  suggestions: SuggestionsWidget,
   knowledge: KnowledgeWidget,
+  tables: TablesWidget,
+  workflows: WorkflowsWidget,
+  "approval-outcomes": ApprovalOutcomesWidget,
+  "workflow-logs": WorkflowLogsWidget,
   platform: PlatformWidget,
   health: HealthWidget,
   "background-jobs": BackgroundJobsWidget,
+  "background-tasks": BackgroundTasksWidget,
   "top-orgs": TopOrgsWidget,
   "platform-ratings": PlatformRatingsWidget,
   runs: RunsWidget,

@@ -1,6 +1,7 @@
 "use client";
 
-import { BookOpen, FileText } from "lucide-react";
+import { BookOpen } from "lucide-react";
+import { FileIcon } from "@/components/files/file-icon";
 import { useTranslations } from "next-intl";
 
 /**
@@ -88,12 +89,18 @@ function EntryList({
   if (entries === null) {
     return <p className="text-muted-foreground py-2 text-xs italic">{empty}</p>;
   }
-  const Icon = kind === "context" ? FileText : BookOpen;
   return (
     <ul className="max-h-72 scrollbar-thin space-y-1.5 overflow-y-auto py-1">
       {entries.map((entry) => (
         <li key={entry.name} className="flex items-start gap-2.5">
-          <Icon className="text-muted-foreground mt-[3px] h-3.5 w-3.5 shrink-0" />
+          {kind === "context" ? (
+            <FileIcon
+              name={entry.name}
+              className="text-muted-foreground mt-[3px] size-3.5 shrink-0"
+            />
+          ) : (
+            <BookOpen className="text-muted-foreground mt-[3px] size-3.5 shrink-0" />
+          )}
           <span className="min-w-0">
             <span className="text-foreground font-mono text-[12.5px]">{entry.name}</span>
             {entry.description !== null && (

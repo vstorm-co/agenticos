@@ -10,10 +10,11 @@ model's context, not into a log line.
 import logging
 import uuid
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, get_args
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from pydantic_ai.capabilities import AbstractCapability
 
 from app.agents.capabilities import (
@@ -23,14 +24,41 @@ from app.agents.capabilities import (
     build,
     register,
 )
+from app.agents.capabilities.coding_agent import CodingAgentConfig
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, ObservabilitySpec
+from app.core import secret_purposes
 from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret, SecretKind, SecretRequirement
+from app.core.secret_kinds import (
+    ApiKeySecret,
+    AwsCredentialsSecret,
+    PurposesByValue,
+    SecretCondition,
+    SecretKind,
+    SecretRequirement,
+)
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.services.agent_registry import AgentRegistryService
 
 pytestmark = pytest.mark.security
+
+
+@pytest.fixture(autouse=True)
+def _no_model_runs_on_a_sign_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No profile here runs on a ChatGPT sign-in; `test_publish_sign_ins` has those.
+
+    Stubbed at the repository boundary, so the real check runs - and finds nothing
+    to refuse - on every publish, rollback and draft check below.
+    """
+    monkeypatch.setattr(
+        "app.services.agent_registry.credential_repo.get_profiles_by_ids",
+        AsyncMock(return_value={}),
+    )
+    monkeypatch.setattr(
+        "app.services.agent_registry.organization_secret_repo.get_many",
+        AsyncMock(return_value={}),
+    )
+
 
 CAPABILITY_ID = "test_needs_a_key"
 
@@ -155,6 +183,7 @@ def secret_row() -> MagicMock:
     row.id = uuid.uuid4()
     row.name = "Weather API"
     row.kind = SecretKind.API_KEY.value
+    row.purpose = "custom"
     return row
 
 
@@ -250,6 +279,135 @@ class TestPublishValidation:
 
         said = any("ChatGPT sign-in, which only Codex runs on" in problem for problem in problems)
         assert said is refused
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("capability", "config"),
+        [
+            ("image_generation", {"provider": "google", "model": "gemini-3-pro-image"}),
+            (
+                "text_to_speech",
+                {"provider": "google", "model": "gemini-3.8-flash-tts", "voice": "Kore"},
+            ),
+            ("video_generation", {"provider": "google"}),
+        ],
+    )
+    async def test_a_key_for_another_provider_is_refused(self, secret_row, capability, config):
+        """Same kind, wrong service: the key would be sent in Google's auth header
+        at every call (#2258)."""
+        secret_row.purpose = "openai"
+        secret_row.name = "OpenAI"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(id=capability, secret_id=secret_row.id, config=config),
+            secret=secret_row,
+        )
+
+        assert problems == [
+            f"Capability '{capability}' is set to use google, but 'OpenAI' is a key for openai"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("purpose", ["google", "custom"])
+    async def test_a_key_for_the_chosen_provider_or_a_custom_one_publishes(
+        self, secret_row, purpose
+    ):
+        """`custom` is every key stored before purposes existed; it stays accepted."""
+        secret_row.purpose = purpose
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(
+                id="video_generation", secret_id=secret_row.id, config={"provider": "google"}
+            ),
+            secret=secret_row,
+        )
+
+        assert problems == []
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("config", "kind", "purpose"),
+        [
+            ({"harness": "claude_code"}, SecretKind.API_KEY, "anthropic"),
+            ({"harness": "claude_code"}, SecretKind.API_KEY, "custom"),
+            ({}, SecretKind.API_KEY, "anthropic"),
+            ({"harness": "codex"}, SecretKind.API_KEY, "openai"),
+            ({"harness": "codex"}, SecretKind.API_KEY, "custom"),
+            ({"harness": "codex"}, SecretKind.OPENAI_CODEX, "openai_codex"),
+            # Behind a gateway the key is the gateway's, whichever it is - a
+            # spec stored before #2485 on a z.ai key keeps publishing.
+            (
+                {"harness": "claude_code", "base_url": "https://openrouter.ai/api"},
+                SecretKind.API_KEY,
+                "openrouter",
+            ),
+            (
+                {"harness": "claude_code", "base_url": "https://api.z.ai/api/anthropic"},
+                SecretKind.API_KEY,
+                "zai",
+            ),
+        ],
+        ids=[
+            "anthropic",
+            "claude-custom",
+            "default-harness",
+            "openai",
+            "codex-custom",
+            "chatgpt",
+            "openrouter-gateway",
+            "other-gateway",
+        ],
+    )
+    async def test_a_key_for_the_coding_agents_harness_publishes(
+        self, secret_row, config, kind, purpose
+    ):
+        """The harness names the provider; its key, a ChatGPT sign-in for Codex
+        and a `custom` key all fit, and any key behind `base_url` (#2485)."""
+        secret_row.kind = kind.value
+        secret_row.purpose = purpose
+        secret_row.name = "Mine"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(id="coding_agent", secret_id=secret_row.id, config=config),
+            secret=secret_row,
+        )
+
+        # The coding agent also wants a sandbox, which this spec does not bind.
+        assert [problem for problem in problems if "'Mine'" in problem] == []
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("config", "purpose", "expected"),
+        [
+            ({"harness": "claude_code"}, "openai", "anthropic"),
+            ({}, "openai", "anthropic"),
+            ({"harness": "claude_code"}, "openrouter", "anthropic"),
+            ({"harness": "codex"}, "anthropic", "openai or openai_codex"),
+        ],
+        ids=[
+            "openai-for-claude",
+            "default-harness",
+            "gateway-key-no-gateway",
+            "anthropic-for-codex",
+        ],
+    )
+    async def test_a_key_for_the_other_harness_is_refused(
+        self, secret_row, config, purpose, expected
+    ):
+        """Claude Code with an OpenAI key published and then failed at run time
+        (#2485), as did a gateway's key with no `base_url` to send it to. The
+        refusal names the providers the harness takes."""
+        secret_row.purpose = purpose
+        secret_row.name = "Mine"
+
+        problems, _, _ = await _publish_problems(
+            CapabilityBindingSpec(id="coding_agent", secret_id=secret_row.id, config=config),
+            secret=secret_row,
+        )
+
+        assert (
+            f"Capability 'coding_agent' is set to use {expected}, but 'Mine' is a key for {purpose}"
+        ) in problems
 
     @pytest.mark.anyio
     async def test_a_matching_secret_publishes(self, secret_row):
@@ -489,3 +647,103 @@ class TestSpecCarriesOnlyAReference:
                 id=CAPABILITY_ID,
                 secret=AwsCredentialsSecret,  # type: ignore[call-arg]
             )
+
+
+class _Chosen(BaseModel):
+    provider: str | None = None
+
+
+@pytest.mark.parametrize(
+    ("config", "purposes"),
+    [
+        (_Chosen(provider="google"), ("google",)),
+        (_Chosen(provider=""), ("mem0",)),
+        (_Chosen(), ("mem0",)),
+        (None, ("mem0",)),
+    ],
+    ids=["chosen", "empty", "unset", "no-config"],
+)
+def test_a_keys_purpose_is_the_chosen_service_or_the_named_one(config, purposes):
+    """The order the Builder's `purposesOf` reads: the gating field, then the name."""
+    requirement = SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="A key",
+        purpose="mem0",
+        required_when=SecretCondition(field="provider", equals=("google",)),
+    )
+
+    assert requirement.purposes_for(config) == purposes
+
+
+def test_a_requirement_naming_no_service_narrows_nothing():
+    requirement = SecretRequirement(kind=SecretKind.API_KEY, description="A key")
+
+    assert requirement.purposes_for(_Chosen(provider="google")) is None
+
+
+class _Harness(BaseModel):
+    harness: str = "claude_code"
+    provider: str = "google"
+    base_url: str | None = None
+
+
+@pytest.mark.parametrize(
+    ("config", "purposes"),
+    [
+        (_Harness(), ("anthropic", "openrouter")),
+        (_Harness(harness="codex"), ("openai", "openai_codex")),
+        (_Harness(harness="aider"), ("google",)),
+        (_Harness(base_url="https://gateway.example"), None),
+        (_Harness(base_url=""), ("anthropic", "openrouter")),
+        (_Harness(harness="codex", base_url="https://gateway.example"), ("openai", "openai_codex")),
+        (None, ("fallback",)),
+    ],
+    ids=[
+        "mapped",
+        "other-value",
+        "unmapped",
+        "endpoint-set",
+        "endpoint-empty",
+        "endpoint-not-this-value",
+        "no-config",
+    ],
+)
+def test_a_mapped_field_decides_the_purposes_before_the_others(config, purposes):
+    """A field whose values are not service ids is translated first, and a set
+    endpoint field opens its value to any key; a value the map does not name
+    falls through to `required_when`, then `purpose` (#2485)."""
+    requirement = SecretRequirement(
+        kind=SecretKind.API_KEY,
+        description="A key",
+        purpose="fallback",
+        required_when=SecretCondition(field="provider", equals=("google",)),
+        purposes_by=PurposesByValue(
+            field="harness",
+            purposes={
+                "claude_code": ("anthropic", "openrouter"),
+                "codex": ("openai", "openai_codex"),
+            },
+            open_when_set={"claude_code": "base_url"},
+        ),
+    )
+
+    assert requirement.purposes_for(config) == purposes
+
+
+def test_the_coding_agent_maps_each_harness_to_purposes_the_vault_offers():
+    """Every harness is narrowed, and to purposes a key can actually be stored
+    under - a typo here would refuse every key but `custom` (#2485)."""
+    requirement = REGISTRY["coding_agent"].secret
+    assert requirement is not None
+    assert requirement.purposes_by is not None
+    assert requirement.purposes_by.field == "harness"
+    harnesses = get_args(CodingAgentConfig.model_fields["harness"].annotation)
+    assert set(requirement.purposes_by.purposes) == set(harnesses)
+    for purposes in requirement.purposes_by.purposes.values():
+        for purpose in purposes:
+            entry = secret_purposes.get(purpose)
+            assert entry is not None
+            assert requirement.accepts(entry.kind.value)
+    for harness, endpoint in requirement.purposes_by.open_when_set.items():
+        assert harness in harnesses
+        assert endpoint in CodingAgentConfig.model_fields

@@ -5,7 +5,7 @@
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Put AI agents to work on your team's tasks. Build agents in your browser, connect documents and tools, and run them on infrastructure you control.
+Open-source, self-hosted AI agent platform for your company's AI teammates. Build, run and govern agents on your own servers and models: shared chat, RAG, skills, a real browser, MCP, budgets, approvals and an audit trail.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -16,7 +16,7 @@ Put AI agents to work on your team's tasks. Build agents in your browser, connec
 </p>
 
 <p class="agenticos-hero__links" markdown>
-**Documentation**: <a href="https://vstorm-co.github.io/agenticos/">vstorm-co.github.io/agenticos</a><br>
+**[Website](https://vstorm-co.github.io/vstormos-landing/)** · **Documentation**: <a href="https://vstorm-co.github.io/agenticos/">vstorm-co.github.io/agenticos</a><br>
 **Source Code**: <a href="https://github.com/vstorm-co/agenticos">github.com/vstorm-co/agenticos</a>
 </p>
 
@@ -28,6 +28,10 @@ Start with a handbook answer you can check. Then try a request draft or a CSV ch
 
 Your team owns operation. Models, parsing, embeddings, tools and tracing can use external services depending on configuration.
 
+
+Use [Workflows](https://vstorm-co.github.io/agenticos/workflows/) to connect typed steps, agent calls and MCP tools on a visual canvas. Store structured results in [Virtual Tables](https://vstorm-co.github.io/agenticos/virtual-tables/), start work with [Routines](https://vstorm-co.github.io/agenticos/triggers/), and review runs and approvals. [Voice calls](https://vstorm-co.github.io/agenticos/voice/) and the [desktop app](https://vstorm-co.github.io/agenticos/desktop/) provide other ways to work with the same published agents.
+
+Start with a recognizable task: an [LLM wiki in a Project](https://vstorm-co.github.io/agenticos/projects/), a [website agent widget](https://vstorm-co.github.io/agenticos/channels/), or a team working from shared project files and instructions. A widget supplies the conversation surface; recommendations and cart actions still need your catalog, tool integration and permission checks.
 
 ---
 
@@ -129,6 +133,10 @@ instead.
 
 ## Requirements
 
+Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+with an additional override for sandbox socket and workspace permissions. The
+quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
+
 Docker and Docker Compose. That is the whole list — Postgres (with pgvector),
 Redis, the API, the worker and the console all come up together.
 
@@ -214,7 +222,7 @@ live stays readable, so *what did this agent look like in March* has an answer.
 ## Check it
 
 Publish it and it runs the same way in every surface: the console's chat, a
-hosted page, an embedded widget, the HTTP API, Slack, Telegram, Mattermost.
+hosted page, an embedded widget, the HTTP API, Slack, Teams, Telegram, Mattermost, Discord.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -238,7 +246,7 @@ came from.
 | **[Knowledge](file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description — per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](skills.md)** | Written know-how the agent loads only when it decides it is relevant |
 | **[Governance](governance.md)** | Monthly budgets, human approval, an audit trail, per-agent alerts |
-| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Telegram, Mattermost — one runner behind all of them |
+| **[Surfaces](channels.md)** | Web chat, a hosted page with no login, an embeddable widget, the HTTP API, a raw WebSocket for your own frontend, Slack, Teams, Telegram, Mattermost, Discord — one runner behind all of them |
 | **[Secrets](secrets.md)** | Sealed per organization. No response, log line or audit entry ever carries a plaintext key |
 
 [The full list of features →](features.md)

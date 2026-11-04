@@ -13,6 +13,7 @@ import {
 } from "@/components/runs/approval-request";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
+import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
 import { cn } from "@/lib/utils";
 import type { ActionRequest, ReviewConfig, Decision } from "@/types";
@@ -59,6 +60,7 @@ export function ToolApprovalDialog({
   disabled = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
+  const tTools = useTranslations("chat.tools");
   const { can } = usePermissions();
   const mayDecide = can(Perm.approvalsDecide);
   const phrase = useActionPhrase();
@@ -79,8 +81,14 @@ export function ToolApprovalDialog({
           {actionRequests.map((action) => {
             // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
             const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
-            const args = action.args ?? {};
-            const summary = draft === null ? callSummary(args) : null;
+            const { reason, ...args } = action.args ?? {};
+            // What the call will do in names rather than the ids below, resolved when
+            // it was parked as the person the run acts for; else the one telling argument.
+            const summary =
+              draft === null
+                ? (approvalSummary(action.capability_tool_id, action.context, tTools) ??
+                  callSummary(args))
+                : null;
             return (
               <li key={action.id} className="flex gap-3">
                 <ToolMark toolName={action.tool_name} />
@@ -96,6 +104,11 @@ export function ToolApprovalDialog({
                       : t("approvalAsk", { action: phrase(action.tool_name) })}
                   </p>
                   <AccountBadge account={action.account} />
+                  {/* Why the agent asks, in its own words, first: a request to share a
+                    view mid-way through "publish a page" reads as unrelated without it. */}
+                  {typeof reason === "string" && reason !== "" && (
+                    <p className="text-sm leading-relaxed">{reason}</p>
+                  )}
                   {/* The one argument that says what the call is about. A command
                     is read by its characters, so it keeps a code face. */}
                   {summary !== null && (

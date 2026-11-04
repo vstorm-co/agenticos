@@ -732,3 +732,34 @@ async def test_a_schedule_with_a_job_still_running_reads_as_active(
     async with sessions() as db:
         assert await job_repo.has_active_for_schedule(db, "reap-stale-runs") is True
         assert await job_repo.has_active_for_schedule(db, "other") is False
+
+
+async def test_workspace_progress_and_activation_reject_expired_cancelled_and_reclaimed_attempts(
+    sessions,
+) -> None:
+    job_id = await _queue(sessions)
+    async with sessions() as db, db.begin():
+        job = await db.get(BackgroundJob, job_id)
+        job.status = "running"
+        job.attempts = 1
+        job.lease_until = datetime.now(UTC) + LEASE
+    async with sessions() as db, db.begin():
+        assert await job_repo.workspace_move_progress(
+            db, job_id, attempt=1, result={"copied_files": 2}
+        )
+        assert await job_repo.lock_workspace_attempt(db, job_id, attempt=1) is not None
+        assert not await job_repo.workspace_move_progress(
+            db, job_id, attempt=2, result={"copied_files": 100}
+        )
+        assert await job_repo.lock_workspace_attempt(db, job_id, attempt=2) is None
+    for status, expires in (("cancelled", LEASE), ("running", EXPIRED)):
+        async with sessions() as db, db.begin():
+            job = await db.get(BackgroundJob, job_id)
+            job.status = status
+            job.lease_until = datetime.now(UTC) + expires
+        async with sessions() as db, db.begin():
+            assert not await job_repo.workspace_move_progress(
+                db, job_id, attempt=1, result={"copied_files": 100}
+            )
+            assert await job_repo.lock_workspace_attempt(db, job_id, attempt=1) is None
+            assert (await db.get(BackgroundJob, job_id)).result == {"copied_files": 2}

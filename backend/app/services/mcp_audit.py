@@ -181,7 +181,9 @@ async def _resolves(url: str) -> bool:
         return False
     try:
         await asyncio.get_running_loop().getaddrinfo(host, None)
-    except OSError:
+    except OSError, UnicodeError:
+        # `UnicodeError`: the IDNA codec refuses an empty or over-long label
+        # before any query is made (#2352).
         return False
     return True
 
@@ -242,7 +244,8 @@ async def probe_listing(
 
     # The handshake answered without a credential; listing the tools is what says
     # whether the rest of the server does too. The MCP client resolves the name
-    # again, so the address is checked again first, as a connection's test does.
+    # again, so this probe checks the address again first. A connection's test
+    # does not: its URL was checked once, when the connection was saved.
     try:
         await validate_mcp_url(url)
         tools = await probe_mcp_server(url, timeout=timeout)

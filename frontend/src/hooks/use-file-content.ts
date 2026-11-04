@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 
 import { openFileInNewTab, type FileAccess, type FileText } from "@/lib/file-access";
 import type { Translate } from "@/lib/agent-step-captions";
+import { HtmlPreviewAssetError } from "@/lib/html-file-preview";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -29,7 +30,7 @@ interface UseFileTextResult {
 }
 
 /** One file's characters. */
-export function useFileText(access: FileAccess): UseFileTextResult {
+export function useFileText(access: FileAccess, preview = false): UseFileTextResult {
   const t = useTranslations("files");
   const tErrors = useTranslations("errors");
   const {
@@ -37,12 +38,19 @@ export function useFileText(access: FileAccess): UseFileTextResult {
     isLoading,
     error,
   } = useQuery({
-    queryKey: access.textKey,
-    queryFn: () => access.readText(),
+    queryKey: preview && access.readPreview ? [...access.textKey, "preview"] : access.textKey,
+    queryFn: () => (preview && access.readPreview ? access.readPreview() : access.readText()),
     retry: false,
   });
 
-  return { file, isLoading, error: readFailure(error, tErrors, t("couldNotBeRead")) };
+  return {
+    file,
+    isLoading,
+    error:
+      error instanceof HtmlPreviewAssetError
+        ? t("linkedAssetFailed", { path: error.path })
+        : readFailure(error, tErrors, t("couldNotBeRead")),
+  };
 }
 
 interface UseFileBytesResult {
@@ -52,7 +60,7 @@ interface UseFileBytesResult {
    * What the server said this is.
    *
    * Read off the response rather than guessed from the name. The API decides what may
-   * be displayed inline - raster images and PDFs, never SVG or HTML, because either
+   * be displayed inline - raster images, PDFs, audio and video, never SVG or HTML, because either
    * served inline from this origin is stored XSS written by the agent - and a second
    * list of suffixes in the client is a second answer to that question. When the two
    * disagreed, `<img>` got a blob typed `application/octet-stream` and showed a broken
@@ -84,23 +92,13 @@ export function useFileBytes(access: FileAccess): UseFileBytesResult {
     retry: false,
   });
 
-  // A memo and a cleanup rather than state written from an effect: `createObjectURL`
-  // is synchronous, so there is nothing to wait for, and a `setState` in an effect is
-  // a second render for a value that was already available in the first.
-  const url = useMemo(() => (blob === null ? null : URL.createObjectURL(blob)), [blob]);
-  useEffect(
-    () => () => {
-      // A blob URL holds the bytes alive until it is revoked, and a PDF or a chart
-      // adds up over a session of clicking through files.
-      if (url !== null) URL.revokeObjectURL(url);
-    },
-    [url],
-  );
+  const resource = useMemo(() => blobUrlResource(blob), [blob]);
+  const url = useSyncExternalStore(resource.subscribe, resource.snapshot, () => null);
 
   return {
     url,
     mediaType: blob?.type ?? null,
-    isLoading,
+    isLoading: isLoading || (blob !== null && url === null),
     error: readFailure(error, tErrors, t("couldNotBeRead")),
   };
 }
@@ -156,4 +154,24 @@ export function useFileActions(access: FileAccess): UseFileActionsResult {
  */
 function readFailure(error: unknown, t: Translate, fallback: string): string | null {
   return error ? getErrorMessage(error, t, fallback) : null;
+}
+
+/** A commit-owned browser handle, exposed through React's external-store lifecycle. */
+function blobUrlResource(blob: Blob | null) {
+  let url: string | null = null;
+  return {
+    snapshot: () => url,
+    subscribe: (changed: () => void) => {
+      if (blob === null) return () => {};
+      // The committed subscription owns the browser resource, so discarded
+      // renders allocate nothing and Strict Mode can acquire a fresh handle.
+      const allocated = URL.createObjectURL(blob);
+      url = allocated;
+      changed();
+      return () => {
+        url = null;
+        URL.revokeObjectURL(allocated);
+      };
+    },
+  };
 }

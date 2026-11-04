@@ -26,7 +26,7 @@ from pydantic import SecretStr
 from app.core.config import settings
 from app.core.sanitize import PinnedAddress, UrlRefusedError, resolve_pinned_url
 
-Connection = Literal["built_in", "proxy", "hosted"]
+Connection = Literal["built_in", "proxy", "hosted", "local"]
 
 PROXY_SCHEMES = frozenset({"http", "https", "socks5"})
 HOSTED_SCHEMES = frozenset({"wss"})

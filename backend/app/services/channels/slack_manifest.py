@@ -97,6 +97,8 @@ def slack_manifest(bot: ChannelBot) -> dict[str, Any]:
                     "mpim:history",
                     "reactions:write",
                     "users:read",
+                    # Finding a new member by address to greet them (#2301).
+                    "users:read.email",
                 ]
             }
         },

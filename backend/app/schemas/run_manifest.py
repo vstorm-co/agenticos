@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from app.schemas.base import BaseSchema
 
@@ -139,7 +139,9 @@ class RunManifestRead(BaseSchema):
             credential rides.
         requests: One entry per model request, in order. The waterfall.
         messages: The last request's messages, dumped - the whole of what the
-            model saw at the end of the run, retries and tool returns included.
+            model saw at the end of the run, retries and tool returns included,
+            excluding request-only channel reference parts with personal
+            transport metadata. Channel author references remain opaque.
         truncated: Whether the record was trimmed to fit its size ceiling. A
             reader must be able to tell a run that sent little from a record that
             was cut.
@@ -153,6 +155,10 @@ class RunManifestRead(BaseSchema):
     settings: dict[str, Any] = Field(default_factory=dict)
     requests: list[ManifestRequest] = Field(default_factory=list)
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    transcript: list[dict[str, JsonValue]] = Field(
+        default_factory=list,
+        description="Standalone proactive exchanges, including the final structured response",
+    )
     reviews: list[ManifestReview] = Field(default_factory=list)
     code_runs: list[ManifestCodeRun] = Field(default_factory=list)
     truncated: bool = False

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Suspense } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -113,7 +114,7 @@ vi.mock("@/hooks", async () => {
       can: (permission: Permission) => state.permissions.includes(permission),
       isLoaded: state.permissionsLoaded,
     }),
-    useProviderModels: () => ({ models: [], source: null, isLoading: false }),
+    useProviderModels: () => ({ models: [], refused: [], source: null, isLoading: false }),
     useRuns: () => ({ runs: [] }),
     useSecretPurposes: () => ({ purposes: [] }),
     useSecrets: () => ({ secrets: [] }),
@@ -158,9 +159,11 @@ vi.mock("@/components/triggers/triggers-panel", () => ({ TriggersPanel: () => nu
 async function mount() {
   await act(async () => {
     render(
-      <Suspense fallback={null}>
-        <AgentBuilderPage params={Promise.resolve({ id: "a-1" })} />
-      </Suspense>,
+      <QueryClientProvider client={new QueryClient()}>
+        <Suspense fallback={null}>
+          <AgentBuilderPage params={Promise.resolve({ id: "a-1" })} />
+        </Suspense>
+      </QueryClientProvider>,
     );
   });
 }

@@ -75,7 +75,19 @@ class ResourceGrantUpsert(BaseSchema):
     subject_group_id: UUID | None = None
     level: GrantLevelLiteral = Field(
         default="read",
-        description="read sees the configuration, use also runs it, edit also changes it",
+        description=(
+            "read sees the configuration, use also runs it, edit also changes it; "
+            "edit_data, for pages only, is an edit whose republishes the owner has "
+            "consented to in advance"
+        ),
+    )
+    confirmed: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Granting or raising to edit_data: the id of the text the person confirmed, "
+            "as the console names it. Recorded in the audit entry"
+        ),
     )
 
     @model_validator(mode="after")
@@ -84,6 +96,17 @@ class ResourceGrantUpsert(BaseSchema):
         if (self.subject_user_id is None) == (self.subject_group_id is None):
             raise ValueError("Name exactly one of subject_user_id and subject_group_id")
         return self
+
+
+class SharingDeferred(BaseSchema):
+    """The answer to a share that a resource type's guard turned into a request, and did
+    not apply."""
+
+    status: Literal["requested"] = "requested"
+    request_id: UUID
+    waiting_for: str | None = Field(
+        default=None, description="Who decides it, by name; null when it has nobody left to"
+    )
 
 
 class ResourceSharing(BaseSchema):

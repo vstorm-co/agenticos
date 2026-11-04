@@ -89,6 +89,10 @@ jobs:
       tags: ${{ steps.pin.outputs.tags }}
       edge: ${{ steps.pin.outputs.edge }}
       build: ${{ steps.pin.outputs.build }}
+      build_images: ${{ steps.pin.outputs.build_images }}
+      browser_source: ${{ steps.pin.outputs.browser_source }}
+      browser_key: ${{ steps.pin.outputs.browser_key }}
+      browser_base: ${{ steps.pin.outputs.browser_base }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -97,7 +101,7 @@ jobs:
           persist-credentials: false
 
       - name: Sign in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -135,10 +139,33 @@ jobs:
             esac
           fi
           build=false
+          images='[]'
+          browser_source=""
+          # Pin the multi-platform base used by both architectures. Weekly
+          # refresh also invalidates apt packages independently of Debian's base.
+          browser_base="debian:bookworm-slim"
+          browser_key=""
           for image in backend frontend browser; do
-            if ! docker buildx imagetools inspect "$IMAGE_PREFIX-$image:sha-$short" >/dev/null 2>&1; then
-              build=true
+            if docker buildx imagetools inspect "$IMAGE_PREFIX-$image:sha-$short" >/dev/null 2>&1; then
+              continue
             fi
+            if [ "$image" = browser ]; then
+              # Old backfills may predate the configurable base. Build them normally
+              # without claiming their base was pinned by this workflow.
+              if git show "$sha:docker/browser/Dockerfile" | grep -qx 'ARG BROWSER_BASE=debian:bookworm-slim'; then
+                base_digest=$(docker buildx imagetools inspect "$browser_base" --format '{{json .Manifest}}' | jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))')
+                browser_key=$(python3 scripts/browser_image_key.py "$sha" "$base_digest")
+                browser_base="$browser_base@$base_digest"
+              fi
+            fi
+            if [ "$image" = browser ] && [ -n "$browser_key" ]; then
+              if digest=$(docker buildx imagetools inspect "$IMAGE_PREFIX-browser:$browser_key" --format '{{json .Manifest}}' | jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))'); then
+                browser_source="$IMAGE_PREFIX-browser@$digest"
+                continue
+              fi
+            fi
+            build=true
+            images=$(jq -c --arg image "$image" '. + [$image]' <<< "$images")
           done
           {
             echo "sha=$sha"
@@ -146,6 +173,10 @@ jobs:
             echo "tags=$tags"
             echo "edge=$edge"
             echo "build=$build"
+            echo "build_images=$images"
+            echo "browser_source=$browser_source"
+            echo "browser_key=$browser_key"
+            echo "browser_base=$browser_base"
           } >> "$GITHUB_OUTPUT"
           echo "Publishing $(git --no-pager log --oneline -1 "$sha") as: $tags (edge: $edge, build: $build)"
 
@@ -164,26 +195,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [backend, frontend, browser]
+        image: ${{ fromJSON(needs.resolve.outputs.build_images) }}
         arch: [amd64, arm64]
         include:
           - arch: amd64
             runner: ubuntu-latest
           - arch: arm64
             runner: ubuntu-24.04-arm
-          # The backend's context is the repository root, so that `emails/compiled/`
-          # can be copied in beside the application - backend/Dockerfile says why.
-          - image: backend
-            context: .
-            file: backend/Dockerfile
-          - image: frontend
-            context: ./frontend
-            file: frontend/Dockerfile
-          # The browser `browser_use` drives (#2130): a full Chromium with a window,
-          # for compose's `browser` profile.
-          - image: browser
-            context: ./docker/browser
-            file: docker/browser/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -194,7 +212,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Sign in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -212,9 +230,14 @@ jobs:
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.file }}
+          context: ${{ matrix.image == 'backend' && '.' || matrix.image == 'frontend' && './frontend' || './docker/browser' }}
+          file: ${{ matrix.image == 'backend' && 'backend/Dockerfile' || matrix.image == 'frontend' && 'frontend/Dockerfile' || 'docker/browser/Dockerfile' }}
           platforms: linux/${{ matrix.arch }}
+          # Channel visuals need the CDP client even when no agent browses the web.
+          build-args: |
+            ${{ matrix.image == 'backend' && 'EXTRAS=--extra browser' || '' }}
+            ${{ matrix.image == 'browser' && format('BROWSER_BASE={0}', needs.resolve.outputs.browser_base) || '' }}
+            ${{ matrix.image == 'browser' && format('BROWSER_REFRESH={0}', needs.resolve.outputs.browser_key) || '' }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
@@ -233,7 +256,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/digests"
           touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: digest-${{ matrix.image }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/digests/*
@@ -256,9 +279,19 @@ jobs:
       fail-fast: false
       matrix:
         image: [backend, frontend, browser]
+        # The package page on GHCR reads its description from the manifest
+        # list, not from the per-architecture images' labels, so without this
+        # it says "No description provided".
+        include:
+          - image: backend
+            description: "AgenticOS API, background worker and migrations. AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/ · Website: https://vstorm-co.github.io/vstormos-landing/"
+          - image: frontend
+            description: "AgenticOS console, the web app members use. AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/ · Website: https://vstorm-co.github.io/vstormos-landing/"
+          - image: browser
+            description: "The Chromium that AgenticOS agents drive with browser_use (compose's browser profile). AgenticOS is an open-source, self-hosted workspace for company AI agents. Docs: https://vstorm-co.github.io/agenticos/"
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        if: needs.build.result == 'success'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: contains(fromJSON(needs.resolve.outputs.build_images), matrix.image)
         with:
           path: ${{ runner.temp }}/digests
           pattern: digest-${{ matrix.image }}-*
@@ -268,7 +301,7 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Sign in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -286,7 +319,10 @@ jobs:
           SHORT: ${{ needs.resolve.outputs.short }}
           TAGS: ${{ needs.resolve.outputs.tags }}
           EDGE: ${{ needs.resolve.outputs.edge }}
-          BUILT: ${{ needs.build.result == 'success' }}
+          BUILT: ${{ contains(fromJSON(needs.resolve.outputs.build_images), matrix.image) }}
+          BROWSER_SOURCE: ${{ matrix.image == 'browser' && needs.resolve.outputs.browser_source || '' }}
+          BROWSER_KEY: ${{ matrix.image == 'browser' && contains(fromJSON(needs.resolve.outputs.build_images), 'browser') && needs.resolve.outputs.browser_key || '' }}
+          DESCRIPTION: ${{ matrix.description }}
         run: |
           set -euo pipefail
           tags=()
@@ -299,13 +335,18 @@ jobs:
               echo "main has moved on to $head; leaving edge where it is"
             fi
           fi
+          if [ -n "$BROWSER_KEY" ]; then tags+=(-t "$IMAGE:$BROWSER_KEY"); fi
           refs=()
           if [ "$BUILT" = true ]; then
             for digest in "$RUNNER_TEMP"/digests/*; do refs+=("$IMAGE@sha256:$(basename "$digest")"); done
+          elif [ -n "$BROWSER_SOURCE" ]; then
+            refs+=("$BROWSER_SOURCE")
           else
             refs+=("$IMAGE:sha-$SHORT")
           fi
-          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools create "${tags[@]}" \
+            --annotation "index:org.opencontainers.image.description=$DESCRIPTION" \
+            "${refs[@]}"
 
       - name: Show what was published
         env:
@@ -317,6 +358,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [resolve, publish]
+    # Override implicit success(): build may legitimately have been skipped.
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && needs.publish.result == 'success' }}
     permissions:
       contents: read
       packages: read
@@ -326,7 +369,7 @@ jobs:
         image: [backend, frontend, browser]
     steps:
       - name: Sign in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -366,6 +409,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [resolve, publish]
+    # Override implicit success(): build may legitimately have been skipped.
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && needs.publish.result == 'success' }}
     permissions:
       # `write` for the release upload on a `v*` tag, which is the only thing in
       # this workflow that writes anything back. The scan job beside it keeps
@@ -383,7 +428,7 @@ jobs:
       NAME: sbom-${{ matrix.image == 'backend' && 'api' || matrix.image }}-${{ matrix.arch }}.cdx.json
     steps:
       - name: Sign in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -392,7 +437,7 @@ jobs:
       # The action installs syft and does not expose `--platform`, which is the
       # one flag this job turns on - so it is installed here and invoked below.
       - name: Install syft
-        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
 
       - name: Generate the CycloneDX inventory for this architecture
         # `REF` here rather than beside `NAME` above: the `env` context is not
@@ -402,7 +447,7 @@ jobs:
           REF: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}:sha-${{ needs.resolve.outputs.short }}
         run: syft scan "registry:$REF" --platform "linux/${{ matrix.arch }}" --output "cyclonedx-json=$NAME"
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ env.NAME }}
           path: ${{ env.NAME }}

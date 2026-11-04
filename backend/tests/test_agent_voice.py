@@ -22,6 +22,7 @@ from pydantic_ai.realtime.codec import (
     ToolCall,
     ToolResult,
 )
+from pydantic_ai.realtime.lifecycle import InferredLifecycle, RealtimeFrame
 from pydantic_ai.realtime.model import RealtimeModel
 from pydantic_ai.realtime.openai import OpenAIRealtimeModel
 from pydantic_ai.toolsets import FunctionToolset
@@ -75,6 +76,11 @@ def test_a_call_hands_off_what_its_realtime_model_cannot_carry():
 def test_channel_lookups_are_not_offered_in_a_call():
     """A call is never made on a channel, so there is nothing for them to look up."""
     assert capability_def("channel_tools").voice == "never"
+
+
+def test_next_step_buttons_are_not_offered_in_a_call():
+    """A call has nowhere to show them, and reading them aloud is the habit they replace."""
+    assert capability_def("follow_ups").voice == "never"
 
 
 def test_a_disabled_binding_is_not_handed_off():
@@ -361,10 +367,12 @@ class _ScriptedConnection(RealtimeConnection):
 
     def __init__(self, calls: Sequence[str]) -> None:
         self._calls = calls
+        self._lifecycle = InferredLifecycle()
         self.results: list[str] = []
         self._send_result, self._result_sent = anyio.create_memory_object_stream[str](10)
 
     async def send(self, content: RealtimeInput) -> None:
+        self._lifecycle.input_sent(content)
         if isinstance(content, ToolResult):
             self.results.append(content.output)
             await self._send_result.send(content.output)
@@ -376,8 +384,8 @@ class _ScriptedConnection(RealtimeConnection):
             await self._result_sent.receive()
         await anyio.sleep_forever()
 
-    def __aiter__(self) -> AsyncIterator[RealtimeCodecEvent]:
-        return self._events()
+    def frames(self) -> AsyncIterator[RealtimeFrame]:
+        return self._lifecycle.frames(self._events())
 
 
 class _ScriptedRealtime(RealtimeModel):

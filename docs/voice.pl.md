@@ -1,5 +1,5 @@
 ---
-source_sha: "e5f62723a4c7"
+source_sha: "dc7308008f49"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -28,6 +28,11 @@ skończy. Hostowana strona korzysta z paska rozmowy bez obsługi zatwierdzeń, a
 widget wczytuje własny, mniejszy. Zobacz [Konsola](console.md#voice-calls) i
 [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
+Zmiana organizacji lub konta kończy rozmowę w konsoli i anuluje oczekujące
+przygotowanie oraz ponowne łączenie. Jeśli zgoda na mikrofon nadejdzie później,
+jego ścieżki zostaną zatrzymane bez otwierania rozmowy w poprzedniej organizacji.
+Publiczne osadzenia zachowują odrębny zakres odwiedzającego.
+
 ## Włączanie { #turn-it-on }
 
 **Rozmowy włącza się w agencie.** Organizacja nie ma ustawień rozmów:
@@ -49,10 +54,12 @@ budżetami jak dyktowanie, więc jest limitowana na osobę
 (`RATE_LIMIT_VOICE_PREVIEW_PER_MINUTE`) i trzymana w cache przez tydzień per
 głos i język.
 
-**Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi obok mikrofonu przy
-każdym agencie. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
+**Każdy agent ma przycisk.** W `/chat` przycisk rozmowy stoi w miejscu
+„Wyślij”, dopóki pole jest puste, a „Wyślij” wraca, gdy coś wpiszesz. Dla agenta bez głosu albo z kluczem, który nie utrzyma już
 rozmowy, jest przekreślony, a jego powód prowadzi tego, kto może edytować
-agenta, do zakładki Rozmowy na jego karcie Głos (Voice).
+agenta, do zakładki Rozmowy na jego karcie Głos (Voice). Okno Architekta i panel
+testowy Buildera oferują go tak samo; w panelu testowym rozmowa uruchamia
+opublikowaną wersję, nie testowany draft, i przycisk to mówi.
 
 **Embed.** Widget albo hostowana strona proponuje rozmowy tylko wtedy, gdy
 włączony jest jego własny przełącznik „Rozmowy głosowe”. Zapisanie włączonego
@@ -142,17 +149,17 @@ utrzymujący się zalew kończy rozmowę.
 Rozmowa uruchamia agenta opisanego przez jego opublikowany spec, zbudowanego
 przez tę samą fabrykę co run tekstowy. Różnice wynikają z sesji realtime: jej
 narzędzia są ustalane w chwili połączenia, nie może się wstrzymać na
-zatwierdzenie i nie udźwignie workspace'u, przeglądarki ani delegatów. Te
+zatwierdzenie i nie udźwignie workspace'u, przeglądarki, pulpitu ani delegatów. Te
 rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 
 | Głosowo | Capabilities |
 |---|---|
-| Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, pamięć mem0, planowanie, limity wyjścia narzędzi, generowanie obrazów |
+| Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, pamięć mem0, planowanie, limity wyjścia narzędzi, generowanie obrazów, zamiana tekstu na mowę |
 | Na ekranie | pytania do użytkownika: w `/chat` karta pytań pojawia się w widoku rozmowy i jest też czytana na głos, a rozmówca stuka odpowiedź albo ją mówi; rozmowa z widgetu ani strony hostowanej ich nie dostaje |
 | Dostosowane | skille: ładowane na żądanie jako instrukcje, bez narzędzi, którymi run tekstowy je czyta |
 | Pominięte | wyszukiwanie narzędzi: narzędzia MCP, które by odroczyło, są przekazywane rozmowie bezpośrednio |
 | Zmapowane | thinking: staje się własnym ustawieniem rozumowania modelu realtime, o ile model je ma |
-| Przekazane | sandbox, browser use, subagenty, coding agent, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
+| Przekazane | sandbox, browser use, obsługa komputera, subagenty, coding agent, generowanie wideo, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
 
 Karta Głos w Builderze wymienia capabilities, które ten agent w rozmowach
 przekazuje.

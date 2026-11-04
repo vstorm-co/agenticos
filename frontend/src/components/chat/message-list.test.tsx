@@ -1,7 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
+import {
+  MessageList,
+  continuesTurn,
+  endsTurn,
+  lastToolTurnIndex,
+  layoutMessages,
+} from "./message-list";
 import type { ChatMessage } from "@/types";
 
 const state = vi.hoisted(() => ({
@@ -13,11 +19,18 @@ const state = vi.hoisted(() => ({
     continuesTurn: boolean;
     canRegenerate: boolean;
     openLastStep: boolean;
+    request?: string;
   }[],
 }));
 
 vi.mock("@/hooks", () => ({ useAgents: () => ({ agents: state.agents }) }));
-
+const navigation = vi.hoisted(() => ({ push: vi.fn(), pointAt: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: navigation.push }) }));
+vi.mock("@/lib/assistant-highlight", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/assistant-highlight")>()),
+  pointAt: navigation.pointAt,
+}));
+// The extras are tested on their own; the list decides which agent they name.
 // The item is tested on its own; what this asserts is what the list decides to
 // hand it - which agent, where in a group, and whether it may be regenerated.
 vi.mock("./message-item", () => ({
@@ -28,6 +41,7 @@ vi.mock("./message-item", () => ({
     continuesTurn,
     openLastStep,
     onRegenerate,
+    request,
   }: {
     message: ChatMessage;
     agent?: { name: string };
@@ -35,6 +49,7 @@ vi.mock("./message-item", () => ({
     continuesTurn?: boolean;
     openLastStep?: boolean;
     onRegenerate?: () => void;
+    request?: string;
   }) => {
     state.rendered.push({
       id: message.id,
@@ -43,6 +58,7 @@ vi.mock("./message-item", () => ({
       continuesTurn: continuesTurn === true,
       canRegenerate: onRegenerate !== undefined,
       openLastStep: openLastStep === true,
+      request,
     });
     return (
       <div data-testid={`message-${message.id}`}>
@@ -429,7 +445,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9" }),
     ];
 
-    expect(turnUsage(messages, 1)).toBe(USAGE);
+    expect(layoutMessages(messages)[1]?.turnUsage).toBe(USAGE);
   });
 
   it("prefers the last figure in the turn, which is the run's total by then", () => {
@@ -439,7 +455,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9", usage: later }),
     ];
 
-    expect(turnUsage(messages, 1)).toBe(later);
+    expect(layoutMessages(messages)[1]?.turnUsage).toBe(later);
   });
 
   it("never reaches back past the turn it belongs to", () => {
@@ -449,7 +465,7 @@ describe("where a turn's time and cost belong", () => {
       message({ id: "b", runId: "r-9" }),
     ];
 
-    expect(turnUsage(messages, 1)).toBeUndefined();
+    expect(layoutMessages(messages)[1]?.turnUsage).toBeUndefined();
   });
 });
 
@@ -495,4 +511,96 @@ describe("where the transcript crosses into another day", () => {
     );
     expect(screen.getAllByRole("separator").map((pill) => pill.textContent)).toEqual(["Yesterday"]);
   });
+});
+
+describe("a console link an agent wrote", () => {
+  it("opens the page in the console and points at the control it names", async () => {
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "/mcp-servers?highlight=mcp-add");
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).toHaveBeenCalledWith("/mcp-servers");
+    expect(navigation.pointAt).toHaveBeenCalledWith("mcp-add", "/mcp-servers");
+  });
+
+  it("leaves a link to anywhere else to the browser", () => {
+    navigation.push.mockClear();
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "https://example.com/");
+    link.addEventListener("click", (event) => event.preventDefault());
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it("opens a console page with nothing to point at", () => {
+    navigation.pointAt.mockClear();
+    const { container } = render(<MessageList messages={[message({ id: "m-1" })]} />);
+    const link = document.createElement("a");
+    link.setAttribute("href", "/routines");
+    container.firstElementChild?.appendChild(link);
+
+    link.click();
+
+    expect(navigation.push).toHaveBeenCalledWith("/routines");
+    expect(navigation.pointAt).not.toHaveBeenCalled();
+  });
+});
+
+describe("the request a skill can be made of", () => {
+  const asked = message({ id: "q", role: "user", content: "Compare the vendors" });
+
+  it("hands the answer that ends the turn what the person asked", () => {
+    const messages = [
+      asked,
+      message({ id: "a", runId: "r-1" }),
+      message({ id: "b", runId: "r-1" }),
+    ];
+
+    expect([0, 1, 2].map((i) => layoutMessages(messages)[i]?.request)).toEqual([
+      undefined,
+      undefined,
+      "Compare the vendors",
+    ]);
+  });
+
+  it("has nothing to hand an answer with no request above it", () => {
+    expect(layoutMessages([message({ id: "a" })])[0]?.request).toBeUndefined();
+  });
+
+  it("has nothing to hand when the request was only a file", () => {
+    const messages = [message({ id: "q", role: "user", content: "" }), message({ id: "a" })];
+
+    expect(layoutMessages(messages)[1]?.request).toBeUndefined();
+  });
+
+  it("offers it in a chat but not in the test panel", () => {
+    const messages = [asked, message({ id: "a" })];
+    const { rerender } = render(<MessageList messages={messages} />);
+    expect(rendered("a")?.request).toBe("Compare the vendors");
+
+    state.rendered = [];
+    rerender(<MessageList messages={messages} pins={{ pinned: [], toggle: vi.fn() }} />);
+    expect(rendered("a")?.request).toBeUndefined();
+  });
+});
+
+it("reads group identities linearly even for one long segmented turn", () => {
+  const reads = vi.fn(() => "one-group");
+  const messages = Array.from({ length: 1000 }, (_, index) => {
+    const row = message({ id: String(index), runId: "one-run" });
+    Object.defineProperty(row, "groupId", { get: reads });
+    return row;
+  });
+  const layout = layoutMessages(messages);
+  expect(reads.mock.calls.length).toBeLessThan(10000);
+  expect(layout[0]?.groupPosition).toBe("first");
+  expect(layout[500]?.groupPosition).toBe("middle");
+  expect(layout[999]?.groupPosition).toBe("last");
 });

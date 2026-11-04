@@ -144,7 +144,7 @@ describe("your own memory", () => {
     mount({ error: new Error("502") });
 
     expect(screen.queryByText("nothingYet")).not.toBeInTheDocument();
-    expect(document.querySelector(".border-destructive\\/30")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   it("offers a way to the older notes when there are more than a page", () => {

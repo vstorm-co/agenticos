@@ -10,50 +10,31 @@ import { avatarPalette } from "@/lib/avatar-color";
  * is exactly the state these tests are about.
  */
 describe("EntityAvatar", () => {
-  /** The generated face, which renders as inline SVG so that it can move. */
-  const face = (container: HTMLElement) => container.querySelector("g.mo-root");
-  /** The figure itself, for comparing one face against another. */
-  const figure = (container: HTMLElement) => face(container)!.innerHTML;
-
-  it("draws a person a face generated from their id", () => {
+  it("draws readable initials for a person without a photo", () => {
     const { container } = render(<EntityAvatar seed="u-1" name="Anna Nowak" />);
-
-    expect(face(container)).not.toBeNull();
-    expect(screen.queryByText("AN")).toBeNull();
+    expect(screen.getByText("AN")).toHaveClass(avatarPalette("u-1").bg);
+    expect(container.querySelector("g.mo-root")).toBeNull();
   });
 
-  it("gives the same seed the same face", () => {
-    const { container, rerender } = render(<EntityAvatar seed="u-9" name="Anna Nowak" />);
-    const first = figure(container);
-
-    rerender(<EntityAvatar seed="u-9" name="Renamed Entirely" />);
-
-    // The id is the seed, not the name: renaming somebody does not hand them
-    // somebody else's face.
-    expect(figure(container)).toBe(first);
+  it("keeps the colour after a rename while updating the initials", () => {
+    const { rerender } = render(<EntityAvatar seed="u-9" name="Anna Nowak" />);
+    const palette = avatarPalette("u-9");
+    expect(screen.getByText("AN")).toHaveClass(palette.bg);
+    rerender(<EntityAvatar seed="u-9" name="Renamed Person" />);
+    expect(screen.getByText("RP")).toHaveClass(palette.bg);
   });
 
-  it("draws two people two different faces", () => {
-    const { container: a } = render(<EntityAvatar seed="u-1" name="Anna" />);
-    const { container: b } = render(<EntityAvatar seed="u-2" name="Anna" />);
-
-    expect(figure(a)).not.toBe(figure(b));
+  it("honours a chosen colour", () => {
+    render(<EntityAvatar seed="u-1" name="Anna" colorSlot={4} />);
+    expect(screen.getByText("A")).toHaveClass(avatarPalette("u-1", 4).bg);
   });
 
-  it("draws the chosen colour rather than the one the seed hashes to", () => {
-    const { container: auto } = render(<EntityAvatar seed="u-1" name="Anna" />);
-    const { container: picked } = render(<EntityAvatar seed="u-1" name="Anna" colorSlot={4} />);
-
-    expect(figure(picked)).not.toBe(figure(auto));
-  });
-
-  it("draws an organization its initials on the colour its seed selects", () => {
-    // A company is not somebody, and a face on one reads as a person who works
-    // there.
-    const { container } = render(<EntityAvatar seed="org-1" name="Vstorm Org" kind="org" />);
-
-    expect(screen.getByText("VO")).toHaveClass(avatarPalette("org-1").bg);
-    expect(face(container)).toBeNull();
+  it("keeps avatars round despite a caller's square styling", () => {
+    const { container } = render(
+      <EntityAvatar seed="org-1" name="Vstorm" className="rounded-xl" />,
+    );
+    expect(container.firstElementChild).toHaveClass("rounded-full");
+    expect(container.firstElementChild).not.toHaveClass("rounded-xl");
   });
 
   it("does not draw an image when told the row has none", () => {
@@ -67,12 +48,10 @@ describe("EntityAvatar", () => {
 
   it("attempts the image when one is given and presence is unknown", () => {
     // No `hasImage`: an id-only caller keeps today's behaviour - the picture is
-    // fetched, and Radix falls through to the generated face if it 404s.
-    const { container } = render(
-      <EntityAvatar seed="u-1" name="Kacper" imageSrc="/api/users/avatar/u-1" />,
-    );
+    // fetched, and Radix falls through to the initials if it 404s.
+    render(<EntityAvatar seed="u-1" name="Kacper" imageSrc="/api/users/avatar/u-1" />);
 
-    expect(face(container)).not.toBeNull();
+    expect(screen.getByText("K")).toBeInTheDocument();
   });
 
   it("renders at the size it was asked for", () => {
@@ -82,7 +61,7 @@ describe("EntityAvatar", () => {
   });
 
   it("scales an organization's initials with the circle rather than against it", () => {
-    render(<EntityAvatar seed="o-1" name="Anna Nowak" kind="org" size="xl" />);
+    render(<EntityAvatar seed="o-1" name="Anna Nowak" size="xl" />);
 
     // The scale sits on the root, beside the diameter the same token sets. A
     // font-size of the fallback's own would win over the inherited one, which

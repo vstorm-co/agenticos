@@ -1,17 +1,27 @@
 "use client";
 
+import { Activity, ShieldCheck, Wallet } from "lucide-react";
+
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PeriodControl } from "@/components/dashboard/period-control";
 import { ApprovalsTab } from "@/components/runs/approvals-tab";
+import { WorkflowApprovalsCard } from "@/components/runs/workflow-approvals-card";
 import { RunDetailPanel } from "@/components/runs/run-detail-panel";
 import { RunHistoryTab } from "@/components/runs/run-history-tab";
 import { SpendTab } from "@/components/runs/spend-tab";
 import { LoadingState } from "@/components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui";
-import { useApprovals, usePermissions, useRuns, useSpend, useUrlState } from "@/hooks";
+import {
+  useApprovals,
+  usePermissions,
+  useRuns,
+  useSpend,
+  useUrlState,
+  useWorkflowApprovals,
+} from "@/hooks";
 import { periodEnd, periodStart } from "@/lib/dashboard/period";
 import { formatPeriodParam, parsePeriodParam, type Period } from "@/lib/dashboard/period";
 import { PAGE_CLEARANCE } from "@/lib/page-clearance";
@@ -132,7 +142,10 @@ export default function RunsPage() {
   // read one query key, so this is the same request rather than a second one.
   // `total` rather than the page's length: the endpoint answers fifty rows at a
   // time, and a badge that stops at fifty is a badge that stops being a count.
-  const { total: waiting } = useApprovals({ enabled: canDecide });
+  const { total: toolsWaiting } = useApprovals({ enabled: canDecide });
+  // Workflow steps waiting on a person are the same queue to the reader.
+  const { total: stepsWaiting } = useWorkflowApprovals({ enabled: canDecide });
+  const waiting = toolsWaiting + stepsWaiting;
   // The two figures that were three cards above the strip. On the tab they name
   // instead: a card of one number is a lot of the page's height for something a
   // badge says, and the height mattered - the three of them cost about 380px, so
@@ -165,8 +178,8 @@ export default function RunsPage() {
     // table its rows: the figures and the period control took about 380px, so a
     // 900px viewport left a run history three rows deep inside its own scroll
     // box - a second scrollbar to reach what the page had room for all along.
-    <div className="flex flex-col">
-      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
+    <div className="flex flex-1 flex-col">
+      <PageHeader className="mb-4" title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       {/* Not until the permission set has answered. The strip's *shape* depends
           on this permission - whether there is an Approvals tab at all - so
@@ -200,16 +213,19 @@ export default function RunsPage() {
                   keeps its count badge, so what is waiting is visible from the
                   strip without opening it. */}
               <TabsTrigger value="runs" data-tour="activity-tab-runs">
+                <Activity className="size-4 shrink-0" aria-hidden />
                 {t("runs2")}
                 {runCount > 0 && <TabCount>{runCount.toLocaleString()}</TabCount>}
               </TabsTrigger>
               {canDecide && (
                 <TabsTrigger value="approvals" data-tour="activity-tab-approvals">
+                  <ShieldCheck className="size-4 shrink-0" aria-hidden />
                   {t("approvals")}
                   {waiting > 0 && <TabCount>{waiting}</TabCount>}
                 </TabsTrigger>
               )}
               <TabsTrigger value="spend" data-tour="activity-tab-spend">
+                <Wallet className="size-4 shrink-0" aria-hidden />
                 {t("spend")}
                 {spent > 0 && <TabCount>{`$${spent.toFixed(2)}`}</TabCount>}
               </TabsTrigger>
@@ -226,14 +242,15 @@ export default function RunsPage() {
                 `items-start`, so the shorter of the two columns is its own
                 height rather than stretched to match the other: a run detail
                 beside a three-row table used to be a card of white space. */}
-            <div className="mt-2 flex items-start gap-4">
+            <div className="mt-2 flex flex-1 items-start gap-4">
               <div
                 className={cn(
                   // `overflow-hidden` is load-bearing: the run table carries a
                   // minimum width of its own, and without a clip here it ran on
                   // underneath the detail panel rather than scrolling inside its
                   // own column.
-                  "min-w-0 flex-1 overflow-hidden",
+                  "flex min-w-0 flex-1 flex-col overflow-hidden",
+                  focusedRunId === null && "self-stretch",
                   // The room under this page, declared here rather than by
                   // `PageTransition` - which is where every other page gets it.
                   // Padding on the box *around* this row shortens what the
@@ -258,17 +275,24 @@ export default function RunsPage() {
                   <TabsContent
                     value="approvals"
                     data-tour="activity-approvals"
-                    className="mt-0 min-h-0 flex-1 overflow-y-auto"
+                    className="mt-0 min-h-0 flex-1 flex-col data-[state=active]:flex"
                   >
-                    <ApprovalsTab
-                      period={period}
-                      onFocusRun={focusRun}
-                      periodControl={periodControl}
-                    />
+                    <div className="space-y-4">
+                      <WorkflowApprovalsCard />
+                      <ApprovalsTab
+                        period={period}
+                        onFocusRun={focusRun}
+                        periodControl={periodControl}
+                      />
+                    </div>
                   </TabsContent>
                 )}
 
-                <TabsContent value="runs" data-tour="activity-runs" className="mt-0">
+                <TabsContent
+                  value="runs"
+                  data-tour="activity-runs"
+                  className="mt-0 flex-1 flex-col data-[state=active]:flex"
+                >
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
                   <RunHistoryTab

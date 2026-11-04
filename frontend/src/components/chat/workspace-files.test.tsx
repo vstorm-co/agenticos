@@ -5,6 +5,12 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useWorkOnStore } from "@/stores/work-on-store";
+const localInvoke = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/desktop/shell", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/shell")>()),
+  invokeShell: localInvoke,
+}));
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -25,6 +31,7 @@ function draw(node: ReactNode) {
 /** The panel is closed by default; every test about its contents opens it. */
 async function openPanel() {
   await userEvent.click(await screen.findByRole("button", { name: /^Show the files/ }));
+  await waitFor(() => expect(screen.getByRole("complementary")).toHaveStyle({ opacity: "1" }));
 }
 
 function workspace(overrides: Record<string, unknown> = {}) {
@@ -71,7 +78,7 @@ describe("the workspace panel", () => {
     expect(screen.queryByRole("button", { name: /^Show the files/ })).toBeNull();
   });
 
-  it("lists what the agent is keeping as tiles, with what each file weighs", async () => {
+  it("lists what the agent is keeping as compact rows, with what each file weighs", async () => {
     draw(
       <WorkspaceFiles
         buttonSlot={document.body}
@@ -90,7 +97,7 @@ describe("the workspace panel", () => {
     expect(screen.getByText("CSV · 2.0 KB")).toBeVisible();
   });
 
-  it("draws each file's first lines on its tile, as All files does", async () => {
+  it("keeps excerpts out of the narrow listing while retaining the file action", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(
       workspace({
         items: [
@@ -116,7 +123,8 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() => expect(screen.getByText("month,total")).toBeVisible());
+    await waitFor(() => expect(screen.getByRole("button", { name: /report.csv/ })).toBeVisible());
+    expect(screen.queryByText("month,total")).toBeNull();
   });
 
   it("says whose files these are", async () => {
@@ -222,6 +230,23 @@ describe("the workspace panel", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
+  it("lies over a narrow window's conversation instead of taking a column from it", async () => {
+    // A column of its own squeezed the Architect's composer until its buttons
+    // fell out of the box.
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId={null}
+        attachments={[]}
+        revision={0}
+        overlay
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Show the files" }));
+    expect(screen.getByRole("complementary")).toHaveClass("absolute");
+  });
+
   it("does not list a directory as a file", async () => {
     draw(
       <WorkspaceFiles
@@ -234,7 +259,7 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
-    expect(screen.queryByText("out")).toBeNull();
+    expect(screen.getByRole("button", { name: "out" })).toBeVisible();
   });
 
   it("says the workspace is empty when it is, rather than showing nothing", async () => {
@@ -330,7 +355,6 @@ describe("the workspace panel", () => {
     // away. A CSV an agent wrote used to render as a wall of commas here and as
     // bytes-and-a-download for every other kind.
     expect(await screen.findByRole("dialog")).toBeVisible();
-    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -526,7 +550,7 @@ describe("the workspace panel", () => {
     );
 
     expect(await screen.findByRole("button", { name: /^Show the files/ })).toBeVisible();
-    expect(screen.queryByText("report.csv")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("report.csv")).toBeNull());
   });
 
   it("says on the button how many files there are to see", async () => {
@@ -559,6 +583,27 @@ describe("the workspace panel", () => {
     expect(await screen.findByRole("button", { name: "Show the files" })).toBeVisible();
   });
 
+  it("keeps the composer toggle present while open and closes from that toggle", async () => {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+    const toggle = screen.getByRole("button", { name: "Files" });
+    expect(toggle).toBeVisible();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+    expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
   it("closes again", async () => {
     draw(
       <WorkspaceFiles
@@ -573,7 +618,8 @@ describe("the workspace panel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
 
-    expect(screen.queryByText("report.csv")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("report.csv")).toBeNull());
+    expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus();
   });
 
   it("explains a host that keeps no files on disk instead of alarming somebody", async () => {
@@ -766,9 +812,70 @@ describe("the workspace panel", () => {
         />,
       );
       await openPanel();
-      await userEvent.click(screen.getByText("invoice.pdf"));
+      await userEvent.click(screen.getByRole("button", { name: "Open invoice.pdf" }));
 
       expect(useFilePreviewStore.getState().openId).toBe(attachment().id);
     });
   });
+});
+
+it("lists the granted desktop folder rather than the server workspace", async () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  useWorkOnStore.getState().set("c1", { folder: "/approved", mode: "read_only" });
+  localInvoke.mockResolvedValue([]);
+  try {
+    draw(
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        attachments={[]}
+        revision={0}
+      />,
+    );
+    await openPanel();
+    await waitFor(() =>
+      expect(localInvoke).toHaveBeenCalledWith("local_files", { root: "/approved" }),
+    );
+    expect(apiClient.get).not.toHaveBeenCalled();
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+    useWorkOnStore.setState({ byConversation: {}, draft: null });
+  }
+});
+
+it("groups duplicate file names under their actual folders and opens the full path", async () => {
+  const entries = ["index.html", "site/index.html", "site/style.css"].map((path) => ({
+    path,
+    size: 12,
+    is_dir: false,
+    modified_at: null,
+    preview: null,
+    thumbnail: null,
+  }));
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.includes("/workspace/file?")
+      ? { content: "<h1>Hello</h1>", truncated: false }
+      : workspace({ items: entries }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+  );
+  await openPanel();
+  const folder = await screen.findByRole("button", { name: "site" });
+  const group = folder.closest("li")!;
+  expect(within(group).getByText("index.html")).toBeVisible();
+  await userEvent.click(folder);
+  expect(within(group).queryByText("index.html")).toBeNull();
+  await userEvent.click(folder);
+  await userEvent.click(within(group).getByRole("button", { name: /index.html/ }));
+  await waitFor(() =>
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).toContain(
+      "/conversations/c1/workspace/file?path=site%2Findex.html",
+    ),
+  );
 });

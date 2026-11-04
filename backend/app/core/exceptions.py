@@ -52,6 +52,19 @@ class AlreadyExistsError(AppException):
     status_code = 409
 
 
+class InUseError(AppException):
+    """Resource is still referenced and cannot be removed (409).
+
+    Raised instead of deleting something other rows still point at, such as a
+    model profile an agent runs on. `details` names what refers to it, so the
+    reader can move those first.
+    """
+
+    message = "Resource is in use"
+    code = "IN_USE"
+    status_code = 409
+
+
 class ValidationError(AppException):
     """Validation error (422)."""
 
@@ -93,6 +106,17 @@ class AuthorizationError(AppException):
     status_code = 403
 
 
+class AccessRequestableError(AuthorizationError):
+    """The caller may not open this page, but belongs to its organization and may ask (403).
+
+    The one answer a member is given in place of "not found": it says that they may
+    request access and nothing about what the page is.
+    """
+
+    message = "You don't have access to this page"
+    code = "ACCESS_REQUESTABLE"
+
+
 class RateLimitError(AppException):
     """Rate limit exceeded (429)."""
 
@@ -111,6 +135,29 @@ class ConcurrentChangeError(AppException):
 
     message = "Another change to this resource is in flight. Try again."
     code = "CONCURRENT_CHANGE"
+    status_code = 409
+
+
+class ConflictError(AppException):
+    """The resource is in a state that does not allow this (409). Changing that state
+    first, then asking again, is the way through."""
+
+    message = "This conflicts with the resource's state"
+    code = "CONFLICT"
+    status_code = 409
+
+
+class ConsentRequiredError(ConflictError):
+    """A page's data has no consent from its owner that would let this share it (409)."""
+
+    message = "Confirm the page's data before sharing it"
+    code = "CONSENT_REQUIRED"
+
+
+class WorkspaceCapacityError(AppException):
+    """Concurrent workspace writes could not be merged within the storage cap."""
+
+    code = "WORKSPACE_CAPACITY_CONFLICT"
     status_code = 409
 
 

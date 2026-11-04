@@ -7,7 +7,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 import type { User } from "@/types";
 
 const ACCESS_MAXAGE = 60 * 15; // 15 min
@@ -36,8 +36,8 @@ function fetchMe(token: string, request: NextRequest) {
  * reloads without forcing a re-login.
  */
 export async function GET(request: NextRequest) {
-  const accessToken = request.cookies.get("access_token")?.value;
-  const refreshToken = request.cookies.get("refresh_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
   if (accessToken) {
     try {
@@ -86,8 +86,8 @@ export async function GET(request: NextRequest) {
       return bffRefusal("FAILED_TO_GET_USER", status);
     }
     const response = bffRefusal("NOT_AUTHENTICATED", 401);
-    response.cookies.set("access_token", "", cookieOpts(request, 0));
-    response.cookies.set("refresh_token", "", cookieOpts(request, 0));
+    response.cookies.set(ACCESS_TOKEN_COOKIE, "", cookieOpts(request, 0));
+    response.cookies.set(REFRESH_TOKEN_COOKIE, "", cookieOpts(request, 0));
     return response;
   }
 
@@ -106,10 +106,14 @@ export async function GET(request: NextRequest) {
       response = bffRefusal("FAILED_TO_GET_USER", status);
     }
   }
-  response.cookies.set("access_token", refreshed.access_token, cookieOpts(request, ACCESS_MAXAGE));
+  response.cookies.set(
+    ACCESS_TOKEN_COOKIE,
+    refreshed.access_token,
+    cookieOpts(request, ACCESS_MAXAGE),
+  );
   if (refreshed.refresh_token) {
     response.cookies.set(
-      "refresh_token",
+      REFRESH_TOKEN_COOKIE,
       refreshed.refresh_token,
       cookieOpts(request, REFRESH_MAXAGE),
     );

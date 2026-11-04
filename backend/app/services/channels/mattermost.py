@@ -32,9 +32,10 @@ import json
 import logging
 import re
 import secrets
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 import httpx
 from cryptography.exceptions import InvalidSignature
@@ -60,7 +61,9 @@ from app.services.channels.base import (
     IncomingPress,
     OutgoingMessage,
     PromptMessage,
+    broadcast_mentioned,
     feedback_value,
+    mentionable_text,
     split_thread,
     supervise_stream,
     thread_key,
@@ -184,7 +187,12 @@ class MattermostAdapter(ChannelAdapter):
         self._base_urls[bot_id] = api_base_url.rstrip("/")
 
     def prepare_connection(
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         if api_base_url:
             self.remember_server(bot_id, api_base_url)
@@ -206,6 +214,47 @@ class MattermostAdapter(ChannelAdapter):
     def _headers(bot_token: str) -> dict[str, str]:
         """The bearer auth header every REST call to this server carries."""
         return {"Authorization": f"Bearer {bot_token}"}
+
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Find the person by address and greet them in a direct channel with the bot.
+
+        A server that hides addresses from bots answers 403 or 404 to the
+        lookup; both read as not found rather than as a failure.
+        """
+        if not api_base_url:
+            return False
+        base_url = api_base_url.rstrip("/")
+        headers = self._headers(bot_token)
+        async with self._client() as client:
+            found = await client.get(
+                f"{base_url}/api/v4/users/email/{quote(email)}", headers=headers
+            )
+            if found.status_code in (403, 404):
+                return False
+            found.raise_for_status()
+            me = await client.get(f"{base_url}/api/v4/users/me", headers=headers)
+            me.raise_for_status()
+            direct = await client.post(
+                f"{base_url}/api/v4/channels/direct",
+                headers=headers,
+                json=[me.json()["id"], found.json()["id"]],
+            )
+            direct.raise_for_status()
+            posted = await client.post(
+                f"{base_url}/api/v4/posts",
+                headers=headers,
+                json={"channel_id": direct.json()["id"], "message": text},
+            )
+            posted.raise_for_status()
+        return True
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Post a reply.
@@ -445,10 +494,10 @@ class MattermostAdapter(ChannelAdapter):
         response.raise_for_status()
 
     async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
-        """Take the thumbs off, saying which was pressed - Mattermost's buttons do not."""
-        await self.settle_prompt(
-            bot_token, press, ":+1: Rated helpful" if helpful else ":-1: Rated not helpful"
-        )
+        """Keep shared buttons available; the callback privately confirms the vote.
+
+        Removing them from the post would stop every other participant voting.
+        """
 
     async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
         """Take the buttons off the pressed post, leaving what was asked and chosen."""
@@ -1158,7 +1207,19 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=data.get("sender_name") or None,
             message_id=post.get("id"),
             attachments=attachments,
-            addressed=self._addressed(data, bot_id),
+            broadcast_mention=broadcast_mentioned(self.platform, text),
+            addressed=self._direct_addressed(data, bot_id, text),
+        )
+
+    def _direct_addressed(self, data: dict[str, Any], bot_id: str, text: str) -> bool | None:
+        addressed = self._addressed(data, bot_id)
+        if not broadcast_mentioned(self.platform, text):
+            return addressed
+        own = self._own_names.get(bot_id)
+        return bool(
+            addressed is True
+            and own
+            and re.search(rf"(?<!\w)@{re.escape(own)}(?![\w.-])", mentionable_text(text), re.I)
         )
 
     def _addressed(self, data: dict[str, Any], bot_id: str) -> bool | None:
@@ -1386,5 +1447,8 @@ class MattermostAdapter(ChannelAdapter):
             platform_display_name=str(payload.get("user_name") or "") or None,
             message_id=str(payload.get("post_id") or "") or None,
             attachments=attachments,
-            addressed=bool(str(payload.get("trigger_word") or "").strip()),
+            broadcast_mention=broadcast_mentioned(self.platform, text),
+            addressed=bool(str(payload.get("trigger_word") or "").strip())
+            and str(payload.get("trigger_word") or "").strip().lstrip("@").casefold()
+            not in {"all", "here", "channel", "everyone"},
         )

@@ -19,10 +19,13 @@ class SandboxConnectionCreate(BaseSchema):
     """Register a place an organization's sandboxes run."""
 
     name: str = Field(min_length=1, max_length=128, description="What operators call this host")
-    kind: Literal["docker", "daytona"] = Field(
+    kind: Literal["docker", "daytona", "e2b"] = Field(
         description=(
             "docker: a sandboxd service on a host you run. "
-            "daytona: cloud sandboxes on this organization's own Daytona account."
+            "daytona: cloud sandboxes on this organization's own Daytona account. "
+            "e2b: cloud sandboxes on this organization's own E2B account; the "
+            "default runtime names an E2B template, and `desktop` is the one "
+            "computer use drives."
         )
     )
     base_url: ServiceAddress | None = Field(
@@ -52,7 +55,7 @@ class SandboxConnectionUpdate(BaseSchema):
     """Change one. Every field optional; unset means unchanged."""
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
-    kind: Literal["docker", "daytona"] | None = None
+    kind: Literal["docker", "daytona", "e2b"] | None = None
     base_url: ServiceAddress | None = Field(default=None, max_length=512)
     secret_id: UUID | None = None
     default_runtime: str | None = Field(default=None, max_length=64)
@@ -263,7 +266,7 @@ class SandboxSessionList(BaseSchema):
     """
 
     sessions: list[SandboxSessionRead] = Field(default_factory=list)
-    kind: Literal["docker", "daytona"] = Field(
+    kind: Literal["docker", "daytona", "e2b"] = Field(
         description="Which sort of host answered, so an empty daytona listing is told apart from an idle docker one",
     )
     limit: int | None = None

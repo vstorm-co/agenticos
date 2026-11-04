@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
+import { invokeShell, readShellInfo, ShellError } from "@/lib/desktop/shell";
 import { useAdoptSession } from "@/hooks/use-auth";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { takeReturnTo } from "@/lib/oauth-return";
@@ -24,9 +25,16 @@ const exchanges = new Map<string, Promise<Adopted>>();
 function exchangeCode(code: string): Promise<Adopted> {
   let pending = exchanges.get(code);
   if (pending === undefined) {
-    pending = apiClient
-      .post<Adopted>("/auth/oauth-callback", { code })
-      .finally(() => exchanges.delete(code));
+    pending = (async () => {
+      const native = readShellInfo() !== null;
+      const verifier = native ? await invokeShell("oauth_verifier", { code }) : undefined;
+      if (native && typeof verifier !== "string")
+        throw new ShellError("malformed", "oauth_verifier");
+      return apiClient.post<Adopted>("/auth/oauth-callback", {
+        code,
+        ...(verifier === undefined ? {} : { code_verifier: verifier }),
+      });
+    })().finally(() => exchanges.delete(code));
     exchanges.set(code, pending);
   }
   return pending;

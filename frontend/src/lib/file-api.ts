@@ -3,6 +3,8 @@
  */
 
 import { apiClient } from "./api-client";
+import { getFileUrl } from "./file-url";
+import { keptFile } from "./offline/device-cache";
 import type { FileAccess } from "./file-access";
 import { qk } from "./query-keys";
 
@@ -33,9 +35,7 @@ export function uploadFile(file: File): Promise<FileUploadResponse> {
   return apiClient.upload<FileUploadResponse>("/files/upload", file);
 }
 
-export function getFileUrl(fileId: string): string {
-  return `/api/files/${fileId}`;
-}
+export { getFileUrl };
 
 /**
  * The same attachment, addressed through the run whose turn it arrived with.
@@ -65,8 +65,16 @@ export function getRunFileUrl(runId: string, fileId: string): string {
  */
 export function attachmentAccess(file: { id: string; filename: string }): FileAccess {
   const url = getFileUrl(file.id);
-  const read = async () => {
-    const response = await fetch(url, { credentials: "include" });
+  const read = async (): Promise<Pick<Response, "text" | "blob">> => {
+    let response: Response;
+    try {
+      response = await fetch(url, { credentials: "include" });
+    } catch (error) {
+      // No network: the copy the apps keep of a recent conversation's files.
+      const kept = await keptFile(file.id);
+      if (kept === null) throw error;
+      return { text: () => kept.text(), blob: () => Promise.resolve(kept) };
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response;
   };

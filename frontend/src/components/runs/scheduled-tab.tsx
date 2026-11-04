@@ -51,10 +51,10 @@ export function ScheduledTab() {
 
   return (
     <ListCard
+      fill
       namedByPage
       title={t("activityTitle")}
       counted={isLoading ? null : t("routineCount", { count: triggers.length })}
-      empty={!isLoading && !isError && triggers.length === 0}
       contentClassName="p-0"
       controls={
         triggers.length > 0 && (

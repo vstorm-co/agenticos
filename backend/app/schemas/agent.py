@@ -99,6 +99,13 @@ def normalize_labels_query(values: list[str], *, max_items: int) -> list[str] | 
     return kept[:max_items]
 
 
+class LocalCodingAgent(BaseSchema):
+    """A coding agent an agent's published version runs on the person's computer."""
+
+    harness: Literal["claude_code", "codex"]
+    access: Literal["edit", "read_only"]
+
+
 class PublishedModel(BaseSchema):
     """The model an agent's published version runs on.
 
@@ -124,6 +131,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    workflow_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The workflow whose step configures this agent, when one does. Such an "
+            "agent is changed in that step, never here, and is not in the catalog."
+        ),
+    )
     a2a_enabled: bool = Field(
         default=False,
         description=(
@@ -214,6 +228,19 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    published_capabilities: list[str] | None = Field(
+        default=None,
+        description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
+    )
+    local_coding_agent: LocalCodingAgent | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs on the person's own "
+            "computer, or null when it runs none there. Read off the frozen spec, filled by "
+            "the listing, so the chat's composer can say which agent will work in which "
+            "folder before the person sends."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
@@ -225,6 +252,14 @@ class AgentRead(BaseSchema):
             "shared_user_count."
         ),
     )
+    starters: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The published version's first messages, which an empty chat offers - read "
+            "off the frozen spec, not the draft. Empty for a draft agent and for one "
+            "with none. Filled by the listing, same bargain as shared_user_count."
+        ),
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -233,6 +268,29 @@ class AgentDetail(AgentRead):
     """An agent plus the spec currently being edited."""
 
     draft_spec: AgentSpec
+
+
+class AgentCeiling(BaseSchema):
+    """The deployment's agent limit for this organization, and whether it is reached.
+
+    Read by a console to say a create would be refused before it is attempted.
+    The count is every agent in the organization that is not archived - the
+    same count a create is refused on - so it includes agents the caller may
+    not see. It is therefore given only to a caller whose `agents:view` reaches
+    every agent in the organization; anyone else gets `at_limit` alone, which
+    is no more than a refused create would tell them.
+    """
+
+    limit: int | None = Field(
+        description="Agents the deployment allows per organization. Null is no limit"
+    )
+    held: int | None = Field(
+        description=(
+            "Agents this organization holds, archived ones excluded. Null when there "
+            "is no limit, or the caller cannot see every agent in the organization"
+        )
+    )
+    at_limit: bool = Field(description="Whether a new agent would be refused for the limit")
 
 
 class AgentList(BaseSchema):
@@ -255,6 +313,15 @@ class AgentCreate(AudienceChoice):
     """Create an agent from a spec. The handle is derived from the name."""
 
     spec: AgentSpec
+    from_starter: bool = Field(
+        default=False,
+        description=(
+            "Start as the AgenticOS agent does: whatever of its instructions, "
+            "capabilities, skills, platform tools, first messages and budget the spec "
+            "leaves empty is filled from it - what the console's New agent sends. "
+            "Without it, a spec with no instructions gets only the starter's instructions"
+        ),
+    )
     # Discovery labels, folded the same way `AgentMetadataRequest` folds them.
     # They are not spec, and they are offered here because the catalog a new
     # agent joins is the moment somebody knows what to call it - the detail page
@@ -303,6 +370,24 @@ class AgentMetadataRequest(BaseSchema):
     @classmethod
     def _normalize(cls, v: list[str]) -> list[str]:
         return normalize_labels_strict(v)
+
+
+class CapabilityEnabled(BaseSchema):
+    """What switching a capability on from an agent's card did (#2301)."""
+
+    published: bool = Field(
+        description=(
+            "Whether the agent answers with it now. False when the draft held other "
+            "unpublished changes, or the caller may edit but not publish: the "
+            "capability is in the draft, for the Builder's Publish"
+        )
+    )
+
+
+class CapabilityRequest(BaseSchema):
+    """Asking an agent's owner to switch a capability on (#2301)."""
+
+    reason: str = Field(min_length=1, max_length=300, description="What it was needed for")
 
 
 class AgentPublish(BaseSchema):
@@ -543,7 +628,7 @@ class CapabilityCatalogEntry(BaseSchema):
     recommended: CapabilityBindingSpec | None = Field(
         default=None,
         description=(
-            "How the starter agent (the Claude Code like template) binds this "
+            "How the starter agent (the AgenticOS template) binds this "
             "capability, or null where it does not. The console marks these "
             "Recommended and switches them on for a new agent."
         ),
@@ -573,7 +658,7 @@ class McpCatalogCheck(BaseSchema):
 
 
 class McpCatalogEntry(BaseSchema):
-    """One connectable MCP server in the curated catalog."""
+    """One connectable MCP server, curated, mirrored or custom."""
 
     key: str
     name: str
@@ -610,6 +695,16 @@ class McpCatalogEntry(BaseSchema):
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
     )
+    custom: bool = Field(
+        default=False, description="A saved server with no catalog or registry entry"
+    )
+    connection_ids: list[UUID] | None = Field(
+        default=None,
+        description=(
+            "Accessible saved accounts grouped on this server in a paged listing. "
+            "Null on catalog metadata; an empty list means no accessible account."
+        ),
+    )
 
 
 class McpCatalog(BaseSchema):
@@ -630,6 +725,20 @@ class PlatformMcpTool(BaseSchema):
     description: str = Field(description="The first line of what the model reads")
     writes: bool = Field(
         description="Whether it changes something - held for approval under `approval: writes`"
+    )
+    ungated: bool = Field(
+        default=False,
+        description=(
+            "Whether it runs without approval under every policy - a write that changes "
+            "only the caller's own preference, such as the console's language"
+        ),
+    )
+    held: bool = Field(
+        default=False,
+        description=(
+            "A read held for approval under `approval: writes` all the same - reading a "
+            "whole past conversation, which an injected instruction could carry off"
+        ),
     )
 
 
@@ -684,6 +793,15 @@ class AgentRunRequest(BaseSchema):
             "caller's own uploads"
         ),
     )
+    draft: bool = Field(
+        default=False,
+        description=(
+            "Run the unpublished draft instead of a version, as the Builder's test "
+            "panel does: a test run, budgeted and recorded. Needs `agents:edit` on the "
+            "agent, and the draft must pass the checks a publish makes. Not with "
+            "`environment_id`, nor with `Prefer: respond-async`"
+        ),
+    )
 
 
 class ParkedCall(BaseSchema):
@@ -699,6 +817,14 @@ class ParkedCall(BaseSchema):
     )
     tool_name: str
     tool_args: dict[str, Any] = Field(default_factory=dict)
+    capability_tool_id: str | None = Field(
+        default=None,
+        description="The tool's stable id, as `ApprovalRead.capability_tool_id` carries it.",
+    )
+    context: dict[str, str] | None = Field(
+        default=None,
+        description="The arguments' ids as names, as `ApprovalRead.context` carries them.",
+    )
     account: str | None = Field(
         default=None,
         description="Which account of an MCP service the call acts as, where that is a question.",
@@ -767,6 +893,14 @@ class AgentRunResult(BaseSchema):
         ),
     )
     output: str
+    structured: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "The answer as an object, for an agent with an `output_schema`: it fits "
+            "that schema, and `output` shows the same object as a JSON block. Null "
+            "for a free-text answer, and for a run that parked or stopped"
+        ),
+    )
     status: str
     cost_usd: Decimal
     cost_is_partial: bool = Field(
@@ -822,6 +956,13 @@ class AgentRunResult(BaseSchema):
         description=(
             "The questions the run is now waiting on its person to answer, which is "
             "empty unless it stopped on one again - the same reason `parked` exists."
+        ),
+    )
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Only a continuation of a parked chat run sets it: its answer is also "
+            "posted to that chat. Always false for a run started here"
         ),
     )
 
@@ -882,11 +1023,12 @@ class TemplateInstallRequest(BaseSchema):
 class TemplateInstallResult(BaseSchema):
     """What was created, and what the person still has to do.
 
-    An installed template is a **draft**: it names no model, because this
-    platform has no organization-wide default on purpose, and it may name no
-    collection. Both are decisions the spec refuses to make on somebody's
-    behalf, so the result carries them back rather than publishing something
-    that would answer its first question from nowhere.
+    An installed template is a **draft**. It names no model, because this
+    platform has no organization-wide default on purpose, unless the
+    organization has exactly one model an agent can run on and the draft starts
+    on that (#2483). It may name no collection, which is never chosen for
+    anybody. So the result carries back what is still to attach rather than
+    publishing something that would answer its first question from nowhere.
     """
 
     agent_id: UUID

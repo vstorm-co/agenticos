@@ -88,8 +88,13 @@ headers, defined in `frontend/src/lib/csp.ts` and
 `frontend/src/lib/security-headers.ts`, both asserted by tests. The policy is
 `default-src 'self'` with a `connect-src` naming exactly this origin,
 `PUBLIC_API_URL` and `PUBLIC_WS_URL`, `img-src` allowing `data:` for the brand
-glyphs and avatars, `frame-src 'self' blob:` for document previews, `object-src
-'none'`, `base-uri 'self'` and `frame-ancestors 'none'`.
+glyphs and avatars, `frame-src` allowing `'self'` and `blob:` for document
+previews plus the artifact content route
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`), `object-src
+'none'`, `base-uri 'self'` and `frame-ancestors 'none'`. The content route is
+named by its path, not its origin, so a frame can load a published page and
+nothing else the API serves; see
+[How the page is isolated](artifacts.md#how-the-page-is-isolated).
 
 `script-src` carries no `'unsafe-inline'`. The middleware mints a per-request
 nonce, writes `'nonce-…' 'strict-dynamic'` into the directive, and Next stamps
@@ -159,11 +164,11 @@ to `invite_only` and invites them.
 
 Three more things about this that are easy to get wrong, and were:
 
-**The first user is always admitted.** A fresh installation has no accounts, so
-its administrator does not exist yet; a closed deployment that also refuses the
-person who would open it is one nobody can enter, with no console to fix it from.
-`register` already promotes that first account to `is_app_admin`, and the policy
-defers to the same fact.
+**The first user is always admitted.** A fresh installation has no accounts.
+The first committed account becomes the deployment administrator (`is_app_admin`),
+whether created with a password or OAuth. A transaction lock gives this exception
+to only one concurrent signup. A later signup must satisfy the configured policy;
+if the first signup rolls back, another can claim bootstrap authority.
 
 **`invite_only` exists because closing registration would otherwise break
 invitations.** `InvitationService.accept` requires an existing signed-in user, so
@@ -510,6 +515,23 @@ The refusal names the ceiling and the count it was measured against
 rather than by an administrator's memory. It is raised in the service that
 creates the thing, not at the route, because the route is not the only way in.
 
+The console does not wait for that refusal. `GET /agents/ceiling`, open to a
+caller with `agents:edit`, answers with the limit (`limit`, null where none is
+set) and whether a create would hit it (`at_limit`), and at the limit the Agents
+page disables **New agent** and template installs and says why, before anybody
+fills in a form.
+
+If another create fills the limit during a guided agent creation, the walk ends
+instead of freezing the page around a disabled button. A successful creation
+from that walk is recorded before the ceiling refresh, so taking the last slot
+does not interrupt its remaining Builder steps.
+
+The count itself (`held`) goes only to a caller whose
+`agents:view` reaches every agent in the organization: it includes agents a
+Member cannot see, and set against their own listing it would say how many are
+hidden from them. **Duplicate** and **Restore** are still refused only when tried.
+The refusal stays the guarantee: the count is a forecast, read without the lock.
+
 Zero is refused by the schema: an account that may own no organizations is an
 account that cannot be created, since sign-up gives every one of them a personal
 organization.
@@ -604,7 +626,9 @@ the same day as a card.
 
 Three actions, each audited with who took it:
 
-- **Retry** gives a dead job a fresh set of attempts.
+- **Retry** gives a dead job a fresh set of attempts. A dead document ingest
+  is refused: its parse copy went with it, so retry the document from its
+  knowledge base, which parses the stored file again.
 - **Cancel** withdraws a job nobody has started.
 - **Resume** lets workers claim a paused kind again.
 
@@ -614,7 +638,7 @@ out of memory. Every owner is told in the app and by email, and the
 notification cannot be switched off - work of that kind piles up until one of
 them resumes it. A pause names the organization whose jobs caused it, and the
 kind keeps running for every other. Retry the dead jobs only once the cause is fixed, or they die
-the same way. The settings are in
+the same way - a dead document ingest from its knowledge base instead. The settings are in
 [Configuration](configuration.md#background-work).
 
 ## Recap

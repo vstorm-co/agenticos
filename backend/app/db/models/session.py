@@ -3,9 +3,10 @@
 import uuid
 from datetime import UTC, datetime
 
+from pydantic import JsonValue
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy import text as sa_text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -97,10 +98,22 @@ class Session(Base):
     a second tab that raced the first, presents it seconds after the rotation, a
     replay minutes or days later. Null wherever `previous_refresh_token_hash` is.
     """
+    push_preferences: Mapped[dict[str, JsonValue] | None] = mapped_column(JSONB, nullable=True)
+    """This sign-in's push privacy, muted conversations and expiring focus lease."""
+
     device_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     device_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    app_platform: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """The AgenticOS app this session is signed in through - `macos`, `windows`,
+    `linux`, `ios`, `android` - or null for a browser.
+
+    Reported by the console page the app loads (`PUT /sessions/current/app`),
+    because the app's requests carry its webview's User-Agent, which names the
+    browser engine and not the app (#2305, #2097).
+    """
+    app_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False

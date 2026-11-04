@@ -1,22 +1,27 @@
 "use client";
 
+import { Fragment, useState } from "react";
 import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
+import { BROWSER_TOOLS, DESKTOP_TOOLS } from "@/lib/browse";
 import { toolEntry } from "@/lib/tool-catalog";
+import { drawnUnderTheAnswer } from "@/lib/turn-extras";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, ToolCall } from "@/types";
+import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
@@ -49,7 +54,7 @@ export function TurnParts({
   mcpServers,
   agents = [],
   openLastStep = false,
-  conversationId,
+  fileSource,
   onCiteClick,
   startedAt,
   durationMs,
@@ -63,7 +68,7 @@ export function TurnParts({
   /** The agents the reader can see, for naming a delegate; empty on a public page. */
   agents?: readonly DelegateRef[];
   openLastStep?: boolean;
-  conversationId?: string;
+  fileSource?: TurnFileSource;
   onCiteClick?: (index: number) => void;
   /** When the turn began, which a live turn counts its working time from. */
   startedAt?: Date;
@@ -72,11 +77,12 @@ export function TurnParts({
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
 }) {
+  const [mobileWorkOpen, setMobileWorkOpen] = useState(false);
   const runs = runsOf(parts);
   const elapsed = useTurnElapsed(startedAt, isStreaming);
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
-  const render = (run: PartRun, browses = true, afterWork = false) =>
+  const render = (run: PartRun, visuals = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
         {/* The rail folds its own earlier steps away, but it cannot see what is
@@ -90,7 +96,7 @@ export function TurnParts({
             <ToolCallCard
               key={part.id}
               toolCall={part.toolCall!}
-              conversationId={conversationId}
+              fileSource={fileSource}
               mcpServers={mcpServers}
               agents={agents}
               // The last call of that turn, which is the one whose result the
@@ -99,8 +105,7 @@ export function TurnParts({
             />
           ))}
         </AgentSteps>
-        {browses && <TurnBrowses calls={browseCalls([run])} />}
-        {browses && <TurnVisuals calls={visualCalls([run])} />}
+        {visuals && <TurnVisuals calls={visualCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
@@ -114,6 +119,8 @@ export function TurnParts({
       />
     ) : run.part.type === "steer" ? (
       <SteerBlock key={run.part.id} text={run.content} />
+    ) : run.part.type === "workflow_run" && run.part.workflowRun ? (
+      <WorkflowRunCard key={run.part.id} run={run.part.workflowRun} />
     ) : run.part.type === "ask_user" ? (
       <AskUserBlock
         key={run.part.id}
@@ -135,15 +142,46 @@ export function TurnParts({
   if (isStreaming) {
     return (
       <>
-        {runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
-        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
+        {runs.some(isWork) && (
+          <>
+            <div className="hidden md:block">
+              <WorkingLine elapsedMs={elapsed} />
+            </div>
+            <div className="md:hidden">
+              <WorkingLine
+                elapsedMs={elapsed}
+                expanded={mobileWorkOpen}
+                onToggle={() => setMobileWorkOpen((open) => !open)}
+              />
+            </div>
+          </>
+        )}
+        <TurnBrowses calls={browseCalls(runs)} />
+        {runs.map((run, index) => {
+          // Questions, approvals, failures and tool payloads stay reachable while
+          // routine progress folds on small screens. Text keeps its turn order.
+          const foldable = isWork(run) && (run.kind !== "tools" || !mustShowEveryStep(run.parts));
+          return foldable ? (
+            <Fragment key={run.kind === "tools" ? run.parts[0].id : run.part.id}>
+              <div className={cn(!mobileWorkOpen && "hidden md:block")} data-work-detail>
+                {render(run, false)}
+              </div>
+              <TurnVisuals calls={visualCalls([run])} />
+            </Fragment>
+          ) : (
+            render(run, true, index > 0 && isWork(runs[index - 1]!))
+          );
+        })}
       </>
     );
   }
   const split = foldWork(runs, stopped);
   if (split === null) {
     return (
-      <>{runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}</>
+      <>
+        <TurnBrowses calls={browseCalls(runs)} />
+        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
+      </>
     );
   }
   return (
@@ -151,7 +189,7 @@ export function TurnParts({
       <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
         {split.folded.map((run) => render(run, false))}
       </WorkFold>
-      <TurnBrowses calls={browseCalls(split.folded)} />
+      <TurnBrowses calls={browseCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
       {split.shown.map((run, index) =>
         // The first thing after the fold opens the answer, as anything after a step does.
@@ -387,12 +425,14 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
   const runs: PartRun[] = [];
   for (const part of parts) {
     if (part.type === "tool" && part.toolCall) {
+      // Drawn under the answer instead - buttons, a card - by `TurnExtras`.
+      if (drawnUnderTheAnswer(part.toolCall.name)) continue;
       const open = runs.at(-1);
       if (open?.kind === "tools") open.parts.push(part);
       else runs.push({ kind: "tools", parts: [part], isLast: false });
       continue;
     }
-    if (part.type === "ask_user") {
+    if (part.type === "ask_user" || part.type === "workflow_run") {
       runs.push({ kind: "other", part, content: "", isLast: false });
       continue;
     }
@@ -427,24 +467,16 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * the same row the card reads to decide whether to open itself - so a tool is
  * described in one place and the rail and the card cannot disagree about it.
  */
-/**
- * The calls that open a browser window in these runs, in the order they were made:
- * every `browse_web`, and the first `browser_open` - the one that starts the agent
- * driving the tab itself. A later `browser_open` in the same turn navigates that
- * same tab, as its clicks do, so it is drawn in the window already there rather
- * than as a second one beside it.
- */
+/** All browser operations in turn order, so the card tracks each tab's latest page. */
 export function browseCalls(runs: PartRun[]): ToolCall[] {
-  let driving = false;
   return runs.flatMap((run) =>
     run.kind === "tools"
-      ? run.parts.flatMap((part) => {
-          const call = part.toolCall;
-          if (call?.name === "browse_web") return [call];
-          if (call?.name !== "browser_open" || driving) return [];
-          driving = true;
-          return [call];
-        })
+      ? run.parts.flatMap((part) =>
+          part.toolCall &&
+          (BROWSER_TOOLS.has(part.toolCall.name) || DESKTOP_TOOLS.has(part.toolCall.name))
+            ? [part.toolCall]
+            : [],
+        )
       : [],
   );
 }

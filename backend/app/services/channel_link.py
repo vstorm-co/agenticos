@@ -35,10 +35,14 @@ from app.repositories import (
     channel_link_request_repo,
     channel_session_repo,
     member_repo,
+    message_rating_repo,
+    user_repo,
 )
 from app.schemas.channel_bot import LinkedAgent, LinkedPlace
 from app.services.access import AGENT, resolve_access
 from app.services.channels.base import IncomingMessage
+from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
+from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.impersonation import refuse_binding_while_impersonating
 
 REQUEST_TTL = timedelta(minutes=15)
@@ -174,11 +178,40 @@ class ChannelLinkService:
             user_id=user_id,
         )
         if identity.user_id != user_id:
+            previous = identity.user_id
             await channel_identity_repo.update(
                 self.db, db_identity=identity, update_data={"user_id": user_id}
             )
+            if identity.platform == DISCORD_PLATFORM and previous is not None:
+                # Re-linked to somebody else: the account no longer says who
+                # the previous person is, so its roles stop placing them.
+                await DiscordRoleSync(self.db).release(previous)
 
+        await message_rating_repo.adopt_channel_ratings(
+            self.db, identity_id=identity.id, user_id=user_id
+        )
         return request
+
+    async def link_vouched(self, identity: ChannelIdentity, email: str) -> bool:
+        """Link a chat account to the member its platform's directory names, if one signed in so.
+
+        Only to an account that signs in through this deployment's own identity
+        provider - the directory that vouched for the address is then the one
+        that admitted that account. A password account with the same address
+        proves nothing about who holds the chat account, and is left to the link
+        flow (#1985). Whether the member may then use the bot is the router's
+        membership check, as for any link.
+        """
+        user = await user_repo.get_by_email(self.db, email)
+        if user is None or not user.is_active or user.oauth_provider != "oidc":
+            return False
+        await channel_identity_repo.update(
+            self.db, db_identity=identity, update_data={"user_id": user.id}
+        )
+        await message_rating_repo.adopt_channel_ratings(
+            self.db, identity_id=identity.id, user_id=user.id
+        )
+        return True
 
     async def linked(self, user_id: UUID) -> list[ChannelIdentity]:
         """The chat accounts this person has connected."""
@@ -281,5 +314,9 @@ class ChannelLinkService:
                 await channel_identity_repo.update(
                     self.db, db_identity=identity, update_data={"user_id": None}
                 )
+                if identity.platform == DISCORD_PLATFORM:
+                    # The account no longer says who this is, so a role it holds
+                    # no longer places them anywhere (#2569).
+                    await DiscordRoleSync(self.db).release(user_id)
                 return True
         return False

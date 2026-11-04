@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { EmbeddingProviderFields, useEmbeddingProviders } from "@/components/kb/embedding-picker";
+import {
+  EmbeddingProviderFields,
+  useEmbeddingProviders,
+  useEndpointEmbeddingModels,
+} from "@/components/kb/embedding-picker";
 import {
   Button,
   Dialog,
@@ -52,6 +56,7 @@ export function EmbeddingDialog({
   const { models, unreadable } = useEmbeddingProviders();
   const [provider, setProvider] = useState(kb.embedding_provider);
   const [secretId, setSecretId] = useState<string | null>(kb.embedding_secret_id);
+  const [baseUrl, setBaseUrl] = useState(kb.embedding_base_url ?? "");
   const [endpointId, setEndpointId] = useState<string | null>(kb.embedding_endpoint_id);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -65,6 +70,7 @@ export function EmbeddingDialog({
     setProvider(kb.embedding_provider);
     setSecretId(kb.embedding_secret_id);
     setEndpointId(kb.embedding_endpoint_id);
+    setBaseUrl(kb.embedding_base_url ?? "");
     setErrors({});
   }
 
@@ -76,16 +82,25 @@ export function EmbeddingDialog({
       (model) => model.model === kb.embedding_model && model.dim === kb.embedding_dim,
     ),
   );
+  // The model cannot follow a move, so an endpoint that lists its models and
+  // leaves this one out is refused on save - said here, before it is.
+  const { served, checking } = useEndpointEmbeddingModels(provider, baseUrl);
+  const endpointLacksModel =
+    served?.source === "live" && !served.models.some((entry) => entry.model === kb.embedding_model);
   const moved =
     provider !== kb.embedding_provider ||
     secretId !== kb.embedding_secret_id ||
-    endpointId !== kb.embedding_endpoint_id;
+    endpointId !== kb.embedding_endpoint_id ||
+    baseUrl.trim() !== (kb.embedding_base_url ?? "");
 
   const save = async () => {
     setIsSaving(true);
     try {
       await onSave({
         embedding_provider: provider,
+        ...(baseUrl.trim() !== (kb.embedding_base_url ?? "")
+          ? { embedding_base_url: provider === "openrouter" ? baseUrl.trim() || null : null }
+          : {}),
         // Null means "leave the key alone" on a partial update. There is no
         // deployment-wide key to go back to, so a key is only ever replaced,
         // never cleared - and the same for the server a keyless provider is
@@ -97,7 +112,14 @@ export function EmbeddingDialog({
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["embedding_provider", "embedding_secret_id", "embedding_endpoint_id"] },
+        {
+          fields: [
+            "embedding_provider",
+            "embedding_secret_id",
+            "embedding_endpoint_id",
+            "embedding_base_url",
+          ],
+        },
         tErrors,
       );
       setErrors(failure.fields);
@@ -135,18 +157,27 @@ export function EmbeddingDialog({
                 provider={provider}
                 secretId={secretId}
                 endpointId={endpointId}
+                baseUrl={baseUrl}
+                onBaseUrl={setBaseUrl}
                 onProvider={setProvider}
                 onSecretId={setSecretId}
                 onEndpointId={setEndpointId}
                 idPrefix="kb-embedding"
               />
+              {endpointLacksModel && (
+                <p className="text-destructive text-xs">
+                  {t("endpointLacksCollectionModel", { model: kb.embedding_model })}
+                </p>
+              )}
               {(errors.embedding_provider ??
                 errors.embedding_secret_id ??
-                errors.embedding_endpoint_id) !== undefined && (
+                errors.embedding_endpoint_id ??
+                errors.embedding_base_url) !== undefined && (
                 <p className="text-destructive text-xs">
                   {errors.embedding_provider ??
                     errors.embedding_secret_id ??
-                    errors.embedding_endpoint_id}
+                    errors.embedding_endpoint_id ??
+                    errors.embedding_base_url}
                 </p>
               )}
             </>
@@ -156,7 +187,11 @@ export function EmbeddingDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button type="button" onClick={save} disabled={!moved || isSaving}>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={!moved || isSaving || checking || endpointLacksModel}
+          >
             {isSaving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>

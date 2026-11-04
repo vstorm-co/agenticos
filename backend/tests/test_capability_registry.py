@@ -53,6 +53,7 @@ from app.agents.subagent_runtime import (
 )
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
+from app.services.agent_registry import DEFAULT_GRANTED_SCOPES
 from app.services.capability_contracts import probe_context, real_tool_definition
 
 
@@ -114,6 +115,18 @@ class TestSelfLoading:
         load_builtins()
 
         assert get("clock").id == "clock"
+
+
+def test_every_builtin_is_granted_the_scopes_it_declares():
+    """A builtin needing a scope this deployment does not grant is refused at
+    every publish - listed in the Builder, documented, and unusable."""
+    ungranted = {
+        definition.id: sorted(definition.scopes - DEFAULT_GRANTED_SCOPES)
+        for definition in all_capabilities()
+        if definition.scopes - DEFAULT_GRANTED_SCOPES
+    }
+
+    assert ungranted == {}
 
 
 class TestToolDeclarations:
@@ -178,6 +191,7 @@ class TestToolDeclarations:
         # for the same reason the delegate below is at its widest.
         "context_files": [
             SimpleNamespace(
+                id=uuid4(),
                 name="glossary",
                 description="What the words mean.",
                 content="SLA: service level agreement.",
@@ -222,6 +236,8 @@ class TestToolDeclarations:
 
     DECLARED_AND_NOT_OFFERED: dict[str, frozenset[str]] = {
         "subagents": frozenset({"answer_subagent"}),
+        # Stored synthetic calls retain their identity; no main model offers them.
+        "follow_ups": frozenset({"suggest_next_steps"}),
         # Pydantic AI contributes `load_capability` to any run carrying a
         # deferred capability, and every skill is one. `skills` declares it
         # because it is the call that opens a skill and therefore the only place
@@ -237,6 +253,9 @@ class TestToolDeclarations:
     declares `answer_subagent` for exactly that reason -
     `app.agents.capabilities.subagents._capability.UNREACHABLE_TOOLS` has the whole
     of it, including why agenticos#184 would not empty this table on its own.
+
+    Follow-ups also retains the recorded identity of synthetic next-step calls,
+    while no main model is allowed to offer the tool.
 
     Spelt out here rather than imported from the capability, and subtracted rather
     than skipped. An imported set would make the check below a tautology, and
@@ -277,6 +296,20 @@ class TestToolDeclarations:
         # without setting a reminder attaches nothing. One reminder on is what
         # makes it build here; it offers no tools either way.
         "system_reminders": {"goal_reanchor": {}},
+        # Builds `None` with no table granted and creation off, and offers
+        # `create_table` only with `allow_create`: the widest shape grants a table
+        # every operation and turns creation on.
+        "virtual_tables": {
+            "tables": [
+                {
+                    "table_id": "00000000-0000-0000-0000-000000000001",
+                    "operations": ["read", "create", "update", "delete"],
+                }
+            ],
+            "allow_create": True,
+        },
+        # Builds `None` naming no workflow: one named is what makes it offer its tools.
+        "workflows": {"workflow_ids": ["00000000-0000-0000-0000-000000000002"]},
     }
     """Configurations a capability needs before it offers anything.
 
@@ -1018,12 +1051,16 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
         "hand_off": {
             "sandbox",
             "browser_use",
+            "mirage",
+            "computer_use",
             "subagents",
             "background_tools",
+            "background_tasks",
             "coding_agent",
-            "mirage",
+            "video_generation",
+            "monitor",
         },
-        "never": {"channel_tools"},
+        "never": {"channel_tools", "follow_ups"},
     }
 
 

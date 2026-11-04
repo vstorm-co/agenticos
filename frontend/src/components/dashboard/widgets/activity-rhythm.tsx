@@ -42,7 +42,7 @@ export function ActivityRhythmWidget({
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : byHour.length === 0 ? (

@@ -26,6 +26,22 @@ def browser(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(visual_render.settings, "BROWSER_CDP_ALLOWED_HOSTS", ["Browser"])
 
 
+class TestRenderRequestBudget:
+    def test_total_requests_are_bounded_even_when_they_finish_quickly(self) -> None:
+        budget = visual_render.RenderRequestBudget()
+        assert all(budget.admit(0) for _ in range(visual_render.MAX_REQUESTS))
+        assert budget.admit(0) is False
+        assert budget.exceeded is True
+        assert budget.admit(0) is False
+
+    def test_pending_requests_are_bounded_before_another_task_is_created(self) -> None:
+        budget = visual_render.RenderRequestBudget()
+        assert budget.admit(visual_render.MAX_PENDING_REQUESTS - 1) is True
+        assert budget.admit(visual_render.MAX_PENDING_REQUESTS) is False
+        assert budget.admitted == 1
+        assert budget.exceeded is True
+
+
 class TestWhichBrowser:
     def test_none_is_configured_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(visual_render.settings, "VISUAL_RENDER_CDP_URL", "")
@@ -73,6 +89,20 @@ class TestWhatTheBrowserIsGiven:
         assert reply.content_type == "image/png"
         fetched.assert_awaited_once_with(3, 4, 5)
 
+    async def test_a_renderer_tile_over_the_shared_limit_never_reaches_the_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        fetched = AsyncMock()
+        allowance = AsyncMock(return_value=visual_render.rate_limit.Decision(False, 60))
+        monkeypatch.setattr(visual_render.tile_proxy, "tile", fetched)
+        monkeypatch.setattr(visual_render.rate_limit, "consume", allowance)
+        reply = await visual_render.answer(f"{visual_render.artifacts.tile_source()}3/4/5", b"")
+        assert reply.body is None
+        fetched.assert_not_awaited()
+        assert allowance.await_args.kwargs["limit"].attempts == (
+            visual_render.settings.RATE_LIMIT_MAP_TILES_PER_MINUTE
+        )
+
     async def test_a_tile_that_cannot_be_had_is_refused(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -111,7 +141,12 @@ class TestWhatTheBrowserIsGiven:
             png = await visual_render.render_png("svg", SVG, title="T", width=640, aspect=0.5)
         assert png == b"png"
         assert photograph.await_args.args[0] == "http://browser:9222"
-        assert photograph.await_args.kwargs == {"width": 640, "aspect": 0.5}
+        assert photograph.await_args.kwargs == {
+            "width": 640,
+            "aspect": 0.5,
+            "pixel_ratio": 1,
+            "alternate_document": None,
+        }
 
 
 class TestTheTurnsPicture:
@@ -224,3 +259,25 @@ class TestTheTurnsPicture:
                 )
                 is None
             )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("flowchart LR\n A --> B", "flowchart TD\n A --> B"),
+        ("%% A comment\n graph RL\n A --> B", "%% A comment\n graph TD\n A --> B"),
+        ("flowchart TD\n A --> B", None),
+        ("sequenceDiagram\n A->>B: flowchart LR", None),
+    ],
+)
+def test_only_horizontal_flowchart_directions_have_a_compact_alternative(source, expected):
+    assert visual_render.compact_flowchart(source) == expected
+
+
+async def test_channel_pictures_are_high_resolution_with_a_compact_option(browser):
+    with patch(
+        "app.services.visual_render._photograph", new=AsyncMock(return_value=b"png")
+    ) as photograph:
+        await visual_render.render_png("mermaid", "flowchart LR\n A --> B", title="T", channel=True)
+    assert photograph.await_args.kwargs["pixel_ratio"] == 2
+    assert b"flowchart TD" in photograph.await_args.kwargs["alternate_document"]

@@ -8,11 +8,12 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 export async function POST(request: NextRequest) {
   // The change is authenticated, so the access-token cookie is forwarded as a
   // bearer; with none, the backend refuses it as any signed-in route does.
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   const authHeaders: Record<string, string> = accessToken
     ? { Authorization: `Bearer ${accessToken}` }
     : {};
@@ -30,14 +31,14 @@ export async function POST(request: NextRequest) {
     // returns a fresh pair at the new credential version; the cookies are swapped
     // to it, or the next refresh - now on the old version - would 401 (#1517).
     const response = bffJson({ access_token: data.access_token });
-    response.cookies.set("access_token", data.access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 15,
       path: "/",
     });
-    response.cookies.set("refresh_token", data.refresh_token, {
+    response.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

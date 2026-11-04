@@ -43,7 +43,7 @@ export function IngestionPanel({ kb, onEdit, onEditEmbeddings }: IngestionPanelP
     // page - and so a spec can ask this panel what it says.
     <section
       aria-labelledby="kb-ingestion-heading"
-      className="border-border bg-card rounded-xl border"
+      className="border-border bg-card min-h-0 flex-1 rounded-xl border"
     >
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
         <h2 id="kb-ingestion-heading" className="text-foreground text-sm font-semibold">

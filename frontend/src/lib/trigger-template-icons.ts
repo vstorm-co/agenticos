@@ -48,6 +48,8 @@ const ICONS: Record<string, LucideIcon> = {
   github_triage_new_issue: ListChecks,
   email_draft_reply: FileText,
   email_action_items: ClipboardList,
+  outlook_draft_reply: FileText,
+  outlook_action_items: ClipboardList,
   webhook_act_on_delivery: Sparkles,
 };
 

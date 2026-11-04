@@ -96,22 +96,39 @@ esac
 # service refuses to start without, so a non-empty one in `backend/.env` is this
 # host saying it runs a sandbox.
 PROFILES=()
+VISUAL_RENDERER=false
+INTERACTIVE_BROWSER=false
 if [ -n "$(env_value SANDBOXD_TOKEN)" ]; then
   PROFILES=(--profile sandbox)
-  # The group that owns the Docker socket, which the sandbox needs as a
-  # supplementary group to reach it. `docker-compose-prod.yml` interpolates
-  # `${DOCKER_GID:-0}` and nothing anywhere set it, so the service came up in
-  # group 0 - root on this host, and not the socket's owner on any Linux
-  # distribution that ships a `docker` group. Read from the socket rather than
-  # configured, because the socket is the only thing that knows (#1506).
-  if [ -S /var/run/docker.sock ]; then
-    DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
-    export DOCKER_GID
-  else
+  if [ ! -S /var/run/docker.sock ]; then
     echo "no /var/run/docker.sock, but SANDBOXD_TOKEN is set - the sandbox cannot start" >&2
     exit 1
   fi
+  # Docker Desktop's mounted socket belongs to VM group 0, not the Mac's group.
+  if [ -z "${DOCKER_GID+x}" ]; then
+    if [ "$(uname -s)" = Linux ]; then
+      DOCKER_GID="$(stat -Lc '%g' /var/run/docker.sock)"
+    else
+      DOCKER_GID=0
+    fi
+  fi
+  export DOCKER_GID
 fi
+
+# Keep the isolated visual renderer running across deploys, like the sandbox.
+case "$(env_value VISUAL_RENDER_CDP_URL)" in
+  http://visual-render:9222|http://visual-render:9222/)
+    PROFILES+=(--profile visuals)
+    VISUAL_RENDERER=true
+    ;;
+esac
+
+case "$(env_value BROWSER_SIGN_IN_CDP_URL)" in
+  http://browser:9222|http://browser:9222/)
+    PROFILES+=(--profile browser)
+    INTERACTIVE_BROWSER=true
+    ;;
+esac
 
 say "Fetching $SHA"
 git fetch --prune --quiet origin
@@ -137,7 +154,11 @@ export AGENTICOS_VERSION
 # dispatched with the commit, which gives it its `sha-` tag and nothing that
 # moves.
 say "Waiting for the images tagged $AGENTICOS_VERSION"
-for image in agenticos-backend agenticos-frontend; do
+IMAGES=(agenticos-backend agenticos-frontend)
+if "$VISUAL_RENDERER" || "$INTERACTIVE_BROWSER"; then
+  IMAGES+=(agenticos-browser)
+fi
+for image in "${IMAGES[@]}"; do
   ref="ghcr.io/vstorm-co/$image:$AGENTICOS_VERSION"
   for attempt in $(seq 1 80); do
     if docker manifest inspect "$ref" >/dev/null 2>&1; then
@@ -296,6 +317,14 @@ wait_healthy() {
 say "Waiting for health"
 wait_healthy app "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 wait_healthy frontend "${FRONTEND[@]}"
+if "$VISUAL_RENDERER"; then
+  wait_healthy visual-render "${BACKEND[@]}" "${PROFILES[@]}"
+fi
+
+if "$INTERACTIVE_BROWSER"; then
+  wait_healthy browser-egress "${BACKEND[@]}" "${PROFILES[@]}"
+  wait_healthy browser "${BACKEND[@]}" "${PROFILES[@]}"
+fi
 
 # The previous release's images, which nothing references once the containers
 # have been recreated. Not `-a`: that would take the sandbox runtime images too,

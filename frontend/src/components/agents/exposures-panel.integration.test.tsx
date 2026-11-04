@@ -169,7 +169,8 @@ describe("ExposuresPanel", () => {
     await mount();
 
     expect(await screen.findByRole("button", { name: "Connect a Slack bot" })).toBeDisabled();
-    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(3);
+    // One per platform with no bot: Slack, Teams, Telegram, Mattermost and Discord.
+    expect(screen.getAllByText("No bot yet - an admin adds one")).toHaveLength(5);
   });
 
   it("does not offer a bot the agent already answers on", async () => {
@@ -390,7 +391,7 @@ describe("ExposuresPanel", () => {
     );
     await mount();
 
-    expect(await screen.findByText("What this agent may look up on Slack")).toBeInTheDocument();
+    expect(await screen.findByText("What this agent may do on Slack")).toBeInTheDocument();
     expect(screen.getByLabelText("Describe it.")).toBeChecked();
     expect(screen.getByLabelText("Read it.")).not.toBeChecked();
   });

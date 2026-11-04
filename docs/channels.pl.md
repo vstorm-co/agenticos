@@ -1,5 +1,5 @@
 ---
-source_sha: "192f01a91cab"
+source_sha: "59cdf11dca18"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -378,19 +378,21 @@ tych różnic były decyzjami.
 Teraz mówi. Każde „nie” poniżej ma powód, a powód to albo „tutaj byłoby to złe”,
 albo „to jeszcze nie jest zbudowane” — nigdy milczenie.
 
-| | `/chat` (dashboard) | Surowy WebSocket | Publiczne API |
-|---|---|---|---|
-| Streaming | tak | tak, filtrowany tym, co pokazuje operator | **nie** — POST jest ścieżką bez streamingu; wariant SSE to osobne pytanie |
-| Załączniki | tak | tak (`file_ids`) **na hostowanej stronie** — endpoint wgrywania rozwiązuje klucz przez `find_page`, więc widżet ani surowy socket nie mają ścieżki, która wytworzyłaby id | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej |
-| Ciągłość rozmowy | tak | tak (`continuity_key`), na hostowanej stronie z anonimowym odwiedzającym | tak (`conversation_id`) |
-| `environment_id` | tak | **nie, celowo** — patrz niżej | tak |
-| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: żądanie nie niesie `model_profile_id`. Która wersja się uruchomi, wciąż zależy od wywołującego przez `environment_id`, a środowisko może przypiąć wersję, która nigdy nie była domyślna |
-| `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP |
-| Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć |
-| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy |
-| Zatwierdzenia: parkują uruchomienie | tak | tak | tak |
-| Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję |
-| Wzmianki `@` | tak (`mentions`) | **nie, jeszcze nie**: widget nie ma menu do wyboru, a wzmianka gościa wymagałaby tej samej kontroli w jego imieniu | **nie, jeszcze nie**: skrypt nazywa, czego użyć, w samej wiadomości |
+Ostatnia kolumna to Teams (#1985), reprezentujący stojące obok platformy czatu.
+
+| | `/chat` (dashboard) | Surowy WebSocket | Publiczne API | Teams |
+|---|---|---|---|---|
+| Streaming | tak | tak, filtrowany tym, co pokazuje operator | **nie** — POST jest ścieżką bez streamingu; wariant SSE to osobne pytanie | wiadomość przepisywana w miarę, jak przychodzi odpowiedź |
+| Załączniki | tak | tak (`file_ids`) **na hostowanej stronie** — endpoint wgrywania rozwiązuje klucz przez `find_page`, więc widżet ani surowy socket nie mają ścieżki, która wytworzyłaby id | tak (`file_ids`), i trafiają tam, gdzie wszędzie indziej | tak, z czatu osobistego; plik wraca przez kartę zgody Teams |
+| Ciągłość rozmowy | tak | tak (`continuity_key`), na hostowanej stronie z anonimowym odwiedzającym | tak (`conversation_id`) | czat albo wątek na kanale |
+| `environment_id` | tak | **nie, celowo** — patrz niżej | tak | **nie** — decyduje powiązanie, jak na każdej platformie czatu |
+| Nadpisanie modelu | tak | **nie, celowo**: publiczna powierzchnia nie może pozwolić odwiedzającemu wybrać, co wydaje | **nie**: żądanie nie niesie `model_profile_id`. Która wersja się uruchomi, wciąż zależy od wywołującego przez `environment_id`, a środowisko może przypiąć wersję, która nigdy nie była domyślna | **nie**, jak na każdej platformie czatu |
+| `ask_user` | tak | **nie, jeszcze nie** — patrz niżej | **nie, słusznie**: nikt nie czeka na odpowiedź, trzymając otwarty request HTTP | tak, jako karta Adaptive Card |
+| Powiadomienie o kompakcji | tak | tak | nie dotyczy — nic nie streamuje, żeby powiedzieć | nie — odpowiedź przychodzi, gdy jest gotowa |
+| Ramki delegacji | tak | **nie, celowo**: podpięcie sinka każe bibliotece otworzyć *streamowany* request na dziecko, więc delegat, którego dostawca nie potrafi streamować, psuje się w momencie, w którym ktoś patrzy | nie dotyczy — nic nie streamuje, w czym by je rysować | **nie** — odpowiedź przychodzi, gdy jest gotowa, bez rysowania kroków |
+| Zatwierdzenia: parkują uruchomienie | tak | tak | tak | tak |
+| Zatwierdzenia: droga do decyzji | tak (`/runs`) | jedno zdanie, celowo: obcemu trzymającemu link nie pokazuje się URL-a do czyjejś konsoli | tak — wynik niesie `parked`, nazywając to, co czeka, i zatwierdzenie, do którego wysłać decyzję | tak — karta Adaptive Card, rozstrzygana jako członek, który ją nacisnął |
+| Wzmianki `@` | tak (`mentions`) | **nie, jeszcze nie**: widget nie ma menu do wyboru, a wzmianka gościa wymagałaby tej samej kontroli w jego imieniu | **nie, jeszcze nie**: skrypt nazywa, czego użyć, w samej wiadomości | **nie**, jak na każdej platformie czatu |
 
 ### `environment_id` na sockecie i dlaczego należy do publikującego { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -640,6 +642,26 @@ Jedna rzecz z konieczności czyta się inaczej: wywołanie, które przyszło z s
 MCP, nazywa się w dashboardzie *Linear · Create issue*, a tutaj nosi nazwę
 uczłowieczoną, bo mapowanie to lista połączeń organizacji, a jej odczytanie
 wymaga sesji.
+
+**Wygenerowany obraz, nagranie mowy lub wideo działa także na stronie** (#2309).
+Konsola czyta je przez `/api/v1/generated/{filename}`, co wymaga sesji, a
+odwiedzający jej nie ma. Dlatego socket, wysyłając wynik z wygenerowanym
+obrazem, mową lub wideo, który wskazuje plik zapisany przez narzędzia tego
+samego uruchomienia, dodaje do niego `token`, a strona czyta plik przez
+`/api/embed/<key>/generated/<file>?token=…`, który przesyła go strumieniowo i
+przepuszcza zakresy bajtów dla odtwarzacza.
+
+Token to HMAC, pod `SECRET_KEY` wdrożenia, klucza strony, tego jednego pliku i
+terminu ważności sześć godzin naprzód. Nie otwiera niczego innego: ani pliku z
+innej rozmowy, ani z innej organizacji, ani żadnej innej nazwy. Zły, wygasły lub
+brakujący token dostaje to samo 404 co brakujący plik. Jest dodawany, gdy ramka
+wychodzi, więc transkrypt go nie przechowuje, a karta jest wynikiem tego kroku —
+widać ją tylko tam, gdzie włączone jest *Co zwrócił każdy krok*. Integracja przez
+socket znajduje ten sam adres w polu `url` payloadu, jako ścieżkę API.
+
+Wynik wskazujący plik, którego to uruchomienie nie zapisało, nie dostaje tokena,
+niezależnie od nazwy narzędzia, które go zwróciło. Jeden link można pobrać 120 razy
+na minutę, co wystarcza na zakresy bajtów odtwarzacza; ponad to dostaje 429.
 
 **Widget i surowy socket nie niosą żadnych przełączników i dostają te domyślne
 wartości**, odczytywane z `PageConfig`, a nie powtarzane — druga kopia
@@ -1184,7 +1206,7 @@ w całości.
 
 ### Scope'y i eventy { #scopes-and-events }
 
-Trzynaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
+Czternaście scope'ów tokena bota, każdy zasłużony wywołaniem, które wykonuje
 adapter:
 
 | Scope | Co go potrzebuje |
@@ -1197,6 +1219,7 @@ adapter:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` i `.members` — odpytania o kanał, które agent może wywołać |
 | `im:read`, `mpim:read` | `conversations.members` na wiadomości bezpośredniej. Łatwo go pominąć i cicho, gdy się to zrobi: sprawdzenie członkostwa zawodzi domyślnie na „nie", więc rozmowa, w której nikogo nie dało się potwierdzić, **znika z listy rozmów**, zamiast dawać błąd |
 | `users:read` | `users.info`, które zamienia id członków w ludzi |
+| `users:read.email` | `users.lookupByEmail`, które znajduje nowego członka, żeby go [powitać](#a-welcome-for-a-new-member). Aplikacja Slacka zainstalowana przed jego dodaniem działa dalej bez niego i nikogo nie wita, dopóki nie zostanie zainstalowana ponownie z nowego manifestu |
 
 Pięć eventów bota: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1433,10 +1456,193 @@ Mattermost: *Integrations → Slash Commands → Add Slash Command*: słowo wyzw
 pokaże wtedy token; wklej go w pole **Slash command token** bota. Każde żądanie go
 niesie, a bot bez niego odrzuca wszystkie.
 
+## Microsoft Teams { #microsoft-teams }
+
+Bot Teams to zasób **Azure Bot**, utworzony jako **jednodzierżawowy** w twojej
+dzierżawie Entra — Microsoft przestał tworzyć wielodzierżawowe zasoby botów w lipcu
+2025 — i obsługiwany przez własny protokół Bot Connectora, a nie przez SDK (#1985).
+
+1. W portalu Azure utwórz **Azure Bot** typu *Single Tenant*. W *Configuration*
+   skopiuj **Microsoft App ID** i dzierżawę, a w *Certificates & secrets* rejestracji
+   aplikacji utwórz **sekret klienta**.
+2. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `teams`, z sekretem jako
+   tokenem oraz identyfikatorami aplikacji i dzierżawy obok.
+3. Wklej **punkt końcowy wiadomości** pokazany w ustawieniach bota do konfiguracji
+   Azure Bot i włącz w nim kanał **Microsoft Teams**.
+4. **Pobierz pakiet aplikacji** z ustawień bota — manifest i dwie ikony, zbudowane
+   dla tego bota — i prześlij go do katalogu aplikacji Teams w swojej dzierżawie.
+   Dodaj aplikację do czatu osobistego, czatu grupowego albo zespołu.
+
+**Każda aktywność jest weryfikowana, zanim zostanie odczytana.** Bot Connector
+podpisuje każdą tokenem JWT: podpis jest sprawdzany względem kluczy publikowanych
+przez wystawcę, wystawcą musi być Bot Framework albo twoja dzierżawa, odbiorcą musi
+być App ID tego bota, token nie może być przeterminowany, a usługa, którą wskazuje,
+musi być usługą tej aktywności. Żądanie, które nie przejdzie któregoś z tych
+sprawdzeń, kończy się 401. Bot jest jednodzierżawowy, więc aktywność z innej
+dzierżawy też jest odrzucana, a token bota trafia wyłącznie pod adres Bot Connectora.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Czat osobisty | Na każdą wiadomość. Czat to jedna rozmowa |
+| Czat grupowy | Gdy zostanie @wspomniany |
+| Kanał | Gdy zostanie @wspomniany, w wątku, w którym go zapytano — każdy wątek to osobna rozmowa |
+
+**Kto mówi**, to identyfikator obiektu Entra członka, taki sam w każdym czacie
+dzierżawy. Tam, gdzie to wdrożenie loguje ludzi przez Entra w tej samej dzierżawie,
+niepołączone konto Teams zostaje połączone z członkiem, który loguje się adresem
+podanym przez listę członków Teams, bez klikania w link; wszędzie indziej działa
+przepływ łączenia jak na każdej platformie, a `require_link` decyduje tak jak tam.
+
+**Zatwierdzenia i pytania to karty Adaptive Card.** Naciśnięcie jest rozstrzygane
+jako członek, który nacisnął, a karta zostaje zastąpiona tym, co wybrano. Plik
+wysłany przez agenta trafia do czatu osobistego przez kartę zgody Teams; w czacie
+grupowym albo na kanale odpowiedź go wymienia, bo Teams nie przyjmuje tam plików od
+bota. Wykres jest rysowany w wiadomości.
+
+**Trigger może publikować swoją odpowiedź w Teams.** Każda rozmowa, w której jest
+bot, jest zapamiętywana, a trigger może wskazać jeden z kanałów zespołu albo czatów
+grupowych organizacji: odpowiedź z każdego uruchomienia jest wtedy publikowana tam
+jako nowa wiadomość, pod nazwą triggera. Czat osobisty nigdy nie jest proponowany —
+należy do kogoś.
+
+## Discord { #discord }
+
+Bot Discorda to aplikacja w Discord Developer Portal, z którą wdrożenie rozmawia
+przez własny Gateway i REST API Discorda, bez biblioteki pośrodku (#2079).
+Wiadomości, komendy slash i naciśnięcia przycisków przychodzą jednym połączeniem
+Gateway bota, więc **wdrożenie nie potrzebuje publicznego adresu dla Discorda**, a
+bot Discorda nie ma trybu webhooka.
+
+1. W [Developer Portal](https://discord.com/developers/applications) utwórz
+   aplikację. W sekcji **Bot** zresetuj i skopiuj **token** oraz włącz **Message
+   Content Intent**. Bez niego Discord odrzuca połączenie, a wiersz bota mówi,
+   który przełącznik włączyć. W sekcji **Installation** ustaw **Install Link** na
+   *None*, a potem w sekcji **Bot** wyłącz **Public Bot**. Bota publicznego każdy
+   może dodać do własnego serwera, więc bot odmawia
+   połączenia, dopóki jest publiczny. Bot, który stał się publiczny w trakcie
+   połączenia, zatrzymuje się, gdy następnym razem zostanie dodany do serwera.
+2. W **OAuth2 → URL Generator** zaznacz scope'y `bot` i `applications.commands`
+   oraz uprawnienia **View Channels**, **Send Messages**, **Send Messages in
+   Threads**, **Create Public Threads**, **Read Message History** i **Attach
+   Files**, a potem otwórz ten URL, żeby dodać bota do serwera. Bez **Attach
+   Files** plik albo wykres wysłany przez agenta zostaje odrzucony, a wraz z nim
+   przepada tekst wysłany razem z nim.
+3. Zarejestruj go: **Kanały → Dodaj kanał**, platforma `discord`, z tokenem.
+
+**Jawnie zatwierdź serwery.** W formularzu dodawania lub edycji bota uzupełnij **Zatwierdzone ID serwerów Discorda**. Włącz tryb deweloperski Discorda, skopiuj ID każdego serwera i oddziel ID przecinkami lub spacjami. W CLI przekaż `--discord-guild 123456789012345678` do `channel-add-bot`; powtórz opcję dla kolejnych serwerów. Pusta lista pozwala tylko na wiadomości prywatne. Instalacje zgłoszone przez READY nie są zatwierdzeniami; usunięcie i ponowne dodanie bota nie omija listy.
+
+`/ask` potwierdza interakcję prywatnie przed odczytem kanału lub sprawdzaniem dostępu w bazie. Pytanie trafia do kanału dopiero po zgodzie; odmowy i zaproszenia do połączenia konta pozostają prywatne. Zaproszenia zużywają limit nadawcy. Zatwierdzenie serwera wybiera miejsca; `jwt_linked` lub `require_link` nadal decyduje, czy wymagane jest konto organizacji. Dostęp do zapisanej rozmowy w konsoli wymaga **View Channel** i **Read Message History**, a w wątku prywatnym także członkostwa.
+
+Bot rejestruje swoje komendy, gdy się łączy: `/ask`, `/agents`, `/new`, `/link`,
+`/unlink` i `/help`, a do tego **Ask the agent** w menu *Apps* każdej wiadomości.
+Discord potrafi chwilę zwlekać, zanim pokaże nowe komendy na każdym serwerze.
+
+| Gdzie | Kiedy odpowiada |
+|---|---|
+| Wiadomość prywatna | Na każdą wiadomość. Wiadomość prywatna to jedna rozmowa, a `/new` zaczyna ją od nowa |
+| Kanał serwera | Gdy zostanie @wspomniany albo wiadomość na niego odpowiada. Odpowiedź otwiera wątek na pytaniu, a wątek jest rozmową |
+| Wątek otwarty przez bota | Na każdą wiadomość w nim |
+| `/ask` | Wszędzie: pytanie, do 2000 znaków, zostaje opublikowane, a odpowiedź trafia do wątku pod nim |
+| *Apps → Ask the agent* | Na każdej wiadomości: agent jest pytany o tę wiadomość, w wątku na niej |
+
+`/agents`, `/link` i pozostałe komendy odpowiadają prywatnie, tylko temu, kto je
+wywołał. `/new` zaczyna od nowa rozmowę w wątku; na kanale serwera, gdzie każda
+wzmianka i tak zaczyna nową, mówi to zamiast tego. Na kanale, gdzie bot nie może otwierać wątków, odpowiedź jest zamiast tego
+odpowiedzią na pytanie, a odpowiedź na nią kontynuuje tę samą rozmowę.
+
+**Odpowiedź jest pisana w miejscu.** Bot publikuje jedną wiadomość i edytuje ją w
+miarę, jak odpowiedź spływa, przechodząc po 2000 znakach do kolejnych wiadomości.
+Zapisywany jest tylko tekst, który guardraile już sprawdziły, więc zredagowany
+sekret nie pojawia się nawet na moment. Nic, co publikuje bot, nikogo nie
+powiadamia: `@everyone` i wzmianki o rolach w odpowiedzi zostają zwykłym tekstem.
+
+**Zatwierdzenia i pytania to przyciski**, a dla pytania z więcej niż 25 opcjami
+listy wyboru. Pod każdą odpowiedzią są kciuki, a kciuk w dół otwiera formularz
+Discorda z pytaniem, co było nie tak. Na Discordzie pytanie nie dostaje reakcji.
+
+**Kto mówi**, to identyfikator użytkownika Discorda, łączony z członkiem przez
+`/link` jak na każdej platformie. Rozmowa z kanału serwera jest pokazywana w
+konsoli tym, którzy nadal widzą ten kanał, według ról serwera i nadpisań uprawnień
+kanału, bo tym na Discordzie jest bycie na kanale. Wątek prywatny jest tylko na
+zaproszenie, więc jest osobnym pokojem: rozmowa z niego jest pokazywana
+wyłącznie tym, którzy nadal są w tym wątku, a notatki, które agent tam
+prowadzi, nie są wspólne z kanałem.
+
+**Wątek, do którego bota dołączono w trakcie, jest czytany najpierw.** Ostatnie
+wiadomości w nim, z autorem i czasem, oraz pliki, które tam wrzucili ludzie,
+trafiają do agenta przed odpowiedzią, tak jak na Slacku i Mattermoście; pliki
+wrzucone przez samego bota są pomijane. Potrzebne jest **Read Message History**,
+a `read_channel_history` czyta wątek albo kanał tak samo, gdy pozwala na to
+powiązanie.
+
+### Role serwera jako grupy { #discord-roles }
+
+Administrator może zmapować rolę z jednego z serwerów bota na grupę organizacji
+(#2569). Otwórz **Kanały**, a potem akcję **Role Discorda** w wierszu bota. Serwer i
+rolę wybiera się spośród tego, co bot sam odczytuje z Discorda, więc `@everyone` i
+role, którymi Discord zarządza dla bota, nie są oferowane. Utworzenie mapowania
+wymaga `members:manage`, a trasy wymagają też `channels:manage`.
+
+Połączony członek, który ma tę rolę, trafia do grupy przed każdą wiadomością wysłaną
+do któregokolwiek z botów Discorda organizacji, a także przy zadaniu
+`sync-discord-roles` co 15 minut. Opuszcza grupę, gdy rola zostanie mu odebrana, a
+zadanie zauważa to u kogoś, kto przestał pisać do bota. Bot pyta Discorda o role
+jednego członka naraz, więc nie potrzebuje uprzywilejowanego intentu, a nowe
+mapowanie umieszcza ludzi przy ich następnej wiadomości, nie od razu.
+
+Te sprawdzenia przed wiadomością liczą się do `rate_limit_rpm` nadawcy w osobnym
+limicie, łącznie z poleceniami takimi jak `/help`. Nadawca, który go przekroczy,
+dostaje prośbę o zwolnienie, a Discord nie jest pytany ponownie, dopóki minuta
+nie minie.
+
+Mapowanie może też wskazać rolę w organizacji. Połączona osoba z tą rolą, która nie
+jest jeszcze członkiem, dołącza wtedy do organizacji z tą rolą, co oszczędza
+zapraszania po kolei każdego z serwera społeczności. Wskazanie roli wymaga
+`roles:manage` i tylko roli, którą własna rola wywołującego ściśle przewyższa.
+Kolejność między kilkoma pasującymi rolami i zasady tego, czego synchronizacja nigdy
+nie dotyka, są takie same jak w
+[synchronizacji katalogu](directory.md#what-the-sync-never-touches):
+
+- Liczy się tylko połączone konto. Użytkownik Discorda, który nigdy nie uruchomił
+  `/link`, nie trafia nigdzie, jakiekolwiek ma role.
+- Rola pasuje tylko na serwerze, który wskazuje mapowanie, odczytana przez bota,
+  do którego mapowanie należy. Ten sam identyfikator roli na serwerze innego bota
+  nie pasuje do niczego.
+- Synchronizacja zmienia tylko wiersze, które sama utworzyła, oznaczone **Discord**
+  na stronie członków i w grupie. Członkostwo w grupie dodane ręcznie zostaje, gdy
+  rola zostanie odebrana, członkostwo utworzone przez administratora zachowuje swoją
+  rolę, a właściciel nigdy nie jest degradowany ani usuwany. Ktoś, kogo
+  synchronizacja przyjęła do organizacji, opuszcza wszystkie jej grupy, gdy
+  synchronizacja go usuwa, tak jak ktoś usunięty ręcznie.
+- Gdy nie można odczytać serwera, jego grupy zostają. Możliwe role organizacji zachowują tylko uprawnienia, które osoba już miała; nieczytelne mapowanie `viewer` nie zachowa `admin`. Potwierdzone nadania nadal działają.
+
+Cała synchronizacja ma wspólny limit dziesięciu sekund na sieć. Odczyty REST dzielą limit `rate_limit_rpm` bota dla użytkownika między wszystkie jego konta, osobno od limitu sprawdzeń przed wiadomością. Usunięcie zmapowanej grupy wymaga też `channels:manage`.
+
+Odczyt listy serwerów dopuszcza jedno równoczesne żądanie na organizację. Stronicowanie i role dzielą dziesięciosekundowy budżet, a role są pobierane dla najwyżej ośmiu serwerów naraz. Przekroczenie obsługiwanego limitu 2500 serwerów lub niepełna odpowiedź kończy się jawnym błędem.
+
+Odłączenie konta Discorda odbiera to, co dały jego role, chyba że nadal zapewnia to
+inne połączone konto Discorda. Usunięcie mapowania odbiera to, co ono dało, przy
+następnej wiadomości danej osoby albo przy następnym przebiegu zadania. Usunięcie
+bota lub zmapowanej grupy albo nowy token bota odbiera to samo, więc wymaga tego,
+czego wymaga usunięcie każdego z tych mapowań. Każda zmiana
+trafia do dziennika audytu jako `discord.member_added`, `discord.role_changed`,
+`discord.member_removed`, `discord.group_joined` lub `discord.group_left`, a
+utworzenie lub usunięcie mapowania jako `discord.mapping_created` lub
+`discord.mapping_deleted`.
+
+Jeszcze nie: jedno połączenie obsługuje bota na najwyżej 2500 serwerach, powyżej
+których Discord wymaga shardingu, a bot zatrzymuje się z tym powodem. Narzędzia
+członków kanału, jego szczegółów i wyszukiwania kanałów nie są oferowane na
+Discordzie.
+
+Gdy obie ścieżki dają członkostwo, przy logowaniu pierwszeństwo ma katalog.
+Po utracie dostępu z katalogu aktywna rola Discorda przejmuje ten sam wiersz bez
+cofania kluczy. Zobacz [przekazywanie członkostwa](directory.md#what-the-sync-never-touches).
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Polling Telegrama, Socket Mode Slacka i strumień eventów Mattermosta chodzą pod
-jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
+Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
+Discorda chodzą pod jednym supervisorem, który ponownie łączy zerwaną sesję. Brakująca albo odrzucona
 wartość konfiguracyjna nie jest zerwaną sesją i supervisor traktuje ją inaczej:
 zapisuje bota jako położonego wraz z powodem, loguje raz i zatrzymuje się. Nic,
 co by zrobił, nie zmieniłoby tego wiersza — operator musi dodać slackowy token
@@ -1456,14 +1662,14 @@ Zerwana sesja to co innego: ta jest ponawiana, z odczekaniem pięciu sekund
 podwajanym do minuty, więc serwer położony na godzinę nie jest młócony 720 razy
 przez każdego bota na nim. Sesja, która skończyła się czysto, zaczyna drabinę od
 nowa. Linia logowana przed każdym czekaniem podaje opóźnienie, które za chwilę
-odczeka, a ta sama pętla obsługuje wszystkie trzy platformy, więc polityka nie
+odczeka, a ta sama pętla obsługuje każdą z tych platform, więc polityka nie
 może się między nimi rozjechać.
 
 ---
 
 ## Akceptacje i pytania jako przyciski { #approvals-and-questions-as-buttons }
 
-Run uruchomiony w Slacku, Telegramie lub Mattermoście może zatrzymać się dla
+Run uruchomiony w Slacku, Teams, Telegramie, Mattermoście lub na Discordzie może zatrzymać się dla
 człowieka: wywołanie narzędzia z bramką czeka na decyzję albo agent zadaje pytanie
 `ask_user`. Czat dostaje wybory tam, gdzie jest — wiadomość na każdą akceptację z
 **Approve** i **Reject**, wiadomość na każde pytanie z jego opcjami i **Skip**.
@@ -1496,7 +1702,7 @@ resztę chowa pod **Details**.
 
 Naciśnięcie działa jako osoba, która nacisnęła, przez jej powiązane konto:
 decyzja wymaga `approvals:decide`, a na pytanie może odpowiedzieć tylko osoba,
-której je zadano. Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
+której je zadano. Decyzja podjęta gdzie indziej działa jako osoba, która ją podjęła, także gdy jest to administrator aplikacji ([niżej](#decided-outside-the-chat)). Osoba bez powiązanego konta dostaje prośbę o `/link`. Run czeka
 na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, jak
 wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
 więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
@@ -1515,6 +1721,82 @@ zmienia się na *Needs you* i mówi po co, a gdy człowiek trzyma przeglądarkę
 kto. Link otwiera konsolę, więc przejęcie wymaga konta w konsoli: osoby, w imieniu
 której działa run, albo kogoś, kto może edytować agenta.
 
+### Rozstrzygnięte poza czatem { #decided-outside-the-chat }
+
+Prośbę zadaną na czacie można też rozstrzygnąć w **Approvals** w konsoli, w czacie
+webowym albo przez API HTTP. Gdy osoba to zrobi i rozstrzygnie ostatnią rzecz, na
+którą run czekał, serwer kontynuuje run jako ona i wysyła odpowiedź na czat, na
+którym padła prośba. Konsola mówi o tym zamiast sama wznawiać run, więc run jest
+kontynuowany raz. Pytanie działa tak samo, gdy osoba, której je zadano, odpowie na
+nie w konsoli.
+
+Decyzja podjęta kluczem API jest zapisywana i nie kontynuuje runa: run rozpoczęty
+przez osobę kontynuuje tylko osoba. Przez API pole `continues_in_chat` mówi
+klientowi, w którym jest przypadku (zob. [Uruchamianie agenta](api.md#running-an-agent)).
+
+Trzy zakończenia, które dzieją się poza czatem, wysyłają tam po jednej stałej
+wiadomości, żeby nikt nie czekał na przyciski, które już nic nie robią. Otwarte
+przyciski czatu są rozliczane w tej samej chwili.
+
+| Zakończenie | Czat dostaje |
+|---|---|
+| Run wygasa, po `APPROVAL_EXPIRY_HOURS` dla decyzji albo `QUESTION_EXPIRY_HOURS` dla pytania | „This request expired without a decision." |
+| Ktoś naciska **Stop** w konsoli | „This run was stopped from the console." |
+| Run został rozstrzygnięty i nic go nie kontynuowało przez około godzinę | „A decision was recorded, but the run could not continue." |
+
+Ostatnie to siatka bezpieczeństwa. Milczy w dwóch przypadkach: gdy decyzja jest
+starsza niż 7 dni oraz gdy czat usłyszał już, że run nie mógł być kontynuowany.
+Czat dostaje najwyżej jedno powiadomienie za każdym razem, gdy run się zaparkuje.
+
+Przycisk naciśnięty po tym, jak prośba została rozstrzygnięta gdzie indziej,
+odpowiada „That has already been answered." i niczego nie zmienia.
+
+Kontynuacja może zostać odrzucona, na przykład gdy czat zaczął się od nowa od
+czasu pytania, jego polityka dostępu odmawia teraz osobie, która pytała, osoba
+rozstrzygająca nie może już rozstrzygać zatwierdzeń, bot został usunięty z agenta
+albo agenta nie da się już zbudować. Czat dostaje wtedy raz: „That was decided
+outside the chat, but the run could not continue." **Resume** na stronie runa nadal
+działa, do około godziny od ostatniej decyzji. Działa jak dawniej, bez sprawdzenia pokoju, i wysyła
+odpowiedź tylko na czat, który nadal wpuszcza pytającego. Sprawdzenie członkostwa,
+na które platforma nie umie odpowiedzieć, nie zatrzymuje kontynuacji.
+
+Run zaparkowany przed 1.29.0 nie ma zapisanego czatu, więc konsola kontynuuje go
+tak jak dawniej. Jeśli nikt go nie wznowi w ciągu około godziny od ostatniej
+decyzji, siatka bezpieczeństwa kończy go bez wiadomości.
+
+Worker wysyła wymagane odpowiedzi i powiadomienia o zakończeniu z trwałych zadań
+zapisanych w tej samej transakcji co wynik lub zakończenie. Restart lub przejściowa
+awaria wysyłki ponawia samą dostawę do trzech razy, bez powtarzania agenta ani
+zatwierdzonych narzędzi. Przed wysyłką ponownie sprawdzane są bot, sesja i dostęp
+do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysyłki
+może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
+Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
+
+### Następne kroki jako przyciski { #next-steps-as-buttons }
+
+Odpowiedź agenta z [Następnymi krokami](reference/capabilities.md#follow-ups),
+która zaproponowała następne kroki, ma pod sobą wiadomość z przyciskami, po
+jednym na krok - *Zrób z tego tabelę*, *Rób to w każdy poniedziałek*. Naciśnięcie
+to naciskający mówiący ten krok: dostaje odpowiedź jak na swoją następną
+wiadomość w tym czacie, z tymi samymi wymogami co wpisana - powiązanie konta,
+polityka dostępu bota, limit częstotliwości - a naciśnięta wiadomość pokazuje
+potem krok zamiast przycisków.
+
+Każdą wiadomość naciska się raz; może to zrobić
+każdy w pokoju, a odpowiedź jest dla niego. Odpowiedź, która zatrzymała się na
+zatwierdzeniu albo pytaniu, oferuje zamiast tego je. Karty ustawień, które agent
+może zaproponować, są rysowane tylko w konsoli.
+
+## Powitanie nowego członka { #a-welcome-for-a-new-member }
+
+Gdy ktoś dołącza do organizacji - przez zaproszenie, dołączenie do domyślnej
+organizacji albo synchronizację katalogu - każdy aktywny bot organizacji w
+Slacku, Mattermost i Teams szuka go po adresie e-mail i, jeśli znajdzie, wysyła
+jedną wiadomość prywatną w języku jego konsoli: kim jest, że można go pytać od
+razu tam, i adres konsoli. To zadanie w tle próbowane raz; bot, który go nie
+znajdzie, albo platforma, która odmówi, nie kosztują nic więcej. Slack potrzebuje
+do wyszukania scope'u `users:read.email`; Teams znajduje go w spisie tenanta.
+
 ## Reakcje i oceny { #reactions-and-ratings }
 
 Dwa elementy wspólne dla każdej platformy czatu tutaj, oba przełączane w
@@ -1531,10 +1813,17 @@ ustawieniach bota:
   było nie tak?** w modalu Slacka albo dialogu Mattermost; odpowiedź zostaje jako
   komentarz do oceny. Telegram przyjmuje kciuki bez pytania.
 
-Ocena wymaga powiązanego członka, tak jak naciśnięcie przy akceptacji; kciuki osoby
-niepowiązanej nie są liczone. Karta *Answer quality* na dashboardzie dzieli udział
-dobrych odpowiedzi według powierzchni, gdy ocen jest więcej niż na jednej, więc
-agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
+**Ocena w Mattermost nie wymaga konta AgenticOS.** Głos należy do uczestnika,
+którego tożsamość potwierdził podpisem serwer Mattermost. Każdy może zmienić swój
+głos; przyciski pozostają dla pozostałych osób, a potwierdzenie jest prywatne.
+Komentarz do negatywnej oceny należy do tego samego uczestnika. Slack i Telegram
+nadal wymagają powiązanego członka; akceptacja narzędzia także wymaga członkostwa.
+Oceny kanałowe zwracają w API `user_id: null`, zamiast przypisywać głos
+właścicielowi bota. Przed uruchomieniem tej wersji zaktualizuj bazę. Cofnięcie
+migracji usuwa oceny kanałowe i zachowuje oceny kont aplikacji.
+
+Karta *Answer quality* uwzględnia te głosy i rozdziela je według powierzchni,
+więc różnica między konsolą a Mattermost pozostaje widoczna.
 
 ## Co jest wspólne dla każdego kanału { #what-every-channel-shares }
 
@@ -1814,6 +2103,8 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
     powiązanie założone potem stawia wcześniejszy wątek komuś przed oczami, bez
     uzupełniania wstecz: tura wskazuje konto czatowe, a konto zyskuje osobę.
 
+    **Lista `/chat` domyślnie pomija wątki z kanałów.** `GET /conversations` przyjmuje `hide_channels`, domyślnie prawdę, więc pasek boczny nie zapełnia się wątkami, w których odpowiada bot; nadal otwierają się z linku, a `hide_channels=false` znów je wylistuje.
+
     **Odezwanie się to roszczenie; platforma decyduje, czy nadal się trzyma.**
     Zapis tury mówi, kto się *odezwał*, i przed [#641][641] było to całe
     sprawdzenie — ktoś usunięty z kanału dalej czytał wątek, łącznie ze
@@ -1876,14 +2167,13 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
   przepisywana krok po kroku, a każdy krok trafia na kanał dopiero po
   sprawdzeniu.
 - **Każde powiązanie niesie własne dodatkowe instrukcje**, dopisywane do
-  instrukcji agenta wyłącznie na tej powierzchni. Nowe otwiera się z tym, co ten
-  klient faktycznie renderuje: Slack nie rysuje Markdowna i zapisuje link jako
-  `<url|text>`, Mattermost renderuje nagłówki i tabele, Telegram odrzuca
-  wiadomość z niedomkniętą `*` — plus to, jak podać tam link, poprzedzony emoji,
-  gdy jest akcją albo miejscem docelowym. Od tej pory jest to tekst powiązania:
-  zmień go, dopisz do niego albo go wyczyść. Kształtuje sposób dostarczenia
-  odpowiedzi i nigdy nie może zastąpić tego, do czego agent służy — to należy do
-  opublikowanej wersji.
+  instrukcji agenta tylko na tej powierzchni. Aktualne domyślne formatowanie
+  pochodzi z wdrożenia: Slack zapisuje linki jako `<url|text>`, Mattermost
+  renderuje nagłówki i tabele, a Telegram odrzuca niedomknięte formatowanie.
+  Nowe powiązanie nie zapisuje kopii tych zasad. Własne instrukcje można dodać,
+  edytować lub wyczyścić bez zatrzymywania domyślnych zasad na wersji z dnia
+  instalacji. Kształtują sposób dostarczenia odpowiedzi; przeznaczenie agenta
+  należy do jego opublikowanej wersji.
 - **Bot odpowiada, gdy tylko zostanie zarejestrowany.** Bot pollujący — Telegram
   na long-pollingu, Socket Mode Slacka, strumień eventów Mattermosta — jest
   osiągalny przez połączenie, które trzyma proces API, a to połączenie jest
@@ -1908,28 +2198,28 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
   i oznacza bota na stronie kanałów jako niedziałającego: „inny proces odpytuje
   token tego bota”. Ten proces jest poza wdrożeniem, zwykle to drugie wdrożenie
   albo skrypt z tym samym tokenem, i zatrzymać go może tylko jego właściciel.
-- **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których
-  używają odpytania o kanał, więc Telegram oferuje wszystkie pięć, choć oferuje
-  dwa z czterech narzędzi. Builder wylicza pod polem te, na które ta platforma
-  potrafi odpowiedzieć, i wstawia wybrane w miejscu kursora, każde z prawdziwym
-  opisem narzędzia — tym samym, który czyta model, zanim zdecyduje się je
-  wywołać, a nie skróconą parafrazą z katalogu, bez znaczników, których model
-  sam używa, by odróżnić streszczenie od kształtu odpowiedzi.
+- **Kontekst kanału jest dodawany automatycznie przy każdym runie.** Runy z Mattermosta, Slacka, Teams i Telegrama otrzymują nazwę, cel, temat, widoczność, zgłaszaną liczbę członków i ograniczoną listę widocznych osób, także dla istniejących lub wyczyszczonych promptów powiązania. `{channel_members}` to czytelna nazwa listy; `{member_list}` pozostaje aliasem. Pozostałe zmienne to `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` i `{member_count}`.
 
-    Rozwiązywane przy każdym runie i nigdy nie cache'owane: członkostwo kanału
-    się zmienia, a nieaktualna lista w prompcie jest gorsza niż żadna, bo agent
-    podaje ją jako fakt. Pobierane jest tylko to, o co prosi proza, więc
-    powiązanie, które nie woła żadnego placeholdera, nie kosztuje nic.
-    Placeholder, na który platforma nie potrafiła odpowiedzieć, staje się
-    `(unavailable)`, zamiast kosztować kogoś jego odpowiedź.
+    Każde źródło jest odpytywane raz na run, bez cache między turami: do 50 widocznych osób i 2000 znaków na wartość. Telegram zwraca administratorów, a nie wszystkich członków. Każde źródło ma limit pięciu sekund; niedostępne wartości pozostają nieznane. Wartości są spłaszczane i przekazywane jako niezaufane dane rozmowy, poza instrukcjami systemowymi. Slack zwraca identyfikatory członków bez pobierania profilu każdej osoby. Edytowalny tekst powiązania dodaje wskazówki obok tego kontekstu.
 
-    Prompt, który którykolwiek z nich wypełnił, zyskuje zdanie mówiące, że
-    podstawione wartości są informacją, a nie poleceniami, a każda wartość ma
-    spłaszczone łamania linii i nawiasy klamrowe. `purpose` kanału może
-    edytować każdy, kto może edytować kanał, a jest on wklejany do instrukcji
-    agenta.
+- **Wybierz, czy wzmianki grupowe uruchamiają run.** W tworzeniu i edycji bota przełącznik *Reaguj na wzmianki grupowe* jest domyślnie wyłączony. Bezpośrednie wywołania nadal działają. Po włączeniu reaguje też na `@all`, `@here` i `@channel` w Mattermoście, natywne wzmianki grupowe Slacka oraz strukturalne wzmianki o kanale lub zespole Teams. Nadal obowiązują tożsamość nadawcy, reguły dostępu i limity. Wzmianki w kodzie i o innych osobach nie wystarczają.
+
+    Teams wymaga instalacji lub aktualizacji nowego pakietu aplikacji w danym zespole albo czacie i zgody właściciela na `ChannelMessage.Read.Group` oraz `ChatMessage.Read.Chat`. Pakiet prosi o nie tylko po włączeniu przełącznika. Telegram używa tekstowych aliasów `@all`, `@here`, `@channel` i `@everyone`; nie powiadamiają one grupy. Bot musi otrzymywać wiadomości grupy, więc sprawdź tryb prywatności w BotFather. Wzmianki, komendy i odpowiedzi są porównywane z rzeczywistą tożsamością bota Telegrama. Discord liczy `@everyone` i `@here` tylko wtedy, gdy nadawca ma prawo ich użyć, czyli gdy Discord rzeczywiście powiadamia kanał.
+
+- **Wysyłka pliku z workspace na żądanie również wymaga zatwierdzenia.** Nadanie `send_channel_file` udostępnia narzędzie; przesłanie bajtów do rozmowy nadal czeka na wyraźne potwierdzenie.
+- **Odczyty MCP powiązanego nadawcy podlegają polityce powiązania; zapisy nadal wymagają zatwierdzenia.** Narzędzie tylko do odczytu nie pyta o zgodę wyłącznie dlatego, że run działa w komunikatorze. Narzędzie bez `readOnlyHint: true` nadal pyta, a jawna polityka `all` obejmuje też odczyty. Dotyczy to połączeń osobistych, organizacyjnych i platformowych, delegatów oraz wznowień. Połączenia osobiste należą do bieżącego nadawcy, nigdy wydawcy ani innego uczestnika.
+
+Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
+
+Edytowalne nazwy kanałów, tematy, opisy i etykiety autora przechodzą skonfigurowane kontrole wejścia przed dotarciem do modelu. Wartości po redakcji zastępują oryginały; zablokowane wartości kontekstu są ukrywane, a dozwolone pytanie może być wykonane. Stała składnia metryki, identyfikatory platformy i typ rozmowy nie są sprawdzane jako treść pytania.
+
+Dane autora są przekazywane oddzielnie od bieżącej wiadomości, więc input guardrails sprawdzają właściwe pytanie. Niepowiązani uczestnicy kanału nadal potrzebują zatwierdzenia każdego wywołania MCP, także odczytów organizacyjnych.
+
+Zarówno jawne wywołania `@slug`, jak i odpowiedzi domyślne dostają zapisaną historię rozmowy wraz z początkowym kontekstem wątku kanału.
+
+Opublikowaną aplikację można zmienić z innej rozmowy bez pierwotnego sandboxa. `read_artifact` odzyskuje zapisane źródło, a `publish_artifact` z tą samą nazwą oraz poprawkami lub nową treścią aktualizuje aplikację. Link i historia wersji pozostają wspólne. Dostęp do odczytu nie nadaje prawa edycji; dotychczasowe kontrole uprawnień nadal obowiązują.
+
+- **Agent wie, gdzie odpowiada i czyje konto jest dostępne.** Wskazówki runtime podają komunikator i konsolę wdrożenia, wyjaśniają zarządzany workspace oraz odróżniają organizacyjne połączenia MCP od usług osobistych. Te ostatnie wymagają zarówno powiązanej tożsamości nadawcy, jak i jego autoryzowanego połączenia z usługą. Łączenie zaczyna się od samego `link` w wiadomości prywatnej; prywatny URL połączenia nie trafia na kanał. Agent relacjonuje rzeczywiste wyniki narzędzi i wskazuje jeden konkretny następny krok, jeśli brakuje autoryzacji lub możliwości.
 - **Ponownie dostarczona wiadomość dostaje odpowiedź raz.** Każda platforma
   dostarcza co najmniej raz: route'y webhooków odpowiadają 200 przed jakąkolwiek
   pracą, żeby wolny handler nigdy nie wyzwolił ponowienia, ale 200 zgubione po
@@ -2357,6 +2647,7 @@ i dlatego załącznik przychodzi jako uchwyt, a nie jako treść:
 | Slack | Prywatny URL na evencie, pobierany tokenem bota. Slack odpowiada **200 ze stroną logowania**, a nie 401, gdy token nie może odczytać pliku, więc sprawdzany jest typ treści — inaczej strona logowania zostałaby zapisana jako arkusz użytkownika |
 | Telegram | `getFile` rozwiązuje `file_id` na ścieżkę, która wygasa, a potem API plików. Zdjęcie przychodzi w kilku rozmiarach; zachowywany jest największy |
 | Mattermost | `/files/{id}` na własnym serwerze tego bota. Bot, którego serwer nie jest zapisany, mówi to wprost, zamiast zgadywać, do serwera której firmy wysłać token |
+| Teams | Plik w czacie osobistym ma URL pobierania, który Teams już autoryzował; obraz wklejony do wiadomości jest pobierany z Bot Connectora tokenem bota, który nie trafia nigdzie indziej |
 
 **Nagrania nie są jeszcze obsługiwane.** Telegram wkłada każdy rodzaj mediów we
 własne pole, więc notatka głosowa przychodzi zupełnie bez tekstu — i do tej zmiany
@@ -2387,20 +2678,7 @@ niezależnie od tego, czy to się powiodło
 Tura, która faktycznie się wykonała, zachowuje swoje pliki — nakarmiły ją, a run
 jest w zapisie rozmowy.
 
-**Wychodzące** to to, co agent zapisał w tej turze, porównane ze zrzutem zrobionym
-przy otwarciu workspace'u. Nie różnica wszystkiego: `/uploads` to własny plik
-użytkownika — odesłanie go to cytowanie komuś jego własnego załącznika —
-a `/skills` to know-how zmaterializowane przez platformę, a nie praca agenta. Plik,
-który agent *nadpisał*, też nie jest wysyłany: przepisywanie skryptu, nad którym
-iteruje, jest czymś zwyczajnym, a wrzucanie go w każdej turze zapełniłoby kanał
-tym samym załącznikiem.
-
-**Jeśli tego zrzutu nie dało się zrobić, nic nie jest wrzucane.** Porównanie brzmi
-„wszystko teraz minus wszystko wtedy", więc potraktowanie nieczytelnego
-workspace'u jako pustego sprawiłoby, że każdy plik już w nim leżący czytałby się
-jako wyjście tej tury — a w zakresie `agent` albo `channel` te pliki należą do
-innych ludzi. Brakujący załącznik to ta porażka, którą warto mieć; arkusz kolegi
-na współdzielonym kanale nie.
+**Wychodzące** pliki są wysyłane wyłącznie narzędziem `send_channel_file`, gdy użytkownik poprosi o otrzymanie lub pobranie pliku. Utworzenie, odczyt ani edycja pliku w workspace nie dołącza go do odpowiedzi. Przyznaj narzędzie na powiązaniu bota w *Gdzie agent jest dostępny*. Istniejące powiązania zachowują wybrane narzędzia; po aktualizacji włącz tę akcję jawnie. Narzędzie ma skutki uboczne i podlega zwykłym zatwierdzeniom. Wysyła wyłącznie wskazany plik, odrzuca ścieżki wewnętrzne i pliki powyżej 8 MB oraz dopuszcza do trzech prób na turę. Błędy platformy są zgłaszane zamiast zapewnienia o dostarczeniu. Teams może wymagać akceptacji w rozmowie prywatnej. Wykresy i zamówione grafiki zachowują osobną wysyłkę obrazów.
 
 Każdy plik niesie typ, który wynika z jego nazwy, a nie płaskie
 `application/octet-stream`, więc wykres zapisany przez agenta przychodzi jako
@@ -2487,7 +2765,8 @@ a których stopka kanałowa nie:
   `agent` jeden workspace jest współdzielony, a znalezienie pliku, którego nigdy
   się nie utworzyło, czyta się jak wyciek, dopóki coś na ekranie tego nie wyjaśni.
   Plik jest kafelkiem, a otwarcie go otwiera tę samą przeglądarkę, której używa
-  ekran Workspaces — obraz, PDF, markdown jako podgląd albo źródło i zawsze
+  ekran Workspaces — obraz, PDF, odtwarzacz audio i wideo, markdown jako podgląd
+  albo źródło i zawsze
   pobranie — czytając `…/workspace/file` dla tekstu i `…/workspace/raw` dla bajtów.
   Przez *rozmowę*, a nie przez id workspace'u, i to celowo: to właśnie trzyma te
   pliki osiągalnymi dla kogoś, komu czat udostępniono.
@@ -2522,12 +2801,19 @@ odpowiedzieć tylko zgadując.
 Zmieniają to cztery narzędzia i każde jest przyznawane **per powiązanie**, pod
 *Where this agent is available*:
 
-| Narzędzie | Odpowiada na | Slack | Telegram | Mattermost |
-|---|---|:-:|:-:|:-:|
-| `get_channel_info` | Nazwa, cel, temat, rozmiar | ✅ | ✅ | ✅ |
-| `list_channel_members` | Kto tu jest | ✅ | tylko administratorzy | ✅ |
-| `search_channels` | Jakie inne kanały istnieją | ✅ | — | ✅ |
-| `read_channel_history` | Co powiedziano ostatnio, **w wątku, w którym odpowiada** | ✅ | — | ✅ |
+| Narzędzie | Odpowiada na | Slack | Telegram | Mattermost | Teams |
+|---|---|:-:|:-:|:-:|:-:|
+| `get_channel_info` | Nazwa, cel, temat, rozmiar | ✅ | ✅ | ✅ | ✅ |
+| `list_channel_members` | Kto tu jest | ✅ | tylko administratorzy | ✅ | ✅ |
+| `search_channels` | Jakie inne kanały istnieją | ✅ | — | ✅ | — |
+| `read_channel_history` | Ostatnie wiadomości kanału lub tego wątku przy `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Wyślij zamówiony plik z workspace | ✅ | ✅ | ✅ | ✅ |
+
+Aby połączyć konto, wyślij botowi w wiadomości prywatnej samo `link` (bez ukośnika). Otwórz prywatny link po zalogowaniu do AgenticOS, a następnie wróć na kanał. Jeśli wcześniejsze pliki wątku wymagają połączenia konta, bot wyjaśnia to bez pobierania plików i ponawia odczyt po połączeniu. Obrazy kanałów mają dwukrotną rozdzielczość CSS; bardzo szerokie poziome diagramy Mermaid otrzymują układ pionowy tylko w PNG.
+
+Obrazy zamówione przez `generate_image` są dołączane do odpowiedzi na wszystkich czterech platformach, obok wykresów i diagramów. Zapisane obrazy są odczytywane w obrębie organizacji uruchomienia, ograniczone do 8 MiB i 16 megapikseli oraz konwertowane na PNG; brakujące, nieprawidłowe lub zbyt duże obrazy powodują komunikat o niedostarczeniu. Teams dodatkowo dopasowuje obrazy do własnych limitów. Utworzenie zwykłego pliku w przestrzeni roboczej nadal go nie wysyła: wymaga to `send_channel_file`. Kontekst wątku zachowuje oryginalne daty wiadomości; czas względny odnosi się do nich, a nie do chwili dołączenia agenta.
+
+Dołączane są wyłącznie pliki zapisane jako wygenerowane przez narzędzia danego uruchomienia. Nazwa narzędzia ani tekst wyniku nie upoważniają do odczytu obrazów z innej rozmowy. Odrzucenie zgody na generowanie nie powoduje komunikatu o niedostarczeniu obrazu. Istniejące wątki odświeżają tekst raz, bez ponownego pobierania wcześniejszych załączników.
 
 Per powiązanie, a nie per agent, bo organizacja może podpiąć jednego agenta do
 dwóch serwerów Mattermosta i trzech workspace'ów Slacka — a *„czy może czytać to,
@@ -2548,23 +2834,22 @@ Trzy rzeczy warte wiedzy przed ich przyznaniem:
 - **Członkostwo bota jest całą granicą uprawnień.** Każde wywołanie idzie przez
   własny token bota, więc agent widzi dokładnie to, co widzi bot. Nie ma żadnej
   naszej listy dozwolonych, która mogłaby rozjechać się z listą samej platformy.
-- **Model nigdy nie nazywa kanału ani wątku.** Narzędzia są wiązane po stronie
-  serwera z kanałem, na który przyszła wiadomość, a `read_channel_history` także
-  z wątkiem: wątek i jego kanał to dwa zapisy rozmowy, a ten, w którym mówiono do
-  agenta, to wątek. Związane z samym kanałem, *„podsumuj, co ustaliliśmy
-  powyżej"* podsumowywało cokolwiek innego, co pokój akurat mówił. Argument dla
-  któregokolwiek z nich zamieniłby *„kto jest na tym kanale"* w *„przeczytaj
-  dowolny kanał, na którym jest ten bot"*, zapytane z rozmowy toczącej się gdzie
-  indziej.
+- **Model nie podaje identyfikatora kanału ani wątku.** `read_channel_history` domyślnie używa `scope="channel"` do odczytu ostatnich wiadomości bieżącego kanału; `scope="thread"` czyta wyłącznie przypisany wątek. Żaden zakres nie otwiera innego kanału. Wynik to ograniczone okno ostatnich wiadomości, a nie dowód braku starszych. Automatyczne uzupełnianie kontekstu pozostaje ograniczone do wątku.
 - **`read_channel_history` to to jedno, które warto bramkować.** Jest odczytem,
   więc domyślnie nie pyta, ale wkłada cudze wiadomości do zapisu runa, który ktoś
   czyta tygodnie później. Nadpisanie `tool_approval` na powiązaniu to sposób, by
   kazać mu pytać.
 
-To celowo *nie* jest to samo co wkładanie listy członków kanału i jego celu
-w każdy system prompt. To inna funkcja z innym trybem awarii — `purpose` napisany
-przez kogokolwiek, kto może edytować kanał, wklejony do instrukcji, jest prompt
-injection z publicznym przyciskiem edycji.
+Automatyczny kontekst kanału zawiera nazwę, cel i ograniczoną listę widocznych osób, oznaczone jako dane zamiast instrukcji. Narzędzia przyznawane per powiązanie umożliwiają dodatkowe odczyty i jawną wysyłkę plików; cofnięcie narzędzia nie usuwa automatycznego kontekstu.
+
+## Bot, którego wiadomości uruchamiają workflow { #a-bot-whose-messages-start-a-workflow }
+
+Workflow z wyzwalaczem **Channel message** przejmuje wiadomości bota zamiast jego
+agenta. Docierają do niego tylko wiadomości, na które agent by odpowiedział, a z nich
+tylko te pasujące do filtra wyzwalacza: wiadomość wskazująca innego agenta przez
+`@handle` nadal trafia do niego, a tę, którą filtr pomija, obsługuje agent bota jak
+dotąd. Workflow odpowiada własnym krokiem **Send a message** w wątku, z którego
+przyszła wiadomość. Zobacz [Z wiadomości na kanale](workflows.md#from-a-channel-message).
 
 ## Wybór { #choosing }
 
@@ -2572,7 +2857,7 @@ injection z publicznym przyciskiem edycji.
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram or Mattermost]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2585,7 +2870,7 @@ flowchart TD
 - Wewnątrz twojego produktu, per użytkownik → **widget, tryb `jwt`**.
 - Całkowicie własny interfejs → **WebSocket**.
 - Brak własnej strony, a link wystarczy → **hostowana strona**.
-- Tam, gdzie zespół już rozmawia → **Slack, Telegram albo Mattermost**.
+- Tam, gdzie zespół już rozmawia → **Slack, Teams, Telegram albo Mattermost**.
 - Zupełnie inny system → REST API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "Pierwsze cztery to jeden obiekt"
@@ -2598,8 +2883,8 @@ flowchart TD
 ## Podsumowanie { #recap }
 
 - **Jeden runner za każdą powierzchnią.** Czat webowy, hostowana strona, widget,
-  API, Slack, Telegram i Mattermost docierają do tego samego kodu, więc governance
-  nie jest czymś, co wywołujący może objechać.
+  API, Slack, Teams, Telegram i Mattermost docierają do tego samego kodu, więc
+  governance nie jest czymś, co wywołujący może objechać.
 - Bot odpowiada jako **jeden agent**, a wzmianka wykonuje się jako **nadawca** —
   nigdy jako bot.
 - Co obcemu wolno, wolno mu w pewnym tempie: powierzchnie publiczne niosą limity
@@ -2607,3 +2892,11 @@ flowchart TD
 - Zapisywane jest **to, co napisał człowiek**, a nie prompt złożony wokół tego.
 - **Delegacja to panel**, a nie pauza — a podpięcie do niej handlera zmienia
   transport, więc podpinany jest tylko tam, gdzie istnieje odbiornik.
+
+Wiadomość kanałowa zawierająca tylko wzmiankę bota lub białe znaki jest pomijana po usunięciu wzmianki, przed przejęciem dostarczenia i uruchomieniem tury. Dzięki temu do API modelu nie trafia pusta wiadomość użytkownika, której pominięcie powodowałoby odrzucenie poprzedniej odpowiedzi asystenta jako prefill. Wiadomość zawierająca same załączniki nadal przechodzi ścieżką przetwarzania załączników.
+
+## Aktualne domyślne instrukcje kanałów {#current-channel-defaults}
+
+Formatowanie i zasady rozmowy w kanale pochodzą z bieżącego wdrożenia przy każdym uruchomieniu. Prompt powiązania przechowuje tylko własne dodatki. Migracja usuwa dokładnie rozpoznane kopie wcześniej dostarczonych instrukcji, zachowując otaczający je własny tekst; zmieniony lub nieznany tekst pozostaje bez zmian. Wyczyszczenie własnego promptu zachowuje domyślne zasady platformy i kontekst kanału. Nie potrzeba przepisywania starych promptów podczas działania agenta.
+
+Cofnięcie migracji przywraca zapisane domyślne instrukcje kanałów z poprzedniej wersji i zachowuje własne dodatki, także dla powiązań utworzonych po aktualizacji. Pozostałe powierzchnie pozostają bez zmian.

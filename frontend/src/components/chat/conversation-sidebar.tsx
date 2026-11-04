@@ -8,6 +8,7 @@ import { ConversationSearchDialog } from "@/components/chat/conversation-search-
 import { Button, Skeleton } from "@/components/ui";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/components/ui";
 import { IconButton } from "@/components/ui";
+import { useConversationAgentLabel } from "@/hooks/use-conversation-agent-label";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
 import {
@@ -77,7 +78,6 @@ function ConversationItem({
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
-  const tAgents = useTranslations("agents");
   const locale = useLocale();
   const [showMenu, setShowMenu] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -133,12 +133,7 @@ function ConversationItem({
     const timer = setTimeout(() => settleWorking(conversation.id), HANDOFF_GRACE_MS);
     return () => clearTimeout(timer);
   }, [handedOff, listed, conversation.id, settleWorking]);
-  const agentLabel =
-    agents.length === 0
-      ? null
-      : agents.length === 1
-        ? agents[0]!.name
-        : tAgents("agentCount", { count: agents.length });
+  const agentLabel = useConversationAgentLabel(agents, conversation.coding_agents ?? []);
 
   return (
     <div
@@ -153,11 +148,17 @@ function ConversationItem({
       {/* Which agent the thread is with leads the row - the face people pick a
           thread by. */}
       <span className="relative shrink-0">
-        {agents.length > 0 ? (
-          <ConversationAgents agents={agents} showName={false} />
+        {agents.length > 0 || conversation.coding_agents?.length ? (
+          <ConversationAgents
+            agents={agents}
+            codingAgents={conversation.coding_agents}
+            showName={false}
+            size="md"
+            unframed
+          />
         ) : (
           // A box the size of a face, so every title starts at the same x.
-          <span className="block size-6" aria-hidden />
+          <span className="block size-9" aria-hidden />
         )}
         {/* An answer arrived while the reader was elsewhere: a badge on the face,
             as a count sits on an app icon - part of the row's own mark rather
@@ -181,7 +182,7 @@ function ConversationItem({
             if (e.key === "Enter") handleRename();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="text-foreground min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none"
+          className="text-foreground min-w-0 flex-1 bg-transparent text-base font-medium outline-none md:text-[13px]"
           autoFocus
           onClick={(e) => e.stopPropagation()}
         />
@@ -395,7 +396,8 @@ export function RunningFor({ since }: { since: string }) {
 }
 
 /** An icon in the list's header: square, quiet until pointed at. */
-const HEADER_ICON = "text-muted-foreground hover:text-foreground h-8 w-8 rounded-lg [&_svg]:size-4";
+const HEADER_ICON =
+  "text-foreground/85 hover:text-foreground touch:min-h-11 touch:min-w-11 size-8 shrink-0 rounded-lg [&_svg]:size-4";
 
 /** The bands a dated list falls into, newest first. */
 const AGES = ["today", "yesterday", "week", "month", "older"] as const;
@@ -668,7 +670,7 @@ function ConversationList({
 
       <div
         ref={scrollerRef}
-        className="flex-1 scrollbar-thin overflow-y-auto px-3 pb-3"
+        className="min-h-0 flex-1 scrollbar-thin overflow-y-auto px-3 pb-3"
         onScroll={(e) => {
           const el = e.currentTarget;
           if (!isLoading && el.scrollHeight - el.scrollTop - el.clientHeight < 100) {
@@ -840,7 +842,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   });
 
   useEffect(() => {
-    fetchConversations();
+    const controller = new AbortController();
+    void fetchConversations(controller.signal);
+    return () => controller.abort();
   }, [fetchConversations]);
 
   // A link to another thread followed from this page - the inbox's "answered
@@ -907,7 +911,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   // The rail stands the same three in a column, in the same order, so collapsing
   // the list changes its width and nothing a hand has learned.
   const toolbar = (afterNewChat?: () => void, column = false) => (
-    <div className={cn("flex items-center gap-0.5", column && "flex-col")}>
+    <div className={cn("flex shrink-0 items-center gap-0.5", column && "flex-col")}>
       <IconButton
         size="icon"
         aria-label={ts("searchLabel")}
@@ -970,9 +974,19 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
   return (
     <>
-      <aside className={cn("bg-sidebar hidden w-64 shrink-0 flex-col border-r md:flex", className)}>
-        <div className="flex h-12 items-center gap-1 border-b pr-2 pl-4">
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{ts("title")}</h2>
+      <aside
+        className={cn(
+          "bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col border-r md:flex",
+          className,
+        )}
+      >
+        <div
+          className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4"
+          data-tauri-drag-region="deep"
+        >
+          <h2 data-tauri-drag-region className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {ts("title")}
+          </h2>
           {toolbar()}
           <IconButton
             size="icon"
@@ -1051,7 +1065,10 @@ function CollapsedSidebar({
   return (
     <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col border-r md:flex", className)}>
       {/* The same 48px header the list has, with its chevron where the list's is. */}
-      <div className="flex h-12 shrink-0 items-center justify-center border-b">
+      <div
+        className="flex h-12 shrink-0 items-center justify-center border-b"
+        data-tauri-drag-region="deep"
+      >
         <IconButton
           size="icon"
           onClick={onExpand}
@@ -1136,8 +1153,15 @@ function CollapsedSidebar({
                       )}
                     >
                       <span className="relative">
-                        {conversation.agents && conversation.agents.length > 0 ? (
-                          <ConversationAgents agents={conversation.agents} showName={false} />
+                        {conversation.agents?.length || conversation.coding_agents?.length ? (
+                          <ConversationAgents
+                            agents={conversation.agents}
+                            codingAgents={conversation.coding_agents}
+                            showName={false}
+                            size="md"
+                            compact
+                            unframed
+                          />
                         ) : (
                           <span className="flex size-6 items-center justify-center">
                             <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden />

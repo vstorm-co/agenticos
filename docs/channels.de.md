@@ -1,5 +1,5 @@
 ---
-source_sha: "192f01a91cab"
+source_sha: "59cdf11dca18"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -398,19 +398,21 @@ nichts, welche der Unterschiede Entscheidungen waren.
 Jetzt schon. Jedes „nein“ unten hat einen Grund, und ein Grund ist entweder „das
 wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
 
-| | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API |
-|---|---|---|---|
-| Streaming | ja | ja, gefiltert nach dem, was der Betreiber zeigt | **nein** — der POST ist der nicht streamende Weg; eine SSE-Variante ist eine eigene Frage |
-| Anhänge | ja | ja (`file_ids`) **auf einer gehosteten Seite** — der Upload-Endpunkt löst den Schlüssel über `find_page` auf, ein Widget oder ein rohes Socket hat also keinen Weg, der eine id erzeugen würde | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst |
-| Gesprächskontinuität | ja | ja (`continuity_key`), auf einer gehosteten Seite mit anonymem Besucher | ja (`conversation_id`) |
-| `environment_id` | ja | **nein, bewusst** — siehe unten | ja |
-| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war |
-| `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten |
-| Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte |
-| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht |
-| Freigaben: parken den Lauf | ja | ja | ja |
-| Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist |
-| `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist |
+Die letzte Spalte ist Teams (#1985), stellvertretend für die Chat-Plattformen daneben.
+
+| | `/chat` (Dashboard) | Rohes WebSocket | Die öffentliche API | Teams |
+|---|---|---|---|---|
+| Streaming | ja | ja, gefiltert nach dem, was der Betreiber zeigt | **nein** — der POST ist der nicht streamende Weg; eine SSE-Variante ist eine eigene Frage | eine Nachricht, die beim Eintreffen der Antwort umgeschrieben wird |
+| Anhänge | ja | ja (`file_ids`) **auf einer gehosteten Seite** — der Upload-Endpunkt löst den Schlüssel über `find_page` auf, ein Widget oder ein rohes Socket hat also keinen Weg, der eine id erzeugen würde | ja (`file_ids`), und sie laufen denselben Weg wie überall sonst | ja, aus einem persönlichen Chat; eine Datei geht über die Zustimmungskarte von Teams zurück |
+| Gesprächskontinuität | ja | ja (`continuity_key`), auf einer gehosteten Seite mit anonymem Besucher | ja (`conversation_id`) | ein Chat oder ein Channel-Thread |
+| `environment_id` | ja | **nein, bewusst** — siehe unten | ja | **nein** — die Bindung entscheidet, wie auf jeder Chat-Plattform |
+| Modell-Übersteuerung | ja | **nein, bewusst**: eine öffentliche Oberfläche darf ihren Besucher nicht wählen lassen, was er ausgibt | **nein**: die Anfrage trägt keine `model_profile_id`. Welche Version läuft, bleibt über `environment_id` die Entscheidung des Aufrufers, und eine Umgebung kann eine anheften, die nie die Standardversion war | **nein**, wie auf jeder Chat-Plattform |
+| `ask_user` | ja | **nein, noch nicht** — siehe unten | **nein, zu Recht**: niemand wartet an einem HTTP-Request, um eine Frage zu beantworten | ja, als Adaptive Card |
+| Verdichtungshinweis | ja | ja | entfällt — es streamt nichts, dem man es sagen könnte | nein — die Antwort kommt, wenn sie fertig ist |
+| Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht | entfällt — nichts wird gestreamt, worin man sie zeichnen könnte | **nein** — die Antwort kommt, wenn sie fertig ist, ohne gezeichnete Schritte |
+| Freigaben: parken den Lauf | ja | ja | ja | ja |
+| Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist | ja — eine Adaptive Card, entschieden als das Mitglied, das sie drückt |
+| `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist | **nein**, wie auf jeder Chat-Plattform |
 
 ### `environment_id` am Socket, und warum es dem Veröffentlichenden gehört { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -683,6 +685,30 @@ Eines liest sich notwendigerweise anders: ein Aufruf, der von einem MCP-Server
 kam, heißt im Dashboard *Linear · Create issue* und hier mit einem vermenschlichten
 Namen, denn die Zuordnung ist die Liste der Verbindungen der Organisation, und
 sie zu lesen braucht eine Session.
+
+**Ein generiertes Bild, gesprochene Sprache oder ein Video spielt auch auf der
+Seite** (#2309). Die Konsole liest eines über `/api/v1/generated/{filename}`, und
+das braucht eine Session, die ein Besucher nicht hat. Deshalb fügt das Socket
+einem Ergebnis mit einem generierten Bild, gesprochener Sprache oder einem Video,
+das eine von den eigenen Tools dieses Runs gespeicherte Datei nennt, beim Senden
+ein `token` hinzu, und die Seite liest die Datei über
+`/api/embed/<key>/generated/<file>?token=…`, das sie streamt und Byte-Bereiche für
+einen Player durchreicht.
+
+Das Token ist ein HMAC, unter dem `SECRET_KEY` des Deployments, über den Schlüssel
+der Seite, genau diese eine Datei und ein Ablaufdatum sechs Stunden voraus. Es
+öffnet nichts anderes: keine Datei einer anderen Unterhaltung, keine einer anderen
+Organisation, keinen anderen Namen. Ein falsches, abgelaufenes oder fehlendes Token
+bekommt dasselbe 404 wie eine fehlende Datei. Es wird hinzugefügt, wenn der Frame
+hinausgeht, also speichert das Transkript keines, und die Karte ist das Ergebnis
+dieses Schritts — sie erscheint nur, wo *Was jeder Schritt zurückgegeben hat* an
+ist. Eine Socket-Integration findet dieselbe Adresse im `url` des Payloads, als
+API-Pfad.
+
+Ein Ergebnis, das eine Datei nennt, die dieser Run nicht gespeichert hat,
+bekommt kein Token, wie auch immer das Tool heißt, das es zurückgab. Ein Link darf
+120-mal pro Minute abgerufen werden, genug für die Byte-Bereiche eines Players;
+darüber hinaus wird mit 429 geantwortet.
 
 **Ein Widget und ein rohes Socket tragen keine Schalter und bekommen diese
 Standardwerte**, abgelesen von `PageConfig` statt wiederholt — eine zweite Kopie
@@ -1262,7 +1288,7 @@ geschrieben.
 
 ### Scopes und Events { #scopes-and-events }
 
-Dreizehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
+Vierzehn Bot Token Scopes, jeder gerechtfertigt durch einen Aufruf, den der
 Adapter macht:
 
 | Scope | Was ihn braucht |
@@ -1275,6 +1301,7 @@ Adapter macht:
 | `channels:read`, `groups:read` | `conversations.info`, `.list` und `.members` — die Channel-Abfragen, die ein Agent aufrufen darf |
 | `im:read`, `mpim:read` | `conversations.members` bei einer Direktnachricht. Leicht zu vergessen und still, wenn man es tut: die Mitgliedschaftsprüfung schlägt geschlossen fehl, sodass eine Unterhaltung, in der niemand bestätigt werden konnte, **aus der Unterhaltungsliste verschwindet**, statt einen Fehler zu erzeugen |
 | `users:read` | `users.info`, was Member-IDs in Menschen verwandelt |
+| `users:read.email` | `users.lookupByEmail`, was ein neues Mitglied findet, um es zu [begrüßen](#a-welcome-for-a-new-member). Eine Slack-App, die vor seiner Aufnahme installiert wurde, funktioniert ohne ihn weiter und begrüßt niemanden, bis sie aus dem neuen Manifest neu installiert ist |
 
 Fünf Bot-Events: `app_mention`, `message.channels`, `message.groups`,
 `message.im`, `message.mpim`.
@@ -1532,10 +1559,212 @@ Bots zeigen. Mattermost zeigt dann ein Token; das gehört in das Feld **Slash
 command token** des Bots. Jede Anfrage trägt es, und ein Bot ohne Token lehnt alle
 ab.
 
+## Microsoft Teams { #microsoft-teams }
+
+Ein Teams-Bot ist eine **Azure-Bot**-Ressource, angelegt als **Single-Tenant** in
+Ihrem Entra-Mandanten — Microsoft legt seit Juli 2025 keine Multi-Tenant-Bot-
+Ressourcen mehr an — und wird über das eigene Protokoll des Bot Connectors statt
+über ein SDK erreicht (#1985).
+
+1. Legen Sie im Azure-Portal einen **Azure Bot** vom Typ *Single Tenant* an.
+   Kopieren Sie unter *Configuration* die **Microsoft App ID** und den Mandanten, und
+   legen Sie unter *Certificates & secrets* der App-Registrierung einen **geheimen
+   Clientschlüssel** an.
+2. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `teams`, mit
+   dem Schlüssel als Token und App- und Mandanten-ID daneben.
+3. Fügen Sie den **Messaging-Endpunkt** aus den Bot-Einstellungen in die
+   Konfiguration des Azure Bots ein und aktivieren Sie dort den Kanal **Microsoft
+   Teams**.
+4. **Laden Sie das App-Paket** aus den Bot-Einstellungen herunter — das Manifest und
+   seine zwei Icons, für diesen Bot gebaut — und laden Sie es in den Teams-App-Katalog
+   Ihres Mandanten hoch. Fügen Sie die App einem persönlichen Chat, einem Gruppenchat
+   oder einem Team hinzu.
+
+**Jede Aktivität wird geprüft, bevor sie gelesen wird.** Der Connector signiert
+jede mit einem JWT: Die Signatur wird gegen die Schlüssel geprüft, die der Aussteller
+veröffentlicht, der Aussteller muss das Bot Framework oder Ihr eigener Mandant sein,
+die Zielgruppe muss die App ID dieses Bots sein, das Token darf nicht abgelaufen
+sein, und der genannte Dienst muss der der Aktivität sein. Eine Anfrage, die eine
+dieser Prüfungen nicht besteht, ist ein 401. Der Bot ist Single-Tenant, also wird
+auch eine Aktivität aus einem anderen Mandanten abgelehnt, und das Token des Bots
+geht nur an eine Bot-Connector-Adresse.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Ein persönlicher Chat | Auf jede Nachricht. Der Chat ist eine Unterhaltung |
+| Ein Gruppenchat | Wenn er @erwähnt wird |
+| Ein Channel | Wenn er @erwähnt wird, in dem Thread, in dem er gefragt wurde — jeder Thread eine eigene Unterhaltung |
+
+**Wer spricht**, ist die Entra-Objekt-ID des Mitglieds, in jedem Chat des Mandanten
+dieselbe. Wo dieses Deployment Personen mit Entra im selben Mandanten anmeldet,
+wird ein nicht verknüpftes Teams-Konto mit dem Mitglied verknüpft, das sich mit der
+Adresse aus der Teams-Mitgliederliste anmeldet, ohne Link zum Klicken; überall sonst
+gilt der Verknüpfungsablauf wie auf jeder Plattform, und `require_link` entscheidet
+wie dort.
+
+**Freigaben und Fragen sind Adaptive Cards.** Ein Druck wird als das Mitglied
+entschieden, das gedrückt hat, und die Karte wird durch das Gewählte ersetzt. Eine
+Datei, die der Agent sendet, erreicht einen persönlichen Chat über die
+Zustimmungskarte von Teams; in einem Gruppenchat oder Channel nennt die Antwort sie
+stattdessen, weil Teams dort keine Datei von einem Bot annimmt. Ein Diagramm wird in
+die Nachricht gezeichnet.
+
+**Ein Trigger kann seine Antwort in Teams posten.** Jede Unterhaltung, in der der Bot
+ist, wird gemerkt, und ein Trigger kann einen der Team-Channels oder Gruppenchats der
+Organisation nennen: Die Antwort jeder Ausführung wird dann dort als neue Nachricht
+gepostet, unter dem Namen des Triggers. Ein persönlicher Chat wird nie angeboten — er
+gehört jemandem.
+
+## Discord { #discord }
+
+Ein Discord-Bot ist eine Anwendung im Discord Developer Portal, angesprochen über
+Discords eigenes Gateway und die REST-API, ohne Bibliothek dazwischen (#2079).
+Nachrichten, Slash-Befehle und Schaltflächen-Klicks kommen alle über die eine
+Gateway-Verbindung des Bots, sodass **ein Deployment für Discord keine öffentliche
+Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
+
+1. Erstellen Sie im [Developer Portal](https://discord.com/developers/applications)
+   eine Anwendung. Setzen Sie unter **Bot** das **Token** zurück, kopieren Sie es
+   und schalten Sie **Message Content Intent** ein. Ohne den lehnt Discord die
+   Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt. Setzen Sie
+   unter **Installation** den **Install Link** auf *None* und schalten Sie dann
+   unter **Bot** **Public Bot** aus. Einen öffentlichen Bot kann jeder zu seinem
+   eigenen Server hinzufügen, deshalb verweigert
+   der Bot die Verbindung, solange er öffentlich ist. Ein Bot, der während der
+   Verbindung öffentlich wird, hält an, sobald er das nächste Mal einem Server
+   hinzugefügt wird.
+2. Kreuzen Sie unter **OAuth2 → URL Generator** die Scopes `bot` und
+   `applications.commands` an sowie die Berechtigungen **View Channels**, **Send
+   Messages**, **Send Messages in Threads**, **Create Public Threads**, **Read
+   Message History** und **Attach Files**, und öffnen Sie dann die URL, um den Bot
+   einem Server hinzuzufügen. Ohne **Attach Files** wird eine Datei oder ein
+   Diagramm des Agenten abgelehnt, und der Text, der damit gesendet wurde, geht
+   ebenfalls verloren.
+3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `discord`,
+   mit dem Token.
+
+**Server ausdrücklich genehmigen.** Tragen Sie im Formular zum Hinzufügen oder Bearbeiten des Bots die **Genehmigten Discord-Server-IDs** ein. Aktivieren Sie Discords Entwicklermodus, kopieren Sie jede Server-ID und trennen Sie IDs durch Kommas oder Leerzeichen. Übergeben Sie in der CLI `--discord-guild 123456789012345678` an `channel-add-bot`; wiederholen Sie die Option für weitere Server. Eine leere Liste erlaubt nur Direktnachrichten. Von READY gemeldete Installationen sind keine Genehmigungen; Entfernen und erneutes Hinzufügen umgeht die Liste nicht.
+
+`/ask` bestätigt die Interaktion privat, bevor Kanalabfragen oder Datenbankprüfungen beginnen. Nur eine zugelassene Frage wird öffentlich gepostet; Ablehnungen und Einladungen zur Kontoverknüpfung bleiben privat. Einladungen verbrauchen das Limit des Absenders. Die Servergenehmigung bestimmt die Orte; `jwt_linked` oder `require_link` verlangt weiterhin ein Organisationskonto. Der Konsolenzugriff auf gespeicherte Unterhaltungen erfordert **View Channel** und **Read Message History**, bei privaten Threads zusätzlich die Mitgliedschaft.
+
+Der Bot registriert seine Befehle beim Verbinden: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` und `/help`, dazu **Ask the agent** unter *Apps* auf jeder
+Nachricht. Discord kann eine Weile brauchen, bis neue Befehle auf jedem Server
+erscheinen.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Eine Direktnachricht | Auf jede Nachricht. Die Direktnachricht ist eine Unterhaltung, und `/new` beginnt sie neu |
+| Ein Serverkanal | Wenn er @erwähnt wird oder eine Nachricht auf ihn antwortet. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
+| Ein Thread, den der Bot geöffnet hat | Auf jede Nachricht darin |
+| `/ask` | Überall: die Frage, bis zu 2.000 Zeichen, wird gepostet und die Antwort im Thread darunter gegeben |
+| *Apps → Ask the agent* | Auf jeder Nachricht: der Agent wird zu dieser Nachricht gefragt, in einem Thread darauf |
+
+`/agents`, `/link` und die anderen Befehle antworten privat, nur dem, der sie
+ausgeführt hat. `/new` beginnt die Unterhaltung eines Threads neu; in einem
+Server-Kanal, in dem jede Erwähnung ohnehin eine neue beginnt, sagt es das
+stattdessen. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
+Antwort stattdessen eine Antwort auf die Frage, und wer darauf antwortet, setzt
+dieses Gespräch fort.
+
+**Die Antwort wird an Ort und Stelle geschrieben.** Der Bot postet eine Nachricht
+und bearbeitet sie, während die Antwort einströmt, und läuft nach 2.000 Zeichen in
+weitere Nachrichten über. Geschrieben wird nur Text, den die Guardrails schon
+geprüft haben, sodass ein geschwärztes Geheimnis nie zu sehen ist, auch nicht für
+einen Moment. Nichts, was der Bot postet, kann jemanden anpingen: `@everyone` und
+Rollenerwähnungen in einer Antwort bleiben einfacher Text.
+
+**Freigaben und Fragen sind Schaltflächen**, bei einer Frage mit mehr als 25
+Optionen Auswahllisten. Unter jeder Antwort stehen Daumen, und ein Daumen nach
+unten öffnet ein Discord-Formular, das fragt, was falsch war. Eine Reaktion auf die
+Frage gibt es auf Discord nicht.
+
+**Wer spricht**, ist die Discord-Benutzer-ID, mit `/link` wie auf jeder Plattform
+mit einem Mitglied verknüpft. Eine Unterhaltung aus einem Serverkanal wird in der
+Konsole denen gezeigt, die den Kanal noch sehen können, nach den Rollen des Servers
+und den Berechtigungsüberschreibungen des Kanals, denn das heißt auf Discord, in
+einem Kanal zu sein. Ein privater Thread ist nur auf Einladung zugänglich und
+daher ein eigener Raum: Eine Unterhaltung daraus wird nur denen gezeigt, die
+noch in diesem Thread sind, und die Notizen, die der Agent dort führt, werden
+nicht mit dem Kanal geteilt.
+
+**Ein Thread, in den der Bot mittendrin geholt wird, wird zuerst gelesen.** Die
+letzten Nachrichten darin, mit Autor und Zeit, und die Dateien, die Leute dort
+gepostet haben, erreichen den Agenten vor der Antwort, wie bei Slack und
+Mattermost; Dateien, die der Bot selbst gepostet hat, bleiben außen vor. Nötig
+ist **Read Message History**, und `read_channel_history` liest einen Thread oder
+einen Kanal genauso, wo die Anbindung es erlaubt.
+
+### Die Rollen eines Servers als Gruppen { #discord-roles }
+
+Ein Administrator kann eine Rolle auf einem der Server des Bots einer Gruppe der
+Organisation zuordnen (#2569). Öffne **Kanäle** und dann die Aktion
+**Discord-Rollen** in der Zeile des Bots. Server und Rolle werden aus dem gewählt,
+was der Bot selbst von Discord liest, daher werden `@everyone` und die Rollen, die
+Discord für einen Bot verwaltet, nicht angeboten. Eine Zuordnung anzulegen verlangt
+`members:manage`, und die Routen verlangen zusätzlich `channels:manage`.
+
+Ein verknüpftes Mitglied mit der Rolle kommt vor jeder Nachricht an einen der
+Discord-Bots der Organisation in die Gruppe, und erneut durch den Job
+`sync-discord-roles` alle 15 Minuten. Wird ihm die Rolle entzogen, verlässt es die
+Gruppe, und der Job bemerkt das auch bei jemandem, der dem Bot nicht mehr schreibt.
+Der Bot fragt Discord jeweils nach den Rollen eines Mitglieds, braucht also keinen
+privilegierten Intent, und eine neue Zuordnung erfasst Personen bei ihrer nächsten
+Nachricht statt sofort.
+
+Diese Prüfungen vor einer Nachricht zählen gegen das `rate_limit_rpm` des Absenders,
+in einem eigenen Kontingent, Befehle wie `/help` eingeschlossen. Wer es überschreitet,
+wird gebeten, langsamer zu schreiben, und Discord wird erst nach Ablauf der Minute
+wieder gefragt.
+
+Eine Zuordnung kann auch eine Rolle in der Organisation nennen. Eine verknüpfte
+Person mit der Discord-Rolle, die noch kein Mitglied ist, tritt der Organisation dann
+mit dieser Rolle bei. Das erspart es, jeden in einem Community-Server einzeln
+einzuladen. Eine Rolle zu nennen verlangt `roles:manage`, und nur eine Rolle, die die
+eigene Rolle des Aufrufers strikt übertrifft. Die Reihenfolge zwischen mehreren
+passenden Rollen und die Regeln dazu, was die Synchronisierung nie anfasst, sind die
+der [Verzeichnissynchronisierung](directory.md#what-the-sync-never-touches):
+
+- Nur ein verknüpftes Konto zählt. Ein Discord-Nutzer, der nie `/link` ausgeführt
+  hat, kommt nirgendwohin, welche Rollen er auch hat.
+- Eine Rolle passt nur auf dem Server, den die Zuordnung nennt, gelesen von dem Bot,
+  dem die Zuordnung gehört. Dieselbe Rollen-ID auf dem Server eines anderen Bots
+  passt auf nichts.
+- Die Synchronisierung ändert nur Zeilen, die sie selbst angelegt hat, auf der
+  Mitgliederseite und in einer Gruppe mit **Discord** markiert. Eine von Hand
+  hinzugefügte Gruppenmitgliedschaft bleibt, wenn die Rolle entzogen wird, eine
+  Mitgliedschaft, die ein Administrator angelegt hat, behält ihre Rolle, und ein
+  Eigentümer wird nie herabgestuft oder entfernt. Wen die Synchronisierung in die
+  Organisation aufgenommen hat, verlässt alle ihre Gruppen, wenn sie ihn wieder
+  entfernt, wie jemand, der von Hand entfernt wird.
+- Ist ein Server nicht lesbar, bleiben seine zugeordneten Gruppen erhalten. Mögliche Organisationsrollen erhalten nur bereits vorhandene Befugnisse; eine ungelesene `viewer`-Zuordnung erhält kein `admin`. Bestätigte Freigaben gelten weiterhin.
+
+Jeder Abgleich hat ein gemeinsames Netzwerkbudget von zehn Sekunden. REST-Abfragen teilen das `rate_limit_rpm` des Bots pro Benutzer über alle verknüpften Konten, getrennt vom Limit der Nachrichtenprüfungen. Das Löschen einer zugeordneten Gruppe erfordert ebenfalls `channels:manage`.
+
+Die Serverliste erlaubt eine gleichzeitige Anfrage pro Organisation. Seitennavigation und Rollenabfragen teilen ein Budget von zehn Sekunden; Rollen werden für höchstens acht Server gleichzeitig gelesen. Oberhalb der unterstützten 2.500 Server oder bei unvollständiger Antwort schlägt die Ermittlung ausdrücklich fehl.
+
+Wer die Verknüpfung des Discord-Kontos löst, verliert, was dessen Rollen gegeben
+haben, es sei denn, ein anderes verknüpftes Discord-Konto verdient es noch. Eine
+gelöschte Zuordnung nimmt zurück, was sie gegeben hat, bei der nächsten Nachricht
+der Person oder beim nächsten Lauf des Jobs. Den Bot oder eine zugeordnete Gruppe zu
+löschen oder dem Bot einen neuen Token zu geben, nimmt dasselbe zurück und verlangt
+deshalb, was das Löschen jeder dieser Zuordnungen verlangt. Jede Änderung steht im Audit-Log als
+`discord.member_added`, `discord.role_changed`, `discord.member_removed`,
+`discord.group_joined` oder `discord.group_left`, und das Anlegen oder Löschen einer
+Zuordnung als `discord.mapping_created` oder `discord.mapping_deleted`.
+
+Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
+verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die Tools für
+Kanalmitglieder, Kanaldetails und Kanalsuche werden auf Discord nicht angeboten.
+
+Wenn beide Quellen Zugang gewähren, hat das Verzeichnis bei der Anmeldung Vorrang.
+Entfällt diese Freigabe, übernimmt eine verbleibende Discord-Rolle dieselbe
+Mitgliedschaft ohne Schlüssel zu widerrufen. Siehe [Mitgliedschaftsübergabe](directory.md#what-the-sync-never-touches).
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Telegram-Polling, Slack Socket Mode und der Mattermost-Event-Stream laufen alle
-unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
+Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream und das
+Discord-Gateway laufen alle unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
 oder zurückgewiesener Konfigurationswert ist keine abgerissene Session, und der
 Supervisor behandelt ihn anders: er vermerkt den Bot mit dem Grund als
 ausgefallen, protokolliert einmal und hört auf. Nichts, was er tut, würde die
@@ -1557,14 +1786,14 @@ Sekunden Wartezeit, verdoppelt bis zu einer Minute, sodass ein Server, der eine
 Stunde ausfällt, nicht von jedem Bot darauf 720-mal bearbeitet wird. Eine Session,
 die sauber endete, beginnt die Leiter von vorn. Die Zeile, die vor jedem Warten
 protokolliert wird, benennt die Verzögerung, die sie gleich abwartet, und dieselbe
-Schleife bedient alle drei Plattformen, sodass die Regel zwischen ihnen nicht
+Schleife bedient jede dieser Plattformen, sodass die Regel zwischen ihnen nicht
 auseinanderlaufen kann.
 
 ---
 
 ## Freigaben und Fragen als Schaltflächen { #approvals-and-questions-as-buttons }
 
-Ein in Slack, Telegram oder Mattermost gestarteter Run kann für einen Menschen
+Ein in Slack, Teams, Telegram, Mattermost oder Discord gestarteter Run kann für einen Menschen
 anhalten: Ein freigabepflichtiger Tool-Aufruf wartet auf eine Entscheidung, oder
 der Agent stellt eine `ask_user`-Frage. Der Chat bekommt die Auswahl dort, wo er
 ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachricht
@@ -1598,7 +1827,7 @@ Anfrage mit dieser einen Zeile beginnt und den Rest hinter **Details** faltet.
 
 Ein Druck handelt als die Person, die gedrückt hat, über ihr verknüpftes Konto:
 Entscheiden braucht `approvals:decide`, und nur die gefragte Person kann eine
-Frage beantworten. Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
+Frage beantworten. Eine anderswo getroffene Entscheidung handelt als die Person, die sie getroffen hat, auch wenn es ein App-Admin ist ([unten](#decided-outside-the-chat)). Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
 wartet `QUESTION_EXPIRY_HOURS` auf eine Antwort und `APPROVAL_EXPIRY_HOURS` auf
 eine Entscheidung, wie überall. Slack signiert seine Drucke; Mattermost signiert
 nichts, daher trägt jede Schaltfläche die eigene Signatur dieser Bereitstellung
@@ -1618,6 +1847,89 @@ wechselt der Schritt zu *Needs you* und sagt, wofür, und nennt, wer den Browser
 solange ein Mensch ihn hält. Der Link öffnet die Konsole, Übernehmen braucht also ein
 Konsolenkonto: die Person, für die der Run handelt, oder wer den Agent bearbeiten darf.
 
+### Außerhalb des Chats entschieden { #decided-outside-the-chat }
+
+Eine im Chat gestellte Anfrage lässt sich auch in den **Approvals** der Konsole,
+im Web-Chat oder über die HTTP-API entscheiden. Tut das eine Person und ist damit
+das Letzte erledigt, worauf der Run wartet, setzt der Server den Run als sie fort
+und postet die Antwort in den Chat, in dem gefragt wurde. Die Konsole sagt das,
+statt den Run selbst fortzusetzen, daher wird der Run einmal fortgesetzt. Eine
+Frage funktioniert genauso, wenn die gefragte Person sie in der Konsole beantwortet.
+
+Eine Entscheidung mit einem API-Schlüssel wird festgehalten und setzt den Run nicht
+fort: Einen Run, den eine Person gestartet hat, setzt nur eine Person fort. Über die
+API sagt `continues_in_chat` einem Client, welcher Fall vorliegt (siehe
+[Einen Agent ausführen](api.md#running-an-agent)).
+
+Drei Enden, die außerhalb des Chats passieren, posten dort je eine feste
+Nachricht, damit niemand auf Schaltflächen wartet, die nichts mehr bewirken. Die
+offenen Schaltflächen des Chats werden im selben Moment abgeschlossen.
+
+| Ende | Der Chat erfährt |
+|---|---|
+| Der Run läuft ab, nach `APPROVAL_EXPIRY_HOURS` bei einer Entscheidung oder `QUESTION_EXPIRY_HOURS` bei einer Frage | „This request expired without a decision." |
+| Jemand drückt in der Konsole **Stop** | „This run was stopped from the console." |
+| Ein Run wurde entschieden und nichts hat ihn etwa eine Stunde lang fortgesetzt | „A decision was recorded, but the run could not continue." |
+
+Das Letzte ist ein Sicherheitsnetz. Es bleibt in zwei Fällen still: wenn die
+Entscheidung mehr als 7 Tage alt ist und wenn der Chat bereits erfahren hat, dass
+der Run nicht fortgesetzt werden konnte. Ein Chat erhält höchstens eine Mitteilung
+je Parken eines Runs.
+
+Eine Schaltfläche, die gedrückt wird, nachdem die Anfrage anderswo beantwortet
+wurde, antwortet „That has already been answered." und ändert nichts.
+
+Eine Fortsetzung kann abgelehnt werden, etwa wenn der Chat seit der Frage neu
+begonnen hat, seine Zugriffsrichtlinie der fragenden Person jetzt den Zugang
+verweigert, die entscheidende Person Freigaben nicht mehr entscheiden darf, der Bot
+vom Agenten entfernt wurde oder der Agent nicht mehr gebaut werden kann. Der Chat
+erfährt es einmal: „That was decided outside the chat, but the run could not
+continue." **Resume** auf der Seite des Runs funktioniert weiterhin, bis etwa eine
+Stunde nach der letzten Entscheidung. Es läuft
+wie bisher, ohne die Raumprüfung, und postet die Antwort nur in einen Chat, der
+die fragende Person noch zulässt. Eine Mitgliedschaftsprüfung, die die Plattform
+nicht beantworten kann, hält eine Fortsetzung nicht auf.
+
+Ein vor 1.29.0 geparkter Run hat keinen gespeicherten Chat, daher setzt die Konsole
+ihn fort wie bisher. Setzt ihn niemand etwa eine Stunde nach der letzten Entscheidung
+fort, beendet ihn das Sicherheitsnetz ohne Nachricht.
+
+Der Worker sendet erforderliche Antworten und Abschlussmeldungen aus dauerhaften
+Jobs, die in derselben Transaktion wie das Ergebnis oder der Abschluss gespeichert
+werden. Nach einem Neustart oder vorübergehenden Sendefehler wird nur die Zustellung
+bis zu dreimal versucht; Agent und freigegebene Werkzeuge werden nicht erneut
+ausgeführt. Bot, Chat-Sitzung und Zugriffsrichtlinie werden vor dem Senden erneut
+geprüft. Ein Ziel mit widerrufenem Zugriff erhält nichts. Plattformen ohne
+idempotentes Senden können ein Duplikat anzeigen, wenn die Nachricht ankam, aber
+ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
+**Admin → Background jobs** (`deliver-channel-handback`).
+
+### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
+
+Auf die Antwort eines Agents mit [Nächsten Schritten](reference/capabilities.md#follow-ups),
+die nächste Schritte angeboten hat, folgt eine Nachricht mit Schaltflächen, eine je
+Schritt - *Mach eine Tabelle daraus*, *Mach das jeden Montag*. Ein Druck ist die
+Person, die diesen Schritt sagt: Er wird als ihre nächste Nachricht in diesem Chat
+beantwortet und allem unterworfen, dem eine getippte unterliegt - der Verknüpfung,
+der Zugriffsrichtlinie des Bots, dem Rate Limit -, und die gedrückte Nachricht
+zeigt danach den Schritt statt ihrer Schaltflächen.
+
+Jede Nachricht wird einmal gedrückt; jeder im Raum darf es, und die Antwort gehört ihm. Eine Antwort, die für
+eine Freigabe oder eine Frage angehalten hat, bietet stattdessen diese an. Die
+Einrichtungskarten, die ein Agent vorschlagen kann, zeichnet nur die Konsole.
+
+## Eine Begrüßung für ein neues Mitglied { #a-welcome-for-a-new-member }
+
+Tritt jemand der Organisation bei - über eine Einladung, über den Beitritt zur
+Standardorganisation oder über die Verzeichnissynchronisation -, sucht jeder
+aktive Slack-, Mattermost- und Teams-Bot der Organisation die Person über ihre
+E-Mail-Adresse und schickt ihr, wo er sie findet, eine Direktnachricht in der
+Sprache ihrer Konsole: wer er ist, dass sie ihn gleich dort fragen kann, und die
+Adresse der Konsole. Es ist ein Hintergrundjob mit einem Versuch; ein Bot, der sie
+nicht findet, oder eine Plattform, die ablehnt, kostet sonst nichts. Slack braucht
+für die Suche den Scope `users:read.email`; Teams findet sie im Verzeichnis des
+Tenants.
+
 ## Reaktionen und Bewertungen { #reactions-and-ratings }
 
 Zwei Dinge, die jede Chat-Plattform hier teilt, beide in den Einstellungen des
@@ -1636,11 +1948,18 @@ Bots schaltbar:
   oder Mattermost-Dialog; die Antwort wird als Kommentar der Bewertung gespeichert.
   Telegram nimmt die Daumen ohne die Frage.
 
-Eine Bewertung braucht ein verknüpftes Mitglied, wie ein Druck auf eine Freigabe;
-die Daumen einer nicht verknüpften Person zählen nicht. Die Karte *Answer quality*
-auf dem Dashboard teilt den Anteil guter Antworten nach Oberfläche auf, sobald auf
-mehr als einer bewertet wurde - ein Agent, der in der Konsole gut und in Slack
-schlecht abschneidet, zeigt es.
+**Bewertungen in Mattermost benötigen kein AgenticOS-Konto.** Die vom Server
+signierte Teilnehmeridentität ist der Autor. Jeder kann seine Stimme ändern;
+die Schaltflächen bleiben für andere verfügbar, die Bestätigung ist privat.
+Ein Kommentar zur negativen Bewertung gehört demselben Teilnehmer. Slack und
+Telegram verlangen weiterhin eine verknüpfte Mitgliedschaft; auch die Freigabe
+eines Werkzeugaufrufs erfordert sie. Kanalbewertungen liefern `user_id: null`
+in der API statt einer Zuordnung zum Bot-Eigentümer. Aktualisiere die Datenbank
+vor dem Start dieser Version. Ein Downgrade entfernt Kanalbewertungen und
+behält Kontobewertungen.
+
+Die Dashboard-Karte *Answer quality* zählt diese Stimmen und trennt sie nach
+Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben.
 
 ## Was jeder Kanal gemeinsam hat { #what-every-channel-shares }
 
@@ -1940,6 +2259,8 @@ schlecht abschneidet, zeigt es.
     Nachtrag: die Runde zeigt auf das Chat-Konto, und das Konto gewinnt eine
     Person.
 
+    **Die `/chat`-Liste lässt Kanal-Threads standardmäßig weg.** `GET /conversations` nimmt `hide_channels` an, standardmäßig wahr, damit sich die Seitenleiste nicht mit Threads füllt, in denen ein Bot antwortet; sie öffnen sich weiter über ihren Link, und `hide_channels=false` listet sie wieder auf.
+
     **Sprechen ist ein Anspruch; die Plattform entscheidet, ob er noch gilt.** Der
     Runden-Eintrag sagt, wer *gesprochen* hat, und vor [#641][641] war das die
     ganze Prüfung — jemand, der aus dem Channel entfernt wurde, las den Thread
@@ -2005,16 +2326,14 @@ schlecht abschneidet, zeigt es.
   [Ausgabe-Guardrail](reference/capabilities.md#guardrails) wird die Antwort
   stattdessen Schritt für Schritt umgeschrieben, und jeder Schritt wird erst gepostet, nachdem
   er geprüft wurde.
-- **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die den
-  Instruktionen des Agents allein auf dieser Oberfläche hinzugefügt werden. Eine
-  neue öffnet sich mit dem, was dieser Client tatsächlich rendert: Slack zeichnet
-  kein Markdown und schreibt einen Link als `<url|text>`, Mattermost rendert
-  Überschriften und Tabellen, Telegram weist eine Nachricht zurück, deren `*`
-  nicht geschlossen ist — dazu, wie man dort einen Link angibt, angeführt von
-  einem Emoji, wenn es eine Aktion oder ein Ziel ist. Von da an ist es der Text
-  der Bindung: ändern Sie ihn, ergänzen Sie ihn, oder leeren Sie ihn. Er formt,
-  wie eine Antwort geliefert wird, und kann nie ersetzen, wofür der Agent da ist —
-  das gehört zur veröffentlichten Version.
+- **Jede Bindung trägt ihre eigenen zusätzlichen Instruktionen**, die nur auf
+  dieser Oberfläche hinzugefügt werden. Aktuelle Formatierungsvorgaben kommen
+  aus dem Deployment: Slack schreibt Links als `<url|text>`, Mattermost rendert
+  Überschriften und Tabellen, und Telegram weist ungeschlossene Formatierung
+  zurück. Eine neue Bindung speichert keine Kopie dieser Vorgaben. Eigene
+  Anweisungen lassen sich ergänzen, bearbeiten oder leeren, ohne Plattformregeln
+  auf dem Stand des Installationstags einzufrieren. Sie gestalten die Ausgabe;
+  der Zweck des Agents gehört zu seiner veröffentlichten Version.
 - **Ein Bot antwortet, sobald er registriert ist.** Ein Polling-Bot -
   Telegram-Long-Polling, Slack Socket Mode, ein Mattermost-Event-Stream - wird
   über eine Verbindung erreicht, die der API-Prozess hält, und diese Verbindung
@@ -2041,29 +2360,28 @@ schlecht abschneidet, zeigt es.
   anderer Prozess fragt den Token dieses Bots ab“. Dieser Prozess liegt außerhalb
   des Deployments, meist ein zweites Deployment oder ein Skript mit demselben
   Token, und nur sein Besitzer kann ihn stoppen.
-- **Die Instruktionen einer Bindung dürfen benennen, was nur die Plattform weiß.**
-  `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
-  `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die
-  die Channel-Abfragen verwenden, sodass Telegram alle fünf anbietet, obwohl es
-  zwei der vier Tools anbietet. Der Builder listet die, die diese Plattform
-  beantworten kann, unter dem Feld auf und fügt eine an der Cursorposition ein,
-  jeweils mit der echten Beschreibung des Tools - derjenigen, die das Modell
-  liest, bevor es sich entscheidet, es aufzurufen, nicht der verkürzten
-  Paraphrase aus dem Katalog, ohne die Auszeichnung, mit der das Modell selbst
-  die Zusammenfassung von der Form der Antwort unterscheidet.
+- **Channel-Kontext wird bei jedem Run automatisch ergänzt.** Runs aus Mattermost, Slack, Teams und Telegram erhalten Name, Zweck, Thema, Sichtbarkeit, gemeldete Mitgliederzahl und eine begrenzte sichtbare Mitgliederliste, auch bei bestehenden oder geleerten Bindungs-Prompts. `{channel_members}` benennt die Liste; `{member_list}` bleibt ein Alias. Weitere Platzhalter sind `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{channel_visibility}` und `{member_count}`.
 
-    Pro Run aufgelöst und nie zwischengespeichert: die Mitgliedschaft eines
-    Channels ändert sich, und eine veraltete Liste in einem Prompt ist schlimmer
-    als keine, denn der Agent gibt sie als Tatsache an. Es wird nur geholt, was der
-    Text verlangt, sodass eine Bindung, die keinen Platzhalter nennt, nichts
-    kostet. Ein Platzhalter, den die Plattform nicht beantworten konnte, wird zu
-    `(unavailable)`, statt jemanden seine Antwort zu kosten.
+    Jede Quelle wird einmal pro Run abgefragt, ohne Cache zwischen Runden: höchstens 50 sichtbare Mitglieder und 2000 Zeichen pro Wert. Telegram liefert Administratoren, nicht alle Mitglieder. Jede Quelle hat fünf Sekunden Zeit; nicht verfügbare Werte bleiben unbekannt. Werte werden abgeflacht und als nicht vertrauenswürdige Gesprächsdaten außerhalb der Systemanweisungen übergeben. Slack liefert Mitglieder-IDs ohne einzelne Profilabfragen. Der editierbare Bindungstext ergänzt diesen Laufzeitkontext.
 
-    Ein Prompt, der einen davon gefüllt hat, bekommt einen Satz hinzu, der sagt,
-    dass die eingesetzten Werte Informationen und keine Befehle sind, und bei jedem
-    Wert werden Zeilenumbrüche und geschweifte Klammern geglättet. Das `purpose`
-    eines Channels ist von jedem bearbeitbar, der den Channel bearbeiten kann, und
-    es wird in die Instruktionen eines Agents eingefügt.
+- **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
+
+    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft. Discord zählt `@everyone` und `@here` nur, wenn der Absender sie verwenden darf, also wenn Discord den Raum tatsächlich benachrichtigt.
+
+- **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
+- **MCP-Lesezugriffe verknüpfter Absender folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
+
+Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
+
+Editierbare Kanalnamen, Themen, Beschreibungen und Autorenbezeichnungen durchlaufen vor dem Modell die konfigurierten Eingabeprüfungen. Bereinigte Werte ersetzen die Originale; blockierte Referenzwerte werden zurückgehalten, während eine erlaubte Frage fortgesetzt werden kann. Feste Metadatensyntax, Plattformkennungen und Chat-Typen werden nicht als Fragetext geprüft.
+
+Autorenreferenzen werden getrennt von der aktuellen Nachricht übergeben, damit Eingabe-Guardrails die eigentliche Frage prüfen. Nicht verknüpfte Kanalteilnehmer benötigen weiterhin eine Genehmigung für jeden MCP-Aufruf, auch für Organisationslesezugriffe.
+
+Sowohl ausdrückliche `@slug`-Aufrufe als auch Standardantworten erhalten den gespeicherten Gesprächsverlauf zusammen mit dem anfänglichen Kontext des Kanal-Threads.
+
+Veröffentlichte Apps lassen sich aus einer anderen Unterhaltung ohne die ursprüngliche Sandbox ändern. `read_artifact` liest den gespeicherten Quelltext; `publish_artifact` mit demselben Namen und Änderungen oder neuem Inhalt aktualisiert die App. Link und Versionshistorie bleiben erhalten. Lesezugriff erteilt keine Bearbeitungsrechte; die bestehenden Berechtigungsprüfungen gelten weiterhin.
+
+- **Der Agent kennt den Ort und das verfügbare Konto.** Laufzeitinstruktionen nennen Plattform und Deployment-Konsole, erklären den verwalteten Workspace und unterscheiden organisatorische MCP-Verbindungen von persönlichen Diensten. Persönliche Dienste benötigen eine verknüpfte Absenderidentität und deren autorisierte Dienstverbindung. Die Verknüpfung beginnt mit `link` ohne Schrägstrich in einer Direktnachricht; der private Verbindungslink gehört nicht in einen Channel. Der Agent nennt tatsächliche Tool-Ergebnisse und einen konkreten nächsten Schritt bei fehlender Anmeldung oder Funktion.
 - **Eine erneut zugestellte Nachricht wird einmal beantwortet.** Jede Plattform
   liefert mindestens einmal: die Webhook-Routen antworten mit 200, bevor
   irgendetwas getan wird, sodass ein langsamer Handler nie eine Wiederholung
@@ -2516,6 +2834,7 @@ Anfrage, weshalb ein Anhang als Handle ankommt statt als Inhalt:
 | Slack | Die private URL auf dem Event, geholt mit dem Bot-Token. Slack antwortet mit **200 und einer Anmeldeseite** statt mit 401, wenn das Token eine Datei nicht lesen kann, deshalb wird der Content-Type geprüft — sonst würde eine Anmeldeseite als die Tabelle des Nutzers gespeichert |
 | Telegram | `getFile` löst eine `file_id` zu einem Pfad auf, der abläuft, dann die Datei-API. Ein Foto kommt in mehreren Größen an; die größte ist die, die behalten wird |
 | Mattermost | `/files/{id}` auf dem eigenen Server dieses Bots. Ein Bot, dessen Server nicht vermerkt ist, sagt das, statt zu raten, an welchen Firmenserver er ein Token schicken soll |
+| Teams | Eine Datei in einem persönlichen Chat trägt eine Download-URL, die Teams bereits autorisiert hat; ein in eine Nachricht eingefügtes Bild wird mit dem Token des Bots vom Bot Connector geholt, und das Token geht nirgendwo sonst hin |
 
 **Aufnahmen werden noch nicht unterstützt.** Telegram legt jede Medienart in ein
 eigenes Feld, sodass eine Sprachnotiz ohne jeden Text ankommt — und bis zu dieser
@@ -2547,21 +2866,7 @@ wird gesendet, ob das gelungen ist oder nicht
 Eine Runde, die tatsächlich lief, behält ihre Dateien — sie haben sie gespeist, und
 der Run steht im Transkript.
 
-**Ausgehend** ist das, was der Agent in dieser Runde geschrieben hat, verglichen
-mit einem Schnappschuss, der beim Öffnen des Workspace genommen wurde. Kein Diff
-von allem: `/uploads` ist die eigene Datei des Nutzers — sie zurückzuposten hieße,
-jemandem seinen eigenen Anhang zu zitieren —, und `/skills` ist Know-how, das die
-Plattform materialisiert hat, nicht die Arbeit des Agents. Eine Datei, die er
-*überschrieben* hat, wird auch nicht gesendet: ein Skript neu zu schreiben, an dem
-er iteriert, ist gewöhnlich, und es jede Runde zu posten würde den Channel mit
-demselben Anhang füllen.
-
-**Wenn dieser Schnappschuss nicht genommen werden konnte, wird nichts gepostet.**
-Der Vergleich ist „alles jetzt, minus allem damals", also würde einen unlesbaren
-Workspace als leeren zu behandeln jede Datei, die schon darin ist, als Ausgabe
-dieser Runde lesen lassen — und unter dem Scope `agent` oder `channel` gehören
-diese Dateien anderen Leuten. Ein fehlender Anhang ist der Fehlschlag, den man
-haben will; die Tabelle eines Kollegen in einem geteilten Channel ist es nicht.
+**Ausgehend** werden Dateien nur über `send_channel_file` gesendet, wenn der Nutzer die Datei erhalten oder herunterladen möchte. Erstellen, Lesen oder Bearbeiten hängt keine Datei an. Gewähren Sie das Tool pro Bot-Bindung unter *Wo dieser Agent verfügbar ist*. Bestehende Bindungen behalten ihre Auswahl; aktivieren Sie diese Aktion nach dem Upgrade ausdrücklich. Das Tool hat Seiteneffekte und folgt der üblichen Freigaberichtlinie. Es sendet nur die benannte Workspace-Datei, verweigert interne Pfade und Dateien über 8 MB und erlaubt höchstens drei Versuche pro Runde. Plattformfehler werden gemeldet statt als Zustellung ausgegeben. Teams kann die Annahme im persönlichen Chat verlangen. Diagramme und angeforderte Visualisierungen behalten ihre separate Bildzustellung.
 
 Jede Datei trägt den Typ, den ihr Name nahelegt, statt eines flachen
 `application/octet-stream`, sodass ein Diagramm, das ein Agent geschrieben hat, auf
@@ -2652,7 +2957,8 @@ Dinge, die er zeigt und eine Kanal-Fußzeile nicht:
   denn unter dem Scope `agent` wird ein Workspace geteilt, und eine Datei zu finden,
   die man nie erstellt hat, liest sich wie ein Leck, bis etwas auf dem Bildschirm es
   erklärt. Eine Datei ist eine Kachel, und eine zu öffnen öffnet denselben Viewer,
-  den der Workspaces-Bildschirm benutzt — ein Bild, ein PDF, Markdown als Vorschau
+  den der Workspaces-Bildschirm benutzt — ein Bild, ein PDF, ein Player für Audio
+  und Video, Markdown als Vorschau
   oder Quelltext, und immer ein Download —, der `…/workspace/file` für Text und
   `…/workspace/raw` für Bytes liest. Bewusst über die *Unterhaltung* statt über die
   Workspace-ID: das ist es, was diese Dateien für jemanden erreichbar hält, mit dem
@@ -2688,12 +2994,19 @@ entschieden haben"* Fragen, die er nur durch Raten beantworten kann.
 Vier Tools ändern das, und jedes wird **pro Bindung** gewährt, unter
 *Where this agent is available*:
 
-| Tool | Beantwortet | Slack | Telegram | Mattermost |
-|---|---|:-:|:-:|:-:|
-| `get_channel_info` | Name, Zweck, Thema, Größe | ✅ | ✅ | ✅ |
-| `list_channel_members` | Wer hier ist | ✅ | nur Admins | ✅ |
-| `search_channels` | Welche anderen Channels es gibt | ✅ | — | ✅ |
-| `read_channel_history` | Was zuletzt gesagt wurde, **in dem Thread, in dem er antwortet** | ✅ | — | ✅ |
+| Tool | Beantwortet | Slack | Telegram | Mattermost | Teams |
+|---|---|:-:|:-:|:-:|:-:|
+| `get_channel_info` | Name, Zweck, Thema, Größe | ✅ | ✅ | ✅ | ✅ |
+| `list_channel_members` | Wer hier ist | ✅ | nur Admins | ✅ | ✅ |
+| `search_channels` | Welche anderen Channels es gibt | ✅ | — | ✅ | — |
+| `read_channel_history` | Aktuelle Channel-Nachrichten oder dieser Thread mit `scope="thread"` | ✅ | — | ✅ | — |
+| `send_channel_file` | Angeforderte Workspace-Datei senden | ✅ | ✅ | ✅ | ✅ |
+
+Verbinden Sie das Konto mit einer direkten Nachricht an den Bot: nur `link` ohne Schrägstrich. Öffnen Sie den privaten Verbindungslink nach der Anmeldung bei AgenticOS und kehren Sie zum Channel zurück. Benötigen frühere Thread-Dateien eine Kontoverbindung, erklärt der Bot dies ohne Download und versucht es nach der Verbindung erneut. Channel-Bilder verwenden die doppelte CSS-Auflösung; sehr breite horizontale Mermaid-Flussdiagramme erhalten nur für das PNG eine vertikale Anordnung.
+
+Über `generate_image` angeforderte Bilder werden auf allen vier Chatplattformen an Antworten angehängt, zusätzlich zu Diagrammen. Gespeicherte Bilder werden innerhalb der Organisation des Laufs gelesen, auf 8 MiB und 16 Megapixel begrenzt und in PNG konvertiert; fehlende, ungültige oder zu große Bilder führen zu einem Zustellhinweis. Teams passt Inline-Bilder zusätzlich an seine eigenen Grenzen an. Eine gewöhnliche Workspace-Datei wird durch ihre Erstellung weiterhin nicht gesendet: Dafür ist `send_channel_file` erforderlich. Der Thread-Kontext behält die ursprünglichen Zeitstempel bei; relative Zeitangaben beziehen sich darauf und nicht auf den Zeitpunkt, an dem der Agent dem Thread beitritt.
+
+Angehängt werden nur Dateien, die von den eigenen Tools des Laufs als erzeugt erfasst wurden. Ein Toolname oder Ergebnistext berechtigt nicht zum Zugriff auf Medien anderer Gespräche. Das Ablehnen der Bilderzeugung löst keinen Hinweis auf ein fehlendes Bild aus. Bestehende Threads aktualisieren den Text einmal, ohne frühere Anhänge erneut herunterzuladen.
 
 Pro Bindung statt pro Agent, denn eine Organisation kann einen Agent an zwei
 Mattermost-Server und drei Slack-Workspaces binden — und *„darf er lesen, was in
@@ -2716,25 +3029,23 @@ Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
   geht über das eigene Token des Bots, also sieht der Agent genau das, was der Bot
   sieht. Es gibt keine Allow-Liste von uns, die mit der der Plattform aus dem Tritt
   geraten könnte.
-- **Das Modell benennt nie einen Channel oder einen Thread.** Die Tools sind
-  serverseitig an den Channel gebunden, in dem die Nachricht ankam, und
-  `read_channel_history` zusätzlich an den Thread: ein Thread und sein Channel sind
-  zwei Transkripte, und dasjenige, in dem der Agent angesprochen wurde, ist der
-  Thread. Allein an den Channel gebunden fasste *„fasse zusammen, was wir oben
-  entschieden haben"* zusammen, was der Raum sonst so gesagt hatte. Ein Argument
-  für eines von beidem würde *„wer ist in diesem Channel"* in *„lies jeden Channel,
-  in dem dieser Bot ist"* verwandeln, gefragt aus einer Unterhaltung irgendwo
-  anders.
+- **Das Modell benennt keine Channel- oder Thread-ID.** `read_channel_history` verwendet standardmäßig `scope="channel"` für aktuelle Nachrichten dieses Channels; `scope="thread"` liest nur den gebundenen Thread. Kein Modus erreicht einen anderen Channel. Das Ergebnis ist ein begrenztes aktuelles Fenster, kein Beleg dafür, dass ältere Nachrichten fehlen. Die automatische Kontextergänzung bleibt auf den Thread begrenzt.
 - **`read_channel_history` ist das eine, das eine Freigabe verdient.** Es ist ein
   Lesevorgang, also fragt es nicht standardmäßig nach, aber es setzt die Nachrichten
   anderer Leute in ein Run-Transkript, das jemand Wochen später liest. Ein
   `tool_approval`-Override an der Bindung ist, wie Sie es nachfragen lassen.
 
-Das ist bewusst *nicht* dasselbe wie die Mitgliederliste und den Zweck des Channels
-in jeden System-Prompt zu setzen. Das ist ein anderes Feature mit einem anderen
-Fehlermodus — ein `purpose`, geschrieben von jedem, der den Channel bearbeiten
-kann, eingefügt in die Instruktionen, ist eine Prompt Injection mit einer
-öffentlichen Bearbeiten-Schaltfläche.
+Der automatische Channel-Kontext enthält Name, Zweck und eine begrenzte sichtbare Mitgliederliste, als Daten statt Instruktionen markiert. Die pro Bindung gewährten Tools erlauben weitere Abfragen und explizite Dateizustellung; das Entziehen eines Tools entfernt nicht den automatischen Kontext.
+
+## Ein Bot, dessen Nachrichten einen Workflow starten { #a-bot-whose-messages-start-a-workflow }
+
+Ein Workflow mit einem Trigger **Channel message** übernimmt die Nachrichten eines
+Bots an Stelle seines Agenten. Ihn erreichen nur die Nachrichten, die der Agent
+beantwortet hätte, und davon nur die, die zum Filter des Triggers passen: Eine
+Nachricht, die einen anderen Agenten per `@handle` nennt, geht weiterhin dorthin,
+und eine, die der Filter auslässt, beantwortet der Agent des Bots wie bisher. Der
+Workflow antwortet mit seinem eigenen Schritt **Send a message** im Thread der
+Nachricht. Siehe [Über eine Kanalnachricht](workflows.md#from-a-channel-message).
 
 ## Auswählen { #choosing }
 
@@ -2742,7 +3053,7 @@ kann, eingefügt in die Instruktionen, ist eine Prompt Injection mit einer
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram or Mattermost]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2755,7 +3066,7 @@ flowchart TD
 - Innerhalb Ihres Produkts, pro Nutzer → **Widget, `jwt`-Modus**.
 - Ganz eigene Oberfläche → **WebSocket**.
 - Keine eigene Website, und ein Link genügt → **eine gehostete Seite**.
-- Wo das Team ohnehin spricht → **Slack, Telegram oder Mattermost**.
+- Wo das Team ohnehin spricht → **Slack, Teams, Telegram oder Mattermost**.
 - Ein ganz anderes System → die REST-API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "Die ersten vier sind ein Objekt"
@@ -2768,7 +3079,7 @@ flowchart TD
 ## Zusammenfassung { #recap }
 
 - **Ein Runner hinter jeder Oberfläche.** Der Web-Chat, eine gehostete Seite, ein
-  Widget, die API, Slack, Telegram und Mattermost erreichen alle denselben Code,
+  Widget, die API, Slack, Teams, Telegram und Mattermost erreichen alle denselben Code,
   sodass Governance nichts ist, woran ein Aufrufer vorbeirouten kann.
 - Ein Bot antwortet als **ein Agent**, und eine Erwähnung läuft als **der
   Absender** — nie als der Bot.
@@ -2779,3 +3090,11 @@ flowchart TD
 - Eine **Delegation ist ein Panel**, keine Pause — und einen Handler daran zu
   hängen ändert den Transport, also wird er nur dort angehängt, wo eine Senke
   existiert.
+
+Eine Kanalnachricht, die nur die Bot-Erwähnung oder Leerraum enthält, wird nach dem Entfernen der Erwähnung ignoriert, bevor die Zustellung beansprucht oder ein Lauf gestartet wird. So erhält die Modell-API keine leere Nutzernachricht, deren Weglassen die vorherige Assistentenantwort als unzulässiges Prefill erscheinen lässt. Nachrichten mit ausschließlich Anhängen durchlaufen weiterhin die Anhangverarbeitung.
+
+## Aktuelle Kanalvorgaben {#current-channel-defaults}
+
+Formatierung und Gesprächsregeln kommen bei jedem Lauf aus dem aktuellen Deployment. Der Bindungs-Prompt speichert nur eigene Ergänzungen. Upgrades entfernen exakt erkannte Kopien früherer Standardanweisungen und erhalten den umgebenden eigenen Text; bearbeiteter oder unbekannter Text bleibt unverändert. Das Leeren des eigenen Prompts erhält Plattformvorgaben und Kanalkontext. Eine Umschreibung alter Prompt-Zeichenfolgen zur Laufzeit ist nicht erforderlich.
+
+Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wieder her und erhält eigene Ergänzungen, auch bei nach dem Upgrade angelegten Bindungen. Andere Oberflächen bleiben unverändert.

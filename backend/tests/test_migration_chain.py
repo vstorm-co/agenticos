@@ -40,7 +40,7 @@ def test_the_chain_has_exactly_one_head() -> None:
     )
 
 
-def test_no_two_migrations_claim_the_same_parent() -> None:
+def test_no_unmerged_migrations_claim_the_same_parent() -> None:
     """The same defect one step earlier, and it names both files.
 
     One head is what breaks the upgrade, so the test above is the one that
@@ -56,8 +56,20 @@ def test_no_two_migrations_claim_the_same_parent() -> None:
         for parent in (down,) if isinstance(down, str) else down:
             parents.setdefault(parent, []).append(revision.revision)
 
-    forked = {parent: sorted(children) for parent, children in parents.items() if len(children) > 1}
-    assert not forked, f"revisions sharing a parent: {forked}"
+    # Released histories must not be rewritten: an explicit merge may join them.
+    chain = _chain()
+    merged_ancestors = [
+        {ancestor.revision for ancestor in chain.iterate_revisions(revision.revision, "base")}
+        for revision in chain.walk_revisions()
+        if isinstance(revision.down_revision, tuple) and len(revision.down_revision) > 1
+    ]
+    forked = {
+        parent: sorted(children)
+        for parent, children in parents.items()
+        if len(children) > 1
+        and not any(set(children) <= ancestors for ancestors in merged_ancestors)
+    }
+    assert not forked, f"unmerged revisions sharing a parent: {forked}"
 
 
 # `alembic_version.version_num` is `VARCHAR(32)`, which alembic creates and never

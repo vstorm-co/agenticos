@@ -217,11 +217,11 @@ class TestModel:
 
 
 class TestStarterAgents:
-    """The Architect and Claude Code like - what a new organization opens with."""
+    """The Architect and AgenticOS - what a new organization opens with."""
 
     @staticmethod
     def _patches(*, existing=None, assistant_status="ready", publish=None):
-        agent = MagicMock(id=uuid.uuid4(), draft_spec={"name": "Claude Code like"})
+        agent = MagicMock(id=uuid.uuid4(), draft_spec={"name": "AgenticOS"})
         install = AsyncMock(return_value=MagicMock(agent_id=agent.id))
         mocks = {
             "state": AsyncMock(return_value=MagicMock(status=assistant_status, name="Architect")),

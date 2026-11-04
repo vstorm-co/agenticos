@@ -288,7 +288,7 @@ class TestAnswer:
                 user_id=None,
             )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         agents.get_by_slug.assert_not_called()
 
     async def test_a_linked_sender_who_left_the_organization_is_refused_the_same_way(self):
@@ -309,7 +309,7 @@ class TestAnswer:
                     user_id=uuid.uuid4(),
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
 
     async def test_a_deactivated_linked_member_does_not_run_a_channel_turn_at_their_old_role(
         self,
@@ -338,7 +338,7 @@ class TestAnswer:
                     user_id=uuid.uuid4(),
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         agents.get_by_slug.assert_not_called()
         runner_cls.return_value.execute.assert_not_called()
 
@@ -677,7 +677,7 @@ class TestAnswerDefault:
                     user_id=None,
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         runner_cls.return_value.execute.assert_not_called()
 
     async def test_the_only_exposed_agent_runs_the_whole_message_with_its_thread(self):
@@ -957,7 +957,7 @@ class TestWhatARoomRunsAs:
                     admit_unlinked=False,
                 )
 
-        assert "/link" in refused.value.message
+        assert "`link` (without a slash)" in refused.value.message
         runner_cls.return_value.execute.assert_not_called()
 
     async def test_a_mention_in_a_room_runs_under_the_binding_too(self):
@@ -1150,3 +1150,91 @@ class TestWhoseAccountsAPersonalBindingSpeaksThrough:
         assert (await self._mentioned(user_id=uuid.uuid4(), member=False))["acts_for_sender"] is (
             False
         )
+
+
+@pytest.mark.parametrize("platform", ["mattermost", "slack", "teams", "telegram"])
+@pytest.mark.parametrize("mentioned", [True, False])
+async def test_each_turn_keeps_author_context_separate_from_persisted_text_after_mention_parsing(
+    platform: str, mentioned: bool
+) -> None:
+    from app.services.channels.base import IncomingMessage
+
+    organization_id, person, agent_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    router = ChannelAgentRouter(MagicMock())
+    router.runner.execute = AsyncMock(return_value=("done", MagicMock()))
+    exposure = MagicMock(is_active=True)
+    agent = MagicMock(id=agent_id, slug="support")
+    with (
+        patch.object(
+            router,
+            "_membership_context",
+            new=AsyncMock(
+                return_value=AuthContext(
+                    user_id=person,
+                    organization_id=organization_id,
+                    role=OrgRoleName.MEMBER,
+                )
+            ),
+        ),
+        patch.object(router, "_with_usage", new=AsyncMock(return_value="done")),
+        patch(
+            "app.services.channels.mentions.agent_repo.get_by_slug",
+            new=AsyncMock(return_value=agent),
+        ),
+        patch(
+            "app.services.channels.mentions.agent_exposure_repo.get_for_bot",
+            new=AsyncMock(return_value=exposure),
+        ),
+        patch(
+            "app.services.channels.mentions.agent_exposure_repo.list_active_for_bot",
+            new=AsyncMock(return_value=[(exposure, agent)]),
+        ),
+    ):
+        for author in ["kacper.wlodarczyk", "michalski"]:
+            text = "@support announce this" if mentioned else "announce this"
+            incoming = IncomingMessage(
+                platform=platform,
+                bot_id=str(_BOT_ID),
+                platform_user_id=author + "-id",
+                platform_chat_id="room:thread",
+                chat_type="group",
+                text=text,
+                platform_username=author,
+                platform_display_name=author,
+                message_id=author + "-post",
+            )
+            method = router.answer if mentioned else router.answer_default
+            await method(
+                text,
+                platform=platform,
+                organization_id=organization_id,
+                bot_id=_BOT_ID,
+                user_id=person,
+                incoming=incoming,
+            )
+            prompt = router.runner.execute.await_args.args[2]
+            recorded = router.runner.execute.await_args.kwargs["said"]
+            context = router.runner.execute.await_args.kwargs["channel_author_context"]
+            assert recorded == "announce this"
+            assert f'"username": "{author}"' in context
+            assert f'"user_id": "{author}-id"' in context
+            assert f'"message_id": "{author}-post"' in context
+            assert prompt == "announce this"
+            assert "@support" not in prompt
+            assert router.runner.execute.await_args.args[0].user_id == person
+            from pydantic_ai import Agent
+            from pydantic_ai.models.test import TestModel
+
+            from app.agents.capabilities.guardrails._capability import (
+                GuardrailsConfig,
+                build_guardrails,
+            )
+            from app.services.channels.formatting import ChannelReference
+
+            guardrails = build_guardrails(GuardrailsConfig(blocked_keywords_in="group"))
+            assert guardrails is not None
+            guarded = Agent(TestModel(), capabilities=[ChannelReference(context), guardrails])
+            await guarded.run(
+                prompt,
+                message_history=router.runner.execute.await_args.kwargs.get("message_history"),
+            )

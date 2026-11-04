@@ -1,5 +1,7 @@
 "use client";
 
+import { isRendered } from "@/lib/rendered";
+
 import "driver.js/dist/driver.css";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -10,7 +12,6 @@ import type { AllowedButtons, DriveStep, Driver } from "driver.js";
 
 import { FETCHED_DETAIL_PAGES, useDetailTargets } from "@/components/onboarding/detail-targets";
 import {
-  activateTab,
   createTourDriver,
   isTypingTarget,
   keepClearOf,
@@ -22,16 +23,28 @@ import {
 import { createTourSpotlight, type TourSpotlight } from "@/components/onboarding/tour-spotlight";
 import { useOnboardingTour } from "@/hooks";
 import type { Locale } from "@/i18n";
-import {
-  usePathname as useLocalePathname,
-  useRouter as useLocaleRouter,
-} from "@/lib/locale-navigation";
+import { useSaveAgentContext } from "@/hooks/use-account-profile";
+import { useChooseLocale } from "@/hooks/use-choose-locale";
+import { activateTab } from "@/lib/activate-tab";
 import { stripLocale } from "@/lib/active-route";
 import { ROUTES } from "@/lib/constants";
 import { flowForPage } from "@/lib/onboarding/flows";
 import { pageKey } from "@/lib/onboarding/tour";
-import { useOnboardingStore } from "@/stores";
+import { useAuthStore, useOnboardingStore } from "@/stores";
 import { appendLanguageChoice } from "./tour-language";
+import { appendRoleChoice } from "./tour-role";
+
+/** The roles the first card offers, by their key under `onboarding.roles`. */
+const ROLES = [
+  "leadership",
+  "sales",
+  "marketing",
+  "support",
+  "operations",
+  "finance",
+  "people",
+  "engineering",
+] as const;
 
 /** How long the control that drives a transition is spotlighted before it fires. */
 const REVEAL_MS = 650;
@@ -92,8 +105,8 @@ export function OnboardingTour() {
   const router = useRouter();
   const pathname = usePathname();
   const locale = useLocale() as Locale;
-  const localeRouter = useLocaleRouter();
-  const localePathname = useLocalePathname();
+  const chooseLocale = useChooseLocale();
+  const saveContext = useSaveAgentContext();
   const { isOpen, steps, step, index, isFirst, isLast, next, back, dismiss } = useOnboardingTour();
   const mode = useOnboardingStore((state) => state.mode);
   const openOffer = useOnboardingStore((state) => state.openOffer);
@@ -198,10 +211,21 @@ export function OnboardingTour() {
           // says anything else in one the reader may not read.
           onPopoverRender:
             step.id === "welcome"
-              ? (popover) =>
+              ? (popover) => {
                   appendLanguageChoice(popover.description, locale, t("chooseLanguage"), (next) =>
-                    localeRouter.push(localePathname, { locale: next }),
-                  )
+                    chooseLocale(next),
+                  );
+                  // What every agent is told about the reader, asked once (#2301).
+                  appendRoleChoice(
+                    popover.description,
+                    // Read as the card renders, not subscribed to: a pick re-rendering
+                    // the walk would redraw the card under the click.
+                    useAuthStore.getState().user?.job_title ?? null,
+                    t("chooseRole"),
+                    ROLES.map((role) => t(`roles.${role}`)),
+                    (role) => void saveContext({ job_title: role }).catch(() => undefined),
+                  );
+                }
               : undefined,
         },
       };
@@ -252,11 +276,19 @@ export function OnboardingTour() {
 
       // On the right page. Reveal the tab that opens the section, switch to it,
       // then land the spotlight on the target — the caption never having moved.
-      if (step.activate) {
+      const targetIsVisible = step.target
+        ? [...document.querySelectorAll(`[data-tour="${step.target}"]`)].some(isRendered)
+        : false;
+      const activations = targetIsVisible
+        ? []
+        : typeof step.activate === "string"
+          ? [step.activate]
+          : (step.activate ?? []);
+      for (const activation of activations) {
         // An optional step's tab can itself be conditional (the Memory tab renders only
         // when the capability is bound), so the activate wait takes the short timeout too.
         const trigger = await waitForElement(
-          `[data-tour="${step.activate}"]`,
+          `[data-tour="${activation}"]`,
           signal,
           step.optional ? OPTIONAL_WAIT_MS : undefined,
         );
@@ -265,7 +297,11 @@ export function OnboardingTour() {
         // builder's Build, its Toolbox) each named it, so the light climbed to the
         // tab bar, pressed a tab that was already selected and dropped back down —
         // a detour on every step that read as the light jumping around.
-        if (trigger instanceof HTMLElement && trigger.getAttribute("data-state") !== "active") {
+        if (
+          trigger instanceof HTMLElement &&
+          trigger.getAttribute("data-state") !== "active" &&
+          trigger.getAttribute("aria-expanded") !== "true"
+        ) {
           await show(trigger, true);
           if (signal.aborted) return;
           await pulse(trigger, signal, REVEAL_MS);
@@ -316,8 +352,8 @@ export function OnboardingTour() {
     closeWalk,
     completeWalk,
     locale,
-    localeRouter,
-    localePathname,
+    chooseLocale,
+    saveContext,
   ]);
 
   useEffect(

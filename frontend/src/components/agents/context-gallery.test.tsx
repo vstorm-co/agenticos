@@ -179,3 +179,26 @@ describe("ContextGallery", () => {
     expect(screen.queryByLabelText("Search context files…")).toBeNull();
   });
 });
+
+it("edits mode and availability per agent without changing the shared file", async () => {
+  const onSettingsChange = vi.fn();
+  const source = file();
+  render(
+    <ContextGallery
+      files={[source]}
+      total={1}
+      selectedIds={[source.id]}
+      onToggle={vi.fn()}
+      settings={{}}
+      onSettingsChange={onSettingsChange}
+    />,
+  );
+  await userEvent.click(screen.getByRole("combobox", { name: `How ${source.name} is used` }));
+  await userEvent.click(screen.getByRole("option", { name: "linked" }));
+  expect(onSettingsChange).toHaveBeenCalledWith({ [source.id]: { mode: "link", enabled: true } });
+  await userEvent.click(screen.getByRole("switch", { name: "Use in this agent" }));
+  expect(onSettingsChange).toHaveBeenLastCalledWith({
+    [source.id]: { mode: "inject", enabled: false },
+  });
+  expect(source.mode).toBe("inject");
+});

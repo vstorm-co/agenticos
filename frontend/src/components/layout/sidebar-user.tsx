@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
   EntityAvatar,
 } from "@/components/ui";
+import { DesktopSetupMenuItem } from "@/components/desktop/desktop-setup-menu-item";
+import { ServerSwitch } from "@/components/desktop/server-switch";
 import { useAuth } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
@@ -119,6 +121,8 @@ export function SidebarUser({ compact = false }: { compact?: boolean }) {
             {t("profileAndSettings")}
           </Link>
         </DropdownMenuItem>
+        <DesktopSetupMenuItem />
+        <ServerSwitch />
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
           <LogOut className="mr-2 h-4 w-4" />

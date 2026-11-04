@@ -59,9 +59,12 @@ LITEPARSE_IMAGE_FORMATS: set[str] = {
     ".svg",
 }
 
-# Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS + SPREADSHEET_EXTENSIONS
+# Mirrors OFFICE_EXTENSIONS + PRESENTATION_EXTENSIONS, then SPREADSHEET_EXTENSIONS,
 # in liteparse's `conversion.rs`. Kept in that order so the two can be diffed.
-LITEPARSE_OFFICE_FORMATS: set[str] = {
+# Split in two because the first set is paginated when a PDF parser reads it
+# and the second is not, which is what a citation's page rests on (#2489);
+# `.docx` is in the first but always reaches the native parser instead.
+LITEPARSE_PAGED_OFFICE_FORMATS: set[str] = {
     ".doc",
     ".docx",
     ".docm",
@@ -81,6 +84,9 @@ LITEPARSE_OFFICE_FORMATS: set[str] = {
     ".odp",
     ".otp",
     ".key",
+}
+
+LITEPARSE_SPREADSHEET_FORMATS: set[str] = {
     ".xls",
     ".xlsx",
     ".xlsm",
@@ -91,6 +97,8 @@ LITEPARSE_OFFICE_FORMATS: set[str] = {
     ".tsv",
     ".numbers",
 }
+
+LITEPARSE_OFFICE_FORMATS: set[str] = LITEPARSE_PAGED_OFFICE_FORMATS | LITEPARSE_SPREADSHEET_FORMATS
 
 LITEPARSE_PDF_FORMATS: set[str] = {".pdf"} | LITEPARSE_IMAGE_FORMATS | LITEPARSE_OFFICE_FORMATS
 
@@ -145,6 +153,13 @@ EMBEDDING_DIMENSIONS: dict[str, int] = {
     "voyage-3-lite": 512,
     "voyage-code-3": 1024,
     "gemini-embedding-exp-03-07": 3072,
+    # Namespaced, as OpenRouter lists them. The first three are the embedding
+    # models its EU endpoint serves; each answers at its default width, since no
+    # request here asks for another.
+    "mistralai/mistral-embed-2312": 1024,
+    "mistralai/codestral-embed-2505": 1536,
+    "google/gemini-embedding-2": 3072,
+    "google/gemini-embedding-001": 3072,
     "all-MiniLM-L6-v2": 384,
     "all-mpnet-base-v2": 768,
     "bge-small-en-v1.5": 384,

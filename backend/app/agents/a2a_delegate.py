@@ -74,7 +74,7 @@ def thread_of(messages: list[ModelMessage]) -> str | None:
 
 
 def a2a_delegate(
-    *, handle: str, endpoint: str, bearer: str | None
+    *, handle: str, endpoint: str, card_url: str, bearer: str | None
 ) -> Callable[[], PydanticAgent[Any, str]]:
     """A builder for one remote agent's delegate. See the module docstring."""
 
@@ -95,6 +95,7 @@ def a2a_delegate(
                     context_id=remote.context,
                     task_id=remote.task,
                     bearer=bearer,
+                    registered_url=card_url,
                 )
             except A2AClientError as failed:
                 # An answer the delegating model reads, not a crash: it can try

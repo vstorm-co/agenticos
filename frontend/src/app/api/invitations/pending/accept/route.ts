@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal, forwardedFor } from "@/lib/server-api";
 import { INVITATION_FLOW_PARAM, isInvitationFlow, stageCookieName } from "@/lib/invitation-links";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 /**
  * Close a staged invitation once the invitee has signed in (#1414).
@@ -25,7 +26,7 @@ function handleIsSpent(status: number): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const accessToken = request.cookies.get("access_token")?.value;
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
 
   const flow = request.nextUrl.searchParams.get(INVITATION_FLOW_PARAM);

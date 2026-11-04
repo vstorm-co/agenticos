@@ -289,7 +289,7 @@ class SlackSurfaces:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "Send me `/link` to connect your AgenticOS account, so I act as you.",
+                        "text": "Send me `link` (without a slash) in a direct message to connect your AgenticOS account.",
                     },
                 }
             )

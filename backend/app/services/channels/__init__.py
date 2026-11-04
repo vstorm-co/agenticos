@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from app.services.channels.webhooks import (
     INBOUND_PATHS,
     SECRET_MINTED_BY_US,
+    STREAM_ONLY,
     inbound_webhook_url,
 )
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 __all__ = [
     "INBOUND_PATHS",
     "SECRET_MINTED_BY_US",
+    "STREAM_ONLY",
     "get_adapter",
     "inbound_webhook_url",
     "register_adapter",

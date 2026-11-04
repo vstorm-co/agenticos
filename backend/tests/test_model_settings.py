@@ -375,13 +375,16 @@ class TestThinkingCapability:
             "medium",
             "high",
             "xhigh",
+            "max",
         ]
 
-    def test_a_level_reaches_pydantic_ais_own_capability(self):
-        (built,) = build([CapabilityBinding(capability_id="thinking", config={"effort": "high"})])
+    @pytest.mark.parametrize("effort", ["minimal", "low", "medium", "high", "xhigh", "max"])
+    def test_a_level_reaches_pydantic_ais_own_capability(self, effort: str) -> None:
+        (built,) = build([CapabilityBinding(capability_id="thinking", config={"effort": effort})])
 
         assert isinstance(built, Thinking)
-        assert built.effort == "high"
+        assert built.effort == effort
+        assert built.get_model_settings() == {"thinking": effort}
 
     def test_binding_it_without_a_level_asks_for_the_providers_default(self):
         """`True` is the unified setting's "on, at whatever this provider defaults to"."""

@@ -135,3 +135,45 @@ describe("useLiveBrowse", () => {
     expect(socket.sendMessage).toHaveBeenCalledWith({ type: "click", x: 4, y: 2 });
   });
 });
+
+it("fetches a completed snapshot once, releases the socket and retains the final image", () => {
+  const { result, rerender } = renderHook(({ run }) => useLiveBrowse(run, "c1"), {
+    initialProps: { run: "run-1" },
+  });
+  receive({
+    type: "browser_snapshot",
+    task: "done",
+    can_control: true,
+    trace: [
+      frame({ kind: "browser_opened", step: 0 }),
+      frame({ kind: "browser_finished", outcome: "done" }),
+    ],
+    frame: frame({ kind: "browser_frame", image: "data:image/jpeg;base64,FINAL" }),
+  });
+  expect(result.current.browse?.image).toBe("data:image/jpeg;base64,FINAL");
+  expect(result.current.browse?.outcome).toBe("done");
+  expect(socket.disconnect).toHaveBeenCalledTimes(1);
+  rerender({ run: "run-2" });
+  expect(result.current.browse).toBeNull();
+  expect(socket.connect).toHaveBeenCalledTimes(2);
+});
+
+it("keeps a delayed first picture after newer metadata and through completion", () => {
+  const { result } = renderHook(() => useLiveBrowse("run-1", "c1"));
+  receive({
+    type: "browser_snapshot",
+    task: "page",
+    can_control: true,
+    trace: [frame({ kind: "browser_opened", step: 0 })],
+    frame: null,
+  });
+  receive(frame({ kind: "browser_frame", step: 10, url: "https://example.test/new" }));
+  receive(frame({ kind: "browser_frame", step: 8, image: "data:image/jpeg;base64,FIRST" }));
+  receive(frame({ kind: "browser_finished", step: 10, outcome: "done" }));
+  expect(result.current.browse).toMatchObject({
+    image: "data:image/jpeg;base64,FIRST",
+    imageStep: 8,
+    outcome: "done",
+  });
+  expect(socket.disconnect).toHaveBeenCalledTimes(1);
+});

@@ -11,44 +11,44 @@
  *
  * The bell is the one control repeated here rather than left to the drawer:
  * unread state is worth seeing without first opening the column that holds it.
- * On the chat, the conversation list is a second slide-over with no other way
- * in, so its button sits beside the bell there.
+ * The chat has none of it: its own buttons float over the transcript there
+ * (`PhoneChatBar`).
  */
 
-import { MessagesSquare, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { NotificationBell } from "@/components/layout/notification-bell";
-import { Button, IconButton } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { useAssistant } from "@/hooks/use-assistant";
 import { pageOf } from "@/lib/assistant-bubbles";
-import { useChatSidebarStore, useSidebarStore } from "@/stores";
+import { useSidebarStore } from "@/stores";
 
 export function MobileHeader() {
   const { toggle } = useSidebarStore();
-  const openConversations = useChatSidebarStore((state) => state.open);
   const onChat = pageOf(usePathname()).startsWith("/chat");
   const t = useTranslations("nav");
+  const { assistant } = useAssistant();
+  const hasArchitect =
+    assistant?.can_use &&
+    assistant.agent_id !== null &&
+    (assistant.status === "ready" || assistant.status === "needs_model");
+
+  // The chat draws its own top on a phone: buttons floating over the
+  // transcript, which gets the whole height (`PhoneChatBar`).
+  if (onChat) return null;
 
   return (
-    <header className="bg-background sticky top-0 z-40 flex h-14 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
-      <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={toggle}>
+    <header className="bg-background sticky top-0 z-40 flex h-12 w-full shrink-0 items-center gap-1 border-b px-3 md:hidden">
+      <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={toggle}>
         <Menu className="h-5 w-5" />
         <span className="sr-only">{t("toggleMenu")}</span>
       </Button>
       <BrandLink />
       <div className="ml-auto flex items-center gap-1">
-        {onChat && (
-          <IconButton
-            size="icon"
-            aria-label={t("openConversations")}
-            onClick={openConversations}
-            className="text-muted-foreground rounded-lg [&_svg]:size-5"
-          >
-            <MessagesSquare />
-          </IconButton>
-        )}
+        {hasArchitect && <span aria-hidden data-architect-slot className="size-11 shrink-0" />}
         <NotificationBell variant="icon" />
       </div>
     </header>

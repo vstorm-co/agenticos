@@ -1,10 +1,14 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { useResourceCreation, mergeResourceChoices } from "@/components/agents/resource-creation";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  SlidersHorizontal,
+  Wrench,
+  ShieldCheck,
   Archive,
   ArchiveRestore,
   Copy,
@@ -18,11 +22,13 @@ import {
   Plug,
   Trash2,
   Upload,
+  Workflow,
   Radio,
   UserPlus,
   X,
 } from "lucide-react";
 
+import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   AgentMap,
@@ -39,8 +45,12 @@ import { askedToTest, readTestPanel, writeTestPanel } from "@/lib/test-panel-sta
 import { toMapDelegates } from "@/components/agents/agent-map-tree";
 import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { RemoteChangeBanner } from "@/components/live-updates/remote-change-banner";
+import { ContextHelp } from "@/components/ui/context-help";
 import { InstructionsEditor } from "@/components/agents/instructions-editor";
 import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel";
+import { StartersPanel } from "@/components/agents/starters-panel";
+import { usableForAgents } from "@/lib/model-profiles";
+import { glideOrJump } from "@/lib/motion";
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
@@ -73,6 +83,7 @@ import { VoiceCard } from "@/components/agents/voice-card";
 import { PublishDialog } from "@/components/agents/publish-dialog";
 import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
+import { AnswerFormatForm } from "@/components/agents/answer-format-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
@@ -113,6 +124,8 @@ import {
   MarkdownModeToggle,
   type MarkdownMode,
   Textarea,
+  Alert,
+  AlertDescription,
 } from "@/components/ui";
 import {
   useAgent,
@@ -210,6 +223,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tSharing = useTranslations("sharing");
   const tAgents = useTranslations("agents");
   const tErrors = useTranslations("errors");
+  const tAnswer = useTranslations("answerFormat");
   const { id } = use(params);
   const router = useRouter();
   const {
@@ -302,6 +316,26 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [tabParam, changeTab] = useUrlState("tab");
   const tab = tabParam !== null && BUILDER_TABS.has(tabParam) ? tabParam : "build";
   const setTab = (next: string) => changeTab(next === "build" ? null : next);
+  // The Model card, which "No model selected" takes its reader to (#2483).
+  // From another tab the card mounts a render after the tab changes, so the
+  // scroll waits for the card to attach rather than for the tab.
+  const modelCard = useRef<HTMLDivElement | null>(null);
+  const revealModel = useRef(false);
+  const attachModelCard = useCallback((node: HTMLDivElement | null) => {
+    modelCard.current = node;
+    if (node && revealModel.current) {
+      revealModel.current = false;
+      node.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+    }
+  }, []);
+  const goToModel = () => {
+    if (tab === "build" && modelCard.current) {
+      modelCard.current.scrollIntoView({ behavior: glideOrJump(), block: "start" });
+      return;
+    }
+    revealModel.current = true;
+    setTab("build");
+  };
   // Set by the first publish only: the moment an agent can be reached is the
   // moment to say where it can be reached from, which people did not find on
   // their own (#2131).
@@ -338,8 +372,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
     setSpec(agent.draft_spec);
   }
 
-  const canEdit = can(Perm.agentsEdit);
-  const canPublish = can(Perm.agentsPublish);
+  // A workflow step's own agent is changed in that step, so nothing here edits it.
+  const ownedByWorkflow = agent?.workflow_id ?? null;
+  const canEdit = can(Perm.agentsEdit) && ownedByWorkflow === null;
+  const canPublish = can(Perm.agentsPublish) && ownedByWorkflow === null;
+  const resourceCreation = useResourceCreation({
+    mayCreateSkill: canEdit && can(Perm.skillsEdit),
+    mayCreateContext: canEdit && can(Perm.contextEdit),
+    setSpec,
+  });
   useTestShortcut(canEdit, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
@@ -368,7 +409,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // either alone tells a caller who has models, or who may add one, they are stuck.
   const modelDeadEnd =
     profilesStatus === "loaded" &&
-    profiles.length === 0 &&
+    !profiles.some(usableForAgents) &&
     permissionsLoaded &&
     !can(Perm.connectionsManage);
 
@@ -843,7 +884,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
     // Beside the Builder rather than over it: the test panel shares the width
     // (#2074), so the Builder stays usable while the agent is being tried.
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-6">
+      <div className="min-w-0 flex-1 space-y-3 sm:space-y-4">
         <PageHeader
           title={
             <span className="flex min-w-0 items-center gap-3">
@@ -914,7 +955,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
           description={agent.description ?? undefined}
           breadcrumbs={[{ label: t("agents"), href: ROUTES.AGENTS }, { label: agent.name }]}
-          actions={
+          secondaryActions={
             <>
               {/* Trying the agent happens in the chat, which streams, keeps the
                 conversation and can hand a tool call to the approval queue.
@@ -945,6 +986,17 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <MessageSquare className="h-4 w-4" />
                 {t("openChat")}
               </Button>
+              {/* In the apps: the Dock's or tray's "New Chat With", or the home screen. */}
+              <PinAgentButton
+                agent={{
+                  id,
+                  name: agent.name,
+                  slug: agent.slug,
+                  hasAvatar: agent.has_avatar ?? false,
+                  colorSlot: agent.avatar_color ?? null,
+                }}
+                disabled={!isPublished}
+              />
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
@@ -969,18 +1021,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 <UserPlus className="h-4 w-4" />
                 {tSharing("share")}
               </Button>
-              {canPublish && (
-                <Button
-                  onClick={handlePublish}
-                  disabled={publish.isPending || !spec?.name.trim()}
-                  data-tour="agent-publish"
-                  // First in the row a phone scrolls, rather than past its edge.
-                  className="max-md:order-first"
-                >
-                  <Upload className="h-4 w-4" />
-                  {t("publish")}
-                </Button>
-              )}
+
               {canEdit && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1080,6 +1121,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 onChange={handleAvatar}
               />
             </>
+          }
+          actions={
+            canPublish && (
+              <Button
+                onClick={handlePublish}
+                disabled={publish.isPending || !spec?.name.trim()}
+                data-tour="agent-publish"
+              >
+                <Upload className="h-4 w-4" />
+                {t("publish")}
+              </Button>
+            )
           }
         />
 
@@ -1245,7 +1298,23 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </p>
               <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                 {problems.map((problem) => (
-                  <li key={problem}>{problem}</li>
+                  <li key={problem}>
+                    {problem}
+                    {/* Publish marks the missing model on its field, and the
+                        field lives on a tab the reader may not be on. */}
+                    {configProblems.some(
+                      (found) => found.field === "model_profile_id" && found.message === problem,
+                    ) && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="ml-2 h-auto p-0"
+                        onClick={goToModel}
+                      >
+                        {t("goToModel")}
+                      </Button>
+                    )}
+                  </li>
                 ))}
               </ul>
             </CardContent>
@@ -1255,6 +1324,18 @@ export default function AgentBuilderPage({ params }: PageProps) {
         {/* Tabs, because the alternative was a single column of eleven cards and
           a page of scroll between the instructions and the version history.
           Grouped by the question being answered, not by implementation. */}
+        {ownedByWorkflow !== null && (
+          <Alert>
+            <Workflow className="h-4 w-4" />
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">{t("ownedByWorkflow")}</span>
+              <Button asChild size="sm" variant="outline">
+                <Link href={ROUTES.WORKFLOW_DETAIL(ownedByWorkflow)}>{t("openWorkflow")}</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Above the tabs, whatever tab is open: a reference to something deleted
           is refused at publish, and the panel that would have listed it belongs
           to a capability the agent may not even have switched on. */}
@@ -1294,43 +1375,53 @@ export default function AgentBuilderPage({ params }: PageProps) {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="build" data-tour="agent-tab-build">
+              <SlidersHorizontal className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("build")}
             </TabsTrigger>
             <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
+              <Wrench className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("toolbox")}
             </TabsTrigger>
             <TabsTrigger value="mcp" data-tour="agent-tab-mcp">
+              <Plug className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("mcpServers")}
             </TabsTrigger>
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
+              <ShieldCheck className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("limits")}
             </TabsTrigger>
             <TabsTrigger value="availability" data-tour="agent-tab-availability">
+              <Radio className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("availability")}
             </TabsTrigger>
             <TabsTrigger value="history" data-tour="agent-tab-history">
+              <History className="mr-1.5 size-4 shrink-0" aria-hidden />
               {t("history")}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="build" className="mt-6 space-y-6">
+          <TabsContent value="build" className="mt-4 space-y-4">
             <Card data-tour="agent-instructions">
-              <CardHeader
-                data-tour="agent-instructions-header"
-                className="flex-row items-start gap-3 space-y-0"
-              >
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <CardTitle>{t("instructions")}</CardTitle>
-                  <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
-                </div>
-                <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-5">
                 <InstructionsEditor
                   // Named, because a placeholder is not a label: it is the only
                   // accessible name this control had, and it is the one thing that
                   // disappears the moment somebody types into it.
                   label={t("instructions2")}
+                  toolbar={
+                    <>
+                      <div
+                        data-tour="agent-instructions-header"
+                        className="flex min-w-0 flex-1 items-center gap-1"
+                      >
+                        <CardTitle className="min-w-0 truncate text-sm">
+                          {t("instructions")}
+                        </CardTitle>
+                        <ContextHelp>{t("agentAposSBehaviour")}</ContextHelp>
+                      </div>
+                      <MarkdownModeToggle mode={instructionsMode} onChange={setInstructionsMode} />
+                    </>
+                  }
                   value={spec.instructions}
                   onChange={(instructions) => update({ instructions })}
                   disabled={!canEdit}
@@ -1358,9 +1449,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
               onTimeZoneChange={(time_zone) => update({ time_zone })}
             />
 
+            <StartersPanel
+              starters={spec.starters ?? []}
+              disabled={!canEdit}
+              onChange={(starters) => update({ starters })}
+            />
+
             {/* The model, then how it is asked: one card, apart from the
                 instructions, which are a thing to read rather than to set. */}
-            <Card data-tour="agent-model">
+            <Card ref={attachModelCard} data-tour="agent-model" className="scroll-mt-4">
               <CardHeader>
                 <CardTitle>{t("model")}</CardTitle>
                 <CardDescription>{t("howAgentAsksIts")}</CardDescription>
@@ -1400,6 +1497,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   binding={spec.capabilities.find((binding) => binding.id === THINKING_ID)}
                   onToggle={() => toggleCapability(THINKING_ID)}
                   onChange={updateCapability}
+                  disabled={!canEdit}
+                />
+              </CardContent>
+            </Card>
+
+            <Card data-tour="agent-answer-format">
+              <CardHeader>
+                <CardTitle>{tAnswer("title")}</CardTitle>
+                <CardDescription>{tAnswer("description")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AnswerFormatForm
+                  value={spec.output_schema ?? null}
+                  onChange={(output_schema) => update({ output_schema })}
                   disabled={!canEdit}
                 />
               </CardContent>
@@ -1481,7 +1592,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6">
+          <TabsContent value="toolbox" className="mt-4 space-y-4">
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1506,7 +1617,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // on with the first pick, because bound without it the resources
                   // are resolved and then discarded.
                   resources={{
-                    contextFiles,
+                    contextFiles: mergeResourceChoices(contextFiles, resourceCreation.context),
+                    onCreateContext: resourceCreation.createContext,
                     contextTotal: contextCount,
                     contextIds: spec.context_ids,
                     onContextToggle: (fileId: string) =>
@@ -1515,7 +1627,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     collectionIds: spec.collection_ids,
                     onCollectionToggle: (collectionId: string) =>
                       update({ collection_ids: toggleId(spec.collection_ids, collectionId) }),
-                    skills,
+                    skills: mergeResourceChoices(skills, resourceCreation.skills),
+                    onCreateSkill: resourceCreation.createSkill,
                     skillTotal: skillCount,
                     skillIds: spec.skill_ids,
                     onSkillToggle: (skillId: string) =>
@@ -1536,7 +1649,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-6 space-y-6">
+          <TabsContent value="mcp" className="mt-4 space-y-4">
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -1632,7 +1745,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="limits" className="mt-6 space-y-6">
+          <TabsContent value="limits" className="mt-4 space-y-4">
             <Card data-tour="agent-limits">
               <CardHeader>
                 <CardTitle>{t("runLimits")}</CardTitle>
@@ -1726,7 +1839,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-6 space-y-6">
+          <TabsContent value="availability" className="mt-4 space-y-4">
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -1755,7 +1868,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="history" className="mt-6 space-y-6">
+          <TabsContent value="history" className="mt-4 space-y-4">
             {/* The first publish mints `production`; before it there is nothing
                 to point anywhere, and a card of explanation with nothing under
                 it read as a page that failed to load. */}
@@ -1802,6 +1915,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsContent>
         </Tabs>
       </div>
+      {resourceCreation.dialogs}
       {testing && canEdit && (
         <TestPanel
           agentId={id}

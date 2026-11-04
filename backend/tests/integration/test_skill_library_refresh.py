@@ -227,3 +227,19 @@ async def test_the_decision_is_made_on_the_row_as_it_is_now(db, monkeypatch) -> 
 
     assert await service.refresh_from_library(ctx, KEY) is LibraryRefresh.EDITED
     assert (await _copy(db, ctx)).content == "Edited just now."
+
+
+async def test_gallery_refresh_can_inspect_install_and_adopt_a_copy(db) -> None:
+    ctx = await _owner_ctx(db)
+    service = SkillService(db)
+    key = "software/agenticos-guide"
+    bundled = skill_library.gallery_get(key)
+    assert bundled is not None
+    assert await service.refresh_gallery(ctx, key, dry_run=True) is LibraryRefresh.INSTALL
+    assert (
+        await skill_repo.get_by_name(db, bundled.name, organization_id=ctx.organization_id) is None
+    )
+    assert await service.refresh_gallery(ctx, key) is LibraryRefresh.INSTALL
+    copy = await skill_repo.get_by_name(db, bundled.name, organization_id=ctx.organization_id)
+    assert copy is not None and copy.library_fingerprint == bundled.fingerprint
+    assert await service.refresh_gallery(ctx, key, dry_run=True) is LibraryRefresh.CURRENT

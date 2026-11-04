@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press on the app's icon (#2097). Each opens the app with the same
+     agenticos://activity link a live activity's button does: a page of the
+     console, or the chat starting a call or dictation - those two only once
+     the person is through the app's lock. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="call"
+        android:icon="@drawable/ic_shortcut_call"
+        android:shortcutShortLabel="@string/shortcut_call"
+        android:shortcutLongLabel="@string/shortcut_call_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="agenticos://activity/start?mode=call"
+            android:targetClass="co.vstorm.agenticos.MainActivity"
+            android:targetPackage="co.vstorm.agenticos" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="dictate"
+        android:icon="@drawable/ic_shortcut_dictate"
+        android:shortcutShortLabel="@string/shortcut_dictate"
+        android:shortcutLongLabel="@string/shortcut_dictate_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="agenticos://activity/start?mode=dictate"
+            android:targetClass="co.vstorm.agenticos.MainActivity"
+            android:targetPackage="co.vstorm.agenticos" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="chat"
+        android:icon="@drawable/ic_shortcut_chat"
+        android:shortcutShortLabel="@string/shortcut_chat"
+        android:shortcutLongLabel="@string/shortcut_chat_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="agenticos://activity/open?path=%2Fchat"
+            android:targetClass="co.vstorm.agenticos.MainActivity"
+            android:targetPackage="co.vstorm.agenticos" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="approvals"
+        android:icon="@drawable/ic_shortcut_approvals"
+        android:shortcutShortLabel="@string/shortcut_approvals"
+        android:shortcutLongLabel="@string/shortcut_approvals_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="agenticos://activity/open?path=%2Fruns%3Ftab%3Dapprovals"
+            android:targetClass="co.vstorm.agenticos.MainActivity"
+            android:targetPackage="co.vstorm.agenticos" />
+    </shortcut>
+</shortcuts>

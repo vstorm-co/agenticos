@@ -12,7 +12,6 @@ import { useTranslations } from "next-intl";
 interface SecretsTableProps {
   secrets: readonly Secret[];
   purposes: readonly SecretPurpose[];
-  canManage: boolean;
   onShare: (secret: Secret) => void;
   onRotate: (secret: Secret) => void;
   onDelete: (secret: Secret) => void;
@@ -58,7 +57,6 @@ function reach(
 export function SecretsTable({
   secrets,
   purposes,
-  canManage,
   onShare,
   onRotate,
   onDelete,
@@ -66,6 +64,7 @@ export function SecretsTable({
   const t = useTranslations("vault");
   const tc = useTranslations("common");
 
+  const hasActions = secrets.some((secret) => secret.can_edit === true);
   const columns = useMemo<Column<Secret>[]>(() => {
     const cols: Column<Secret>[] = [
       {
@@ -153,7 +152,7 @@ export function SecretsTable({
       {
         key: "usedBy",
         header: t("usedBy"),
-        className: canManage ? undefined : "pr-5",
+        className: hasActions ? undefined : "pr-5",
         hideBelow: "sm",
         cell: (secret) => {
           const used = secret.used_by ?? [];
@@ -171,48 +170,49 @@ export function SecretsTable({
       },
     ];
 
-    if (canManage) {
+    if (hasActions) {
       cols.push({
         key: "actions",
         header: t("actions"),
         align: "right",
         className: "w-32 pr-5",
-        cell: (secret) => (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t("manageAccessTo", { name: secret.name })}
-              onClick={() => onShare(secret)}
-            >
-              <Users className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t(
-                secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
-                { name: secret.name },
-              )}
-              onClick={() => onRotate(secret)}
-            >
-              <RotateCw className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={tc("deleteNamed", { name: secret.name })}
-              onClick={() => onDelete(secret)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ),
+        cell: (secret) =>
+          secret.can_edit === true ? (
+            <div className="flex justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("manageAccessTo", { name: secret.name })}
+                onClick={() => onShare(secret)}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t(
+                  secret.kind === "openai_codex" ? "chatgptReconnectNamed" : "rotateNamed",
+                  { name: secret.name },
+                )}
+                onClick={() => onRotate(secret)}
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={tc("deleteNamed", { name: secret.name })}
+                onClick={() => onDelete(secret)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null,
       });
     }
 
     return cols;
-  }, [purposes, canManage, onShare, onRotate, onDelete, t, tc]);
+  }, [purposes, hasActions, onShare, onRotate, onDelete, t, tc]);
 
   return (
     <>

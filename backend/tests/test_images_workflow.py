@@ -23,6 +23,7 @@ laptop, where the override file builds the image locally under another name.
 """
 
 import re
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -167,10 +168,33 @@ class TestEveryJobBoundsItsOwnRuntime:
         assert not excessive
 
 
+class TestEveryPackagePageHasADescription:
+    """GHCR shows a multi-architecture package's description from the manifest
+    list's annotations; the per-architecture labels `metadata-action` writes
+    never reach the page."""
+
+    def test_every_published_image_has_one(self, workflow: dict[str, Any]) -> None:
+        include = workflow["jobs"]["publish"]["strategy"]["matrix"]["include"]
+        described = {entry["image"]: entry["description"] for entry in include}
+        assert set(described) == {"backend", "frontend", "browser"}
+        for image, description in described.items():
+            assert "https://vstorm-co.github.io/agenticos/" in description, image
+            assert len(description) <= 512, f"GHCR truncates {image}'s description at 512"
+
+    def test_the_manifest_list_carries_it(self, workflow: dict[str, Any]) -> None:
+        join = next(
+            step
+            for step in workflow["jobs"]["publish"]["steps"]
+            if "imagetools create" in step.get("run", "")
+        )
+        assert join["env"]["DESCRIPTION"] == "${{ matrix.description }}"
+        assert '"index:org.opencontainers.image.description=$DESCRIPTION"' in join["run"]
+
+
 class TestTheComposeFilesPullWhatTheWorkflowPublishes:
     def test_the_workflow_names_every_published_image(self, workflow: dict[str, Any]) -> None:
         prefix = workflow["env"]["IMAGE_PREFIX"]
-        images = workflow["jobs"]["build"]["strategy"]["matrix"]["image"]
+        images = workflow["jobs"]["publish"]["strategy"]["matrix"]["image"]
         assert {f"{prefix}-{image}" for image in images} == PUBLISHED
 
     @pytest.mark.parametrize("name", PULLING_COMPOSE_FILES)
@@ -277,3 +301,22 @@ class TestTheReleaseCarriesAnInventory:
             if job.get("permissions", {}).get("contents") == "write"
         }
         assert writing == {"sbom"}
+
+
+def test_frontend_container_omits_tests_that_require_the_monorepo() -> None:
+    frontend = REPO_ROOT / "frontend"
+    patterns = [
+        line.strip()
+        for line in (frontend / ".dockerignore").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    source = frontend / "src/components/desktop"
+    for name in ("connection-permissions.test.ts", "local-computer.test.ts"):
+        file = source / name
+        assert "../../../../desktop/ui/" in file.read_text()
+        relative = file.relative_to(frontend).as_posix()
+        assert any(fnmatchcase(relative, pattern) for pattern in patterns), (
+            f"{relative} imports files outside the frontend-only image context"
+        )
+    # Excluding tests must not exclude the production desktop bridge itself.
+    assert not any(fnmatchcase("src/components/desktop/desktop-bridge.tsx", p) for p in patterns)

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from openai import OpenAI
+from openai import NotFoundError, OpenAI
 from pydantic_ai.usage import RequestUsage
 
 from app.agents.capabilities.budget import record_ambient_usage
@@ -12,6 +12,10 @@ from app.services.rag.models import Document
 # build a client on an empty key and Ollama reads none, so the value only has to
 # be non-empty and obviously not a secret.
 _KEYLESS_PLACEHOLDER = "keyless"
+
+# Inputs per `/embeddings` request. Ollama drops the connection somewhere
+# between 320 and 384; OpenAI caps a request at 2048 inputs.
+EMBED_BATCH_SIZE = 64
 
 
 def _chunk_texts(document: Document) -> list[str]:
@@ -123,7 +127,34 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         return self._client
 
     def embed_queries(self, texts: list[str]) -> list[list[float]]:
-        response = self.client.embeddings.create(model=self.model, input=texts)
+        """Embed `texts` in requests of at most `EMBED_BATCH_SIZE` inputs.
+
+        A document's chunks used to go out in one request. Ollama drops the
+        connection somewhere past 320 inputs and hosted APIs cap inputs per
+        request, so a long document failed to index on every attempt.
+        """
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), EMBED_BATCH_SIZE):
+            vectors.extend(self._embed_batch(texts[start : start + EMBED_BATCH_SIZE]))
+        return vectors
+
+    def _embed_batch(self, texts: list[str]) -> list[list[float]]:
+        """Embed one request's worth of `texts` and book its usage."""
+        try:
+            response = self.client.embeddings.create(model=self.model, input=texts)
+        except NotFoundError as error:
+            # A 404 from `/embeddings` is about the model or the address, never
+            # the key - OpenRouter's EU endpoint answers it for every model it
+            # has no regional host for. Stored on the document row, the SDK's
+            # class name alone sent people to check the credential.
+            raise ConfigurationError(
+                message=(
+                    f"The collection's embedding endpoint does not serve '{self.model}', or "
+                    "is not an embeddings API. Choose a model that endpoint lists for a new "
+                    "collection, or move this one to an endpoint that serves its model."
+                ),
+                details={"model": self.model},
+            ) from error
         # Embedding tokens are spend like any other: booked to whichever run or
         # ingestion job is metering, priced by the same lookup as chat models.
         # This used to be dropped on the floor, which made every knowledge

@@ -15,9 +15,10 @@ too; see `app.db.models.background_job`.
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from uuid import UUID
+from typing import Literal
+from uuid import UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Pool(enum.StrEnum):
@@ -29,6 +30,8 @@ class Pool(enum.StrEnum):
     """Parsing and embedding: CPU and memory heavy, each job in a child process."""
     SYSTEM = "system"
     """Sweeps, cleanups and reports: short, and nearly always idle."""
+    WORKFLOW = "workflow"
+    """Workflow nodes: HTTP, file and sandbox steps, mostly waiting, some holding a large file."""
 
 
 class Priority(enum.IntEnum):
@@ -43,6 +46,46 @@ class Payload(BaseModel):
     """What a job carries: identifiers and primitives, never a row or a session."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class MoveProjectWorkspacePayload(Payload):
+    transfer_id: UUID
+    project_id: UUID
+    organization_id: UUID
+    user_id: UUID
+    api_key_id: UUID | None = None
+    source_backend: Literal["state", "service"]
+    source_connection_id: UUID | None
+    source_generation: UUID | None
+    source_workspace_id: UUID | None
+    target_backend: Literal["state", "service"]
+    target_connection_id: UUID | None
+    target_runtime: str | None
+    target_name: str
+
+
+def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
+    """Isolate each attempt, so a lost worker cannot write into the activated copy."""
+    return uuid5(transfer_id, str(attempt))
+
+
+class ChannelHandbackCall(Payload):
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, JsonValue]
+    result: str | None = None
+
+
+class ChannelHandback(Payload):
+    organization_id: UUID
+    run_id: UUID
+    bot_id: UUID
+    platform_chat_id: str
+    private_chat: bool
+    output: str
+    tool_calls: list[ChannelHandbackCall] = Field(default_factory=list)
+    generated_files: frozenset[str] = frozenset()
+    notice: bool = False
 
 
 class NoPayload(Payload):
@@ -91,6 +134,11 @@ class FireTrigger(Payload):
     """The `fire_in_flight_since` the scheduled claim stamped - its claim ticket."""
 
 
+class ConversationTaskJob(Payload):
+    task_id: UUID
+    organization_id: UUID
+
+
 class RunAgent(Payload):
     """An asynchronous `POST /agents/{id}/run`: who asked, and what they sent."""
 
@@ -107,16 +155,113 @@ class RunAgent(Payload):
     """The request's fingerprint: an idempotent retry must send the same one."""
 
 
+class DispatchWorkflowNode(Payload):
+    """One node attempt of a workflow run, named by the outbox row's node run.
+
+    No organization id: the job row carries it, and the dispatcher takes its scope
+    from the run row rather than from a payload.
+    """
+
+    workflow_run_id: UUID
+    node_run_id: UUID
+
+
+class DispatchOutcome(Payload):
+    """What a dispatch tick did, kept on the job for Admin -> Background jobs."""
+
+    status: Literal["nothing_to_claim", "not_dispatched", "settled"]
+
+
+class ThinkForPerson(Payload):
+    """One person in one organization, for the platform's nightly look at their week (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
+class LookThroughWatch(Payload):
+    """One person's watch over one of their connections, due for a look (#2301)."""
+
+    watch_id: UUID
+
+
+class InstallRolePack(Payload):
+    """The routines of a role pack, to create for the person who accepted it (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+    pack_id: str
+
+
+class WelcomeMember(Payload):
+    """Somebody who just joined, to greet in the chat apps the organization connected (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+
+
 class Restamp(Payload):
     collection: str
     organization_id: UUID
     knowledge_base_id: UUID
 
 
+class BasePurge(Payload):
+    """A deleted knowledge base whose collection's table another base keeps (#2537)."""
+
+    collection: str
+    knowledge_base_id: UUID
+    vector_document_ids: list[str] | None = Field(
+        default=None, exclude_if=lambda vector_document_ids: vector_document_ids is None
+    )
+    """Only these documents' chunks, for a base that is kept: a cleared default
+    takes uploads again under the same id once its drop commits, so a purge of
+    every chunk filed under it would take theirs too (#2560). `None` purges the
+    whole base. Left out of the dump when `None`, as `prefixes` is."""
+    takes_unfiled: bool = Field(default=False, exclude_if=lambda takes_unfiled: not takes_unfiled)
+    """With `vector_document_ids`, also those documents' unfiled chunks of
+    `tenant`: the base's unfiled document rows went with it, since no other base
+    on the name takes them (#2560). Left out of the dump when off."""
+    tenant: UUID | None = Field(default=None, exclude_if=lambda tenant: tenant is None)
+    """The base's vector tenant, which an unfiled chunk is matched by - `None`
+    for the deployment-wide one."""
+
+
+class DiscardVectorDocument(Payload):
+    """Chunks an ingest wrote for a document deleted while it indexed (#2565).
+
+    The tracking row is gone, so this is the only record of them. `tenant` and
+    `knowledge_base_id` are the scope the chunks were stamped with."""
+
+    collection: str
+    vector_document_id: str
+    tenant: UUID | None
+    knowledge_base_id: UUID | None
+
+
 class CleanupExternalState(Payload):
     storage_paths: list[str]
     collections: list[str]
     restamps: list[Restamp]
+    # Defaulted, so a job queued by a release before it existed still parses; and
+    # left out of the dump when empty, so a worker from that release (whose payload
+    # forbids extra fields) still runs every cleanup that carries none. Only an
+    # organization purge carries prefixes, and only a current worker runs it.
+    prefixes: list[str] = Field(default_factory=list, exclude_if=lambda prefixes: not prefixes)
+    """Storage prefixes removed whole - an organization's generated media (#2310)."""
+    required_paths: list[str] = Field(
+        default_factory=list, exclude_if=lambda required_paths: not required_paths
+    )
+    """Files whose failed unlink fails the job, so it is retried - generated media
+    whose rows went with the delete that queued this (#2310). Defaulted and left
+    out of the dump when empty, as `prefixes` is. A previous-release worker
+    refuses a job that carries them; a current one runs it."""
+    base_purges: list[BasePurge] = Field(
+        default_factory=list, exclude_if=lambda base_purges: not base_purges
+    )
+    """Deleted bases whose chunks go from a table that is kept, because another
+    base still holds its name (#2537). Defaulted and left out of the dump when
+    empty, as `prefixes` is."""
 
 
 @dataclass(frozen=True)
@@ -133,6 +278,15 @@ class TaskKind:
     # row outside the queue - a document, a sync log - waits in `processing` for
     # the job to settle it: cancelled, nothing ever would.
     cancellable: bool = True
+    uncancellable_because: str = (
+        "its document or sync would stay in progress with nothing left to finish it. "
+        "Pause the kind instead."
+    )
+    """What the panel says when `cancellable` is false: why, and what to do instead."""
+    # Whether a worker that died under a job of this kind counts toward pausing the
+    # kind. Not when something else already stops a job that keeps killing its
+    # worker, and a crash takes down every job the worker held at once.
+    counts_deaths: bool = True
 
 
 @dataclass(frozen=True)
@@ -200,6 +354,23 @@ FIRE_TRIGGER = Task(
     timeout=timedelta(hours=3),
     priority=Priority.SCHEDULED,
 )
+RUN_CONVERSATION_TASK = Task(
+    kind="run-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+RETURN_CONVERSATION_TASK = Task(
+    kind="return-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+
 # One attempt: a run a worker died under has already spent, and a second would
 # run the agent again - its model calls and its tools' side effects with it. The
 # caller reads `failed` and decides; that is what idempotency keys are for.
@@ -211,12 +382,94 @@ RUN_AGENT = Task(
     timeout=timedelta(hours=3),
     priority=Priority.INTERACTIVE,
 )
+# One attempt, like `RUN_AGENT`: `dispatch_outbox`, not the job, holds a node's
+# position, and a second attempt of the same job could only find its claim held.
+# Re-running a node is the workflow reconciler's call, made from `node_attempts`.
+# A queued job is not withdrawn from the panel: it would only delay the node until
+# the poll backstop queues it again - cancel the run instead. Its own pool, so a
+# fan-out cannot hold the agent pool's slots, and an agent waiting on a workflow
+# cannot wait on a slot of its own pool. A worker's death is not counted toward the
+# breaker: one crash ends every node the worker held, and `WORKFLOW_RETRY_CEILING`
+# already stops a node that keeps killing its worker.
+WORKFLOW_DISPATCH_NODE = Task(
+    kind="workflow-dispatch-node",
+    payload_type=DispatchWorkflowNode,
+    pool=Pool.WORKFLOW,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.SCHEDULED,
+    cancellable=False,
+    uncancellable_because=(
+        "the node would only wait until the poll queues it again. Cancel the workflow run instead."
+    ),
+    counts_deaths=False,
+)
+# One attempt: it is a model call booked to the person's proactivity limit, and
+# the next night is the retry - nothing a person asked for waits on it.
+THINK_FOR_PERSON = Task(
+    kind="think-for-person",
+    payload_type=ThinkForPerson,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
+# One attempt, like the nightly look: a model call on the person's limit, and the
+# watch's next look is the retry.
+LOOK_THROUGH_WATCH = Task(
+    kind="look-through-watch",
+    payload_type=LookThroughWatch,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=10),
+    priority=Priority.BULK,
+)
+# One attempt, like the welcome: a direct message sent twice is worse than one
+# the next morning's briefing catches up on.
+BRIEF_PERSON = Task(
+    kind="brief-person",
+    payload_type=ThinkForPerson,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
+# Three: creating a routine is idempotent per pack (a routine already made from
+# the same template is not made twice), and the person clicked and is waiting.
+INSTALL_ROLE_PACK = Task(
+    kind="install-role-pack",
+    payload_type=InstallRolePack,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.INTERACTIVE,
+)
+# One: a greeting is best-effort, and a retry would greet the person a second
+# time on every platform that had already succeeded. A platform that fails is
+# logged and the others still try, inside the one attempt.
+WELCOME_MEMBER = Task(
+    kind="welcome-member",
+    payload_type=WelcomeMember,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
 CLEANUP_EXTERNAL_STATE = Task(
     kind="cleanup-external-state",
     payload_type=CleanupExternalState,
     pool=Pool.SYSTEM,
     max_attempts=3,
     timeout=timedelta(minutes=30),
+    priority=Priority.SCHEDULED,
+)
+# Three: the delete is idempotent, and the chunks stay searchable until it runs.
+DISCARD_VECTOR_DOCUMENT = Task(
+    kind="discard-vector-document",
+    payload_type=DiscardVectorDocument,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
     priority=Priority.SCHEDULED,
 )
 
@@ -227,14 +480,27 @@ DISPATCH_DUE_SYNCS = _sweep("dispatch-due-syncs")
 RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
 SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
+SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
+SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
 REAP_VOICE_CALLS = _sweep("reap-voice-calls")
+WORKFLOW_DISPATCH_POLL = _sweep("workflow-dispatch-poll", timeout=timedelta(minutes=2))
+WORKFLOW_RECONCILE = _sweep("workflow-reconcile", timeout=timedelta(minutes=5))
+WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(minutes=5))
+WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
+WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
+WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
+RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
+SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
+SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
+PROACTIVE_SWEEP = _sweep("proactive-sweep")
+WATCH_SWEEP = _sweep("watch-sweep")
 # Three attempts, unlike the sweeps above: a sweep's next tick is the same work
 # again, but the next report is a week or a month away and covers another window,
 # so an occurrence lost to a deploy or an outage was never sent. Each occurrence
@@ -242,15 +508,45 @@ REAP_VOICE_CALLS = _sweep("reap-voice-calls")
 WEEKLY_USAGE_REPORT = _sweep("weekly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 MONTHLY_USAGE_REPORT = _sweep("monthly-usage-report", timeout=timedelta(hours=1), max_attempts=3)
 
+MOVE_PROJECT_WORKSPACE = Task(
+    kind="move-project-workspace",
+    payload_type=MoveProjectWorkspacePayload,
+    pool=Pool.INGEST,
+    max_attempts=3,
+    timeout=timedelta(minutes=30),
+    priority=Priority.INTERACTIVE,
+)
+
+DELIVER_CHANNEL_HANDBACK = Task(
+    kind="deliver-channel-handback",
+    payload_type=ChannelHandback,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        DELIVER_CHANNEL_HANDBACK,
+        MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
         RUN_AGENT,
+        RUN_CONVERSATION_TASK,
+        RETURN_CONVERSATION_TASK,
+        RECONCILE_CONVERSATION_TASKS,
+        WORKFLOW_DISPATCH_NODE,
+        THINK_FOR_PERSON,
+        LOOK_THROUGH_WATCH,
+        BRIEF_PERSON,
+        INSTALL_ROLE_PACK,
+        WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,
+        DISCARD_VECTOR_DOCUMENT,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,
         DELIVER_NOTIFICATIONS,
@@ -258,14 +554,26 @@ TASKS: dict[str, TaskKind] = {
         RETRY_SANDBOX_DESTROYS,
         SWEEP_SANDBOX_OPERATIONS,
         SWEEP_MCP_CONNECTIONS,
+        SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
+        SWEEP_RAG_SCRATCH,
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,
         REAP_VOICE_CALLS,
+        WORKFLOW_DISPATCH_POLL,
+        WORKFLOW_RECONCILE,
+        WORKFLOW_SCHEDULES_CHECK,
+        WORKFLOW_TABLE_TRIGGERS,
+        WORKFLOW_RUN_RETENTION,
+        WORKFLOW_LOG_ALERTS,
+        SWEEP_GENERATED_MEDIA,
+        SEND_DIAGNOSTICS,
+        PROACTIVE_SWEEP,
+        WATCH_SWEEP,
         WEEKLY_USAGE_REPORT,
         MONTHLY_USAGE_REPORT,
     )

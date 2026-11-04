@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "2f33faf1a39b"
 ---
 
 # Pliki kontekstowe { #context-files }
@@ -18,6 +18,8 @@ edytowalny przez osobę, która naprawdę zna odpowiedź.
 To odpowiedź na problem, który każda firma napotyka przy swoim trzecim agencie —
 te same trzy akapity wklejone do trzech zestawów instrukcji, a potem poprawione
 w jednym z nich.
+
+W kreatorze agenta **Context → New context file** tworzy plik bezpośrednio w panelu zdolności, dołącza go do bieżącego szkicu i włącza Context. Następnie możesz wybrać sposób użycia pliku przez tego agenta. Publikacja pozostaje osobnym krokiem. Tworzenie wymaga uprawnień do edycji agenta i plików contextu.
 
 ## Gdzie leży, między skillami a wiedzą { #where-it-sits-between-skills-and-knowledge }
 
@@ -39,8 +41,7 @@ treść.
 
 ## Dwa tryby, a różnica między nimi to koszt { #two-modes-and-the-difference-is-cost }
 
-Każdy plik kontekstowy niesie tryb, a tryb decyduje o tym, jak plik dociera do
-modelu.
+Każde przypięcie pliku ma tryb w ustawieniach capability **Context** agenta. Ten sam wspólny plik można wstrzykiwać u jednego agenta, udostępniać na żądanie u drugiego lub wyłączyć u trzeciego.
 
 === "`inject` — zawsze obecny"
 
@@ -85,7 +86,9 @@ O to właśnie chodzi i na to właśnie trzeba uważać: zmiana w pliku wstrzyki
 jest zmianą w każdym agencie, który go niesie. Traktuj go jak wspólny, nośny
 tekst, którym jest.
 
-Ta capability ma jedno ustawienie warte poznania. Wyłączenie narzędzia do
+W Builderze każdy wybrany plik ma przełącznik **Używaj w tym agencie** i wybór trybu. Te ustawienia należą do szkicu agenta i zaczynają działać po publikacji. Edytor biblioteki zmienia tylko wspólną treść i opis; format wynika z nazwy pliku. Istniejące wersje agentów bez indywidualnych ustawień zachowują poprzedni tryb i dostępność.
+
+Capability pozwala też wyłączyć narzędzie do odczytu. Wyłączenie narzędzia do
 czytania oznacza, że do modelu trafiają tylko pliki wstrzykiwane i nic nie jest
 czytane na żądanie — rozsądny wybór, gdy chcesz, żeby wejścia agenta były
 całkowicie przewidywalne.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, isValidElement, useLayoutEffect, useMemo, useRef } from "react";
+import { Children, isValidElement, memo, useLayoutEffect, useMemo, useRef } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -9,7 +9,7 @@ import { ExternalLink, ImageOff, PanelsTopLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrandIcon } from "@/components/icons/brand-icon";
-import { brandForUrl, isAppLink } from "@/lib/link-brands";
+import { brandForUrl, consolePageIcon, isAppLink, offsiteUrl } from "@/lib/link-brands";
 import { rehypeStreamWords } from "@/lib/stream-words";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,10 @@ import { CollapsibleBlock } from "./collapsible-block";
 import { MarkdownQuote } from "./markdown-quote";
 import { MarkdownTable } from "./markdown-table";
 import type { MarkdownContentProps } from "./markdown-content";
+
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeHighlight];
+const STREAM_PLUGINS = [rehypeHighlight, rehypeStreamWords];
 
 /** Parse `language-xyz` from a `<code>` className that rehype-highlight emits. */
 function languageLabel(className: string | undefined): string | null {
@@ -119,11 +123,12 @@ function textOf(node: React.ReactNode): string {
   return "";
 }
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   onCiteClick,
   bareCode,
   inertImages,
+  documentMedia,
   streaming,
 }: MarkdownContentProps) {
   const t = useTranslations("chat");
@@ -217,6 +222,25 @@ export function MarkdownContent({
         );
       },
       a({ href, children, ...props }) {
+        if (
+          documentMedia &&
+          href &&
+          /^https?:\/\/[^\s]+\.(?:mp4|webm|ogg)(?:[?#].*)?$/i.test(href)
+        ) {
+          return (
+            <span className="my-4 block">
+              <video
+                src={href}
+                controls
+                preload="none"
+                className="max-h-[32rem] w-full rounded-xl"
+                aria-label={textOf(children) || href}
+              >
+                <a href={href}>{children}</a>
+              </video>
+            </span>
+          );
+        }
         if (href?.startsWith("#cite-") && citable) {
           const n = parseInt(href.slice(6), 10);
           if (!Number.isNaN(n)) {
@@ -239,8 +263,19 @@ export function MarkdownContent({
         // name rather than the forty characters of its address; a page on a
         // service the reader knows leads with that service's logo.
         const app = !!href && isAppLink(href, window.location.origin);
-        const isExternal = !app && !!href && /^https?:\/\//i.test(href);
-        const brand = isExternal ? brandForUrl(href) : null;
+        // Off-site by where the browser resolves it (#2550): `//host`, and
+        // `https:host` on an `http:` console, leave it without starting
+        // `https://`, and with no target they leave in this tab. An absolute `http(s)://` address on this
+        // console still opens in a new tab, as before.
+        const external =
+          app || !href
+            ? null
+            : (offsiteUrl(href, window.location.origin) ??
+              (/^https?:\/\//i.test(href) ? href : null));
+        const isExternal = external !== null;
+        const brand = external ? brandForUrl(external) : null;
+        // A console page the agent points at wears the sidebar's mark for it.
+        const PageIcon = !app && href ? consolePageIcon(href, window.location.origin) : null;
         const label = app && textOf(children) === href ? t("openApp") : children;
         return (
           <a
@@ -252,6 +287,12 @@ export function MarkdownContent({
           >
             {app && (
               <PanelsTopLeft
+                aria-hidden
+                className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
+              />
+            )}
+            {PageIcon && (
+              <PageIcon
                 aria-hidden
                 className="text-foreground/70 inline h-[0.95em] w-[0.95em] shrink-0 translate-y-[0.1em]"
               />
@@ -384,16 +425,16 @@ export function MarkdownContent({
         return <hr className="border-foreground/10 my-4" {...props} />;
       },
     }),
-    [t, bareCode, inertImages, citable],
+    [t, bareCode, inertImages, documentMedia, citable],
   );
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={streaming ? [rehypeHighlight, rehypeStreamWords] : [rehypeHighlight]}
+      remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={streaming ? STREAM_PLUGINS : REHYPE_PLUGINS}
       components={components}
     >
       {processed}
     </ReactMarkdown>
   );
-}
+});

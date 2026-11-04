@@ -55,7 +55,7 @@ class EngineLedger:
 
 @asynccontextmanager
 async def _worker_db() -> Any:
-    yield MagicMock()
+    yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
 
 def _ingest_result(status: IngestionStatus = IngestionStatus.DONE) -> MagicMock:
@@ -66,6 +66,7 @@ def _ingest_result(status: IngestionStatus = IngestionStatus.DONE) -> MagicMock:
         replaced_document_id=None,
         error_message=None,
         message="",
+        refused=False,
     )
 
 
@@ -159,6 +160,7 @@ class TestAnUploadsEngine:
             with (
                 patch("app.services.rag_document.RAGDocumentService", return_value=documents),
                 patch.object(rag_tasks, "_fail_document", new=AsyncMock()),
+                patch.object(rag_tasks, "_still_ingestable", new=AsyncMock(return_value=True)),
                 pytest.raises(RuntimeError),
             ):
                 await rag_tasks._run_ingestion(

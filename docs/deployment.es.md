@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "d6e3bf78d15a"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -96,8 +96,14 @@ endurecimiento habituales, definidas en `frontend/src/lib/csp.ts` y
 `frontend/src/lib/security-headers.ts`, ambas verificadas por tests. La política
 es `default-src 'self'` con un `connect-src` que nombra exactamente este origen,
 `PUBLIC_API_URL` y `PUBLIC_WS_URL`, un `img-src` que permite `data:` para los
-glifos de marca y los avatares, `frame-src 'self' blob:` para las vistas previas
-de documentos, `object-src 'none'`, `base-uri 'self'` y `frame-ancestors 'none'`.
+glifos de marca y los avatares, un `frame-src` que permite `'self'` y `blob:` para
+las vistas previas de documentos, además de la ruta de contenido de los artefactos
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`), `object-src
+'none'`, `base-uri 'self'` y `frame-ancestors 'none'`.
+
+La ruta de contenido se nombra por su ruta, no por su origen, de modo que un
+frame puede cargar una página publicada y nada más de lo que sirve la API;
+consulta [Cómo se aísla la página](artifacts.md#how-the-page-is-isolated).
 
 `script-src` no lleva `'unsafe-inline'`. El middleware genera un nonce por
 petición, escribe `'nonce-…' 'strict-dynamic'` en la directiva, y Next estampa
@@ -172,11 +178,11 @@ una persona más cambia a `invite_only` y la invita.
 
 Tres cosas más sobre esto que es fácil equivocar, y que se equivocaron:
 
-**El primer usuario siempre se admite.** Una instalación recién hecha no tiene
-cuentas, así que su administrador todavía no existe; un despliegue cerrado que
-además rechaza a la persona que lo abriría es uno en el que nadie puede entrar,
-sin consola desde la que arreglarlo. `register` ya promueve esa primera cuenta a
-`is_app_admin`, y la política se remite al mismo hecho.
+**El primer usuario siempre se admite.** Una instalación nueva no tiene cuentas.
+La primera cuenta confirmada obtiene la autoridad de administrador (`is_app_admin`),
+tanto con contraseña como por OAuth. Un bloqueo transaccional concede esta excepción
+a un solo registro concurrente. Los demás deben cumplir la política configurada;
+si el primero se revierte, otro puede obtener la autoridad inicial.
 
 **`invite_only` existe porque cerrar el registro rompería si no las
 invitaciones.** `InvitationService.accept` exige un usuario ya autenticado, así
@@ -549,6 +555,24 @@ El rechazo nombra el techo y el recuento contra el que se midió
 no la memoria de un administrador. Se lanza en el servicio que crea la cosa, no en
 la ruta, porque la ruta no es la única entrada.
 
+La consola no espera a ese rechazo. `GET /agents/ceiling`, abierto a quien llama
+con `agents:edit`, devuelve el límite (`limit`, null donde no hay ninguno) y si
+una creación chocaría con él (`at_limit`), y, en el límite, la página Agentes
+desactiva **New agent** y la instalación de plantillas y dice por qué, antes de
+que nadie rellene un formulario.
+
+Si otra creación alcanza el límite durante la creación guiada de un agent,
+la guía termina en vez de bloquear la página alrededor de un botón desactivado.
+Una creación exitosa de esa guía se registra antes de actualizar el límite,
+por lo que ocupar la última plaza no interrumpe los pasos restantes del Builder.
+
+El recuento en sí (`held`) solo lo recibe quien
+llama con un `agents:view` que alcanza a todos los agentes de la organización:
+incluye agentes que un miembro (Member) no ve, y comparado con su propio listado
+diría cuántos se le ocultan. **Duplicate** y **Restore** se siguen rechazando solo
+al intentarlo. La garantía sigue siendo el rechazo: el recuento es una previsión,
+leída sin el bloqueo.
+
 El schema rechaza el cero: una cuenta que no puede poseer ninguna organización es
 una cuenta que no se puede crear, ya que el registro da a cada una su propia
 organización personal.
@@ -650,7 +674,10 @@ faltan workers. El panel del despliegue muestra el mismo día como tarjeta.
 
 Tres acciones, cada una auditada con quién la hizo:
 
-- **Retry** da a un job muerto una nueva serie de intentos.
+- **Retry** da a un job muerto una nueva serie de intentos. Un ingest de
+  documento muerto se rechaza: su copia de parseo se fue con él, así que
+  reintenta el documento desde su base de conocimiento, que vuelve a parsear el
+  archivo almacenado.
 - **Cancel** retira un job que nadie ha empezado.
 - **Resume** deja que los workers vuelvan a recoger un tipo pausado.
 
@@ -660,7 +687,7 @@ queda sin memoria. Cada propietario recibe un aviso en la aplicación y por
 correo, y la notificación no se puede desactivar: el trabajo de ese tipo se
 acumula hasta que uno de ellos lo reanuda. Una pausa nombra la organización
 cuyos jobs la provocaron, y para todas las demás el tipo sigue funcionando. Reintenta los jobs muertos solo
-cuando la causa esté resuelta, o morirán igual. Los ajustes están en
+cuando la causa esté resuelta, o morirán igual; un ingest de documento muerto, desde su base de conocimiento. Los ajustes están en
 [Configuración](configuration.md#background-work).
 
 ## Resumen { #recap }

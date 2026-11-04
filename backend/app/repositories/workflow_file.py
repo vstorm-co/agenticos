@@ -1,0 +1,201 @@
+"""Workflow files and whether a run may read one (#1791)."""
+
+from collections.abc import Sequence
+from uuid import UUID
+
+from sqlalchemy import String, cast, delete, exists, func, select
+from sqlalchemy.dialects.postgresql import JSONPATH
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
+
+from app.db.models.workflow import Workflow, WorkflowVersion
+from app.db.models.workflow_file import WorkflowFile
+from app.db.models.workflow_run import ResourceRef, ResourceRefKind, WorkflowRun
+
+
+async def create(
+    db: AsyncSession,
+    *,
+    file_id: UUID,
+    organization_id: UUID,
+    workflow_run_id: UUID,
+    producing_node_run_id: UUID | None,
+    storage_path: str,
+    content_type: str,
+    byte_size: int,
+    filename: str | None,
+) -> WorkflowFile:
+    row = WorkflowFile(
+        id=file_id,
+        organization_id=organization_id,
+        workflow_run_id=workflow_run_id,
+        producing_node_run_id=producing_node_run_id,
+        storage_path=storage_path,
+        content_type=content_type,
+        byte_size=byte_size,
+        filename=filename,
+    )
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def get(db: AsyncSession, file_id: UUID, *, organization_id: UUID) -> WorkflowFile | None:
+    """One file, in one organization - never a lookup by id alone."""
+    result = await db.execute(
+        select(WorkflowFile).where(
+            WorkflowFile.id == file_id, WorkflowFile.organization_id == organization_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_for_run(
+    db: AsyncSession, file_id: UUID, *, organization_id: UUID, workflow_run_id: UUID
+) -> WorkflowFile | None:
+    """A file `workflow_run_id` may read: one it made, or one it was started with.
+
+    "Started with" is a `FileRef` its graph named, recorded as a `ResourceRef`
+    when the run was admitted - checked then against what the graph's author may
+    see. A file another run made and nobody handed this one answers `None`,
+    exactly like a file in another organization, so an id is no key.
+    """
+    row = await get(db, file_id, organization_id=organization_id)
+    if row is None:
+        return None
+    if row.workflow_run_id == workflow_run_id:
+        return row
+    imported = await db.execute(
+        select(ResourceRef.id).where(
+            ResourceRef.workflow_run_id == workflow_run_id,
+            ResourceRef.kind == ResourceRefKind.FILE.value,
+            ResourceRef.ref["file_id"].astext == str(file_id),
+        )
+    )
+    return row if imported.first() is not None else None
+
+
+async def list_for_run(
+    db: AsyncSession, *, workflow_run_id: UUID, organization_id: UUID
+) -> list[WorkflowFile]:
+    """The files one run made, oldest first."""
+    result = await db.execute(
+        select(WorkflowFile)
+        .where(
+            WorkflowFile.workflow_run_id == workflow_run_id,
+            WorkflowFile.organization_id == organization_id,
+        )
+        .order_by(WorkflowFile.created_at, WorkflowFile.id)
+    )
+    return list(result.scalars().all())
+
+
+async def sum_bytes(
+    db: AsyncSession, *, organization_id: UUID, workflow_run_id: UUID | None = None
+) -> int:
+    """The bytes stored for one organization, or for one of its runs."""
+    query = select(func.coalesce(func.sum(WorkflowFile.byte_size), 0)).where(
+        WorkflowFile.organization_id == organization_id
+    )
+    if workflow_run_id is not None:
+        query = query.where(WorkflowFile.workflow_run_id == workflow_run_id)
+    return int((await db.execute(query)).scalar_one())
+
+
+async def storage_paths_for_workflow(
+    db: AsyncSession, *, workflow_id: UUID, organization_id: UUID
+) -> list[str]:
+    """Where storage keeps every file the runs of one workflow made."""
+    result = await db.execute(
+        select(WorkflowFile.storage_path)
+        .join(WorkflowRun, WorkflowRun.id == WorkflowFile.workflow_run_id)
+        .where(
+            WorkflowRun.workflow_id == workflow_id,
+            WorkflowFile.organization_id == organization_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def delete_saved_batch(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    workflow_run_id: UUID,
+    producing_node_run_id: UUID | None,
+    file_ids: Sequence[UUID],
+) -> list[str]:
+    """Delete only this step's freshly saved batch, returning paths for object cleanup."""
+    if not file_ids:
+        return []
+    result = await db.scalars(
+        delete(WorkflowFile)
+        .where(
+            WorkflowFile.id.in_(file_ids),
+            WorkflowFile.organization_id == organization_id,
+            WorkflowFile.workflow_run_id == workflow_run_id,
+            WorkflowFile.producing_node_run_id == producing_node_run_id,
+        )
+        .returning(WorkflowFile.storage_path)
+    )
+    return list(result.all())
+
+
+async def files_are_referenced(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    workflow_id: UUID,
+    run_id: UUID | None = None,
+    include_same_workflow: bool = False,
+) -> bool:
+    """Retained imports and stored graphs keep their producer's files alive.
+
+    Whole-workflow deletion excludes its own graphs/imports; retention includes
+    them and excludes only the producer run's own imports. Graphs are scanned
+    in PostgreSQL without materializing every graph or an unbounded ID list.
+    """
+    owned = (
+        select(cast(WorkflowFile.id, String))
+        .join(WorkflowRun, WorkflowRun.id == WorkflowFile.workflow_run_id)
+        .where(
+            WorkflowFile.organization_id == organization_id, WorkflowRun.workflow_id == workflow_id
+        )
+    )
+    if run_id is not None:
+        owned = owned.where(WorkflowFile.workflow_run_id == run_id)
+    if await db.scalar(owned.limit(1)) is None:
+        return False
+    consumer = aliased(WorkflowRun)
+    imports = (
+        select(ResourceRef.id)
+        .join(consumer, consumer.id == ResourceRef.workflow_run_id)
+        .where(
+            ResourceRef.organization_id == organization_id,
+            ResourceRef.kind == ResourceRefKind.FILE.value,
+            ResourceRef.ref["file_id"].astext.in_(owned),
+        )
+    )
+    if not include_same_workflow:
+        imports = imports.where(consumer.workflow_id != workflow_id)
+    elif run_id is not None:
+        imports = imports.where(consumer.id != run_id)
+    if await db.scalar(imports.limit(1)) is not None:
+        return True
+    path = '$.** ? (@.kind == "file").file_id'
+    for graph, graph_workflow, graph_org in (
+        (Workflow.draft_graph, Workflow.id, Workflow.organization_id),
+        (WorkflowVersion.graph, WorkflowVersion.workflow_id, WorkflowVersion.organization_id),
+    ):
+        references = (
+            func.jsonb_array_elements_text(func.jsonb_path_query_array(graph, cast(path, JSONPATH)))
+            .table_valued("file_id")
+            .render_derived()
+        )
+        mentions = exists(select(1).select_from(references).where(references.c.file_id.in_(owned)))
+        query = select(graph_workflow).where(graph_org == organization_id, mentions)
+        if not include_same_workflow:
+            query = query.where(graph_workflow != workflow_id)
+        if await db.scalar(query.limit(1)) is not None:
+            return True
+    return False

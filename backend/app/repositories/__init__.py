@@ -47,11 +47,15 @@ from app.repositories import credential as credential_repo
 from app.repositories import resource_grant as resource_grant_repo
 from app.repositories import group as group_repo
 from app.repositories import directory_mapping as directory_mapping_repo
+from app.repositories import discord_role_mapping as discord_role_mapping_repo
 from app.repositories import skill as skill_repo
 from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
+from app.repositories import artifact_share_request as artifact_share_request_repo
 from app.repositories import context as context_repo
+from app.repositories import virtual_table as virtual_table_repo
+from app.repositories import table_view as table_view_repo
 from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
@@ -60,6 +64,9 @@ from app.repositories import organization as organization_repo
 from app.repositories import channel_prompt as channel_prompt_repo
 from app.repositories import external_agent as external_agent_repo
 from app.repositories import project as project_repo
+from app.repositories import suggestion as suggestion_repo
+from app.repositories import watch as watch_repo
+from app.repositories import teams_conversation as teams_conversation_repo
 from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
@@ -75,6 +82,7 @@ from app.repositories import organization_secret as organization_secret_repo
 
 from app.repositories import notification as notification_repo
 from app.repositories import voice_call as voice_call_repo
+from app.repositories import generated_media as generated_media_repo
 
 __all__ = [
     "user_repo",
@@ -98,6 +106,9 @@ __all__ = [
     "channel_prompt_repo",
     "external_agent_repo",
     "project_repo",
+    "suggestion_repo",
+    "watch_repo",
+    "teams_conversation_repo",
     "organization_assistant_repo",
     "member_repo",
     "invitation_repo",
@@ -112,6 +123,7 @@ __all__ = [
     "resource_grant_repo",
     "group_repo",
     "directory_mapping_repo",
+    "discord_role_mapping_repo",
     "audit_log_repo",
     "personal_data_repo",
     "credential_repo",
@@ -134,8 +146,12 @@ __all__ = [
     "api_key_repo",
     "oauth_repo",
     "artifact_repo",
+    "artifact_share_request_repo",
     "context_repo",
+    "virtual_table_repo",
+    "table_view_repo",
     "memory_repo",
     "notification_repo",
     "voice_call_repo",
+    "generated_media_repo",
 ]

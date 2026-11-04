@@ -11,7 +11,7 @@ while *participation* is: `agent_runs` has carried `conversation_id` and
 `agent_id` since it existed. So the listing merges the two sources, and what has to
 be true of the merge is exactly what a statement test cannot show: the join lands on
 real rows, an agent recorded twice appears once, and the order is the order the
-agents appeared whichever source recorded them.
+agents were last used, whichever source recorded them.
 
 The run-sourced half also has to say *which* runs count. A delegation is written
 with its parent's `conversation_id` and a terminal status, so the same query that
@@ -19,15 +19,17 @@ recovers an old conversation's agents would list every delegate the orchestrator
 called as a participant the user never chose.
 """
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
@@ -181,7 +183,7 @@ class TestWhoAnsweredHere:
         await _answer(db, conversation, first, at=_START)
         await _answer(db, conversation, second, at=_START + timedelta(minutes=5))
 
-        assert await _agents_of(db, conversation) == ["Analyst", "Writer"]
+        assert await _agents_of(db, conversation) == ["Writer", "Analyst"]
 
     async def test_an_agent_recorded_by_both_sources_appears_once(self, db) -> None:
         organization = await _org(db)
@@ -193,9 +195,9 @@ class TestWhoAnsweredHere:
 
         assert await _agents_of(db, conversation) == ["Analyst"]
 
-    async def test_the_order_follows_the_earliest_evidence_from_either_source(self, db) -> None:
+    async def test_the_order_follows_the_latest_evidence_from_either_source(self, db) -> None:
         """One agent known only from a run, another only from a message: the list is
-        still in the order they appeared."""
+        ordered by most recent use."""
         organization = await _org(db)
         owner = await _user(db)
         early = await _agent(db, organization, owner, "Analyst")
@@ -203,6 +205,22 @@ class TestWhoAnsweredHere:
         conversation = await _conversation(db, organization, owner)
         await _run(db, conversation, early, at=_START)
         await _answer(db, conversation, late, at=_START + timedelta(minutes=5))
+
+        assert await _agents_of(db, conversation) == ["Writer", "Analyst"]
+
+    @pytest.mark.parametrize("source", ["message", "run"])
+    async def test_reusing_an_earlier_agent_moves_it_to_the_front(self, db, source: str) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        first = await _agent(db, organization, owner, "Analyst")
+        second = await _agent(db, organization, owner, "Writer")
+        conversation = await _conversation(db, organization, owner)
+        await _answer(db, conversation, first, at=_START)
+        await _run(db, conversation, second, at=_START + timedelta(minutes=5))
+        if source == "message":
+            await _answer(db, conversation, first, at=_START + timedelta(minutes=10))
+        else:
+            await _run(db, conversation, first, at=_START + timedelta(minutes=10))
 
         assert await _agents_of(db, conversation) == ["Analyst", "Writer"]
 
@@ -271,3 +289,68 @@ class TestWhoAnsweredHere:
 
     async def test_asking_about_nothing_asks_the_database_nothing(self, db) -> None:
         assert await conversation_repo.agents_in_conversations(db, []) == {}
+
+
+class TestConversationCodingAgents:
+    async def test_historical_reports_are_distinct_ordered_and_scoped(
+        self, db: AsyncSession
+    ) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        mine = await _conversation(db, organization, owner)
+        other = await _conversation(db, organization, owner)
+        first = Message(id=uuid.uuid4(), conversation_id=mine.id, role="assistant", content="done")
+        second = Message(
+            id=uuid.uuid4(), conversation_id=other.id, role="assistant", content="done"
+        )
+        db.add_all([first, second])
+        await db.flush()
+        reports = [
+            (
+                first,
+                "run_coding_agent",
+                json.dumps({"harness": "claude_code", "outcome": "completed"}),
+            ),
+            (
+                first,
+                "run_coding_agent",
+                json.dumps({"kind": "coding_agent", "harness": "codex", "outcome": "failed"}),
+            ),
+            (
+                first,
+                "run_coding_agent",
+                json.dumps({"harness": "claude_code", "outcome": "timed_out"}),
+            ),
+            (first, "run_coding_agent", "refused: folder not approved"),
+            (first, "run_coding_agent", None),
+            (first, "run_coding_agent", "42"),
+            (first, "run_coding_agent", '{"harness":[],"outcome":[]}'),
+            (first, "run_coding_agent", '{"harness":"unknown","outcome":"completed"}'),
+            (first, "run_coding_agent", '{"harness":"codex","outcome":"not_started"}'),
+            (first, "read_file", '{"harness":"codex","outcome":"completed"}'),
+            (second, "run_coding_agent", '{"harness":"codex","outcome":"completed"}'),
+        ]
+        for index, (message, name, report) in enumerate(reports):
+            db.add(
+                ToolCall(
+                    id=uuid.uuid4(),
+                    message_id=message.id,
+                    tool_call_id=f"call-{index}",
+                    tool_name=name,
+                    args={},
+                    result=report,
+                    status="completed",
+                    started_at=_START + timedelta(seconds=index),
+                )
+            )
+        await db.flush()
+        assert await conversation_repo.coding_agents_in_conversations(db, [mine.id]) == {
+            mine.id: ["claude_code", "codex"]
+        }
+        assert await conversation_repo.coding_agents_in_conversations(db, [other.id]) == {
+            other.id: ["codex"]
+        }
+
+    async def test_no_history_or_no_conversations_has_no_harness(self, db: AsyncSession) -> None:
+        assert await conversation_repo.coding_agents_in_conversations(db, []) == {}
+        assert await conversation_repo.coding_agents_in_conversations(db, [uuid.uuid4()]) == {}

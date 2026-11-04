@@ -1,0 +1,219 @@
+"use client";
+
+import { Upload, FileJson } from "lucide-react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui";
+import { CodeArea } from "@/components/ui/code-area";
+import { useWorkflows } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import type { WorkflowImported } from "@/lib/workflows/types";
+
+/**
+ * **Import** on the workflows list: a `.workflow.json` file, chosen or pasted,
+ * made into a new draft. The server takes every id out of it, so the answer is
+ * the draft and the pins its builder has to choose again, listed here before
+ * the editor opens.
+ */
+export function ImportWorkflowDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const t = useTranslations("pages.workflows");
+  const router = useRouter();
+  const { importFile } = useWorkflows({ enabled: false });
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const [text, setText] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const [imported, setImported] = useState<WorkflowImported | null>(null);
+
+  const close = (next: boolean) => {
+    if (!next) {
+      setFileName(null);
+      setPasting(false);
+      setText("");
+      setProblem(null);
+      setImported(null);
+    }
+    onOpenChange(next);
+  };
+
+  const readFile = async (chosen: File) => {
+    try {
+      setText(await chosen.text());
+      setFileName(chosen.name);
+      setProblem(null);
+    } catch {
+      setText("");
+      setFileName(null);
+      setProblem(t("importReadError"));
+    }
+  };
+
+  const submit = () => {
+    let file: unknown;
+    try {
+      file = JSON.parse(text);
+    } catch {
+      setProblem(t("importNotJson"));
+      setPasting(true);
+      return;
+    }
+    importFile.mutate(file, { onSuccess: setImported });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
+        <DialogHeader>
+          <DialogTitle>{t("importTitle")}</DialogTitle>
+          <DialogDescription>
+            {imported === null ? t("importDescription") : t("importDone")}
+          </DialogDescription>
+        </DialogHeader>
+        <div className={DIALOG_BODY}>
+          {imported === null ? (
+            <Tabs
+              value={pasting ? "json" : "file"}
+              onValueChange={(value) => setPasting(value === "json")}
+            >
+              <TabsList>
+                <TabsTrigger value="file">{t("importFile")}</TabsTrigger>
+                <TabsTrigger value="json">{t("importPasteTab")}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="file" className="mt-4 space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInput.current?.click()}
+                  className="border-border hover:bg-accent/40 focus-within:ring-ring flex h-auto w-full cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed px-5 py-9 text-center whitespace-normal focus-within:ring-2"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const file = event.dataTransfer.files[0];
+                    if (file) void readFile(file);
+                  }}
+                >
+                  {fileName ? (
+                    <FileJson className="text-muted-foreground size-7" />
+                  ) : (
+                    <Upload className="text-muted-foreground size-7" />
+                  )}
+                  <span className="text-sm font-medium">{fileName ?? t("importChooseFile")}</span>
+                  <span className="text-muted-foreground text-xs">{t("importDropHint")}</span>
+                </Button>
+                <Input
+                  ref={fileInput}
+                  id="workflow-import-file"
+                  className="sr-only"
+                  aria-label={t("importFile")}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void readFile(file);
+                  }}
+                />
+              </TabsContent>
+              <TabsContent value="json" className="mt-4 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="workflow-import-json">{t("importJson")}</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={!text.trim()}
+                    onClick={() => {
+                      try {
+                        setText(JSON.stringify(JSON.parse(text), null, 2));
+                        setProblem(null);
+                      } catch {
+                        setProblem(t("importNotJson"));
+                      }
+                    }}
+                  >
+                    {t("importFormat")}
+                  </Button>
+                </div>
+                <div className="h-80 overflow-hidden rounded-lg border sm:h-96">
+                  <CodeArea
+                    id="workflow-import-json"
+                    name="workflow.json"
+                    aria-label={t("importPaste")}
+                    value={text}
+                    onChange={(value) => {
+                      setText(value);
+                      setProblem(null);
+                    }}
+                    invalid={problem !== null}
+                    describedBy={problem ? "workflow-import-error" : undefined}
+                  />
+                </div>
+              </TabsContent>
+              {problem !== null && (
+                <p id="workflow-import-error" role="alert" className="text-destructive text-xs">
+                  {problem}
+                </p>
+              )}
+            </Tabs>
+          ) : imported.unresolved.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm">{t("importUnresolved")}</p>
+              <ul className="border-border divide-border divide-y rounded-lg border text-sm">
+                {imported.unresolved.map((item) => (
+                  <li
+                    key={`${item.node_id}-${item.field}`}
+                    className="flex justify-between gap-3 px-3 py-2"
+                  >
+                    <span className="font-medium">{item.step}</span>
+                    <span className="text-muted-foreground font-mono text-xs">
+                      {item.field} · {item.kind}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">{t("importNothingToChoose")}</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => close(false)}>
+            {t("importClose")}
+          </Button>
+          {imported === null ? (
+            <Button onClick={submit} disabled={text.trim() === "" || importFile.isPending}>
+              {t("importAction")}
+            </Button>
+          ) : (
+            <Button onClick={() => router.push(ROUTES.WORKFLOW_DETAIL(imported.workflow.id))}>
+              {t("importOpen")}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

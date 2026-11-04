@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MarkdownEditor, MarkdownModeToggle } from "./markdown-editor";
@@ -113,13 +114,44 @@ describe("the markdown editor", () => {
 });
 
 describe("MarkdownModeToggle", () => {
-  it("marks the open mode and answers a click", async () => {
+  it("offers only the other view and switches both ways", async () => {
     const onChange = vi.fn();
-    render(<MarkdownModeToggle mode="source" onChange={onChange} />);
-
-    expect(screen.getByRole("button", { name: "Source" })).toHaveAttribute("aria-pressed", "true");
+    const { rerender } = render(<MarkdownModeToggle mode="source" onChange={onChange} />);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Source" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Preview" }));
-
-    expect(onChange).toHaveBeenCalledWith("preview");
+    expect(onChange).toHaveBeenLastCalledWith("preview");
+    rerender(<MarkdownModeToggle mode="preview" onChange={onChange} />);
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(onChange).toHaveBeenLastCalledWith("source");
   });
+});
+
+it("keeps expanded edits when returning to the form", async () => {
+  function Draft() {
+    const [value, setValue] = useState("Original instructions");
+    return <MarkdownEditor label="Instructions" value={value} onChange={setValue} />;
+  }
+  render(<Draft />);
+  await userEvent.click(screen.getByRole("button", { name: "Expand Instructions" }));
+  const dialog = screen.getByRole("dialog", { name: "Instructions" });
+  await userEvent.clear(within(dialog).getByRole("textbox"));
+  await userEvent.type(within(dialog).getByRole("textbox"), "Updated instructions");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "Instructions" })).toHaveValue("Updated instructions");
+});
+
+it("expands the selected preview without switching it to source or exposing completions", async () => {
+  mount({ disabled: true, suggestions: <div>Source completions</div> });
+  await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+  expect(screen.queryByText("Source completions")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Expand Instructions" }));
+  const dialog = screen.getByRole("dialog", { name: "Instructions" });
+  expect(within(dialog).getByRole("region", { name: "Instructions preview" })).toHaveTextContent(
+    "# Heading",
+  );
+  expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  expect(screen.getByRole("region", { name: "Instructions preview" })).toBeInTheDocument();
 });

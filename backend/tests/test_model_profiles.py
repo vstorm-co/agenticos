@@ -10,8 +10,11 @@ agent run.
 import json
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+import httpx2
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -27,14 +30,16 @@ from app.agents.model_resolver import (
     ResolvedCredential,
     build_model,
     get_provider,
+    lacks_key,
 )
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    InUseError,
     NotFoundError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import (
     ApiKeySecret,
     AwsCredentialsSecret,
@@ -47,11 +52,15 @@ from app.core.secret_kinds import (
     seal_secret,
 )
 from app.core.vault import VaultScope
+from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
 from app.services.model_catalog import CatalogModel
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
     ModelProfileService,
+    choosable_for_others,
+    is_sign_in,
     provider_catalog,
+    usable_for_agents,
     validate_endpoint_url,
 )
 from app.services.openai_codex import VaultCodexCredentials
@@ -145,14 +154,21 @@ def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=No
 
 
 def _profile(
-    ctx, secret=None, model="gpt-4.1", fallbacks=None, provider="openai", base_url=None, api=None
+    ctx,
+    secret=None,
+    model="gpt-4.1",
+    fallbacks=None,
+    provider="openai",
+    base_url=None,
+    api=None,
+    region=None,
 ):
     """A stored model profile, keyed from the vault like every real one.
 
     `base_url` defaults to None explicitly rather than being left to the mock: a
     `MagicMock` attribute is truthy, so it reaches `httpx.URL()` as a mock and
     raises there instead of meaning "the provider's own API", which is what an
-    unset endpoint means. `api` likewise, which a mock would fail to validate.
+    unset endpoint means. `api` and `region` likewise, which a mock would fail to validate.
     """
     profile = MagicMock()
     profile.id = uuid.uuid4()
@@ -163,8 +179,10 @@ def _profile(
     profile.secret_id = secret.id if secret else uuid.uuid4()
     profile.base_url = base_url
     profile.api = api
+    profile.region = region
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
+    profile.runs_without_key = False
     return profile
 
 
@@ -307,6 +325,18 @@ class TestProviderCatalog:
         assert model.profile.get("openrouter_supports_cache_control") is True
         assert model._build_cache_control("5m") == {"type": "ephemeral"}
 
+    def test_openrouter_custom_endpoint_keeps_native_cache_and_transport(self):
+        credential = ResolvedCredential(
+            provider="openrouter",
+            secret=ApiKeySecret(api_key="sk-or-test"),
+            base_url="https://eu.openrouter.ai/api/v1",
+        )
+        model = build_model(credential, "anthropic/claude-opus-4.1")
+        assert isinstance(model, OpenRouterModel)
+        assert str(model.client.base_url) == "https://eu.openrouter.ai/api/v1/"
+        assert model.profile.get("openrouter_supports_cache_control") is True
+        assert model._build_cache_control("5m") == {"type": "ephemeral"}
+
     @pytest.mark.parametrize(
         ("provider_id", "base_url", "expected"),
         [
@@ -327,7 +357,32 @@ class TestProviderCatalog:
 
     def test_only_the_openai_apis_offer_a_choice(self):
         offering = {spec.id: spec.apis for spec in PROVIDERS.values() if spec.apis}
-        assert offering == {"openai": ("responses", "chat"), "azure": ("responses", "chat")}
+        assert offering == {
+            "openai": ("responses", "chat"),
+            "azure": ("responses", "chat"),
+            "stav": ("responses", "chat"),
+        }
+
+    def test_only_stav_takes_its_api_from_the_model(self):
+        assert [spec.id for spec in PROVIDERS.values() if spec.api_from_model] == ["stav"]
+
+    @pytest.mark.parametrize(
+        ("surfaces", "api"),
+        [
+            (("chat", "messages", "responses"), "chat"),
+            (("responses",), "responses"),
+            (("messages",), None),
+            ((), None),
+        ],
+    )
+    def test_the_model_s_listing_names_the_api(self, surfaces, api):
+        from app.agents.model_resolver import api_for_model
+
+        assert api_for_model(surfaces) == api
+
+    def test_only_stav_offers_a_region(self):
+        offering = {spec.id: spec.regions for spec in PROVIDERS.values() if spec.regions}
+        assert offering == {"stav": ("eu", "eea", "global")}
 
     def test_the_catalog_is_ordered_for_a_stable_picker(self):
         names = [spec.name for spec in provider_catalog()]
@@ -503,34 +558,599 @@ class TestProfileCreation:
     async def test_deleting_a_profile_from_another_organization_is_not_found(self):
         with (
             patch(
-                "app.services.model_profile.credential_repo.delete_profile",
-                new=AsyncMock(return_value=False),
-            ),
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=None),
+            ) as get,
+            patch("app.services.model_profile.credential_repo.delete_profile") as delete,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
             pytest.raises(NotFoundError) as refused,
         ):
-            await ModelProfileService(_db()).delete_profile(_ctx(), uuid.uuid4())
+            ctx = _ctx()
+            await ModelProfileService(_db()).delete_profile(ctx, uuid.uuid4())
 
+        assert get.await_args.kwargs == {"organization_id": ctx.organization_id, "for_update": True}
+        delete.assert_not_called()
         assert audit.await_count == 0
         assert "Model profile not found" in refused.value.message
 
     @pytest.mark.anyio
     async def test_a_deleted_profile_leaves_a_trail(self):
         ctx = _ctx()
-        profile_id = uuid.uuid4()
+        profile = _profile(ctx)
 
         with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.agent_repo.naming_model_profile",
+                new=AsyncMock(return_value=[]),
+            ) as users,
             patch(
                 "app.services.model_profile.credential_repo.delete_profile",
                 new=AsyncMock(return_value=True),
             ) as delete,
+            patch(
+                "app.services.model_profile.organization_repo.stop_proactivity_on",
+                new=AsyncMock(),
+            ) as stop,
             patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
         ):
-            await ModelProfileService(_db()).delete_profile(ctx, profile_id)
+            await ModelProfileService(_db()).delete_profile(ctx, profile.id)
 
+        assert users.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "profile_id": profile.id,
+        }
         assert delete.call_args.kwargs["organization_id"] == ctx.organization_id
+        # Proactivity running on it is switched off with it, not left "on" with no
+        # model to run on (Codex on #2324).
+        assert stop.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "model_profile_id": profile.id,
+        }
         assert audit.call_args.kwargs["action"] == "model_profile.deleted"
-        assert audit.call_args.kwargs["target_id"] == str(profile_id)
+        assert audit.call_args.kwargs["target_id"] == str(profile.id)
+
+
+def _agent(ctx, name: str, *, status: str = "published") -> MagicMock:
+    agent = MagicMock()
+    agent.id = uuid.uuid4()
+    agent.organization_id = ctx.organization_id
+    agent.name = name
+    agent.status = status
+    return agent
+
+
+class TestAModelInUseIsNotDeleted:
+    """Deleting the profile agents run on left each of them without a model (#2478)."""
+
+    async def _delete(self, ctx, profile, users, visible):
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.agent_repo.naming_model_profile",
+                new=AsyncMock(return_value=users),
+            ),
+            patch(
+                "app.services.model_profile.accessible_ids",
+                new=AsyncMock(return_value={agent.id for agent in visible}),
+            ),
+            patch("app.services.model_profile.credential_repo.delete_profile") as delete,
+            patch(
+                "app.services.model_profile.organization_repo.stop_proactivity_on",
+                new=AsyncMock(),
+            ) as stop,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+            pytest.raises(InUseError) as refused,
+        ):
+            await ModelProfileService(_db()).delete_profile(ctx, profile.id)
+        # Nothing is touched on a refusal: not the row, not proactivity, not the log.
+        delete.assert_not_called()
+        stop.assert_not_awaited()
+        audit.assert_not_awaited()
+        return refused.value
+
+    @pytest.mark.anyio
+    async def test_the_refusal_names_every_agent_on_it(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+        users = [_agent(ctx, "Helpdesk"), _agent(ctx, "Researcher")]
+
+        refusal = await self._delete(ctx, profile, users, visible=users)
+
+        assert refusal.status_code == 409
+        assert refusal.code == "IN_USE"
+        assert "used by 2 agents: Helpdesk, Researcher" in refusal.message
+        assert refusal.details == {
+            "profile_id": str(profile.id),
+            "agents": [{"id": agent.id, "name": agent.name, "archived": False} for agent in users],
+            "hidden_agents": 0,
+        }
+
+    @pytest.mark.anyio
+    async def test_an_agent_the_caller_cannot_see_is_counted_not_named(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+        seen, private = _agent(ctx, "Helpdesk"), _agent(ctx, "Private payroll")
+
+        refusal = await self._delete(ctx, profile, [seen, private], visible=[seen])
+
+        assert "Private payroll" not in refusal.message
+        assert "used by 2 agents: Helpdesk and 1 you cannot see" in refusal.message
+        assert refusal.details["agents"] == [{"id": seen.id, "name": "Helpdesk", "archived": False}]
+        assert refusal.details["hidden_agents"] == 1
+
+    @pytest.mark.anyio
+    async def test_an_archived_agent_is_marked_with_what_to_do_about_it(self):
+        """An archived agent cannot publish, so "move them" alone is advice it
+        cannot follow where it is (#2478)."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+        live, old = _agent(ctx, "Helpdesk"), _agent(ctx, "Old helpdesk", status="archived")
+
+        refusal = await self._delete(ctx, profile, [live, old], visible=[live, old])
+
+        assert refusal.message.endswith(
+            "1 of them is archived: delete those, or restore and move them."
+        )
+        assert [agent["archived"] for agent in refusal.details["agents"]] == [False, True]
+
+    @pytest.mark.anyio
+    async def test_only_hidden_agents_still_refuse_without_naming_any(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        refusal = await self._delete(ctx, profile, [_agent(ctx, "Secret")], visible=[])
+
+        assert refusal.message.startswith("Model 'Test profile' is used by 1 agent. Move")
+        assert refusal.details["agents"] == []
+        assert refusal.details["hidden_agents"] == 1
+
+
+_STORED = object()
+
+
+class TestEditingAProfileInPlace:
+    """A key or endpoint change keeps the id every agent names (#2478)."""
+
+    async def _update(self, ctx, profile, changes, *, secret=_STORED, visible=True, taken=None):
+        if secret is _STORED:
+            # The key the profile already has, visible to the caller unless a test
+            # says otherwise - an endpoint change looks it up again.
+            secret = _vault_secret(ctx, purpose=profile.provider)
+            secret.id = profile.secret_id
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.get_profile_by_label",
+                new=AsyncMock(return_value=taken),
+            ),
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.resolve_access", new=AsyncMock(return_value=visible)
+            ) as access,
+            patch(
+                "app.services.model_profile.credential_repo.update_profile",
+                new=AsyncMock(side_effect=lambda _db, **kwargs: kwargs["profile"]),
+            ) as update,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()) as audit,
+        ):
+            result = await ModelProfileService(_db()).update_profile(
+                ctx, profile.id, ModelProfileUpdate.model_validate(changes)
+            )
+        return result, update, audit, access
+
+    @pytest.mark.anyio
+    async def test_a_new_region_is_written_onto_the_same_profile(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="eu")
+
+        result, update, audit, _ = await self._update(ctx, profile, {"region": "global"})
+
+        assert result is profile
+        assert update.await_args.kwargs["update_data"] == {"region": "global"}
+        assert audit.await_args.kwargs["details"] == {"fields": ["region"]}
+
+    @pytest.mark.anyio
+    async def test_a_cleared_region_is_stored_as_the_default(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="global")
+
+        _, update, _, _ = await self._update(ctx, profile, {"region": None})
+
+        assert update.await_args.kwargs["update_data"] == {"region": "eu"}
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_names_no_region_keeps_the_stored_one(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="stav", api="chat", region="eea")
+
+        _, update, _, _ = await self._update(ctx, profile, {"label": "Stav EEA"})
+
+        assert update.await_args.kwargs["update_data"] == {"label": "Stav EEA"}
+
+    @pytest.mark.anyio
+    async def test_a_region_on_a_provider_without_one_is_refused_on_edit(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        with pytest.raises(BadRequestError):
+            await self._update(ctx, profile, {"region": "eu"})
+
+    @pytest.mark.anyio
+    async def test_a_new_key_is_written_onto_the_same_profile_and_audited_by_field(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+        secret = _vault_secret(ctx, purpose="openai")
+
+        result, update, audit, access = await self._update(
+            ctx, profile, {"secret_id": str(secret.id)}, secret=secret
+        )
+
+        assert result is profile
+        assert update.await_args.kwargs["update_data"] == {"secret_id": secret.id}
+        assert update.await_args.kwargs["organization_id"] == ctx.organization_id
+        assert access.await_args.args[2] is secret
+        assert audit.await_args.kwargs["action"] == "model_profile.updated"
+        assert audit.await_args.kwargs["target_id"] == str(profile.id)
+        # The names of what changed, never the values: an endpoint can carry
+        # more than a host, and a key id says which secret moved.
+        assert audit.await_args.kwargs["details"] == {"fields": ["secret_id"]}
+
+    @pytest.mark.anyio
+    async def test_a_profile_from_another_organization_is_not_found(self):
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=None),
+            ) as get,
+            patch("app.services.model_profile.credential_repo.update_profile") as update,
+            pytest.raises(NotFoundError),
+        ):
+            ctx = _ctx()
+            await ModelProfileService(_db()).update_profile(
+                ctx, uuid.uuid4(), ModelProfileUpdate(label="Mine now")
+            )
+        assert get.await_args.kwargs == {"organization_id": ctx.organization_id, "for_update": True}
+        update.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_a_key_for_another_provider_is_refused(self):
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="anthropic")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, _profile(ctx), {"secret_id": str(secret.id)}, secret=secret)
+        assert "for anthropic, not openai" in refused.value.message
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("exists", [True, False])
+    async def test_a_key_the_caller_cannot_see_reads_like_one_that_does_not_exist(self, exists):
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                ctx,
+                _profile(ctx),
+                {"secret_id": str(secret.id)},
+                secret=secret if exists else None,
+                visible=False,
+            )
+        assert refused.value.message == "That key is not in this organization's vault"
+
+    @pytest.mark.anyio
+    async def test_removing_the_key_of_a_model_with_nowhere_else_to_go_is_refused(self):
+        ctx = _ctx()
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, _profile(ctx), {"secret_id": None})
+        assert refused.value.details["fields"][0]["field"] == "base_url"
+
+    @pytest.mark.anyio
+    async def test_a_keyed_provider_cannot_lose_its_key(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="anthropic", model="claude-opus-5")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, profile, {"secret_id": None})
+        assert refused.value.details["fields"][0]["field"] == "secret_id"
+
+    @pytest.mark.anyio
+    async def test_a_self_hosted_model_drops_its_key_and_keeps_its_endpoint(self):
+        ctx = _ctx()
+        profile = _profile(
+            ctx, provider="ollama", model="llama4", base_url="http://ollama:11434/v1"
+        )
+
+        _, update, _, access = await self._update(ctx, profile, {"secret_id": None})
+
+        # Saved with no key on purpose, so a later look cannot take it for a
+        # profile whose key was deleted.
+        assert update.await_args.kwargs["update_data"] == {
+            "secret_id": None,
+            "runs_without_key": True,
+        }
+        access.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_leaves_a_deleted_key_alone_keeps_it_missing(self):
+        ctx = _ctx()
+        # A gateway profile whose key was deleted: `ON DELETE SET NULL` cleared
+        # the key and left the endpoint and `runs_without_key` false.
+        profile = _profile(ctx, base_url="https://gateway.example/v1", api="chat")
+        profile.secret_id = None
+
+        _, update, _, _ = await self._update(ctx, profile, {"label": "Gateway"}, secret=None)
+
+        # A rename says nothing about the key; marking it keyless would offer the
+        # profile again and send every run to the gateway with no key.
+        assert update.await_args.kwargs["update_data"] == {"label": "Gateway"}
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="groq", model="llama-3.3-70b-versatile")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, profile, {"base_url": "https://gateway.example/v1"})
+        assert refused.value.details["fields"][0]["field"] == "base_url"
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_with_credentials_in_it_is_refused_without_echoing_it(self):
+        ctx = _ctx()
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, _profile(ctx), {"base_url": "https://u:hunter2@gw.example/v1"})
+        assert "hunter2" not in str(refused.value.details)
+        assert "hunter2" not in refused.value.message
+
+    @pytest.mark.anyio
+    async def test_an_api_choice_is_refused_where_there_is_none(self):
+        ctx = _ctx()
+        profile = _profile(ctx, provider="anthropic", model="claude-opus-5")
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(ctx, profile, {"api": "chat"})
+        assert refused.value.details["fields"][0]["field"] == "api"
+
+    @pytest.mark.anyio
+    async def test_a_new_endpoint_rechecks_the_key_and_moves_a_default_api(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, audit, access = await self._update(
+            ctx, profile, {"base_url": "https://eu.api.openai.com/v1"}
+        )
+
+        # Responses was only the provider's own endpoint's default; an endpoint of
+        # the caller's gets Chat Completions unless it says otherwise.
+        assert update.await_args.kwargs["update_data"] == {
+            "base_url": "https://eu.api.openai.com/v1",
+            "api": "chat",
+        }
+        # The endpoint is where the key goes, so the stored key is looked up again.
+        access.assert_awaited_once()
+        assert audit.await_args.kwargs["details"] == {"fields": ["api", "base_url"]}
+
+    @pytest.mark.anyio
+    async def test_a_new_endpoint_for_a_key_the_caller_cannot_see_is_refused(self):
+        """The endpoint is where the key is sent. Moving a model keyed by a
+        colleague's private key to the caller's own host would hand them that key
+        on the next run, so it is the same refusal as choosing the key."""
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        with pytest.raises(BadRequestError) as refused:
+            await self._update(
+                ctx, profile, {"base_url": "https://attacker.example/v1"}, visible=False
+            )
+
+        assert refused.value.message == "That key is not in this organization's vault"
+
+    @pytest.mark.anyio
+    async def test_a_label_or_api_change_does_not_look_the_key_up_again(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, _, access = await self._update(
+            ctx, profile, {"label": "Prod", "api": "chat"}, visible=False
+        )
+
+        assert update.await_args.kwargs["update_data"] == {"label": "Prod", "api": "chat"}
+        access.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_default_api_follows_a_new_endpoint_and_a_chosen_one_stays(self):
+        ctx = _ctx()
+        defaulted = _profile(ctx, base_url="https://gw.example/v1", api="chat")
+        chosen = _profile(ctx, base_url="https://gw.example/v1", api="responses")
+
+        _, moved, _, _ = await self._update(ctx, defaulted, {"base_url": None})
+        _, kept, _, _ = await self._update(ctx, chosen, {"base_url": "https://gw2.example/v1"})
+
+        # Chat Completions was only the gateway's default; OpenAI's own endpoint
+        # gets Responses, as on creation.
+        assert moved.await_args.kwargs["update_data"] == {"base_url": None, "api": "responses"}
+        assert kept.await_args.kwargs["update_data"] == {"base_url": "https://gw2.example/v1"}
+
+    @pytest.mark.anyio
+    async def test_a_null_api_stores_the_default_for_the_new_endpoint(self):
+        ctx = _ctx()
+        profile = _profile(ctx, api="responses")
+
+        _, update, _, _ = await self._update(
+            ctx, profile, {"base_url": "http://vllm:8000/v1", "api": None}
+        )
+
+        assert update.await_args.kwargs["update_data"] == {
+            "base_url": "http://vllm:8000/v1",
+            "api": "chat",
+        }
+
+    @pytest.mark.anyio
+    async def test_clearing_the_endpoint_keeps_an_api_that_is_already_the_native_one(self):
+        ctx = _ctx()
+        profile = _profile(ctx, base_url="https://gw.example/v1", api="responses")
+
+        _, update, _, _ = await self._update(ctx, profile, {"base_url": None})
+
+        assert update.await_args.kwargs["update_data"] == {"base_url": None}
+
+    @pytest.mark.anyio
+    async def test_a_taken_label_is_a_conflict(self):
+        ctx = _ctx()
+        with pytest.raises(AlreadyExistsError) as refused:
+            await self._update(ctx, _profile(ctx), {"label": "Prod"}, taken=MagicMock())
+        assert refused.value.details == {"label": "Prod"}
+
+    @pytest.mark.anyio
+    async def test_a_new_label_and_params_are_written(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        _, update, audit, _ = await self._update(
+            ctx, profile, {"label": "Prod", "params": {"temperature": 0.2}}
+        )
+
+        assert update.await_args.kwargs["update_data"] == {
+            "label": "Prod",
+            "params": {"temperature": 0.2},
+        }
+        assert audit.await_args.kwargs["details"] == {"fields": ["label", "params"]}
+
+    @pytest.mark.anyio
+    async def test_an_edit_that_changes_nothing_writes_and_records_nothing(self):
+        ctx = _ctx()
+        profile = _profile(ctx)
+
+        result, update, audit, _ = await self._update(
+            ctx,
+            profile,
+            {"label": profile.label, "secret_id": str(profile.secret_id), "base_url": None},
+        )
+
+        assert result is profile
+        update.assert_not_awaited()
+        audit.assert_not_awaited()
+
+
+class TestAProfileWithoutAKey:
+    """A key deleted from the vault leaves its profiles behind with nothing to send (#2478)."""
+
+    @pytest.mark.parametrize(
+        ("provider", "secret_id", "base_url", "on_purpose", "missing"),
+        [
+            ("openai", None, None, False, True),
+            ("anthropic", None, None, False, True),
+            ("ollama", None, "http://ollama:11434/v1", True, False),
+            ("openai", None, "http://vllm:8000/v1", True, False),
+            # A gateway profile that had a key and lost it keeps its endpoint;
+            # only the stored intent tells it from one that never needed one.
+            ("openai", None, "http://gw.example/v1", False, True),
+            ("anthropic", None, "https://gw.example", True, True),
+            ("openai", uuid.uuid4(), None, False, False),
+            ("not-a-provider", None, "http://x", True, True),
+        ],
+    )
+    def test_the_listing_says_which_have_nothing_to_authenticate_with(
+        self, provider, secret_id, base_url, on_purpose, missing
+    ):
+        read = ModelProfileRead(
+            id=uuid.uuid4(),
+            label="x",
+            provider=provider,
+            model="m",
+            secret_id=secret_id,
+            base_url=base_url,
+            runs_without_key=on_purpose,
+            created_at=datetime(2026, 10, 27, tzinfo=UTC),
+        )
+        assert read.missing_key is missing
+        assert (
+            lacks_key(provider, secret_id=secret_id, base_url=base_url, runs_without_key=on_purpose)
+            is missing
+        )
+
+    @pytest.mark.parametrize(
+        ("model", "secret", "usable"),
+        [("gpt-4.1", True, True), ("gpt-4.1", False, False), ("gpt-4o-mini-tts", True, False)],
+    )
+    def test_an_agent_runs_only_on_a_chat_model_with_a_key(self, model, secret, usable):
+        ctx = _ctx()
+        profile = _profile(ctx, model=model)
+        if not secret:
+            profile.secret_id = None
+        assert usable_for_agents(profile) is usable
+
+    @pytest.mark.parametrize(
+        ("provider", "model", "secret", "sign_in", "choosable"),
+        [
+            pytest.param("openai", "gpt-4.1", True, False, True, id="keyed-chat"),
+            pytest.param("openai_codex", "gpt-5.4", True, True, False, id="chatgpt-sign-in"),
+            pytest.param("openai", "gpt-4.1", False, False, False, id="keyless"),
+            pytest.param("openai", "gpt-4o-mini-tts", True, False, False, id="text-to-speech"),
+        ],
+    )
+    def test_the_platform_never_chooses_a_chatgpt_sign_in_for_somebody(
+        self, provider, model, secret, sign_in, choosable
+    ):
+        """One rule for a new agent's only model and the assistant's first publish (#2535)."""
+        profile = _profile(_ctx(), model=model, provider=provider)
+        if not secret:
+            profile.secret_id = None
+        assert is_sign_in(profile) is sign_in
+        assert choosable_for_others(profile, {profile.id: profile}) is choosable
+
+
+class TestAChainThatReachesASignIn:
+    """A run that can reach one person's ChatGPT subscription is nobody else's to give (#2545)."""
+
+    def test_a_sign_in_is_told_from_a_key(self):
+        ctx = _ctx()
+        assert is_sign_in(_profile(ctx, provider="openai_codex", model="gpt-5.4"))
+        assert not is_sign_in(_profile(ctx))
+        assert not is_sign_in(_profile(ctx, provider="not-a-provider"))
+
+    @pytest.mark.parametrize("position", range(MAX_FALLBACK_DEPTH))
+    def test_a_sign_in_anywhere_a_run_falls_back_to_counts(self, position):
+        ctx = _ctx()
+        sign_in = _profile(ctx, provider="openai_codex", model="gpt-5.4")
+        keyed = [_profile(ctx) for _ in range(MAX_FALLBACK_DEPTH - 1)]
+        chain = [*keyed[:position], sign_in, *keyed[position:]]
+        profile = _profile(ctx, fallbacks=[fallback.id for fallback in chain])
+        by_id = {p.id: p for p in [profile, *chain]}
+
+        assert not choosable_for_others(profile, by_id)
+
+    def test_one_past_the_depth_a_run_tries_does_not(self):
+        """The runner stops at `MAX_FALLBACK_DEPTH`, so a sign-in behind it is never reached."""
+        ctx = _ctx()
+        keyed = [_profile(ctx) for _ in range(MAX_FALLBACK_DEPTH)]
+        sign_in = _profile(ctx, provider="openai_codex", model="gpt-5.4")
+        profile = _profile(ctx, fallbacks=[fallback.id for fallback in [*keyed, sign_in]])
+        by_id = {p.id: p for p in [profile, *keyed, sign_in]}
+
+        assert choosable_for_others(profile, by_id)
+
+    def test_a_fallback_the_organization_does_not_have_does_not(self):
+        """Deleted, or another organization's: a run skips it, so it is not a fallback."""
+        ctx = _ctx()
+        elsewhere = _profile(ctx, provider="openai_codex", model="gpt-5.4")
+        profile = _profile(ctx, fallbacks=[elsewhere.id])
+
+        assert choosable_for_others(profile, {profile.id: profile})
+
+    def test_a_keyed_chain_does_not(self):
+        ctx = _ctx()
+        keyed = _profile(ctx)
+        profile = _profile(ctx, fallbacks=[keyed.id])
+
+        assert choosable_for_others(profile, {profile.id: profile, keyed.id: keyed})
 
 
 class TestProfileListing:
@@ -665,6 +1285,35 @@ class TestResolution:
         assert isinstance(spec.build(), FallbackModel)
 
     @pytest.mark.anyio
+    async def test_a_fallback_on_a_speech_model_is_left_out_of_the_chain(self):
+        """A provider failure must not hand the conversation to a model that
+        cannot hold one (#2487). Publish refuses such a fallback; this covers one
+        added to the profile afterwards. A custom endpoint is unknown, so kept."""
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        speech = _profile(ctx, secret, model="gpt-4o-mini-tts")
+        custom = _profile(ctx, secret, model="whisper-1", base_url="http://vllm:8000/v1")
+        profile = _profile(ctx, secret, fallbacks=[speech.id, custom.id])
+
+        with (
+            patch(
+                "app.services.model_profile.credential_repo.get_profile",
+                new=AsyncMock(return_value=profile),
+            ),
+            patch(
+                "app.services.model_profile.organization_secret_repo.get",
+                new=AsyncMock(return_value=secret),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.get_profiles_by_ids",
+                new=AsyncMock(return_value={speech.id: speech, custom.id: custom}),
+            ),
+        ):
+            spec = await ModelProfileService(_db()).resolve(ctx, profile_id=profile.id)
+
+        assert [model for _, model in spec.fallbacks] == ["whisper-1"]
+
+    @pytest.mark.anyio
     async def test_a_fallback_whose_key_is_gone_is_skipped_not_raised(self):
         """A fallback exists to survive an outage; it must not cause one itself."""
         ctx = _ctx()
@@ -784,9 +1433,20 @@ class TestASignInIsItsOwnersAlone:
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "stand_in",
-        [{"subject_is_publisher_fallback": True}, {"api_key_id": uuid.uuid4()}],
-        ids=["visitor-as-publisher", "key-holder-as-issuer"],
+        [
+            {"subject_is_publisher_fallback": True},
+            {"api_key_id": uuid.uuid4()},
+            {"key_scopes": frozenset({Perm.AGENTS_RUN})},
+            {"key_scopes": frozenset()},
+        ],
+        ids=[
+            "visitor-as-publisher",
+            "key-holder-as-issuer",
+            "persisted-key-ceiling",
+            "empty-key-ceiling",
+        ],
     )
+    @pytest.mark.security
     async def test_a_stand_in_for_somebody_else_reaches_nobody_s(self, stand_in):
         """The publisher behind a public page, or a key's issuer, is the account a
         run is billed to - not the person asking, whose subscription it is not."""
@@ -795,6 +1455,19 @@ class TestASignInIsItsOwnersAlone:
         )
         with pytest.raises(AuthorizationError):
             await self._resolve(self._spec(self._sign_in()), sees=True, ctx=ctx)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_restored_key_keeps_api_credentials_but_not_a_private_fallback(self):
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.AGENTS_RUN}),
+        )
+        key = self._key()
+        resolved = await self._resolve(self._spec(key, self._sign_in(), key), sees=True, ctx=ctx)
+        assert [credential for credential, _ in resolved.fallbacks] == [key]
 
     @pytest.mark.anyio
     async def test_background_work_never_runs_on_one(self):
@@ -1089,15 +1762,15 @@ class TestAnEndpointOfItsOwn:
     async def test_an_endpoint_is_refused_for_a_provider_that_has_none(self):
         """Storing one would be storing a value the SDK drops in silence.
 
-        `openrouter` names no endpoint parameter, so a URL saved against it would
+        `groq` names no endpoint parameter, so a URL saved against it would
         look configured and change nothing about where the request went.
         """
         with pytest.raises(BadRequestError) as exc:
             await ModelProfileService(_db()).create_profile(
                 _ctx(),
                 label="Through a proxy",
-                provider="openrouter",
-                model="openai/gpt-4.1",
+                provider="groq",
+                model="llama",
                 secret_id=uuid.uuid4(),
                 base_url="https://proxy.example/v1",
             )
@@ -1173,6 +1846,7 @@ class TestAnEndpointOfItsOwn:
         ctx = _ctx()
         profile = _profile(ctx, provider="ollama", model="llama3.3")
         profile.secret_id = None
+        profile.runs_without_key = True
         profile.base_url = "http://localhost:11434/v1"
 
         with patch(
@@ -1341,6 +2015,7 @@ class TestTheApiAProfileUses:
         ctx = _ctx()
         profile = _profile(ctx, base_url="http://vllm:8000/v1", api="chat")
         profile.secret_id = None
+        profile.runs_without_key = True
 
         credential = await ModelProfileService(_db()).resolve_credential(
             ctx.organization_id, profile
@@ -1354,6 +2029,7 @@ class TestTheApiAProfileUses:
         ctx = _ctx()
         profile = _profile(ctx, base_url="http://vllm:8000/v1", api="realtime")
         profile.secret_id = None
+        profile.runs_without_key = True
 
         with pytest.raises(ValidationError):
             await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
@@ -1400,6 +2076,94 @@ class TestTheWindowAModelAccepts:
         return create.call_args.kwargs
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(("sent", "stored"), [(None, "eu"), ("global", "global")])
+    async def test_a_stav_window_is_read_where_the_profile_points(self, sent, stored):
+        """A regional or staging Stav serves its own catalogue; the window recorded
+        is that endpoint's, read with the key the profile will send there - never
+        the organization's listing key, which the caller may not be able to see."""
+        catalog = self._catalog(("mistralai/mistral-small-4", 128_000))
+        secret_id = uuid.uuid4()
+        profile_key = AsyncMock(return_value="sk_stav_profile")
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key", new=profile_key
+            ),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile._checked_endpoint",
+                new=AsyncMock(side_effect=lambda _spec, url: url),
+            ),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav staging",
+                provider="stav",
+                model="mistralai/mistral-small-4",
+                secret_id=secret_id,
+                base_url="https://staging-api.stav.ai/v1",
+                region=sent,
+            )
+        catalog.assert_awaited_once_with(
+            "stav", api_key="sk_stav_profile", base_url="https://staging-api.stav.ai/v1"
+        )
+        assert profile_key.await_args.kwargs == {"secret_id": secret_id}
+        assert create.call_args.kwargs["context_length"] == 128_000
+        assert create.call_args.kwargs["region"] == stored
+
+    async def _stav_created(self, surfaces, *, api=None) -> dict:
+        catalog = AsyncMock(
+            return_value=(
+                [CatalogModel(id="openai/o3-pro", name="o3-pro", surfaces=surfaces)],
+                "live",
+            )
+        )
+        with (
+            patch("app.services.model_profile.models_for", new=catalog),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key",
+                new=AsyncMock(return_value="sk_stav_test"),
+            ),
+            patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+            patch(
+                "app.services.model_profile.credential_repo.create_profile",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ) as create,
+            patch("app.services.model_profile.record_audit", new=AsyncMock()),
+        ):
+            await ModelProfileService(_db()).create_profile(
+                _ctx(),
+                label="Stav o3-pro",
+                provider="stav",
+                model="openai/o3-pro",
+                secret_id=uuid.uuid4(),
+                api=api,
+            )
+        return create.call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_a_responses_only_stav_model_gets_responses(self):
+        assert (await self._stav_created(("responses",)))["api"] == "responses"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_on_chat_gets_chat(self):
+        assert (await self._stav_created(("chat", "messages", "responses")))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_a_stav_model_the_listing_says_nothing_about_keeps_the_default(self):
+        assert (await self._stav_created(()))["api"] == "chat"
+
+    @pytest.mark.anyio
+    async def test_an_api_someone_chose_wins_over_the_listing(self):
+        written = await self._stav_created(("chat", "responses"), api="responses")
+        assert written["api"] == "responses"
+
+    @pytest.mark.anyio
     async def test_the_providers_own_number_is_what_gets_stored(self):
         written = await self._created(
             self._catalog(("llama3.3", 128_000), ("other", 8_000)), model="llama3.3"
@@ -1435,6 +2199,7 @@ class TestTheWindowAModelAccepts:
             secret_id=None,
             base_url="http://localhost:11434/v1",
             api=None,
+            region=None,
             fallback_profile_ids=[],
             context_length=128_000,
         )
@@ -1447,3 +2212,214 @@ class TestTheWindowAModelAccepts:
             )
 
         assert spec.context_length == 128_000
+
+
+class TestStavRegion:
+    """A Stav profile carries its region on every request it sends."""
+
+    def _client(self, region, base_url=None):
+        credential = ResolvedCredential(
+            provider="stav",
+            secret=ApiKeySecret(api_key="sk_stav_test"),
+            base_url=base_url,
+            api="chat",
+            region=region,
+        )
+        model = build_model(credential, "mistralai/mistral-small-4")
+        return model._provider.client  # the AsyncOpenAI the requests go through
+
+    @pytest.mark.parametrize("region", ["eu", "eea"])
+    def test_a_limited_region_is_sent_as_a_header(self, region):
+        client = self._client(region)
+        assert client.default_headers["X-Stav-Runs-In"] == region
+
+    def test_global_sends_no_limit(self):
+        assert "X-Stav-Runs-In" not in self._client("global").default_headers
+
+    def test_no_stored_region_is_eu(self):
+        """A profile written by hand with no region does not leave the EU."""
+        assert self._client(None).default_headers["X-Stav-Runs-In"] == "eu"
+
+    def test_the_public_api_unless_the_profile_names_another(self):
+        assert str(self._client("eu").base_url) == "https://api.stav.ai/v1/"
+        local = self._client("eu", base_url="http://host.docker.internal:8100/v1")
+        assert str(local.base_url) == "http://host.docker.internal:8100/v1/"
+
+    def test_a_new_profile_defaults_to_eu(self):
+        assert PROVIDERS["stav"].default_region() == "eu"
+
+    def test_a_region_on_a_provider_without_one_is_refused(self):
+        from app.services.model_profile import _check_shape
+
+        with pytest.raises(BadRequestError):
+            _check_shape(
+                PROVIDERS["openai"],
+                secret_id=uuid.uuid4(),
+                base_url=None,
+                api="responses",
+                region="eu",
+            )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("region", ["eu", "eea", "global"])
+@pytest.mark.parametrize("surface", ["chat/completions", "responses"])
+@pytest.mark.parametrize("header", ["X-Stav-Runs-In", "x-stav-runs-in"])
+async def test_stav_region_cannot_be_overridden_by_request_headers(
+    region: Literal["eu", "eea", "global"], surface: str, header: str
+) -> None:
+    from app.agents.model_resolver import _StavProvider
+
+    received: list[str] = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        received.append(request.headers["X-Stav-Runs-In"])
+        return httpx2.Response(200, json={"id": "test"})
+
+    provider = _StavProvider(api_key="test", base_url="https://stav.example/v1", region=region)
+    async with (
+        provider,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport,
+    ):
+        client = provider.client.with_options(http_client=transport)
+        await client.post(surface, cast_to=object, options={"headers": {header: "global"}})
+    assert received == [region]
+
+
+@pytest.mark.anyio
+async def test_stav_transport_refuses_an_unsupported_legacy_http_client() -> None:
+    from app.agents.model_resolver import _StavProvider
+
+    async with httpx.AsyncClient() as legacy:
+        with (
+            patch.object(_StavProvider, "_get_http_client", return_value=legacy),
+            pytest.raises(TypeError, match="Stav requires an httpx2 client"),
+        ):
+            _StavProvider(api_key="test", base_url="https://stav.example/v1", region="eu")
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "endpoint", ["https://api.otari.ai/api/v1", "https://eu.api.otari.ai/api/v1"]
+)
+async def test_otari_creation_metadata_uses_the_selected_key(endpoint: str | None) -> None:
+    ctx, secret_id = _ctx(), uuid.uuid4()
+    selected_key = AsyncMock(return_value="otari-selected-test")
+    catalog = AsyncMock(
+        return_value=(
+            [CatalogModel(id="support-agent", name="Support", context_length=200_000)],
+            "live",
+        )
+    )
+    with (
+        patch("app.services.model_profile.models_for", new=catalog),
+        patch("app.services.model_profile.OrganizationSecretService.listing_key", new=selected_key),
+        patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+        patch(
+            "app.services.model_profile._checked_endpoint",
+            new=AsyncMock(side_effect=lambda _spec, url: url),
+        ),
+        patch(
+            "app.services.model_profile.credential_repo.create_profile",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ) as create,
+        patch("app.services.model_profile.record_audit", new=AsyncMock()),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            ctx,
+            label="Otari support",
+            provider="otari",
+            model="support-agent",
+            secret_id=secret_id,
+            base_url=endpoint,
+        )
+    selected_key.assert_awaited_once_with(ctx, "otari", secret_id=secret_id)
+    catalog.assert_awaited_once_with("otari", api_key="otari-selected-test", base_url=endpoint)
+    assert create.call_args.kwargs["context_length"] == 200_000
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_metadata_never_forwards_a_builders_hidden_organization_key() -> None:
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.BUILDER)
+    selected = _credential(
+        ctx, provider="otari", secret=ApiKeySecret(api_key="selected-otari-test")
+    )
+    hidden = _credential(ctx, provider="otari", secret=ApiKeySecret(api_key="hidden-otari-test"))
+    selected.purpose = hidden.purpose = "otari"
+    hidden.name, selected.name = "A private", "Z selected"
+    endpoint = f"https://{uuid.uuid4().hex}.gateway.test/api/v1"
+    db = _db()
+    received: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        received.append(request)
+        return httpx.Response(
+            200, json={"data": [{"id": "support-agent", "context_window": 200000}]}
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=selected),
+            ) as get,
+            patch(
+                "app.services.organization_secret.organization_secret_repo.list_secrets",
+                new=AsyncMock(return_value=[hidden, selected]),
+            ) as enumerate_keys,
+            patch(
+                "app.services.organization_secret.resolve_access",
+                new=AsyncMock(
+                    side_effect=lambda _db, _ctx, row, *_args, **_kwargs: row.id == selected.id
+                ),
+            ),
+            patch("app.services.model_catalog._client", return_value=client),
+        ):
+            result = await ModelProfileService(db)._listed_model(
+                ctx, "otari", "support-agent", endpoint, selected.id
+            )
+    get.assert_awaited_once_with(db, selected.id, organization_id=ctx.organization_id)
+    enumerate_keys.assert_not_called()
+    assert result is not None and result.context_length == 200000
+    assert len(received) == 1
+    assert str(received[0].url) == endpoint + "/models"
+    assert received[0].headers["Authorization"] == "Bearer selected-otari-test"
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_requires_a_destination_before_reading_metadata() -> None:
+    with (
+        patch(
+            "app.services.model_profile.OrganizationSecretService.listing_key", new=AsyncMock()
+        ) as key,
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            _ctx(),
+            label="Otari",
+            provider="otari",
+            model="support-agent",
+            secret_id=uuid.uuid4(),
+        )
+    key.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_destination_cannot_be_cleared() -> None:
+    ctx = _ctx()
+    row = _profile(ctx, provider="otari", base_url="https://api.otari.ai/api/v1")
+    with (
+        patch(
+            "app.services.model_profile.ModelProfileService._get_profile",
+            new=AsyncMock(return_value=row),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).update_profile(
+            ctx, row.id, ModelProfileUpdate(base_url=None)
+        )

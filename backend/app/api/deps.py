@@ -14,6 +14,7 @@ is why every write in this API used to be acknowledged before it was durable
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends
@@ -86,10 +87,15 @@ from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
 from app.services.session import SessionService
+from app.services.web_push import WebPushService
+from app.services.apns import ApnsService
+from app.services.push import PushService
 from app.services.impersonation import ImpersonationService
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
+from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.conversation_tasks import ConversationTaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
@@ -123,11 +129,48 @@ def get_oauth_exchange_service(redis: Redis) -> OAuthExchangeService:
     return OAuthExchangeService(redis)
 
 
+def get_device_pairing_service(redis: Redis, db: DBSession) -> DevicePairingService:
+    """Create DevicePairingService over Redis and the request's database session."""
+    return DevicePairingService(redis, UserService(db), SessionService(db))
+
+
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 PersonalDataSvc = Annotated[PersonalDataService, Depends(get_personal_data_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 ImpersonationSvc = Annotated[ImpersonationService, Depends(get_impersonation_service)]
 OAuthExchangeSvc = Annotated[OAuthExchangeService, Depends(get_oauth_exchange_service)]
+DevicePairingSvc = Annotated[DevicePairingService, Depends(get_device_pairing_service)]
+
+
+def get_web_push_service(db: DBSession) -> WebPushService:
+    """Create WebPushService with the request's database session."""
+    return WebPushService(db)
+
+
+WebPushSvc = Annotated[WebPushService, Depends(get_web_push_service)]
+
+
+def get_apns_service(db: DBSession) -> ApnsService:
+    """Create ApnsService with the request's database session."""
+    return ApnsService(db)
+
+
+ApnsSvc = Annotated[ApnsService, Depends(get_apns_service)]
+
+
+def get_push_service(db: DBSession) -> PushService:
+    """Create PushService - Web Push and APNs - with the request's database session."""
+    return PushService(db)
+
+
+PushSvc = Annotated[PushService, Depends(get_push_service)]
+
+
+def get_conversation_task_service(db: DBSession) -> ConversationTaskService:
+    return ConversationTaskService(db)
+
+
+ConversationTaskSvc = Annotated[ConversationTaskService, Depends(get_conversation_task_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:
@@ -193,6 +236,17 @@ def get_channel_bot_service(db: DBSession) -> ChannelBotService:
 
 
 ChannelBotSvc = Annotated[ChannelBotService, Depends(get_channel_bot_service)]
+
+
+from app.services.channels.feedback import ChannelFeedback
+
+
+def get_channel_feedback_service(db: DBSession) -> ChannelFeedback:
+    """Record a signed channel rating in the callback request's transaction."""
+    return ChannelFeedback(db)
+
+
+ChannelFeedbackSvc = Annotated[ChannelFeedback, Depends(get_channel_feedback_service)]
 
 
 from app.services.channel_link import ChannelLinkService
@@ -551,6 +605,23 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def get_optional_current_user(
+    request: Request,
+    token: Annotated[str | None, Depends(oauth2_scheme_optional)],
+    user_service: UserSvc,
+    impersonation: ImpersonationSvc,
+    session: SessionSvc,
+    api_keys: ApiKeySvc,
+) -> User | None:
+    """Authenticate a supplied session; keep state-only OAuth callbacks reachable."""
+    if token is None:
+        return None
+    return await get_current_user(request, token, user_service, impersonation, session, api_keys)
+
+
+OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
+
+
 async def get_current_session_id(
     token: Annotated[str | None, Depends(oauth2_scheme_optional)],
 ) -> UUID | None:
@@ -655,6 +726,18 @@ def get_org_channel_bot_service(db: DBSession, org: ActiveOrg) -> ChannelBotServ
 
 OrgChannelBotSvc = Annotated[ChannelBotService, Depends(get_org_channel_bot_service)]
 
+from app.services.discord_role_mapping import DiscordRoleMappingService
+
+
+def get_discord_role_mapping_service(db: DBSession) -> DiscordRoleMappingService:
+    """Create DiscordRoleMappingService instance with database session."""
+    return DiscordRoleMappingService(db)
+
+
+DiscordRoleMappingSvc = Annotated[
+    DiscordRoleMappingService, Depends(get_discord_role_mapping_service)
+]
+
 from app.services.model_profile import ModelProfileService
 
 
@@ -725,6 +808,18 @@ def get_agent_embed_service(db: DBSession) -> AgentEmbedService:
 
 EmbedSvc = Annotated[AgentEmbedService, Depends(get_agent_embed_service)]
 
+from app.services.embed_generated_media import EmbedGeneratedMediaService, token_opens
+
+
+def get_embed_generated_media_service(db: DBSession) -> EmbedGeneratedMediaService:
+    """Create EmbedGeneratedMediaService instance with database session."""
+    return EmbedGeneratedMediaService(db)
+
+
+EmbedGeneratedMediaSvc = Annotated[
+    EmbedGeneratedMediaService, Depends(get_embed_generated_media_service)
+]
+
 from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
 
@@ -741,6 +836,18 @@ def get_approval_service(db: DBSession) -> ApprovalService:
 
 AgentRunnerSvc = Annotated[AgentRunnerService, Depends(get_agent_runner_service)]
 ApprovalSvc = Annotated[ApprovalService, Depends(get_approval_service)]
+
+from app.services.parked_runs import ParkedRunService
+
+
+def get_parked_run_service(
+    db: DBSession, runner: AgentRunnerSvc, approvals: ApprovalSvc
+) -> ParkedRunService:
+    """Create ParkedRunService from the runner and approvals services of the same request."""
+    return ParkedRunService(db, runner=runner, approvals=approvals)
+
+
+ParkedRunSvc = Annotated[ParkedRunService, Depends(get_parked_run_service)]
 
 from app.services.run_export import RunExportService
 
@@ -789,6 +896,52 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.virtual_tables import VirtualTableService
+
+
+def get_virtual_table_service(db: DBSession) -> VirtualTableService:
+    """Create VirtualTableService instance with database session."""
+    return VirtualTableService(db)
+
+
+VirtualTableSvc = Annotated[VirtualTableService, Depends(get_virtual_table_service)]
+
+
+def get_streaming_virtual_table_service(db: StreamingDBSession) -> VirtualTableService:
+    """The table service for a CSV export, and nothing else.
+
+    The export's lines are read from the database while the response is being
+    sent, after an ordinary `DBSession` has committed and closed. The export
+    writes nothing, which is what makes a request-scoped session acceptable
+    here; see `StreamingDBSession`.
+    """
+    return VirtualTableService(db)
+
+
+StreamingVirtualTableSvc = Annotated[
+    VirtualTableService, Depends(get_streaming_virtual_table_service)
+]
+
+from app.services.virtual_tables import TableViewService
+
+
+def get_table_view_service(db: DBSession) -> TableViewService:
+    """Create TableViewService instance with database session."""
+    return TableViewService(db)
+
+
+TableViewSvc = Annotated[TableViewService, Depends(get_table_view_service)]
+
+from app.services.virtual_tables.triggers import TableTriggerService
+
+
+def get_table_trigger_service(db: DBSession) -> TableTriggerService:
+    """Create TableTriggerService instance with database session."""
+    return TableTriggerService(db)
+
+
+TableTriggerSvc = Annotated[TableTriggerService, Depends(get_table_trigger_service)]
+
 
 def get_mention_service(db: DBSession) -> MentionService:
     return MentionService(db)
@@ -797,6 +950,8 @@ def get_mention_service(db: DBSession) -> MentionService:
 MentionSvc = Annotated[MentionService, Depends(get_mention_service)]
 
 from app.services.artifact import ArtifactService
+from app.services.artifact_public_data import ArtifactPublicDataService
+from app.services.artifact_request_service import ArtifactRequestService
 
 
 def get_artifact_service(db: DBSession) -> ArtifactService:
@@ -805,6 +960,24 @@ def get_artifact_service(db: DBSession) -> ArtifactService:
 
 
 ArtifactSvc = Annotated[ArtifactService, Depends(get_artifact_service)]
+
+
+def get_artifact_request_service(db: DBSession) -> ArtifactRequestService:
+    """Create ArtifactRequestService instance with database session."""
+    return ArtifactRequestService(db)
+
+
+ArtifactRequestSvc = Annotated[ArtifactRequestService, Depends(get_artifact_request_service)]
+
+
+def get_artifact_public_data_service(db: DBSession) -> ArtifactPublicDataService:
+    """Create ArtifactPublicDataService instance with database session."""
+    return ArtifactPublicDataService(db)
+
+
+ArtifactPublicDataSvc = Annotated[
+    ArtifactPublicDataService, Depends(get_artifact_public_data_service)
+]
 
 from app.services.memory import MemoryService
 
@@ -830,6 +1003,102 @@ def get_skill_proposal_service(db: DBSession) -> SkillProposalService:
 
 
 SkillProposalSvc = Annotated[SkillProposalService, Depends(get_skill_proposal_service)]
+
+from app.services.workflow_registry import WorkflowRegistryService
+
+
+def get_workflow_registry_service(db: DBSession) -> WorkflowRegistryService:
+    """Create WorkflowRegistryService instance with database session."""
+    return WorkflowRegistryService(db)
+
+
+WorkflowRegistrySvc = Annotated[WorkflowRegistryService, Depends(get_workflow_registry_service)]
+
+from app.services.workflow_stats import WorkflowStatsService
+
+
+def get_workflow_stats_service(db: DBSession) -> WorkflowStatsService:
+    """Create WorkflowStatsService instance with database session."""
+    return WorkflowStatsService(db)
+
+
+WorkflowStatsSvc = Annotated[WorkflowStatsService, Depends(get_workflow_stats_service)]
+
+from app.services.workflow_evals import WorkflowEvalService
+
+
+def get_workflow_eval_service(db: DBSession) -> WorkflowEvalService:
+    """Create WorkflowEvalService instance with database session."""
+    return WorkflowEvalService(db)
+
+
+WorkflowEvalSvc = Annotated[WorkflowEvalService, Depends(get_workflow_eval_service)]
+
+from app.services.workflow_log_alerts import WorkflowLogAlertService
+
+
+def get_workflow_log_alert_service(db: DBSession) -> WorkflowLogAlertService:
+    """Create WorkflowLogAlertService instance with database session."""
+    return WorkflowLogAlertService(db)
+
+
+WorkflowLogAlertSvc = Annotated[WorkflowLogAlertService, Depends(get_workflow_log_alert_service)]
+
+from app.services.workflow_portable import WorkflowPortableService
+
+
+def get_workflow_portable_service(db: DBSession) -> WorkflowPortableService:
+    return WorkflowPortableService(db)
+
+
+WorkflowPortableSvc = Annotated[WorkflowPortableService, Depends(get_workflow_portable_service)]
+
+from app.services.workflow_execution import WorkflowExecutionService
+
+
+def get_workflow_execution_service(db: DBSession) -> WorkflowExecutionService:
+    return WorkflowExecutionService(db)
+
+
+WorkflowExecutionSvc = Annotated[WorkflowExecutionService, Depends(get_workflow_execution_service)]
+
+from app.services.workflow_execution.approvals import WorkflowApprovalService
+
+
+def get_workflow_approval_service(db: DBSession) -> WorkflowApprovalService:
+    return WorkflowApprovalService(db)
+
+
+WorkflowApprovalSvc = Annotated[WorkflowApprovalService, Depends(get_workflow_approval_service)]
+
+from app.services.workflow_exposure import WorkflowExposureService
+
+
+def get_workflow_exposure_service(db: DBSession) -> WorkflowExposureService:
+    return WorkflowExposureService(db)
+
+
+WorkflowExposureSvc = Annotated[WorkflowExposureService, Depends(get_workflow_exposure_service)]
+
+from app.services.workflow_execution.resume import WorkflowResumeService
+
+
+def get_workflow_resume_service(db: DBSession) -> WorkflowResumeService:
+    return WorkflowResumeService(db)
+
+
+WorkflowResumeSvc = Annotated[WorkflowResumeService, Depends(get_workflow_resume_service)]
+
+from app.services.workflow_webhook_test import WorkflowWebhookTestService
+
+
+def get_workflow_webhook_test_service(db: DBSession, redis: Redis) -> WorkflowWebhookTestService:
+    return WorkflowWebhookTestService(db, redis)
+
+
+WorkflowWebhookTestSvc = Annotated[
+    WorkflowWebhookTestService, Depends(get_workflow_webhook_test_service)
+]
 
 from app.core.permissions import AuthContext, Perm
 from app.services.sharing import SharingService
@@ -1041,6 +1310,25 @@ async def limit_agent_run(ctx: Auth) -> None:
     _refuse_if_over(decision, "Too many runs in the last minute. Wait and try again.")
 
 
+async def limit_workflow_run(ctx: Auth) -> None:
+    """Refuse a caller starting more workflow runs than its share.
+
+    The same allowance as `limit_agent_run`, counted on a surface of its own:
+    each start queues dispatch work - outbox rows, worker flow runs, events -
+    and a run's nodes can spend the organization's budget.
+
+    Usage::
+
+        @router.post("", dependencies=[Depends(limit_workflow_run)])
+    """
+    decision = await rate_limit.consume(
+        surface="workflow_run",
+        caller=f"user:{ctx.subject_id}",
+        limit=rate_limit.run_limit(),
+    )
+    _refuse_if_over(decision, "Too many workflow runs in the last minute. Wait and try again.")
+
+
 async def limit_ml_call(ctx: Auth) -> None:
     """Refuse a caller asking the ML services for more than their share.
 
@@ -1060,6 +1348,59 @@ async def limit_ml_call(ctx: Auth) -> None:
         limit=rate_limit.ml_limit(),
     )
     _refuse_if_over(decision, "Too many ML service calls in the last minute. Wait and try again.")
+
+
+async def limit_table_write(ctx: Auth) -> None:
+    """Refuse a member writing to Virtual Tables faster than the deployment allows.
+
+    Keyed on the member and the organization, so one person's loop does not spend
+    another's allowance and the same person in two organizations has two. Unlike the
+    run and ML limits this one also covers the console: a table write from the browser
+    stores exactly what the same write from a script does, so metering only the script
+    would leave the cheap way in open.
+
+    Unlike the run and ML limits this one is a storage boundary, not just a load
+    control: every write stores a history row and, when keyed, a receipt, faster
+    than the retention sweep can remove them if left unbounded. So it keeps a
+    per-process floor when the shared limiter cannot count (Redis down or
+    unconfigured), rather than inheriting the fail-open default that would leave
+    every table write unmetered for the length of a cache outage (#1823).
+
+    Usage::
+
+        @router.post("/{table_id}/records", dependencies=[Depends(limit_table_write)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="table_write",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.table_write_limit(),
+    )
+    _refuse_if_over(decision, "Too many table writes in the last minute. Wait and try again.")
+
+
+async def limit_artifact_data(ctx: Auth, rows: bool = Query(True)) -> None:
+    """Refuse a member loading live pages' data faster than the deployment allows.
+
+    A read that loads no records (`rows=false`, an editor's strip asking why a source
+    is empty) still runs each page query, so it has an allowance of its own, of the
+    same size, and does not use up the one for loads.
+
+    Keyed on the member and the organization, as table writes are. Every load runs
+    each of the page's bindings as a query, so like table writes it keeps a
+    per-process floor while the shared limiter cannot count, rather than leaving
+    every page unmetered for the length of a cache outage.
+
+    Usage::
+
+        @router.get("/{artifact_id}/versions/{version_id}/data",
+                    dependencies=[Depends(limit_artifact_data)])
+    """
+    decision = await rate_limit.consume_with_local_floor(
+        surface="artifact_data" if rows else "artifact_data_reasons",
+        caller=f"org:{ctx.organization_id}:user:{ctx.subject_id}",
+        limit=rate_limit.artifact_data_limit(),
+    )
+    _refuse_if_over(decision, "Too many data loads in the last minute. Wait and try again.")
 
 
 async def limit_dictation(ctx: Auth) -> None:
@@ -1202,10 +1543,57 @@ async def limit_public_artifact(public_key: str) -> None:
     )
 
 
+async def limit_form_page(token: str) -> None:
+    """Refuse a workflow's public form read too often. Per form, before any read."""
+    _refuse_if_over(
+        await rate_limit.form_page_allowed(token), "Too many requests. Try again shortly."
+    )
+
+
+async def limit_form_submission(token: str) -> None:
+    """Refuse a workflow's public form submitted too often. Per form, before any read."""
+    _refuse_if_over(
+        await rate_limit.form_submission_allowed(token),
+        "This form is taking too many answers. Try again in a minute.",
+    )
+
+
+async def limit_workflow_webhook(request: Request) -> None:
+    """Refuse an address sending the workflow webhook doors too much. Before any read.
+
+    The per-webhook allowance is spent later, inside the service, once a delivery's
+    signature has verified.
+    """
+    _refuse_if_over(
+        await rate_limit.workflow_webhook_ip_allowed(request),
+        "Too many requests. Try again shortly.",
+    )
+
+
 async def limit_artifact_content(token: str) -> None:
     """Refuse a signed artifact address loaded too often. Per address, before any read."""
     _refuse_if_over(
         await rate_limit.artifact_content_allowed(token),
+        "Too many requests. Try again shortly.",
+    )
+
+
+async def limit_embed_generated_media(
+    public_key: str,
+    filename: str,
+    token: Annotated[str | None, Query(max_length=128)] = None,
+) -> None:
+    """Refuse a signed link to a generated file fetched too often. Per link, before any read.
+
+    Only a link whose signature opens this file on this embed is counted. Any
+    other token - none, a forged one, an expired one - is left to the route, which
+    refuses it with the 404 a missing file gets before any query or read, so it
+    has nothing to spend and costs no counter in Redis.
+    """
+    if token is None or not token_opens(public_key, filename, token, now=datetime.now(UTC)):
+        return
+    _refuse_if_over(
+        await rate_limit.embed_generated_media_allowed(token),
         "Too many requests. Try again shortly.",
     )
 
@@ -1325,7 +1713,7 @@ def _extract_ws_auth(websocket: WebSocket) -> tuple[str | None, str | None]:
 
 async def get_current_user_ws(
     websocket: WebSocket,
-    access_token: str | None = Cookie(None),
+    access_token: str | None = Cookie(None, alias="agenticos_access_token"),
 ) -> User:
     """Authenticate a WebSocket connection.
 
@@ -1333,7 +1721,7 @@ async def get_current_user_ws(
     1. `Sec-WebSocket-Protocol` header, in the form `access_token.<JWT>`.
        The chosen application subprotocol (e.g. `chat`) is echoed back on
        `accept()` via `websocket.state.accept_subprotocol`.
-    2. Same-origin `access_token` cookie (fallback for same-origin clients).
+    2. Same-origin `agenticos_access_token` cookie (fallback for same-origin clients).
 
     Tokens in query strings are NOT accepted - they leak into logs and
     Referer headers.
@@ -1611,6 +1999,22 @@ def get_mcp_connection_service(db: DBSession) -> McpConnectionService:
 
 
 McpConnectionSvc = Annotated[McpConnectionService, Depends(get_mcp_connection_service)]
+from app.services.suggestions import SuggestionService
+
+
+def get_suggestion_service(db: DBSession) -> SuggestionService:
+    return SuggestionService(db)
+
+
+SuggestionSvc = Annotated[SuggestionService, Depends(get_suggestion_service)]
+from app.services.watches import WatchService
+
+
+def get_watch_service(db: DBSession) -> WatchService:
+    return WatchService(db)
+
+
+WatchSvc = Annotated[WatchService, Depends(get_watch_service)]
 from app.services.organization_secret import OrganizationSecretService
 
 
@@ -1729,3 +2133,34 @@ def prefers_async(
 
 
 PrefersAsync = Annotated[bool, Depends(prefers_async)]
+
+from app.services.project_workspace_transfer import ProjectWorkspaceTransferService
+
+
+def get_project_transfer_service(db: DBSession) -> ProjectWorkspaceTransferService:
+    return ProjectWorkspaceTransferService(db)
+
+
+ProjectTransferSvc = Annotated[
+    ProjectWorkspaceTransferService, Depends(get_project_transfer_service)
+]
+
+
+from app.services.diagnostics import DiagnosticsService
+
+
+def get_diagnostics_service(db: DBSession) -> DiagnosticsService:
+    return DiagnosticsService(db)
+
+
+DiagnosticsSvc = Annotated[DiagnosticsService, Depends(get_diagnostics_service)]
+
+
+from app.services.updates import UpdateService
+
+
+def get_update_service() -> UpdateService:
+    return UpdateService()
+
+
+UpdateSvc = Annotated[UpdateService, Depends(get_update_service)]

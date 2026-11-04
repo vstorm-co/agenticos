@@ -36,6 +36,8 @@ class AdminOrganizationRead(BaseSchema):
     name: str
     slug: str
     is_personal: bool
+    has_avatar: bool = False
+    avatar_color: int | None = None
     member_count: int
     agent_count: int
     owner_user_id: UUID | None = None

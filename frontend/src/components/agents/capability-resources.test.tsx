@@ -42,9 +42,10 @@ const SKILL = {
   description: "How refunds work.",
   file_count: 2,
   category: null,
-  enabled: true,
+  visibility: "org",
+  excerpt: "",
   built_in: false,
-} as SkillSummary;
+} satisfies SkillSummary;
 
 const RESOURCES: AgentResources = {
   contextFiles: [FILE],
@@ -217,5 +218,34 @@ describe("what the context capability will actually attach", () => {
     mount("context", { contextIds: ["f9"] });
 
     expect(screen.queryByText(/read tools/)).not.toBeInTheDocument();
+  });
+});
+
+describe("inline resource creation", () => {
+  it.each([
+    ["skills", "New skill"],
+    ["context", "New context file"],
+  ])("offers creation in the %s panel, even when empty", async (capability, label) => {
+    const create = vi.fn();
+    mount(capability, {
+      skills: [],
+      contextFiles: [],
+      onCreateSkill: create,
+      onCreateContext: create,
+    });
+    await userEvent.click(screen.getByRole("button", { name: label }));
+    expect(create).toHaveBeenCalledOnce();
+  });
+
+  it("keeps creation available beside existing choices", async () => {
+    const create = vi.fn();
+    mount("skills", { onCreateSkill: create });
+    await userEvent.click(screen.getByRole("button", { name: "New skill" }));
+    expect(create).toHaveBeenCalledOnce();
+  });
+
+  it("does not offer creation without the caller's create permission", () => {
+    mount("skills");
+    expect(screen.queryByRole("button", { name: "New skill" })).not.toBeInTheDocument();
   });
 });

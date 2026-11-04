@@ -18,7 +18,7 @@ import pytest
 from app.core.exceptions import ConcurrentChangeError
 from app.db.locks import LockScope, try_hold_name
 from app.services.organization import OrganizationService
-from app.worker.jobs import Restamp
+from app.worker.jobs import BasePurge, Restamp
 
 pytestmark = pytest.mark.anyio
 
@@ -136,7 +136,30 @@ class TestACollectionAnotherOrganizationStillReferences:
         await _run(org, db, mocks)
 
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
-        mocks["dispatch"].assert_not_awaited()
+        _db, _paths, to_drop, _restamps = mocks["dispatch"].call_args.args
+        assert to_drop == []
+
+    async def test_its_chunks_are_purged_by_the_deleted_bases_id(self):
+        """The table stays, so the deleted base's chunks would stay in it under an
+        id no scope reads; the job deletes them by that id (#2537)."""
+        org, db, mocks = _purge(snapshot=["shared"], authoritative=["shared"])
+        mocks["knowledge_base_repo"].list_by_collection_name = AsyncMock(return_value=[MagicMock()])
+
+        await _run(org, db, mocks)
+
+        _db, deleted_id = mocks["knowledge_base_repo"].delete.await_args.args
+        assert mocks["dispatch"].call_args.kwargs["base_purges"] == [
+            BasePurge(collection="shared", knowledge_base_id=deleted_id)
+        ]
+
+    async def test_a_dropped_collection_needs_no_purge(self):
+        org, db, mocks = _purge(snapshot=["mine"], authoritative=["mine"])
+
+        await _run(org, db, mocks)
+
+        _db, _paths, to_drop, _restamps = mocks["dispatch"].call_args.args
+        assert to_drop == ["mine"]
+        assert mocks["dispatch"].call_args.kwargs["base_purges"] == []
 
 
 class TestWithNoVectorStoreWired:
@@ -150,6 +173,7 @@ class TestWithNoVectorStoreWired:
         mocks["hold_name"].assert_not_awaited()
         mocks["try_hold_name"].assert_not_awaited()
         mocks["collection_teardown_repo"].reserve.assert_not_awaited()
+        assert mocks["dispatch"].call_args.kwargs["base_purges"] == []
 
 
 class TestReStampingOrphanedPersonalBases:
@@ -197,13 +221,13 @@ class TestReStampingOrphanedPersonalBases:
         _paths, _to_drop, restamps = self._dispatched(mocks)
         assert sorted(r.collection for r in restamps) == ["private", "shared"]
 
-    async def test_no_dispatch_when_nothing_is_orphaned(self):
+    async def test_no_restamp_is_queued_when_nothing_is_orphaned(self):
         org, db, mocks = _purge(snapshot=[], authoritative=[])
-        dispatch = MagicMock(return_value=None)
-        with _patched(mocks), patch(SERVICE_TEARDOWN, dispatch):
+        with _patched(mocks):
             await OrganizationService(db, vector_store=MagicMock()).purge(org)
 
-        dispatch.assert_not_called()
+        _paths, _to_drop, restamps = self._dispatched(mocks)
+        assert restamps == []
 
     async def test_without_a_vector_store_no_orphan_lookup_runs(self):
         """Ordinary organization work does not pay for a teardown it is not doing, so
@@ -243,3 +267,19 @@ class TestTakingTheLockWithoutWaiting:
         await try_hold_name(db, LockScope.COLLECTION_TEARDOWN, "handbook")
 
         assert "pg_try_advisory_xact_lock" in str(db.execute.await_args.args[0])
+
+
+class TestGeneratedMedia:
+    """The organization's generated media rows cascade with it, so the job queued
+    in the purge's transaction is the only record of the bytes left (#2310)."""
+
+    async def test_its_prefix_rides_the_queued_cleanup_rather_than_a_spawned_task(self):
+        org, db, mocks = _purge(snapshot=[], authoritative=[])
+        with _patched(mocks), patch("app.core.background.spawn_after_commit") as spawned:
+            await OrganizationService(db).purge(org)
+
+        assert mocks["dispatch"].call_args.kwargs["prefixes"] == [f"generated_{org.id}"]
+        assert mocks["dispatch"].call_args.kwargs["organization_id"] == org.id
+        assert [call.kwargs["name"] for call in spawned.call_args_list] == ["org_purge_media"]
+        for call in spawned.call_args_list:
+            call.args[1].close()

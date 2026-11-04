@@ -1,5 +1,7 @@
 "use client";
 
+import { memo, useId, useState } from "react";
+
 import { MentionChip } from "./mention-chip";
 import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -19,6 +21,8 @@ import { PersonFace } from "./person-face";
 import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
+import { SkillShortcut } from "./skill-shortcut";
+import { TurnShortcuts } from "./turn-shortcuts";
 import { RatingButtons } from "./rating-buttons";
 import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
@@ -27,8 +31,8 @@ import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
   CornerUpLeft,
-  FileText,
   Mic,
+  MoreHorizontal,
   OctagonPause,
   Paperclip,
   Pause,
@@ -38,14 +42,16 @@ import {
   UserRound,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
 import { useAuthStore } from "@/stores";
 import { getFileUrl } from "@/lib/file-api";
+import { KeptImage } from "./kept-image";
 import { isRenderSafeImage } from "@/lib/file-kinds";
-import { FileCard } from "@/components/files";
+import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
+import { TurnFiles } from "./turn-files";
+import { TurnExtras } from "./turn-extras";
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -95,9 +101,11 @@ interface MessageItemProps {
   pins?: PinnedPrompts;
   /** The agents the reader can see, which name the one a delegation asked. */
   agents?: readonly DelegateRef[];
+  /** What the person asked for, on the answer that ends the turn: a skill can be made of it. */
+  request?: string;
 }
 
-export function MessageItem({
+export const MessageItem = memo(function MessageItem({
   message,
   agent,
   groupPosition,
@@ -108,9 +116,13 @@ export function MessageItem({
   onRegenerate,
   pins,
   agents = [],
+  request,
 }: MessageItemProps) {
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
+  const tc = useTranslations("common");
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsId = useId();
   const isUser = message.role === "user";
   // A mention sits in the text it was typed into; only one the text does not
   // carry - a turn sent before that was so - is shown as a chip beside it.
@@ -149,6 +161,7 @@ export function MessageItem({
   // stopped indicator, timestamp and cost.
   const hasBody = Boolean(message.content) || (!isUser && (message.parts?.length ?? 0) > 0);
   const sources = !isUser ? extractSources(message, t) : [];
+  const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
   const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
@@ -157,7 +170,7 @@ export function MessageItem({
     <div
       className={cn(
         "z-10 flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full",
-        compact ? "h-6 w-6" : "h-7 w-7",
+        compact ? "h-6 w-6" : isUser ? "h-7 w-7" : "h-9 w-9",
         // A fill only behind the fallback icon. A face or a picture brings its
         // own disc, and a dark one behind it showed as a thin ring wherever the
         // two edges did not quite meet.
@@ -225,26 +238,49 @@ export function MessageItem({
           switched agents mid-way says so, instead of relabelling the whole thread
           with whatever is selected now. The version, where the transcript
           recorded one, because this turn was answered by one frozen spec. */}
-      {!continuesTurn && (
-        <div className={cn("flex items-center gap-2", isUser && "flex-row-reverse")}>
-          {avatar}
-          <span
-            className={cn(
-              "truncate font-medium",
-              compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
-            )}
-          >
-            {teammate
-              ? teammate.name
-              : former
-                ? t("rail.formerMember")
-                : isUser
-                  ? t("rail.you")
-                  : (agent?.name ?? t("rail.agent"))}
-            {!isUser && message.agentVersion !== undefined && (
-              <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
-            )}
-          </span>
+      {(!continuesTurn || canShowActions) && (
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            isUser && "flex-row-reverse",
+            continuesTurn && "sm:hidden",
+          )}
+        >
+          {!continuesTurn && avatar}
+          {!continuesTurn && (
+            <span
+              className={cn(
+                "truncate font-medium",
+                compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
+              )}
+            >
+              {teammate
+                ? teammate.name
+                : former
+                  ? t("rail.formerMember")
+                  : isUser
+                    ? t("rail.you")
+                    : (agent?.name ?? t("rail.agent"))}
+              {!isUser && message.agentVersion !== undefined && (
+                <span className="text-muted-foreground font-normal">
+                  {" "}
+                  · v{message.agentVersion}
+                </span>
+              )}
+            </span>
+          )}
+          {canShowActions && (
+            <button
+              type="button"
+              aria-label={tc("showMore")}
+              aria-expanded={actionsOpen}
+              aria-controls={actionsId}
+              onClick={() => setActionsOpen((open) => !open)}
+              className="text-muted-foreground hover:bg-muted flex size-11 shrink-0 items-center justify-center rounded-lg sm:hidden"
+            >
+              <MoreHorizontal className="size-4" aria-hidden />
+            </button>
+          )}
         </div>
       )}
       <div
@@ -285,13 +321,12 @@ export function MessageItem({
                       className="hover:ring-foreground/30 block overflow-hidden rounded-xl border ring-2 ring-transparent transition-all"
                       title={t("openFile", { name: att.file.filename })}
                     >
-                      <Image
-                        src={getFileUrl(att.file.id)}
+                      <KeptImage
+                        fileId={att.file.id}
                         alt={att.file.filename}
                         width={320}
                         height={256}
                         className="h-auto max-h-64 w-auto max-w-xs object-contain"
-                        unoptimized
                       />
                     </button>
                   ) : "file" in att ? (
@@ -351,39 +386,59 @@ export function MessageItem({
           </div>
         )}
 
-        {!message.isStreaming && hasBody && endsTurn && (
-          // The time and the cost surface on hover with the actions beside them:
-          // a column of receipts under every turn is noise while reading, and the
-          // numbers are one pointer move away when somebody wants them.
-          <div className={cn("flex items-center gap-0.5", isUser && "flex-row-reverse")}>
-            {!isUser && message.wasStopped === true && !stopFolded && (
-              /* A stopped run leaves whatever had been written when the socket
+        {/* Under what the turn said and above its time and actions: a card the
+            answer introduces belongs with the answer, not after its receipt. */}
+        <TurnFiles message={message} />
+        <TurnExtras message={message} agentName={agent?.name} />
+
+        {canShowActions &&
+          ((!isUser && message.wasStopped === true && !stopFolded) ||
+            message.turnId !== undefined ||
+            message.interrupted) && (
+            <div className="text-muted-foreground flex flex-wrap items-center gap-2">
+              {!isUser && message.wasStopped === true && !stopFolded && (
+                /* A stopped run leaves whatever had been written when the socket
                  closed, and that reads exactly like a finished answer - so a
                  reader takes a truncated one as everything the agent had to say.
                  First in the row, where it is read before the time and the cost;
                  a turn whose work folded says it in that line instead. */
-              <span className="text-muted-foreground flex items-center gap-1 text-xs">
-                <OctagonPause className="h-3 w-3" aria-hidden />
-                {t("turnWasStopped")}
-              </span>
-            )}
-            {/* A turn spoken in a call (#54), and one the caller talked over -
+                <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                  <OctagonPause className="h-3 w-3" aria-hidden />
+                  {t("turnWasStopped")}
+                </span>
+              )}
+              {/* A turn spoken in a call (#54), and one the caller talked over -
                 whose text is cut to roughly what was heard. */}
-            {message.turnId !== undefined && (
-              <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
-                <Mic className="h-3 w-3" aria-hidden />
-                {t("voice.view.voice")}
-              </span>
+              {message.turnId !== undefined && (
+                <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                  <Mic className="h-3 w-3" aria-hidden />
+                  {t("voice.view.voice")}
+                </span>
+              )}
+              {message.interrupted && (
+                <span
+                  title={t("voice.view.interruptedTitle")}
+                  className="text-foreground flex items-center gap-1 text-[11px] font-medium"
+                >
+                  <Pause className="text-warning h-3 w-3" aria-hidden />
+                  {t("voice.view.interrupted")}
+                </span>
+              )}
+            </div>
+          )}
+
+        {canShowActions && (
+          // The time and the cost surface on hover with the actions beside them:
+          // a column of receipts under every turn is noise while reading, and the
+          // numbers are one pointer move away when somebody wants them.
+          <div
+            id={actionsId}
+            className={cn(
+              "flex flex-wrap items-center gap-0.5 max-sm:[&_button]:opacity-100",
+              isUser && "flex-row-reverse",
+              !actionsOpen && "max-sm:hidden",
             )}
-            {message.interrupted && (
-              <span
-                title={t("voice.view.interruptedTitle")}
-                className="text-foreground flex items-center gap-1 text-[11px] font-medium"
-              >
-                <Pause className="text-warning h-3 w-3" aria-hidden />
-                {t("voice.view.interrupted")}
-              </span>
-            )}
+          >
             {/* When and what it cost, as one quiet group before the actions. */}
             {message.timestamp && (
               <span
@@ -413,6 +468,10 @@ export function MessageItem({
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
             )}
+            {/* What was asked, kept: on a schedule, or as an agent of its own (#2301). */}
+            {isUser && !pins && !message.isTemporaryId && message.content && (
+              <TurnShortcuts request={message.content} agentId={agent?.id ?? null} />
+            )}
             {/* Stored messages only: a reply names the row it answers, and a
                 message still on this tab's own id has none yet. */}
             {!message.isTemporaryId && !message.isStreaming && message.content && (
@@ -434,6 +493,13 @@ export function MessageItem({
               >
                 <CornerUpLeft />
               </button>
+            )}
+            {!isUser && request && !message.isStreaming && message.content && (
+              <SkillShortcut
+                request={request}
+                answer={message.content}
+                conversationId={message.conversationId}
+              />
             )}
             {!isUser && onRegenerate && (
               <button
@@ -470,7 +536,7 @@ export function MessageItem({
       </div>
     </div>
   );
-}
+});
 
 /**
  * One turn's content: the "Thinking…" placeholder, then either the ordered
@@ -536,7 +602,7 @@ function MessageBody({
           mcpServers={mcpServers}
           agents={agents}
           openLastStep={openLastStep}
-          conversationId={message.conversationId}
+          fileSource={message.fileSource}
           onCiteClick={onCiteClick}
           startedAt={message.timestamp}
           durationMs={endsTurn ? message.runDurationMs : undefined}
@@ -568,7 +634,7 @@ function MessageBody({
                   <ToolCallCard
                     key={toolCall.id}
                     toolCall={toolCall}
-                    conversationId={message.conversationId}
+                    fileSource={message.fileSource}
                     mcpServers={mcpServers}
                     agents={agents}
                     startOpen={openLastStep && step === legacyCalls.length - 1}
@@ -619,7 +685,7 @@ function FileChip({ filename, href }: { filename: string; href: string }) {
       className="border-foreground/15 bg-card hover:border-foreground/40 inline-flex max-w-xs items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors"
     >
       <span className="bg-foreground/8 text-foreground/65 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
-        <FileText className="h-4 w-4" />
+        <FileIcon name={filename} className="size-4" />
       </span>
       <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
         {filename}

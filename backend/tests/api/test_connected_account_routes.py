@@ -100,12 +100,15 @@ async def test_connecting_and_disconnecting_reach_the_right_owner(
     owner, service, prefix, for_organization
 ) -> None:
     async with owner() as client:
-        started = await client.post(_url(f"{prefix}/oauth/start"))
+        started = await client.post(_url(f"{prefix}/oauth/start"), json={"browser_nonce": "n" * 43})
         deleted = await client.delete(_url(f"{prefix}/{uuid.uuid4()}"))
     assert started.status_code == 200
     assert started.json()["authorization_url"].startswith("https://accounts.google.com/")
     assert deleted.status_code == 204
-    assert service.account_start.await_args.kwargs == {"for_organization": for_organization}
+    assert service.account_start.await_args.kwargs == {
+        "for_organization": for_organization,
+        "browser_nonce": "n" * 43,
+    }
     assert service.delete_account.await_args.kwargs == {"for_organization": for_organization}
 
 
@@ -113,8 +116,12 @@ async def test_a_viewer_connects_their_own_account_but_not_the_organizations(
     viewer, service
 ) -> None:
     async with viewer() as client:
-        mine = await client.post(_url("/me/connected-accounts/oauth/start"))
-        orgs = await client.post(_url("/connected-accounts/oauth/start"))
+        mine = await client.post(
+            _url("/me/connected-accounts/oauth/start"), json={"browser_nonce": "n" * 43}
+        )
+        orgs = await client.post(
+            _url("/connected-accounts/oauth/start"), json={"browser_nonce": "n" * 43}
+        )
         gone = await client.delete(_url(f"/connected-accounts/{uuid.uuid4()}"))
     assert mine.status_code == 200
     assert orgs.status_code == 403 and gone.status_code == 403

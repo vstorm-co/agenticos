@@ -30,10 +30,10 @@ vi.mock("@/components/onboarding/spotlight", async (importActual) => {
   return {
     ...actual,
     waitForElement: vi.fn(async () => document.createElement("div")),
-    activateTab: vi.fn(),
     onlyHiddenMatches: vi.fn(() => false),
   };
 });
+vi.mock("@/lib/activate-tab", () => ({ activateTab: vi.fn() }));
 
 const flow = vi.hoisted(() => ({ state: null as OnboardingFlowState | null }));
 vi.mock("@/hooks/use-onboarding-flow", () => ({

@@ -19,7 +19,7 @@ publish cannot read.
 import logging
 import re
 from collections.abc import Mapping, Sequence
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 from uuid import UUID
 
 import httpx
@@ -96,7 +96,7 @@ class MirageMountService:
                 )
                 continue
             try:
-                mounts.extend(await self._build(ctx, mount, info, unsealed, person_id))
+                mounts.extend(await self._build(ctx, mount, info, unsealed, person_id, notes))
             except _Unmountable as exc:
                 notes.append(f"{mount.path} is not mounted: {exc}")
         return ResolvedTerminal(mounts=tuple(mounts), notes=tuple(notes))
@@ -108,12 +108,13 @@ class MirageMountService:
         info: BackendInfo,
         unsealed: Mapping[UUID, StorableSecret],
         person_id: UUID | None,
+        notes: list[str],
     ) -> list[ResolvedMount]:
         options: dict[str, MountValue] = {
             key: _option(value) for key, value in mount.options.items()
         }
         if info.credential == "google":
-            return await self._google(ctx, mount, info, options, person_id)
+            return await self._google(ctx, mount, info, options, person_id, notes)
         if info.credential == "microsoft":
             app = unsealed.get(mount.secrets["app"])
             if not isinstance(app, EntraAppSecret):
@@ -135,6 +136,7 @@ class MirageMountService:
         info: BackendInfo,
         options: dict[str, MountValue],
         person_id: UUID | None,
+        notes: list[str],
     ) -> list[ResolvedMount]:
         accounts = await self._accounts(ctx, mount, person_id)
         needed = _GOOGLE_SCOPES[info.name]
@@ -142,14 +144,22 @@ class MirageMountService:
         for account in accounts:
             grant = await self.connections.account_grant(account)
             if grant is None:
-                raise _Unmountable(f"{account.label or 'the account'} has to be connected again.")
+                notes.append(
+                    f"{mount.path}: {account.label or 'the account'} has to be connected again."
+                )
+                continue
             missing = needed - grant.scopes
             if missing:
-                raise _Unmountable(
-                    f"{grant.email} did not grant access to {info.title}; connect it again "
+                notes.append(
+                    f"{mount.path}: {grant.email} did not grant access to {info.title}; connect it again "
                     "and allow it."
                 )
-            path = mount.path if len(accounts) == 1 else f"{mount.path}{_slug(grant.email)}/"
+                continue
+            path = (
+                mount.path
+                if len(accounts) == 1
+                else f"{mount.path}{_slug(grant.email)}-{account.id.hex}/"
+            )
             resolved.append(
                 _resolved(
                     mount,
@@ -229,17 +239,39 @@ def host_of(value: str) -> str | None:
     """The host a typed address names: a URL or DSN's, or a bare host's."""
     if "://" in value:
         try:
-            return urlsplit(value).hostname
+            parsed = urlsplit(value)
+            if parsed.scheme in {"postgres", "postgresql"} and any(
+                key.lower() in {"host", "hostaddr", "service"} for key, _ in parse_qsl(parsed.query)
+            ):
+                return None
+            host = parsed.hostname
         except ValueError:
             return None
+        else:
+            return host
     host = value.rsplit("@", 1)[-1].split(":", 1)[0].strip()
     return host.lower() or None
 
 
+def address_fields(info: BackendInfo, options: Mapping[str, object]) -> tuple[str, ...]:
+    """Only the effective Qdrant target is checked; url takes precedence over host."""
+    if info.name == "qdrant":
+        return ("url",) if options.get("url") else ("host",)
+    return info.address_fields
+
+
+def default_address(info: BackendInfo, field: str) -> str | None:
+    """A backend's implicit address is subject to the same policy as a typed one."""
+    properties = info.options_schema.get("properties", {})
+    spec = properties.get(field, {})
+    value = spec.get("default")
+    return value if isinstance(value, str) else None
+
+
 def _check_hosts(info: BackendInfo, options: Mapping[str, MountValue]) -> None:
     allowed = {host.lower() for host in settings.MIRAGE_ALLOWED_HOSTS}
-    for field in info.address_fields:
-        value = options.get(field)
+    for field in address_fields(info, options):
+        value = options.get(field) or default_address(info, field)
         if value is None:
             continue
         text = value.get_secret_value() if isinstance(value, SecretStr) else str(value)

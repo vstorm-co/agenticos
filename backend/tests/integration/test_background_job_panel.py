@@ -72,7 +72,9 @@ async def _dead_with_a_newer_copy_queued(db: AsyncSession):
 
 
 async def _audited(db: AsyncSession) -> list[tuple[str, str | None]]:
-    rows = (await db.execute(select(AppAdminAuditLog))).scalars().all()
+    rows = (
+        (await db.execute(select(AppAdminAuditLog).order_by(AppAdminAuditLog.seq))).scalars().all()
+    )
     return [(row.action, row.target_id) for row in rows]
 
 
@@ -195,6 +197,16 @@ async def test_a_job_whose_document_waits_on_it_cannot_be_cancelled(db: AsyncSes
     assert refused.value.details == {"job_id": str(job_id), "kind": "ingest-document"}
     assert (await job_repo.get(db, job_id)).status == "queued"  # type: ignore[union-attr]
     assert await _audited(db) == []
+
+
+async def test_a_workflow_node_job_is_refused_with_advice_that_fits_it(db: AsyncSession) -> None:
+    """Pausing the kind would stop every workflow; the run is what to cancel."""
+    job_id = await _job(db, kind="workflow-dispatch-node")
+
+    with pytest.raises(BadRequestError, match="Cancel the workflow run") as refused:
+        await BackgroundJobService(db).cancel(job_id, actor_user_id=ADMIN)
+
+    assert "Pause the kind" not in refused.value.message
 
 
 async def test_a_kind_paused_by_hand_stops_being_claimed_until_resumed(db: AsyncSession) -> None:

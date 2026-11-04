@@ -43,7 +43,7 @@ Report totals by category in a fictional demo currency and draw a bar chart.
 Label the report synthetic and name any row you could not use.
 ```
 
-For the cadence, choose **At a set time**, then **Days of the week**, tick **Mon** and set **Time (UTC)** to 09:00. The equivalent cron expression is `0 9 * * 1`. The scheduler works in UTC, so convert from your local time. Save, then check the next fire time the schedule shows.
+For the cadence, choose **Weekly** under **How often**, tick **Mon** and set **Time (UTC)** to 09:00. The equivalent cron expression is `0 9 * * 1`. The scheduler works in UTC, so convert from your local time. Save, then check the next fire time the schedule shows.
 
 The schedule runs as the member who created it, with that member's access, and its runs are billed to the agent's budget like any other. [Concepts](../concepts.md#trigger) explains why.
 

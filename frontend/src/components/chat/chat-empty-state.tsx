@@ -1,11 +1,13 @@
 "use client";
 
 import {
-  BookOpen,
+  CalendarClock,
   Calculator,
+  Compass,
   FileSearch,
   Mail,
   MapPinned,
+  MessageSquare,
   Plane,
   Sparkles,
   Table2,
@@ -16,17 +18,27 @@ import { useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
 import { useMentionables } from "@/hooks/use-mentionables";
+import { usePersonalStarters } from "@/hooks/use-suggestions";
 import { VISUALS_ID } from "@/lib/agent-spec";
 import { useAgentSelectionStore } from "@/stores";
+import type { Agent } from "@/types/agents";
 
-import { ChatWelcome, WelcomeIcon } from "./chat-welcome";
+import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
+import { SuggestionCards } from "./suggestion-cards";
 
-/** The four openers, in order. Their words live in the catalog under `empty.<id>*`. */
+/** The starter agent, whose empty chat carries what the platform proposes to the person. */
+const STARTER_SLUG = "agenticos";
+
+/**
+ * The four openers for an agent that names none of its own, in order. Their
+ * words live in the catalog under `empty.<id>*`. Two of them show what an agent
+ * here does beyond answering - say what it can, and run on a schedule (#2301).
+ */
 const PROMPTS = [
+  { icon: Compass, id: "capabilities" },
   { icon: FileSearch, id: "docs" },
-  { icon: BookOpen, id: "concept" },
+  { icon: CalendarClock, id: "routine" },
   { icon: Mail, id: "email" },
-  { icon: Sparkles, id: "brainstorm" },
 ] as const;
 
 /**
@@ -46,19 +58,57 @@ interface ChatEmptyStateProps {
 }
 
 export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
-  const t = useTranslations("chat.empty");
-  const { user } = useAuth();
-  const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   // Whoever will answer, so the page opens on them rather than on a generic
   // sparkle and a line about streaming and tool calls. The list is the one the
   // picker already holds.
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { agents } = useAgents({ includeArchived: true });
   const agent = agents.find((candidate) => candidate.id === selectedAgentId);
+  // The agent's own first messages, as its published version names them, in
+  // the words its author wrote. The starter agent has none and offers the
+  // person's own instead, written for them overnight in this organization
+  // (#2301) - read only here, so no other agent's empty chat asks for them.
+  const own = agent?.starters ?? [];
+  if (agent?.slug === STARTER_SLUG && !own.length) {
+    return <PersonalWelcome agent={agent} onPick={onPick} />;
+  }
+  return <Welcome agent={agent} starters={own} onPick={onPick} />;
+}
+
+function PersonalWelcome({ agent, onPick }: { agent: Agent; onPick: (prompt: string) => void }) {
+  return <Welcome agent={agent} starters={usePersonalStarters()} onPick={onPick} />;
+}
+
+interface WelcomeProps extends ChatEmptyStateProps {
+  agent: Agent | undefined;
+  /** First messages to offer, as written - the card is the message, so nothing under it. */
+  starters: string[];
+}
+
+function Welcome({ agent, starters, onPick }: WelcomeProps) {
+  const t = useTranslations("chat.empty");
+  const { user } = useAuth();
+  const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   const description = agent?.description?.trim();
   // The list the composer reads for `@`, so it is usually in hand already.
   const { items } = useMentionables(agent ? agent.id : null);
   const draws = items.some((item) => item.kind === "capability" && item.id === VISUALS_ID);
+  const isStarter = agent?.slug === STARTER_SLUG;
+  // Without first messages, an agent that draws opens on what it can draw (#2302).
+  const suggestions: WelcomeSuggestion[] = starters.length
+    ? starters.map((starter, index) => ({
+        key: `starter-${index}`,
+        icon: MessageSquare,
+        title: starter,
+        prompt: starter,
+        description: "",
+      }))
+    : (draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
+        key: p.id,
+        icon: p.icon,
+        title: t(`${p.id}Title`),
+        prompt: t(`${p.id}Prompt`),
+      }));
 
   return (
     <ChatWelcome
@@ -86,12 +136,8 @@ export function ChatEmptyState({ onPick }: ChatEmptyStateProps) {
           t("lead")
         )
       }
-      suggestions={(draws ? VISUAL_PROMPTS : PROMPTS).map((p) => ({
-        key: p.id,
-        icon: p.icon,
-        title: t(`${p.id}Title`),
-        prompt: t(`${p.id}Prompt`),
-      }))}
+      suggestions={suggestions}
+      notice={isStarter && agent ? <SuggestionCards agentId={agent.id} /> : undefined}
       onPick={onPick}
       footer={
         <>

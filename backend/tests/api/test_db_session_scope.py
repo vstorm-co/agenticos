@@ -29,6 +29,8 @@ from app.main import app
 _STREAMING_ENDPOINTS = {
     # Pages through the ratings table as it writes CSV rows.
     ("GET", "/api/v1/admin/ratings/export"),
+    # Pages through a table's records as it writes CSV rows; it only reads.
+    ("POST", "/api/v1/tables/{table_id}/records/export"),
 }
 
 # What `test_the_walk_reached_the_routing_table` insists on finding. Well under

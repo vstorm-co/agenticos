@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
+import { Bell, Globe, Monitor, Smartphone, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -28,9 +28,20 @@ import { useLocale, useTranslations } from "next-intl";
 
 const PAGE_SIZE = 5;
 
-function DeviceIcon({ type }: { type?: string | null }) {
-  if (type === "mobile") return <Smartphone className="h-4 w-4" />;
-  if (type === "desktop") return <Monitor className="h-4 w-4" />;
+/** The AgenticOS apps by the name their platform goes by - names, not copy. */
+const APP_PLATFORMS: Record<string, string> = {
+  macos: "macOS",
+  windows: "Windows",
+  linux: "Linux",
+  ios: "iOS",
+  android: "Android",
+};
+
+function DeviceIcon({ type, app }: { type?: string | null; app?: string | null }) {
+  if (app === "ios" || app === "android" || (!app && type === "mobile")) {
+    return <Smartphone className="h-4 w-4" />;
+  }
+  if (app || type === "desktop") return <Monitor className="h-4 w-4" />;
   return <Globe className="h-4 w-4" />;
 }
 
@@ -187,14 +198,30 @@ export function ActiveSessions() {
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="bg-muted text-muted-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-                    <DeviceIcon type={session.device_type} />
+                    <DeviceIcon type={session.device_type} app={session.app_platform} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-foreground flex items-center gap-2 text-sm font-medium">
-                      <span className="truncate">{session.device_name || t("unknownDevice")}</span>
+                      <span className="truncate">
+                        {session.app_platform
+                          ? t("appSession", {
+                              platform: APP_PLATFORMS[session.app_platform] ?? session.app_platform,
+                              version: session.app_version ?? "",
+                            })
+                          : session.device_name || t("unknownDevice")}
+                      </span>
                       {session.is_current && (
                         <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
                           {t("current")}
+                        </span>
+                      )}
+                      {session.push && (
+                        <span
+                          className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs font-normal"
+                          title={t("pushOnHint")}
+                        >
+                          <Bell className="h-3 w-3" aria-hidden />
+                          {t("pushOn")}
                         </span>
                       )}
                     </p>

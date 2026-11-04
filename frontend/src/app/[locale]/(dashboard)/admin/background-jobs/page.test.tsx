@@ -39,10 +39,20 @@ beforeEach(() => {
 });
 
 describe("the Background jobs page", () => {
-  it("waits for the overview", () => {
+  it("keeps the queue sections and five counters in place while the overview loads", () => {
     overview = { isPending: true };
-    render(<BackgroundJobsPage />);
-    expect(screen.queryByText("Jobs")).not.toBeInTheDocument();
+    const { container, rerender } = render(<BackgroundJobsPage />);
+    for (const title of ["Jobs", "Activity", "By kind", "Workers", "Schedules"]) {
+      expect(screen.getByText(title)).toBeInTheDocument();
+    }
+    const counts = screen.getByRole("button", { name: "Queued" }).parentElement;
+    expect(counts?.children).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Queued" })).toBeDisabled();
+    const cards = Array.from(container.querySelectorAll(".shadow-card"));
+    overview = { isPending: false, error: null, data: { ...DATA, kinds: [] } };
+    rerender(<BackgroundJobsPage />);
+    expect(Array.from(container.querySelectorAll(".shadow-card"))).toEqual(cards);
+    expect(screen.getByRole("button", { name: /Queued/ })).toBeEnabled();
   });
 
   it("offers a retry when the queue cannot be read", () => {

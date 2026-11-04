@@ -1,5 +1,5 @@
 ---
-source_sha: "0e00e8d61666"
+source_sha: "c3245b98d9c8"
 ---
 
 # Logowanie katalogowe i grupy { #directory-sign-in-and-groups }
@@ -106,8 +106,7 @@ czego drugi nie ma, więc kolejność jest tu podana wprost, a nie wyliczana.
 
 ### Czego synchronizacja nigdy nie dotyka { #what-the-sync-never-touches }
 
-Synchronizacja zmienia tylko wiersze, które sama utworzyła. Wynikają z tego
-cztery reguły:
+Automatyczna synchronizacja członkostwa przestrzega czterech reguł:
 
 - **Członkostwo utworzone przez administratora zachowuje swoją rolę.** Ktoś
   zaproszony ręcznie zachowuje nadaną mu rolę, nawet jeśli pasuje do niego
@@ -122,6 +121,23 @@ cztery reguły:
 
 Do organizacji osobistej nigdy nie dołącza się przez mapowanie i nie można dla
 niej utworzyć mapowania.
+
+Gdy mapowanie katalogu i [mapowanie roli Discorda](channels.md#discord-roles)
+jednocześnie dają dostęp, przy logowaniu pierwszeństwo ma katalog: przejmuje
+członkostwo zarządzane przez Discorda i nadaje rolę katalogu. Utrata roli Discorda
+nie usuwa wtedy osoby z organizacji. Gdy znika dostęp z katalogu, logowanie
+najpierw sprawdza, czy połączone konto Discorda nadal daje członkostwo. Jeśli tak,
+ten sam wiersz przechodzi pod kontrolę **Discorda**, bez cofania kluczy API,
+zgód aplikacji ani niezależnych członkostw w grupach.
+
+Brak obu uprawnień powoduje
+zwykłe usunięcie. Gdy Discord nie odpowiada lub wyczerpie się dziesięciosekundowy
+budżet sieciowy, zachowane członkostwo przechodzi pod kontrolę Discorda, aby zadanie okresowe ponowiło sprawdzenie bez kolejnego logowania. Rola zachowuje tylko uprawnienia uzasadnione poprzednią rolą i możliwym nieodczytanym nadaniem. Wszystkie organizacje przy jednym logowaniu dzielą ten sam budżet sieciowy.
+
+Członkostwa
+ręczne i właściciele nigdy nie są przejmowani. Audyt zapisuje
+`directory.member_taken_over` i `directory.member_handed_to_discord`.
+Członkostwa w grupach zachowują własne źródło i reguły synchronizacji.
 
 !!! warning "Usunięcie mapowania usuwa ludzi, których ono umieściło"
 

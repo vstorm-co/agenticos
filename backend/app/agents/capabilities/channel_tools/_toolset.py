@@ -1,6 +1,6 @@
-"""The four questions an agent may ask about the channel it is standing in.
+"""Channel lookups and explicit file delivery.
 
-All reads, all through the bot's own token, all scoped to the one channel the
+All through the bot's own token, all scoped to the one channel the
 message arrived in. The model never names a channel: an argument for it would
 turn "who is in this channel" into "read any channel this bot is in", from a
 conversation somewhere else entirely.
@@ -14,7 +14,9 @@ because an id is the only part of a channel summary that is not for a person.
 
 import logging
 from collections.abc import Collection
+from typing import Literal
 
+from pydantic_ai import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities.channel_tools._directory import (
@@ -201,7 +203,9 @@ def build_channel_toolset(
             for summary in found
         )
 
-    async def read_channel_history(limit: int | None = None) -> str:
+    async def read_channel_history(
+        limit: int | None = None, scope: Literal["channel", "thread"] = "channel"
+    ) -> str:
         """Read the most recent messages in this channel, newest last.
 
         Use it when the question refers to something said earlier that is not in
@@ -211,6 +215,9 @@ def build_channel_toolset(
 
         Args:
             limit: How many messages to return. Omit for the agent's default.
+            scope: `channel` reads this channel, including messages outside the
+                current thread. Use `thread` for "the thread above" or this
+                conversation. Neither scope can access a different channel.
 
         Returns:
             One line per message, oldest first, each with its time and author
@@ -219,7 +226,7 @@ def build_channel_toolset(
             refused.
         """
         try:
-            found = await directory.history(limit=_limit(limit, default_limit))
+            found = await directory.history(limit=_limit(limit, default_limit), scope=scope)
         except ChannelDirectoryUnsupported as exc:
             return str(exc)
         except Exception:
@@ -228,7 +235,29 @@ def build_channel_toolset(
 
         if not found:
             return _NOTHING
-        return "\n".join(_post_line(post) for post in found)
+        heading = "Channel history" if scope == "channel" else "Thread history"
+        return (
+            f"{heading} (recent messages, oldest first; not the complete archive):\n"
+            + "\n".join(_post_line(post) for post in found)
+        )
+
+    async def send_channel_file(ctx: RunContext[AgentDeps], path: str) -> str:
+        """Attach a workspace file to the reply in this conversation.
+
+        Use only when the user asks to receive or download the file. Creating,
+        reading or editing a file does not request delivery. The destination is
+        the current channel and thread; you cannot choose another recipient.
+
+        Args:
+            path: Path to the file in this run's workspace.
+
+        Returns:
+            Whether the platform accepted the attachment, or why delivery failed.
+            Teams can require acceptance in a personal chat before uploading.
+        """
+        if ctx.deps.send_channel_file is None:
+            return "File delivery is unavailable in this run."
+        return await ctx.deps.send_channel_file(path)
 
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
     if "get_channel_info" in tools:
@@ -239,4 +268,6 @@ def build_channel_toolset(
         toolset.add_function(search_channels, takes_ctx=False)
     if "read_channel_history" in tools:
         toolset.add_function(read_channel_history, takes_ctx=False)
+    if "send_channel_file" in tools:
+        toolset.add_function(send_channel_file)
     return toolset

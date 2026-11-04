@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   addMonths,
@@ -12,6 +12,7 @@ import {
   yearMonthOf,
   type YearMonth,
 } from "@/lib/calendar";
+import { IconButton } from "./icon-button";
 import { cn } from "@/lib/utils";
 
 export interface DateRange {
@@ -29,10 +30,10 @@ export interface DateRangePickerProps {
   className?: string;
 }
 
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const WEEK = Array.from({ length: 7 }, (_, day) => new Date(Date.UTC(2026, 0, 5 + day)));
 
-function monthLabel({ year, month }: YearMonth): string {
-  return new Intl.DateTimeFormat(undefined, {
+function monthLabel({ year, month }: YearMonth, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -47,6 +48,8 @@ function monthLabel({ year, month }: YearMonth): string {
  */
 export function DateRangePicker({ value, onChange, maxDate, className }: DateRangePickerProps) {
   const t = useTranslations("ui");
+  const locale = useLocale();
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
   const today = new Date().toISOString().slice(0, 10);
   const latest = maxDate ?? today;
   const [pending, setPending] = React.useState<string | null>(null);
@@ -77,33 +80,31 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
   return (
     <div className={cn("select-none", className)}>
       <div className="flex items-center justify-between pb-2">
-        <button
+        <IconButton
           type="button"
           aria-label={t("previousMonths")}
-          className="hover:bg-accent rounded-md p-1"
           onClick={() => setVisible((current) => addMonths(current, -1))}
         >
           <ChevronLeft className="size-4" />
-        </button>
-        <button
+        </IconButton>
+        <IconButton
           type="button"
           aria-label={t("nextMonths")}
           disabled={atTheEnd}
-          className="hover:bg-accent rounded-md p-1 disabled:pointer-events-none disabled:opacity-40"
           onClick={() => setVisible((current) => addMonths(current, 1))}
         >
           <ChevronRight className="size-4" />
-        </button>
+        </IconButton>
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {[visible, addMonths(visible, 1)].map((month) => (
           <div key={`${month.year}-${month.month}`}>
             <div className="text-foreground pb-2 text-center text-sm font-medium">
-              {monthLabel(month)}
+              {monthLabel(month, locale)}
             </div>
             <div className="text-muted-foreground grid grid-cols-7 pb-1 text-center text-xs">
-              {WEEKDAYS.map((weekday) => (
-                <span key={weekday}>{weekday}</span>
+              {WEEK.map((date) => (
+                <span key={date.toISOString()}>{weekday.format(date)}</span>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-y-0.5">
@@ -111,7 +112,7 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
                 if (!cell.inMonth) {
                   // Padding only - a labelled button here would duplicate the
                   // neighbouring month's real cell for the same date.
-                  return <span key={cell.date} className="mx-auto size-8" aria-hidden />;
+                  return <span key={cell.date} className="touch:min-h-11 min-h-8" aria-hidden />;
                 }
                 const disabled = cell.date > latest;
                 return (
@@ -122,7 +123,7 @@ export function DateRangePicker({ value, onChange, maxDate, className }: DateRan
                     aria-label={cell.date}
                     aria-pressed={!disabled && highlight(cell.date)}
                     className={cn(
-                      "mx-auto flex size-8 items-center justify-center rounded-md text-sm",
+                      "focus-visible:ring-ring touch:min-h-11 flex min-h-8 w-full min-w-0 touch-manipulation items-center justify-center rounded-md text-sm transition-colors duration-[var(--duration-fast)] focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
                       disabled && "text-muted-foreground pointer-events-none",
                       !disabled && "hover:bg-accent",
                       !disabled && highlight(cell.date) && "bg-primary text-primary-foreground",

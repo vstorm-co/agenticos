@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "3b553bcc7ca4"
 ---
 
 # El código de la consola { #the-consoles-code }
@@ -24,6 +24,21 @@ Playwright. Gestor de paquetes y runner: **bun**.
 
 Los Server Components son lo predeterminado. `"use client"` es para state,
 effects y handlers, no por costumbre.
+
+## Presentación de la consola { #console-presentation }
+
+Usa `PageHeader` para títulos y acciones compactos. Los catálogos de tarjetas
+usan `ListCard layout="grid"` sin un panel adicional; las tablas conservan el
+panel. Los botones usan tokens neutros `action`, independientes de `primary`
+para controles seleccionados e insignias. El foco y los bordes de los campos
+siguen siendo visibles.
+
+Las personas y organizaciones usan `EntityAvatar`: las fotos se recortan en
+círculos, con iniciales sobre un color estable como alternativa. Los agentes
+conservan sus caras generadas. Las descripciones del catálogo reservan dos
+líneas; al abrir un elemento se muestra la descripción completa.
+
+Las acciones asíncronas usan `Button loading` para conservar su etiqueta y tamaño y evitar envíos repetidos. El estado continúa hasta completar todos los pasos, incluidas las cargas de archivos. Los botones basados en enlaces conservan un único hijo y bloquean la activación mientras no están disponibles. Los controles comparten el foco de teclado y tamaños compactos en escritorio, con objetivos táctiles de 44px cuando hay espacio. Las capas se animan desde su anclaje; las ayudas ajustan el texto al ancho de la ventana. El calendario usa el idioma de la consola y el progreso expone su valor real y máximo a las tecnologías de asistencia. Las animaciones respetan la preferencia Motion de la persona.
 
 ## El navegador nunca llama al backend { #the-browser-never-calls-the-backend }
 
@@ -52,6 +67,26 @@ de un hook.** Nada de `fetch` en un componente.
 Los datos del servidor viven en la capa de queries; **los stores guardan solo
 state de UI y efímero**. Registra cada query key en `query-keys.ts` para que la
 invalidación tras una escritura se mantenga consistente.
+
+## Historial del chat y actualizaciones del stream { #chat-history-and-streamed-updates }
+
+La consola abre la página más reciente del transcript y carga mensajes anteriores
+bajo demanda. Los chips de proyecto consultan `/conversations/{id}/metadata`, con
+las mismas comprobaciones de lector y organización, sin cargar mensajes. Las
+lecturas del repositorio omiten el resumen almacenado del modelo, salvo que la
+reconstrucción de su historial lo solicite explícitamente.
+
+Los sockets del chat entregan ráfagas una vez por frame de animación, con una
+alternativa de 50 ms para pestañas ocultas y un límite de cola de 256 frames.
+Los deltas contiguos de texto o razonamiento se combinan; los límites de control,
+herramientas y partes conservan su orden. Cambiar de conversación, cuenta u
+organización descarta los frames pendientes.
+
+Se reutilizan el Markdown y los resultados de herramientas sin cambios. El
+desplazamiento sigue el crecimiento medido del contenido. Los dibujos terminados
+se montan cerca del viewport y se desmontan fuera, conservando su espacio medido;
+sus scripts se reinician al volver. Los dibujos en stream siguen activos y la
+pantalla completa suspende la copia del transcript.
 
 ## Los permisos son una decisión de renderizado { #permissions-are-a-rendering-decision }
 

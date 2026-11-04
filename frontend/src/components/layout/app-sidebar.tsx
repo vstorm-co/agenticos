@@ -32,6 +32,7 @@ import { BrandLink } from "@/components/layout/brand-link";
 import { stripLocale } from "@/lib/active-route";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
 import { useMounted } from "@/hooks/use-mounted";
+import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useAuthStore, useSidebarStore } from "@/stores";
@@ -65,21 +66,43 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-lg text-sm font-medium transition-colors",
+        "touch:min-h-11 relative flex items-center rounded-xl text-sm font-medium transition-colors",
         // One row height in both states, so collapsing the column moves no icon
         // up or down - the rail is the same list with its words taken away.
-        collapsed ? "h-8 w-9 justify-center" : "h-8 gap-2.5 px-2.5",
+        collapsed ? "touch:min-w-11 h-8 w-8 justify-center" : "h-8 gap-2.5 px-2.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
           ? "bg-accent text-foreground"
-          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+          : "text-foreground/90 hover:bg-accent/60 hover:text-foreground",
       )}
     >
       <NavIcon icon={item.icon} />
       {collapsed ? null : <span className="truncate">{label}</span>}
+      {item.count === "inbox" && <InboxCount collapsed={collapsed} />}
     </Link>
+  );
+}
+
+/** How many open items wait in the inbox: a number in the column, a dot on the rail. */
+function InboxCount({ collapsed }: { collapsed: boolean }) {
+  const t = useTranslations("nav");
+  const { suggestions } = useSuggestions();
+  if (suggestions.length === 0) return null;
+  const label = t("inboxCount", { count: suggestions.length });
+  return collapsed ? (
+    <span
+      className="bg-muted-foreground absolute top-1 right-1 h-1.5 w-1.5 rounded-full"
+      aria-label={label}
+    />
+  ) : (
+    <span
+      className="text-muted-foreground ml-auto px-1 text-xs font-medium tabular-nums"
+      aria-label={label}
+    >
+      {suggestions.length}
+    </span>
   );
 }
 
@@ -92,7 +115,7 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
   return pending ? (
     <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
   ) : (
-    <Icon className="h-4 w-4 shrink-0" aria-hidden />
+    <Icon className="h-4 w-4 shrink-0" strokeWidth={1.7} aria-hidden />
   );
 }
 
@@ -120,7 +143,7 @@ export function SidebarNav({
   return (
     <nav
       aria-label={t("primary")}
-      className={cn("flex flex-col gap-4 py-4", collapsed ? "items-center px-2" : "px-3")}
+      className={cn("flex flex-col gap-3 py-3", collapsed ? "items-center px-2" : "px-3")}
     >
       {groups.map((group) => (
         <NavGroupBlock
@@ -174,7 +197,7 @@ function NavGroupBlock({
               aria-expanded={open}
               aria-label={t(group.labelKey)}
               title={t(group.labelKey)}
-              className="text-muted-foreground hover:text-foreground flex h-6 w-9 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
+              className="text-muted-foreground hover:text-foreground touch:min-h-11 touch:min-w-11 flex h-6 w-8 items-center justify-center gap-0.5 rounded-md disabled:cursor-default"
             >
               <span aria-hidden className="bg-border h-px w-3" />
               <ChevronRight
@@ -193,7 +216,7 @@ function NavGroupBlock({
             onClick={() => toggleGroup(key)}
             disabled={holdsActive}
             aria-expanded={open}
-            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex h-6 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium tracking-wide uppercase transition-colors disabled:cursor-default"
+            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground touch:min-h-11 flex h-7 items-center gap-1 rounded-md px-2.5 text-left text-xs font-medium transition-colors disabled:cursor-default"
           >
             <span className="flex-1">{t(group.labelKey)}</span>
             <ChevronRight
@@ -202,7 +225,7 @@ function NavGroupBlock({
             />
           </button>
         ) : (
-          <div className="text-muted-foreground flex h-6 items-center px-2.5 text-xs font-medium tracking-wide uppercase">
+          <div className="text-muted-foreground flex h-7 items-center px-2.5 text-xs font-medium">
             {t(group.labelKey)}
           </div>
         ))}
@@ -239,19 +262,28 @@ export function AppSidebar() {
     // deepest of the four surfaces in both themes, and a deployment can
     // retheme it.
     <aside
+      data-collapsed={collapsed ? "" : undefined}
       className={cn(
         "bg-sidebar hidden shrink-0 border-r md:flex md:flex-col",
         mounted && "transition-[width] duration-200",
         collapsed ? "w-14" : "w-[240px]",
       )}
     >
+      {/* Native macOS window controls need their own draggable row, including
+          when the navigation is collapsed. Hidden on every other surface. */}
+      <div aria-hidden className="macos-window-controls" data-tauri-drag-region />
       {/* The brand heads the column because there is no top bar above `md` for
           it to head instead, and the collapse control sits beside it: the one
           control that is about the column rather than about anything in it,
           on the column's own title bar - where every editor and console with a
           collapsible panel puts one. Search and the bell are actions and live
           with the account at the foot, where a hand rests. */}
+      {/* In the desktop app this row also drags the window. "deep", so its
+          empty space drags and its controls still click -
+          Tauri's drag script skips buttons and links on its own. */}
       <div
+        data-titlebar
+        data-tauri-drag-region="deep"
         className={cn(
           "flex h-14 shrink-0 items-center border-b",
           collapsed ? "justify-center px-2" : "gap-1 px-3",

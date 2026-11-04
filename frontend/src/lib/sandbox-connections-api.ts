@@ -16,7 +16,7 @@
 import { apiClient } from "./api-client";
 
 /** What a sandbox connection points at. */
-export type SandboxConnectionKind = "docker" | "daytona";
+export type SandboxConnectionKind = "docker" | "daytona" | "e2b";
 
 export interface SandboxConnectionRecord {
   id: string;

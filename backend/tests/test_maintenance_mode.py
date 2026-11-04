@@ -300,3 +300,9 @@ class TestItFailsOpen:
 
         assert status == 200
         assert body == b"downstream"
+
+
+async def test_host_update_gate_closes_ordinary_traffic(monkeypatch):
+    monkeypatch.setattr(maintenance, "draining", lambda: True)
+    status, _headers, _body = await call("/api/v1/agents")
+    assert status == 503

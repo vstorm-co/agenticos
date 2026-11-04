@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BookOpen, Check, Plus } from "lucide-react";
 
 import {
-  Badge,
+  Button,
   Pager,
   PICKER_PAGE_SIZE,
   SearchInput,
@@ -17,8 +17,11 @@ import { cn } from "@/lib/utils";
 import type { SkillSummary } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
+export type SkillChoice = Pick<SkillSummary, "id" | "name" | "description" | "shared_groups">;
+
 interface SkillGalleryProps {
-  skills: SkillSummary[];
+  onCreate?: () => void;
+  skills: SkillChoice[];
   /**
    * How many the organization has, which may exceed what was fetched. Only the
    * orphan warning depends on the difference - see below.
@@ -49,8 +52,10 @@ export function SkillGallery({
   selectedIds,
   onToggle,
   disabled,
+  onCreate,
 }: SkillGalleryProps) {
   const t = useTranslations("agents");
+  const tCreate = useTranslations("skills");
   const chosen = new Set(selectedIds);
   const known = new Set(skills.map((skill) => skill.id));
   // Only when this is the whole set. Against a page of it, every skill the
@@ -71,21 +76,50 @@ export function SkillGallery({
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <BookOpen className="text-muted-foreground mx-auto h-6 w-6" />
         <p className="text-muted-foreground mt-2 text-sm">{t("organizationHasWrittenNo")}</p>
-        <Link
-          href={ROUTES.SKILLS}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {t("writeOne")}
-        </Link>
+        {onCreate ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={onCreate}
+            disabled={disabled}
+          >
+            <Plus className="size-3.5" aria-hidden />
+            {tCreate("newSkill")}
+          </Button>
+        ) : (
+          <Link
+            href={ROUTES.SKILLS}
+            className="mt-3 inline-flex items-center gap-1.5 text-sm underline underline-offset-4"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t("writeOne")}
+          </Link>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {skills.length > 8 && (
-        <SearchInput value={list.query} onChange={list.setQuery} placeholder={t("searchSkills")} />
+      {(skills.length > 8 || onCreate) && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {skills.length > 8 && (
+            <div className="min-w-40 flex-1">
+              <SearchInput
+                value={list.query}
+                onChange={list.setQuery}
+                placeholder={t("searchSkills")}
+              />
+            </div>
+          )}
+          {onCreate && (
+            <Button variant="outline" size="sm" onClick={onCreate} disabled={disabled}>
+              <Plus className="size-3.5" aria-hidden />
+              {tCreate("newSkill")}
+            </Button>
+          )}
+        </div>
       )}
 
       <div className="grid gap-2 sm:grid-cols-2">
@@ -117,7 +151,6 @@ export function SkillGallery({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-medium">{skill.name}</span>
-                  {!skill.enabled && <Badge variant="outline">{t("disabled")}</Badge>}
                   <GroupsChip groups={skill.shared_groups} />
                 </span>
                 <span className="text-muted-foreground mt-1 block text-sm">

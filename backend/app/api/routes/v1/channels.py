@@ -8,9 +8,9 @@ live elsewhere and are deliberately unscoped.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import OrgChannelBotSvc, require
+from app.api.deps import Auth, DiscordRoleMappingSvc, OrgChannelBotSvc, require
 from app.core.permissions import Perm
 from app.schemas.channel_bot import (
     ChannelBotCreate,
@@ -18,6 +18,16 @@ from app.schemas.channel_bot import (
     ChannelBotRead,
     ChannelBotUpdate,
     ChannelSessionList,
+    TeamsConversationList,
+    TeamsConversationRead,
+)
+from app.schemas.discord_role_mapping import (
+    DiscordRoleMappingCreate,
+    DiscordRoleMappingList,
+    DiscordRoleMappingRead,
+    DiscordServerList,
+    DiscordServerRead,
+    DiscordServerRoleRead,
 )
 
 router = APIRouter()
@@ -68,6 +78,42 @@ async def get_bot(
 
 
 @router.get(
+    "/bots/{bot_id}/teams-app-package",
+    response_class=Response,
+    responses={200: {"content": {"application/zip": {}}}},
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def get_teams_app_package(bot_id: UUID, service: OrgChannelBotSvc) -> Any:
+    """The Teams app package for this bot, to upload to the tenant's app catalog (#1985).
+
+    A zip of the manifest naming the bot's Azure registration and the two icons
+    Teams requires.
+    """
+    package = await service.teams_app_package(bot_id)
+    return Response(
+        content=package,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="teams-app.zip"'},
+    )
+
+
+@router.get(
+    "/teams-conversations",
+    response_model=TeamsConversationList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_teams_conversations(service: OrgChannelBotSvc) -> Any:
+    """Where a trigger can post its answer: the Teams channels and group chats the
+    organization's bots are in (#1985)."""
+    return TeamsConversationList(
+        items=[
+            TeamsConversationRead.model_validate(row, from_attributes=True)
+            for row in await service.teams_conversations()
+        ]
+    )
+
+
+@router.get(
     "/bots/{bot_id}/slack-manifest",
     response_model=dict[str, Any],
     dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
@@ -90,9 +136,14 @@ async def update_bot(
     bot_id: UUID,
     data: ChannelBotUpdate,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> Any:
-    """Update a channel bot."""
-    return await service.update(bot_id, data)
+    """Update a channel bot.
+
+    A new token for a Discord bot with role mappings is refused to somebody who
+    could not delete those mappings.
+    """
+    return await service.update(bot_id, data, ctx)
 
 
 @router.delete(
@@ -104,9 +155,14 @@ async def update_bot(
 async def delete_bot(
     bot_id: UUID,
     service: OrgChannelBotSvc,
+    ctx: Auth,
 ) -> None:
-    """Delete a channel bot and stop any active polling."""
-    await service.delete(bot_id)
+    """Delete a channel bot and stop any active polling.
+
+    Refused when the bot's Discord role mappings place people the caller could
+    not remove one mapping at a time.
+    """
+    await service.delete(bot_id, ctx)
 
 
 @router.post(
@@ -175,3 +231,75 @@ async def list_sessions(
     """List channel sessions for this bot."""
     items, total = await service.list_sessions(bot_id, skip=skip, limit=limit)
     return ChannelSessionList(items=items, total=total)
+
+
+@router.get(
+    "/bots/{bot_id}/discord-servers",
+    response_model=DiscordServerList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_discord_servers(bot_id: UUID, service: DiscordRoleMappingSvc, ctx: Auth) -> Any:
+    """The servers a Discord bot is in, and the roles in each a mapping may name (#2569).
+
+    Read from Discord on every call. `@everyone` and the roles Discord manages
+    for a bot are left out. Requires `members:manage` as well.
+    """
+    servers = await service.servers(ctx, bot_id)
+    items = [
+        DiscordServerRead(
+            id=server.id,
+            name=server.name,
+            roles=[DiscordServerRoleRead(id=role.id, name=role.name) for role in server.roles],
+        )
+        for server in servers
+    ]
+    return DiscordServerList(items=items, total=len(items))
+
+
+@router.get(
+    "/bots/{bot_id}/role-mappings",
+    response_model=DiscordRoleMappingList,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def list_role_mappings(bot_id: UUID, service: DiscordRoleMappingSvc, ctx: Auth) -> Any:
+    """Every Discord server role this bot maps to a group. Requires `members:manage` as well."""
+    rows = await service.list_mappings(ctx, bot_id)
+    items = [
+        DiscordRoleMappingRead.model_validate(mapping).model_copy(update={"group_name": name})
+        for mapping, name in rows
+    ]
+    return DiscordRoleMappingList(items=items, total=len(items))
+
+
+@router.post(
+    "/bots/{bot_id}/role-mappings",
+    response_model=DiscordRoleMappingRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def create_role_mapping(
+    bot_id: UUID, data: DiscordRoleMappingCreate, service: DiscordRoleMappingSvc, ctx: Auth
+) -> Any:
+    """Map a role in one of the bot's servers to a group, and optionally a role, here.
+
+    Requires `members:manage`, and `roles:manage` with a role the caller's own
+    strictly outranks when one is named. A linked member holding the Discord
+    role is placed at their next turn.
+    """
+    mapping, group_name = await service.create(ctx, bot_id, data)
+    return DiscordRoleMappingRead.model_validate(mapping).model_copy(
+        update={"group_name": group_name}
+    )
+
+
+@router.delete(
+    "/bots/{bot_id}/role-mappings/{mapping_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    dependencies=[Depends(require(Perm.CHANNELS_MANAGE))],
+)
+async def delete_role_mapping(
+    bot_id: UUID, mapping_id: UUID, service: DiscordRoleMappingSvc, ctx: Auth
+) -> None:
+    """Delete a mapping. What it gave people is taken back by the next role sync."""
+    await service.delete(ctx, bot_id, mapping_id)

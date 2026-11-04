@@ -23,7 +23,7 @@ export function BackgroundJobsWidget({ title, hint, seeAll, options }: Dashboard
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isPending ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error || !data ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : quiet ? (

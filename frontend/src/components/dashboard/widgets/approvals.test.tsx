@@ -74,6 +74,22 @@ describe("the approvals card", () => {
     );
   });
 
+  it("names a stranger's chat account rather than nobody", () => {
+    renderWidget({
+      approvals: [
+        approval({
+          triggered_by_email: null,
+          asked_in_chat: { platform: "slack", name: "Ana", bot_name: "Support" },
+        }),
+      ],
+      total: 1,
+    });
+
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveTextContent("for Ana (unverified) · waiting");
+    expect(row).not.toHaveTextContent("kacper@example.com");
+  });
+
   it("names the delegate asking, an unnamed run's agent, and a tool nobody catalogued", () => {
     renderWidget({
       approvals: [

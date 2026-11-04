@@ -264,7 +264,7 @@ class ApiKeyService:
         )
         return key
 
-    async def issue_for_run(self, ctx: AuthContext) -> str | None:
+    async def issue_for_run(self, ctx: AuthContext, *, agent_id: UUID | None = None) -> str | None:
         """A short-lived credential carrying `ctx`, for the in-app assistant (#1798).
 
         The assistant operates the platform through the public API as the person
@@ -292,6 +292,8 @@ class ApiKeyService:
             oauth_grant_id=None,
             internal=True,
         )
+        if agent_id is not None:
+            await api_key_repo.update(self.db, key=_row, update_data={"source_agent_id": agent_id})
         return key
 
     async def list_keys(self, ctx: AuthContext) -> ApiKeyList:
@@ -392,7 +394,7 @@ class ApiKeyService:
         )
 
 
-async def mint_for_run(ctx: AuthContext) -> str | None:
+async def mint_for_run(ctx: AuthContext, *, agent_id: UUID | None = None) -> str | None:
     """:meth:`ApiKeyService.issue_for_run`, committed before it returns.
 
     The credential is presented by an in-process request on a session of its
@@ -401,4 +403,4 @@ async def mint_for_run(ctx: AuthContext) -> str | None:
     flushed on the run's session would not be seen until the run ended.
     """
     async with get_db_context() as db:
-        return await ApiKeyService(db).issue_for_run(ctx)
+        return await ApiKeyService(db).issue_for_run(ctx, agent_id=agent_id)

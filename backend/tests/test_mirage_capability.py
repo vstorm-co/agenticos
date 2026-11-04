@@ -13,7 +13,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from pydantic_ai import Agent, ApprovalRequired
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -65,7 +65,7 @@ def test_a_saas_backend_offers_its_options_and_asks_the_vault_for_its_token() ->
     assert github.secret_fields == ("token",) and github.required_secrets == ("token",)
     # The endpoint override is not something an author may point elsewhere.
     assert "base_url" not in github.options_schema["properties"]
-    assert set(github.options_schema["properties"]) == {"owner", "repo", "ref"}
+    assert set(github.options_schema["properties"]) == {"owner", "repo", "ref", "timeout"}
 
 
 def test_a_google_backend_signs_in_with_an_account_not_with_fields() -> None:
@@ -467,14 +467,14 @@ async def test_the_command_allowlist_and_hidden_paths_hold_in_the_shell() -> Non
 async def test_the_terminal_is_closed_when_the_run_ends() -> None:
     terminal = Mirage(mounts=(_ram("/a/"),))
     agent = _agent(terminal, _calls(("mirage_ls", {"path": "/a"})))
-    await agent.run("go", deps=AgentDeps())
+    finished = await agent.run("go", deps=AgentDeps())
     # A fresh instance per run: the original never opened one.
     assert terminal._workspace is None
     workspace = await terminal.workspace()
     assert await terminal.workspace() is workspace
 
     async def finish() -> Any:
-        return "done"
+        return finished
 
     await terminal.wrap_run(SimpleNamespace(), handler=finish)  # ty: ignore[invalid-argument-type]
     assert terminal._workspace is None
@@ -535,3 +535,84 @@ async def test_a_pending_answer_parks_from_outside_the_library() -> None:
     ctx = SimpleNamespace(deps=SimpleNamespace(request_approval=pending), tool_call_id=None)
     with pytest.raises(ApprovalRequired):
         await _policy.approve(ctx, "mirage_execute", {"command": "x"})  # ty: ignore[invalid-argument-type]
+
+
+async def test_scratch_files_survive_a_serialized_approval_and_a_fresh_agent() -> None:
+    from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+    from app.agents.capabilities.mirage._scratch import KEY
+
+    mounts = (
+        _ram("/scratch/"),
+        _ram("/ask/", approve=True),
+        ResolvedMount(
+            "/code/",
+            "github",
+            "read",
+            False,
+            {"token": SecretStr("never-snapshot-token"), "owner": "vstorm-co", "repo": "agenticos"},
+            "Code",
+        ),
+    )
+    calls = _calls(
+        ("mirage_write_file", {"path": "/scratch/result.txt", "content": "retained-result"}),
+        ("mirage_execute", {"command": "cat /scratch/result.txt > /ask/copy.txt"}),
+        ("mirage_read_file", {"path": "/ask/copy.txt"}),
+    )
+    pending, _ = _gate(lambda req: ApprovalPending())
+    parked = await _agent(Mirage(mounts=mounts), calls).run(
+        "go", deps=AgentDeps(request_approval=pending)
+    )
+    assert isinstance(parked.output, DeferredToolRequests)
+    history = ModelMessagesTypeAdapter.validate_json(
+        ModelMessagesTypeAdapter.dump_json(parked.all_messages())
+    )
+    assert any(KEY in (message.metadata or {}) for message in history)
+    assert b"never-snapshot-token" not in ModelMessagesTypeAdapter.dump_json(history)
+    granted, _ = _gate(lambda req: ApprovalGranted(tool_args=req.tool_args))
+    continued = await _agent(Mirage(mounts=mounts), calls).run(
+        message_history=history,
+        deferred_tool_results=DeferredToolResults(approvals={"c1": True}),
+        deps=AgentDeps(request_approval=granted),
+    )
+    assert isinstance(continued.output, str) and "retained-result" in continued.output
+    assert not any(KEY in (message.metadata or {}) for message in continued.all_messages())
+
+
+async def test_shell_output_is_limited_before_it_reaches_the_console() -> None:
+    from app.agents.capabilities.mirage._backend import OUTPUT_BYTES, BoundedBackend
+
+    terminal = Mirage(mounts=(_ram("/scratch/"),))
+    workspace = await terminal.workspace()
+    try:
+        result = await BoundedBackend(workspace).run(["seq", "1", "100000"], timeout=5)
+        assert len(result.stdout.encode()) <= OUTPUT_BYTES
+        assert result.exit_code != 0 and "Output limit" in result.stderr
+    finally:
+        await workspace.close()
+
+
+def test_unavailable_mounts_still_explain_why_the_terminal_is_missing() -> None:
+    binding = CapabilityBinding(
+        capability_id=MIRAGE_CAPABILITY_ID, config={"mounts": [{"path": "/a/", "backend": "ram"}]}
+    )
+    [terminal] = build(
+        [binding],
+        resources={
+            MIRAGE_MOUNTS_RESOURCE: ResolvedTerminal(
+                (), ("Connect your Google account under Vault.",)
+            )
+        },
+    )
+    assert isinstance(terminal, Mirage)
+    assert "Connect your Google account" in terminal.get_instructions()
+
+
+async def test_direct_filesystem_writes_cannot_skip_a_folder_approval() -> None:
+    terminal = Mirage(mounts=(_ram("/ask/", approve=True),))
+    workspace = await terminal.workspace()
+    try:
+        with pytest.raises(PermissionError):
+            await workspace.vfs.write("/ask/not-approved.txt", b"refused")
+    finally:
+        await workspace.close()

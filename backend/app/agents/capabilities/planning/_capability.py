@@ -18,7 +18,8 @@ on all the same string. The same holds for the library's `get_instructions()`
 guidance - the write-plan, granular and subtask sentences it puts in the system
 prompt every turn - which is declared here too and handed over through `guidance=`,
 so a harness release that rewrites its default guidance cannot silently rewrite our
-system prompt. It is the same bargain `sandbox` strikes with its console library.
+custom guidance. The library also appends its framework note identifying the
+plan reminder. It is the same bargain `sandbox` strikes with its console library.
 
 *The plan has to survive both an approval park and the end of a turn, and the
 store is the runner's, not this capability's.* The library's default
@@ -38,8 +39,14 @@ dependency reconciliation and the tail reminder. Those are the library's job and
 does them; a second copy here would be one more thing to keep in step.
 """
 
+from dataclasses import replace
+from html import escape
 from typing import TYPE_CHECKING, Any, Literal
 
+from pydantic_ai import RunContext
+from pydantic_ai.capabilities.abstract import ValidatedToolArgs
+from pydantic_ai.messages import ToolCallPart, ToolReturn
+from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.planning import InMemoryPlanStore, PlanItem, Planning
 
 from app.agents.capabilities._registry import CapabilityToolInfo
@@ -78,7 +85,7 @@ WRITE_PLAN_TEXT = ToolText(
         "work, then again as you start and finish steps."
     ),
     returns=(
-        "`Plan updated:` with the number of steps and the plan as it now stands. "
+        "`Plan updated:` with the number of steps, the plan and the IDs for granular edits. "
         "A plan it will not accept is not written at all: `Plan not updated:` "
         "names what was wrong -- a duplicate step id, a status or a link that "
         "needs subtasks enabled, a step marked blocked that depends on nothing -- "
@@ -250,6 +257,38 @@ def _guidance(*, subtasks: bool) -> str:
     return " ".join(parts)
 
 
+class IdentifiedPlanning[DepsT](Planning[DepsT]):
+    """Keep library mutations intact while returning the IDs granular edits need."""
+
+    async def after_tool_execute(
+        self,
+        ctx: RunContext[DepsT],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: ValidatedToolArgs,
+        result: object,
+    ) -> object:
+        value = result.return_value if isinstance(result, ToolReturn) else result
+        if (
+            tool_def.name != "write_plan"
+            or not isinstance(value, str)
+            or not value.startswith("Plan updated:")
+        ):
+            return result
+        items = await self.resolve_store(ctx).get_items()
+        ids = "\n".join(
+            f"[{escape(item.id, quote=False)}] {escape(item.content, quote=False)}"
+            for item in items
+        )
+        identified = f"{value}\n\nStep IDs for granular edits:\n{ids}"
+        return (
+            replace(result, return_value=identified)
+            if isinstance(result, ToolReturn)
+            else identified
+        )
+
+
 def build_planning(
     *,
     enable_subtasks: bool,
@@ -269,7 +308,7 @@ def build_planning(
     park; `None` lets the library keep a fresh in-memory plan per run, which is the
     right default for a build with no run behind it.
     """
-    return Planning(
+    return IdentifiedPlanning(
         enable_subtasks=enable_subtasks,
         cache_ttl=cache_ttl,
         store=store,

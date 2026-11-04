@@ -5,7 +5,9 @@ agent card, read when somebody registers the agent, and `message/send`, sent
 whenever a delegating agent hands it work. A card and an endpoint are addresses
 somebody outside the deployment chose, so every hop is checked against the SSRF
 policy and dialled at the address that check approved - the remote party cannot
-point this deployment at its own network.
+point this deployment at its own network. A host on `OUTBOUND_PRIVATE_ALLOWLIST` is
+reachable only when the address the member registered needs it (`allowlist_for`), so
+a public card cannot name an endpoint on a listed host.
 
 What comes back is reduced to text: the answer, the conversation to continue,
 and the task's state. An agent that answers `input-required` or `auth-required`
@@ -13,6 +15,7 @@ says so in the text, because a delegate that is waiting on its own user is an
 answer the delegating model has to read, not an error.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -26,7 +29,12 @@ import httpx2
 from pydantic import ValidationError
 
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError
+from app.core.sanitize import (
+    NO_PRIVATE_ADDRESSES,
+    PrivateAllowlist,
+    UrlRefusedError,
+    allowlist_for,
+)
 from app.schemas.a2a import AgentCard, Message, Part, Task
 
 logger = logging.getLogger(__name__)
@@ -103,9 +111,12 @@ async def fetch_card(url: str, *, transport: httpx2.AsyncBaseTransport | None = 
             not a card - each said in a sentence somebody registering it can act on.
     """
     address = card_address(url)
+    listed = await asyncio.to_thread(allowlist_for, address)
     try:
         async with (
-            PinnedAsyncClient(timeout=_TIMEOUT, transport=transport) as client,
+            PinnedAsyncClient(
+                timeout=_TIMEOUT, transport=transport, private_allowlist=listed
+            ) as client,
             client.stream("GET", address, headers={"Accept": "application/json"}) as response,
         ):
             if response.status_code != 200:
@@ -143,6 +154,7 @@ async def send_message(
     context_id: str | None,
     task_id: str | None = None,
     bearer: str | None,
+    registered_url: str | None = None,
     transport: httpx2.AsyncBaseTransport | None = None,
 ) -> A2AReply:
     """Send one message to a remote agent and read its answer.
@@ -153,10 +165,19 @@ async def send_message(
     thing the answer will land on. `task_id` continues a task that was waiting
     for more input.
 
+    `registered_url` is the address the member registered (the card's). The
+    allowlist is worked out from it, never from `endpoint`, which the card
+    named: a public registration cannot reach a listed host through its card.
+
     Raises:
         A2AClientError: The endpoint is refused or unreachable, answered something
             other than JSON-RPC, or answered with a JSON-RPC error.
     """
+    listed = (
+        NO_PRIVATE_ADDRESSES
+        if registered_url is None
+        else await asyncio.to_thread(allowlist_for, registered_url)
+    )
     message = Message(
         role="user",
         parts=[Part(kind="text", text=text)],
@@ -178,6 +199,7 @@ async def send_message(
             },
             bearer=bearer,
             transport=transport,
+            private_allowlist=listed,
         )
     )
     deadline = time.monotonic() + POLL_FOR_SECONDS
@@ -185,7 +207,12 @@ async def send_message(
         await anyio.sleep(POLL_SECONDS)
         reply = _reply(
             await _call(
-                endpoint, "tasks/get", {"id": reply.task_id}, bearer=bearer, transport=transport
+                endpoint,
+                "tasks/get",
+                {"id": reply.task_id},
+                bearer=bearer,
+                transport=transport,
+                private_allowlist=listed,
             )
         )
     return reply
@@ -198,6 +225,7 @@ async def _call(
     *,
     bearer: str | None,
     transport: httpx2.AsyncBaseTransport | None,
+    private_allowlist: PrivateAllowlist,
 ) -> Any:
     """One JSON-RPC call, answering its `result`."""
     body = {"jsonrpc": "2.0", "id": uuid.uuid4().hex, "method": method, "params": params}
@@ -210,7 +238,9 @@ async def _call(
         headers["Authorization"] = f"Bearer {bearer}"
     try:
         async with (
-            PinnedAsyncClient(timeout=_TIMEOUT, transport=transport) as client,
+            PinnedAsyncClient(
+                timeout=_TIMEOUT, transport=transport, private_allowlist=private_allowlist
+            ) as client,
             client.stream("POST", endpoint, json=body, headers=headers) as response,
         ):
             if response.status_code in (401, 403):

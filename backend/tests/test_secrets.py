@@ -26,11 +26,13 @@ from app.core.secret_kinds import (
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
+    MicrosoftOAuthAppSecret,
     NoSecret,
     SecretKind,
     SecretRequirement,
     describe_kinds,
     seal_secret,
+    unseal_kind,
     unseal_secret,
 )
 from app.core.vault import VaultScope, seal
@@ -125,6 +127,17 @@ class TestSecretKinds:
             client_id="Iv1.0123456789wxyz", client_secret="ghs-never-shown"
         )
         assert value.hint == "wxyz"
+
+    def test_a_microsoft_oauth_app_is_hinted_by_its_public_client_id(self):
+        """The Outlook portal's app registration (#1984): the client id names it in
+        the Entra admin center, and the secret is never part of the hint."""
+        value = MicrosoftOAuthAppSecret(
+            tenant_id="contoso.onmicrosoft.com",
+            client_id="11111111-2222-3333-4444-55555555abcd",
+            client_secret="never-shown-secret",
+        )
+        assert value.hint == "abcd"
+        assert "never-shown-secret" not in str(value.model_dump())
 
     def test_an_unknown_field_is_refused_rather_than_ignored(self):
         with pytest.raises(ValidationError):
@@ -968,3 +981,69 @@ class TestTheKeyACallIsHungUpWith:
                 await OrganizationSecretService(_db()).voice_call_key(uuid.uuid4(), uuid.uuid4())
                 is None
             )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("visible", [True, False])
+async def test_selected_listing_key_requires_resource_visibility(visible: bool) -> None:
+    ctx = _ctx()
+    secret = _row(ctx, ApiKeySecret(api_key="sk-stav-selected"))
+    secret.purpose = "stav"
+    with (
+        patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=secret),
+        ) as get,
+        patch(
+            "app.services.organization_secret.resolve_access", new=AsyncMock(return_value=visible)
+        ),
+        patch("app.services.organization_secret.unseal_kind", wraps=unseal_kind) as unseal,
+    ):
+        if visible:
+            assert (
+                await OrganizationSecretService(_db()).listing_key(ctx, "stav", secret_id=secret.id)
+                == "sk-stav-selected"
+            )
+        else:
+            with pytest.raises(BadRequestError):
+                await OrganizationSecretService(_db()).listing_key(ctx, "stav", secret_id=secret.id)
+            unseal.assert_not_called()
+    assert get.await_args.kwargs == {"organization_id": ctx.organization_id}
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("purpose,kind", [("openai", "api_key"), ("stav", "aws_credentials")])
+async def test_selected_listing_key_refuses_wrong_provider_or_kind(purpose: str, kind: str) -> None:
+    ctx = _ctx()
+    secret = _row(ctx, ApiKeySecret(api_key="sk-stav-selected"))
+    secret.purpose, secret.kind = purpose, kind
+    with (
+        patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=secret),
+        ),
+        patch("app.services.organization_secret.resolve_access", new=AsyncMock(return_value=True)),
+        patch("app.services.organization_secret.unseal_kind") as unseal,
+        pytest.raises(BadRequestError),
+    ):
+        await OrganizationSecretService(_db()).listing_key(ctx, "stav", secret_id=secret.id)
+    unseal.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_selected_listing_key_refuses_a_missing_or_foreign_tenant_key() -> None:
+    ctx, secret_id = _ctx(), uuid.uuid4()
+    with (
+        patch(
+            "app.services.organization_secret.organization_secret_repo.get",
+            new=AsyncMock(return_value=None),
+        ) as get,
+        patch("app.services.organization_secret.resolve_access", new=AsyncMock()) as access,
+        patch("app.services.organization_secret.unseal_kind") as unseal,
+        pytest.raises(BadRequestError),
+    ):
+        await OrganizationSecretService(_db()).listing_key(ctx, "stav", secret_id=secret_id)
+    assert get.await_args.args[1] == secret_id
+    assert get.await_args.kwargs == {"organization_id": ctx.organization_id}
+    access.assert_not_called()
+    unseal.assert_not_called()

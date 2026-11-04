@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { assignableRoles } from "@/lib/assignable-roles";
+import { readThrough } from "@/lib/offline/device-cache";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import type { OrgRole } from "@/types";
@@ -30,7 +31,11 @@ export function usePermissions() {
 
   const { data, isLoading, isSuccess, error } = useQuery({
     queryKey: qk.organizations.permissions(activeOrgId ?? "current"),
-    queryFn: () => apiClient.get<MyPermissions>("/me/permissions"),
+    // Kept on the device in the apps, so the console offline offers what it
+    // offers online (#2097).
+    queryFn: () =>
+      readThrough("permissions", () => apiClient.get<MyPermissions>("/me/permissions")),
+    networkMode: "offlineFirst",
     // A refused organization is refused again the same way; the retry only
     // delays the recovery. Everything else keeps the client's single retry,
     // because a dropped connection often does succeed the second time.

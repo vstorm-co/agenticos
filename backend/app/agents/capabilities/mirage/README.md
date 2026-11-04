@@ -65,26 +65,33 @@ No tool is `side_effecting`. A binding that wants one gated anyway still sets a
 
 ## Installation
 
-The library is the optional `mirage` extra. `tree-sitter`, which Mirage parses
-shell lines with, has no Python 3.15 wheel and compiles, so a build that wants the
-terminal pays for a compiler (`EXTRAS="--extra mirage"`) and one that does not is
-unchanged. This package imports none of Mirage at module level; `_capability.py`
-and `_policy.py` do, and are imported only when an agent bound to the terminal is
-built. The suite installs the same pin through the `dev` group.
+The library is the optional `mirage` extra, pinned to 0.0.8 in the extra and
+test environment. It no longer needs the previous tree-sitter compiler step.
+The registry imports no Mirage modules unless the capability is used.
 
-## The evaluation (2026-10-22, `mirage-ai` 0.0.7)
+RAM folders survive approval pauses in the run's serialized message metadata;
+remote credentials and caches never enter this snapshot. A continuation consumes
+its snapshot so a later conversation turn cannot resurrect old scratch files.
+Each workspace has a 16 MiB cache and 16 MiB working-memory budget. Shell streams
+are collected up to 64 KiB each, with a visible incomplete-result refusal at the
+bound, and the command deadline covers collection as well as execution.
 
-- **Maturity.** A preview, pinned exactly. 0.0.7 reworked the API: a registry of
+## The evaluation (2026-11-04, `mirage-ai` 0.0.8)
+
+- **Maturity.** A preview, pinned exactly. The registry API provides: a registry of
   ~50 backends with typed configs, permission profiles, policies and `explain`,
   and a Pydantic AI workspace backend - which is what made the console tools and
   the per-folder approval possible without a parser of our own.
 - **Not available here:** the S3 family (S3, R2, GCS, OCI, MinIO and other
   S3-compatible stores) needs `aioboto3`, which pins `boto3` below the 1.43 this
-  project runs on; `qdrant`'s client has no 3.15 build; `lancedb` brings `pyarrow`;
-  `langfuse` would move the OpenTelemetry the platform traces with; `box` rotates
+  project runs on; `lancedb` brings `pyarrow`; `box` rotates
   its refresh token on every use, so a stored one stops working; `disk` reads the
   server's own filesystem.
 - **Isolation.** Mount modes, hidden paths and the command allowlist are enforced
   in-process by Mirage's dispatcher and shell. That is a policy boundary, not a
   security boundary against the process; the credential's scope is what bounds what
   a folder can reach.
+
+Qdrant and Langfuse are compatible with the current dependency lock. Qdrant is
+file-oriented here: its optional embedding callback and cloud inference switches
+are hidden, so terminal commands cannot start unmetered model calls.

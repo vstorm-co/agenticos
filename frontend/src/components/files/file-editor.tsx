@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Code2, Eye, Trash2 } from "lucide-react";
+import { Maximize2, Trash2 } from "lucide-react";
 
 import { FileTextView } from "./file-render";
 import { Button } from "@/components/ui";
+import { MarkdownModeToggle } from "@/components/ui/markdown-mode-toggle";
 import { CodeArea } from "@/components/ui/code-area";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { resolveFileKind } from "@/lib/file-kinds";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -35,6 +38,7 @@ export function FileEditor({
   onDelete,
   footer,
   header,
+  toolbar,
   initialMode = "source",
   placeholder,
   className,
@@ -49,6 +53,8 @@ export function FileEditor({
   footer?: ReactNode;
   /** Anything the owner wants above the content - the body's own fields. */
   header?: ReactNode;
+  /** Owner controls that belong beside source/preview, rather than above the editor. */
+  toolbar?: ReactNode;
   /**
    * Which half opens first. A browser of files somebody else wrote opens on the
    * preview; a pane somebody came to *write* in opens on the source, where a
@@ -66,26 +72,36 @@ export function FileEditor({
 }) {
   const t = useTranslations("files");
   const tc = useTranslations("common");
+  const tu = useTranslations("ui");
   const [mode, setMode] = useState<"preview" | "source">(initialMode);
+  const [expanded, setExpanded] = useState(false);
 
-  return (
-    <div className={cn("flex min-h-0 flex-1 flex-col rounded-md border", className)}>
-      <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+  const pane = (
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col rounded-md border",
+        expanded && "overflow-hidden rounded-2xl border-0",
+        className,
+      )}
+    >
+      <div
+        className={cn("flex flex-wrap items-center gap-2 border-b px-3 py-2", expanded && "pr-14")}
+      >
         <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
-        <div className="flex items-center gap-0.5 rounded-md border p-0.5">
-          <ModeButton
-            icon={Eye}
-            label={t("preview")}
-            active={mode === "preview"}
-            onClick={() => setMode("preview")}
-          />
-          <ModeButton
-            icon={Code2}
-            label={t("source")}
-            active={mode === "source"}
-            onClick={() => setMode("source")}
-          />
-        </div>
+        {!expanded && toolbar}
+        <MarkdownModeToggle mode={mode} onChange={setMode} />
+        {!expanded && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            data-tour="text-editor-expand"
+            aria-label={tu("expandEditor", { label: name })}
+            onClick={() => setExpanded(true)}
+          >
+            <Maximize2 className="size-4" aria-hidden />
+          </Button>
+        )}
         {onDelete && canEdit && (
           <Button
             variant="ghost"
@@ -129,31 +145,18 @@ export function FileEditor({
       {footer && <div className="flex items-center gap-2 border-t px-3 py-2">{footer}</div>}
     </div>
   );
-}
-
-function ModeButton({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: typeof Eye;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors",
-        active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-3 w-3" />
-      {label}
-    </button>
+    <>
+      {!expanded && pane}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent
+          className={cn(DIALOG_WINDOW, "gap-0 p-0 sm:p-0")}
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">{name}</DialogTitle>
+          {pane}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

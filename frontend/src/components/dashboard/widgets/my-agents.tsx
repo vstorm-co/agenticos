@@ -8,9 +8,8 @@ import { useAgents, usePermissions, useUsageStats } from "@/hooks";
 import { useAuthStore } from "@/stores";
 import { agentTag, filterAgentRows, myAgentsPolicy } from "@/lib/dashboard/my-agents";
 import { ROUTES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import { WidgetFrame } from "../widget-frame";
-import { Bot } from "lucide-react";
+import { ArrowUpRight, Bot } from "lucide-react";
 
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -45,14 +44,11 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
       ) : rows.length === 0 ? (
         <WidgetEmptyBody icon={Bot} title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
           {rows.map((agent) => {
             const tag = agentTag(agent, userId);
             return (
-              <li
-                key={agent.id}
-                className="border-border flex min-w-0 flex-col gap-2 rounded-lg border p-3"
-              >
+              <li key={agent.id} className="flex min-w-0 flex-col gap-2">
                 <div className="flex items-center gap-2.5">
                   {/* The agent's own face, the same one the catalog, the run
                       table and the chat picker draw - a list of agents told
@@ -61,7 +57,8 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                     agentId={agent.id}
                     slug={agent.slug}
                     hasAvatar={agent.has_avatar ?? false}
-                    size="sm"
+                    size="md"
+                    colorSlot={agent.avatar_color}
                   />
                   {/* The name reaches the agent. Every other card on this page
                       hands over to the page behind its number; this one named
@@ -72,14 +69,7 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                   >
                     {agent.name}
                   </Link>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
-                      tag === "yours" ? "bg-chart/10 text-chart" : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {t(tag)}
-                  </span>
+                  <span className="text-muted-foreground shrink-0 text-xs">{t(tag)}</span>
                 </div>
                 <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
                   {policy.showRunCounts ? (
@@ -88,8 +78,12 @@ export function MyAgentsWidget({ title, hint, period, seeAll, options }: Dashboa
                     <span />
                   )}
                   {policy.showOpenChat ? (
-                    <Link href={ROUTES.CHAT} className="hover:text-foreground">
+                    <Link
+                      href={ROUTES.CHAT}
+                      className="hover:text-foreground inline-flex items-center gap-1"
+                    >
                       {t("openChat")}
+                      <ArrowUpRight className="h-3 w-3" aria-hidden />
                     </Link>
                   ) : null}
                 </div>

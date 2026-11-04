@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
 
+import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
@@ -11,6 +12,7 @@ import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
 import { SkillCard } from "@/components/skills/skill-card";
 import { SkillWorkbench } from "@/components/skills/skill-workbench";
 import { categoryLabel, categorySuggestions } from "@/components/skills/category-input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import {
   Button,
@@ -65,7 +67,7 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        "touch:min-h-11 touch-manipulation rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
         // Ink for the chosen chip, same register as the primary button - the
         // accent stays out of filter chrome.
         active
@@ -110,7 +112,7 @@ export default function SkillsPage() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const tGallery = useTranslations("skills.gallery");
 
-  const canEdit = can(Perm.skillsEdit);
+  const canCreate = can(Perm.skillsEdit);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const isSearching = search.trim() !== "";
   const isFiltering = isSearching || selectedCategories.length > 0 || groupId !== null;
@@ -133,22 +135,20 @@ export default function SkillsPage() {
     <PageHeader
       title={t("skills2")}
       description={t("skillKnowHowWritten")}
+      secondaryActions={
+        canCreate ? (
+          <Button variant="outline" data-tour="skills-gallery" onClick={() => setGalleryOpen(true)}>
+            <Library className="h-4 w-4" />
+            {tGallery("browse")}
+          </Button>
+        ) : undefined
+      }
       actions={
-        canEdit ? (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              data-tour="skills-gallery"
-              onClick={() => setGalleryOpen(true)}
-            >
-              <Library className="h-4 w-4" />
-              {tGallery("browse")}
-            </Button>
-            <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              {t("newSkill")}
-            </Button>
-          </div>
+        canCreate ? (
+          <Button data-tour="skills-new" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {t("newSkill")}
+          </Button>
         ) : undefined
       }
     />
@@ -159,7 +159,7 @@ export default function SkillsPage() {
   // something the server has not said yet.
   if (!isBusy && !can(Perm.skillsView)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <EmptyState
           icon={Lock}
@@ -174,9 +174,9 @@ export default function SkillsPage() {
   // that draws a different shape from what follows is a layout jump on load.
   if (isBusy) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
-        <ListCard namedByPage title={t("skills")} counted={null}>
+        <ListCard layout="grid" namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -186,27 +186,119 @@ export default function SkillsPage() {
   // Rendered even on an empty result, unlike the grid: a search or a chip that
   // matched nothing has to leave the reader something to clear.
   const controls =
-    isFiltering || total > 0 ? (
-      <SearchInput
-        value={query}
-        onChange={(next) => {
-          setQuery(next);
-          setPage(0);
-        }}
-        placeholder={t("searchSkills")}
-        className="sm:w-56"
-      />
+    isFiltering || total > 0 || categories.length > 0 ? (
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <SearchInput
+          value={query}
+          onChange={(next) => {
+            setQuery(next);
+            setPage(0);
+          }}
+          placeholder={t("searchSkills")}
+          className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+        />
+        <ListFilters
+          compact
+          active={selectedCategories.length + Number(groupId !== null) + Number(sort !== "name")}
+        >
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            {/* A menu of checkboxes rather than a chip row: shelves are
+                  additive - "devops or data" is a sensible question - and a
+                  row of twenty chips is a wall where a count is a summary.
+                  It appears only once somebody has categorized something -
+                  a filter over one shelf filters nothing. */}
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center max-sm:[&>button]:w-full max-sm:[&>button]:justify-between">
+              {categories.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    {/* Drawn like every other filter in the console - the
+                          agents' label filters and the selects beside them. */}
+                    <Button
+                      variant="outline"
+                      className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
+                    >
+                      <ListFilter className="h-4 w-4" />
+                      {selectedCategories.length === 0
+                        ? t("allCategories")
+                        : selectedCategories.length === 1
+                          ? categoryLabel(selectedCategories[0]!)
+                          : t("categoryCount", { count: selectedCategories.length })}
+                      <ChevronDown className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {categories.map((entry) => (
+                      <DropdownMenuCheckboxItem
+                        key={entry}
+                        checked={selectedCategories.includes(entry)}
+                        onCheckedChange={() => toggleCategory(entry)}
+                        // Picking several is the point; the menu staying open
+                        // is what makes it a multi-select rather than a detour.
+                        onSelect={(event) => event.preventDefault()}
+                      >
+                        {categoryLabel(entry)}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    {selectedCategories.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setSelectedCategories([]);
+                            setPage(0);
+                          }}
+                        >
+                          {t("clearFilter")}
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <GroupFilter
+                value={groupId}
+                onChange={(next) => {
+                  setGroupId(next);
+                  setPage(0);
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-muted-foreground text-xs">{t("sort")}</span>
+              <Chip
+                active={sort === "name"}
+                onClick={() => {
+                  setSort("name");
+                  setPage(0);
+                }}
+              >
+                {t("name")}
+              </Chip>
+              <Chip
+                active={sort === "updated"}
+                onClick={() => {
+                  setSort("updated");
+                  setPage(0);
+                }}
+              >
+                {t("recentlyUpdated")}
+              </Chip>
+            </div>
+          </div>
+        </ListFilters>
+      </div>
     ) : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {header}
 
       {/* Above the list, because it is a decision somebody has to make and the
           list is a thing to browse. Absent entirely when nothing is waiting. */}
-      <ProposedChanges canEdit={canEdit} />
+      <ProposedChanges canEdit={canCreate} />
 
       <ListCard
+        layout="grid"
         data-tour="skills-list"
         namedByPage
         title={t("skills")}
@@ -217,93 +309,6 @@ export default function SkillsPage() {
         empty={!error && !isFiltering && total === 0 && categories.length === 0}
       >
         <div className="space-y-4">
-          {(categories.length > 0 || isFiltering || total > 0) && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* A menu of checkboxes rather than a chip row: shelves are
-                  additive - "devops or data" is a sensible question - and a
-                  row of twenty chips is a wall where a count is a summary.
-                  It appears only once somebody has categorized something -
-                  a filter over one shelf filters nothing. */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {categories.length > 0 && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      {/* Drawn like every other filter in the console - the
-                          agents' label filters and the selects beside them. */}
-                      <Button
-                        variant="outline"
-                        className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
-                      >
-                        <ListFilter className="h-4 w-4" />
-                        {selectedCategories.length === 0
-                          ? t("allCategories")
-                          : selectedCategories.length === 1
-                            ? categoryLabel(selectedCategories[0]!)
-                            : t("categoryCount", { count: selectedCategories.length })}
-                        <ChevronDown className="h-4 w-4 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start">
-                      {categories.map((entry) => (
-                        <DropdownMenuCheckboxItem
-                          key={entry}
-                          checked={selectedCategories.includes(entry)}
-                          onCheckedChange={() => toggleCategory(entry)}
-                          // Picking several is the point; the menu staying open
-                          // is what makes it a multi-select rather than a detour.
-                          onSelect={(event) => event.preventDefault()}
-                        >
-                          {categoryLabel(entry)}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                      {selectedCategories.length > 0 && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              setSelectedCategories([]);
-                              setPage(0);
-                            }}
-                          >
-                            {t("clearFilter")}
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                <GroupFilter
-                  value={groupId}
-                  onChange={(next) => {
-                    setGroupId(next);
-                    setPage(0);
-                  }}
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground text-xs">{t("sort")}</span>
-                <Chip
-                  active={sort === "name"}
-                  onClick={() => {
-                    setSort("name");
-                    setPage(0);
-                  }}
-                >
-                  {t("name")}
-                </Chip>
-                <Chip
-                  active={sort === "updated"}
-                  onClick={() => {
-                    setSort("updated");
-                    setPage(0);
-                  }}
-                >
-                  {t("recentlyUpdated")}
-                </Chip>
-              </div>
-            </div>
-          )}
-
           {error ? (
             // Not the empty state: "no skills yet" and "the request failed" are
             // different facts, and only one of them offers a create button.
@@ -323,12 +328,12 @@ export default function SkillsPage() {
               description={
                 isFiltering
                   ? t("namesDescriptionsPickedCategories")
-                  : canEdit
+                  : canCreate
                     ? t("writeDownSomethingYour")
                     : t("nobodyHasWrittenSkill")
               }
               cta={
-                canEdit && !isFiltering
+                canCreate && !isFiltering
                   ? {
                       label: (
                         <>
@@ -343,15 +348,9 @@ export default function SkillsPage() {
             />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rise-in grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {skills.map((entry) => (
-                  <SkillCard
-                    key={entry.id}
-                    skill={entry}
-                    canEdit={canEdit}
-                    onOpen={() => setSelected(entry)}
-                    onDelete={() => setPendingDelete(entry)}
-                  />
+                  <SkillCard key={entry.id} skill={entry} onOpen={() => setSelected(entry)} />
                 ))}
               </div>
               <Pager
@@ -377,19 +376,39 @@ export default function SkillsPage() {
           <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS, "max-md:overflow-y-auto")}>
             <DialogHeader>
               <DialogTitle className="font-mono">{selected.name}</DialogTitle>
-              <DialogDescription>{t("nameHowModelRefers")}</DialogDescription>
+              <DialogDescription className="max-md:sr-only">
+                {t("nameHowModelRefers")}
+              </DialogDescription>
             </DialogHeader>
             {skill === undefined ? (
-              <LoadingState variant="skeleton-panel" rows={2} />
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3 max-md:flex-none"
+                role="status"
+                aria-label={tc("loading")}
+              >
+                <div className="flex flex-wrap gap-4 rounded-md border p-3" aria-hidden>
+                  <Skeleton className="h-20 min-w-0 flex-1 basis-72" />
+                  <Skeleton className="h-20 w-56" />
+                  <Skeleton className="h-20 w-12" />
+                </div>
+                <div
+                  className="grid min-h-0 flex-1 gap-3 max-md:flex-none md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
+                  aria-hidden
+                >
+                  <Skeleton className="min-h-24 w-full max-md:h-48" />
+                  <Skeleton className="min-h-[22rem] w-full" />
+                </div>
+              </div>
             ) : (
               <SkillWorkbench
                 categorySuggestions={categorySuggestions(categories, suggestedCategories)}
                 key={skill.id}
                 skill={skill}
-                canEdit={canEdit}
+                canEdit={selected.can_edit === true}
                 isSaving={save.isPending}
                 onSave={handleSave}
                 onCancel={() => setSelected(null)}
+                onDelete={() => setPendingDelete(selected)}
               />
             )}
           </DialogContent>
@@ -410,6 +429,7 @@ export default function SkillsPage() {
           loading={remove.isPending}
           onConfirm={async () => {
             await remove.mutateAsync(pendingDelete.id);
+            if (selected?.id === pendingDelete.id) setSelected(null);
             setPendingDelete(null);
           }}
         />

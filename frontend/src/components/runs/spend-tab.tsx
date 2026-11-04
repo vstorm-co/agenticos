@@ -8,7 +8,7 @@ import { Activity, KeyRound } from "lucide-react";
 
 import { getErrorMessage } from "@/lib/api-error";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { EmptyState, ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import {
   Button,
   Card,
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui";
 import { CacheBustsCard } from "@/components/runs/cache-busts-card";
 import { ExportMenu } from "@/components/runs/export-menu";
+import { SpendSkeleton } from "@/components/runs/spend-skeleton";
 import { SpendByPerson } from "@/components/runs/spend-by-person";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { usePermissions, useSpend } from "@/hooks";
@@ -134,6 +135,7 @@ function shareColumn<T extends { cost_usd: string }>(
   const total = rows.reduce((sum, row) => sum + Number(row.cost_usd), 0);
   return {
     key: "share",
+    hideBelow: "sm",
     header,
     align: "right",
     cell: (row) => <ShareCell cost={row.cost_usd} total={total} />,
@@ -172,7 +174,7 @@ export function SpendTab({
       />
     );
   }
-  if (isLoading) return <LoadingState variant="stats" rows={2} />;
+  if (isLoading) return <SpendSkeleton />;
   // One guard for both absences: a failed request, and the body react-query
   // itself refuses (`undefined` data is an error there, so past this line the
   // answer exists - which is also what narrows the type for everything below).
@@ -222,6 +224,7 @@ export function SpendTab({
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
@@ -261,6 +264,7 @@ export function SpendTab({
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
@@ -292,6 +296,7 @@ export function SpendTab({
     },
     {
       key: "runs",
+      hideBelow: "sm",
       header: t("runs2"),
       align: "right",
       cell: (row) => <span className="font-mono text-xs tabular-nums">{row.run_count}</span>,
@@ -378,8 +383,8 @@ export function SpendTab({
       <Card>
         {/* The same header grammar as the history tab's: what the card is on
             the left, its export on the right, carrying the page's window. */}
-        <CardHeader className="flex-row items-start justify-between space-y-0 border-b px-5 py-4">
-          <div className="space-y-1">
+        <CardHeader className="flex-col items-start justify-between gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:px-5">
+          <div className="w-full min-w-0 space-y-1 sm:flex-1">
             <CardTitle className="text-sm">{t("whereTheMoneyWent")}</CardTitle>
             {/* The window the server chose, said the way it was chosen. There is no
                 `?? 30` here on purpose: `period_days` is null the moment `from` is

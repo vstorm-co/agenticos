@@ -1,5 +1,5 @@
 ---
-source_sha: "b04c9562a2e8"
+source_sha: "5586ac2f392a"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -9,7 +9,7 @@ source_sha: "b04c9562a2e8"
 <p class="agenticos-hero__name">AgenticOS</p>
 
 <p class="agenticos-hero__tagline">
-Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce, podłącz dokumenty i narzędzia, a następnie uruchamiaj ich na kontrolowanej przez siebie infrastrukturze.
+Otwarta platforma agentów AI na własnej infrastrukturze — dla współpracowników AI w Twojej firmie. Twórz, uruchamiaj i nadzoruj agentów na własnych serwerach i modelach: wspólny czat, RAG, skills, prawdziwa przeglądarka, MCP, budżety, zatwierdzenia i ślad audytowy.
 </p>
 
 <p class="agenticos-hero__badges">
@@ -20,6 +20,7 @@ Daj agentom AI konkretne zadania w swoim zespole. Buduj agentów w przeglądarce
 </p>
 
 <p class="agenticos-hero__links" markdown>
+<a href="https://vstorm-co.github.io/vstormos-landing/">AgenticOS</a> ·
 **Dokumentacja**: <a href="https://vstorm-co.github.io/agenticos/">vstorm-co.github.io/agenticos</a><br>
 **Kod źródłowy**: <a href="https://github.com/vstorm-co/agenticos">github.com/vstorm-co/agenticos</a>
 </p>
@@ -32,6 +33,10 @@ Zacznij od odpowiedzi na pytanie o dokument, którą możesz sprawdzić. Następ
 
 Twój zespół odpowiada za utrzymanie. Modele, parsowanie, embeddingi, narzędzia i tracing mogą korzystać z usług zewnętrznych zależnie od konfiguracji.
 
+
+Połącz typowane kroki, wywołania agentów i narzędzia MCP na wizualnej kanwie [Workflows](https://vstorm-co.github.io/agenticos/pl/workflows/). Zapisuj ustrukturyzowane wyniki w [Virtual Tables](https://vstorm-co.github.io/agenticos/pl/virtual-tables/), uruchamiaj pracę przez [Routines](https://vstorm-co.github.io/agenticos/pl/triggers/) i przeglądaj runy oraz zatwierdzenia. [Rozmowy głosowe](https://vstorm-co.github.io/agenticos/pl/voice/) i [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dają kolejne sposoby pracy z tymi samymi opublikowanymi agentami.
+
+Zacznij od konkretnego zadania: [LLM wiki w Project](https://vstorm-co.github.io/agenticos/pl/projects/), [widżetu agenta na stronie](https://vstorm-co.github.io/agenticos/pl/channels/) albo zespołu pracującego ze wspólnymi plikami i instrukcjami projektu. Widżet zapewnia rozmowę; rekomendacje i operacje na koszyku wymagają Twojego katalogu, integracji narzędzi i kontroli uprawnień.
 
 ---
 
@@ -135,6 +140,10 @@ Dlatego AgenticOS wyprowadza agenta poza kod, a w zamian otacza go nadzorem.
 
 ## Wymagania { #requirements }
 
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
+
 Docker i Docker Compose. To cała lista — Postgres (z pgvector), Redis, API,
 worker i konsola wstają razem.
 
@@ -220,7 +229,7 @@ odpowiedź.
 ## Sprawdź to { #check-it }
 
 Opublikuj go, a będzie działał tak samo na każdej powierzchni: czat w konsoli,
-hostowana strona, osadzony widget, HTTP API, Slack, Telegram, Mattermost.
+hostowana strona, osadzony widget, HTTP API, Slack, Teams, Telegram, Mattermost, Discord.
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/agents/$AGENT_ID/run \
@@ -244,7 +253,7 @@ przyszło pytanie.
 | **[Wiedza](file-processing.md)** | Wyszukiwanie po Twoich dokumentach z trzema parserami PDF, własnym chunkingiem, OCR-em i opisem obrazów — per kolekcja, nadpisywalne per wgranie. Synchronizacja Google Drive i S3 |
 | **[Skille](skills.md)** | Spisane know-how, które agent wczytuje tylko wtedy, gdy uzna je za istotne |
 | **[Nadzór](governance.md)** | Miesięczne budżety, zatwierdzanie przez człowieka, ślad audytowy, alerty per agent |
-| **[Powierzchnie](channels.md)** | Czat webowy, hostowana strona bez logowania, osadzalny widget, HTTP API, surowy WebSocket dla Twojego własnego frontendu, Slack, Telegram, Mattermost — za wszystkimi jeden runner |
+| **[Powierzchnie](channels.md)** | Czat webowy, hostowana strona bez logowania, osadzalny widget, HTTP API, surowy WebSocket dla Twojego własnego frontendu, Slack, Teams, Telegram, Mattermost, Discord — za wszystkimi jeden runner |
 | **[Sekrety](secrets.md)** | Pieczętowane per organizacja. Żadna odpowiedź, linia logu ani wpis audytowy nigdy nie niesie klucza otwartym tekstem |
 
 [Pełna lista funkcji →](features.md)

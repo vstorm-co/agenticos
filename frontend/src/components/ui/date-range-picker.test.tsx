@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import * as intl from "next-intl";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DateRangePicker } from "./date-range-picker";
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("DateRangePicker", () => {
   it("two clicks pick a range, whichever order they land in", () => {
@@ -60,5 +63,13 @@ describe("DateRangePicker", () => {
     expect(screen.getByRole("button", { name: "Next months" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Previous months" }));
     expect(screen.getByRole("button", { name: "Next months" })).toBeEnabled();
+  });
+  it("uses the console language for month names and weekdays", () => {
+    vi.spyOn(intl, "useLocale").mockReturnValue("pl");
+    render(<DateRangePicker value={null} onChange={vi.fn()} maxDate="2026-08-05" />);
+    expect(screen.getByText("lipiec 2026")).toBeVisible();
+    expect(screen.getByText("sierpień 2026")).toBeVisible();
+    expect(screen.getAllByText("pon.")).toHaveLength(2);
+    expect(screen.queryByText("Mon")).not.toBeInTheDocument();
   });
 });

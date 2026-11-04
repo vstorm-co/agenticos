@@ -11,6 +11,7 @@ from app.agents.capabilities.channel_tools._capability import ChannelTools
 from app.agents.capabilities.channel_tools._directory import (
     CHANNEL_DIRECTORY_RESOURCE,
     CHANNEL_TOOLS_CAPABILITY_ID,
+    ChannelDestination,
     ChannelDetails,
     ChannelDirectory,
     ChannelDirectoryUnsupported,
@@ -22,6 +23,7 @@ from app.agents.capabilities.channel_tools._directory import (
 __all__ = [
     "CHANNEL_DIRECTORY_RESOURCE",
     "CHANNEL_TOOLS_CAPABILITY_ID",
+    "ChannelDestination",
     "ChannelDetails",
     "ChannelDirectory",
     "ChannelDirectoryUnsupported",
@@ -72,7 +74,8 @@ class ChannelToolsConfig(BaseModel):
         "is answering in, what the channel is for, and what was said in it. "
         "Chosen per bound bot under 'Where this agent is available', not here."
     ),
-    # Not offered in the Toolbox, and publishing refuses a spec that carries it.
+    # Not offered in the Toolbox; `_without_unselectable` in agent_registry
+    # drops this binding when an agent is created or its draft is saved.
     # An agent bound to two Mattermost servers and three Slack workspaces has
     # five answers to "may it read what was said here", and a switch in the spec
     # has one. See `README.md`.
@@ -80,8 +83,8 @@ class ChannelToolsConfig(BaseModel):
     # A voice call is made from `/chat`, a widget or a hosted page, never on a
     # channel, so there is no channel for these lookups to describe (#54).
     voice="never",
-    # Declared under the ids approval and renaming key on. All four are reads of
-    # what the bot can already see, so none is side-effecting - but
+    # The lookups read what the bot already sees. File delivery is explicitly
+    # side-effecting and must be granted separately.
     # `read_channel_history` is the one worth a `tool_approval` override on a
     # binding, because it puts other people's messages into a run transcript that
     # is read weeks later. See `README.md`.
@@ -101,6 +104,11 @@ class ChannelToolsConfig(BaseModel):
         CapabilityToolInfo(
             id="read_channel_history",
             description="Read the most recent messages in this channel, newest last.",
+        ),
+        CapabilityToolInfo(
+            id="send_channel_file",
+            description="Attach a workspace file to the reply in this conversation.",
+            side_effecting=True,
         ),
     ),
     config_schema=ChannelToolsConfig,

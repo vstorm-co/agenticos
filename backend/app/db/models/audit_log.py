@@ -20,8 +20,9 @@ class AppAdminAuditLog(Base, TimestampMixin):
     __table_args__ = (Index("app_admin_audit_logs_org_seq_idx", "organization_id", "seq"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Null is "no session behind it", which two writers can mean: the approval
-    # expiry sweep, settling what nobody decided, and an operator command at the
+    # Null is "no session behind it", which three writers can mean: the approval
+    # expiry sweep, settling what nobody decided, a workflow run's end stopping the
+    # agent runs its steps parked on, and an operator command at the
     # deployment's shell (`rag-source-add`, `rag-source-remove`). The `action`
     # is what tells them apart; every authenticated path has a subject and
     # passes it.

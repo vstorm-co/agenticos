@@ -11,6 +11,7 @@ export interface ConversationState {
   // loaded messages for that selection, and the fetch/select status.
   currentConversationId: string | null;
   currentMessages: ConversationMessage[];
+  hasEarlierMessages: boolean;
   /**
    * What the open thread has cost in total, as the server added it up.
    *
@@ -29,7 +30,11 @@ export interface ConversationState {
   error: string | null;
 
   setCurrentConversationId: (id: string | null) => void;
-  setCurrentMessages: (messages: ConversationMessage[], cost?: ConversationCost | null) => void;
+  setCurrentMessages: (
+    messages: ConversationMessage[],
+    cost?: ConversationCost | null,
+    hasEarlier?: boolean,
+  ) => void;
   /**
    * Replace the thread's total on its own, without touching the transcript.
    *
@@ -51,6 +56,7 @@ export interface ConversationState {
 const initialState = {
   currentConversationId: null,
   currentMessages: [],
+  hasEarlierMessages: false,
   currentCost: null,
   pendingProjectId: null,
   isLoading: false,
@@ -65,8 +71,8 @@ const conversationState: StateCreator<ConversationState> = (set) => ({
   // The total travels with the messages it totals. Set separately, a switch
   // between conversations would leave one thread's figure under another's
   // transcript for as long as the second fetch took.
-  setCurrentMessages: (messages, cost = null) =>
-    set({ currentMessages: messages, currentCost: cost }),
+  setCurrentMessages: (messages, cost = null, hasEarlier = false) =>
+    set({ currentMessages: messages, currentCost: cost, hasEarlierMessages: hasEarlier }),
 
   setCurrentCost: (cost) => set({ currentCost: cost }),
 

@@ -17,14 +17,12 @@
  * not carry become rows of their own, so nothing is only reachable from a
  * surface that no longer exists.
  *
- * The join is done here because the API offers none, on the two things both
- * sides carry: `catalog_key` where the backend recorded it, then the URL, then
- * the name. The URL is what makes the fallback trustworthy - the catalog bakes
- * it in and the backend stores exactly the URL it validated - and the name is
- * the last resort for entries with no URL because the server is self-hosted.
+ * The listing API supplies account ids, so its grouping is authoritative. The
+ * curated catalog also serves other pickers, where accounts are matched by
+ * catalog key, URL and name for self-hosted servers.
  */
 
-import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
+import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpServerRef } from "@/types/agents";
 import type { PersonalServiceGapKind } from "@/types/chat";
@@ -61,9 +59,14 @@ export const MCP_STATE_LABEL: Record<McpConnectionState, string> = {
   connected: "connected",
 };
 
-/** Trailing slashes and case are not a difference between two server URLs. */
+/** Ignore origin case and trailing path slashes; path and query case identify the endpoint. */
 function normalizeUrl(url: string): string {
-  return url.trim().replace(/\/+$/, "").toLowerCase();
+  return url
+    .trim()
+    .replace(
+      /^([^:/?#]+:\/\/[^/?#]*)([^?#]*)/,
+      (_match, origin: string, path: string) => origin.toLowerCase() + path.replace(/\/+$/, ""),
+    );
 }
 
 /**
@@ -79,6 +82,10 @@ function connectionsForEntry<T extends McpConnectionRecord>(
   entry: McpCatalogEntry,
   connections: T[],
 ): T[] {
+  const ids = entry.connection_ids;
+  if (ids != null) {
+    return connections.filter((connection) => ids.includes(connection.id));
+  }
   const target = entry.url === null ? null : normalizeUrl(entry.url);
   return connections.filter(
     (connection) =>
@@ -126,7 +133,7 @@ export function connectionState(connection: McpConnectionRecord | null): McpConn
  * a credential nobody can revoke.
  */
 export interface McpServerRow {
-  /** Stable across renders: the catalog key, or the connection this row is. */
+  /** Stable server identity; legacy custom projections use a connection id. */
   key: string;
   name: string;
   /**
@@ -226,39 +233,23 @@ export function rowsForEntries(
   organization: OrgMcpConnectionRecord[],
   personal: McpConnectionRecord[],
 ): McpServerRow[] {
-  // One row per server, holding every connection to it. An entry with three
-  // organization accounts is one card listing three, not three cards that
-  // differ in nothing a reader can see - the extras used to fall through as
-  // "custom" servers, which is where a second account went to be mislabelled.
-  return entries.map((entry) => ({
-    ...rowForEntry(entry),
-    organizations: connectionsForEntry(entry, organization),
-    personals: connectionsForEntry(entry, personal),
-  }));
+  return entries.map((entry) => {
+    const organizations = connectionsForEntry(entry, organization);
+    return {
+      ...rowForEntry(entry),
+      ...(entry.custom
+        ? {
+            entry: null,
+            description: null,
+            descriptionKey: organizations.length > 0 ? "customAddedByOrg" : "customAddedByYou",
+          }
+        : {}),
+      organizations,
+      personals: connectionsForEntry(entry, personal),
+    };
+  });
 }
 
-/**
- * Connections that match no catalog entry, as their own rows.
- *
- * **`catalog` has to be the whole catalog, not a page of it.** Whether a
- * connection is "not in the catalog" is a question about every entry, so asking
- * it of a page answers "yes" for a connection whose entry is on a different
- * page - and the Notion connection then appeared as an uncatalogued server at the
- * foot of every page, five times over, until a search for "notion" brought the
- * entry onto the page and it merged again.
- */
-/**
- * The custom rows a search and a category filter leave standing.
- *
- * They are appended to the last page rather than fetched with it, so the
- * server's `query` and `category` never reached them: searching for an
- * unrelated server still listed every custom connection, and picking a curated
- * category listed rows whose category is `custom`. Applied here, before the row
- * count the page control divides by, so the count and the page agree.
- *
- * A custom row has a name and a URL and no description, so those two are what a
- * query can match - the same fields somebody typing a search would expect.
- */
 /**
  * What a tool picker's state means as an allowlist: a list, or unrestricted.
  *
@@ -282,21 +273,7 @@ export function narrowedSelection(
   return [...checked];
 }
 
-export function matchingCustomRows(
-  rows: McpServerRow[],
-  query: string,
-  category: string,
-): McpServerRow[] {
-  const needle = query.trim().toLowerCase();
-  return rows.filter((row) => {
-    if (category && category !== CUSTOM_CATEGORY) return false;
-    if (!needle) return true;
-    return (
-      row.name.toLowerCase().includes(needle) || (row.url ?? "").toLowerCase().includes(needle)
-    );
-  });
-}
-
+/** Connections outside a complete catalog, for pickers and bookmarked accounts. */
 export function customRows(
   catalog: McpCatalogEntry[],
   organization: OrgMcpConnectionRecord[],
@@ -431,4 +408,23 @@ export function mcpToolCount(
       total + (personal.find((c) => c.catalog_key === ref.catalog_key)?.last_tools?.length ?? 0)
     );
   }, 0);
+}
+
+/** What a person reads a connection as: its label, or its name when it has none. */
+export function connectionLabel(connection: Pick<McpConnectionRecord, "name" | "label">): string {
+  return connection.label ?? connection.name;
+}
+
+/**
+ * The tools a connection offers: those its last test recorded that its allow list
+ * lets through, or null when nothing has tested it yet - which is not "offers none".
+ */
+export function offeredTools(
+  connection: Pick<McpConnectionRecord, "last_tools" | "allowed_tools">,
+): McpToolInfo[] | null {
+  return (
+    connection.last_tools?.filter(
+      (entry) => !connection.allowed_tools || connection.allowed_tools.includes(entry.name),
+    ) ?? null
+  );
 }

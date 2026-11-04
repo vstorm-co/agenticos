@@ -38,6 +38,7 @@ HEARTBEAT_SECONDS = 20
 PRESENCE = "presence"
 TURN_BEGUN = "turn_begun"
 TYPING = "typing"
+NEXT_STEPS = "next_steps"
 
 _redis: RedisClient | None = None
 
@@ -155,6 +156,11 @@ async def typing(conversation_id: str, user_id: UUID) -> None:
     await _announce(conversation_id, TYPING, by=str(user_id))
 
 
+async def next_steps(conversation_id: str, message_id: str, steps: list[str]) -> None:
+    """Announce persisted suggestions for one answer, independently of its turn."""
+    await _announce(conversation_id, NEXT_STEPS, message_id=message_id, steps=steps)
+
+
 async def _announce(conversation_id: str, kind: str, **fields: Any) -> None:
     if _redis is None:
         return
@@ -191,7 +197,12 @@ async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
                 event = json.loads(str(message["data"]))
             except ValueError:
                 continue
-            if isinstance(event, dict) and event.get("type") in (PRESENCE, TURN_BEGUN, TYPING):
+            if isinstance(event, dict) and event.get("type") in (
+                PRESENCE,
+                TURN_BEGUN,
+                TYPING,
+                NEXT_STEPS,
+            ):
                 yield event
     finally:
         await pubsub.aclose()

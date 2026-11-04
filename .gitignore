@@ -94,6 +94,8 @@ cython_debug/
 # Logs
 *.log
 logs/
+# The frontend's Logs page and its components are source, not runtime logs.
+!frontend/src/**/logs/
 
 # Docker
 .docker/
@@ -141,3 +143,6 @@ node_modules/
 # on is how many chunks there are rather than what they say.
 loadtest/fixture.json
 loadtest/corpus/
+
+# Compiled macOS widget, embedded by the bundle hook.
+desktop/.widget-build/

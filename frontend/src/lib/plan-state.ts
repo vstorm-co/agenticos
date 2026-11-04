@@ -233,3 +233,20 @@ export function planProgress(messages: readonly ChatMessage[]): PlanProgress | n
   for (const call of planningCalls(messages)) steps = fold(steps, call);
   return steps.length === 0 ? null : progressOf(steps);
 }
+
+/**
+ * The plan the dock above the composer shows, or none.
+ *
+ * A plan with steps still to do stays there from turn to turn - it is written in
+ * one and worked through over the next several, which is the dock's whole point.
+ * A finished one stays only while the turn that finished it is still being
+ * written: after that "every step is done" said nothing about where the agent
+ * is, and sat over every later message for the rest of the conversation. Its
+ * checklist is still in that turn's steps (#2301).
+ */
+export function dockedPlan(messages: readonly ChatMessage[]): PlanProgress | null {
+  const plan = planProgress(messages);
+  if (plan === null || !plan.finished) return plan;
+  const last = messages.findLast((message) => planningCalls([message]).length > 0);
+  return last?.isStreaming ? plan : null;
+}

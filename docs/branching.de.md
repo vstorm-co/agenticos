@@ -1,5 +1,5 @@
 ---
-source_sha: "f89434252ef2"
+source_sha: "9fe09e5e598b"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -203,13 +203,14 @@ dabei aussieht, steht weiter unten.
 | `lint` | 10 | 22s |
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
-| `test-frontend` | 20 | 5m08s |
-| `docker` | 20 | 2m30s |
-| `test` | 25 | 7m43s |
+| `test-frontend` | 45 | 20m07s |
+| `test` | 90 | 22m25s |
 | `e2e` | 25 | 8m01s |
 
-Die gemessenen Zeiten stammen aus Lauf 31116003994, einer vollen Matrix auf
-`main`. Jede Grenze liegt beim Mehrfachen ihres Jobs statt knapp darüber: das
+Die meisten Zeiten stammen aus Lauf 31116003994, einer vollen Matrix auf
+`main`. Die Backend-Zeit stammt aus Lauf 41102882122, die Frontend-Zeit aus
+41108431368, beide vom 30. Oktober 2026. Images werden separat in `images.yml`
+gebaut. Jede Grenze liegt beim Mehrfachen ihres Jobs statt knapp darüber: das
 Timeout existiert, um einen Hänger zu beenden, und eines, das eng genug ist, um
 einen berechtigt kalten Cache zu kappen, ist ein roter Build aus einem Grund, der
 nichts mit dem Diff zu tun hat.
@@ -379,3 +380,47 @@ kostet einen Klick statt eines Aufsatzes.
 - `main` ist vom Abbruch ausgenommen, und die Art der Ausnahme ist eine
   Concurrency-Gruppe, die `github.run_id` trägt — eindeutig pro Lauf, sodass kein
   `main`-Lauf einen anderen abbricht.
+
+## Release-Cuts und gemeinsame Releases { #release-cuts-and-release-trains }
+
+Zuerst die Feature-PRs mergen, danach einen Cut für die Gruppe vorbereiten.
+Der größte enthaltene Versionssprung entscheidet: `make release-cut BUMP=patch`
+oder `BUMP=minor` zeigt einen Plan vom aktualisierten `origin/main`.
+`CREATE_PR=1` erstellt einen eigenen Worktree, ändert Changelog und drei
+Anwendungsversionen, committet, pusht und öffnet den PR mit Ihrer `gh`-Anmeldung.
+Leere Unreleased-Abschnitte und gleichzeitig offene Cut-PRs werden abgelehnt.
+Das Werkzeug mergt und veröffentlicht nichts. Nach dem Merge Release und Tag
+gemeinsam auf dem Cut-Merge-Commit erstellen, wie in `AGENTS.md` beschrieben.
+
+CI und CodeQL erkennen Cuts anhand der tatsächlichen Git-Bäume. Nur CHANGELOG und
+Anwendungsversionen dürfen abweichen; Abhängigkeiten, Konfiguration, Dateimodi und
+übriger Quellcode müssen einem erfolgreichen vollständigen Lauf entsprechen.
+CI verlangt drei erfolgreiche große Testsuiten, CodeQL alle vier Analysen.
+Übersprungene Jobs zählen nicht als Nachweis. Bei PRs wird die tatsächlich
+geprüfte synthetische Merge-SHA gespeichert, nicht die Branch-Head-SHA der Run-API.
+
+Geprüft werden die letzten 30
+erfolgreichen Läufe; fehlende Nachweise oder API-Fehler starten vollständige
+Prüfungen. Das gilt für Cut-PR und Merge auf `main`. Normale Änderungen behalten
+ihre Prüfungen, geplante CodeQL-Läufe bleiben vollständig. Ruleset und
+Code-Scanning-Mergeschutz bleiben aktiv.
+
+CodeQL-Wiederverwendung verlangt zusätzlich alle vier gespeicherten SARIF-Berichte
+einer vollständigen Analyse. Sie werden für den neuen Commit hochgeladen und ihre
+Verarbeitung wird abgewartet, damit der Mergeschutz Ergebnisse für diesen Commit erhält.
+Wiederverwendende Läufe dienen nicht als neue Quelle; geplante Analysen bleiben vollständig.
+
+Backend und Frontend werden weiter für die Cut-SHA gebaut, weil sie die
+Anwendungsversion enthalten. Ein Tag verwendet die Manifeste derselben SHA;
+Scans und alle sechs SBOMs laufen trotzdem und die SBOMs werden dem vorhandenen
+Release angehängt. Jedes fehlende Image wird einzeln gebaut. Browser-Manifeste
+können anhand des gesamten Docker-Kontexts, des festgelegten Debian-Basis-Digests
+und der ISO-Woche wiederverwendet werden. Der erste Build einer neuen Woche
+aktualisiert Pakete. SHA- und Versions-Aliase bleiben für Deployment und Rollback.
+
+Ein Produktionsdeployment wird beim Veröffentlichen eines stabilen Releases
+angeboten, nicht bei Entwürfen oder Vorabversionen. Produktionsfreigabe,
+Main-Abstammungsprüfung und manueller `workflow_dispatch` bleiben erhalten;
+für Rollbacks Commit oder Tag explizit wählen. Der Queue-Wächter vergleicht mit
+dem neuesten stabilen Release statt unveröffentlichten Main-Commits und meldet
+nach einem manuellen Deployment einen unbekannten Rückstand.

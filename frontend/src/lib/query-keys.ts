@@ -6,13 +6,23 @@
  * Keep keys hierarchical: broader prefixes invalidate everything beneath them.
  */
 import { canonicalFacet } from "@/lib/agent-facets";
+import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  conversationTasks: {
+    all: (tenant: string) => ["conversation-tasks", tenant] as const,
+    list: (tenant: string, conversationId: string | null | undefined) =>
+      ["conversation-tasks", tenant, conversationId] as const,
+  },
   auth: {
     me: () => ["auth", "me"] as const,
   },
   health: () => ["health"] as const,
+  releases: {
+    latest: () => ["releases", "latest"] as const,
+    current: (version: string) => ["releases", "notes", version] as const,
+  },
   // The same document for everybody and every organization: it changes on a
   // redeploy, not while somebody reads it.
   publicApi: {
@@ -79,6 +89,11 @@ export const qk = {
     // create a trigger anywhere". Its own key, not a list page's, and under
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
+    // The agent limit and the count against it - its own key, not a list
+    // page's, so a filter change cannot unset it; under "agents" so whatever
+    // moves the list refreshes it.
+    ceiling: () => ["agents", "ceiling"] as const,
+    create: () => ["agents", "create"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
@@ -97,11 +112,78 @@ export const qk = {
     // The system variables instructions may use; fixed for the deployment.
     promptVariables: () => ["agents", "prompt-variables"] as const,
   },
+  workflows: {
+    all: () => ["workflows"] as const,
+    // Called with nothing it is the prefix over every page, which is what a
+    // mutation invalidates and what the registry query reads: the list is walked
+    // to completion and held under one key, filtered and paged in the browser.
+    // A `(skip, limit)` variant stays a sub-key of that prefix, so a caller that
+    // ever reads one server page is invalidated by the same bare `list()`.
+    list: (skip?: number, limit?: number) =>
+      skip === undefined
+        ? (["workflows", "list"] as const)
+        : (["workflows", "list", skip, limit] as const),
+    detail: (id: string) => ["workflows", id] as const,
+    // Infinite metadata pages must not reuse the old flat-list cache shape.
+    versions: (id: string) => ["workflows", id, "versions", "pages"] as const,
+    stats: (id: string, days: number) => ["workflows", id, "stats", days] as const,
+    summary: (from: string, to: string) => ["workflows", "summary", from, to] as const,
+    approvalsSummary: (from: string, to: string) =>
+      ["workflows", "approvals-summary", from, to] as const,
+    evals: (id: string, nodeId: string) => ["workflows", id, "evals", nodeId] as const,
+    version: (id: string, versionId: string) => ["workflows", id, "versions", versionId] as const,
+    // Every registered node type, for the editor's palette. Changes on redeploy,
+    // not while someone edits - so its own key, cached like the capability catalog.
+    nodeCatalog: () => ["workflows", "node-catalog"] as const,
+    // The virtual tables a node's `TableIORef` pins, read by the table + column
+    // picker. Under "workflows" so an editor-wide invalidation refreshes them; the
+    // list the picker filters in the browser, and one table for its live schema.
+    tables: () => ["workflows", "tables"] as const,
+    table: (id: string) => ["workflows", "tables", id] as const,
+    // A workflow's runs, and one run's state, steps and graph. Under the workflow
+    // so starting a run from its page refreshes the list beside it.
+    runs: (id: string) => ["workflows", id, "runs"] as const,
+    // A filtered page of runs: one workflow's, under it, or every workflow's.
+    runHistory: (query: RunHistoryQuery) =>
+      [
+        ...(query.workflowId === undefined
+          ? ["workflows", "all-runs"]
+          : ["workflows", query.workflowId, "runs"]),
+        "history",
+        query,
+      ] as const,
+    // A workflow's log: a filtered page of its lines, and one run's own lines.
+    logs: (query: LogQuery) => ["workflows", query.workflowId, "logs", query] as const,
+    // The alert rules on a workflow's log, under the workflow.
+    logAlerts: (id: string) => ["workflows", id, "log-alerts"] as const,
+    // The dashboard card: the newest lines across every workflow the caller may view.
+    recentLogs: (limit: number) => ["workflows", "recent-logs", limit] as const,
+    runLogs: (runId: string) => ["workflows", "run", runId, "logs"] as const,
+    run: (runId: string) => ["workflows", "run", runId] as const,
+    runNodes: (runId: string) => ["workflows", "run", runId, "nodes"] as const,
+    runGraph: (runId: string) => ["workflows", "run", runId, "graph"] as const,
+    runFiles: (runId: string) => ["workflows", "run", runId, "files"] as const,
+    // The decisions workflow steps wait on. Under "workflows" so a decision's
+    // invalidation of every run refreshes the queue with them.
+    approvals: () => ["workflows", "approvals"] as const,
+    // The record of what was decided over a window: its own question, so its own key.
+    approvalHistory: (from: string, to: string) =>
+      ["workflows", "approvals", "history", from, to] as const,
+    // The webhooks and schedules that run a workflow unattended.
+    exposure: (id: string) => ["workflows", id, "exposure"] as const,
+    webhookTest: (id: string, token: string) => ["workflows", id, "webhook-test", token] as const,
+  },
   channelBots: {
     list: () => ["channel-bots"] as const,
     // Under the list's prefix, so every bot mutation refreshes the one a dialog
     // has open too - its "inherit" hint reads the bot's agent.
     detail: (botId: string) => ["channel-bots", botId] as const,
+    /** The Teams channels and group chats a trigger can post into (#1985). */
+    teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
+    // Outside the list's prefix on purpose: the servers are read from Discord on
+    // every fetch, and renaming a bot is no reason to ask Discord again (#2569).
+    discordRoleMappings: (botId: string) => ["discord-role-mappings", botId] as const,
+    discordServers: (botId: string) => ["discord-servers", botId] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -177,12 +259,19 @@ export const qk = {
     // What one provider offers, for the model field's suggestions. Keyed per
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
-    models: (providerId: string) => ["providers", providerId, "models"] as const,
+    models: (providerId: string, baseUrl?: string, secretId?: string) =>
+      secretId
+        ? (["providers", providerId, "models", baseUrl ?? "", secretId] as const)
+        : baseUrl
+          ? (["providers", providerId, "models", baseUrl] as const)
+          : (["providers", providerId, "models"] as const),
     // Which providers can draw an image and what each may be asked to draw with.
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
     imageModels: () => ["providers", "image-models"] as const,
     speechToTextModels: () => ["providers", "speech-to-text-models"] as const,
+    textToSpeechModels: () => ["providers", "text-to-speech-models"] as const,
+    videoModels: () => ["providers", "video-models"] as const,
     realtimeModels: () => ["providers", "realtime-models"] as const,
   },
   secrets: {
@@ -197,6 +286,8 @@ export const qk = {
   },
   runs: {
     all: () => ["runs"] as const,
+    canStop: (orgId: string | null, accountId: string | null, runId: string) =>
+      ["runs", "can-stop", orgId, accountId, runId] as const,
     // The AI Architect's bubble: approvals waiting, no agents yet, the reader's
     // failed run. Under `runs` because two of the three are run events.
     assistantSignals: (orgId: string) => ["runs", "assistant-signals", orgId] as const,
@@ -239,6 +330,7 @@ export const qk = {
         opts.modality ?? "any-modality",
         opts.modelLabel ?? "any-model",
         opts.userId ?? "anyone",
+        opts.conversationId ?? "any-conversation",
         opts.agentVersionId ?? "any-version",
         opts.isTest ?? "tests-included",
         opts.skip ?? 0,
@@ -349,6 +441,7 @@ export const qk = {
     list: (query: {
       search: string;
       agentId: string | null;
+      includeArchived: boolean;
       skip: number;
       limit: number;
       groupId: string;
@@ -357,8 +450,19 @@ export const qk = {
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,
     versions: (id: string) => ["artifacts", id, "versions"] as const,
-    view: (id: string, versionId: string | null) =>
-      ["artifacts", id, "view", versionId ?? "current"] as const,
+    view: (id: string, versionId: string | null, withData = false) =>
+      ["artifacts", id, "view", versionId ?? "current", withData ? "data" : "plain"] as const,
+    data: (id: string, versionId: string) => ["artifacts", id, "data", versionId] as const,
+    reasons: (id: string, versionId: string, nonce: string) =>
+      ["artifacts", id, "data", versionId, "reasons", nonce] as const,
+    actionRun: (id: string, runId: string) => ["artifacts", id, "action-run", runId] as const,
+    disclosure: (id: string, versionId: string) =>
+      ["artifacts", id, "disclosure", versionId] as const,
+    publicDataDisclosure: (id: string) => ["artifacts", id, "public-data"] as const,
+    requestsAll: (id: string) => ["artifacts", id, "requests"] as const,
+    requests: (id: string, includeDecided: boolean) =>
+      ["artifacts", id, "requests", includeDecided ? "all" : "pending"] as const,
+    review: (id: string, versionId: string) => ["artifacts", id, "review", versionId] as const,
     public: (key: string) => ["artifacts", "public", key] as const,
   },
   context: {
@@ -420,6 +524,8 @@ export const qk = {
     syncSources: (id: string) => ["kb", id, "sync-sources"] as const,
     orgIntegrations: (id: string) => ["kb", id, "org-integrations"] as const,
     connectors: (id: string) => ["kb", id, "connectors"] as const,
+    // Whether the KB's documents are still indexing, from `/kb/{id}/ingestion`.
+    ingestion: (id: string) => ["kb", id, "ingestion"] as const,
     // One document's stored file, as the viewer reads it. Text and bytes keyed
     // apart because they are two different bodies for one download route, and a
     // viewer showing a PDF must not be handed a cached string for it.
@@ -470,6 +576,17 @@ export const qk = {
   slashCommands: {
     list: () => ["slash-commands", "list"] as const,
   },
+  // What the platform proposed to the signed-in person overnight (#2301).
+  watches: {
+    mine: () => ["watches"] as const,
+    presets: () => ["watches", "presets"] as const,
+  },
+  suggestions: {
+    mine: () => ["suggestions"] as const,
+    // Under `mine`'s prefix, so an answer anywhere refreshes the history too.
+    history: () => ["suggestions", "history"] as const,
+    starters: () => ["suggestions", "starters"] as const,
+  },
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
@@ -491,6 +608,8 @@ export const qk = {
     // endpoints - sharing a key would let one page's refetch overwrite the
     // other's data with rows it has no business showing.
     org: () => ["mcp-connections", "org"] as const,
+    // What the editor of one workflow may pick: its own endpoint and projection, so its own key.
+    usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
   conversationWorkspace: {
@@ -524,6 +643,9 @@ export const qk = {
   localServices: {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
+  },
+  wikiGraph: {
+    source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
   },
   projects: {
     all: () => ["projects"] as const,
@@ -576,8 +698,12 @@ export const qk = {
     platformTools: () => ["mcp-servers", "platform-tools"] as const,
     // Keyed on the query and the page: the list is a request now, so each page
     // of each query is its own resource rather than a filter over one blob.
-    listPage: (query: string, category: string, auth: string, page: number) =>
-      ["mcp-servers", "list", query, category, auth, page] as const,
+    lists: () => ["mcp-servers", "list"] as const,
+    listPage: (query: string, category: string, auth: string, page: number, state = "all") =>
+      ["mcp-servers", "list", query, category, auth, page, state] as const,
+    // One server by its key, curated or mirrored - what a chat's connection card shows.
+    entries: () => ["mcp-servers", "entry"] as const,
+    entry: (key: string) => ["mcp-servers", "entry", key] as const,
   },
   sessions: {
     // The namespace, for invalidating every page at once: a revocation shifts
@@ -615,11 +741,38 @@ export const qk = {
     settings: () => ["admin", "settings"] as const,
     // The deployment's job queue (#2219). One root, so a retry or a resume
     // refreshes the header's counts and every filtered page under it at once.
+    updates: () => ["admin", "updates"] as const,
+    diagnostics: () => ["admin", "diagnostics"] as const,
     backgroundJobs: () => ["admin", "background-jobs"] as const,
     backgroundJobActivity: (window: string) =>
       ["admin", "background-jobs", "activity", window] as const,
     backgroundJobList: (filters: { status?: string; pool?: string }) =>
       ["admin", "background-jobs", "list", filters] as const,
+  },
+  mobile: {
+    settings: () => ["mobile", "settings"] as const,
+    push: (userId?: string, tenant?: string | null) => ["mobile", "push", userId, tenant] as const,
+    pushPreferences: (userId?: string, tenant?: string | null) =>
+      ["mobile", "push-preferences", userId, tenant] as const,
+  },
+  desktop: {
+    focus: () => ["desktop", "focus"] as const,
+    readiness: () => ["desktop", "readiness"] as const,
+    // What the desktop app holds for this person - blobby, the shortcuts, the
+    // window - read over IPC rather than HTTP, but the same kind of answer: a
+    // page reads it, a change writes it back and invalidates it.
+    state: () => ["desktop", "state"] as const,
+    /** This computer's own connection, which the shell reports and pushes. */
+    device: () => ["desktop", "device"] as const,
+    local: () => ["desktop", "local"] as const,
+    services: () => ["desktop", "services"] as const,
+    agents: () => ["desktop", "agents"] as const,
+    codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    skills: () => ["desktop", "skills"] as const,
+    localFiles: (root: string) => ["desktop", "local", "files", root] as const,
+    localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,
+    /** The inbox's newest page as the desktop bridge reads it, once per unread count. */
+    inbox: (unread: number) => ["desktop", "inbox", unread] as const,
   },
   branding: {
     // The announcement banner. Not the public branding read - that one is
@@ -627,4 +780,60 @@ export const qk = {
     // so it never enters the query cache at all.
     notice: () => ["branding", "notice"] as const,
   },
+  tables: {
+    all: () => ["tables"] as const,
+    // The whole query object as the key, matching `skills.list`/`context.list`:
+    // the server applies `search`/`includeArchived`/paging, so two filters are
+    // two cache entries rather than one list narrowed on the client.
+    list: (query: {
+      search: string;
+      includeArchived: boolean;
+      sort: string;
+      skip: number;
+      limit: number;
+    }) => ["tables", "list", query] as const,
+    // Every `list(...)` page at once: what creating, renaming or archiving a
+    // table invalidates, without refetching every cached table's records.
+    lists: () => ["tables", "list"] as const,
+    catalog: () => ["tables", "list", "catalog"] as const,
+    detail: (id: string) => ["tables", id] as const,
+    schemaVersions: (id: string) => ["tables", id, "schema-versions"] as const,
+    // The workflows a table runs when a record is added, and what each record led to.
+    triggers: (id: string) => ["tables", id, "triggers"] as const,
+    triggerAdmissions: (id: string, triggerId: string) =>
+      ["tables", id, "triggers", triggerId, "admissions"] as const,
+    // A table's records under one query - the active view's filters/sort/page,
+    // or a kanban lane's own narrowed one. Keyed on the whole query object so a
+    // lane's filtered fetch and the grid's unfiltered one never collide.
+    records: (tableId: string, query: unknown) => ["tables", tableId, "records", query] as const,
+    // Every `records(tableId, …)` query at once: what a record write invalidates,
+    // without also refetching the table itself, its views and its schema versions.
+    recordsAll: (tableId: string) => ["tables", tableId, "records"] as const,
+    // The grid's records loaded page after page, and how many match: both under
+    // `recordsAll`, so a record write refreshes them with every other listing.
+    recordsInfinite: (tableId: string, query: unknown) =>
+      ["tables", tableId, "records", "infinite", query] as const,
+    recordCount: (tableId: string, query: unknown) =>
+      ["tables", tableId, "records", "count", query] as const,
+    // One record, as "reload and reapply" refetches it after a conflict.
+    record: (tableId: string, recordId: string) => ["tables", tableId, "record", recordId] as const,
+    views: (tableId: string) => ["tables", tableId, "views"] as const,
+    // One kind's views, as the picker for that tab reads them; under `views` so
+    // one invalidation refreshes every kind.
+    viewsOfKind: (tableId: string, kind: string | null) =>
+      ["tables", tableId, "views", kind ?? "all"] as const,
+  },
 } as const;
+
+/**
+ * For invalidating `qk.artifacts.all()`: every artifact query except one
+ * artifact's open page - its signed address and its live data. A change that
+ * leaves the page as it is (a public link, its visibility) would otherwise mint
+ * the page again and blank it while it reloads.
+ */
+export function exceptOpenPage(artifactId: string | null) {
+  return ({ queryKey }: { queryKey: readonly unknown[] }): boolean => {
+    const [, id, kind] = queryKey;
+    return !(id === artifactId && (kind === "view" || kind === "data"));
+  };
+}

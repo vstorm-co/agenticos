@@ -16,10 +16,11 @@
  */
 
 /** How a portal's webhook reaches the platform. Mirrors the backend's `DeliveryMode`. */
-export type PortalDelivery = "auto_webhook" | "manual" | "polling";
+export type PortalDelivery = "auto_webhook" | "app_webhook" | "manual" | "polling";
 
 /** One ready-made event a portal can fire on. */
 export interface PortalPreset {
+  event_config?: Record<string, unknown>;
   key: string;
   label: string;
   description: string;
@@ -57,6 +58,11 @@ export interface PortalCatalogEntry {
   connection_id: string | null;
   /** How usable that connection is; null exactly when `connection_id` is null. */
   connection_state: "connected" | "needs_authorization" | "disabled" | "error" | null;
+  /**
+   * Minutes between checks of a connected, polled mailbox - one setting for every
+   * trigger on it. Null for a portal that is not polled, or has no connection.
+   */
+  poll_interval_minutes: number | null;
   /** Whether the grant covers every webhook scope - create vs re-authorize. */
   connection_covers_webhook_scopes: boolean;
   /**

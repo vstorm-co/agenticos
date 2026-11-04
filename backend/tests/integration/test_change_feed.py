@@ -27,6 +27,8 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
+from app.db.models.virtual_table import VirtualTable
+from app.db.models.workflow import Workflow
 from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.schemas.change_event import ChangeEvent
@@ -379,9 +381,54 @@ class TestVisibility:
         viewer = await _join(db, organization, OrgRoleName.VIEWER)
         ctx = _ctx(organization, viewer, OrgRoleName.VIEWER)
 
-        for resource in ("agent", "skill", "context", "knowledge_base", "artifact"):
+        for resource in (
+            "agent",
+            "skill",
+            "context",
+            "knowledge_base",
+            "artifact",
+            "table",
+            "workflow",
+        ):
             event = _event(organization, owner, resource=resource, id=uuid.uuid4())
             assert not await change_feed.visible(db, ctx, event)
+
+    @pytest.mark.security
+    async def test_a_viewer_hears_of_a_table_or_workflow_only_when_they_may_read_it(
+        self, db: AsyncSession
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        ctx = _ctx(organization, viewer, OrgRoleName.VIEWER)
+        rows: dict[str, dict[str, uuid.UUID]] = {"table": {}, "workflow": {}}
+        for visibility in (Visibility.PRIVATE, Visibility.ORG):
+            table = VirtualTable(
+                organization_id=organization.id,
+                owner_user_id=owner.id,
+                name=f"orders-{visibility.value}",
+                visibility=visibility.value,
+            )
+            workflow = Workflow(
+                organization_id=organization.id,
+                owner_user_id=owner.id,
+                slug=f"flow-{visibility.value}",
+                name="Flow",
+                visibility=visibility.value,
+            )
+            db.add_all([table, workflow])
+            await db.flush()
+            rows["table"][visibility.value] = table.id
+            rows["workflow"][visibility.value] = workflow.id
+
+        for resource, ids in rows.items():
+            private = _event(organization, owner, resource=resource, id=ids["private"])
+            shared = _event(organization, owner, resource=resource, id=ids["org"])
+            assert not await change_feed.visible(db, ctx, private)
+            assert await change_feed.visible(db, ctx, shared)
+            assert await change_feed.visible(
+                db, _ctx(organization, owner, OrgRoleName.OWNER), private
+            )
 
     @pytest.mark.security
     async def test_invitations_reach_only_whoever_manages_members(self, db: AsyncSession) -> None:

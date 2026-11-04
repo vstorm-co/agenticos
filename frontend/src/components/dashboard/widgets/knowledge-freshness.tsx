@@ -35,6 +35,7 @@ export function KnowledgeFreshnessWidget({ title, hint, seeAll, options }: Dashb
           rows={sources.map((source) => {
             const failing = source.last_sync_status === "failed";
             return {
+              id: source.id,
               label: source.name,
               sub: failing
                 ? (source.last_error ?? undefined)

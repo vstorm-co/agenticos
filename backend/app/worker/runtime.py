@@ -28,6 +28,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from math import ceil, log2
 from pathlib import Path
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from pydantic import JsonValue
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.update_gate import draining
 from app.repositories import background_job as job_repo
 from app.repositories import background_task_kind as kind_repo
 from app.repositories import background_worker as worker_repo
@@ -113,8 +115,8 @@ class Worker:
         started: list[Executor] = []
         try:
             for executor in self.executors.values():
-                await executor.start()
                 started.append(executor)
+                await executor.start()
             async with asyncio.TaskGroup() as group:
                 upkeep = [
                     group.create_task(
@@ -190,6 +192,8 @@ class Worker:
             task.add_done_callback(self._finished)
 
     async def _claim(self, pool: Pool) -> ClaimedJob | None:
+        if draining():
+            return None
         async with self.sessions() as db:
             return await job_repo.claim(
                 db, pool=pool.value, worker_id=self.settings.worker_id, lease=self.settings.lease
@@ -317,6 +321,9 @@ class Worker:
 
     async def _count_death(self, db: AsyncSession, kind: str, organization_id: UUID | None) -> None:
         """Count a death in the job's own scope: its organization's, or the kind's if it has none."""
+        task = self.tasks.get(kind)
+        if task is not None and not task.counts_deaths:
+            return
         deaths = await kind_repo.record_death(db, kind, organization_id)
         if deaths < self.settings.breaker_deaths:
             return
@@ -429,7 +436,9 @@ class Worker:
         return base * random.uniform(0.9, 1.1)  # noqa: S311 - jitter, not a secret
 
     def _outage_pause(self, outages: int) -> float:
-        return min(2.0 ** (outages - 1), self.settings.outage_cap) * random.uniform(0.5, 1.0)  # noqa: S311
+        # Cap before exponentiation: min() cannot catch an overflow in its argument.
+        exponent = min(outages - 1, ceil(log2(max(1.0, self.settings.outage_cap))))
+        return min(2**exponent, self.settings.outage_cap) * random.uniform(0.5, 1.0)  # noqa: S311
 
 
 async def _first[T](work: Awaitable[T], stop: asyncio.Event) -> T | None:

@@ -1,16 +1,18 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardEditor } from "@/components/dashboard/dashboard-editor";
 import { DashboardPresetMenu } from "@/components/dashboard/dashboard-preset-menu";
 import { FilterRow } from "@/components/dashboard/filter-row";
 import { MeHeader } from "@/components/dashboard/me-header";
+import { MeOpening } from "@/components/dashboard/me-opening";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { DiscoverTips } from "@/components/dashboard/discover-tips";
 import { QuietGroup } from "@/components/dashboard/quiet-group";
@@ -18,7 +20,7 @@ import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui";
-import { EmptyState, LoadingState } from "@/components/states";
+import { EmptyState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
 import type { DashboardPreset } from "@/lib/dashboard-preset-api";
 import { useOrgStore } from "@/stores";
@@ -82,10 +84,9 @@ export default function DashboardPage() {
   const { storedEntries, save, reset } = useDashboardLayout();
   const { presets, savePreset, removePreset } = useDashboardPresets();
   const searchParams = useSearchParams();
-  const [period, setPeriod] = useState<Period>(() => parsePeriodParam(searchParams.get("period")));
-  const [sectionsParam, setSectionsParam] = useState<string | null>(() =>
-    searchParams.get("sections"),
-  );
+  const periodParam = searchParams.get("period");
+  const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
+  const sectionsParam = searchParams.get("sections");
   const [editing, setEditing] = useState(false);
   // Whether edit mode opened on a blank grid ("New blank layout") rather than on
   // the current arrangement. Composing from nothing and saving under a name is
@@ -106,8 +107,8 @@ export default function DashboardPage() {
   }
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { groups, isLoading: groupsLoading } = useGroups(activeOrgId ?? "");
-  const [viewParam, setViewParam] = useState<string | null>(() => searchParams.get("view"));
-  const [groupParam, setGroupParam] = useState<string | null>(() => searchParams.get("group"));
+  const viewParam = searchParams.get("view");
+  const groupParam = searchParams.get("group");
 
   // can() answers false while permissions load; resolving the audience from
   // that would flash a viewer-shaped page at a steward, so hold the skeleton
@@ -119,10 +120,23 @@ export default function DashboardPage() {
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
   if (isLoading || (viewParam === "group" && groupsLoading)) {
+    const loadingAudience = resolveAudience(role, isAppAdmin);
+    const loadingView =
+      viewParam === "group"
+        ? "group"
+        : viewParam === "deployment" && isAppAdmin
+          ? "deployment"
+          : "me";
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader title={t("title")} />
-        <LoadingState variant="stats" />
+        <DashboardSkeleton
+          sections={
+            viewParam === "org"
+              ? resolveEffectiveLayout(loadingAudience, storedEntries)
+              : viewLayout(loadingView, loadingAudience)
+          }
+        />
       </div>
     );
   }
@@ -155,23 +169,18 @@ export default function DashboardPage() {
   const visible = visibleSections(effective, can, isAppAdmin);
 
   const changePeriod = (next: Period) => {
-    setPeriod(next);
     setUrlParam("period", formatPeriodParam(next));
   };
   const changeView = (next: DashboardView) => {
-    setViewParam(next);
     setUrlParam("view", next === fallbackView ? null : next);
     // A section chosen on one view names nothing on another.
-    setSectionsParam(null);
     setUrlParam("sections", null);
   };
   const changeGroup = (next: string) => {
-    setGroupParam(next);
     setUrlParam("group", next);
   };
   const changeSections = (selected: string[] | null) => {
     const value = formatSectionsParam(selected);
-    setSectionsParam(value);
     setUrlParam("sections", value);
   };
 
@@ -229,7 +238,7 @@ export default function DashboardPage() {
 
   if (editing) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader title={t("title")} description={t("edit.subtitle")} />
         <DashboardEditor
           initialEntries={initialItems}
@@ -284,7 +293,7 @@ export default function DashboardPage() {
   // to keep arranging, never a blank page that reads as broken.
   if (visible.length === 0) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <PageHeader title={t("title")} description={t(`views.${view}.description`)} />
         <EmptyState
           icon={LayoutGrid}
@@ -406,6 +415,7 @@ export default function DashboardPage() {
         <MeHeader period={period} canRun={can(Perm.agentsRun)} actions={headerActions} />
       ) : (
         <PageHeader
+          className="mb-4"
           title={t("title")}
           description={t(`views.${view}.description`)}
           actions={headerActions}
@@ -429,7 +439,8 @@ export default function DashboardPage() {
       {/* Setting the organization up belongs where somebody acts on it - their
           own view or the organization's - not beside a group's or the host's
           numbers. */}
-      {activeOrgId && (view === "org" || view === "me") && <StartChecklist orgId={activeOrgId} />}
+      {activeOrgId && view === "org" && <StartChecklist orgId={activeOrgId} />}
+      {view === "me" && <MeOpening orgId={activeOrgId} period={period} />}
       {view === "me" && <DiscoverTips />}
       {/* The bands own a rhythm of their own, four times the gap between two
           cards, which is what makes a band read as a band. The header and the

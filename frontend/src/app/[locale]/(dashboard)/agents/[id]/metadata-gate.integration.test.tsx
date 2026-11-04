@@ -54,6 +54,7 @@ const mutation = () => ({
 });
 
 let allowed: Set<Permission>;
+let shown: AgentDetail = AGENT;
 
 vi.mock("@/hooks", async () => {
   // The real one: the Builder keeps its tab in `?tab=`, as local state here.
@@ -62,7 +63,7 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: AGENT,
+      agent: shown,
       isLoading: false,
       saveDraft: mutation(),
       validate: vi.fn().mockResolvedValue({ problems: [], fields: [] }),
@@ -149,7 +150,25 @@ async function mount() {
 }
 
 describe("the detail page's metadata editor gate", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shown = AGENT;
+  });
+
+  it("sends a workflow step's own agent to its workflow and edits nothing here", async () => {
+    // Its spec is the step's, versioned with the workflow; an edit here would be
+    // overwritten by the step's next run, so the page offers none.
+    allowed = new Set([Perm.agentsEdit, Perm.agentsPublish]);
+    shown = { ...AGENT, workflow_id: "wf1" };
+    await mount();
+
+    expect(await screen.findByText(/configured in a workflow step/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open the workflow" })).toHaveAttribute(
+      "href",
+      "/workflows/wf1",
+    );
+    expect(screen.queryByRole("textbox", { name: "Add a category" })).toBeNull();
+  });
 
   it("shows the editor to a caller who may edit the agent", async () => {
     allowed = new Set([Perm.agentsEdit]);

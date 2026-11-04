@@ -163,6 +163,18 @@ class AgentWorkspace(Base, TimestampMixin):
     * `user` - one person on web and on Slack at the same time.
     """
 
+    recovery_of_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_workspaces.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    """A rejected merge's snapshot, deleted whenever its source is deleted.
+
+    Kept as a relation, never inferred from the display key: user erasure and
+    source deletion must also remove a copy committed while they were waiting.
+    """
+
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __repr__(self) -> str:

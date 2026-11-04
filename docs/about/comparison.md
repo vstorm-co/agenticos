@@ -10,6 +10,8 @@ Most products in this space are one of five things: an assistant app, an agent b
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026, OpenAI Frontier's on 14 October. AgenticOS baseline: v1.10.0. Review by 21 November 2026, or sooner when a vendor changes the offering a guide describes. Each guide names its sources. No competitor account was exercised for these guides.
 
+AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## Pick the guide for your decision
 
 | You are weighing | Products | Guide |
@@ -56,7 +58,7 @@ Sovereignty here means four things you decide: where the product runs, which mod
 
 | Product | Where it runs | Models you may use | What the licence lets you do | Sign-in, audit and spend controls |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Your infrastructure; a fresh install sends nothing anywhere | Any of 28 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others; the default PDF parser is AGPL-3.0, so a modified image you serve to others owes them its source ([details](../licenses.md#the-agpl-component)) | Sign-in: OIDC SSO, LDAP and Kerberos · Audit: tamper-evident log · Spend: budgets per agent and per organization · all in every deployment |
+| **AgenticOS** | Your infrastructure; a fresh install sends no prompts or documents anywhere, and diagnostics are on by default and can be switched off | Any of 28 providers, or local models only | Apache-2.0: read it, change it, brand it as your own and run it for others; the default PDF parser is AGPL-3.0, so a modified image you serve to others owes them its source ([details](../licenses.md#the-agpl-component)) | Sign-in: OIDC SSO, LDAP and Kerberos · Audit: tamper-evident log · Spend: budgets per agent and per organization · all in every deployment |
 | Claude Team / Enterprise | Anthropic's cloud | Claude only | Proprietary | Sign-in: SSO on Team and Enterprise · Audit: Enterprise, 180 days of events · Spend: organization and user caps |
 | ChatGPT Business / Enterprise | OpenAI's cloud; storage residency in ten regions on Enterprise | OpenAI only | Proprietary | Sign-in: SAML SSO on Business; SCIM and role-based access controls on Enterprise · Audit: Compliance API on Enterprise and Edu · Spend: credit pools and overage limits |
 | Copilot Studio | Microsoft's cloud, in Power Platform environments | GPT models by default, Claude models, Azure Foundry models billed separately | Proprietary | Sign-in: Entra ID · Audit: Purview · Spend: monthly limits per agent |
@@ -66,7 +68,7 @@ Sovereignty here means four things you decide: where the product runs, which mod
 | Viktor | Viktor's cloud, US-hosted by default | OpenAI, Anthropic, Google and xAI models, or your own OpenRouter key | Proprietary | Sign-in: SAML SSO · Audit: audit logs on Enterprise · Spend: credit pool with a monthly top-up cap, per-user caps on Enterprise |
 | Sauna | Sauna's cloud; US infrastructure for US customers | Its own Lite model, or all models from the Basic plan | Proprietary | Sign-in: email or Google · Audit: not stated · Spend: credits per plan |
 | OpenAI dots | OpenAI's cloud; the Pro plan was not offered in the EEA, Switzerland or the UK at launch | OpenAI only | Proprietary | Sign-in: ChatGPT accounts · Audit: not stated for dots · Spend: included in the plan |
-| Grok Bot | xAI's cloud | Grok only | Proprietary | Sign-in: xAI or Cursor accounts · Audit: announced as coming · Spend: plan price, no stated cap |
+| Grok Bot | xAI cloud | Grok Bot service | Proprietary | Enterprise: audit logs, OpenTelemetry export, MCP allowlist, SCIM; see [current scope](grok-bot.md) |
 | OpenAI Frontier | Locally, your cloud or OpenAI's | OpenAI | Proprietary | Sign-in, audit and spend: not stated publicly; per-agent permissions and dashboards announced |
 | Microsoft Agent 365 | Microsoft's cloud | Through the agents it governs | Proprietary | Sign-in: Entra ID · Audit: Purview · Spend: Microsoft 365 licensing |
 | Claude Managed Agents | Anthropic's cloud | Claude only | Proprietary | Sign-in: Anthropic API keys · Audit: not stated · Spend: tokens plus a session-hour fee, organisation limits |
@@ -75,13 +77,13 @@ Sovereignty here means four things you decide: where the product runs, which mod
 
 Dify and n8n also run on your own servers with local models, and Wonderful offers air-gapped on-premises deployment. Among the products in this table, AgenticOS is the one where all four answers stay with you.
 
-Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
+Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [what leaves by default](../data-protection.md#nothing-leaves-by-default).
 
 ## What AgenticOS brings to every comparison
 
 These run through every guide, so they are stated once here.
 
-- **The deployment is yours.** It runs on your hardware with your own Postgres and storage, and a fresh install sends nothing anywhere. A fully local setup is possible, with local chat models, local embeddings and local parsing. See [nothing leaves by default](../data-protection.md#nothing-leaves-by-default).
+- **The deployment is yours.** It runs on your hardware with your own Postgres and storage, and a fresh install sends no prompts or documents anywhere; deployment diagnostics are on by default and can be switched off. A fully local setup is possible, with local chat models, local embeddings and local parsing. See [what leaves by default](../data-protection.md#nothing-leaves-by-default).
 - **Any model, switched in one place.** [28 providers](../models.md#providers) sit behind a [model profile](../models.md#a-model-profile) with [fallbacks](../models.md#fallbacks). Change the profile and every agent using it moves, without a republish.
 - **An agent is a versioned document.** Publishing freezes a [version](../concepts.md#version), [environments](../environments.md#what-an-environment-is) point at versions, and the spec [exports as YAML](../features.md#exportable-into-your-own-repository) into your own git repository.
 - **Governance is in the open-source product.** [Budgets](../governance.md#enforcement-is-before-the-request) are checked before each model request. [Approvals](../governance.md#approvals) park a run until someone decides. The [audit log](../governance.md#audit) is tamper-evident. None of it waits for an enterprise tier.
@@ -99,7 +101,7 @@ A comparison that hides its own gaps is an advertisement. Check these against yo
 - Sign-in has no SAML or SCIM yet; SAML works through an identity broker such as Keycloak. See [what directory sign-in does not do yet](../directory.md#what-this-does-not-do-yet).
 - There is no evaluation harness and no trace dashboard. Ratings and run history exist. See [where it is not finished](index.md#where-this-one-is-not-finished).
 - There is no Microsoft Teams, WhatsApp, phone or email conversation channel. [Voice conversations](../voice.md) run in web chat, the widget and the hosted page, not over a phone line.
-- There is no visual workflow canvas. Multi-step work uses delegation, planning and triggers.
+- AgenticOS now includes a visual workflow canvas with typed steps, branches and loops. Compare the required node types and integrations, rather than assuming either canvas covers the same jobs.
 - An MCP binding set to `writes` trusts the server's own read-only marks, so a tool it mislabels as read-only runs unasked; `all` holds every call. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
 - Deployment is Docker Compose, and one host is the shipped path. An external Postgres and more API hosts and workers are [documented](../scaling.md), but there are no Kubernetes manifests.
 - You operate it, or you agree the operation with Vstorm or another partner.
@@ -139,3 +141,7 @@ Start from the kind of product you are weighing: an assistant app, a builder in 
 A library such as [Pydantic AI](https://ai.pydantic.dev/) fits an agent embedded in your own application; AgenticOS runs on it and adds the application for configuring and operating agents. [OpenClaw](https://github.com/openclaw/openclaw) documents personal and shared-team deployments. [Lindy](https://www.lindy.ai/) offers a teammate service. These are further candidates, not products ruled out here.
 
 Start with the [document task](../howto/first-document-agent.md), then review [operation and implementation](../rollout.md). The AgenticOS maintainers own these guides.
+
+[Muse](muse.md) · [Claude Duet](claude-duet.md) — Sources checked 2 November 2026; AgenticOS baseline v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)

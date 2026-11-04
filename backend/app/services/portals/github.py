@@ -10,6 +10,7 @@ layer already verifies.
 
 import logging
 import re
+from collections.abc import Sequence
 from urllib.parse import quote
 
 import httpx
@@ -21,9 +22,10 @@ logger = logging.getLogger(__name__)
 
 _API_BASE = "https://api.github.com"
 _TIMEOUT = httpx.Timeout(10.0)
-# The one webhook event the delivery layer acts on (`trigger_events._github_matches`
-# refuses anything but `issues`), so every GitHub preset registers for it.
-_EVENTS = ["issues"]
+# What a hook is registered for when the trigger names no event: the issues the
+# first presets were about. A trigger on another event registers for that one, so
+# the repository does not send - and sign - deliveries nothing here acts on.
+_DEFAULT_EVENTS = ("issues",)
 # How many 100-repo pages the target listing follows. Ten pages is a thousand
 # administered repositories - past that the free-text target entry is the honest
 # tool, and the cap is logged rather than silently truncating.
@@ -90,7 +92,13 @@ class GitHubPortalAdapter(PortalAdapter):
         return targets
 
     async def register_webhook(
-        self, *, access_token: str, target: str | None, webhook_url: str, secret: str
+        self,
+        *,
+        access_token: str,
+        target: str | None,
+        webhook_url: str,
+        secret: str,
+        events: Sequence[str] = (),
     ) -> RegisteredWebhook:
         if not target:
             raise WebhookRegistrationForbidden(
@@ -104,7 +112,7 @@ class GitHubPortalAdapter(PortalAdapter):
                     json={
                         "name": "web",
                         "active": True,
-                        "events": _EVENTS,
+                        "events": list(events or _DEFAULT_EVENTS),
                         "config": {
                             "url": webhook_url,
                             "content_type": "json",
@@ -130,6 +138,16 @@ class GitHubPortalAdapter(PortalAdapter):
                 },
             )
         return RegisteredWebhook(provider_webhook_id=str(resp.json()["id"]))
+
+    async def account_login(self, *, access_token: str) -> str | None:
+        """The login the token speaks as - `GET /user` - or `None` if GitHub will not say."""
+        try:
+            async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
+                resp = await client.get("/user", headers=_headers(access_token))
+        except httpx.HTTPError:
+            return None
+        login = resp.json().get("login") if resp.status_code == 200 else None
+        return login if isinstance(login, str) and login else None
 
     async def delete_webhook(
         self, *, access_token: str, target: str | None, provider_webhook_id: str

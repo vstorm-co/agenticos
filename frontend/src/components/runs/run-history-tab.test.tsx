@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -120,11 +120,14 @@ function ControlledTab(props: Partial<Parameters<typeof RunHistoryTab>[0]>) {
 }
 
 function renderTab(props: Partial<Parameters<typeof RunHistoryTab>[0]> = {}) {
-  return render(
+  const result = render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ControlledTab {...props} />
     </NextIntlClientProvider>,
   );
+  const filters = within(result.container).queryByRole("button", { name: /^Filters/ });
+  if (filters) fireEvent.click(filters);
+  return result;
 }
 
 /** The options the most recent `useRuns` call asked with. */

@@ -31,10 +31,11 @@ def ingest() -> Handlers:
     only the parsing and embedding stack - not the agent runtime the other pools
     need - is a quarter of its memory and half its start-up (#2229).
     """
-    from app.worker.tasks import rag_tasks
+    from app.worker.tasks import project_tasks, rag_tasks
 
     return by_kind(
         [
+            Handler(jobs.MOVE_PROJECT_WORKSPACE, project_tasks.move_project_workspace),
             Handler(jobs.INGEST_DOCUMENT, rag_tasks.ingest_document),
             Handler(jobs.SYNC_COLLECTION, rag_tasks.sync_collection),
             Handler(jobs.SYNC_SOURCE, rag_tasks.sync_source),
@@ -47,24 +48,43 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        channel_tasks,
+        conversation_tasks,
+        diagnostics_tasks,
+        generated_media_tasks,
         invitation_tasks,
         mcp_tasks,
         notification_tasks,
+        proactive_tasks,
         rag_tasks,
         report_tasks,
         run_tasks,
         teardown_tasks,
         trigger_tasks,
         voice_tasks,
+        workflow_tasks,
     )
     from app.worker.tasks.background_tasks import sweep_background_jobs
 
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
+            Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
+            Handler(
+                jobs.RECONCILE_CONVERSATION_TASKS, _each_tick(conversation_tasks.reconcile_tasks)
+            ),
+            Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
+            Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
+            Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
+            Handler(jobs.BRIEF_PERSON, proactive_tasks.brief_person),
+            Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
+            Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
+            Handler(jobs.DISCARD_VECTOR_DOCUMENT, teardown_tasks.discard_vector_document),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
             Handler(
@@ -76,6 +96,7 @@ def production() -> Handlers:
                 jobs.SWEEP_SANDBOX_OPERATIONS, _each_tick(trigger_tasks.sweep_sandbox_operations)
             ),
             Handler(jobs.SWEEP_MCP_CONNECTIONS, _each_tick(mcp_tasks.sweep_mcp_connections)),
+            Handler(jobs.SYNC_DISCORD_ROLES, _each_tick(channel_tasks.sync_discord_roles)),
             Handler(jobs.EXPIRE_APPROVALS, _each_tick(approval_tasks.expire_approvals)),
             Handler(jobs.EXPIRE_INVITATIONS, _each_tick(invitation_tasks.expire_invitations)),
             Handler(jobs.REAP_STALE_RUNS, _each_tick(run_tasks.reap_stale_runs)),
@@ -83,10 +104,31 @@ def production() -> Handlers:
                 jobs.SWEEP_TEARDOWN_RESERVATIONS,
                 _each_tick(teardown_tasks.sweep_teardown_reservations),
             ),
+            Handler(jobs.SWEEP_RAG_SCRATCH, _each_tick(teardown_tasks.sweep_rag_scratch)),
             Handler(jobs.APPLY_RETENTION, _each_tick(rag_tasks.apply_retention)),
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
             Handler(jobs.REAP_VOICE_CALLS, _each_tick(voice_tasks.reap_voice_calls)),
+            Handler(jobs.WORKFLOW_DISPATCH_POLL, _each_tick(workflow_tasks.poll_due_dispatches)),
+            Handler(jobs.WORKFLOW_RECONCILE, _each_tick(workflow_tasks.reconcile)),
+            Handler(
+                jobs.WORKFLOW_SCHEDULES_CHECK, _each_tick(workflow_tasks.check_workflow_schedules)
+            ),
+            Handler(
+                jobs.WORKFLOW_TABLE_TRIGGERS, _each_tick(workflow_tasks.consume_table_triggers)
+            ),
+            Handler(jobs.WORKFLOW_LOG_ALERTS, _each_tick(workflow_tasks.check_workflow_log_alerts)),
+            Handler(
+                jobs.WORKFLOW_RUN_RETENTION,
+                _each_tick(workflow_tasks.sweep_workflow_run_retention),
+            ),
+            Handler(
+                jobs.SWEEP_GENERATED_MEDIA,
+                _each_tick(generated_media_tasks.sweep_generated_media),
+            ),
+            Handler(jobs.SEND_DIAGNOSTICS, diagnostics_tasks.send_diagnostics),
+            Handler(jobs.PROACTIVE_SWEEP, proactive_tasks.proactive_sweep),
+            Handler(jobs.WATCH_SWEEP, proactive_tasks.watch_sweep),
             Handler(jobs.WEEKLY_USAGE_REPORT, report_tasks.weekly_usage_report),
             Handler(jobs.MONTHLY_USAGE_REPORT, report_tasks.monthly_usage_report),
         ]
@@ -105,9 +147,18 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import rag_tasks
+    from app.worker.tasks import conversation_tasks, project_tasks, rag_tasks
 
     return {
+        jobs.RUN_CONVERSATION_TASK.kind: _settler(
+            jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
+        ),
+        jobs.RETURN_CONVERSATION_TASK.kind: _settler(
+            jobs.RETURN_CONVERSATION_TASK, conversation_tasks.settle_lost_return
+        ),
+        jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
+            jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies
+        ),
         jobs.INGEST_DOCUMENT.kind: _settler(jobs.INGEST_DOCUMENT, rag_tasks.settle_lost_ingest),
         jobs.SYNC_COLLECTION.kind: _settler(
             jobs.SYNC_COLLECTION, rag_tasks.settle_lost_collection_sync

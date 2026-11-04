@@ -3,7 +3,7 @@
 import { Building2, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { LoadingState } from "@/components/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   EntityAvatar,
   Select,
@@ -27,6 +27,13 @@ interface SharingPanelProps {
    * permission it is depends on the resource type.
    */
   canManage: boolean;
+  /**
+   * Whether the caller may give "including data", a page's level above edit: the
+   * server's answer for the page, so it is offered only to its owner or an Owner or Admin.
+   */
+  mayGrantEditData?: boolean;
+  /** A page's data has no owner consent that would let it be shared; see `useSharing`. */
+  onConsentRequired?: () => void;
 }
 
 /**
@@ -84,14 +91,46 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
  * generates the same endpoints per type, and a second copy of this panel would
  * drift from the first the day either one is fixed.
  */
-export function SharingPanel({ resourceType, resourceId, canManage }: SharingPanelProps) {
+export function SharingPanel({
+  resourceType,
+  resourceId,
+  canManage,
+  mayGrantEditData = false,
+  onConsentRequired,
+}: SharingPanelProps) {
   const t = useTranslations("sharing");
+  const ts = useTranslations("states");
   const activeOrgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const { members } = useMembers(activeOrgId);
   const { groups } = useGroups(activeOrgId);
-  const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
+  const { sharing, isLoading, share, revoke, setVisibility } = useSharing(
+    resourceType,
+    resourceId,
+    { onConsentRequired },
+  );
 
-  if (isLoading || !sharing) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading || !sharing)
+    return (
+      <div className="space-y-5" role="status" aria-label={ts("loading")}>
+        {canManage && <Skeleton className="h-10 w-full" />}
+        <section className="space-y-2" aria-hidden>
+          <Skeleton className="h-5 w-32" />
+          <ul className="divide-border divide-y rounded-xl border">
+            {[0, 1, 2].map((person) => (
+              <li key={person} className="flex items-center gap-3 px-3 py-2.5">
+                <Skeleton className="size-8 shrink-0 rounded-full" />
+                <Skeleton className="h-5 flex-1" />
+                <Skeleton className="h-5 w-16" />
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="space-y-2" aria-hidden>
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-12 w-full" />
+        </section>
+      </div>
+    );
 
   const shared = new Set(
     sharing.grants.map((grant) => grant.subject_user_id ?? grant.subject_group_id),
@@ -112,6 +151,8 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
     <div className="space-y-5">
       {canManage && (
         <AddShare
+          resourceType={resourceType}
+          mayGrantEditData={mayGrantEditData}
           members={memberCandidates}
           groups={groupCandidates}
           pending={share.isPending}
@@ -141,6 +182,11 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
             <GrantRow
               key={grant.id}
               grant={grant}
+              resourceType={resourceType}
+              mayGrantEditData={mayGrantEditData}
+              fullName={
+                members.find((member) => member.user_id === grant.subject_user_id)?.full_name
+              }
               groupIcon={groups.find((group) => group.id === grant.subject_group_id)?.icon ?? null}
               canManage={canManage}
               revoking={revoke.isPending}

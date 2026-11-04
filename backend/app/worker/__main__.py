@@ -19,6 +19,7 @@ import os
 import secrets
 import signal
 import socket
+from contextlib import AsyncExitStack
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -62,6 +63,10 @@ def executors_for(pools: list[Pool]) -> dict[Pool, Executor]:
             executors[pool] = InProcessExecutor(
                 handlers, concurrency=settings.WORKER_AGENT_CONCURRENCY
             )
+        elif pool is Pool.WORKFLOW:
+            executors[pool] = InProcessExecutor(
+                handlers, concurrency=settings.WORKER_WORKFLOW_CONCURRENCY
+            )
         else:
             executors[pool] = InProcessExecutor(
                 handlers, concurrency=settings.WORKER_SYSTEM_CONCURRENCY
@@ -70,7 +75,7 @@ def executors_for(pools: list[Pool]) -> dict[Pool, Executor]:
 
 
 async def serve(pools: list[Pool]) -> None:
-    from app.services import browse_plans, change_feed, live_browse
+    from app.services import browse_plans, change_feed, live_browse, live_turn
 
     claim_pooled_engines()
     # A fired routine publishes to an open Activity page, can be watched browsing
@@ -104,7 +109,17 @@ async def serve(pools: list[Pool]) -> None:
         loop.add_signal_handler(signum, stop.set)
     logger.info("background_worker_started", extra={"pools": [pool.value for pool in pools]})
     try:
-        await worker.run(stop)
+        async with AsyncExitStack() as services:
+            if any(pool is not Pool.INGEST for pool in pools):
+                await services.enter_async_context(live_turn.in_worker())
+                from app.main import app
+                from app.services.platform_mcp import serve_platform_mcp
+
+                # Agent toolsets use the process-local API transport. The worker
+                # does not enter the API lifespan, so it owns this server until
+                # every in-process run has drained.
+                await services.enter_async_context(serve_platform_mcp(app, app.state))
+            await worker.run(stop)
     finally:
         await close_db()
     logger.info("background_worker_stopped")

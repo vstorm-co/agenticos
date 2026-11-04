@@ -65,7 +65,7 @@ export function FileTextView({
   switch (kind) {
     case "markdown":
       return bare ? (
-        <div className="px-6 py-5">
+        <div className="px-4 py-4 sm:px-6 sm:py-5">
           <MarkdownContent content={text} />
         </div>
       ) : (
@@ -119,7 +119,7 @@ interface FileBytesViewProps {
    * What the server said these bytes are.
    *
    * The branch is on this and never on the name, because what may be *displayed* is
-   * the API's decision: a short allowlist of raster images plus PDF, and everything
+   * the API's decision: a short allowlist of raster images, PDF, audio and video, and everything
    * else typed `application/octet-stream` precisely so a browser cannot decide a
    * body is HTML after all. A second list of suffixes here would be a second answer
    * that drifts the first time either moves.

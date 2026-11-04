@@ -128,7 +128,7 @@ export function DashboardPresetMenu({
                   size="icon"
                   disabled={busy}
                   aria-label={t("presets.delete", { name: preset.name })}
-                  className="text-muted-foreground hover:text-destructive size-7 shrink-0 opacity-0 transition-opacity group-hover/preset:opacity-100 focus-visible:opacity-100"
+                  className="text-muted-foreground hover:text-destructive touch:min-h-11 touch:min-w-11 touch:opacity-100 size-7 shrink-0 opacity-0 transition-opacity group-hover/preset:opacity-100 focus-visible:opacity-100"
                   onClick={() => remove(preset)}
                 >
                   <Trash2 className="size-3.5" aria-hidden />

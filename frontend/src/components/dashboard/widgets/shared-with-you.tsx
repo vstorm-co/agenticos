@@ -2,11 +2,9 @@
 
 import { useTranslations } from "next-intl";
 
-import { Figure } from "@/components/ui";
-
 import { useSharedWithMeCounts } from "@/hooks";
 import { WidgetFrame } from "../widget-frame";
-import { Share2 } from "lucide-react";
+import { Bot, LibraryBig, Share2, Waypoints } from "lucide-react";
 
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -34,19 +32,28 @@ export function SharedWithYouWidget({ title, hint, seeAll, options }: DashboardW
           description={t("empty.description")}
         />
       ) : (
-        // From the top, as the figure beside it in its row is: centred, the three
-        // numbers sat halfway down the card while their neighbour's sat at its head.
-        <div className="grid flex-1 grid-cols-3 content-start gap-4">
+        <ul className="space-y-2">
           {(
             [
-              ["agents", counts.agents],
-              ["collections", counts.collections],
-              ["skills", counts.skills],
+              ["agents", counts.agents, Bot],
+              ["collections", counts.collections, LibraryBig],
+              ["skills", counts.skills, Waypoints],
             ] as const
-          ).map(([key, value]) => (
-            <Figure key={key} label={t(key)} value={value.toLocaleString()} />
+          ).map(([key, value, Icon]) => (
+            <li key={key} className="flex items-center gap-3 py-1.5">
+              <span
+                className="bg-foreground/[0.04] text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
+                aria-hidden
+              >
+                <Icon className="size-4" />
+              </span>
+              <span className="text-foreground min-w-0 flex-1 text-sm font-medium">{t(key)}</span>
+              <span className="text-muted-foreground text-sm tabular-nums">
+                {value.toLocaleString()}
+              </span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </WidgetFrame>
   );

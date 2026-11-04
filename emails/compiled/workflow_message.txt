@@ -1,0 +1,5 @@
+Subject: [[subject]]
+
+[[body]]
+
+- Sent by [[app_name]]

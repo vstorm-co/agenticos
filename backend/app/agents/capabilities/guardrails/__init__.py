@@ -11,6 +11,7 @@ from app.agents.capabilities.guardrails._capability import (
     build_guardrails,
     input_screen,
     output_screen,
+    tool_args_screen,
     transcript_screens,
 )
 
@@ -22,6 +23,7 @@ __all__ = [
     "build_guardrails",
     "input_screen",
     "output_screen",
+    "tool_args_screen",
     "transcript_screens",
 ]
 

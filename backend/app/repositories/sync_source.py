@@ -23,6 +23,7 @@ async def get_all(
     organization_id: UUID | None = None,
     collection_name: str | None = None,
     is_active: bool | None = None,
+    for_update: bool = False,
 ) -> list[SyncSource]:
     """List sync sources with optional org, collection, and active filters."""
     query = select(SyncSource)
@@ -33,7 +34,24 @@ async def get_all(
     if is_active is not None:
         query = query.where(SyncSource.is_active == is_active)
     query = query.order_by(SyncSource.created_at.desc())
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
+    return list(result.scalars().all())
+
+
+async def list_for_collections(db: AsyncSession, collection_names: list[str]) -> list[SyncSource]:
+    """Every organization's sync sources writing into any of these collections.
+
+    Unfiltered by organization on purpose: the caller decides which of them
+    feed a base it may read (`CollectionAccessService`), by the base each
+    source's sync resolves to.
+    """
+    if not collection_names:
+        return []
+    result = await db.execute(
+        select(SyncSource).where(SyncSource.collection_name.in_(collection_names))
+    )
     return list(result.scalars().all())
 
 

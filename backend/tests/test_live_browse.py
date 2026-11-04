@@ -35,14 +35,23 @@ class _PubSub:
         self.store = store
         self.channel = ""
         self.closed = False
+        self.channels: set[str] = set()
 
     async def subscribe(self, channel: str) -> None:
-        self.channel = channel
+        if not self.channel:
+            self.channel = channel
+        self.channels.add(channel)
 
     async def listen(self) -> AsyncIterator[dict[str, Any]]:
         yield {"type": "subscribe", "data": 1}
         for data in self.store.queued_messages:
-            yield {"type": "message", "data": data}
+            try:
+                picture = json.loads(data).get("image") is not None
+            except json.JSONDecodeError:
+                picture = False
+            channel = _key("pictures" if picture else "events")
+            if channel in self.channels:
+                yield {"type": "message", "data": data, "channel": channel}
 
     async def aclose(self) -> None:
         self.closed = True
@@ -98,6 +107,9 @@ class _Store:
     async def set(self, key: str, value: str, ex: int) -> None:
         assert ex == live_browse.TTL_SECONDS
         self.values[key] = value
+
+    async def pubsub_numsub(self, channel: str) -> list[tuple[str, int]]:
+        return [(channel, sum(not sub.closed and channel in sub.channels for sub in self.pubsubs))]
 
     def pipeline(self) -> _Pipe:
         return _Pipe(self)
@@ -236,7 +248,7 @@ class TestKeeping:
 
         assert BrowserEvent.model_validate_json(store.values[_key("frame")]).step == 2
         assert _key("trace") not in store.lists
-        assert [channel for channel, _ in store.published] == [_key("events")] * 2
+        assert [channel for channel, _ in store.published] == [_key("pictures")] * 2
 
     async def test_every_other_frame_is_appended_to_a_bounded_trace(
         self, store: _Store, monkeypatch: pytest.MonkeyPatch
@@ -293,6 +305,9 @@ class TestWatching:
         """A channel posts words and a link, never a screenshot."""
         store.queued_messages = [
             _frame().model_dump_json(),
+            BrowserEvent(
+                kind="browser_frame", call_id=CALL, step=0, url="https://example.test/"
+            ).model_dump_json(),
             "not json",
             _step(4).model_dump_json(),
         ]
@@ -694,3 +709,258 @@ class TestPlaces:
         clock[0] += 61
 
         assert await live_browse.claim_slot("k", "r1", limit=1, hold=60)
+
+
+async def test_trace_watchers_do_not_count_as_image_viewers(store: _Store) -> None:
+    assert not await live_browse.has_viewers(RUN, CALL)
+    async with live_browse._subscription(RUN, CALL):
+        assert not await live_browse.has_viewers(RUN, CALL)
+        async with live_browse._subscription(RUN, CALL, viewer=True):
+            assert await live_browse.has_viewers(RUN, CALL)
+        assert not await live_browse.has_viewers(RUN, CALL)
+
+
+async def test_metadata_keeps_the_latest_picture_for_late_viewers(store: _Store) -> None:
+    await live_browse.open_view(RUN, CALL, _meta())
+    await live_browse.publish(RUN, CALL, _frame())
+    await live_browse.publish(
+        RUN,
+        CALL,
+        BrowserEvent(
+            kind="browser_frame", call_id=CALL, step=2, url="https://example.test/new", title="New"
+        ),
+    )
+    _, _, raw = await live_browse._load(RUN, CALL)
+    assert raw is not None
+    frame = BrowserEvent.model_validate_json(raw)
+    assert frame.image == "data:,x"
+    assert frame.url == "https://example.test/new"
+    assert frame.title == "New"
+
+
+async def test_metadata_can_arrive_before_the_first_picture(store: _Store) -> None:
+    await live_browse.open_view(RUN, CALL, _meta())
+    await live_browse.publish(
+        RUN,
+        CALL,
+        BrowserEvent(kind="browser_frame", call_id=CALL, step=0, url="https://example.test/"),
+    )
+    _, _, raw = await live_browse._load(RUN, CALL)
+    assert raw is not None
+    assert BrowserEvent.model_validate_json(raw).image is None
+
+
+async def test_presence_failure_stops_optional_previews(
+    monkeypatch: pytest.MonkeyPatch, store: _Store, caplog: pytest.LogCaptureFixture
+) -> None:
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    monkeypatch.setattr(
+        store, "pubsub_numsub", AsyncMock(side_effect=RedisConnectionError("offline"))
+    )
+    assert not await live_browse.has_viewers(RUN, CALL)
+    assert "live_browse_presence_failed" in caplog.text
+
+
+async def test_presence_without_redis_has_no_viewers(no_redis: None) -> None:
+    assert not await live_browse.has_viewers(RUN, CALL)
+
+
+@pytest.mark.parametrize("member", [False, True])
+async def test_a_session_without_membership_or_run_access_cannot_watch(
+    monkeypatch: pytest.MonkeyPatch,
+    member: bool,
+) -> None:
+    @asynccontextmanager
+    async def db() -> AsyncIterator[MagicMock]:
+        yield MagicMock()
+
+    user = MagicMock(id=uuid.uuid4(), full_name="Ada", email="ada@example.com", is_app_admin=False)
+    monkeypatch.setattr(live_browse, "get_db_context", db)
+    monkeypatch.setattr(live_browse, "authenticate_socket_key", AsyncMock(return_value=None))
+    monkeypatch.setattr(live_browse, "authenticate_socket_token", AsyncMock(return_value=user))
+    monkeypatch.setattr(
+        live_browse.member_repo,
+        "get",
+        AsyncMock(return_value=MagicMock(role="member") if member else None),
+    )
+    monkeypatch.setattr(live_browse, "current_impersonator", lambda: None)
+    meta = _meta().model_copy(update={"agent_id": None, "user_id": None})
+    assert await live_browse.access_for(meta, "t") is None
+
+
+async def test_failed_presence_subscription_closes_its_event_connection(
+    monkeypatch: pytest.MonkeyPatch,
+    store: _Store,
+) -> None:
+    from redis.exceptions import ConnectionError as RedisConnectionError
+
+    subscription = _PubSub(store)
+    monkeypatch.setattr(
+        subscription, "subscribe", AsyncMock(side_effect=[None, RedisConnectionError("offline")])
+    )
+    monkeypatch.setattr(store, "pubsub", lambda **kwargs: subscription)
+    with pytest.raises(RedisConnectionError, match="offline"):
+        async with live_browse._subscription(RUN, CALL, viewer=True):
+            pytest.fail("The failed subscription must not open")
+    assert subscription.closed
+
+
+def _preview_packet(event: BrowserEvent) -> live_browse._PreviewPacket:
+    return live_browse._PreviewPacket(
+        event.model_dump_json(), event.image is not None, event.kind == "browser_finished"
+    )
+
+
+async def test_preview_delivery_keeps_the_newest_image_and_preserves_narration() -> None:
+    from collections.abc import AsyncGenerator
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_step(1))
+        for index in range(100):
+            yield _preview_packet(_frame(index))
+        yield _preview_packet(_step(2))
+
+    received: list[BrowserEvent] = []
+
+    async def deliver(raw: str) -> None:
+        received.append(BrowserEvent.model_validate_json(raw))
+
+    assert await live_browse._deliver_preview(source(), deliver)
+    assert [event.step for event in received if event.kind == "browser_step"] == [1, 2]
+    pictures = [event for event in received if event.image is not None]
+    assert len(pictures) == 1 and pictures[0].step == 99
+
+
+async def test_preview_delivery_disconnects_a_writer_that_stops_responding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from collections.abc import AsyncGenerator
+
+    monkeypatch.setattr(live_browse, "PREVIEW_SEND_TIMEOUT", 0.01)
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_frame())
+
+    async def deliver(raw: str) -> None:
+        await anyio.sleep_forever()
+
+    assert not await live_browse._deliver_preview(source(), deliver)
+
+
+async def test_preview_delivery_refuses_an_unbounded_narration_backlog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from collections.abc import AsyncGenerator
+
+    monkeypatch.setattr(live_browse, "PREVIEW_EVENT_LIMIT", 2)
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        for index in range(3):
+            yield _preview_packet(_step(index))
+
+    deliver = AsyncMock()
+    assert not await live_browse._deliver_preview(source(), deliver)
+
+
+async def test_an_empty_preview_subscription_ends_without_a_frame() -> None:
+    from collections.abc import AsyncGenerator
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        for event in ():
+            yield live_browse._PreviewPacket(str(event), False)
+
+    deliver = AsyncMock()
+    assert await live_browse._deliver_preview(source(), deliver)
+    deliver.assert_not_awaited()
+
+
+async def test_preview_delivery_keeps_painting_while_the_subscription_is_open() -> None:
+    from collections.abc import AsyncGenerator
+
+    first = anyio.Event()
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_frame(1))
+        await first.wait()
+        yield _preview_packet(_frame(2))
+
+    received: list[int] = []
+
+    async def deliver(raw: str) -> None:
+        received.append(BrowserEvent.model_validate_json(raw).step)
+        first.set()
+
+    assert await live_browse._deliver_preview(source(), deliver)
+    assert received == [1, 2]
+
+
+async def test_a_timed_out_preview_socket_is_closed_for_reconnection(
+    monkeypatch: pytest.MonkeyPatch,
+    store: _Store,
+) -> None:
+    class SlowSocket(_Socket):
+        async def send_text(self, text: str) -> None:
+            if json.loads(text).get("kind") == "browser_step":
+                await anyio.sleep_forever()
+            await super().send_text(text)
+
+    await live_browse.open_view(RUN, CALL, _meta())
+    store.queued_messages = [_step(1).model_dump_json()]
+    monkeypatch.setattr(live_browse, "access_for", _access(control=False))
+    monkeypatch.setattr(live_browse, "PREVIEW_SEND_TIMEOUT", 0.01)
+    socket = SlowSocket()
+    await live_browse.stream(socket, auth_token="token", run_id=RUN, call_id=CALL)
+    assert socket.closed is not None and socket.closed[0] == 1013
+    assert not await live_browse.has_viewers(RUN, CALL)
+
+
+async def test_a_stalled_initial_snapshot_does_not_keep_a_viewer_registered(
+    monkeypatch: pytest.MonkeyPatch,
+    store: _Store,
+) -> None:
+    class StalledSocket(_Socket):
+        async def send_text(self, text: str) -> None:
+            await anyio.sleep_forever()
+
+    await live_browse.open_view(RUN, CALL, _meta())
+    monkeypatch.setattr(live_browse, "access_for", _access(control=False))
+    monkeypatch.setattr(live_browse, "PREVIEW_SEND_TIMEOUT", 0.01)
+    socket = StalledSocket()
+    await live_browse.stream(socket, auth_token="token", run_id=RUN, call_id=CALL)
+    assert socket.closed is not None and socket.closed[0] == 1013
+    assert not await live_browse.has_viewers(RUN, CALL)
+
+
+async def test_conversation_checkpoints_expire_without_a_browser_or_cleanup_job(monkeypatch):
+    monkeypatch.setattr(live_browse, "_redis", None)
+    await live_browse.save_session("scope", "sealed")
+    assert await live_browse.load_session("scope") is None
+    redis = MagicMock(set=AsyncMock(), get=AsyncMock(return_value="sealed"))
+    monkeypatch.setattr(live_browse, "_redis", redis)
+    await live_browse.save_session("scope", "sealed")
+    redis.set.assert_awaited_once_with("browse:session:scope", "sealed", ttl=3600)
+    assert await live_browse.load_session("scope") == "sealed"
+
+
+async def test_the_final_image_reaches_a_viewer_before_the_finish_closes_its_socket() -> None:
+    from collections.abc import AsyncGenerator
+
+    async def source() -> AsyncGenerator[live_browse._PreviewPacket]:
+        yield _preview_packet(_step(1))
+        yield _preview_packet(_frame(1))
+        yield _preview_packet(
+            BrowserEvent(kind="browser_finished", call_id=CALL, step=1, outcome="done")
+        )
+
+    received: list[BrowserEvent] = []
+
+    async def deliver(raw: str) -> None:
+        received.append(BrowserEvent.model_validate_json(raw))
+
+    assert await live_browse._deliver_preview(source(), deliver)
+    assert [event.kind for event in received] == [
+        "browser_step",
+        "browser_frame",
+        "browser_finished",
+    ]

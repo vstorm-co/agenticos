@@ -19,8 +19,16 @@ interface InterruptedNoticeProps {
    * and has come back before the answer landed.
    */
   left?: boolean;
+  /**
+   * True when the turn ended and wrote no answer: the process running it died,
+   * and the stale-run sweep closed it. Nothing is coming, so the notice stops
+   * saying something is and offers to ask again.
+   */
+  lost?: boolean;
   /** Read the transcript again. The turn lands there, not on the socket. */
   onRecheck?: () => void;
+  /** Ask the unanswered question again. */
+  onAskAgain?: () => void;
 }
 
 /**
@@ -45,9 +53,24 @@ export function InterruptedNotice({
   interrupted,
   detached = false,
   left = false,
+  lost = false,
   onRecheck,
+  onAskAgain,
 }: InterruptedNoticeProps) {
   const t = useTranslations("chat");
+  if (lost) {
+    return (
+      <div className="mb-2 flex items-center gap-2 px-1 text-xs text-amber-600" role="status">
+        <Unplug className="h-3 w-3" aria-hidden />
+        <span>{t("turnLost")}</span>
+        {onAskAgain && (
+          <button type="button" onClick={onAskAgain} className="underline underline-offset-2">
+            {t("turnLostAskAgain")}
+          </button>
+        )}
+      </div>
+    );
+  }
   if (!interrupted && !detached && !left) return null;
 
   return (

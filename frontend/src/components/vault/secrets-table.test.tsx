@@ -36,7 +36,6 @@ function renderTable(secrets: Secret[]) {
     <SecretsTable
       secrets={secrets}
       purposes={PURPOSES}
-      canManage={false}
       onShare={noop}
       onRotate={noop}
       onDelete={noop}
@@ -61,9 +60,8 @@ describe("the keys", () => {
     const onRotate = vi.fn();
     render(
       <SecretsTable
-        secrets={[secret({ name: "Main OpenAI", purpose: "openai" })]}
+        secrets={[secret({ name: "Main OpenAI", purpose: "openai", can_edit: true })]}
         purposes={PURPOSES}
-        canManage
         onShare={noop}
         onRotate={onRotate}
         onDelete={noop}
@@ -79,12 +77,16 @@ describe("the keys", () => {
 describe("the rotate action", () => {
   it("is a reconnect for a ChatGPT sign-in, which is replaced by signing in again", async () => {
     const onRotate = vi.fn();
-    const chatgpt = secret({ name: "My ChatGPT", kind: "openai_codex", purpose: "openai_codex" });
+    const chatgpt = secret({
+      name: "My ChatGPT",
+      kind: "openai_codex",
+      purpose: "openai_codex",
+      can_edit: true,
+    });
     render(
       <SecretsTable
-        secrets={[chatgpt, secret({ name: "a-key" })]}
+        secrets={[chatgpt, secret({ name: "a-key", can_edit: true })]}
         purposes={PURPOSES}
-        canManage
         onShare={noop}
         onRotate={onRotate}
         onDelete={noop}
@@ -96,4 +98,27 @@ describe("the rotate action", () => {
 
     expect(onRotate).toHaveBeenCalledWith(chatgpt);
   });
+});
+
+it("shows actions only on individually editable keys while retaining read-only metadata", async () => {
+  const edit = secret({ name: "Granted key", can_edit: true });
+  const read = secret({ name: "Read-only key", can_edit: false });
+  const onShare = vi.fn(),
+    onDelete = vi.fn();
+  render(
+    <SecretsTable
+      secrets={[edit, read]}
+      purposes={PURPOSES}
+      onShare={onShare}
+      onRotate={noop}
+      onDelete={onDelete}
+    />,
+  );
+  expect(screen.getByText("Read-only key")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Rotate Read-only key" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Delete Read-only key" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Delete Granted key" }));
+  expect(onDelete).toHaveBeenCalledWith(edit);
+  await userEvent.click(screen.getByRole("button", { name: /access.*Granted key/i }));
+  expect(onShare).toHaveBeenCalledWith(edit);
 });

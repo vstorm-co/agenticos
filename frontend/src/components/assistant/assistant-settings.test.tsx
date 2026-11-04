@@ -25,6 +25,10 @@ vi.mock("@/stores", () => ({
   useOrgStore: (pick: (store: { activeOrgId: string | null }) => unknown) =>
     pick({ activeOrgId: state.orgId }),
 }));
+// The person's suggestions are tested on their own; here only that they are offered.
+vi.mock("./your-suggestions", () => ({
+  YourSuggestions: () => <section aria-label="Suggestions for you" />,
+}));
 
 function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
   return {
@@ -54,11 +58,16 @@ beforeEach(() => {
 afterEach(() => localStorage.clear());
 
 describe("Settings → Assistant", () => {
-  it("waits for the assistant before drawing anything", () => {
+  it("keeps the actual sections mounted while their controls wait for the assistant", () => {
     state.isLoading = true;
-    render(<AssistantSettings />);
-
-    expect(screen.queryByText("Your tips")).toBeNull();
+    const { container, rerender } = render(<AssistantSettings />);
+    const cards = Array.from(container.querySelectorAll(".shadow-card"));
+    expect(screen.getByRole("status", { name: /loading/i })).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    state.isLoading = false;
+    rerender(<AssistantSettings />);
+    expect(Array.from(container.querySelectorAll(".shadow-card"))).toEqual(cards);
+    expect(container.querySelector("[inert]")).toBeNull();
   });
 
   it("says why the assistant could not be read, and offers to try again", () => {
@@ -97,6 +106,11 @@ describe("Settings → Assistant", () => {
     render(<AssistantSettings />);
 
     expect(screen.queryByText("For the organization")).toBeNull();
+    // Watches are managed under Routines; this page only points there.
+    expect(screen.getByRole("link", { name: "Manage your watches in Routines" })).toHaveAttribute(
+      "href",
+      "/routines",
+    );
     fireEvent.click(screen.getByRole("switch", { name: "Show tips in speech bubbles" }));
     expect(JSON.parse(localStorage.getItem("assistant-bubbles")!)).toMatchObject({ off: true });
 
@@ -119,7 +133,7 @@ describe("Settings → Assistant", () => {
     );
     expect(screen.getByRole("link", { name: "Organization settings" })).toHaveAttribute(
       "href",
-      "/orgs/o1/members",
+      "/orgs/o1/members?tab=assistant",
     );
     // Kacper on #2062: the Architect is an agent like any other, so nothing of
     // the agent's is set from a person's own settings.

@@ -24,6 +24,7 @@ exclude: |
     backend/app/core/catalog/artifact_lib/.*\.min\.js|
     backend/app/core/catalog/artifact_lib/three-[^/]+/.*\.js|
     backend/app/core/catalog/artifact_lib/leaflet-[^/]+/.*|
+    backend/app/core/catalog/artifact_lib/world-atlas-[^/]+\.js|
     frontend/src/lib/mcp-logos\.generated\.ts|
     site/.*|
     backend/media/.*
@@ -91,7 +92,7 @@ repos:
         # publishers' names.
         exclude: |
           (?x)^(
-            frontend/messages/(pl|de)\.json|
+            frontend/messages/(pl|de|tr)\.json|
             backend/app/core/catalog/mcp_registry\.json|
             backend/app/core/catalog/mcp_checks\.json|
             docs/howto/translate\.md

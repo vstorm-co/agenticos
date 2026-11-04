@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores";
-import { readSession, useAdoptSession } from "@/hooks/use-auth";
+import { readSession, sessionUnavailable, stayOffline, useAdoptSession } from "@/hooks/use-auth";
 import { ROUTES } from "@/lib/constants";
 import { invitationTokenFrom, pendingLandingFor } from "@/lib/invitation-links";
 import { stageInvitation } from "@/lib/invitation-staging";
@@ -23,6 +23,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // the store, leaving the previous account's cache under the new one.
   const adoptSession = useAdoptSession();
   const [checking, setChecking] = useState(!isAuthenticated);
+  const [unavailable, setUnavailable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   // The invitation token whose staging failed, kept so the retry has it. The URL
   // still carries it too: the guard does not leave the link until the exchange has
   // succeeded, because the token is the only credential the invitee holds.
@@ -54,7 +56,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         const { access_token, ...user } = await readSession();
         adoptSession(user as User, access_token ?? null);
-      } catch {
+      } catch (error) {
+        // The apps opened without a network: the account they kept stays
+        // signed in, and reads its copy on the device (#2097). This check runs
+        // even then, because the first render is the hydration's, before the
+        // persisted account is read.
+        if (stayOffline(error)) return;
+        if (sessionUnavailable(error)) {
+          setUnavailable(true);
+          return;
+        }
         // Off `window.location`, not the navigation hooks: a hook here would
         // tie the verify effect to every navigation this guard sits above.
         const { pathname, search, hash } = window.location;
@@ -72,7 +83,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
 
     verify();
-  }, [isAuthenticated, router, adoptSession, stageAndGo]);
+  }, [isAuthenticated, router, adoptSession, stageAndGo, attempt]);
 
   const retryStaging = async (token: string) => {
     setChecking(true);
@@ -88,6 +99,26 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen items-center justify-center" role="status" aria-live="polite">
         <Spinner className="text-muted-foreground h-6 w-6" />
         <span className="sr-only">{t("checkingAuthentication")}</span>
+      </div>
+    );
+  }
+
+  if (unavailable && !isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <ErrorState
+          className="w-full max-w-md"
+          title={t("sessionUnavailable")}
+          description={t("sessionUnavailableHint")}
+          cta={{
+            label: t("retrySession"),
+            onClick: () => {
+              setUnavailable(false);
+              setChecking(true);
+              setAttempt((current) => current + 1);
+            },
+          }}
+        />
       </div>
     );
   }

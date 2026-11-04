@@ -21,7 +21,7 @@ export function MyQualityWidget({ title, hint, period, seeAll, options }: Dashbo
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="chart" />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : !ratings || ratings.total_ratings === 0 ? (

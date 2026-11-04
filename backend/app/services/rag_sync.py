@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.sync_log import SyncLog
 from app.repositories import sync_log_repo
+from app.repositories.sync_log import SyncLogScope
 from app.schemas.rag import RAGSyncLogItem, RAGSyncLogList
 from app.services.background_jobs import enqueue
 from app.worker.jobs import SYNC_COLLECTION, SyncCollection
@@ -48,17 +49,18 @@ class RAGSyncService:
     async def list_sync_logs(
         self,
         *,
-        collections: list[str],
+        scope: SyncLogScope,
         limit: int = 20,
     ) -> RAGSyncLogList:
         """Return up to `limit` sync log entries ordered newest-first.
 
-        `collections` is required and has no default: the caller has already
-        decided which collections it may report on, and "all of them" must not
-        be reachable by omission. The caller also chooses `limit` - no
-        server-side cap beyond `limit` is applied.
+        `scope` is required and has no default: the caller has already decided
+        which runs it may report on (`CollectionAccessService
+        .readable_sync_log_scope`), and "all of them" must not be reachable by
+        omission. The caller also chooses `limit` - no server-side cap beyond
+        `limit` is applied.
         """
-        logs = await sync_log_repo.get_all(self.db, collections=collections, limit=limit)
+        logs = await sync_log_repo.get_all(self.db, scope=scope, limit=limit)
         return RAGSyncLogList(items=[_as_item(log) for log in logs], total=len(logs))
 
     async def get_sync_log(self, sync_id: str) -> SyncLog:

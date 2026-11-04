@@ -25,7 +25,10 @@ export function CopyButton({ text, className, size = "sm" }: CopyButtonProps) {
     <Button
       variant="ghost"
       size={size}
-      className={cn("h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100", className)}
+      className={cn(
+        "touch:opacity-100 h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
+        className,
+      )}
       onClick={handleCopy}
       title={copied ? t("copied") : t("copy")}
       aria-label={copied ? t("copiedToClipboard") : t("copyToClipboard")}

@@ -1,12 +1,19 @@
 """What a reconnect hands the new session: text, never audio (#54, amendment 9)."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from pydantic_ai import Agent
 from pydantic_ai.messages import ModelRequest, ModelResponse
+from pydantic_ai.models.instrumented import InstrumentationSettings
 
+from app.services.message_history import REFUSED_TURN
 from app.services.voice.seed import RECENT_TURNS_KEPT, seed_history
 
 pytestmark = pytest.mark.anyio
@@ -18,6 +25,7 @@ def _rows(n: int, size: int = 20):
             role="user" if i % 2 == 0 else "assistant",
             content=f"turn {i} " + "x" * size,
             context_used_tokens=None,
+            guardrail_refused=False,
         )
         for i in range(n)
     ]
@@ -45,13 +53,79 @@ async def test_the_summary_is_written_by_the_chat_model_and_booked_on_the_run():
     ledger = SpendLedger()
     prepared = SimpleNamespace(
         built=SimpleNamespace(
-            agent=SimpleNamespace(model=TestModel(custom_output_text="A summary.")),
+            agent=Agent(TestModel(custom_output_text="A summary.")),
             budget=BudgetGuard(ledger=ledger, limits=[]),
             ledger=ledger,
         )
     )
     assert await summariser(prepared)("user: hello") == "A summary."
     assert len(ledger.entries) == 1
+
+
+@pytest.mark.security
+async def test_a_turn_the_guardrail_refused_is_not_seeded():
+    """#2578: a call continues the typed thread, and a refused prompt read back
+    verbatim would reach the realtime model the input edge kept it from."""
+    rows = [
+        SimpleNamespace(
+            role="user", content="SECRETWORD", context_used_tokens=None, guardrail_refused=True
+        ),
+        SimpleNamespace(
+            role="user", content="hello", context_used_tokens=None, guardrail_refused=False
+        ),
+    ]
+    with (
+        patch(
+            "app.services.voice.seed.conversation_repo.get_recent_messages",
+            AsyncMock(return_value=rows),
+        ),
+    ):
+        seeded = await seed_history(
+            MagicMock(), conversation_id=uuid4(), context_window=32_000, summarise=AsyncMock()
+        )
+    assert [part.content for message in seeded for part in message.parts] == [
+        REFUSED_TURN,
+        "hello",
+    ]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("include_content", [False, True])
+async def test_voice_summary_inherits_content_policy_and_trace_destination(
+    monkeypatch: pytest.MonkeyPatch, include_content: bool
+) -> None:
+    from pydantic_ai.models.test import TestModel
+
+    from app.agents.capabilities.budget import BudgetGuard, SpendLedger
+    from app.services.voice.seed import summariser
+
+    exporters = [InMemorySpanExporter(), InMemorySpanExporter()]
+    providers = [TracerProvider(), TracerProvider()]
+    for provider, exporter in zip(providers, exporters, strict=True):
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(
+        Agent,
+        "_instrument_default",
+        InstrumentationSettings(tracer_provider=providers[0], include_content=True),
+    )
+    host = Agent(TestModel(custom_output_text="A summary."))
+    host.instrument = InstrumentationSettings(
+        tracer_provider=providers[1], include_content=include_content
+    )
+    ledger = SpendLedger()
+    prepared = SimpleNamespace(
+        built=SimpleNamespace(agent=host, budget=BudgetGuard(ledger=ledger), ledger=ledger)
+    )
+    try:
+        assert await summariser(prepared)("synthetic confidential voice transcript") == "A summary."
+        assert exporters[0].get_finished_spans() == ()
+        spans = exporters[1].get_finished_spans()
+        assert spans
+        recorded = json.dumps([dict(span.attributes or {}) for span in spans], default=str)
+        assert ("synthetic confidential voice transcript" in recorded) is include_content
+    finally:
+        for provider in providers:
+            provider.shutdown()
 
 
 @pytest.mark.security

@@ -1,5 +1,5 @@
 ---
-source_sha: "d22e9f561f9c"
+source_sha: "0c286820f30e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -59,6 +59,40 @@ niczego do konfigurowania.
     ([#861](https://github.com/vstorm-co/agenticos/issues/861)) — self-hosting
     i wklejenie URL-a z `localhost` to przypadek zwyczajny, nie egzotyczny.
 
+    Operator może pozwolić połączeniu sięgać do serwera we własnej sieci
+    wdrożenia, na przykład do usługi compose albo serwera w VPN-ie lub
+    tailnecie. W tym celu wpisuje jego host do
+    [`OUTBOUND_PRIVATE_ALLOWLIST`](configuration.md#project-settings): dokładny
+    host, sufiks z kropką na początku, taki jak `.corp.example` (który nie
+    pasuje do samego `corp.example`), adres IP albo zakres CIDR, taki jak
+    `10.1.2.0/24`. To ustawienie obejmuje też kroki HTTP workflow, konektory i A2A.
+    `MCP_ALLOWED_HOSTS` przyjmuje te same formy, ale sięga tylko do MCP, więc
+    użyj go, gdy nic innego nie ma sięgać do hosta. Host z listy może rozwiązywać się na adres
+    prywatny, ale odpowiedzi loopback, link-local i metadanych są odrzucane, a nazwę
+    z listy, która jeszcze się nie rozwiązuje, nadal można zapisać. URL nadal musi
+    mieć `http` albo `https`.
+
+    Do serwera z listy można też logować się przez OAuth. Taki serwer często
+    sam prowadzi logowanie, więc jego wykrywanie, rejestracja klienta i
+    żądania tokenów mogą sięgać do hostów z listy, i do żadnego innego adresu
+    prywatnego. Każde żądanie nadal jest przypięte do adresu, który sprawdzono,
+    a nazwa z listy, która odpowiada adresem loopback, link-local albo adresem
+    metadanych chmury, jest odrzucana. Lista obowiązuje tylko łańcuch, który
+    zaczyna się od hosta z listy: logowanie do serwera publicznego nigdy nie
+    sięga do hosta z listy, nawet gdy jego metadane go wskazują.
+
+    Każde konto we wdrożeniu może wtedy sięgnąć do każdego portu tego hosta.
+    Wpisuj więc tylko serwer, który sprawdza token, i nigdy `localhost` ani
+    usługi tego stacku, takiej jak `app`, `db` czy `redis`. Lista jest czytana
+    przy zapisie połączenia oraz przy każdym logowaniu i odświeżeniu tokenu.
+    Usunięcie hosta nie rozłącza zapisanego połączenia, ale połączenie OAuth
+    do niego przestaje odnawiać token.
+
+    Serwera, który mówi wyłącznie przez stdio, nie da się połączyć, bo
+    połączenie to URL. Uruchom w sieci prywatnej most ze stdio na Streamable
+    HTTP, wpisz host mostu na listę i połącz się z nim. Most musi sam sprawdzać
+    token, bo każde konto może do niego sięgnąć.
+
 ### Osobiste albo dla całej organizacji { #personal-or-organization-wide }
 
 Dwa rodzaje, i o tę różnicę właśnie chodzi. Okno połączenia pyta o to jednym
@@ -102,6 +136,9 @@ rozmawia z agentem, dostarcza do niej własne połączenie.
 GET  /api/v1/me/mcp-connections     personal
 GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
                                     narrowed to groups only for them
+GET  /api/v1/workflows/{id}/mcp-connections   the servers a step of this workflow may
+                                    bind - for whoever may edit it (role or grant); name,
+                                    tools, no URL or credential
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
 GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
                                             grant routes as an agent's
@@ -175,7 +212,9 @@ Własny szablon Architekta prosi
 o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
 imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
 `writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora.
+pyta, również administratora. Dwa odczyty czekają jak zmiany: `read_conversation`
+udostępnia całą wcześniejszą rozmowę, a `get_project` instrukcje wybranego projektu.
+Przeczytana strona nie może po cichu wywołać żadnego z tych ujawnień.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -377,7 +416,13 @@ Zostają dwa brzegi, oba wąskie i oba celowe:
   rozwiązuje go sama. Nie ma tu czego przypinać.
 - **Własny URL połączenia** jest sprawdzany przy zapisie i rozwiązywany ponownie,
   gdy agent działa — wpisuje go operator, więc przestawienie go wymaga bycia
-  operatorem.
+  operatorem. Host z listy (`OUTBOUND_PRIVATE_ALLOWLIST` albo
+  `MCP_ALLOWED_HOSTS`) też jest rozwiązywany, a każda odpowiedź sprawdzana:
+  odpowiedź prywatna przechodzi tylko dla hosta, który lista dopuszcza, odpowiedź
+  loopback lub metadanych nigdy, a host wpisany po nazwie, który jeszcze się nie
+  rozwiązuje, nadal można zapisać. Żądania OAuth połączenia, którego własny host
+  jest na liście, mogą sięgać do hostów z listy, przypięte jak każdy inny
+  krok.
 
 Nic, co wybiera *model*, w ogóle nie dociera do tego sprawdzenia — i nie powinno:
 URL wybrany przez agenta należy do `safe_download` z Pydantic AI.
@@ -473,8 +518,10 @@ wyląduje nowa zgoda.
 
 ## Co dzieje się w turze { #what-happens-on-a-turn }
 
-Każdy serwer jest odpytywany krótkim obiegiem `tools/list` — 3 sekundy — zanim
-tura się zacznie, a odpytania biegną równolegle. Serwer, który odpowiedział na
+Każdy serwer jest odpytywany krótką wymianą `tools/list`, zanim tura się zacznie,
+a odpytania biegną równolegle. Serwer ma 3 sekundy na przyjęcie połączenia i 10
+sekund na całą wymianę, bo serwer, który sprawdza token każdego żądania u swojego
+dostawcy tożsamości, bywa wolny, choć działa. Serwer, który odpowiedział na
 odpytanie w ciągu ostatnich dwóch minut, z tym samym poświadczeniem, nie jest
 odpytywany ponownie: kolejna tura rozmowy dołącza go od razu. Jeśli w międzyczasie
 przestał odpowiadać, ta tura idzie dalej bez jego narzędzi, a następna odpytuje go
@@ -657,6 +704,28 @@ wyszukiwanie, a nie wyliczanka:
   50 — więc arytmetyka mieszka w `mcp_listing.page`, z testem na tej granicy, bo
   pomyłka o jeden pomija tam serwer albo pokazuje go dwa razy na liście, na
   której nikt by nie zauważył którego.
+
+  **Podłączony (Connected)** obejmuje każdy dostępny serwis z zapisanym kontem
+  organizacji lub osobistym, w tym własne serwery oraz wpisy katalogu lub rejestru
+  na innych stronach. Wiele kont mieści się na jednej karcie serwera. Konta
+  wyłączone i wymagające uwagi pozostają widoczne, aby można było nimi zarządzać.
+  Filtry wyszukiwania, kategorii, logowania i stanu połączenia działają przed
+  zliczaniem i stronicowaniem wyników.
+
+  Zapisane linki do serwerów ponownie otwierają okno kont, nawet gdy nieudany test
+  rejestru lub duplikat ukrywa serwer w widoku **Wszystkie (All)**. Porównywanie URL
+  zachowuje wielkość liter w ścieżkach i wartościach parametrów zapytania, dzięki
+  czemu różne punkty końcowe pozostają osobne. Ponowna autoryzacja konta korzysta
+  z adresu URL zapisanego dla tego konta.
+
+  W Connected i rejestrze dokładny klucz serwera ma pierwszeństwo przed powiązanymi wynikami,
+  więc zapisany link działa także wtedy, gdy inne opisy zawierają ten sam klucz. Wpisy
+  rejestru o identycznych nazwach zachowują stałą kolejność między stronami.
+
+  Gdy synchronizacja usunie wpis rejestru, zapisany klucz katalogu nadal otwiera istniejące
+  konta. Powrót z logowania w popupie odświeża zarówno strony listy, jak i zapisane zakładki
+  kont.
+
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,
   po których rozpoznaje się każdą kategorię; wpis, który nie wymienia żadnego z
@@ -798,8 +867,8 @@ dostawca wydaje endpoint osobno dla każdego konta.
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
 | Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
-| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
-| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
+| Google Workspace (self-hosted) | oauth | self-hosted |
+| Microsoft 365 (self-hosted) | oauth | self-hosted |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -879,10 +948,6 @@ dostawca wydaje endpoint osobno dla każdego konta.
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
-| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
-| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
-| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
-| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Wszystko inne { #anything-else }
 
@@ -909,17 +974,48 @@ Aby dodać wpis do listy, zobacz
 
 ### Microsoft 365 i Outlook { #microsoft-365-and-outlook }
 
-Microsoft publikuje własne serwery MCP dla Microsoft 365, a katalog je wymienia:
-**Work IQ** - jeden endpoint do poczty, spotkań, czatów i plików - oraz osobne
-serwery Mail, Calendar, Teams, SharePoint, OneDrive i Word. Każdy wymaga licencji
-Microsoft 365 Copilot i aplikacji zarejestrowanej w Microsoft Entra: dodaj
-uprawnienie Work IQ danego serwera (dla poczty `WorkIQ-MailServer`) oraz
-przekierowujący URL tej konsoli, który pokazuje okno połączenia, a przy łączeniu
-wpisz client ID aplikacji.
+Do Microsoft 365 prowadzą dwa wpisy katalogu i robią co innego.
 
-Entra nie rejestruje klienta na miejscu, więc client ID
-nie jest opcjonalny. Microsoft oznacza serwery per aplikacja jako utrzymywane dla
-zgodności i kieruje nowe projekty do Work IQ.
+**Microsoft 365 (self-hosted)** to
+[`softeria/ms-365-mcp-server`](https://github.com/softeria/ms-365-mcp-server),
+serwer, który uruchamiasz z `--http` i z aplikacją zarejestrowaną w Microsoft
+Entra. Przeszukuje i czyta pocztę Outlooka, tworzy szkice odpowiedzi w wątku,
+wysyła je i zarządza wydarzeniami w kalendarzu. Dodaj `--org-mode`, by sięgnąć do
+skrzynek współdzielonych i Teams. Wpisz jego adres, kończący się na `/mcp`; każde
+połączenie loguje się jako jedno konto Microsoft. Host w Twojej własnej sieci
+wymaga `OUTBOUND_PRIVATE_ALLOWLIST` albo `MCP_ALLOWED_HOSTS`, jak wyżej. To wpis,
+którego workflow używa do odpowiadania na pocztę: zobacz [odpowiedz na pocztę
+zatwierdzonym szkicem](howto/answer-mail-with-approved-draft.md).
+
+**Microsoft Work IQ** to hostowany serwer samego Microsoftu, do pytania o pocztę,
+spotkania, czaty i pliki jednym wywołaniem. Różni się tym, na co pozwala:
+
+- Blokuje zmiany - tworzenie, aktualizację, wysyłanie - dopóki administrator
+  tenanta nie dopuści ich polityką.
+- Jest rozliczany w Copilot Credits i domyślnie zwraca 25 wyników.
+- Loguje wyłącznie przez Microsoft Entra, jako osoba, która się łączy: zarejestruj
+  aplikację z uprawnieniem Work IQ i
+  przekierowującym URL tej konsoli, który pokazuje okno połączenia, a przy
+  łączeniu wpisz jej client ID. Entra nie rejestruje klienta na miejscu, więc
+  client ID nie jest opcjonalny.
+
+Serwerów Work IQ per aplikacja - Mail, Calendar, Teams, SharePoint, OneDrive i
+Word - nie ma już w katalogu, bo Microsoft utrzymuje je tylko dla zgodności.
+Połączenie już utworzone z jednym z nich działa dalej, po swoim adresie. Agent,
+który podpina taki serwer jako własną usługę każdej osoby, zostanie odrzucony przy
+następnej publikacji: podepnij zamiast niego **Microsoft 365 (self-hosted)** albo
+**Microsoft Work IQ**.
+
+### Gmail i Google Workspace { #gmail-and-google-workspace }
+
+**Google Workspace (self-hosted)** to
+[`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
+uruchamiany z `--transport streamable-http` i `MCP_ENABLE_OAUTH21=true`, z Twoim
+własnym klientem Google OAuth. Przeszukuje i czyta Gmaila, tworzy szkice i wysyła
+pocztę w wątku oraz obsługuje Calendar, Drive i Sheets. Wpisz jego adres,
+kończący się na `/mcp`; każde połączenie loguje się jako jedno konto Google. [Odpowiedz
+na pocztę zatwierdzonym szkicem](howto/answer-mail-with-approved-draft.md) pokazuje,
+jak odpowiada na pocztę z workflow.
 
 Outlook jest też dostępny przez zewnętrzne usługi MCP. Dołączony rejestr zawiera
 wpisy MintMCP dla poczty i kalendarza:
@@ -977,25 +1073,69 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | Narzędzie | Wymaga |
 |---|---|
 | `whoami` | — |
-| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
-| `create_agent_draft` | `agents:edit` |
+| `list_agents`, `get_agent`, `list_capabilities`, `list_models`, `search_mcp_servers` | `agents:view` |
+| `create_agent_draft`, `update_agent_draft`, `test_agent_draft` | `agents:edit` |
+| `list_sandbox_connections`, `list_sandbox_runtimes`, `get_sandbox_policy` | `connections:view` |
+| `list_org_connections` | `mcp:manage` |
+| `publish_agent` | `agents:publish` na tym agencie |
 | `discard_agent_draft` | `agents:edit`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
-| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_routines` | `agents:view` |
+| `create_routine`, `run_routine_now` | `agents:run` na agencie |
+| `update_routine`, `delete_routine` | twórca rutyny albo `agents:edit` na jej agencie |
+| `list_runs`, `get_run`, `read_conversation`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
 | `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
+| `create_skill` | `skills:edit` |
+| `list_projects` | `projects:view` |
+| `get_project` | dostęp do projektu |
+| `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
+| `list_my_connections`, `set_my_language`, `set_my_profile` | — (własne wywołującego) |
 
-Celowo nie ma tu publikowania agenta, dotykania poświadczeń ani usuwania
-czegokolwiek poza draftem agenta, który wywołujący sam utworzył i nigdy nie
-opublikował - to cofnięcie draftu utworzonego przez pomyłkę. Draft utworzony
-tutaj publikuje osoba w konsoli. Podłączone aplikacje są
+Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
+pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
+przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
+jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
+trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.
+
+Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
+wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,
+liczony do budżetu i zapisywany, odrzucany z podaniem powodu, gdy draft by się nie
+opublikował - i opublikować przez `publish_agent`, które wykonuje te same
+sprawdzenia co przycisk **Publish** w konsoli. `cron_expression` rutyny jest
+liczony w UTC. `set_my_language` przełącza język konsoli wywołującego (`en`, `pl`
+albo `de`) na każdym urządzeniu, na którym się loguje, a `set_my_profile`
+zapisuje jego rolę i to, czym się zajmuje, co od tej pory słyszy każdy agent.
+`create_skill` zapisuje procedurę, która zadziałała, jako [skill](skills.md) - na
+„zrób z tego skill”.
+
+Celowo nie ma tu dotykania poświadczeń ani usuwania czegokolwiek poza draftem
+agenta, który wywołujący sam utworzył i nigdy nie opublikował - to cofnięcie
+draftu utworzonego przez pomyłkę - albo rutyną. Podłączone aplikacje są
 widoczne w **Ustawienia → Klienci MCP**, gdzie odłączenie kończy ich dostęp razem
 z każdym tokenem. Wywołania, które coś
 zmieniają, czekają na zatwierdzenie, jak wyjaśnia [sekcja wyżej](#which-calls-wait-for-a-person).
+
+Narzędzia draftów przyjmują skonfigurowane wiązania możliwości oraz same identyfikatory.
+Na przykład `capabilities: [{id: sandbox, config: {backend: service,
+include_execute: true}}]` daje agentowi programistycznemu powłokę na domyślnym
+hoście sandboxa organizacji. `list_capabilities` zwraca `config_schema`;
+`list_sandbox_connections`, `list_sandbox_runtimes` i `get_sandbox_policy`
+pozwalają sprawdzić hosty, aliasy runtime’ów i ograniczenia przed wyborem ustawień.
+Sandbox tylko na pliki (`state`) nie wykonuje poleceń.
+
+`update_agent_draft.add_capabilities` dodaje lub aktualizuje wiązania: pominięte
+pola zachowują wartości, a podany `config` zastępuje całą konfigurację. Najpierw
+odczytaj draft, żeby zachować potrzebne ustawienia. Oba narzędzia przyjmują
+`mcp_servers`: identyfikatory połączeń organizacji z `list_org_connections` albo
+osobiste klucze katalogowe z `search_mcp_servers`. Identyfikator osobistego
+połączenia nie należy do współdzielonej specyfikacji. Lista wiązań MCP jest
+zastępowana w całości; `[]` odłącza wszystkie. Tworzenie przyjmuje też `skill_ids`
+i `collection_ids`. Testowanie i publikowanie zachowują te same zasady walidacji i akceptacji.
 
 ### Udostępnienie go agentowi { #giving-it-to-an-agent }
 
@@ -1011,14 +1151,27 @@ nazwana jak to wdrożenie; jej włączenie wiąże go jako
   stoi - publiczny widget, harmonogram działający w niczyim imieniu - bindingu nie
   ma.
 - **Zmiany czekają na zatwierdzenie.** Domyślne `writes` wstrzymuje każde
-  narzędzie, które coś zmienia (`create_agent_draft`, `run_agent`, `invite_member`
-  i pozostałe), do zgody osoby; `all` wstrzymuje też odczyt. `none` nie jest
-  oferowane: te narzędzia działają z uprawnieniami człowieka.
+  narzędzie, które coś zmienia (`create_agent_draft`, `publish_agent`,
+  `create_routine`, `run_agent`, `invite_member` i pozostałe), do zgody osoby;
+  `all` wstrzymuje też odczyt. `none` nie jest oferowane: te narzędzia działają z
+  uprawnieniami człowieka. Jedyny zapis, który nigdy nie czeka, to
+  `set_my_language`: zmienia język konsoli pytającego, na jego słowo, a karta
+  zatwierdzenia dla „przełącz na angielski” byłaby całą rozmową.
+  `set_my_profile` czeka jak pozostałe, bo to, co zapisuje, słyszy każdy agent,
+  którego ta osoba uruchamia, a strona przeczytana przez agenta nie może tego
+  zapisać niezauważenie.
 - **Narzędzia można zawęzić** w ustawieniach karty, które pokazują każde narzędzie
   i oznaczają te, które coś zmieniają.
 
-Szablon **Claude Code like** wiąże go właśnie tak, więc świeży agent z niego od razu
-sięga do platformy.
+Szablon **AgenticOS** wiąże go właśnie tak, podobnie jak każdy agent tworzony od
+zera, więc agent od razu sięga do platformy - i ustawia rutynę albo przełącza język
+konsoli, gdy się go o to poprosi.
+
+### Desktop, mobile i lokalne środowiska { #desktop-mobile-and-local-environments }
+
+Serwer MCP wyjaśnia te same rozróżnienia co instrukcje agentów: Desktop może korzystać z zatwierdzonego folderu, przeglądarki, modelu lub usługi HTTP MCP wybranych dla rozmowy. Mobile nie udostępnia wykonania desktopowego. Nadal potrzebna jest natywna zgoda; MCP nie wybiera folderu ani nie nadaje dostępu za użytkownika.
+
+`create_project` przyjmuje `backend` (`auto`, `state`, `service`) i opcjonalne `sandbox_connection_id` wspólnego środowiska serwerowego. Zwrócony backend nie opisuje osobistego wyboru Komputer. Lokalne foldery i wspólne kopie pozostają osobne, a odpowiedzi we wspólnym czacie mogą ujawniać lokalną treść. Przewodnik Architecta zawiera strony Desktop, Mobile i Sandbox; każde uruchomienie otrzymuje opis faktycznie wybranych lokalnych zasobów po ich walidacji.
 
 ## Czego MCP ci nie daje { #what-mcp-does-not-get-you }
 
@@ -1044,3 +1197,22 @@ sięga do platformy.
   żadnego, a usunięcie połączenia wyrejestrowuje to, co ono zarejestrowało.
 - Nieosiągalny serwer zostaje **pominięty**, a nie podnosi wyjątku — tura
   odpowiada bez tych narzędzi.
+
+Każda zaplanowana kontrola obejmuje najwyżej 64 aktywne serwery organizacji, zaczynając od najdawniej sprawdzanych, i wykonuje najwyżej osiem prób równocześnie. Nieużyteczne poświadczenia również aktualizują czas kontroli, bez zgłaszania awarii. Większe instalacje sprawdzają więc wszystkie serwery w kolejnych cyklach.
+
+Odświeżenie OAuth ma osobną krótką transakcję: blokuje i ponownie sprawdza konto, wymienia poświadczenie i zatwierdza zapis przed zwróceniem tokena. Anulowanie czeka na zakończenie tej operacji; późniejszy rollback uruchomienia jej nie cofa. Błąd zapisu po wymianie u dostawcy jawnie przerywa żądanie i może wymagać ponownej autoryzacji konta. Polling skrzynek używa osobnej blokady doradczej konta; pozycja odczytu i zlecone zadania zatwierdzają się razem, a nieprawidłowa odpowiedź wycofuje tylko pracę tej skrzynki.
+
+Kolejka kontroli stanu korzysta z osobnego, indeksowanego znacznika czasu. Odświeżenie OAuth ani polling skrzynki nie przesuwają kolejnej kontroli serwera. Po migracji istniejące serwery trafiają do kolejki jako jeszcze niesprawdzone.
+
+## Budowanie workflows i tabel { #workflow-and-table-tools }
+
+Serwer platformy MCP udostępnia też narzędzia workflows i Virtual Tables. Zacznij od `list_workflow_definitions`, `get_workflow_definition`, `list_workflow_nodes` i `get_workflow_node`. Twórz i zapisuj prywatne grafy przez `create_workflow_draft` i `update_workflow_draft`, zachowując `expected_revision`. `test_workflow_draft` przyjmuje opcjonalne `entry_node_id`; przed ogłoszeniem sukcesu sprawdź `get_workflow_execution` i `get_workflow_execution_steps`. Test może wywołać prawdziwe API i zapisać dane. `publish_workflow` aktywuje skonfigurowane wejścia, wymaga dotychczasowych uprawnień publikacji i ukrywa przed modelem jednorazowe sekrety podpisu. Publikacja zachowująca uprawnienia człowieka nadal wymaga jego sesji; klucz API nie może ich przejąć.
+
+Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
+
+
+Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Istniejące capabilities pozostają edytowalne ze swoimi grantami; nie są automatycznie zamieniane na szerszy dostęp MCP.
+
+Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala zaakceptować tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
+
+Dla istniejącego Architekta z własnymi zmianami uruchom `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.

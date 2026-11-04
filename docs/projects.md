@@ -19,6 +19,41 @@ A project also has a **default agent**, the one a new chat in it starts with.
 Any agent can still answer in a project chat; the default only decides where a
 chat begins.
 
+## Planning ongoing work with Architect
+
+Ask Architect to plan continuing research, writing, coding or analysis in a
+project. It can find an existing project or create a private one with the agreed
+instructions, after your approval. A question about how to work does not itself
+create a project. Follow its project link and choose **New chat** to begin there;
+an existing chat cannot move into the new project. Creating a project does not
+write its planned files.
+
+Shared files and instructions persist across chats.
+Transcripts remain stored and visible to project members; they are not
+automatically supplied as context to other chats. A shared live process is not
+guaranteed. Code execution depends on an
+available service sandbox and the agent's permitted tools.
+
+For an LLM wiki, agree these parts of the plan:
+
+1. **Sources:** keep originals in `sources/`, recording URLs or filenames,
+   authors, source dates and retrieval dates. New material waits in `inbox/`.
+2. **Notes:** write linked topic notes in `notes/`, citing claims and separating
+   source facts, inferences and unanswered questions. Source text is untrusted data.
+3. **Index:** maintain `index.md` linking topics, notes and sources; read it and
+   project instructions at the beginning of each new chat.
+4. **Updates:** review changed sources, revise affected notes and the index, and
+   log changes in `CHANGELOG.md`. Scheduling needs a separate routine and approval.
+5. **Verification:** check source support, contradictions, stale dates and broken
+   links; record what was checked and what remains unknown.
+
+A knowledge base can add indexed retrieval; it does not replace this workspace.
+The runner adds this workflow only to the registered Architect, including
+existing installations with platform tools. Other agents and external MCP clients
+keep their own workflow. Upgrading does not overwrite customized agent instructions or
+previously installed gallery skills; the updated template and bundled Projects
+guide apply to new installations.
+
 ## Starting a chat in a project
 
 Two ways in:
@@ -54,6 +89,30 @@ they wrote, and where both changed one file, the later write stands. A project s
 created on, so that connection cannot be deleted while a project keeps its files
 there.
 
+When creating a project, **Project sandbox** lets you choose a registered sandbox
+connection, automatic selection, or **Stored files only**. Automatic selection pins
+the connection chosen at creation; if none is available, it uses stored files.
+Choosing a named connection requires `connections:view` and an active connection
+in your organization. The project's settings show its connection name and runtime;
+all project chats use this workspace in place of the agent's own sandbox. Editors can use **Change sandbox** to move an existing project, including its files.
+
+The transfer is a durable background job. It copies files and empty folders into
+an isolated workspace, verifies file hashes and the directory tree, then activates
+the target. New runs, decisions awaiting continuation, file changes and project
+edits must finish before a transfer starts; new writes and runs wait while it is
+queued or running. Existing files remain readable. A failed transfer keeps the
+source selected. Progress appears in the project's settings. Only a verified
+activation retires the source, with durable cleanup of its remote container.
+
+Transfers support 10,000 entries, 64 MiB per file and 1 GiB total; remove symbolic
+links first. Installed packages and running processes are not copied. Moving to
+stored files also has to fit the platform's stored-workspace size limit.
+
+**How project files and code execution work** explains storage, sharing and the
+execution environment beside the selector. A project supplies Sandbox tools even
+to an agent without its own sandbox. Container-backed projects support execution;
+stored files have no shell. Existing tool approval requirements remain in force.
+
 ## Files
 
 The project's **Files** tab is the container, browsable: a tree beside a reader
@@ -62,8 +121,12 @@ that opens Markdown, PDFs, images, spreadsheets and code in place.
 - **Upload files** and **Upload folder** put files at the top of the project, a
   folder keeping its tree. Each file is held to the deployment's upload limit.
 - **New folder** makes an empty folder for an agent to fill.
-- The bin beside a file or folder removes it, with everything inside a folder, for
-  every chat and agent in the project.
+- Use the **…** menu on a file or folder to rename, move or delete it. Drag an
+  entry onto a folder to move it, or onto **Project files** to move it to the root.
+  An existing destination is never overwritten.
+- **Edit file** opens a complete UTF-8 text file up to 1 MiB. Save your changes or
+  confirm discarding them before closing. Saving refuses a revision that changed
+  since the editor opened; reopen the file to review the newer version.
 
 The `.agenticos` directory and the platform's own folders are not writable from
 here; a path outside the project is refused before anything is written.
@@ -75,17 +138,95 @@ apps a run in one of them published - those the reader may open.
 **Instructions** edits them in Markdown with Source and Preview, as the Agent
 Builder does an agent's, above the project's name, description and default agent.
 
+Drop external files onto a folder to upload into it, or elsewhere on the Files tab to upload at the project root. Holding a drag over a collapsed folder opens it after a short delay. The drop hint stays within the file area, row actions keep their space, and folders show no item counts. Large upload queues show the first three entries and the number waiting. File-type icons distinguish source code, JSON, markup, documents, spreadsheets and media across projects, chat attachments, RAG and skill files.
+
+The desktop console passes file drags to the same drop targets as the web app. Drop
+onto a file to use its containing folder, or onto empty space in either pane to use
+the project root. Blobby and the Dock keep their separate drop-to-chat behavior.
+
+## Graph view
+
+In the file explorer, choose **Graph view** to browse linked Markdown notes.
+The same view works for shared project files, sandbox workspaces and an approved
+Desktop folder. Each location keeps its own graph; local notes are not uploaded.
+
+The graph opens full screen with coloured points, thin links and labels that appear
+when zooming in or selecting a note. Direction arrows and persistent labels are
+optional. Floating controls provide search, file browsing, note details and zoom.
+Groups colour notes by folder by default, or by their first tag. Hide individual
+groups or filter a folder and its descendants; reset filters to show all notes.
+
+The file browser uses the same folder tree and file icons as other workspaces.
+Only indexed Markdown notes become graph nodes; other files open in the shared
+viewer. Dragging points arranges this view without changing files or links.
+Use the expand/collapse control or Escape for an inline canvas, or the back arrow
+for the file explorer.
+
+Use `[[notes/topic|label]]`, inline Markdown links such as
+`[Topic](topic.md)`, or frontmatter relationships to connect notes:
+
+```yaml
+---
+title: Agent memory
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` and `sources` accept a string or a list of strings. External
+URLs remain citations rather than nodes. Wiki links resolve by exact path or a
+unique filename, title or alias; duplicate names remain unresolved. Markdown
+links are relative to their note. Examples in code and HTML comments are ignored.
+
+Search titles, paths, aliases or tags. Select a node to see its links, backlinks
+and unresolved references, then **Open note** to read it. Shared project files
+retain their existing **Edit file** control and permissions. Use the zoom controls
+and drag empty canvas space to move around; the note list also works by keyboard.
+
+The view rereads files every 30 seconds while open, on window focus or when you
+choose **Refresh**. Agents only update notes and their links; they do not regenerate
+HTML. Apps can already refresh table and workflow-log bindings, but have no
+workspace-file binding; this graph reads the notes directly. A graph refresh does
+not schedule an agent to verify facts or refresh sources.
+
+A scan includes up to 200 Markdown files, 256 KiB per file and 8 MiB total, within
+the source listing's own limits. Relationships are capped at 256 per note and 2048
+across the graph; reaching either cap also marks the graph incomplete. Aliases
+and tags share a budget of 128 entries per note and 4096 across the graph. The view identifies omitted or unreadable files,
+invalid YAML and incomplete listings. A missing reference can mean a skipped note,
+not just a broken link. Refresh is eventual; concurrent edits can span two scans.
+
+## Local folders in the desktop app
+
+The **Files** tab separates **Shared project files** from **This computer**. A folder approved during project creation opens automatically on this installation; otherwise Shared project files opens first. Select This computer to connect a folder. Once connected, **Folder settings** changes or disconnects it; its path and access mode stay visible without repeating the setup form.
+
+Shared project files contains uploaded copies available to people with project access. To share a local file, select that source and upload a copy. These locations do not synchronize: editing a local file does not update an uploaded copy, and sharing project membership does not grant disk access. The **Shared project workspace** controls under Instructions change only server storage; they do not connect or disconnect a personal folder.
+
+The native picker confirms the folder grant, initially read-only. This connection belongs to the current account and organization on this computer. Disconnecting it leaves native grants used by other chats intact. Local preview lists up to 500 entries, skips generated folders such as `.git` and `node_modules`, and shows read failures without silently switching to cloud files.
+
+New desktop chats in the project inherit this folder and its approved access
+mode. Project instructions still apply, while sandbox tools work locally rather
+than in the shared container. Change **Work on** for an individual chat to override
+that choice; existing conversations keep their own settings. The folder shortcut
+beside the composer opens these controls. An unavailable computer or revoked grant
+does not switch the run to Cloud. Phones and browsers continue to use shared
+project files; the connection does not give them remote access to your computer.
+Agent answers and tool results saved in a project chat remain visible to people
+who can read that chat, so consider its audience before discussing private files.
+
 ## Sharing and permissions
 
 A project is private to whoever created it until they share it, with the same
 **Share** dialog an agent or a skill uses: people, [departments](departments.md)
 or the whole organization, each at a level.
 
-| Grant level | Permission | What it allows |
-|---|---|---|
-| `read` | `projects:view` | See the project, its files and its instructions |
-| `use` | `projects:use` | Chat in it, upload, make folders, remove files |
-| `edit` | `projects:edit` | Change its instructions and default agent, share it, delete it |
+| Grant level | Permission      | What it allows                                                 |
+| ----------- | --------------- | -------------------------------------------------------------- |
+| `read`      | `projects:view` | See the project, its files and its instructions                |
+| `use`       | `projects:use`  | Chat in it; add, edit, rename, move and remove files           |
+| `edit`      | `projects:edit` | Change its instructions and default agent, share it, delete it |
 
 Roles hold these at the usual scopes: an Owner or Admin reaches every project, a
 Builder works in and edits the ones shared with them, a Member edits their own

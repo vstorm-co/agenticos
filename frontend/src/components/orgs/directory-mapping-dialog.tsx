@@ -104,7 +104,7 @@ export function DirectoryMappingDialog({ orgId, onClose }: { orgId: string; onCl
               }}
               placeholder={EXAMPLE_DN}
               maxLength={MAX_EXTERNAL}
-              className="font-mono text-xs"
+              className="font-mono text-base md:text-xs"
             />
           </FormField>
           <FormField label={t("role")} htmlFor="mapping-role">
@@ -144,7 +144,8 @@ export function DirectoryMappingDialog({ orgId, onClose }: { orgId: string; onCl
             </Button>
             <Button
               type="submit"
-              disabled={!externalGroup.trim() || role === "" || create.isPending}
+              loading={create.isPending}
+              disabled={!externalGroup.trim() || role === ""}
             >
               {t("add")}
             </Button>

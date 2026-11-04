@@ -1,5 +1,5 @@
 ---
-source_sha: "de9050ec21ee"
+source_sha: "f07d2421b563"
 ---
 
 # Funkcje { #features }
@@ -91,7 +91,7 @@ capability, która jest wyłączona, cokolwiek mówią jego instrukcje.
 | **Odpowiadać z tego, co wie Twoja firma** — Twoje dokumenty, Twoje spisane procedury, to, co dołączono do tej rozmowy, i usługi zamontowane jako foldery, np. Dysk albo repozytorium | Knowledge search · Skills · Context · Virtual terminal |
 | **Pamiętać i sprawdzać** — prowadzić notatki przez wiele rozmów, przypomnieć sobie fakt po znaczeniu albo znaleźć to, co naprawdę padło w przeszłej rozmowie, i to odczytać | Memory · Memory (mem0) · Past conversations |
 | **Pójść i się dowiedzieć** — przeszukać sieć, przeczytać jedną stronę porządnie albo poprowadzić prawdziwą przeglądarkę przez witrynę wymagającą klikania | Web search · Read web pages · Web browser |
-| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz | Calculations · Sandbox · Charts · Image generation |
+| **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz, przeczytać tekst na głos albo zrobić krótki klip | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Poradzić sobie z pracą za dużą na jedną odpowiedź** — zdelegować do specjalistów, prowadzić listę zadań, pomyśleć dłużej przed odpowiedzią, ciągnąć długą rozmowę bez gubienia jej początku | Delegation · Planning · Thinking · Long conversations |
 | **Trzymać się w ryzach** — zredagować albo zablokować to, co nie może przejść, ograniczyć to, co może zwrócić jedno narzędzie, wiedzieć, jaka jest dzisiaj data | Guardrails · Tool output limits · Date and time |
 
@@ -170,12 +170,12 @@ Publikujesz raz. Ten sam runner odpowiada na wszystkich tych:
 - **Hostowana strona**, do której możesz komuś wysłać link
 - **Osadzalny widget** na Twoją własną stronę
 - **HTTP API** oraz surowy WebSocket do strumieniowania
-- **Slack**, **Telegram** i **Mattermost**, gdzie `@mention` uruchamia się jako
+- **Slack**, **Telegram**, **Mattermost** i **Discord**, gdzie `@mention` uruchamia się jako
   osoba, która go wysłała — a nie jako bot
 
 Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
 dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz
-transkrypcja wiadomości głosowych w Slacku, Telegramie i Mattermost.
+transkrypcja wiadomości głosowych w Slacku, Telegramie, Mattermost i na Discordzie.
 
 **Rozmowy głosowe** pozwalają rozmawiać z opublikowanym agentem i mu przerywać,
 w czacie webowym, na hostowanej stronie albo w widgecie. Agent zachowuje swoje
@@ -237,6 +237,21 @@ tym repozytorium to te, które sprawdzają *odmowę*: odczyt spoza tenanta,
 nieprzyznany scope, przekroczenie budżetu, drugą decyzję na rozstrzygniętym
 approvalu.
 
+## Workflows, gdy zadanie to więcej niż jeden krok { #workflows-when-a-job-is-more-than-one-step }
+
+Część pracy to sekwencja, a nie pojedyncza odpowiedź: odczytaj rekord, wywołaj
+agenta, rozgałęź się na tym, co powie, przejdź w pętli po liście. Budujesz to na
+kanwie — przeciągasz kroki, łączysz wyjście jednego kroku z następnym i publikujesz
+jako niezmienną wersję, w tym samym kształcie draft-a-potem-publikacja, który ma
+agent.
+
+Inputy każdego kroku to wartość, którą wpisujesz, albo wartość odczytana z
+wcześniejszego kroku, a edytor oferuje tylko źródło rzeczywiście osiągalne i o
+właściwym typie. Draft zapisuje się sam w trakcie edycji, a publikowanie ponownie
+sprawdza cały graf, zanim zamrozi wersję.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
+
 ## Triggery, żeby agent działał bez Ciebie { #triggers-so-an-agent-runs-without-you }
 
 Zaplanuj run albo odpal go na zdarzenie. Ten sam spec, ten sam budżet, ten sam
@@ -244,12 +259,23 @@ Zaplanuj run albo odpal go na zdarzenie. Ten sam spec, ten sam budżet, ten sam
 
 [Triggery →](triggers.md)
 
-## Hostowany u siebie i cichy { #self-hosted-and-quiet }
+## Hostowany u siebie i jasny co do tego, co wychodzi { #self-hosted-and-quiet }
 
 Docker Compose, Twój Postgres, Twój Redis, Twój sprzęt.
 
-Nic nie dzwoni do domu. Ceny modeli pochodzą ze snapshotu dołączonego do wydania,
-a jedyne żądania wychodzące to te, które robią Twoi agenci.
+Twoje prompty, rozmowy i dokumenty zostają w Twoim wdrożeniu, w jego bazie danych
+i magazynie. Nie trafiają nigdzie, dopóki nie dodasz czegoś, co wskazuje cel:
+profilu modelu, dostawcy embeddingów albo parsowania dla kolekcji, serwera MCP
+albo kanału. Ceny modeli pochodzą ze snapshotu dołączonego do wydania.
+
+Jeden raport jest domyślnie włączony: [diagnostyka wdrożenia](configuration.md#diagnostics).
+Raz na godzinę worker wysyła wersję, stan bazy i workera, zgrubne liczniki użycia
+oraz liczby nieudanych runów, zadań i ingestii według zamkniętej kategorii.
+Zalogowane przeglądarki oraz aplikacje desktopowe i mobilne wysyłają
+pseudonimowy sygnał aktywności prosto do kolektora. Nie są wysyłane prompty,
+rozmowy, nazwy plików, nazwy kont, adresy e-mail, klucze providerów ani
+komunikaty wyjątków. Ustaw `DIAGNOSTICS_ENABLED=false`, żeby go wyłączyć, albo
+wskaż `DIAGNOSTICS_COLLECTOR_URL` na kolektor, który prowadzisz.
 
 ## Open source { #open-source }
 

@@ -36,7 +36,7 @@ export function SandboxCapacityWidget({ title, hint, seeAll, options }: Dashboar
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="bars" />
       ) : error !== null ? (
         <WidgetErrorBody onRetry={() => void refresh()} />
       ) : hosts.length === 0 ? (

@@ -141,6 +141,8 @@ class TestDraw:
         assert "Drew 'Flow' as visual `call-1`" in result
         assert "Refer to it, do not repeat it." in result
         assert "kept with the conversation" in result
+        assert "delivery is not confirmed" in result
+        assert "shown where the person reads it" not in result
         assert tools.drawn == {"call-1"}
 
     @pytest.mark.parametrize(
@@ -360,6 +362,7 @@ class TestPictures:
     @pytest.mark.parametrize(
         ("data", "said"),
         [(b"<html>not a picture</html>", "is not an image"), (PNG * 200_000, "over the")],
+        ids=["not-an-image", "oversized-image"],
     )
     async def test_what_is_not_a_small_picture_is_refused(self, data: bytes, said: str) -> None:
         with (
@@ -838,7 +841,12 @@ class TestWebReach:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(settings, "VISUAL_MAP_TILES", "")
-        assert "no map tiles" in maps_line()
+        line = maps_line()
+        assert "no map tiles" in line
+        # Told why and who can change it, in the answer rather than inside the
+        # drawing, where the first version hid it as a grey footnote (#2301).
+        assert "in your answer" in line
+        assert "`VISUAL_MAP_TILES`" in line
 
     def test_with_map_tiles_the_model_is_told_whose_and_warned_off_inventing_routes(
         self, monkeypatch: pytest.MonkeyPatch
@@ -847,6 +855,7 @@ class TestWebReach:
         line = maps_line()
         assert "USGS The National Map tiles" in line
         assert "never present the line between stops as directions" in line
+        assert "Admin → System" in line
 
     async def test_earlier_visuals_are_named_once_per_run(self) -> None:
         earlier = [

@@ -1,5 +1,5 @@
 ---
-source_sha: "1b24107e2e10"
+source_sha: "f3dba1d7839c"
 ---
 
 # Elegir un modelo { #choosing-a-model }
@@ -44,6 +44,12 @@ evapore.
     luego cambia el perfil a uno más barato y mira si alguien lo nota. Hacerlo al
     revés significa depurar tus instrucciones y el modelo al mismo tiempo, y le
     echarás la culpa al que no es.
+
+Lo que el propio modelo dice sobre lo seguro que está, que `ai.classify` puede
+pedir con `min_confidence` fijado, ordena las respuestas de más a menos seguras; no es
+una probabilidad. Los modelos más pequeños de pesos abiertos la informan con menos
+fiabilidad. Elige el umbral a partir de tus propios evals, no del valor nominal del
+número.
 
 ## Modelos cerrados o pesos abiertos { #closed-models-or-open-weights }
 

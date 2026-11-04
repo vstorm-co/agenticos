@@ -4,12 +4,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef, type ReactNode } from "react";
 
-import { Sheet, SheetClose, SheetContent } from "@/components/ui";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui";
 import { SCROLL_FADE, useScrollFade } from "@/components/ui/scroll-fade";
 import { cn } from "@/lib/utils";
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
-import { CapabilityArt, CapabilityCard } from "./capability-card";
+import { CapabilityCard } from "./capability-card";
 
 /** One shelf of the gallery: a category's label and the capabilities under it. */
 export interface CapabilityShelf {
@@ -65,13 +65,10 @@ export function CapabilityGallery({
         <Sheet open onOpenChange={onClose}>
           <SheetContent side="right" className="bg-background w-full overflow-y-auto sm:max-w-2xl">
             <div className="bg-background/95 sticky top-0 z-10 flex items-center gap-2 border-b px-4 py-2 backdrop-blur">
-              <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+              <SheetTitle className="min-w-0 flex-1 truncate text-sm font-semibold">
                 {t("capabilitySettingsTitle", { name: opened.name })}
-              </h2>
+              </SheetTitle>
               <SheetClose onClick={onClose} />
-            </div>
-            <div className="mx-auto max-w-md px-4 pt-4 sm:px-5">
-              <CapabilityArt id={opened.id} name={opened.name} />
             </div>
             <div className="p-4 sm:p-5">{detail}</div>
           </SheetContent>

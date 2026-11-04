@@ -27,6 +27,15 @@
     "icon": "exa"
   },
   {
+    "id": "keenable",
+    "label": "Keenable",
+    "category": "search",
+    "kind": "api_key",
+    "help_url": "https://docs.keenable.ai/authentication",
+    "description": "Web search without an account; an optional key uses your organization's allowance.",
+    "icon": "keenable"
+  },
+  {
     "id": "logfire",
     "label": "Logfire",
     "category": "observability",
@@ -53,6 +62,24 @@
     "description": "Store an agent's remembered facts in a mem0 service (cloud or self-hosted)."
   },
   {
+    "id": "elevenlabs",
+    "label": "ElevenLabs",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://elevenlabs.io/app/settings/api-keys",
+    "description": "Speech generated from text, in the voices on your ElevenLabs account.",
+    "icon": "elevenlabs"
+  },
+  {
+    "id": "byteplus",
+    "label": "BytePlus ModelArk",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://console.byteplus.com/ark/region:ark+ap-southeast-1/apiKey",
+    "description": "ByteDance's Seedance video models, through BytePlus ModelArk.",
+    "icon": "byteplus"
+  },
+  {
     "id": "sandboxd",
     "label": "Sandbox service",
     "category": "other",
@@ -73,6 +100,14 @@
     "kind": "api_key",
     "help_url": "https://app.daytona.io/dashboard/keys",
     "description": "Cloud sandboxes an agent works in, billed to this organization's own Daytona account."
+  },
+  {
+    "id": "e2b",
+    "label": "E2B",
+    "category": "other",
+    "kind": "api_key",
+    "help_url": "https://e2b.dev/dashboard?tab=keys",
+    "description": "Cloud sandboxes and desktops an agent works in, billed to this organization's own E2B account."
   },
   {
     "id": "github_oauth_app",
@@ -100,6 +135,15 @@
     "help_url": "https://console.cloud.google.com/apis/credentials",
     "description": "A Google OAuth client's id and secret, used to connect a mailbox an agent is run by.",
     "icon": "google"
+  },
+  {
+    "id": "microsoft_oauth_app",
+    "label": "Microsoft OAuth app",
+    "category": "other",
+    "kind": "microsoft_oauth_app",
+    "help_url": "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
+    "description": "A Microsoft Entra app registration people sign in through, used to connect an Outlook mailbox a trigger reads. Give it the delegated Mail.Read, Mail.Read.Shared and offline_access permissions.",
+    "icon": "microsoft"
   },
   {
     "id": "gdrive",

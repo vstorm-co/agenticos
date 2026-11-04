@@ -20,10 +20,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from app.api.deps import ChannelBotSvc
+from app.api.deps import ChannelBotSvc, ChannelFeedbackSvc
 from app.core.background import spawn
 from app.services.channel_bot import unseal_command_token, unseal_webhook_secret
 from app.services.channels import get_adapter
+from app.services.channels.base import read_feedback
+from app.services.channels.feedback import FeedbackOutcome
 from app.services.channels.mattermost import MattermostAdapter, decode_webhook_body
 from app.worker.background.channel import (
     process_channel_event,
@@ -81,14 +83,15 @@ async def mattermost_action(
     bot_id: UUID,
     request: Request,
     bot_service: ChannelBotSvc,
+    feedback_service: ChannelFeedbackSvc,
 ) -> Any:
     """Receive a press on one of the bot's buttons (#2064, #2068).
 
     Mattermost signs nothing here, so the button's own context carries this
     deployment's signature and a press without it is dropped. Who pressed is
     taken from the trigger id the server signed, not from the body's `user_id`
-    alone. Answered at once with an empty update; the post loses its buttons
-    when the press is handled.
+    alone. Ratings return a private confirmation and keep the shared buttons;
+    other actions are dispatched in the background.
     """
     bot = await bot_service.find_active(bot_id)
     if bot is None:
@@ -104,6 +107,18 @@ async def mattermost_action(
         raise HTTPException(status_code=403, detail="Unsigned button press")
     if not await adapter.pressed_by(bot.api_base_url or "", payload):
         raise HTTPException(status_code=403, detail="The press does not name who made it")
+    if read_feedback(press.value) is not None:
+        # A 200 with no message hid rejected ratings. Save in this transaction
+        # and give only the presser the outcome; other button presses may run a model.
+        outcome = await feedback_service.rate_result(press)
+        logger.info(
+            "mattermost_feedback_result", extra={"outcome": outcome.value, "bot_id": str(bot_id)}
+        )
+        if outcome != FeedbackOutcome.SAVED:
+            return {
+                "ephemeral_text": "Your rating was not saved. This answer is no longer available to rate."
+            }
+        return {"ephemeral_text": "Your rating was saved."}
     spawn(process_channel_press(press), name=f"mattermost_press:{bot_id}")
     return {}
 

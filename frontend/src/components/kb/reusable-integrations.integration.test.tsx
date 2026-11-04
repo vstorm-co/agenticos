@@ -70,7 +70,7 @@ function kb(id: string, name: string, collection: string): KnowledgeBase {
 
 const TARGETS = [kb("kb-1", "Handbook", "handbook_a1"), kb("kb-2", "Runbooks", "runbooks_b2")];
 
-function serve(role: OrgRole, sources: SyncSourceRead[]) {
+function serve(role: OrgRole, sources: SyncSourceRead[], connectorsAvailable = true) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions")
       return {
@@ -87,7 +87,9 @@ function serve(role: OrgRole, sources: SyncSourceRead[]) {
     if (path === `/orgs/${ORG_ID}/integrations`) return { items: sources, total: sources.length };
     if (path === `/orgs/${ORG_ID}/integrations/connectors`)
       return {
-        items: [{ type: "gdrive", name: "Google Drive", config_schema: {}, enabled: true }],
+        items: connectorsAvailable
+          ? [{ type: "gdrive", name: "Google Drive", config_schema: {}, enabled: true }]
+          : [],
       };
     throw new Error(`unexpected GET ${path}`);
   });
@@ -97,6 +99,23 @@ describe("ReusableIntegrations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useOrgStore.setState({ activeOrgId: ORG_ID });
+  });
+
+  it("explains unavailable connectors instead of asking for an impossible action", async () => {
+    serve("owner", [], false);
+    render(<ReusableIntegrations targets={TARGETS} />, { wrapper });
+
+    expect(
+      await screen.findByText(
+        "No source connectors are available. An administrator can enable a connector for this deployment.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add integration" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Nothing here yet. Add one to connect a source before you know which knowledge bases will need it.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("lets one integration be used in a second knowledge base", async () => {

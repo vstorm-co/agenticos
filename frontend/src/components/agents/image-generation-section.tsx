@@ -4,18 +4,14 @@ import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
-import { ProviderIcon } from "@/components/vault/provider-icon";
+  ProviderModelFields,
+  resolveOffering,
+  withoutFields,
+} from "@/components/agents/provider-model-fields";
 import { useImageProviders } from "@/hooks/use-model-providers";
 import { capabilityConfigErrors } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
-import type { CapabilityBindingSpec, CapabilityCatalogEntry, JsonSchema } from "@/types/agents";
+import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 /** The two fields this panel draws itself; the rest is the generated form. */
@@ -63,103 +59,29 @@ export function ImageGenerationSection({
 
   if (!definition) return null;
 
-  // What will actually run, which for an untouched binding is not what it stores.
-  // `config: {}` is the normal shape of a capability somebody has only switched
-  // on, and the server resolves both fields from the head of this same catalog
-  // through a `default_factory` - which Pydantic does not emit as a JSON Schema
-  // default, so nothing here could infer it. Showing two empty "Choose…" fields
-  // for a binding that will draw with OpenAI's first model is the panel lying
-  // about what it is configured to do. Resolved for display only: the config is
-  // written when somebody picks, so the server keeps deciding the default.
-  const stored = typeof binding.config.provider === "string" ? binding.config.provider : "";
-  const current =
-    providers.find((entry) => entry.provider === stored) ??
-    (stored === "" ? providers[0] : undefined);
-  const storedModel = typeof binding.config.model === "string" ? binding.config.model : "";
-  const model =
-    current?.models.some((entry) => entry.id === storedModel) === true
-      ? storedModel
-      : (current?.models[0]?.id ?? "");
-
-  const selected = current?.models.find((entry) => entry.id === model);
+  const resolved = resolveOffering(providers, binding.config);
 
   const setConfig = (patch: Record<string, unknown>) =>
     onChange({ ...binding, config: { ...binding.config, ...patch } });
 
-  /** Switching provider re-points the model, because an id is not portable. */
-  const chooseProvider = (next: string) => {
-    const entry = providers.find((candidate) => candidate.provider === next);
-    // The select only ever hands back a value from the list above, so the lookup
-    // cannot miss; the `?.` is the type checker's price for that rather than a
-    // fallback anybody reaches.
-    setConfig({ provider: next, model: entry?.models[0]?.id ?? "" });
-  };
-
   const controls = (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="image-provider">{t("imageProvider")}</Label>
-          <Select
-            value={current?.provider ?? ""}
-            disabled={disabled || providers.length === 0}
-            onValueChange={chooseProvider}
-          >
-            <SelectTrigger id="image-provider">
-              <SelectValue placeholder={t("imageProviderPlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((entry) => (
-                <SelectItem key={entry.provider} value={entry.provider}>
-                  <span className="flex items-center gap-2">
-                    <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
-                    {entry.name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-muted-foreground text-xs">{t("imageProviderDetail")}</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="image-model">{t("imageModel")}</Label>
-          <Select
-            value={model}
-            disabled={disabled || current === undefined}
-            onValueChange={(next) => setConfig({ model: next })}
-          >
-            <SelectTrigger id="image-model">
-              {/* The trigger draws the name alone. Radix mirrors an item's
-                  `ItemText` into the closed trigger, and this item's is two
-                  lines - so the sentence saying when to reach for the model
-                  arrived inside a 36px-high field, laid out as a block in the
-                  middle of it. Explicit children keep the sentence in the list,
-                  which is the only place it means anything. */}
-              <SelectValue placeholder={t("imageModelPlaceholder")}>
-                <span className="truncate">{selected?.name ?? model}</span>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {(current?.models ?? []).map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {/* The name and what it is for, because four ids in a dropdown
-                      is a decision made by guessing. */}
-                  <span className="flex flex-col gap-0.5">
-                    <span>{entry.name}</span>
-                    <span className="text-muted-foreground text-xs">{entry.description}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-muted-foreground text-xs">
-            {current === undefined && stored !== ""
-              ? t("imageModelUnknownProvider", { provider: stored })
-              : t("imageModelDetail")}
-          </p>
-        </div>
-      </div>
+      <ProviderModelFields
+        idPrefix="image"
+        providers={providers}
+        resolved={resolved}
+        disabled={disabled}
+        onChange={setConfig}
+        copy={{
+          provider: t("imageProvider"),
+          providerPlaceholder: t("imageProviderPlaceholder"),
+          providerDetail: t("imageProviderDetail"),
+          model: t("imageModel"),
+          modelPlaceholder: t("imageModelPlaceholder"),
+          modelDetail: t("imageModelDetail"),
+          unknownProvider: (provider) => t("imageModelUnknownProvider", { provider }),
+        }}
+      />
 
       {isError && <p className="text-destructive text-xs">{t("imageProvidersUnavailable")}</p>}
       {isLoading && <p className="text-muted-foreground text-xs">{t("imageProvidersLoading")}</p>}
@@ -170,7 +92,7 @@ export function ImageGenerationSection({
       {definition.config_schema && (
         <SchemaForm
           idPrefix={binding.id}
-          schema={withoutHandRolled(definition.config_schema)}
+          schema={withoutFields(definition.config_schema, HAND_ROLLED)}
           value={binding.config}
           disabled={disabled}
           errors={configErrors}
@@ -191,22 +113,14 @@ export function ImageGenerationSection({
       disabled={disabled}
       configProblems={configProblems}
       settingsExtra={controls}
+      // The provider shown before one is picked is the catalog's first, and the
+      // key is gated on it (#2258): without it the picker stayed hidden.
+      resolvedConfig={
+        resolved.current === undefined ? undefined : { provider: resolved.current.provider }
+      }
       // The controls above *are* this capability's configuration, the generated
       // fields included: drawing the form again would double every field.
       hideConfigForm
     />
   );
-}
-
-/**
- * The schema with the fields this panel draws itself taken out.
- *
- * Subtracting rather than listing what to keep, the same way the delegation panel
- * does it: a field added to `ImageGenerationConfig` should appear here on its own.
- */
-function withoutHandRolled(schema: JsonSchema): JsonSchema {
-  const properties = Object.fromEntries(
-    Object.entries(schema.properties ?? {}).filter(([name]) => !HAND_ROLLED.includes(name)),
-  );
-  return { ...schema, properties };
 }

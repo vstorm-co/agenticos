@@ -18,6 +18,25 @@ export interface ChatMessageFile {
   file_type: string;
 }
 
+/**
+ * A message typed while the agent was busy or the network was gone, held above
+ * the composer until it can be sent - and, in the apps, kept sealed on the
+ * device so closing the app does not lose it (#2097).
+ */
+export interface QueuedMessage {
+  id: string;
+  content: string;
+  fileIds?: string[];
+  files?: ChatMessageFile[];
+  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
+  mentions?: Mentionable[];
+  /**
+   * Why the server refused it before saving it, when it did: the message is
+   * held, marked, until the person sends it again or drops it.
+   */
+  refused?: string;
+}
+
 /** The earlier message a turn answers, quoted above it. */
 export interface MessageReply {
   messageId: string;
@@ -32,7 +51,16 @@ export interface MessageReply {
   agentName?: string;
 }
 
+/** The workspace selected for a turn, retained after Work on changes. */
+export type TurnFileSource =
+  | { readonly kind: "local"; readonly id: string }
+  | { readonly kind: "conversation"; readonly id: string };
+
 export interface ChatMessage {
+  /** Submission correlation, retained when the persistence frame was lost. */
+  clientMessageId?: string;
+  /** A saved bubble still addressed by its local id while deltas arrive. */
+  persistedId?: string;
   id: string;
   role: MessageRole;
   content: string;
@@ -47,6 +75,8 @@ export interface ChatMessage {
   files?: ChatMessageFile[];
   /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
   mentions?: Mentionable[];
+  /** The source recorded when this turn ran. Absent on older transcripts. */
+  fileSource?: TurnFileSource;
   /** Conversation ID for this message */
   conversationId?: string;
   /** Who typed a user turn, when it was somebody signed in. In a project's chat
@@ -155,7 +185,18 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer";
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer" | "workflow_run";
+
+/** A workflow answering a chat turn: which run it is and where it stands. */
+export interface WorkflowRunPart {
+  workflowId: string;
+  /** What the workflow was called when it answered. */
+  workflowName: string | null;
+  /** Null until the socket has admitted the run. */
+  runId: string | null;
+  status: string;
+  error: string | null;
+}
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
@@ -174,6 +215,8 @@ export interface MessagePart {
    * asked it itself, and on every question stored before the field existed.
    */
   askedBy?: string;
+  /** The run, for a "workflow_run" part. */
+  workflowRun?: WorkflowRunPart;
 }
 
 export type ChartType = "line" | "bar" | "pie" | "area" | "scatter";
@@ -224,6 +267,9 @@ export type WSEventType =
   // Read by `use-chat.ts`.
   | "conversation_created"
   | "message_saved"
+  | "next_steps"
+  | "user_prompt"
+  | "session_ready"
   | "model_request_start"
   | "text_delta"
   | "thinking_delta"
@@ -251,20 +297,20 @@ export type WSEventType =
   // Following a turn another socket is writing - the reader came back to a
   // conversation whose agent was still answering (`app/services/live_turn.py`).
   | "turn_attached"
+  | "background_task_turn"
   | "turn_prompt"
   | "presence"
   | "typing"
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
-  // message, so `user_prompt` and `user_prompt_processed` have nothing left to do,
+  // message, so `user_prompt_processed` has nothing left to do,
   // and `text_delta`/`tool_call` carry the content that `call_tools_start` and
   // `final_result_start` merely precede. Named anyway - they are on the wire, and a
   // union that omitted them would be as misleading in the other direction. A run
   // timeline is the surface that would read them. `part_start` and
   // `tool_call_delta` left this group once a tool call whose arguments took minutes
   // to stream showed that `tool_call` arrives too late to be the first sign of it.
-  | "user_prompt"
   | "user_prompt_processed"
   | "call_tools_start"
   | "final_result_start"
@@ -290,7 +336,8 @@ export type WSEventType =
   | "browser_held"
   | "browser_released"
   | "browser_needs_person"
-  | "browser_pointer";
+  | "browser_pointer"
+  | "browser_control_error";
 
 /**
  * How a browse ended, and all four are ordinary.
@@ -320,12 +367,17 @@ export interface BrowserFrame {
     | "browser_held"
     | "browser_released"
     | "browser_needs_person"
-    | "browser_pointer";
+    | "browser_pointer"
+    | "browser_control_error";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
   step: number;
   url?: string | null;
   title?: string | null;
+  tab_id?: string | null;
+  native_id?: string | null;
+  resumable?: boolean;
+  navigable?: boolean;
   /** On the opening frame: the ceiling, so progress reads as 3/25. */
   max_steps?: number | null;
   /** On the opening frame: the task the model handed over. */
@@ -435,6 +487,19 @@ export interface ActionRequest {
   tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
+  /**
+   * The stable id the capability declares the tool under - `update_record` for a
+   * binding that renamed it `change_order`. The card's sentence is looked up by
+   * this, never by `tool_name`. Null or absent for a tool no capability owns.
+   */
+  capability_tool_id?: string | null;
+  /**
+   * The ids in `args` as names the run's person may see - `{table}` for
+   * `update_record` - for the sentence the card leads with. Null or absent when the
+   * tool has no describer or describing it failed; the card then shows the
+   * arguments alone, as it always did.
+   */
+  context?: Record<string, string> | null;
   /** Which of a service's accounts the call acts as, where its binding names one. */
   account?: string | null;
 }

@@ -31,6 +31,9 @@ class OrganizationAssistant(Base, TimestampMixin):
         nullable=False,
         unique=True,
     )
+    instructions_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """Hash of the last shipped instructions installed or explicitly refreshed."""
+
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sql_true())
     greeting: Mapped[str | None] = mapped_column(Text, nullable=True)
     mark_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

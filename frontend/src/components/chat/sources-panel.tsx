@@ -228,6 +228,7 @@ export function SourcesPanel({ contained = false }: { contained?: boolean }) {
 
   return (
     <div
+      data-native-browser-blocked
       className={cn(
         "bg-background border-border flex flex-col",
         contained

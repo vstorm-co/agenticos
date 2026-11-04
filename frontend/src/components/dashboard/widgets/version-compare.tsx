@@ -36,7 +36,7 @@ export function VersionCompareWidget({
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {composed.isLoading || (topAgent !== null && versions.isLoading) ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="table" columns={3} />
       ) : composed.error ? (
         <WidgetErrorBody onRetry={() => composed.refetch()} />
       ) : versions.error ? (
@@ -82,7 +82,7 @@ export function VersionCompareWidget({
                   ],
                 ] as const
               ).map(([metric, before, after]) => (
-                <tr key={metric} className="border-border border-t">
+                <tr key={metric} className="border-foreground/8 border-t">
                   <td className="text-muted-foreground py-1.5 pr-2 text-xs">{metric}</td>
                   <td className="py-1.5 text-right tabular-nums">{before}</td>
                   <td className="text-foreground py-1.5 text-right font-medium tabular-nums">

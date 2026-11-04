@@ -26,9 +26,10 @@ interface PageProps {
  */
 export default function RetentionPage({ params }: PageProps) {
   const t = useTranslations("pages.retention");
+  const tc = useTranslations("common");
   const { id: orgId } = use(params);
   const { can, isLoaded, error: permissionsError } = usePermissions();
-  const { policy, isLoading, isSaving, save } = useRetention(orgId);
+  const { policy, isLoading, error, refetch, isSaving, save } = useRetention(orgId);
   const [saved, setSaved] = useState(false);
 
   // The confirmation is a moment, not a state: it clears itself so a person who
@@ -57,7 +58,7 @@ export default function RetentionPage({ params }: PageProps) {
   // on navigation and leaves a failed read saying it permanently (#1420 review).
   if (permissionsError) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <ErrorState />
       </div>
@@ -65,7 +66,7 @@ export default function RetentionPage({ params }: PageProps) {
   }
   if (!isLoaded) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <LoadingState variant="skeleton-table" columns={3} rows={6} />
       </div>
@@ -73,7 +74,7 @@ export default function RetentionPage({ params }: PageProps) {
   }
   if (!can(Perm.orgSettings)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         {header}
         <EmptyState icon={Archive} title={t("notYours")} description={t("askAnAdmin")} />
       </div>
@@ -81,14 +82,16 @@ export default function RetentionPage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {header}
       <Card data-tour="org-retention">
         <CardHeader className="border-b px-5 py-4">
           <CardTitle className="text-sm">{t("howLongEachClassLives")}</CardTitle>
         </CardHeader>
         <CardContent className="p-5">
-          {isLoading || !policy ? (
+          {error ? (
+            <ErrorState cta={{ label: tc("retry"), onClick: () => void refetch() }} />
+          ) : isLoading || !policy ? (
             <LoadingState variant="skeleton-table" columns={3} rows={6} />
           ) : (
             <RetentionForm

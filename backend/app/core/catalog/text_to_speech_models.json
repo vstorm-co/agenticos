@@ -1,0 +1,383 @@
+[
+  {
+    "provider": "openai",
+    "api": "openai_speech",
+    "base_url": "https://api.openai.com/v1",
+    "formats": [
+      "mp3",
+      "wav"
+    ],
+    "voices": [
+      {
+        "id": "marin",
+        "name": "Marin",
+        "description": "OpenAI's recommendation for the best quality."
+      },
+      {
+        "id": "cedar",
+        "name": "Cedar",
+        "description": "OpenAI's recommendation for the best quality."
+      },
+      {
+        "id": "alloy",
+        "name": "Alloy",
+        "description": ""
+      },
+      {
+        "id": "ash",
+        "name": "Ash",
+        "description": ""
+      },
+      {
+        "id": "ballad",
+        "name": "Ballad",
+        "description": ""
+      },
+      {
+        "id": "coral",
+        "name": "Coral",
+        "description": ""
+      },
+      {
+        "id": "echo",
+        "name": "Echo",
+        "description": ""
+      },
+      {
+        "id": "fable",
+        "name": "Fable",
+        "description": ""
+      },
+      {
+        "id": "nova",
+        "name": "Nova",
+        "description": ""
+      },
+      {
+        "id": "onyx",
+        "name": "Onyx",
+        "description": ""
+      },
+      {
+        "id": "sage",
+        "name": "Sage",
+        "description": ""
+      },
+      {
+        "id": "shimmer",
+        "name": "Shimmer",
+        "description": ""
+      },
+      {
+        "id": "verse",
+        "name": "Verse",
+        "description": ""
+      }
+    ],
+    "models": [
+      {
+        "id": "gpt-4o-mini-tts",
+        "name": "GPT-4o mini TTS",
+        "description": "Follows spoken-style instructions - tone, pace, accent. Cheap, and the sensible default.",
+        "max_characters": 4096,
+        "takes_instructions": true,
+        "prices": [
+          {
+            "since": "2025-12-15",
+            "usd_per_million_characters": "16.8"
+          }
+        ]
+      },
+      {
+        "id": "tts-1-hd",
+        "name": "TTS-1 HD",
+        "description": "The earlier high-quality model. No style instructions, and nine of the voices.",
+        "max_characters": 4096,
+        "voices": [
+          "alloy",
+          "ash",
+          "coral",
+          "echo",
+          "fable",
+          "onyx",
+          "nova",
+          "sage",
+          "shimmer"
+        ],
+        "prices": [
+          {
+            "since": "2023-11-06",
+            "usd_per_million_characters": "30"
+          }
+        ]
+      },
+      {
+        "id": "tts-1",
+        "name": "TTS-1",
+        "description": "The earlier fast model. Lowest latency of the set, at some cost in quality.",
+        "max_characters": 4096,
+        "voices": [
+          "alloy",
+          "ash",
+          "coral",
+          "echo",
+          "fable",
+          "onyx",
+          "nova",
+          "sage",
+          "shimmer"
+        ],
+        "prices": [
+          {
+            "since": "2023-11-06",
+            "usd_per_million_characters": "15"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "provider": "elevenlabs",
+    "api": "elevenlabs",
+    "base_url": "https://api.elevenlabs.io/v1",
+    "formats": [
+      "mp3",
+      "wav"
+    ],
+    "voices": [],
+    "models": [
+      {
+        "id": "eleven_multilingual_v2",
+        "name": "Eleven Multilingual v2",
+        "description": "The ElevenLabs quality model, steady over long passages. 29 languages, Polish among them.",
+        "max_characters": 10000,
+        "prices": [
+          {
+            "since": "2024-12-01",
+            "usd_per_million_characters": "80"
+          }
+        ]
+      },
+      {
+        "id": "eleven_flash_v2_5",
+        "name": "Eleven Flash v2.5",
+        "description": "Fast and cheap, and takes the longest text per request - 40,000 characters.",
+        "max_characters": 40000,
+        "prices": [
+          {
+            "since": "2024-12-01",
+            "usd_per_million_characters": "40"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "provider": "google",
+    "api": "gemini_interactions",
+    "base_url": "https://generativelanguage.googleapis.com/v1beta",
+    "formats": [
+      "wav"
+    ],
+    "voices": [
+      {
+        "id": "Kore",
+        "name": "Kore",
+        "description": "Firm."
+      },
+      {
+        "id": "Zephyr",
+        "name": "Zephyr",
+        "description": "Bright."
+      },
+      {
+        "id": "Puck",
+        "name": "Puck",
+        "description": "Upbeat."
+      },
+      {
+        "id": "Charon",
+        "name": "Charon",
+        "description": "Informative."
+      },
+      {
+        "id": "Fenrir",
+        "name": "Fenrir",
+        "description": "Excitable."
+      },
+      {
+        "id": "Leda",
+        "name": "Leda",
+        "description": "Youthful."
+      },
+      {
+        "id": "Orus",
+        "name": "Orus",
+        "description": "Firm."
+      },
+      {
+        "id": "Aoede",
+        "name": "Aoede",
+        "description": "Breezy."
+      },
+      {
+        "id": "Callirrhoe",
+        "name": "Callirrhoe",
+        "description": "Easy-going."
+      },
+      {
+        "id": "Autonoe",
+        "name": "Autonoe",
+        "description": "Bright."
+      },
+      {
+        "id": "Enceladus",
+        "name": "Enceladus",
+        "description": "Breathy."
+      },
+      {
+        "id": "Iapetus",
+        "name": "Iapetus",
+        "description": "Clear."
+      },
+      {
+        "id": "Umbriel",
+        "name": "Umbriel",
+        "description": "Easy-going."
+      },
+      {
+        "id": "Algieba",
+        "name": "Algieba",
+        "description": "Smooth."
+      },
+      {
+        "id": "Despina",
+        "name": "Despina",
+        "description": "Smooth."
+      },
+      {
+        "id": "Erinome",
+        "name": "Erinome",
+        "description": "Clear."
+      },
+      {
+        "id": "Algenib",
+        "name": "Algenib",
+        "description": "Gravelly."
+      },
+      {
+        "id": "Rasalgethi",
+        "name": "Rasalgethi",
+        "description": "Informative."
+      },
+      {
+        "id": "Laomedeia",
+        "name": "Laomedeia",
+        "description": "Upbeat."
+      },
+      {
+        "id": "Achernar",
+        "name": "Achernar",
+        "description": "Soft."
+      },
+      {
+        "id": "Alnilam",
+        "name": "Alnilam",
+        "description": "Firm."
+      },
+      {
+        "id": "Schedar",
+        "name": "Schedar",
+        "description": "Even."
+      },
+      {
+        "id": "Gacrux",
+        "name": "Gacrux",
+        "description": "Mature."
+      },
+      {
+        "id": "Pulcherrima",
+        "name": "Pulcherrima",
+        "description": "Forward."
+      },
+      {
+        "id": "Achird",
+        "name": "Achird",
+        "description": "Friendly."
+      },
+      {
+        "id": "Zubenelgenubi",
+        "name": "Zubenelgenubi",
+        "description": "Casual."
+      },
+      {
+        "id": "Vindemiatrix",
+        "name": "Vindemiatrix",
+        "description": "Gentle."
+      },
+      {
+        "id": "Sadachbia",
+        "name": "Sadachbia",
+        "description": "Lively."
+      },
+      {
+        "id": "Sadaltager",
+        "name": "Sadaltager",
+        "description": "Knowledgeable."
+      },
+      {
+        "id": "Sulafat",
+        "name": "Sulafat",
+        "description": "Warm."
+      }
+    ],
+    "models": [
+      {
+        "id": "gemini-3.8-flash-tts",
+        "name": "Gemini 3.8 Flash TTS",
+        "description": "130+ languages and style instructions in plain words. The cheapest of the quality models.",
+        "max_characters": 8000,
+        "takes_instructions": true,
+        "prices": [
+          {
+            "since": "2026-09-22",
+            "usd_per_million_characters": "15.1",
+            "usd_per_million_input_tokens": "0.50",
+            "usd_per_million_audio_tokens": "9.00",
+            "audio_tokens_per_second": 25
+          },
+          {
+            "since": "2027-01-01",
+            "usd_per_million_characters": "30.2",
+            "usd_per_million_input_tokens": "1.00",
+            "usd_per_million_audio_tokens": "18.00",
+            "audio_tokens_per_second": 25
+          }
+        ]
+      },
+      {
+        "id": "gemini-3.8-flash-lite-tts",
+        "name": "Gemini 3.8 Flash-Lite TTS",
+        "description": "The budget Gemini voice, 100+ languages. For drafts and long read-alouds.",
+        "max_characters": 8000,
+        "takes_instructions": true,
+        "prices": [
+          {
+            "since": "2026-09-22",
+            "usd_per_million_characters": "10.1",
+            "usd_per_million_input_tokens": "0.50",
+            "usd_per_million_audio_tokens": "6.00",
+            "audio_tokens_per_second": 25
+          },
+          {
+            "since": "2027-01-01",
+            "usd_per_million_characters": "20.1",
+            "usd_per_million_input_tokens": "1.00",
+            "usd_per_million_audio_tokens": "12.00",
+            "audio_tokens_per_second": 25
+          }
+        ]
+      }
+    ]
+  }
+]

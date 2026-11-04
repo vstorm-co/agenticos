@@ -148,7 +148,8 @@ export function CreateApiKeyDialog({
             <Button onClick={close}>{t("done")}</Button>
           ) : (
             <Button
-              disabled={busy || name.trim() === "" || scopes.length === 0}
+              loading={busy}
+              disabled={name.trim() === "" || scopes.length === 0}
               onClick={() => void submit()}
             >
               {t("create")}

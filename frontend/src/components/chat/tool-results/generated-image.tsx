@@ -2,28 +2,31 @@
 import { ImageIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { generatedMediaUrl, SESSION_SURFACE, type MediaSurface } from "@/lib/generated-media";
+
 export interface GeneratedImagePayload {
   /** The prompt the image was drawn from, shown as a caption and alt text. */
   prompt: string;
   /**
-   * Where the browser fetches the image, through the same-origin proxy that
-   * forwards the session - `/api/generated/{filename}`. Null when the image was
-   * generated but not stored (a run with no organization to scope it to), in
-   * which case there is nothing to show.
+   * Where the browser fetches the image, on the surface it is shown on - see
+   * `generatedMediaUrl`. Null when the image was generated but not stored (a run with no
+   * organization to scope it to), in which case there is nothing to show.
    */
   url: string | null;
 }
 
 /** Parse a structured `generate_image` result, or null if it isn't one
  *  (an error string / other tool → caller falls back to the default renderer). */
-export function parseGeneratedImage(result: string): GeneratedImagePayload | null {
+export function parseGeneratedImage(
+  result: string,
+  surface: MediaSurface = SESSION_SURFACE,
+): GeneratedImagePayload | null {
   try {
     const p = JSON.parse(result);
     if (p && typeof p === "object" && p.kind === "generated_image") {
-      const filename = typeof p.filename === "string" ? p.filename : null;
       return {
         prompt: String(p.prompt ?? ""),
-        url: filename === null ? null : `/api/generated/${filename}`,
+        url: generatedMediaUrl(p, surface),
       };
     }
   } catch {

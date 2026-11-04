@@ -74,7 +74,7 @@ class NotificationDelivery(Base, TimestampMixin):
     claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("channel = 'email'", name="ck_notification_deliveries_channel"),
+        CheckConstraint("channel IN ('email', 'push')", name="ck_notification_deliveries_channel"),
         CheckConstraint(
             "status IN ('pending', 'sent', 'failed', 'skipped')",
             name="ck_notification_deliveries_status",

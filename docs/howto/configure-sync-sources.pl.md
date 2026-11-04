@@ -1,5 +1,5 @@
 ---
-source_sha: "593e85034342"
+source_sha: "71cd0f76685e"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -308,6 +308,13 @@ S3_RAG_REGION=us-east-1                    # required for AWS, optional for MinI
 W MinIO endpoint ma zwykle postać `http://minio:9000` (Docker) albo
 `http://localhost:9000` (lokalnie).
 
+`endpoint_url` źródła jest sprawdzany tak jak początkowy adres URL źródła
+strony internetowej, przy zapisie źródła i ponownie, gdy startuje synchronizacja:
+adres loopback, link-local albo metadanych chmury jest zawsze odrzucany, a
+endpoint w sieci prywatnej, na przykład kontener MinIO, wymaga wpisania jego hosta
+do [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
+`S3_RAG_ENDPOINT` ustawiony przez operatora nie jest sprawdzany.
+
 ### 2. Pola konfiguracji connectora S3 { #2-s3-connector-config-fields }
 
 | Pole | Typ | Wymagane | Domyślnie | Opis |
@@ -352,8 +359,9 @@ uv run agenticos cmd rag-source-add \
 - **Sieć deploymentu jest poza zasięgiem.** Każde żądanie - robots.txt, sitemapa,
   każda strona i każde przekierowanie - jest sprawdzane według tej samej polityki
   SSRF co webhooki i serwery MCP. Wysyłane jest na adres, który przeszedł
-  sprawdzenie. Początkowy adres URL, który rozwiązuje się na adres prywatny,
-  loopback, link-local albo metadanych chmury, jest odrzucany przy zapisie źródła.
+  sprawdzenie. Początkowy adres URL, który rozwiązuje się na adres
+  loopback, link-local albo metadanych chmury, jest zawsze odrzucany przy zapisie źródła.
+  Taki, który rozwiązuje się na adres prywatny, też jest odrzucany, chyba że operator wpisał jego host do [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
 - **robots.txt jest przestrzegany** dla sitemap i stron, łącznie z `Crawl-delay`
   do dziesięciu sekund. Crawler przedstawia się jako `AgenticOS-Crawler`. Między
   żądaniami czeka co najmniej pół sekundy, a strona oznaczona `noindex` lub
@@ -461,7 +469,8 @@ Adres URL musi zaczynać się od `https://`. Jego host jest rozwiązywany raz
 i sprawdzany tak jak każdy inny adres wybrany przez tenanta: host, który
 rozwiązuje się na adres prywatny, loopback albo link-local, jest odrzucany przy
 zapisie źródła i ponownie przy synchronizacji, a git łączy się wyłącznie
-z adresami, które ta kontrola zatwierdziła. Przekierowania nie są śledzone.
+z adresami, które ta kontrola zatwierdziła. Operator może dopuścić host z sieci
+deploymentu przez [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Przekierowania nie są śledzone.
 Deployment za proxy wyjściowym (`HTTPS_PROXY`) nadal z niego korzysta; proxy
 rozwiązuje wtedy host samo.
 
@@ -782,8 +791,8 @@ poprawnie ustawione w `.env`. W MinIO upewnij się, że endpoint zawiera port
 
 Początkowy adres URL albo sitemapa wskazuje do wnętrza sieci deploymentu albo
 jego nazwa się tam rozwiązuje. Źródło strony internetowej czyta wyłącznie adresy
-publiczne. Aby zaindeksować wewnętrzną witrynę, opublikuj jej strony gdzieś
-publicznie albo prześlij pliki bezpośrednio.
+publiczne, chyba że operator wpisał host witryny do
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). W przeciwnym razie opublikuj jej strony gdzieś publicznie albo prześlij pliki bezpośrednio.
 
 ### Website: "The site's robots.txt could not be read, so it was not crawled" { #website-the-sites-robotstxt-could-not-be-read-so-it-was-not-crawled }
 
@@ -871,7 +880,7 @@ ponownie po nim, jeśli źródło w międzyczasie się zmieniło.
 
 Host repozytorium rozwiązuje się na adres wewnątrz sieci deploymentu, więc
 źródło jest odrzucane. Źródło synchronizacji nie może dotrzeć do
-samodzielnie hostowanego serwera Git pod adresem wewnętrznym.
+samodzielnie hostowanego serwera Git pod adresem wewnętrznym, chyba że operator wpisał jego host do [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
 
 ### Git: "git is not installed on this worker" { #git-git-is-not-installed-on-this-worker }
 

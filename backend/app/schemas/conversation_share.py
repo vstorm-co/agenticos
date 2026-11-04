@@ -31,39 +31,6 @@ class SharedVisual(BaseSchema):
     content: str = Field(description="The drawing, revisions applied and pictures inlined")
 
 
-class SharedMessage(BaseSchema):
-    """One turn of a thread shared by link: what was said, and what was drawn."""
-
-    id: UUID
-    role: str
-    content: str
-    created_at: datetime | None = None
-    visuals: list[SharedVisual] = Field(default_factory=list)
-
-
-class SharedConversation(BaseSchema):
-    id: UUID
-    title: str | None = None
-    messages: list[SharedMessage]
-
-
-class SharedLink(BaseSchema):
-    id: UUID
-    permission: str
-    share_token: str | None = None
-
-
-class SharedConversationRead(BaseSchema):
-    """A thread opened by its public link: its turns, and the link it was opened by.
-
-    Narrower than a conversation read by a member, on purpose: no tool calls, no
-    costs, no participants - the link is shown to whoever holds it.
-    """
-
-    conversation: SharedConversation
-    share: SharedLink
-
-
 class ConversationShareCreate(BaseSchema):
     """Schema for creating a conversation share."""
 
@@ -114,6 +81,7 @@ class AdminConversationRead(BaseSchema):
         default_factory=list,
         description="Every agent that answered here, in the order they first did",
     )
+    coding_agents: list[Literal["claude_code", "codex"]] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -123,3 +91,33 @@ class AdminConversationList(BaseSchema):
 
     items: list[AdminConversationRead]
     total: int
+
+
+class SharedMessageRead(BaseSchema):
+    """One message of a conversation opened by its share link."""
+
+    id: UUID
+    role: str
+    content: str | None = None
+    created_at: datetime | None = None
+    visuals: list[SharedVisual] = Field(default_factory=list)
+
+
+class SharedConversationBody(BaseSchema):
+    id: UUID
+    title: str | None = None
+    messages: list[SharedMessageRead]
+
+
+class SharedConversationShare(BaseSchema):
+    """The link itself, without its token: whoever opened it already holds that."""
+
+    id: UUID
+    permission: Literal["view", "edit"]
+
+
+class SharedConversationRead(BaseSchema):
+    """A conversation opened by its share link, with no account."""
+
+    conversation: SharedConversationBody
+    share: SharedConversationShare

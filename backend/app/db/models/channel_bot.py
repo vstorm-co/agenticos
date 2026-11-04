@@ -2,7 +2,16 @@
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String, true
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    true,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,6 +64,12 @@ class ChannelBot(Base, TimestampMixin):
     # registered before the credentials moved off the environment.
     slack_signing_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     slack_app_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # A Teams bot's Azure Bot registration (#1985): the Entra app it signs in as
+    # and the tenant it is registered in. Identifiers, not credentials - the
+    # client secret is `token_encrypted` - and the audience every inbound Bot
+    # Connector token is checked against. NULL on other platforms.
+    teams_app_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    teams_tenant_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # The token Mattermost gives a slash command when it is created, which every
     # `/agent` request carries (#2084). Sealed like the rest; Mattermost bots only.
     command_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
@@ -137,6 +152,7 @@ class ChannelBot(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_channel_bot_id_org"),
         CheckConstraint(
             "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
             name="ck_channel_bot_speech_pair",

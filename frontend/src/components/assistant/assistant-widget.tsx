@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 
 import type { ChatPrompt } from "@/components/chat/chat-container";
+import { useShell } from "@/hooks/use-shell";
+import { isDesktopShell } from "@/lib/desktop/shell";
 import { useAssistant } from "@/hooks/use-assistant";
 import { useAssistantSignals } from "@/hooks/use-assistant-signals";
 import { pointAt, type ConsoleLink } from "@/lib/assistant-highlight";
@@ -19,6 +21,7 @@ import {
 } from "@/lib/assistant-bubbles";
 import { useRouter } from "@/lib/locale-navigation";
 import { ChatScope, useOrgStore } from "@/stores";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { AssistantBubble } from "./assistant-bubble";
@@ -106,6 +109,10 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // The page the bubble has waited out its moment on; on any other it is quiet.
   const [readyOn, setReadyOn] = useState<string | null>(null);
   const [preferences, setPreferences] = useState(readPreferences);
+  const shell = useShell();
+  // Native Blobby already occupies the desktop corner. Keep the web assistant
+  // available at the edge without covering card actions in the console.
+  const docked = (isDesktopShell(shell) && shell.window === "main") || preferences.docked;
   // "Not now", or a bubble left to fade, on a page: quiet there for the rest
   // of this visit to the console.
   const [setAside, setSetAside] = useState<string | null>(null);
@@ -145,10 +152,10 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
   // Left alone with the window closed, the button steps into the edge of the
   // screen; it stays there across pages and visits until it is pulled out.
   useEffect(() => {
-    if (open || preferences.docked) return;
+    if (open || docked) return;
     const timer = setTimeout(() => dock(true), DOCK_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [open, preferences.docked, touched, dock]);
+  }, [open, docked, touched, dock]);
 
   const failedRun = signals.failedRunId !== preferences.seenRun ? signals.failedRunId : null;
   const bubble = bubbleFor(
@@ -167,12 +174,17 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     if (bubble === "approvals") setApprovalsHeard(signals.pendingApprovals);
     setPreferences(readPreferences());
   };
+  // The chat's composer takes the launcher's corner, so there the launcher steps
+  // out - and a bubble pointing at a launcher that is not there is a message
+  // floating over the composer with nothing to answer it from.
+  const overComposer = pageOf(pathname).startsWith("/chat");
   const speaking =
     !phone &&
+    !overComposer &&
     readyOn === pathname &&
     setAside !== pathname &&
     !open &&
-    !preferences.docked &&
+    !docked &&
     bubble !== null &&
     !preferences.off &&
     !preferences.silenced.includes(pageOf(pathname));
@@ -188,11 +200,24 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
     setPrompt((last) => ({ id: (last?.id ?? 0) + 1, text }));
   };
 
+  // Asked from elsewhere in the console - "Make an agent of this" in a chat. Each
+  // ask once: taken out of the store so a widget mounted later does not repeat
+  // it, and the ref for an effect that runs twice before the store has caught up.
+  const asked = useArchitectAskStore((state) => state.request);
+  const answered = useArchitectAskStore((state) => state.answered);
+  const answeredAsk = useRef<number | null>(null);
+  useEffect(() => {
+    if (asked === null || asked.id === answeredAsk.current) return;
+    answeredAsk.current = asked.id;
+    ask(asked.text);
+    answered(asked.id);
+  });
+
   const followLink = (link: ConsoleLink) => {
     // On a phone the full-screen window steps aside so the page can be seen.
     if (window.matchMedia(PHONE).matches) setOpen(false);
     router.push(link.path);
-    if (link.anchor) void pointAt(link.anchor);
+    if (link.anchor) void pointAt(link.anchor, link.path);
   };
 
   return (
@@ -251,16 +276,11 @@ function ReadyWidget({ assistant, agentId }: { assistant: AssistantState; agentI
         assistant={assistant}
         agentId={agentId}
         open={open}
-        docked={preferences.docked}
-        waiting={
-          (preferences.docked || phone) &&
-          bubble !== null &&
-          isProactive(bubble) &&
-          !preferences.off
-        }
+        docked={docked}
+        waiting={(docked || phone) && bubble !== null && isProactive(bubble) && !preferences.off}
         onToggle={() => (open ? setOpen(false) : openWindow())}
         onHover={touch}
-        overComposer={pageOf(pathname).startsWith("/chat")}
+        overComposer={overComposer}
       />
     </WidgetRoot>
   );

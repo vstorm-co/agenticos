@@ -32,6 +32,10 @@ there is no step it takes that you cannot.
 
 ## Requirements
 
+Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+with an additional override for sandbox socket and workspace permissions. The
+quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
+
 | To | You need |
 |---|---|
 | **Run it** | Docker with the Compose plugin, 2.24 or later - Docker Desktop, OrbStack, or Engine with `docker-compose-plugin`. <https://docs.docker.com/get-docker/> |
@@ -41,6 +45,20 @@ there is no step it takes that you cannot.
 
     The Makefile and the shell helpers assume bash. **WSL2** or **Git Bash**.
     Once you are inside one, everything below is identical.
+
+!!! note "Login cookies and shared hosts"
+
+    The console uses `agenticos_access_token` and `agenticos_refresh_token`
+    cookies to avoid accidental overwrites by apps with generic cookie names.
+    After upgrading from the old names, sign in again once. Migration
+    `0173_revoke_cookie_sessions.py` ends existing login sessions, including
+    rotated refresh chains and impersonations. Session-based API clients must
+    also sign in again; API keys are unaffected. Downgrading never reactivates
+    revoked sessions.
+
+    Give unrelated apps separate hostnames. Cookies are shared across ports on
+    the same hostname; app-specific names prevent accidental collisions, but do
+    not stop another app on that hostname from receiving your tokens.
 
 ## Run it from the published images
 
@@ -77,7 +95,7 @@ flowchart LR
 
     | | |
     |---|---|
-    | `AGENTICOS_VERSION` | Which release to run. `latest` when unset; a version such as `0.0.380` to pin one, `edge` for whatever `main` last published |
+    | `AGENTICOS_VERSION` | Which release to run. `latest` when unset; a version such as `0.0.380` to pin one, `edge` for whatever `main` last published. Pin with that release's `docker-compose.yml` beside it (`https://raw.githubusercontent.com/vstorm-co/agenticos/v<version>/docker-compose.yml`): the file pins the `sandboxd` that release's backend speaks |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | What the *browser* is told to call, when the host is reached by a name other than `localhost`. The backend's `FRONTEND_URL` and `CORS_ORIGINS` are the same fact from its side |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | The sign-in buttons the console offers, and what the composer refuses before uploading |
     | `SECRET_KEY`, `VAULT_MASTER_KEY` | Optional on a laptop, where the defaults are a constant from the repository and a vault sealed under it. `scripts/quickstart.sh` generates both; by hand, `openssl rand -hex 32` each - and back the vault key up with the database, because a dump restored beside a different key is unreadable |
@@ -169,17 +187,23 @@ needs a key, a key needs an organization — and this walks that chain once:
 | An owner | `admin@example.com` / `admin123`, or `--email` / `--password` |
 | A vault entry | Your provider key, sealed for that organization |
 | A model profile | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` or `openai/gpt-4.1`, whichever provider the key is for |
-| Two agents | The **Architect**, in the corner of every page, and **Claude Code like**, both published if there is a key |
+| Two agents | The **Architect**, in the corner of every page, and **AgenticOS**, both published if there is a key |
 
 Now open <http://localhost:3000>, sign in as `admin@example.com` / `admin123`, and
-ask either of them something: **Claude Code like** in **Chat**, or the
+ask either of them something: **AgenticOS** in **Chat**, or the
 **Architect** from the corner of any page.
 
-Claude Code like is a general-purpose agent: it reads before it acts, plans a
-multi-step piece of work, edits files and runs commands in its sandbox, researches
-the web, delegates to its specialists and checks what it did. The Architect knows
-this platform: it finds agents, runs and knowledge bases, explains why a run failed
-and what it cost, and drafts an agent or a knowledge base for you to approve.
+AgenticOS is a general-purpose agent: it reads before it acts, plans a multi-step
+piece of work, edits files and runs commands in its sandbox, researches the web,
+delegates to its specialists and checks what it did. It also shows you what the
+platform does as you go - it offers a routine when a request will come back, says
+what it could do if a capability were switched on, remembers your preferences, and
+switches the console's language when you ask it to. Every agent you create from
+scratch starts as a copy of it.
+
+The Architect builds agents with you, one decision at a time, from what the
+agent should do to a tested, published agent; it also finds agents, runs and
+knowledge bases, and explains why a run failed and what it cost.
 
 Open either in the Builder to see how: every one of those is a capability that was
 switched on, and the agent's instructions are a text box you can edit.
@@ -191,7 +215,7 @@ switched on, and the agent's instructions are a text box you can edit.
     answer, and publishing one that fails on its first message is worse than not
     publishing it.
 
-    Add a key under **Settings → AI providers**, then publish Claude Code like. The
+    Add a key under **Settings → AI providers**, then publish AgenticOS. The
     Architect publishes itself on the organization's first model.
 
 !!! note "`make seed` is a different thing"

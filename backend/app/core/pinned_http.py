@@ -43,10 +43,16 @@ builders.
 
 import asyncio
 import logging
+from functools import partial
 
 import httpx2
 
-from app.core.sanitize import PinnedAddress, resolve_pinned_url
+from app.core.sanitize import (
+    NO_PRIVATE_ADDRESSES,
+    PinnedAddress,
+    PrivateAllowlist,
+    resolve_pinned_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +102,13 @@ class PinnedTransport(httpx2.AsyncBaseTransport):
     whole flow.
     """
 
-    def __init__(self, inner: httpx2.AsyncBaseTransport) -> None:
+    def __init__(
+        self,
+        inner: httpx2.AsyncBaseTransport,
+        private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES,
+    ) -> None:
         self._inner = inner
+        self._private_allowlist = private_allowlist
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         """Raises a `UrlRefusedError` out of `client.send` rather than connecting.
@@ -106,7 +117,9 @@ class PinnedTransport(httpx2.AsyncBaseTransport):
         type it would from a direct call and quotes what it is allowed to
         quote - a host, never a URL (#861).
         """
-        pinned = await asyncio.to_thread(resolve_pinned_url, str(request.url))
+        pinned = await asyncio.to_thread(
+            partial(resolve_pinned_url, str(request.url), private_allowlist=self._private_allowlist)
+        )
         body = await request.aread()
         *rest, final = pinned.ips
         for ip in rest:
@@ -133,6 +146,13 @@ class PinnedAsyncClient(httpx2.AsyncClient):
     a test observes exactly what would go on the wire. Passing one also turns
     off `httpx2`'s environment-proxy mounting, which is why the real client does
     not name a transport of its own.
+
+    `private_allowlist` reaches every hop's check, as `resolve_pinned_url` reads
+    it. The callers that pass it are the ones whose first URL a member typed or
+    bound (`allowlist_for`): the MCP OAuth flow, `http.*` steps, the web connector
+    and the A2A client. Git does not use this client: it passes the same list to
+    `resolve_pinned_url` and has curl dial the result. Every other client checks
+    every hop without an exemption.
     """
 
     def __init__(
@@ -140,6 +160,7 @@ class PinnedAsyncClient(httpx2.AsyncClient):
         *,
         timeout: httpx2.Timeout,
         transport: httpx2.AsyncBaseTransport | None = None,
+        private_allowlist: PrivateAllowlist = NO_PRIVATE_ADDRESSES,
     ) -> None:
         super().__init__(
             timeout=timeout,
@@ -152,9 +173,9 @@ class PinnedAsyncClient(httpx2.AsyncClient):
         # environment names - and wrapping what it built is what applies the pin
         # to whichever of them a URL selects. Naming a transport here instead is
         # what silently turned those proxies off (#875).
-        self._transport = PinnedTransport(self._transport)
+        self._transport = PinnedTransport(self._transport, private_allowlist)
         self._mounts = {
-            pattern: None if mounted is None else PinnedTransport(mounted)
+            pattern: None if mounted is None else PinnedTransport(mounted, private_allowlist)
             for pattern, mounted in self._mounts.items()
         }
         if any(mounted is not None for mounted in self._mounts.values()):

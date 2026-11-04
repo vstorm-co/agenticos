@@ -55,8 +55,11 @@ export function SyncSourcesSection({
   const visible = expanded ? syncSources : syncSources.slice(0, SYNC_SOURCES_VISIBLE);
 
   return (
-    <section data-tour="kb-sync">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <section
+      data-tour="kb-sync"
+      className="border-border bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border"
+    >
+      <div className="border-border flex items-center justify-between gap-3 border-b px-5 py-4">
         <h2 className="text-foreground text-sm font-semibold">{t("syncSources")}</h2>
         {mayEdit && connectors.length > 0 && (
           <Button variant="outline" size="sm" onClick={onConnect}>
@@ -88,7 +91,7 @@ export function SyncSourcesSection({
         />
       ) : syncSources.length > 0 ? (
         <>
-          <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-xl border">
+          <ul className="divide-border flex-1 divide-y">
             {visible.map((source) => (
               <SyncSourceRow
                 key={source.id}
@@ -113,6 +116,7 @@ export function SyncSourcesSection({
         // "none configured" are both facts here, and the notice above has
         // already spoken for the case where neither is established.
         <EmptyState
+          className="flex-1 rounded-none border-0"
           icon={Plug}
           title={connectors.length > 0 ? t("noSourcesConnected") : t("noConnectorsConfigured")}
           description={

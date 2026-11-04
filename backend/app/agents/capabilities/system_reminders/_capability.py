@@ -45,7 +45,7 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelRequestPart,
-    RetryPromptPart,
+    RetryFeedbackPart,
     TextContent,
     TextPart,
     ToolReturnPart,
@@ -230,12 +230,13 @@ def static_producer(content: str) -> ReminderProducer[Any]:
 
 
 def goal_reanchor_producer(fallback: str) -> ReminderProducer[Any]:
-    """A producer that re-states the run's first user request as the anchor.
+    """A producer that points the model back to the run's first user request.
 
-    The harness `GoalReanchor` reads the first user message off `ctx.messages` and
-    asks the model to check its next action advances it - no model call and no
-    dependencies. Reused rather than reimplemented: it is public and stateless, so
-    the only thing to add is the async wrapper the producer protocol wants.
+    The harness `GoalReanchor` asks the model to check its next action advances
+    the first user request, without repeating user text as steering guidance.
+    It makes no model call and has no dependencies. Reused rather than
+    reimplemented: it is public and stateless, so the only thing to add is the
+    async wrapper the producer protocol wants.
     """
     reanchor = GoalReanchor[Any](fallback=fallback)
 
@@ -325,11 +326,16 @@ def _has_user_content(parts: Sequence[ModelRequestPart]) -> bool:
     Anthropic and Bedrock reject a `CachePoint` that is the first content of a
     user message, so the tail reminder leads with one only when the request
     already contributes user-mappable content: a non-empty user prompt, a tool
-    return, or a retry prompt. A system prompt maps to the system field, not user
-    content, so it does not count.
+    return, or retry feedback that uses the user voice. A system prompt and
+    `no_output` feedback map to the system field, so they do not count.
     """
     for part in parts:
-        if isinstance(part, ToolReturnPart | RetryPromptPart):
+        if isinstance(part, ToolReturnPart):
+            return True
+        if isinstance(part, RetryFeedbackPart) and part.retry.cause in (
+            "model_retry",
+            "validation_error",
+        ):
             return True
         if isinstance(part, UserPromptPart):
             content = part.content

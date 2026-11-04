@@ -1,9 +1,18 @@
+import { useState } from "react";
+import { useCapabilityFieldCopy } from "./capability-field-copy";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { SchemaForm } from "./schema-form";
 import type { JsonSchema } from "@/types/agents";
+
+vi.mock("@/components/icons/custom-icons", async () => {
+  const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
+    "@/components/icons/custom-icons",
+  );
+  return { ...actual, useCustomIcons: () => new Set(["keenable"]) };
+});
 
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({ profiles: [{ id: "p-fast" }], profilesStatus: "ready" }),
@@ -262,7 +271,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Summary prompt/).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("textbox", { name: "Summary prompt" }).tagName).toBe("TEXTAREA");
     expect(screen.getByLabelText(/Tool name/).tagName).toBe("INPUT");
     // The editor's own toggle, which is what distinguishes it from a textarea.
     expect(screen.getByRole("button", { name: /Preview/i })).toBeVisible();
@@ -284,7 +293,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    const field = screen.getByLabelText(/Summary prompt/);
+    const field = screen.getByRole("textbox", { name: "Summary prompt" });
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAccessibleDescription(/must contain/);
   });
@@ -305,7 +314,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Summary prompt/)).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Summary prompt" })).toHaveValue("");
   });
 
   it("clears a multiline field back to unset rather than to an empty string", async () => {
@@ -324,7 +333,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    await userEvent.clear(screen.getByLabelText(/Summary prompt/));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Summary prompt" }));
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: undefined });
   });
@@ -343,7 +352,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    await userEvent.type(screen.getByLabelText(/Summary prompt/), "!");
+    await userEvent.type(screen.getByRole("textbox", { name: "Summary prompt" }), "!");
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: "Summarise!" });
   });
@@ -1202,4 +1211,322 @@ describe("x-enum-when", () => {
     await userEvent.click(screen.getByLabelText("Model"));
     expect(screen.queryByRole("option", { name: /anthropic|openai/ })).toBeNull();
   });
+});
+
+describe("a hint on hover", () => {
+  it("puts an x-hint on the label, for a pointer and a screen reader, not under the field", () => {
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: { zone: { type: "string", title: "Timezone", "x-hint": "An IANA timezone" } },
+        }}
+        value={{}}
+        onChange={vi.fn()}
+        idPrefix="hint"
+      />,
+    );
+    expect(screen.getByText("Timezone").closest("label")).toHaveAttribute(
+      "title",
+      "An IANA timezone",
+    );
+    expect(screen.getByLabelText("Timezone. An IANA timezone")).toBeInTheDocument();
+  });
+
+  it("ticks each choice of a list of choices, named by its label", async () => {
+    const onChange = vi.fn();
+    render(
+      <SchemaForm
+        schema={{
+          type: "object",
+          properties: {
+            events: {
+              type: "array",
+              title: "Starts when a record is",
+              items: { type: "string", enum: ["created", "updated", "deleted"] },
+              default: ["created"],
+              "x-enum-labels": { created: "Added", updated: "Changed", deleted: "Deleted" },
+            },
+          },
+        }}
+        value={{}}
+        onChange={onChange}
+        idPrefix="t"
+      />,
+    );
+
+    expect(screen.getByRole("group", { name: "Starts when a record is" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Added" })).toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Changed" }));
+    expect(onChange).toHaveBeenLastCalledWith({ events: ["created", "updated"] });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Added" }));
+    expect(onChange).toHaveBeenLastCalledWith({ events: undefined });
+  });
+});
+
+/** A field that suggests the usual answers and accepts any other. */
+const OPEN_SCHEMA: JsonSchema = {
+  type: "object",
+  properties: {
+    model: {
+      type: "string",
+      title: "Model",
+      description: "The model that decides",
+      default: "jev-latest",
+      "x-suggestions": ["jev-latest", "jev-preview"],
+      "x-enum-labels": { "jev-latest": "Jev (latest)", "jev-preview": "Jev (preview)" },
+      "x-placeholder": "jev-latest",
+    },
+  },
+};
+
+describe("a field that suggests rather than restricts", () => {
+  function renderOpen(value: Record<string, unknown> = {}) {
+    const onChange = vi.fn();
+    const { container } = render(
+      <SchemaForm schema={OPEN_SCHEMA} value={value} onChange={onChange} idPrefix="decide" />,
+    );
+    return { onChange, container };
+  }
+
+  it("is an input somebody can type into, not a closed select", () => {
+    // An `<input list=...>` reports `combobox`; what matters is that it takes
+    // free text, where `enum` would have rendered a select and forbidden the
+    // pinned build this field exists to allow.
+    renderOpen();
+    const field = screen.getByRole("combobox");
+    expect(field.tagName).toBe("INPUT");
+    expect(field).toHaveAttribute("list", "decide-model-suggestions");
+  });
+
+  it("offers the catalog through a datalist, labelled the way a select labels its options", () => {
+    const { container } = renderOpen();
+
+    const list = container.querySelector("datalist");
+    expect([...(list?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual([
+      "jev-latest",
+      "jev-preview",
+    ]);
+    expect(list?.textContent).toContain("Jev (latest)");
+  });
+
+  it("shows the default until somebody types, and accepts a value the catalog lacks", () => {
+    const { onChange } = renderOpen();
+    expect(screen.getByRole("combobox")).toHaveValue("jev-latest");
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "jev-1.13.0" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({ model: "jev-1.13.0" });
+  });
+
+  it("clearing it means unset rather than an empty string", () => {
+    const { onChange } = renderOpen({ model: "jev-preview" });
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
+
+    expect(onChange).toHaveBeenLastCalledWith({});
+  });
+});
+
+it("offers explicit environment cards without rewriting a legacy automatic value", async () => {
+  const changed = vi.fn();
+  function Environment() {
+    const copyFor = useCapabilityFieldCopy("computer_use");
+    const [value, setValue] = useState<Record<string, unknown>>({});
+    return (
+      <SchemaForm
+        idPrefix="computer"
+        copyFor={copyFor}
+        schema={{
+          properties: {
+            desktop: {
+              type: "string",
+              default: "auto",
+              enum: ["auto", "e2b", "sandbox", "local", "daemon"],
+              title: "Environment",
+              "x-widget": "computer-environment",
+            },
+          },
+        }}
+        value={value}
+        onChange={(next) => {
+          changed(next);
+          setValue(next);
+        }}
+      />
+    );
+  }
+  render(<Environment />);
+  const group = screen.getByRole("radiogroup", { name: "Environment" });
+  expect(changed).not.toHaveBeenCalled();
+  expect(within(group).queryByRole("radio", { name: "Automatic" })).toBeNull();
+  expect(
+    within(group)
+      .getAllByRole("radio")
+      .map((option) => option.getAttribute("aria-label")),
+  ).toEqual(["E2B", "Docker / Sandbox", "Local", "Remote computer"]);
+  expect(
+    within(group)
+      .getAllByRole("radio")
+      .every((option) => option.getAttribute("aria-checked") === "false"),
+  ).toBe(true);
+  await userEvent.click(within(group).getByRole("radio", { name: "E2B" }));
+  expect(changed).toHaveBeenLastCalledWith({ desktop: "e2b" });
+  expect(within(group).getByRole("radio", { name: "E2B" })).toHaveAttribute("aria-checked", "true");
+  expect(screen.getByText(/no Sandbox connection is needed/)).toBeVisible();
+});
+
+it("shows schema option help when no localized choices are available", () => {
+  render(
+    <SchemaForm
+      idPrefix="fallback"
+      schema={{
+        properties: {
+          backend: {
+            anyOf: [
+              {
+                type: "string",
+                enum: ["local"],
+                "x-enum-labels": { local: "Local" },
+                "x-enum-descriptions": { local: "Use the approved computer" },
+              },
+              { type: "null" },
+            ],
+            default: "local",
+          },
+        },
+      }}
+      value={{}}
+      onChange={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("combobox")).toHaveAccessibleDescription("Use the approved computer");
+});
+
+it("presents browser connections as one icon card choice and writes the selected transport", async () => {
+  const change = vi.fn();
+  render(
+    <SchemaForm
+      schema={{
+        type: "object",
+        properties: {
+          connection: {
+            type: "string",
+            title: "Browser",
+            enum: ["built_in", "proxy", "hosted", "local"],
+            default: "built_in",
+            "x-widget": "browser-connection",
+          },
+        },
+      }}
+      value={{}}
+      idPrefix="browser-choice"
+      onChange={change}
+    />,
+  );
+  const choices = screen.getAllByRole("radio");
+  expect(choices).toHaveLength(4);
+  expect(choices[0]).toHaveAttribute("aria-checked", "true");
+  for (const choice of choices) expect(choice.querySelector("svg")).not.toBeNull();
+  await userEvent.click(choices[3]!);
+  expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
+});
+
+it("offers local Codex read-only and clears it when returning to a sandbox", async () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      harness: { type: "string", default: "codex" },
+      runs_on: {
+        type: "string",
+        enum: ["sandbox", "this_computer"],
+        title: "Where it runs",
+        "x-widget": "coding-environment",
+        default: "sandbox",
+      },
+      access: {
+        type: "string",
+        enum: ["edit", "read_only"],
+        title: "Access",
+        "x-enum-when": {
+          field: "harness",
+          choices: { codex: ["edit"] },
+          unless: { field: "runs_on", equals: ["this_computer"] },
+        },
+      },
+    },
+  };
+  const onChange = vi.fn();
+  render(
+    <SchemaForm
+      schema={schema}
+      value={{ runs_on: "this_computer", access: "read_only" }}
+      onChange={onChange}
+      idPrefix="local"
+    />,
+  );
+  await userEvent.click(screen.getByLabelText("Access"));
+  expect(screen.getByRole("option", { name: "read_only" })).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("radiogroup", { name: "Where it runs" })).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "this_computer" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "sandbox" }));
+  expect(onChange).toHaveBeenLastCalledWith({ runs_on: "sandbox", access: undefined });
+});
+
+it("clears a sandbox model when switching to this computer", async () => {
+  const onChange = vi.fn();
+  render(
+    <SchemaForm
+      idPrefix="coding"
+      schema={{
+        type: "object",
+        properties: {
+          runs_on: {
+            type: "string",
+            enum: ["sandbox", "this_computer"],
+            default: "sandbox",
+            "x-widget": "coding-environment",
+          },
+          model: {
+            type: "string",
+            enum: ["anthropic:claude-sonnet-4-6"],
+            "x-visible-when": { field: "runs_on", equals: ["sandbox"] },
+          },
+        },
+      }}
+      value={{ runs_on: "sandbox", model: "anthropic:claude-sonnet-4-6" }}
+      onChange={onChange}
+    />,
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "this_computer" }));
+  expect(onChange).toHaveBeenLastCalledWith({ runs_on: "this_computer", model: undefined });
+});
+
+it("renders the catalog logo for Keenable in a search-engine choice", () => {
+  const { container } = render(
+    <SchemaForm
+      schema={{
+        type: "object",
+        properties: {
+          method: {
+            type: "string",
+            enum: ["duckduckgo", "keenable"],
+            title: "Search engine",
+            "x-enum-labels": { duckduckgo: "DuckDuckGo", keenable: "Keenable" },
+          },
+        },
+      }}
+      value={{ method: "keenable" }}
+      onChange={vi.fn()}
+      idPrefix="search"
+    />,
+  );
+  const mark = container.querySelector<HTMLElement>('[style*="mask-image"]');
+  expect(mark?.style.maskImage).toBe('url("/api/catalog/icons/keenable")');
+  expect(mark?.style.backgroundColor).toBe("currentcolor");
+  expect(screen.getByRole("combobox")).toHaveTextContent("Keenable");
 });

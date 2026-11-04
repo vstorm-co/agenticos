@@ -37,7 +37,7 @@ describe("useSkills", () => {
 
   it("lists skills", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({
-      items: [{ id: "s1", name: "refunds", description: "How refunds work", enabled: true }],
+      items: [{ id: "s1", name: "refunds", description: "How refunds work" }],
       total: 1,
     });
     const { result } = renderHook(() => useSkills(), { wrapper });
@@ -166,7 +166,6 @@ const BODY = {
   name: "refunds",
   description: "How refunds work",
   content: "# Refunds",
-  enabled: true,
   version: 1,
   visibility: "organization",
   owner_user_id: null,
@@ -190,7 +189,7 @@ describe("useSkill", () => {
     expect(apiClient.get).not.toHaveBeenCalled();
   });
 
-  it("sends the whole editable set, so an unticked toggle is not lost", async () => {
+  it("sends only the editable description, content and category", async () => {
     vi.mocked(apiClient.patch).mockResolvedValue(BODY);
     const { result } = renderHook(() => useSkill("s1"), { wrapper });
     await waitFor(() => expect(result.current.skill).toEqual(BODY));
@@ -198,14 +197,12 @@ describe("useSkill", () => {
     await result.current.save.mutateAsync({
       description: "How refunds work",
       content: "# Refunds v2",
-      enabled: false,
       category: null,
     });
 
     expect(apiClient.patch).toHaveBeenCalledWith("/skills/s1", {
       description: "How refunds work",
       content: "# Refunds v2",
-      enabled: false,
       category: null,
     });
     expect(toastSuccess.mock.calls.at(-1)?.[0]).toMatch(/every agent/i);
@@ -404,7 +401,6 @@ describe("useSkill files", () => {
       result.current.save.mutateAsync({
         description: "d",
         content: "x",
-        enabled: true,
         category: null,
       }),
     ).rejects.toThrow();

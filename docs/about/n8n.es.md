@@ -1,5 +1,5 @@
 ---
-source_sha: "3b37854bab7f"
+source_sha: "e65292f64912"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternativa Apache-2.0 para agents de IA"
 description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles sin planes de pago, budgets por agent en lugar de cuotas de ejecuciones, y aprobaciones."
@@ -7,17 +7,21 @@ description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles
 
 # AgenticOS vs n8n { #agenticos-vs-n8n }
 
-n8n es una herramienta de automatización de workflows. Conectas triggers, integraciones y pasos de código en un lienzo, y los nodos AI Agent añaden modelos y herramientas a un workflow. AgenticOS parte en cambio del agent: instrucciones, un modelo, capabilities, conocimiento y un budget, publicados como una versión y gobernados en el servidor.
+n8n combina workflows visuales, nodos AI Agent y agents nativos en vista previa. Los agents nativos tienen sus propias instrucciones, herramientas, skills, conocimiento y programaciones. AgenticOS también ofrece agents y workflows; compara el modelo operativo, la licencia, el acceso y los controles de gasto para tu tarea.
 
 Encajan bien juntos. n8n mueve datos entre sistemas según una programación. AgenticOS ejecuta los agents que necesitan un responsable, un aprobador y un límite de gasto.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de n8n: su página de precios, su documentación y su licencia en n8n@2.44.5, no un plan de nube probado ni una licencia Enterprise autoalojada.
 
+Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
+La disponibilidad de agents nativos y la configuración del conocimiento autoalojado se revisaron en la documentación oficial de n8n el 2 de noviembre de 2026. Los agents nativos están en vista previa en Cloud y en planes autoalojados desde 2.32.3. Esto no renueva la auditoría de precios anterior.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | n8n | AgenticOS |
 | --- | --- | --- |
-| Unidad de trabajo | Un workflow de nodos | Un agent, publicado como spec versionado |
+| Unidad de trabajo | Workflows, nodos AI Agent y agents nativos en vista previa | Un agent, publicado como spec versionado |
 | Licencia | Sustainable Use License, con los archivos `.ee` bajo la n8n Enterprise License | Apache-2.0 |
 | Dónde se ejecuta | Autoalojado o en n8n Cloud en Fráncfort | Tu infraestructura |
 | Inicio de sesión | SSO en Business y Enterprise autoalojados, y en Cloud Enterprise | SSO OIDC, LDAP y Kerberos en todos los despliegues |
@@ -34,7 +38,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 
 La Sustainable Use License de n8n permite el uso «solo para tus propios fines empresariales internos o para uso no comercial o personal». Las funciones de los archivos `.ee` requieren una clave de licencia de pago. La página de precios de n8n dice que una clave de licencia autoalojada contacta a diario con su servidor de licencias.
 
-AgenticOS es Apache-2.0. Puedes ejecutarlo para clientes, modificarlo y construir un producto sobre él; revisa las [licencias de los componentes incluidos](../licenses.md#the-agpl-component) en la imagen que distribuyas. Una instalación nueva [no envía nada a ninguna parte](../data-protection.md#nothing-leaves-by-default).
+AgenticOS es Apache-2.0. Puedes ejecutarlo para clientes, modificarlo y construir un producto sobre él; revisa las [licencias de los componentes incluidos](../licenses.md#the-agpl-component) en la imagen que distribuyas. Una instalación nueva [no envía ningún prompt ni documento a ninguna parte](../data-protection.md#nothing-leaves-by-default); el [diagnóstico del deployment](../configuration.md#diagnostics) está activado por defecto y se puede desactivar.
 
 ### Controles empresariales sin cambiar de plan { #enterprise-controls-without-a-plan-upgrade }
 
@@ -51,16 +55,16 @@ n8n cuenta ejecuciones, y un turno de un agent es una ejecución, gaste lo que g
 
 ### Un agent que el responsable de negocio puede cambiar { #an-agent-a-business-owner-can-change }
 
-Cambiar un workflow de n8n significa editar nodos en un lienzo. Un agent de AgenticOS cambia cuando su propietario edita las instrucciones y publica. La configuración solo puede llegar a las [capabilities](../reference/capabilities.md) que registraron los ingenieros, y cada [versión](../concepts.md#version) sigue siendo legible.
+Ambos productos permiten configurar agents y workflows. Los agents nativos de n8n están en vista previa. Un agent de AgenticOS cambia cuando su propietario edita las instrucciones y publica. La configuración solo puede llegar a las [capabilities](../reference/capabilities.md) que registraron los ingenieros, y cada [versión](../concepts.md#version) sigue siendo legible.
 
 ### El conocimiento como colección gestionada { #knowledge-as-a-managed-collection }
 
-n8n construye la recuperación con nodos: loaders, embeddings y un almacén vectorial que eliges tú. Su función Agents, en vista previa, añade una base de conocimiento gestionada que, autoalojada, necesita una sandbox de Daytona. AgenticOS guarda las [colecciones](../file-processing.md#rag-document-ingestion) en tu Postgres, con elección de parser, OCR, descripción de imágenes y [conectores de sincronización](../howto/configure-sync-sources.md#what-a-sync-removes) que eliminan lo que la fuente borró.
+n8n construye la recuperación con nodos: loaders, embeddings y un almacén vectorial que eliges tú. Su función Agents, en vista previa, añade una base de conocimiento gestionada que, autoalojada, necesita una sandbox configurada. AgenticOS guarda las [colecciones](../file-processing.md#rag-document-ingestion) en tu Postgres, con elección de parser, OCR, descripción de imágenes y [conectores de sincronización](../howto/configure-sync-sources.md#what-a-sync-removes) que eliminan lo que la fuente borró.
 
 ## Cuándo n8n encaja mejor { #when-n8n-is-the-better-fit }
 
 - El trabajo consiste en mover datos entre muchos sistemas, con ramas, reintentos y programaciones.
-- Quieres su gran biblioteca de integraciones y su lienzo visual. AgenticOS no tiene lienzo de workflows.
+- Prefieres la biblioteca de nodos, integraciones y edición de workflows de este producto. AgenticOS también tiene un editor visual; los nodos disponibles y la semántica de ejecución difieren.
 - Necesitas sus canales de revisión, como Microsoft Teams, WhatsApp o Gmail, o sus métricas de evaluación. AgenticOS todavía no tiene ninguna de las dos cosas.
 
 ## Úsalos juntos { #use-them-together }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { AnswerStyleFields, REACTION_PATTERN } from "@/components/channels/answer-style-fields";
@@ -23,17 +23,26 @@ import {
   TranscriptionFields,
   type TranscriptionChoice,
 } from "@/components/channels/transcription-fields";
-import { useChannelBot, useCopySlackManifest } from "@/hooks/use-channel-bots";
+import {
+  useChannelBot,
+  useCopySlackManifest,
+  useDownloadTeamsPackage,
+} from "@/hooks/use-channel-bots";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { AnswerStyle, ChannelBot, ChannelBotUpdate, ChannelPlatform } from "@/types/channels";
+import { MentionPolicyFields } from "./mention-policy-fields";
+import { DiscordGuildsField, parseDiscordGuilds, validDiscordGuilds } from "./discord-guilds-field";
 import { useTranslations } from "next-intl";
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
+  discord: "Discord",
 };
 
 const MAX_NAME = 255;
@@ -51,6 +60,8 @@ export interface ChannelBotDraft {
   commandToken: string;
   /** Slack: whether Slack calls this deployment, or the deployment connects out. */
   webhookMode: boolean;
+  respondToBroadcasts: boolean;
+  discordGuilds: string;
   answerStyle: AnswerStyle;
   transcription: TranscriptionChoice;
 }
@@ -104,6 +115,23 @@ export function botPatch(bot: ChannelBot, draft: ChannelBotDraft): ChannelBotUpd
     }
   }
 
+  if (draft.respondToBroadcasts !== (bot.access_policy.respond_to_broadcasts ?? false)) {
+    patch.access_policy = {
+      ...bot.access_policy,
+      respond_to_broadcasts: draft.respondToBroadcasts,
+    };
+  }
+  if (bot.platform === "discord") {
+    const guilds = parseDiscordGuilds(draft.discordGuilds);
+    const storedGuilds = parseDiscordGuilds((bot.access_policy.discord_guild_ids ?? []).join(" "));
+    if (guilds.join(",") !== storedGuilds.join(",")) {
+      patch.access_policy = {
+        ...bot.access_policy,
+        ...patch.access_policy,
+        discord_guild_ids: guilds,
+      };
+    }
+  }
   Object.assign(patch, transcriptionPatch(bot, draft.transcription));
   return patch;
 }
@@ -171,6 +199,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
     appToken: "",
     commandToken: "",
     webhookMode: bot.webhook_mode,
+    respondToBroadcasts: bot.access_policy.respond_to_broadcasts ?? false,
+    discordGuilds: (bot.access_policy.discord_guild_ids ?? []).join(", "),
     answerStyle: {
       ack_reaction: bot.ack_reaction,
       stream_answers: bot.stream_answers,
@@ -333,6 +363,8 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
 
         {bot.platform === "slack" && <SlackManifest botId={bot.id} />}
 
+        {bot.platform === "teams" && <TeamsSetup bot={bot} />}
+
         {bot.platform === "slack" &&
           (draft.webhookMode ? (
             <FormField
@@ -364,6 +396,21 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
             </FormField>
           ))}
 
+        {bot.platform === "discord" && (
+          <DiscordGuildsField
+            idPrefix="edit-channel"
+            value={draft.discordGuilds}
+            onChange={(discordGuilds) => setDraft((current) => ({ ...current, discordGuilds }))}
+          />
+        )}
+        <MentionPolicyFields
+          idPrefix="edit-channel"
+          platform={bot.platform}
+          enabled={draft.respondToBroadcasts}
+          onChange={(respondToBroadcasts) =>
+            setDraft((current) => ({ ...current, respondToBroadcasts }))
+          }
+        />
         <AnswerStyleFields
           idPrefix="edit-channel"
           platform={bot.platform}
@@ -385,7 +432,16 @@ function BotEditForm({ bot, onOpenChange, onSubmit, isPending }: BotEditFormProp
         <Button variant="outline" onClick={() => onOpenChange(false)}>
           {t("cancel")}
         </Button>
-        <Button onClick={submit} disabled={nothingToSave || shortToken || badReaction || isPending}>
+        <Button
+          onClick={submit}
+          loading={isPending}
+          disabled={
+            nothingToSave ||
+            shortToken ||
+            badReaction ||
+            (bot.platform === "discord" && !validDiscordGuilds(draft.discordGuilds))
+          }
+        >
           {t("save")}
         </Button>
       </DialogFooter>
@@ -464,6 +520,41 @@ function SlackManifest({ botId }: { botId: string }) {
         <ClipboardCopy className="h-4 w-4" />
         {t("slackManifestCopy")}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * A Teams bot, set up in two steps (#1985): its messaging endpoint goes into the
+ * Azure Bot resource, and the app package into the tenant's app catalog.
+ */
+function TeamsSetup({ bot }: { bot: ChannelBot }) {
+  const t = useTranslations("pages.channels");
+  const download = useDownloadTeamsPackage();
+  return (
+    <div className="border-border space-y-3 rounded-lg border p-3">
+      {bot.messaging_endpoint && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium">{t("teamsEndpoint")}</p>
+          <p className="text-muted-foreground text-xs">{t("teamsEndpointHint")}</p>
+          <code className="bg-muted block rounded-md px-2 py-1.5 text-xs break-all">
+            {bot.messaging_endpoint}
+          </code>
+        </div>
+      )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <p className="text-muted-foreground flex-1 text-sm">{t("teamsPackageWhy")}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => download.mutate({ id: bot.id, name: bot.name })}
+          disabled={download.isPending}
+        >
+          <Download className="h-4 w-4" />
+          {t("teamsPackageDownload")}
+        </Button>
+      </div>
     </div>
   );
 }

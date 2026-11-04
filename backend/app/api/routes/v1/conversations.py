@@ -8,6 +8,7 @@ from app.api.deps import (
     Auth,
     ConversationShareSvc,
     ConversationSvc,
+    ConversationTaskSvc,
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
@@ -35,6 +36,7 @@ from app.schemas.conversation_share import (
     ConversationShareRead,
     SharedConversationRead,
 )
+from app.schemas.conversation_task import ConversationTaskRead
 from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
@@ -48,6 +50,20 @@ from app.schemas.workspace import (
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get("/background-tasks", response_model=list[ConversationTaskRead])
+async def list_background_tasks(
+    service: ConversationTaskSvc, ctx: Auth, conversation_id: UUID | None = None
+) -> Any:
+    """The current member's delegated topics, optionally from one source conversation."""
+    return await service.list_for_member(ctx, conversation_id=conversation_id)
+
+
+@router.post("/background-tasks/{task_id}/stop", response_model=ConversationTaskRead)
+async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx: Auth) -> Any:
+    """Stop the member's task, retaining its transcript and any work already done."""
+    return await service.stop(ctx, task_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)
@@ -88,9 +104,16 @@ async def list_conversations(
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
+    hide_channels: bool = Query(
+        True,
+        description="Leave out threads a bot answers in (Slack, Mattermost, Telegram, Teams)",
+    ),
     project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
 ) -> Any:
     """List conversations for the current user.
+
+    Threads from channels are left out by default: they belong to the channel and are
+    reached from Runs and the channel's page. `hide_channels=false` lists them again.
 
     Narrowed the same way `/admin/conversations` is, minus what only a
     deployment administrator may ask - there is no filter by owner here, and
@@ -115,6 +138,7 @@ async def list_conversations(
         sort_by=sort_by,
         sort_dir=sort_dir,
         hide_api=hide_api,
+        hide_channels=hide_channels,
         project_id=project_id,
         reader=auth,
     )
@@ -147,8 +171,13 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    include_messages: bool = Query(True),
 ) -> Any:
-    """Get a conversation with all its messages.
+    """Get a conversation, optionally including its full transcript.
+
+    `include_messages=false` returns metadata and an empty messages list; use
+    the paginated messages route to open a transcript in the console. The
+    default remains the complete transcript for existing API callers.
 
     Always scoped to the caller. This used to pass `user_id=None` - "do not
     filter by owner" - for anybody whose `users.role` column said `admin`, which
@@ -161,10 +190,34 @@ async def get_conversation(
     resolves against its agent's access; without it that thread would 404 for
     the very person who created the schedule.
     """
+    conversation = await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=include_messages,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
+
+    return conversation if include_messages else ConversationRead.model_validate(conversation)
+
+
+@router.get("/{conversation_id}/metadata", response_model=ConversationRead)
+async def get_conversation_metadata(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Read conversation metadata without loading its transcript or model summary.
+
+    Uses the same tenant and reader access as the full conversation read.
+    Transcript consumers should page `/conversations/{id}/messages` separately.
+    """
     return await conversation_service.get_conversation(
         conversation_id,
         organization_id=active_org.id,
-        include_messages=True,
+        include_messages=False,
         user_id=current_user.id,
         ctx=ctx,
     )
@@ -355,8 +408,14 @@ async def list_messages(
     ctx: Auth,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
+    latest: bool = False,
+    before: UUID | None = None,
 ) -> Any:
     """List messages in a conversation, always scoped to the caller.
+
+    `latest=true` selects the newest page, still returned chronologically.
+    `before` selects messages older than this conversation's named message;
+    combine both to page backwards without concurrent appends shifting offsets.
 
     Same reasoning as `get_conversation` above: cross-user reads belong to
     `/admin/conversations`, not to a column on the user row.
@@ -370,6 +429,8 @@ async def list_messages(
         conversation_id,
         skip=skip,
         limit=limit,
+        latest=latest,
+        before=before,
         include_tool_calls=True,
         organization_id=active_org.id,
         user_id=current_user.id,

@@ -4,16 +4,27 @@ import { BookOpen, Download } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { DOCS } from "@/lib/constants";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CopyCode } from "@/components/settings/copy-code";
 
 /** What every call shares: where it goes, how it authenticates, and where to read more. */
-export function ApiReferenceIntro({ baseUrl, version }: { baseUrl: string; version: string }) {
+export function ApiReferenceIntro({
+  baseUrl,
+  version,
+}: {
+  baseUrl: string;
+  version: string | undefined;
+}) {
   const t = useTranslations("apiReference");
   return (
     <section className="border-border bg-card space-y-4 rounded-xl border px-5 py-4">
       <div className="space-y-1">
         <h2 className="text-sm font-semibold">{t("title")}</h2>
-        <p className="text-muted-foreground text-xs">{t("description", { version })}</p>
+        {version === undefined ? (
+          <Skeleton className="h-4 w-64 max-w-full" />
+        ) : (
+          <p className="text-muted-foreground text-xs">{t("description", { version })}</p>
+        )}
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">

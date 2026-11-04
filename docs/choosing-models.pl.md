@@ -1,5 +1,5 @@
 ---
-source_sha: "1b24107e2e10"
+source_sha: "f3dba1d7839c"
 ---
 
 # Wybór modelu { #choosing-a-model }
@@ -43,6 +43,10 @@ najczęstszy sposób, w jaki znika budżet agenta.
     potem przestaw profil na tańszy i sprawdź, czy ktokolwiek to zauważy.
     Odwrotna kolejność oznacza debugowanie instrukcji i modelu naraz — i obwinisz
     to, co nie zawiniło.
+
+Własna ocena modelu, jak bardzo jest pewny, o którą może prosić `ai.classify` z ustawionym `min_confidence`, porządkuje odpowiedzi od bardziej do mniej pewnych; nie jest
+prawdopodobieństwem. Mniejsze modele z otwartymi wagami podają ją mniej wiarygodnie.
+Próg dobieraj na podstawie własnych ewaluacji, a nie wartości liczby wziętej dosłownie.
 
 ## Modele zamknięte czy otwarte wagi { #closed-models-or-open-weights }
 

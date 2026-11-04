@@ -18,8 +18,9 @@ card the picker would file under the wrong mode.
 Hand-maintained data, like `portals.json` beside it: adding a template is a JSON
 edit, never code, and `catalog.load` validates every field against these frozen
 models at import, so a malformed file refuses to start the app rather than
-shipping a picker with a hole. The cron expressions here are UTC, matching how a
-schedule stores and compares its next fire; `tests/test_trigger_templates.py`
+shipping a picker with a hole. The cron expressions here are local hours: a
+template only pre-fills the form, and the schedule made from it is read in the
+zone that form sets, the maker's own by default; `tests/test_trigger_templates.py`
 proves every schedule template's cadence is one a schedule would actually accept.
 """
 
@@ -34,7 +35,7 @@ class SuggestedCadence(BaseModel):
     """The cadence a schedule template pre-fills - exactly one of interval or cron.
 
     Mirrors a schedule's two shapes: `interval` carries `interval_seconds`, `cron`
-    carries a UTC `cron_expression`. The catalog self-check builds a `TriggerCreate`
+    carries a `cron_expression` in local hours. The catalog self-check builds a `TriggerCreate`
     from each, so a template that names a shape without its field never ships.
     """
 
@@ -61,7 +62,7 @@ class TriggerTemplate(BaseModel):
     prompt: str
     trigger_type: Literal["schedule", "event"]
     suggested_cadence: SuggestedCadence | None = None
-    event_source: Literal["github", "gmail", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "outlook", "webhook"] | None = None
 
     @model_validator(mode="after")
     def _shape_matches_mode(self) -> TriggerTemplate:

@@ -13,18 +13,20 @@ What is left here is boto3's vocabulary and nothing else - the listing loop, the
 or GCS connector is a client rather than a second copy of them (#988).
 """
 
+import asyncio
 import logging
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.sanitize import UrlRefusedError, deployment_allowlist, resolve_pinned_url
 from app.core.secret_kinds import AwsCredentialsSecret, SecretKind, StorableSecret
-from app.services.rag.connectors import ConnectorConfig
+from app.services.rag.connectors import ConfigRefusal, ConnectorConfig
 from app.services.rag.connectors.object_store import ObjectStoreConnector, StoredObject
 
 if TYPE_CHECKING:
@@ -59,6 +61,16 @@ class S3Config(BaseModel):
     )
 
 
+def _check_endpoint(endpoint: object) -> None:
+    """Refuse a source's own `endpoint_url` that points inside the deployment's network.
+
+    An empty one is AWS, or the operator's `S3_RAG_ENDPOINT`, and is not checked.
+    A private host passes only when `OUTBOUND_PRIVATE_ALLOWLIST` lists it.
+    """
+    if endpoint:
+        resolve_pinned_url(str(endpoint), private_allowlist=deployment_allowlist())
+
+
 class S3Connector(ObjectStoreConnector):
     """S3-compatible sync connector.
 
@@ -77,6 +89,28 @@ class S3Connector(ObjectStoreConnector):
     SCHEME: ClassVar[str] = "s3"
     CONTAINER_FIELD: ClassVar[str] = "bucket"
     CONFIG_MODEL: ClassVar[type[BaseModel]] = S3Config
+
+    async def validate_config(self, config: ConnectorConfig) -> ConfigRefusal | None:
+        """The required fields, then every field's shape, then where the endpoint points.
+
+        Checked here so a member-set endpoint inside the deployment's network is
+        refused by the form that typed it, and again when a client is built,
+        because a name can answer differently by then.
+        """
+        refusal = await super().validate_config(config)
+        if refusal is not None:
+            return refusal
+        try:
+            parsed = S3Config.model_validate(config)
+        except ValidationError as exc:
+            error = exc.errors(include_url=False, include_input=False)[0]
+            field = str(error["loc"][0]) if error["loc"] else None
+            return ConfigRefusal(message=str(error["msg"]), field=field)
+        try:
+            await asyncio.to_thread(_check_endpoint, parsed.endpoint_url)
+        except UrlRefusedError as exc:
+            return ConfigRefusal(message=str(exc), field="endpoint_url")
+        return None
 
     def _get_s3_client(
         self, config: ConnectorConfig, credential: StorableSecret | None
@@ -99,8 +133,13 @@ class S3Connector(ObjectStoreConnector):
 
         Raises:
             BadRequestError: the source names no credential, its secret has been
-                deleted, or the secret is not an AWS key pair.
+                deleted, the secret is not an AWS key pair, or its endpoint points
+                inside the deployment's network.
         """
+        try:
+            _check_endpoint(config.get("endpoint_url"))
+        except UrlRefusedError as exc:
+            raise BadRequestError(message=str(exc)) from exc
         if credential is None:
             raise BadRequestError(
                 message=(
@@ -119,6 +158,8 @@ class S3Connector(ObjectStoreConnector):
         }
         if credential.aws_session_token is not None:
             client_kwargs["aws_session_token"] = credential.aws_session_token.get_secret_value()
+        # boto3 resolves the name itself when it connects, so unlike the web crawl
+        # this is a check at resolution time and not a pinned address.
         endpoint = config.get("endpoint_url") or settings.S3_RAG_ENDPOINT
         if endpoint:
             client_kwargs["endpoint_url"] = endpoint

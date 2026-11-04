@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ListFilters } from "@/components/ui/list-filters";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
 import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
@@ -29,15 +30,24 @@ import {
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
 import { useCreatedToast } from "@/hooks/use-created-toast";
-import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
+import {
+  MCP_PAGE_SIZE,
+  useMcpCatalog,
+  useMcpCatalogPage,
+  useMcpServerEntry,
+} from "@/hooks/use-mcp-servers";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
-import { type McpOAuthClient, mcpOAuthClient, secretWithoutClientId } from "@/lib/mcp-oauth";
+import {
+  type McpOAuthClient,
+  mcpOAuthClient,
+  rememberMcpOAuthReturn,
+  secretWithoutClientId,
+} from "@/lib/mcp-oauth";
 import {
   connectionState,
   CUSTOM_CATEGORY,
-  matchingCustomRows,
   categoryLabel,
   customRows,
   freePrefix,
@@ -48,7 +58,8 @@ import {
   slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
-import type { McpAuthKind } from "@/types/mcp";
+import { setUrlParam } from "@/lib/utils";
+import type { McpAuthKind, McpServerStateFilter } from "@/types/mcp";
 import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
@@ -63,8 +74,19 @@ const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
  */
 const CONNECT_PARAM = "connect";
 
-/** Whether a row is filtered by whether anybody has connected it. */
-type StateFilter = "all" | "connected" | "not-connected";
+/**
+ * Which server's accounts are open, by key: in the URL so a reload, a shared link
+ * and the return from a provider's consent screen all land on that server's
+ * accounts rather than on the list (#2301).
+ */
+const SERVER_PARAM = "server";
+
+/** Where a consent started here comes back to: this page, with the server open. */
+function serverReturn(key: string): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set(SERVER_PARAM, key);
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}
 
 /**
  * A name nothing in this scope holds yet, for a second account on one server.
@@ -92,6 +114,10 @@ function rowDescription(row: McpServerRow, t: (key: string) => string): string {
 interface McpServerListProps {
   /** False for a member without `connections:manage` - the organization column reads only. */
   canManageOrganization: boolean;
+  /** An embedded account picker starts on the service its caller needs. */
+  initialServerKey?: string;
+  /** The full page bookmarks its selection; an embedded picker keeps its caller’s URL. */
+  persistSelection?: boolean;
 }
 
 /**
@@ -122,7 +148,11 @@ function hasAccount(scope: Scope, row: McpServerRow): boolean {
   return (scope === "organization" ? row.organizations : row.personals).length > 0;
 }
 
-export function McpServerList({ canManageOrganization }: McpServerListProps) {
+export function McpServerList({
+  canManageOrganization,
+  initialServerKey,
+  persistSelection = true,
+}: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const { organization, personal, recordTools } = useMcpServers();
@@ -130,7 +160,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
-  const [state, setState] = useState<StateFilter>("all");
+  const [state, setState] = useState<McpServerStateFilter>("all");
   // What a server asks for, asked of the server like the category: the mirror's
   // rows say it only where the catalog check found it out (#2103).
   const [auth, setAuth] = useState<McpAuthKind | "all">("all");
@@ -146,59 +176,36 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     category === "all" ? "" : category,
     auth === "all" ? "" : auth,
     page,
+    true,
+    state,
   );
 
-  // The page's catalog entries with their connections folded on. Custom rows are
-  // *not* built from a page: whether a connection is "not in the catalog" is a
-  // question about every entry, so asking it of fifty answers "yes" for a
-  // connection whose entry is on another page - which put the Notion connection
-  // at the foot of every page as an uncatalogued server, five times over, until
-  // searching "notion" brought its entry onto the page and it merged again.
-  const pageRows = useMemo(
+  // The API groups accessible accounts and applies every filter before paging,
+  // including saved custom servers and connected entries outside this page.
+  const rows = useMemo(
     () => rowsForEntries(listing.servers, organization.connections, personal.connections),
     [listing.servers, organization.connections, personal.connections],
   );
 
-  // Asked of the whole catalog, and appended once - on the last page, after
-  // everything the catalog and the mirror hold, because that is where "and these
-  // are yours" belongs in a list of five thousand.
-  const customs = useMemo(
-    () =>
-      matchingCustomRows(
-        customRows(catalog.servers, organization.connections, personal.connections),
-        query,
-        category === "all" ? "" : category,
-      ),
-    [catalog.servers, organization.connections, personal.connections, query, category],
-  );
-
-  const pageCount = Math.max(1, Math.ceil((listing.total + customs.length) / MCP_PAGE_SIZE));
-  const onLastPage = page >= pageCount - 1;
-  const rows = useMemo(
-    () => (onLastPage ? [...pageRows, ...customs] : pageRows),
-    [onLastPage, pageRows, customs],
-  );
+  const pageCount = Math.max(1, Math.ceil(listing.total / MCP_PAGE_SIZE));
+  // A disconnect may remove the last result on a page. Wait for the new answer:
+  // placeholder totals belong to the previous request while filters change.
+  if (!listing.isLoading && !listing.isPlaceholderData && page >= pageCount) {
+    setPage(pageCount - 1);
+  }
 
   // Answered by the server rather than derived from the rows on screen: a page
   // holds whichever categories landed on it, so a filter built from one offers a
   // different set on page two.
   const categories = useMemo(
-    () => [...new Set(catalog.servers.map((entry) => entry.category).filter(Boolean))].sort(),
-    [catalog.servers],
-  );
-
-  // The one filter still applied in the browser, and the only one that can be:
-  // whether anybody has connected a server is a fact the client holds and the
-  // server would have to be told. It narrows the page rather than the list, which
-  // is the honest limit of doing it here.
-  const visible = useMemo(
     () =>
-      rows.filter((row) => {
-        if (state === "all") return true;
-        const connected = row.organizations.length > 0 || row.personals.length > 0;
-        return state === "connected" ? connected : !connected;
-      }),
-    [rows, state],
+      [
+        ...new Set([
+          ...catalog.servers.map((entry) => entry.category).filter(Boolean),
+          CUSTOM_CATEGORY,
+        ]),
+      ].sort(),
+    [catalog.servers],
   );
 
   function ask(next: string) {
@@ -212,7 +219,51 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   }
 
   const [draft, setDraft] = useState<DraftState | null>(null);
-  const [managing, setManaging] = useState<McpServerRow | null>(null);
+  // The open server by key, read from live data below: a disconnect then shows
+  // at once, where a row held from the moment it opened kept the account on
+  // screen until the dialog was closed and opened again.
+  const [managingKey, setManagingKey] = useState<string | null>(
+    () =>
+      initialServerKey ??
+      (typeof window === "undefined"
+        ? null
+        : new URL(window.location.href).searchParams.get(SERVER_PARAM)),
+  );
+  const manage = (key: string | null) => {
+    setManagingKey(key);
+    if (persistSelection) setUrlParam(SERVER_PARAM, key);
+  };
+  // A bookmarked custom or registry server may sit beyond the current page.
+  // Resolve that one key, while page entries continue to supply live metadata.
+  const { entry: bookmarkedEntry } = useMcpServerEntry(
+    managingKey !== null &&
+      !listing.servers.some((entry) => entry.key === managingKey) &&
+      !catalog.servers.some((entry) => entry.key === managingKey)
+      ? managingKey
+      : null,
+  );
+  const managing = useMemo((): McpServerRow | null => {
+    if (managingKey === null) return null;
+    const entry =
+      listing.servers.find((each) => each.key === managingKey) ??
+      catalog.servers.find((each) => each.key === managingKey) ??
+      bookmarkedEntry;
+    if (entry) {
+      return rowsForEntries([entry], organization.connections, personal.connections)[0]!;
+    }
+    return (
+      customRows(catalog.servers, organization.connections, personal.connections).find(
+        (row) => row.key === managingKey,
+      ) ?? null
+    );
+  }, [
+    managingKey,
+    listing.servers,
+    catalog.servers,
+    bookmarkedEntry,
+    organization.connections,
+    personal.connections,
+  ]);
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
@@ -326,6 +377,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         },
         scope,
       );
+      rememberMcpOAuthReturn(serverReturn(row.key));
       // `assign`, not a write to `href`: the React compiler reads a property
       // write on `window` as mutating a value from outside the component.
       window.location.assign(authorization_url);
@@ -392,7 +444,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     const taken = new Set(personal.connections.map((connection) => connection.name));
     const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
     startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
-      .then(({ authorization_url }) => window.location.assign(authorization_url))
+      .then(({ authorization_url }) => {
+        rememberMcpOAuthReturn(serverReturn(connectKey));
+        window.location.assign(authorization_url);
+      })
       .catch((caught: unknown) =>
         toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign"))),
       );
@@ -542,57 +597,70 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   return (
     <>
       <ListCard
+        fill
         namedByPage
         headerTour="mcp-catalog"
         title={t("servers")}
-        counted={t("serverCount", { count: listing.total + customs.length })}
+        counted={t("serverCount", { count: listing.total })}
         controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}
         contentClassName="space-y-4 p-4"
       >
         <div data-tour="mcp-filter" className="flex flex-wrap items-center gap-2">
-          <Select value={category} onValueChange={narrow}>
-            <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("allCategories")}</SelectItem>
-              {categories.map((entry) => (
-                <SelectItem key={entry} value={entry}>
-                  {categoryLabel(entry)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={auth}
-            onValueChange={(value) => {
-              setAuth(value as McpAuthKind | "all");
-              setPage(0);
-            }}
+          <ListFilters
+            compact
+            active={Number(category !== "all") + Number(auth !== "all") + Number(state !== "all")}
           >
-            <SelectTrigger className="w-auto min-w-36" aria-label={t("authFilter")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("anyAuth")}</SelectItem>
-              {(["oauth", "token", "none"] as const).map((kind) => (
-                <SelectItem key={kind} value={kind}>
-                  {t(MCP_AUTH_LABEL[kind])}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={state} onValueChange={(value) => setState(value as StateFilter)}>
-            <SelectTrigger className="w-auto min-w-36" aria-label={t("connectionState")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("anyState")}</SelectItem>
-              <SelectItem value="connected">{t("connected")}</SelectItem>
-              <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex-1" />
+            <div className="order-2 grid w-full gap-2 sm:grid-cols-3">
+              <Select value={category} onValueChange={narrow}>
+                <SelectTrigger className="w-full min-w-0" aria-label={t("category")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("allCategories")}</SelectItem>
+                  {categories.map((entry) => (
+                    <SelectItem key={entry} value={entry}>
+                      {categoryLabel(entry)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={auth}
+                onValueChange={(value) => {
+                  setAuth(value as McpAuthKind | "all");
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-full min-w-0" aria-label={t("authFilter")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("anyAuth")}</SelectItem>
+                  {(["oauth", "token", "none"] as const).map((kind) => (
+                    <SelectItem key={kind} value={kind}>
+                      {t(MCP_AUTH_LABEL[kind])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={state}
+                onValueChange={(value) => {
+                  setState(value as McpServerStateFilter);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-full min-w-0" aria-label={t("connectionState")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("anyState")}</SelectItem>
+                  <SelectItem value="connected">{t("connected")}</SelectItem>
+                  <SelectItem value="not-connected">{t("notConnected")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </ListFilters>
           {canManageOrganization && (
             <Button
               size="sm"
@@ -640,7 +708,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          * only reason to lay a catalog out as a grid rather than as rows.
          */}
         <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {visible.map((row, index) => (
+          {rows.map((row, index) => (
             <McpServerCard
               key={row.key}
               name={row.name}
@@ -658,9 +726,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               }
               description={rowDescription(row, t)}
               dataTour={index === 0 ? "mcp-connect" : undefined}
-              status={<RowStatus row={row} onManage={() => setManaging(row)} />}
+              status={<RowStatus row={row} onManage={() => manage(row.key)} />}
               // A server somebody holds an account on opens its accounts.
-              onOpen={connectionCount(row) > 0 ? () => setManaging(row) : undefined}
+              onOpen={connectionCount(row) > 0 ? () => manage(row.key) : undefined}
               // The same two controls on every card, whatever it holds.
               actions={
                 <>
@@ -692,10 +760,10 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         <Pager
           page={page}
           pageCount={pageCount}
-          matched={listing.total + customs.length}
-          total={listing.total + customs.length}
+          matched={listing.total}
+          total={listing.total}
           onPage={setPage}
-          counted={t("serverCount", { count: listing.total + customs.length })}
+          counted={t("serverCount", { count: listing.total })}
         />
       </ListCard>
 
@@ -703,19 +771,21 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         row={managing}
         canManageOrganization={canManageOrganization}
         busyId={busyId}
-        onClose={() => setManaging(null)}
+        onClose={() => manage(null)}
         onConnect={(scope, row) => {
-          setManaging(null);
+          manage(null);
           connect(scope, row);
         }}
         onEdit={(scope, row, connection) => {
-          setManaging(null);
+          manage(null);
           openDraft(scope, row, connection);
         }}
         onTools={handleTools}
         onDisconnect={handleDisconnect}
         onNominate={handleNominate}
-        onOAuth={(scope, row, connection) => handleOAuth(row, connection.name, scope)}
+        onOAuth={(scope, row, connection) =>
+          handleOAuth({ ...row, url: connection.url }, connection.name, scope)
+        }
       />
 
       <McpConnectionDialog

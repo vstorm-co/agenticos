@@ -15,18 +15,21 @@ words in somebody's mouth. A run that answered nothing but *did* something is th
 opposite case, and it is written: the calls are what happened.
 """
 
+import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.messages import (
+    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
-    RetryPromptPart,
+    RetryFeedbackPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -129,10 +132,11 @@ class TestReadingToolCallsOffARun:
                     _called("web_search", "c1", query="refunds"),
                     ModelRequest(
                         parts=[
-                            RetryPromptPart(
+                            ToolReturnPart(
                                 content=vendor_text,
                                 tool_name="web_search",
                                 tool_call_id="c1",
+                                outcome="retried",
                             )
                         ]
                     ),
@@ -144,6 +148,85 @@ class TestReadingToolCallsOffARun:
             "The server log has the full error."
         )
         assert vendor_text in caplog.text
+
+    @pytest.mark.parametrize(
+        ("outcome", "notice"),
+        [
+            ("failed", "The lookup call failed. The server log has the full error."),
+            (
+                "retried",
+                "The lookup call failed and the model was asked to try again. The server log has the full error.",
+            ),
+        ],
+    )
+    def test_framework_errors_never_store_the_provider_payload(
+        self, outcome: Literal["failed", "retried"], notice: str
+    ) -> None:
+        calls = tool_calls_in(
+            [
+                _called("lookup", "c1"),
+                ModelRequest(
+                    parts=[
+                        ToolReturnPart(
+                            "lookup",
+                            {"url": "https://provider.invalid/?key=fixture"},
+                            tool_call_id="c1",
+                            outcome=outcome,
+                        )
+                    ]
+                ),
+            ]
+        )
+        assert calls[0].result == notice
+
+    @pytest.mark.parametrize("tool_name", ["lookup", None])
+    def test_stored_retry_parts_load_without_a_history_migration(
+        self, tool_name: str | None
+    ) -> None:
+        messages = ModelMessagesTypeAdapter.validate_json(
+            json.dumps(
+                [
+                    {
+                        "kind": "response",
+                        "parts": (
+                            [
+                                {
+                                    "part_kind": "tool-call",
+                                    "tool_name": "lookup",
+                                    "args": {},
+                                    "tool_call_id": "old",
+                                }
+                            ]
+                            if tool_name
+                            else [{"part_kind": "text", "content": "invalid output"}]
+                        ),
+                    },
+                    {
+                        "kind": "request",
+                        "parts": [
+                            {
+                                "part_kind": "retry-prompt",
+                                "tool_name": tool_name,
+                                "tool_call_id": "old",
+                                "content": "provider error https://provider.invalid/?key=fixture",
+                            }
+                        ],
+                    },
+                ]
+            )
+        )
+        part = messages[-1].parts[0]
+        if tool_name:
+            assert isinstance(part, ToolReturnPart)
+            assert part.outcome == "retried"
+            assert (
+                tool_calls_in(messages)[0].result
+                == "The lookup call failed and the model was asked to try again. The server log has the full error."
+            )
+        else:
+            assert isinstance(part, RetryFeedbackPart)
+            assert tool_calls_in(messages) == []
+        assert settled_calls_in(messages) == {}
 
     def test_a_return_holding_a_url_is_stored_whole(self):
         """The success case is the tool's own answer, not a vendor's exception -
@@ -262,8 +345,11 @@ class TestReadingWhatAnInheritedCallReturned:
                 [
                     ModelRequest(
                         parts=[
-                            RetryPromptPart(
-                                content=vendor_text, tool_name="web_search", tool_call_id="c1"
+                            ToolReturnPart(
+                                content=vendor_text,
+                                tool_name="web_search",
+                                tool_call_id="c1",
+                                outcome="retried",
                             )
                         ]
                     )
@@ -287,7 +373,12 @@ class TestReadingWhatAnInheritedCallReturned:
         messages = [
             ModelRequest(
                 parts=[
-                    RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="c1")
+                    ToolReturnPart(
+                        content=vendor_text,
+                        tool_name="web_search",
+                        tool_call_id="c1",
+                        outcome="retried",
+                    )
                 ]
             )
         ]
@@ -299,6 +390,26 @@ class TestReadingWhatAnInheritedCallReturned:
 
 
 class TestWritingTheTranscript:
+    @pytest.fixture(autouse=True)
+    def steps(self):
+        # This class verifies persistence, not a paid post-commit model call.
+        with patch("app.services.follow_ups.queue_next_steps") as queued:
+            yield queued
+
+    async def test_non_socket_answers_defer_suggestions_after_their_saved_message(
+        self, conversations, files, steps
+    ):
+        db = _session()
+        run = _run()
+        run.organization_id = uuid.uuid4()
+        prompt_id, answer_id = uuid.uuid4(), uuid.uuid4()
+        conversations.create_message.side_effect = [
+            MagicMock(id=prompt_id),
+            MagicMock(id=answer_id),
+        ]
+        await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        steps.assert_called_once_with(db, answer_id, run.organization_id)
+
     @pytest.fixture
     def conversations(self):
         """The repository boundary, which is where the assertions belong."""

@@ -195,12 +195,17 @@ class TestBeginning:
 
 
 class _Page:
+    streaming = False
+
     def __init__(self, sign_in: SignIn | None = SITE) -> None:
         self.sign_in = sign_in
         self.clicks: list[tuple[float, float]] = []
 
     async def snapshot(self) -> Snapshot:
         return Snapshot(url="https://www.notion.so/login", title="Log in", elements=())
+
+    async def location(self) -> tuple[str, str]:
+        return "https://www.notion.so/login", "Log in"
 
     async def screenshot(self) -> str:
         return "data:image/jpeg;base64,AA=="

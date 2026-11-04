@@ -182,12 +182,13 @@ like when it does is below.
 | `lint` | 10 | 22s |
 | `Security Scan` | 10 | 14s |
 | `docs` | 15 | 4m34s |
-| `test-frontend` | 20 | 5m08s |
-| `docker` | 20 | 2m30s |
-| `test` | 25 | 7m43s |
+| `test-frontend` | 45 | 20m07s |
+| `test` | 90 | 22m25s |
 | `e2e` | 25 | 8m01s |
 
-Observed times are from run 31116003994, a full matrix on `main`. Each bound is
+Most observed times are from run 31116003994, a full matrix on `main`. The backend
+time is from run 41102882122 and the frontend time from 41108431368, both on
+30 October 2026. Image builds run separately in `images.yml`. Each bound is
 several times its job rather than just above it: the timeout exists to end a stall,
 and one tight enough to trim a legitimately cold cache is a red build for a reason
 unrelated to the diff.
@@ -341,3 +342,44 @@ click rather than an essay.
   a problem.
 - `main` is exempt from cancellation, and the way it is exempt is a concurrency
   group carrying `github.run_id` — unique per run, so no `main` run cancels another.
+
+## Release cuts and release trains
+
+Merge the feature PRs first, then prepare one cut for the train. Select the largest
+bump shipped: `make release-cut BUMP=patch` or `BUMP=minor` prints a plan from fresh
+`origin/main`. Add `CREATE_PR=1` to create a dedicated worktree, update only the
+changelog and three application versions, commit, push and open the cut PR using
+your `gh` login. It refuses empty Unreleased sections and concurrent open cuts.
+It never merges or publishes. After the cut merges, create the release and its tag
+together, targeting the cut merge commit, as described in `AGENTS.md`.
+
+Both CI and CodeQL recognize cuts by their actual git trees. Only CHANGELOG and
+application versions may differ; dependencies, configuration, file modes and all
+other source must match a prior successful full run. CI requires all three heavy
+suites to have succeeded, and CodeQL requires all four analyses. Skipped jobs are
+not evidence. PR evidence records the synthetic merge SHA actually checked,
+rather than trusting the run API’s branch-head SHA.
+
+The last 30 successful runs are searched; missing evidence or API
+failure runs full checks. This applies to the cut PR and its merge on `main`.
+Ordinary source changes run the existing checks, and scheduled CodeQL stays full.
+The ruleset and code-scanning merge protection remain enabled.
+
+CodeQL reuse additionally requires all four retained SARIF reports from a full
+analysis. It uploads them for the new commit and waits for processing, so code-scanning
+merge protection still receives results for that commit. Reused runs do not seed
+further reuse; scheduled analyses remain full.
+
+Images still build backend and frontend for the cut SHA because those images
+contain the application version. A tag reuses that SHA's published manifests;
+scans and all six SBOMs still run, and SBOMs attach to the existing release. Each
+missing image is built separately. Browser images can also reuse a manifest keyed
+by their complete Docker context, pinned Debian base digest and ISO week: package
+updates force a refresh on the first build of each week. SHA and version aliases
+remain available for deployment and rollback.
+
+Production deployment is offered when a stable release is published. Drafts and
+prereleases do not offer it. The production approval, main ancestry check and
+manual `workflow_dispatch` remain; explicitly select a commit or tag for rollback.
+The queue watcher compares against the latest stable release, rather than unreleased
+commits on main, and reports unknown lag after a manual deployment.

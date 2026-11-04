@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.artifact import Artifact
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.group import Group, GroupMember
@@ -398,9 +399,15 @@ class TestGroupService:
         await _mapping(db, org, ADMINS, "admin", group)
 
         with pytest.raises(AuthorizationError):
-            await GroupService(db).delete(org.id, group.id, admin.id)
+            await GroupService(db).delete(
+                AuthContext(user_id=admin.id, organization_id=org.id, role=OrgRoleName.ADMIN),
+                group.id,
+            )
 
-        await GroupService(db).delete(org.id, group.id, owner.id)
+        await GroupService(db).delete(
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+            group.id,
+        )
         assert await group_repo.get(db, organization_id=org.id, group_id=group.id) is None
 
     async def test_renaming_to_a_taken_name_is_a_conflict(self, db):
@@ -442,7 +449,10 @@ class TestGroupService:
         )
         assert await service.list_members(org.id, group.id, owner.id) == []
 
-        await service.delete(org.id, group.id, owner.id)
+        await service.delete(
+            AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER),
+            group.id,
+        )
         assert await group_repo.get(db, organization_id=org.id, group_id=group.id) is None
         actions = [
             entry.action
@@ -558,6 +568,39 @@ class TestDirectorySync:
         # one included, because a group of an organization somebody is not in
         # reaches nothing.
         assert await _group_rows(db, person) == {}
+
+    async def test_a_removed_member_s_pages_lose_their_edit_data_grants(self, db):
+        org, _ = await _org(db)
+        group = await _group(db, org)
+        await _mapping(db, org, FINANCE, "member", group)
+        person = await _user(db)
+        sync = DirectorySyncService(db)
+        await sync.apply(person.id, [FINANCE], provider="ldap")
+        editor = await _member(db, org)
+        page = Artifact(
+            organization_id=org.id,
+            owner_user_id=person.id,
+            name="pipeline",
+            title="Pipeline",
+            visibility="private",
+        )
+        db.add(page)
+        await db.flush()
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=org.id,
+            subject_user_id=editor.id,
+            resource_type="artifact",
+            resource_id=page.id,
+            level=GrantLevel.EDIT_DATA,
+        )
+
+        await sync.apply(person.id, [], provider="ldap")
+
+        grants = await resource_grant_repo.list_for_resource(
+            db, organization_id=org.id, resource_type="artifact", resource_id=page.id
+        )
+        assert [grant.level for grant in grants] == ["edit"]
 
     async def test_a_manual_membership_keeps_its_role_but_gains_the_mapped_group(self, db):
         org, _ = await _org(db)

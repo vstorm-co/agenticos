@@ -175,4 +175,12 @@ async def account_email(access_token: str) -> str | None:
     except ValueError:
         return None
     email = payload.get("email") if isinstance(payload, dict) else None
-    return email if isinstance(email, str) and email else None
+    return (
+        email.lower()
+        if isinstance(email, str)
+        and "@" in email
+        and len(email) <= 254
+        and isinstance(payload, dict)
+        and payload.get("email_verified") is True
+        else None
+    )

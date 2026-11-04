@@ -291,6 +291,13 @@ S3_RAG_REGION=us-east-1                    # required for AWS, optional for MinI
 For MinIO, the endpoint is typically `http://minio:9000` (Docker) or
 `http://localhost:9000` (local).
 
+A source's own `endpoint_url` is checked like a web source's start URL, when you
+save the source and again when a sync starts: a loopback, link-local or
+cloud-metadata address is always refused, and an endpoint on the private network,
+such as a MinIO container, needs its host listed in
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). The
+operator's `S3_RAG_ENDPOINT` is not checked.
+
 ### 2. S3 connector config fields
 
 | Field | Type | Required | Default | Description |
@@ -334,8 +341,10 @@ uv run agenticos cmd rag-source-add \
 - **The deployment's network is out of reach.** Every request - robots.txt, the
   sitemap, each page and each redirect - is checked against the same SSRF policy as
   webhooks and MCP servers. It is sent to the address that passed the check. A start
-  URL that resolves to a private, loopback, link-local or cloud-metadata address is
-  refused when you save the source.
+  URL that resolves to a loopback, link-local or cloud-metadata address is always
+  refused when you save the source. One that resolves to a private address is
+  refused too, unless the operator lists its host in
+  [`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
 - **robots.txt is obeyed** for sitemaps and pages, including `Crawl-delay` up to
   ten seconds. The crawler identifies itself as `AgenticOS-Crawler`. It waits at
   least half a second between requests, and a page that says `noindex` or
@@ -439,7 +448,9 @@ document.
 The URL must be `https://`. Its host is resolved once and checked like any other
 address a tenant chooses: a host that resolves to a private, loopback or
 link-local address is refused when the source is saved and again when it syncs,
-and git connects only to the addresses that check approved. Redirects are not
+and git connects only to the addresses that check approved. The operator can admit
+a host on the deployment's network with
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Redirects are not
 followed. A deployment behind an egress proxy (`HTTPS_PROXY`) keeps using it; the
 proxy then resolves the host itself.
 
@@ -750,8 +761,10 @@ endpoint includes the port (e.g. `http://localhost:9000`).
 ### Website: "resolves to private/internal address"
 
 The start URL, or the sitemap, points inside the deployment's network, or its name
-resolves there. A website source reads only public addresses. To index an internal
-site, publish its pages somewhere public, or upload the files directly.
+resolves there. A website source reads only public addresses, unless the operator
+lists the site's host in
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings). Otherwise,
+publish its pages somewhere public, or upload the files directly.
 
 ### Website: "The site's robots.txt could not be read, so it was not crawled"
 
@@ -837,7 +850,8 @@ the source changed meanwhile.
 
 The repository's host resolves inside the deployment's network, so the source is
 refused. A self-hosted Git server on an internal address cannot be reached by a
-sync source.
+sync source unless the operator lists its host in
+[`OUTBOUND_PRIVATE_ALLOWLIST`](../configuration.md#project-settings).
 
 ### Git: "git is not installed on this worker"
 

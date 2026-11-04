@@ -7,9 +7,13 @@
 # flags remove what a page can read; `browser_use` covers the rest over CDP (its
 # user agent, `navigator.webdriver`). Debian's Chromium rather than Google's
 # Chrome because it is built for arm64 as well as amd64.
-FROM debian:bookworm-slim
+ARG BROWSER_BASE=debian:bookworm-slim
+FROM ${BROWSER_BASE}
 
-RUN apt-get update \
+# A weekly CI input invalidates the apt layer even if Debian's base is unchanged.
+ARG BROWSER_REFRESH=manual
+RUN test -n "$BROWSER_REFRESH" \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         chromium \
         xvfb \

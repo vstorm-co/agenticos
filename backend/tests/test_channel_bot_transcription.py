@@ -84,7 +84,7 @@ async def _updated(bot: ChannelBot, data: ChannelBotUpdate) -> dict:
         patch("app.services.channel_bot.spawn_after_commit"),
     ):
         service = ChannelBotService(MagicMock(), organization_id=bot.organization_id)
-        await service.update(bot.id, data)
+        await service.update(bot.id, data, MagicMock())
     return repo_update.call_args.kwargs["update_data"]
 
 

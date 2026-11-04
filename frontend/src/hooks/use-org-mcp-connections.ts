@@ -67,16 +67,23 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
   const error = queryError ? getErrorMessage(queryError, tErrors, t("failedLoadOrgServers")) : null;
 
   const writeCache = useCallback(
-    (updater: (prev: OrgMcpConnectionRecord[]) => OrgMcpConnectionRecord[]) =>
+    (updater: (prev: OrgMcpConnectionRecord[]) => OrgMcpConnectionRecord[]) => {
       queryClient.setQueryData<OrgMcpConnectionRecord[]>(qk.mcpConnections.org(), (prev = []) =>
         updater(prev),
-      ),
+      );
+      void queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() });
+      void queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() });
+    },
     [queryClient],
   );
 
   const refresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: qk.mcpServers.lists() }),
+      queryClient.invalidateQueries({ queryKey: qk.mcpServers.entries() }),
+    ]);
+  }, [refetch, queryClient]);
 
   const create = useCallback<UseOrgMcpConnectionsResult["create"]>(
     async (input) => {
@@ -107,10 +114,10 @@ export function useOrgMcpConnections(): UseOrgMcpConnectionsResult {
   const test = useCallback<UseOrgMcpConnectionsResult["test"]>(
     async (id) => {
       const result = await testOrgMcpConnection(id);
-      await refetch();
+      await refresh();
       return result;
     },
-    [refetch],
+    [refresh],
   );
 
   return { connections, isLoading, isFetching, error, refresh, create, update, remove, test };

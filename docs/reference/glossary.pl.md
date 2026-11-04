@@ -1,5 +1,5 @@
 ---
-source_sha: "89192b9ae8e1"
+source_sha: "e6717214333c"
 ---
 
 # Słownik { #glossary }
@@ -20,19 +20,21 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Test | Czat obok Buildera, który odpowiada jako wersja robocza albo dowolna wersja | `is_test` na jego runach |
 | Instrukcje | To, co agent słyszy przed każdą rozmową | `instructions` |
 | Zmienne | `{{name}}` w instrukcjach, uzupełniane na starcie runu | `variables` |
+| Pierwsze wiadomości | To, co pusty czat proponuje komuś, kto otwiera agenta, każda jednym kliknięciem | `starters` |
 | Capability | Coś, co agent może robić, włączane w Builderze | `capabilities[]` |
 | Skill | Wiedza praktyczna zapisana raz i czytana przez każdego agenta, który jej potrzebuje | `skill` |
 | Kontekst | Stała wiedza, którą agent zawsze ma, np. słownik albo polityka | `context` |
 | Baza wiedzy | Dokumenty, które agent przeszukuje i cytuje | `collection` |
 | Aplikacja | Strona, którą publikuje agent, np. raport albo mały dashboard | `artifact` |
 | Architekt | Asystent w rogu każdej strony, który może budować z tobą agentów | `platform-assistant` |
+| AgenticOS | Agent ogólnego przeznaczenia, z którym nowa organizacja zaczyna w Chat, i to, od czego zaczyna nowy agent | `general/agenticos` |
 
 ## Gdzie to działa { #where-it-runs }
 
 | W konsoli | Co to jest | W API i spec |
 |---|---|---|
 | Czat | Rozmowa z agentem w przeglądarce | `conversation` |
-| Kanał | Slack, Telegram albo Mattermost, gdzie ludzie piszą do agenta | `channel_bot` |
+| Kanał | Slack, Telegram, Mattermost albo Discord, gdzie ludzie piszą do agenta | `channel_bot` |
 | Rutyna | Agent działający sam, według harmonogramu albo zdarzenia | `trigger` |
 | Run | Jedna odpowiedź agenta, z jej kosztem i krokami | `agent_run` |
 | Środowisko | Nazwany etap, np. produkcja, wskazujący jedną wersję | `environment` |
@@ -70,8 +72,10 @@ w [Capabilities](capabilities.md).
 | Obliczenia | `code_execution` |
 | Coding agent | `coding_agent` |
 | Długie rozmowy | `compaction` |
+| Obsługa komputera | `computer_use` |
 | Kontekst | `context` |
 | Poprzednie rozmowy | `conversation_search` |
+| Następne kroki | `follow_ups` |
 | Zabezpieczenia | `guardrails` |
 | Generowanie obrazów | `image_generation` |
 | Wyszukiwanie wiedzy | `knowledge` |
@@ -81,13 +85,19 @@ w [Capabilities](capabilities.md).
 | Wirtualny terminal | `mirage` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
+| Tematy w tle | `background_tasks` |
+| Obserwuj polecenie | `monitor` |
 | Sandbox | `sandbox` |
 | Skille | `skills` |
 | Subagenci | `subagents` |
 | Przypomnienia instrukcji | `system_reminders` |
+| Zamiana tekstu na mowę | `text_to_speech` |
 | Myślenie | `thinking` |
 | Limity wyników narzędzi | `tool_output_limits` |
 | Wyszukiwanie narzędzi | `tool_search` |
+| Generowanie wideo | `video_generation` |
 | Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |
+| Tabele | `virtual_tables` |
+| Workflowy | `workflows` |

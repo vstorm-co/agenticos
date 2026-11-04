@@ -18,7 +18,21 @@ import { test as base, expect } from "@playwright/test";
  * Only 5xx counts. A 401 from a deliberately wrong password and a 403 from a
  * refusal are the product working; those are what several specs are *for*.
  */
-export const test = base.extend<{ apiFailures: string[] }>({
+export const test = base.extend<{ apiFailures: string[]; releaseMetadata: void }>({
+  releaseMetadata: [
+    async ({ page }, use) => {
+      // Public GitHub releases change independently of the seeded deployment.
+      // The release-notes journey supplies its own deterministic release instead.
+      await page.route("**/api/releases/current", (route) =>
+        route.fulfill({ json: { release: null } }),
+      );
+      await page.route("**/api/releases/latest", (route) =>
+        route.fulfill({ json: { latest: null } }),
+      );
+      await use();
+    },
+    { auto: true },
+  ],
   apiFailures: [
     async ({ page }, use) => {
       const failures: string[] = [];

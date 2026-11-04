@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -79,6 +79,8 @@ function ControlledTab({ agentId = null }: { agentId?: string | null }) {
 describe("the rated-down filter", () => {
   it("asks the server for only the rated-down runs when narrowed to them", async () => {
     render(<ControlledTab />, { wrapper });
+    const filters = screen.queryByRole("button", { name: /^Filters/ });
+    if (filters) fireEvent.click(filters);
     await waitFor(() => expect(runsCalls()).not.toHaveLength(0));
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by rating" }));
@@ -93,6 +95,8 @@ describe("the rated-down filter", () => {
 
   it("says the list is empty because of the filter, not because nothing ran", async () => {
     render(<ControlledTab />, { wrapper });
+    const filters = screen.queryByRole("button", { name: /^Filters/ });
+    if (filters) fireEvent.click(filters);
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by rating" }));
     await userEvent.click(await screen.findByRole("option", { name: "Rated down" }));
 
@@ -103,12 +107,16 @@ describe("the rated-down filter", () => {
     perm.canView = false;
 
     render(<ControlledTab />, { wrapper });
+    const filters = screen.queryByRole("button", { name: /^Filters/ });
+    if (filters) fireEvent.click(filters);
 
     expect(screen.queryByRole("combobox", { name: "Filter by rating" })).toBeNull();
   });
 
   it("blames the window when the unfiltered list is empty, not a filter and not the org", async () => {
     render(<ControlledTab />, { wrapper });
+    const filters = screen.queryByRole("button", { name: /^Filters/ });
+    if (filters) fireEvent.click(filters);
 
     expect(await screen.findByText("No runs in this window")).toBeVisible();
     expect(screen.queryByText("No runs rated down")).toBeNull();
@@ -120,6 +128,8 @@ describe("the rated-down filter", () => {
 describe("the export beside the filters", () => {
   it("carries exactly the filters on screen, so the file is the table (#763)", async () => {
     render(<ControlledTab />, { wrapper });
+    const filters = screen.queryByRole("button", { name: /^Filters/ });
+    if (filters) fireEvent.click(filters);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(await screen.findByRole("option", { name: "Failed" }));
@@ -139,6 +149,8 @@ describe("the export beside the filters", () => {
 
   it("sends the problems narrowing as the statuses it stands for", async () => {
     render(<ControlledTab />, { wrapper });
+    const filters = screen.queryByRole("button", { name: /^Filters/ });
+    if (filters) fireEvent.click(filters);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(await screen.findByRole("option", { name: "Problems" }));

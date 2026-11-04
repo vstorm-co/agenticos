@@ -55,3 +55,33 @@ async def upsert(db: AsyncSession, *, update_data: dict[str, Any]) -> Deployment
         .execution_options(populate_existing=True)
     )
     return (await db.execute(stmt)).scalar_one()
+
+
+async def claim_vapid_key(
+    db: AsyncSession, *, private_key: str, public_key: str, key_version: int
+) -> DeploymentSettings:
+    """Store a freshly made Web Push key unless one is already there, and
+    answer with whichever key the row holds now.
+
+    Two workers making the first push at once each generate a key; only the
+    first write may land, because every browser subscription is bound to the
+    public half and a second key would end all of them. Hence the condition on
+    the update, and the read after it rather than trusting either caller's key.
+    """
+    values = {
+        "vapid_private_key": private_key,
+        "vapid_public_key": public_key,
+        "vapid_key_version": key_version,
+    }
+    await db.execute(
+        insert(DeploymentSettings)
+        .values(singleton=True, **values)
+        .on_conflict_do_update(
+            constraint=SIGNUP_CONSTRAINT,
+            set_=values,
+            where=DeploymentSettings.vapid_private_key.is_(None),
+        )
+    )
+    await db.flush()
+    result = await db.execute(select(DeploymentSettings).execution_options(populate_existing=True))
+    return result.scalar_one()

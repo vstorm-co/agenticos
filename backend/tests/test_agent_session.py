@@ -39,9 +39,10 @@ library's task cancellation, this platform's accounting sweep - runs while a
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
@@ -65,7 +66,6 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
-    RetryPromptPart,
     TextPart,
     TextPartDelta,
     ThinkingPart,
@@ -262,10 +262,17 @@ def _chat(
             )
         )
     )
+    conversations.get_conversation = AsyncMock()
     conversations.keep_summary = AsyncMock()
     conversations.keep_overhead = AsyncMock()
     conversations.keep_plan = AsyncMock()
+
+    @asynccontextmanager
+    async def admitted(*_args, **_kwargs):
+        yield True
+
     with (
+        patch("app.services.conversation_turns.claim", new=admitted),
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
@@ -416,8 +423,15 @@ class TestControlFrames:
             release.set()
             await turn_task
 
-        assert _frame_types(session) == ["user_prompt", "message_saved", "complete"]
-        assert _sent_events(session)[0] == ("user_prompt", {"content": "first"})
+        assert _frame_types(session) == [
+            "user_prompt",
+            "message_saved",
+            "complete",
+            "session_ready",
+        ]
+        assert _sent_events(session)[0][0] == "user_prompt"
+        assert _sent_events(session)[0][1]["content"] == "first"
+        assert _sent_events(session)[0][1]["message_id"] is None
 
     async def test_a_message_arriving_after_the_previous_turn_ended_starts_a_new_one(self):
         """The slot is freed by a done callback, which runs a loop iteration after
@@ -930,6 +944,8 @@ class TestATurnThatFinished:
                 tool_call_id="call-1",
                 tool_name="send_email",
                 tool_args={"to": "ops@example.com"},
+                capability_tool_id="send_email",
+                context={"recipient": "Ops"},
             ),
         )
         turn = _finished_turn(parked=parked)
@@ -953,6 +969,11 @@ class TestATurnThatFinished:
                         "tool_call_id": "call-1",
                         "tool_name": "send_email",
                         "args": {"to": "ops@example.com"},
+                        # The tool's stable id, which the card words the call by.
+                        "capability_tool_id": "send_email",
+                        # The names the tool's describer resolved, for the sentence
+                        # the card puts above the arguments.
+                        "context": {"recipient": "Ops"},
                         "account": None,
                     }
                 ],
@@ -1775,7 +1796,12 @@ class TestAttachedFiles:
                 {"message": "", "agent_id": str(uuid4()), "file_ids": ["f1", "f2"]}
             )
 
-        assert _frame_types(session) == ["user_prompt", "message_saved", "complete"]
+        assert _frame_types(session) == [
+            "user_prompt",
+            "message_saved",
+            "complete",
+        ]
+        assert _sent_events(session)[0][1]["message_id"] == str(prompt_message_id)
         assert run.await_args is not None
         assert run.await_args.kwargs["attachments"] == rows
         # Read against the message `persist_user_turn` just wrote and the caller's
@@ -2366,7 +2392,7 @@ class TestForwardingToolEvents:
         ]
 
     async def test_a_retry_is_reported_rather_than_swallowed(self, caplog):
-        """A tool that raised sends a `RetryPromptPart` down the same stream, and a
+        """A retried tool return comes down the same stream, and a
         card that never resolved would spin forever - so the frame still arrives,
         naming the tool that failed. What it does not carry is the retry text: a
         tool builds one out of whatever it caught, and `web_search` catches an
@@ -2381,7 +2407,12 @@ class TestForwardingToolEvents:
                 part=ToolCallPart(tool_name="web_search", args={}, tool_call_id="t9")
             )
             yield FunctionToolResultEvent(
-                part=RetryPromptPart(content=vendor_text, tool_name="web_search", tool_call_id="t9")
+                part=ToolReturnPart(
+                    content=vendor_text,
+                    tool_name="web_search",
+                    tool_call_id="t9",
+                    outcome="retried",
+                )
             )
 
         with caplog.at_level(logging.WARNING, logger="app.services.run_stream"):
@@ -2399,14 +2430,18 @@ class TestForwardingToolEvents:
         assert vendor_text in caplog.text
 
     async def test_a_retry_from_an_unnamed_tool_still_says_a_call_failed(self, caplog):
-        """`RetryPromptPart.tool_name` is optional - a retry can come from output
-        validation rather than from a tool - and a sentence built around a name
-        that is `None` would read "The None call failed"."""
+        """An upstream result can carry an empty tool name. It still needs a generic
+        notice so a card does not stay open forever."""
         session = _session()
 
         async def _events():
             yield FunctionToolResultEvent(
-                part=RetryPromptPart(content="path must be absolute", tool_call_id="t9")
+                part=ToolReturnPart(
+                    content="path must be absolute",
+                    tool_call_id="t9",
+                    tool_name="",
+                    outcome="retried",
+                )
             )
 
         with caplog.at_level(logging.WARNING, logger="app.services.run_stream"):
@@ -2792,7 +2827,7 @@ class _Turn:
         # Real `None` rather than a mock: Pydantic AI reads this per request.
         built.usage_limits = None
         return PreparedRun(
-            run=MagicMock(id=uuid4(), agent_version_id=uuid4()),
+            run=MagicMock(id=uuid4(), agent_version_id=uuid4(), channel_identity_id=None),
             agent=MagicMock(id=uuid4()),
             spec=MagicMock(budget=None),
             built=built,
@@ -2884,10 +2919,10 @@ class TestStoppingATurnMidDelegation:
         assert len(asyncio.all_tasks()) == alive_before
         assert session._turn_task is None
 
-        assert _sent_events(session)[-1] == (
-            "complete",
-            {"conversation_id": _CONVERSATION, "stopped": True},
-        )
+        assert _sent_events(session)[-2:] == [
+            ("complete", {"conversation_id": _CONVERSATION, "stopped": True}),
+            ("session_ready", {"conversation_id": _CONVERSATION}),
+        ]
         assert [
             event_type for event_type, _data in _sent_events(session) if "subagent" in event_type
         ] == ["subagent_start", "subagent_complete"]
@@ -2917,10 +2952,10 @@ class TestStoppingATurnMidDelegation:
         assert session._turn_task is None
 
         # The client is told the turn is over, or its composer never comes back.
-        assert _sent_events(session)[-1] == (
-            "complete",
-            {"conversation_id": _CONVERSATION, "stopped": True},
-        )
+        assert _sent_events(session)[-2:] == [
+            ("complete", {"conversation_id": _CONVERSATION, "stopped": True}),
+            ("session_ready", {"conversation_id": _CONVERSATION}),
+        ]
 
         # The delegation's share is attributed, and the run row carries it. A
         # cancelled run that spent two dollars and recorded zero is the whole
@@ -3603,3 +3638,122 @@ class TestVisualReports:
             "tool_call_id": "toolu_1",
             "images": {"logo": "data:image/png;base64,AA=="},
         }
+
+
+async def test_session_readiness_waits_for_cleanup_and_frees_the_admission_slot() -> None:
+    session = _session()
+    cleaning = asyncio.Event()
+    finish = asyncio.Event()
+
+    async def process(_data: dict[str, object]) -> None:
+        await session._emit("complete", {})
+        cleaning.set()
+        await finish.wait()
+
+    with patch.object(session, "process_message", side_effect=process):
+        await session.handle_frame(_message("first"))
+        task = session._turn_task
+        assert task is not None
+        await _wait(cleaning)
+        assert _frame_types(session) == ["complete"]
+        finish.set()
+        await task
+        assert session._turn_task is None
+        assert _frame_types(session) == ["complete", "session_ready"]
+        await session.handle_frame(_message("second"))
+        next_task = session._turn_task
+        assert next_task is not None
+        await next_task
+        assert _frame_types(session) == ["complete", "session_ready", "complete", "session_ready"]
+
+
+@pytest.mark.security
+async def test_local_file_origins_hide_private_paths_in_shared_frames() -> None:
+    session = _session()
+    run = AsyncMock(return_value=_finished_turn())
+    publish = AsyncMock()
+    with (
+        _chat(run),
+        patch("app.services.agent_session.live_turn.begin", AsyncMock(return_value=MagicMock())),
+        patch("app.services.agent_session.live_turn.publish", publish),
+        patch("app.services.agent_session.live_turn.end", AsyncMock()),
+    ):
+        await session.process_message(
+            _message(local={"folder": "/Users/alice/private", "mode": "full_access"})
+        )
+    frames = dict(_sent_events(session))
+    source = frames["user_prompt"]["file_source"]
+    assert source["kind"] == "local"
+    assert UUID(source["id"])
+    assert set(source) == {"kind", "id"}
+    shared = next(call.args[2] for call in publish.await_args_list if call.args[1] == "turn_prompt")
+    assert shared["file_source"] == source
+    assert "/Users/alice" not in json.dumps(shared)
+    assert run.await_args.kwargs["local"].folder == "/Users/alice/private"
+
+
+async def test_a_new_conversation_holds_admission_until_its_answer_has_been_saved() -> None:
+    session = _session()
+    held = False
+
+    @asynccontextmanager
+    async def admission(_conversation_id: UUID, *, background: bool):
+        nonlocal held
+        assert not background
+        held = True
+        try:
+            yield True
+        finally:
+            held = False
+
+    async def run(**_kwargs):
+        assert held
+        return _finished_turn()
+
+    with (
+        _chat(AsyncMock(side_effect=run), newly_created=True) as fake,
+        patch("app.services.conversation_turns.claim", new=admission),
+    ):
+
+        async def save(*_args, **_kwargs):
+            assert held
+            return str(uuid4())
+
+        fake.answer.side_effect = save
+        await session._run_turn(
+            {
+                "message": "Delegate the unrelated task",
+                "agent_id": str(uuid4()),
+                "conversation_id": None,
+            }
+        )
+    assert not held and session._admission_stack is None
+    assert "session_ready" in _frame_types(session)
+
+
+async def test_invalid_existing_conversation_ids_reach_the_normal_validation_without_claiming() -> (
+    None
+):
+    session = _session()
+    with (
+        patch.object(session, "process_message", new=AsyncMock()) as process,
+        patch("app.services.conversation_turns.claim") as claim,
+    ):
+        await session._run_turn({"conversation_id": "not-a-uuid"})
+        process.assert_awaited_once()
+        claim.assert_not_called()
+
+
+async def test_lost_conversation_access_is_reported_before_any_turn_is_written() -> None:
+    session = _session()
+    with _chat(AsyncMock(return_value=_finished_turn())) as fake:
+        fake.conversations.get_conversation.side_effect = AuthorizationError(
+            message="Project access was removed"
+        )
+        await session._run_turn(
+            {"message": "Question", "agent_id": str(uuid4()), "conversation_id": _CONVERSATION}
+        )
+        fake.prompt.assert_not_called()
+        fake.runner.run.assert_not_called()
+    assert ("error", {"message": "Project access was removed"}) in _sent_events(session)
+    assert session._admission_stack is None

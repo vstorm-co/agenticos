@@ -1,11 +1,7 @@
 import { NextRequest } from "next/server";
 
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
-
-interface OAuthCallbackBody {
-  code: string;
-}
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 
 interface TokenPair {
   access_token: string;
@@ -14,14 +10,31 @@ interface TokenPair {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as Partial<OAuthCallbackBody>;
-    if (!body.code) {
+    const body: unknown = await request.json();
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("code" in body) ||
+      typeof body.code !== "string" ||
+      !body.code ||
+      body.code.length > 1024
+    ) {
       return bffRefusal("MISSING_AUTHORIZATION_CODE", 400);
     }
 
+    const verifier = "code_verifier" in body ? body.code_verifier : undefined;
+    if (
+      verifier !== undefined &&
+      (typeof verifier !== "string" || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))
+    ) {
+      return bffRefusal("LOGIN_FAILED", 400);
+    }
     const tokens = await backendFetch<TokenPair>("/api/v1/oauth/exchange", {
       method: "POST",
-      body: JSON.stringify({ code: body.code }),
+      body: JSON.stringify({
+        code: body.code,
+        ...(verifier === undefined ? {} : { code_verifier: verifier }),
+      }),
     });
 
     const user = await backendFetch("/api/v1/auth/me", {
@@ -32,14 +45,14 @@ export async function POST(request: NextRequest) {
       user,
       access_token: tokens.access_token,
     });
-    response.cookies.set("access_token", tokens.access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15,
       path: "/",
     });
-    response.cookies.set("refresh_token", tokens.refresh_token, {
+    response.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",

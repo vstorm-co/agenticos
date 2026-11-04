@@ -29,7 +29,7 @@ from typing import Any, NamedTuple
 from uuid import UUID
 
 from pydantic import TypeAdapter, ValidationError
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
+from pydantic_ai.messages import ModelMessage, UserContent
 from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,12 +42,15 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
+from app.agents.ephemeral_media import dump_messages
+from app.agents.factory import AgentOutput, answer_text
 from app.agents.failures import run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.visual_reports import VisualReports
-from app.core.exceptions import AuthorizationError, BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, RunFailedError
+from app.core.field_errors import field_problems
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
@@ -67,7 +70,9 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.device_hub import LocalTarget
 from app.services.mentions import MentionService, ResolvedMentions
+from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import SandboxWaitSink
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
@@ -76,7 +81,7 @@ logger = logging.getLogger(__name__)
 # Iterating the run is the caller's job; this is how it is handed back the
 # iterator. Typed against the agent the factory builds, so a surface that
 # forwards events cannot quietly be given a different kind of run.
-type ChatStream = Callable[[AgentRun[AgentDeps, str | DeferredToolRequests]], Awaitable[None]]
+type ChatStream = Callable[[AgentRun[AgentDeps, AgentOutput]], Awaitable[None]]
 
 # Told once per turn, before the model answers, which of the agent's personal MCP
 # services this person cannot reach - so a surface can draw the button that
@@ -162,6 +167,32 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
         raise BadRequestError(
             message="That is not an approval mode",
             details={"approval_mode": str(raw)},
+        ) from exc
+
+
+def requested_local(frame: Mapping[str, Any]) -> LocalTarget | None:
+    """The chat's "Work on: This computer", if it asked for it (#2305).
+
+    `None` - the agent's own sandbox - for a frame that names nothing. Whether the
+    run may work there, and whether the computer is connected, is decided where
+    the workspace opens.
+
+    Raises:
+        BadRequestError: The frame names a target that is not a folder and a mode.
+    """
+    raw = frame.get("local")
+    if raw is None:
+        return None
+    try:
+        return LocalTarget.model_validate(raw)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="That is not a folder on your computer to work in",
+            details={
+                "fields": field_problems(
+                    exc.errors(include_url=False, include_input=False), root="local"
+                )
+            },
         ) from exc
 
 
@@ -252,13 +283,14 @@ def requested_environment_id(frame: Mapping[str, Any]) -> UUID | None:
         ) from exc
 
 
-def display_output(output: str | DeferredToolRequests) -> str:
+def display_output(output: AgentOutput) -> str:
     """The text to show for whatever a run ended with.
 
     A run can end without an answer: when the approval gate parks a
     side-effecting call, Pydantic AI ends the run with the calls waiting on a
     human. There is no model text to show then, and the object itself is not
-    something a client can render.
+    something a client can render. An answer in the agent's `output_schema` is
+    shown as that object in a JSON block (:func:`answer_text`).
 
     Empty, then - and deliberately not a sentence about the queue. This value
     becomes the assistant message's `content`, so a notice put here is stored as
@@ -270,7 +302,9 @@ def display_output(output: str | DeferredToolRequests) -> str:
     empty answer here too (:meth:`AgentRunnerService._run`), so this is the whole
     platform's answer rather than this one's.
     """
-    return output if isinstance(output, str) else ""
+    if isinstance(output, DeferredToolRequests):
+        return ""
+    return answer_text(output)
 
 
 @dataclass(frozen=True)
@@ -403,6 +437,7 @@ class ChatAgentRunner:
         model_profile_id: UUID | None = None,
         environment_id: UUID | None = None,
         approval_mode: ApprovalMode = ApprovalMode.FOLLOW_AGENT,
+        local: LocalTarget | None = None,
         person_time_zone: str | None = None,
         testing: Testing = Testing(test=False, draft=False),
         steering: SteeringInbox | None = None,
@@ -499,6 +534,9 @@ class ChatAgentRunner:
             # caller who may not waive approvals is told, and the turn does not
             # run believing it has consent it was never given (#925).
             approval_mode=approval_mode,
+            # "Work on: This computer" (#2305): the sandbox's tools carried out by
+            # the person's desktop app, in the folder they picked there.
+            local=local,
             request_connection=request_connection,
             # A sandbox whose image is still being built is minutes in which no
             # token and no tool step arrives. Passed in rather than set on the
@@ -527,8 +565,9 @@ class ChatAgentRunner:
         # model request reads it.
         prepared.deps.steering = steering
         prepared.deps.visual_reports = visual_reports
+        input_edge = input_screen_for(prepared.spec)
         if steering is not None:
-            steering.screen = input_screen_for(prepared.spec)
+            steering.screen = input_edge
         # Before the model answers, not after: the model is about to say it cannot
         # reach the person's Notion, and the card with the button that connects it
         # belongs beside that sentence, not under it once the turn is over.
@@ -555,10 +594,16 @@ class ChatAgentRunner:
                 )
             )
 
+        # The prompt row a file's briefing was kept on, so a refused turn can take
+        # it back: written before the input edge has read the prompt.
+        briefed: tuple[UUID, UUID] | None = None
         if attachments:
             router = AttachmentRouter(
                 prepared.workspace.workspace if prepared.workspace is not None else None,
                 can_parse=prepared.workspace is not None and prepared.workspace.parses_documents,
+                # Screened before a file is written, not only once the run starts
+                # (#2559): a refused file must not outlive its turn.
+                screen=input_edge,
             )
             user_input = await router.build_prompt(_as_text(user_input), attachments)
             # Kept on the prompt's row so the next turn's history still carries
@@ -570,6 +615,7 @@ class ChatAgentRunner:
                     conversation_id=conversation_id,
                     context=router.context,
                 )
+                briefed = (prompt_message_id, conversation_id)
 
         status = RunStatus.FAILED
         error: str | None = None
@@ -590,10 +636,12 @@ class ChatAgentRunner:
         await self.db.commit()
         await change_feed.publish_run(prepared.run, "created")
         try:
-            async with prepared.iterate(
-                user_input,
-                message_history=message_history,
-            ) as agent_run:
+            # Stamped alive while the model works, as `AgentRunnerService._run`
+            # does: a restart under this turn ends it in minutes, not hours.
+            async with (
+                run_heartbeat(prepared.run.id),
+                prepared.iterate(user_input, message_history=message_history) as agent_run,
+            ):
                 await stream(agent_run)
 
             result = _outcome(agent_run)
@@ -603,9 +651,11 @@ class ChatAgentRunner:
             if prepared.built.context.summarized:
                 summarized = await offloaded_history(
                     prepared.built.capabilities,
-                    ModelMessagesTypeAdapter.dump_python(result.all_messages(), mode="json"),
+                    dump_messages(result.all_messages()),
                 )
-            status, output, paused = _classify_output(result, parked=prepared.approvals.parked)
+            status, output, _structured, paused = _classify_output(
+                result, parked=prepared.approvals.parked
+            )
             finished_cleanly = True
         except asyncio.CancelledError:
             # The user pressed stop, or the socket went away mid-run. Cancelled
@@ -661,6 +711,16 @@ class ChatAgentRunner:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                if prepared.run.status == RunStatus.FAILED.value:
+                    status = RunStatus.FAILED
+                    paused = None
+                # Every later turn replays the briefing after the prompt, and the
+                # input edge screens only the newest one - left on the row, a file
+                # the edge refused reaches the model a follow-up later (#2578).
+                if briefed is not None and status is RunStatus.GUARDRAIL_BLOCKED:
+                    await conversation_repo.set_attachment_context(
+                        self.db, message_id=briefed[0], conversation_id=briefed[1], context=None
+                    )
                 await self.runner.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
@@ -668,6 +728,9 @@ class ChatAgentRunner:
                 if finished_cleanly:
                     raise
                 logger.exception("Could not persist the terminal state of run %s", prepared.run.id)
+
+        if finished_cleanly and prepared.run.status == RunStatus.FAILED.value:
+            raise RunFailedError(message=prepared.run.error or "The run could not be saved")
 
         return ChatTurn(
             output=output,

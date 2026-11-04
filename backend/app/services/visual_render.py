@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.repositories.conversation import ToolCallArgs
 from app.services import artifact as artifacts
-from app.services import tile_proxy
+from app.services import rate_limit, tile_proxy
 from app.services import visual as visuals
 from app.services.visual import VISUAL_RUNTIME, VISUAL_TOOLS, VisualKind, visual_document
 
@@ -34,6 +34,26 @@ RENDER_TIMEOUT = 20.0
 
 MAX_HEIGHT = 2400
 """The tallest picture taken, in CSS pixels; a longer page is cut there."""
+
+MAX_REQUESTS = 256
+MAX_PENDING_REQUESTS = 32
+"""Per picture: bound both total requests and tasks holding response bytes."""
+
+
+@dataclass
+class RenderRequestBudget:
+    """Admission before creating a request task; overflow stops the whole render."""
+
+    admitted: int = 0
+    exceeded: bool = False
+
+    def admit(self, pending: int) -> bool:
+        if self.exceeded or self.admitted >= MAX_REQUESTS or pending >= MAX_PENDING_REQUESTS:
+            self.exceeded = True
+            return False
+        self.admitted += 1
+        return True
+
 
 _LEAD = re.compile(r"\A(?:﻿)?(?:\s+|<!--(?:[^-]|-(?!->))*-->)*(?:<!doctype\b[^>]*>)?", re.I)
 
@@ -99,6 +119,13 @@ async def answer(url: str, document: bytes) -> Answer:
         # picture of a map has its streets.
         found = _TILE.fullmatch(url[len(tiles_prefix) :].split("?", 1)[0])
         if found is not None:
+            allowance = await rate_limit.consume(
+                surface="map_tiles",
+                caller="visual-renderer",
+                limit=rate_limit.Limit(attempts=settings.RATE_LIMIT_MAP_TILES_PER_MINUTE),
+            )
+            if not allowance.allowed:
+                return Answer(body=None)
             try:
                 data, media_type = await tile_proxy.tile(*map(int, found.groups()))
             except NotFoundError, ExternalServiceError:
@@ -133,8 +160,22 @@ def available() -> bool:
     return True
 
 
+def compact_flowchart(content: str) -> str | None:
+    """An alternate vertical layout for horizontal Mermaid flowcharts only."""
+    declaration = re.compile(r"\A((?:\s|%%[^\n]*\n)*)(flowchart|graph)([ \t]+)(LR|RL)\b")
+    if not declaration.search(content):
+        return None
+    return declaration.sub(r"\1\2\3TD", content, count=1)
+
+
 async def render_png(
-    kind: VisualKind, content: str, *, title: str, width: int = 1000, aspect: float | None = None
+    kind: VisualKind,
+    content: str,
+    *,
+    title: str,
+    width: int = 1000,
+    aspect: float | None = None,
+    channel: bool = False,
 ) -> bytes:
     """The drawing as a PNG, `width` CSS pixels wide.
 
@@ -147,8 +188,21 @@ async def render_png(
     """
     cdp_url = allowed_endpoint(settings.VISUAL_RENDER_CDP_URL)
     document = rendered_document(kind, content, title=title).encode("utf-8")
-    async with asyncio.timeout(RENDER_TIMEOUT):
-        return await _photograph(cdp_url, document, width=width, aspect=aspect)
+    alternate = compact_flowchart(content) if channel and kind == "mermaid" else None
+    alternate_document = (
+        rendered_document(kind, alternate, title=title).encode("utf-8")
+        if alternate is not None
+        else None
+    )
+    async with asyncio.timeout(RENDER_TIMEOUT * (2 if channel else 1)):
+        return await _photograph(
+            cdp_url,
+            document,
+            width=width,
+            aspect=aspect,
+            pixel_ratio=2 if channel else 1,
+            alternate_document=alternate_document,
+        )
 
 
 async def picture_of_turn(
@@ -171,7 +225,10 @@ async def picture_of_turn(
         if tool in VISUAL_TOOLS and result is not None and result.startswith(visuals.DREW)
     }
     last = next((call_id for call_id, *_ in reversed(called) if call_id in in_turn), None)
-    if last is None or not available():
+    if last is None:
+        return None
+    if not available():
+        logger.warning("visual_reply_renderer_unavailable")
         return None
 
     async def lookup(call_id: str) -> ToolCallArgs | None:
@@ -193,6 +250,7 @@ async def picture_of_turn(
             content,
             title=visual.title,
             aspect=visuals.svg_aspect(content) if visual.kind == "svg" else None,
+            channel=True,
         )
     except Exception:
         logger.exception("Could not draw a visual for a reply")
@@ -209,7 +267,13 @@ async def _resolve(host: str) -> str | None:  # pragma: no cover - needs a resol
 
 
 async def _photograph(  # pragma: no cover - needs a live browser
-    cdp_url: str, document: bytes, *, width: int, aspect: float | None
+    cdp_url: str,
+    document: bytes,
+    *,
+    width: int,
+    aspect: float | None,
+    pixel_ratio: int,
+    alternate_document: bytes | None,
 ) -> bytes:
     """Open a tab in a context of its own, serve it the drawing, wait, and take the picture."""
     import httpx
@@ -232,6 +296,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
     client = CDPClient(socket)
     await client.start()
     pending: set[asyncio.Task[Any]] = set()
+    budget = RenderRequestBudget()
     context_id: str | None = None
     target: str | None = None
     try:
@@ -271,7 +336,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
             )
 
         def paused(event: dict[str, Any], session_id: str | None) -> None:
-            if session_id == session:
+            if session_id == session and budget.admit(len(pending)):
                 task = asyncio.ensure_future(respond(event["requestId"], event["request"]["url"]))
                 pending.add(task)
                 task.add_done_callback(pending.discard)
@@ -285,7 +350,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
             params={
                 "width": width,
                 "height": min(height, MAX_HEIGHT),
-                "deviceScaleFactor": 1,
+                "deviceScaleFactor": pixel_ratio,
                 "mobile": False,
             },
             session_id=session,
@@ -301,14 +366,38 @@ async def _photograph(  # pragma: no cover - needs a live browser
             params={"source": _RENDERED_FLAG}, session_id=session
         )
         await client.send.Page.navigate(params={"url": page_url()}, session_id=session)
-        while True:
-            flag = await client.send.Runtime.evaluate(
-                params={"expression": "window.__agenticosRendered === true", "returnByValue": True},
+
+        async def wait_rendered() -> None:
+            while True:
+                if budget.exceeded:
+                    raise RenderUnavailableError("The drawing exceeded its request limit.")
+                flag = await client.send.Runtime.evaluate(
+                    params={
+                        "expression": "window.__agenticosRendered === true",
+                        "returnByValue": True,
+                    },
+                    session_id=session,
+                )
+                if flag.get("result", {}).get("value") is True:
+                    break
+                await asyncio.sleep(0.2)
+
+        await wait_rendered()
+        if alternate_document is not None:
+            measured_ratio = await client.send.Runtime.evaluate(
+                params={
+                    "expression": "(() => { const s = document.querySelector('.mermaid svg'); return s && s.viewBox.baseVal.height ? s.viewBox.baseVal.width / s.viewBox.baseVal.height : 0; })()",
+                    "returnByValue": True,
+                },
                 session_id=session,
             )
-            if flag.get("result", {}).get("value") is True:
-                break
-            await asyncio.sleep(0.2)
+            if (measured_ratio.get("result", {}).get("value") or 0) > 3:
+                document = alternate_document
+                await client.send.Runtime.evaluate(
+                    params={"expression": "window.__agenticosRendered = false"}, session_id=session
+                )
+                await client.send.Page.reload(params={"ignoreCache": True}, session_id=session)
+                await wait_rendered()
         if not aspect:
             measured = await client.send.Runtime.evaluate(
                 params={
@@ -322,7 +411,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
                 params={
                     "width": width,
                     "height": max(1, min(height, MAX_HEIGHT)),
-                    "deviceScaleFactor": 1,
+                    "deviceScaleFactor": pixel_ratio,
                     "mobile": False,
                 },
                 session_id=session,
@@ -332,8 +421,12 @@ async def _photograph(  # pragma: no cover - needs a live browser
         )
         return base64.b64decode(shot["data"])
     finally:
-        for task in pending:
+        remaining = tuple(pending)
+        for task in remaining:
             task.cancel()
+        for outcome in await asyncio.gather(*remaining, return_exceptions=True):
+            if isinstance(outcome, Exception):
+                logger.warning("visual_render_request_failed", exc_info=outcome)
         if target is not None:
             try:
                 await client.send.Target.closeTarget(params={"targetId": target})

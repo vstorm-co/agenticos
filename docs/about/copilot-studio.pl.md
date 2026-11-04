@@ -1,5 +1,5 @@
 ---
-source_sha: "0202c6a280dd"
+source_sha: "c3f329d888d0"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternatywa self-hosted"
 description: "Porównaj Microsoft Copilot Studio z AgenticOS: bez Copilot Credits, dowolny provider modeli, własna infrastruktura, budżety per agent i otwarty audyt."
@@ -47,7 +47,7 @@ Zarządzanie w Copilot Studio jest mocne wewnątrz stosu Microsoftu. AgenticOS p
 
 ### Tożsamość Microsoftu bez hostingu Microsoftu { #microsoft-identity-without-microsoft-hosting }
 
-AgenticOS loguje użytkowników przez Entra ID po [OIDC](../configuration.md#single-sign-on-generic-oidc), mapuje [grupy katalogowe](../directory.md#the-groups-claim-over-oidc) na role i czyta pliki z [SharePoint i OneDrive](../howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Agenci mogą też pracować w Microsoft 365 przez serwery MCP Work IQ od Microsoftu dla Outlooka, Teams i Worda, które są w [katalogu MCP](../mcp.md#communication-support-knowledge). Microsoft zostaje źródłem tożsamości i dokumentów, a agentów uruchamiasz sam.
+AgenticOS loguje użytkowników przez Entra ID po [OIDC](../configuration.md#single-sign-on-generic-oidc), mapuje [grupy katalogowe](../directory.md#the-groups-claim-over-oidc) na role i czyta pliki z [SharePoint i OneDrive](../howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Agenci mogą też pracować w Microsoft 365 przez [katalog MCP](../mcp.md#communication-support-knowledge): własny serwer Microsoft 365 dla poczty i kalendarza Outlooka oraz hostowany serwer Work IQ od Microsoftu. Microsoft zostaje źródłem tożsamości i dokumentów, a agentów uruchamiasz sam.
 
 ## Kiedy Copilot Studio pasuje lepiej { #when-copilot-studio-is-the-better-fit }
 

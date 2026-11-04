@@ -1,17 +1,21 @@
 """OrganizationMember repository (PostgreSQL async)."""
 
-from typing import Literal, NamedTuple
+from datetime import datetime
+from typing import Any, Literal, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent import Agent
 from app.db.models.organization import (
     MembershipSource,
     Organization,
     OrganizationMember,
     OrgRole,
+    ProactiveTiming,
 )
+from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
 from app.db.models.user import User
 
 
@@ -34,7 +38,7 @@ async def get(
         OrganizationMember.user_id == user_id,
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -86,6 +90,90 @@ async def get_active(
     return result.scalar_one_or_none()
 
 
+class SweepCandidate(NamedTuple):
+    """A person the nightly look may reach, with what decides when it does (#2301)."""
+
+    organization_id: UUID
+    user_id: UUID
+    time_zone: str | None
+    working_hours: dict[str, Any] | None
+    days: list[int]
+    hour: int
+    timing: ProactiveTiming
+
+
+async def sweep_candidates(db: AsyncSession, *, agent_slug: str) -> list[SweepCandidate]:
+    """Every active member of an organization that turned proactivity on, with a model
+    to run it on and a published starter agent, who has not opted out (#2301)."""
+    result = await db.execute(
+        select(
+            OrganizationMember.organization_id,
+            OrganizationMember.user_id,
+            User.time_zone,
+            User.working_hours,
+            Organization.proactive_days,
+            Organization.proactive_hour,
+            Organization.proactive_timing,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .join(
+            Agent,
+            and_(
+                Agent.organization_id == OrganizationMember.organization_id,
+                Agent.slug == agent_slug,
+                Agent.current_version_id.is_not(None),
+            ),
+        )
+        .where(
+            User.is_active.is_(True),
+            User.proactive_opt_out.is_(False),
+            Organization.proactive_enabled.is_(True),
+            Organization.proactive_model_profile_id.is_not(None),
+        )
+    )
+    return [SweepCandidate(*row) for row in result.all()]
+
+
+async def briefing_candidates(db: AsyncSession) -> list[SweepCandidate]:
+    """Active members of organizations with watches on who have findings no briefing listed yet.
+
+    Only the ones a briefing would say something to: a finding that is still
+    open, was not sent at once, and is in no earlier briefing (#2301).
+    """
+    waiting = (
+        select(Suggestion.id)
+        .where(
+            Suggestion.organization_id == OrganizationMember.organization_id,
+            Suggestion.user_id == OrganizationMember.user_id,
+            Suggestion.kind == SuggestionKind.FINDING.value,
+            Suggestion.status == SuggestionStatus.OPEN.value,
+            Suggestion.urgent.is_(False),
+            Suggestion.briefed_at.is_(None),
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(
+            OrganizationMember.organization_id,
+            OrganizationMember.user_id,
+            User.time_zone,
+            User.working_hours,
+            Organization.proactive_days,
+            Organization.proactive_hour,
+            Organization.proactive_timing,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .where(
+            User.is_active.is_(True),
+            Organization.proactive_watches_enabled.is_(True),
+            waiting,
+        )
+    )
+    return [SweepCandidate(*row) for row in result.all()]
+
+
 async def list_for_org(
     db: AsyncSession,
     organization_id: UUID,
@@ -125,6 +213,28 @@ class MemberIdentity(NamedTuple):
 
     email: str | None
     avatar_url: str | None
+
+
+async def get_active_ids(
+    db: AsyncSession, *, organization_id: UUID, user_ids: list[UUID]
+) -> dict[UUID, UUID]:
+    """Map user id -> the id of their active membership, for those who have one.
+
+    The batch form of `get_active`, for a listing that must tell whose membership is
+    still the one a stored id names.
+    """
+    if not user_ids:
+        return {}
+    result = await db.execute(
+        select(OrganizationMember.user_id, OrganizationMember.id)
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id.in_(user_ids),
+            User.is_active.is_(True),
+        )
+    )
+    return dict(result.all())
 
 
 async def get_identities_for_users(
@@ -340,6 +450,23 @@ async def count_for_org(db: AsyncSession, organization_id: UUID) -> int:
     return result.scalar() or 0
 
 
+async def count_active_for_org(db: AsyncSession, organization_id: UUID) -> int:
+    """Members whose account can still sign in - what a per-member allowance scales by.
+
+    Joined against `User.is_active`, the same test `get_active` reads a single membership
+    through: a deactivated account cannot write, so counting its row would inflate a budget
+    nothing is producing traffic against. Used by the Virtual Tables retention sweep to size
+    one organization's daily removal budget off how many members could actually be writing,
+    rather than assuming exactly one.
+    """
+    result = await db.execute(
+        select(func.count(OrganizationMember.id))
+        .join(User, User.id == OrganizationMember.user_id)
+        .where(OrganizationMember.organization_id == organization_id, User.is_active.is_(True))
+    )
+    return result.scalar() or 0
+
+
 async def first_owner_id(db: AsyncSession, *, organization_id: UUID) -> UUID | None:
     """The earliest-joined owner - who system-made rows are attributed to."""
     return await db.scalar(
@@ -405,6 +532,17 @@ async def list_for_user_by_source(
     return list(result.scalars().all())
 
 
+async def set_personal_starters(
+    db: AsyncSession, member: OrganizationMember, *, starters: list[str], at: datetime
+) -> OrganizationMember:
+    """Keep the first messages written for this person in this organization."""
+    member.personal_starters = starters
+    member.personal_starters_at = at
+    await db.flush()
+    await db.refresh(member)
+    return member
+
+
 async def update_role(
     db: AsyncSession,
     member: OrganizationMember,
@@ -424,3 +562,22 @@ async def update_role(
 async def delete(db: AsyncSession, member: OrganizationMember) -> None:
     await db.delete(member)
     await db.flush()
+
+
+async def find_active(
+    db: AsyncSession, *, organization_id: UUID, term: str
+) -> list[tuple[UUID, str, str | None]]:
+    """The active members whose address or full name is `term`, ignoring case, as
+    `(user_id, email, full_name)` - more than one when a name is shared."""
+    wanted = term.lower()  # as Postgres `lower()` folds it, not `casefold()`
+    result = await db.execute(
+        select(User.id, User.email, User.full_name)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            User.is_active.is_(True),
+            or_(func.lower(User.email) == wanted, func.lower(User.full_name) == wanted),
+        )
+        .order_by(User.email)
+    )
+    return [(row[0], row[1], row[2]) for row in result.all()]

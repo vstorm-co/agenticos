@@ -11,7 +11,7 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.image_generation._capability import ImageGeneration
-from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
+from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
 from app.services.image_models import (
     default_choice,
     image_providers,
@@ -156,6 +156,11 @@ class ImageGenerationConfig(BaseModel):
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
         description="The API key for the chosen image generation provider",
+        # Every provider needs a key; this tells the Builder the chosen provider
+        # *is* the key's purpose, so the picker offers only its keys (#2258).
+        required_when=SecretCondition(
+            field="provider", equals=tuple(entry.provider for entry in image_providers())
+        ),
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> ImageGeneration:

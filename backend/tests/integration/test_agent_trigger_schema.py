@@ -25,7 +25,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo
 from app.repositories.conversation import create_conversation
-from app.schemas.agent_trigger import TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.agent_trigger import _POLLED_SOURCES, TriggerCreate, TriggerRead, TriggerUpdate
 from app.services.agent_trigger import AgentTriggerService
 
 pytestmark = pytest.mark.anyio
@@ -289,7 +289,7 @@ class TestTheEventShapeRejectsABadRow:
             # A polled source carries no secret and a posted one must - the shape
             # constraint's other half, so the row has to be built per source
             # rather than from one template.
-            polled = source == EventSource.GMAIL.value
+            polled = source in _POLLED_SOURCES
             db.add(
                 _event(
                     org,

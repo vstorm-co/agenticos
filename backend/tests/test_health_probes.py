@@ -113,7 +113,7 @@ def _heartbeat(
     fired: datetime | Exception | None,
     every: int = 60,
     paused: tuple[str, ...] = (),
-    pools: tuple[str, ...] = ("agent", "ingest", "system"),
+    pools: tuple[str, ...] = ("agent", "ingest", "system", "workflow"),
 ) -> None:
     """Make the queue's tables report these workers, one schedule and these paused kinds."""
     from app.repositories import background_schedule, background_task_kind, background_worker
@@ -469,7 +469,7 @@ class TestSchedulerProbe:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The `ingest` worker died; the `agent,system` one keeps the schedules firing."""
-        _heartbeat(monkeypatch, fired=datetime.now(UTC), pools=("agent", "system"))
+        _heartbeat(monkeypatch, fired=datetime.now(UTC), pools=("agent", "system", "workflow"))
 
         check = await health.probe_scheduler(_Session())  # type: ignore[arg-type]
 

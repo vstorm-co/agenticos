@@ -16,7 +16,7 @@ itself and never delivered the command carrying it.
 import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -216,8 +216,15 @@ class TestConfirming:
                 "app.services.channel_link.channel_link_request_repo.delete_by_id",
                 new=AsyncMock(return_value=claimed),
             ) as spent,
+            patch(
+                "app.services.channel_link.message_rating_repo.adopt_channel_ratings",
+                new=AsyncMock(),
+            ) as adopted,
         ):
             result = await ChannelLinkService(MagicMock()).confirm("tok", self.user_id)
+            if result is not None:
+                assert resolved is not None
+                adopted.assert_awaited_once_with(ANY, identity_id=resolved.id, user_id=self.user_id)
         self.resolved, self.updated, self.spent = resolved_call, updated, spent
         return result
 
@@ -379,15 +386,19 @@ class TestWhoIsAskedToLinkAtAll:
         """The refusal belonged in one place. A second one here, reached only when
         both switches were set, answered a bare sentence where the invite path
         answers with the link in a direct message."""
-        with patch(
-            "app.services.channels.router.channel_identity_repo.get_or_create",
-            new=AsyncMock(return_value=MagicMock(user_id=None)),
+        with (
+            patch(
+                "app.services.channels.router.channel_identity_repo.get_or_create",
+                new=AsyncMock(return_value=MagicMock(user_id=None)),
+            ),
+            patch.object(ChannelMessageRouter, "_link_vouched", new=AsyncMock()) as vouched,
         ):
             identity = await ChannelMessageRouter()._resolve_identity(
                 _incoming(), self._bot(mode="jwt_linked", require_link=True), MagicMock()
             )
 
         assert identity.user_id is None
+        vouched.assert_awaited_once()
 
     def test_jwt_linked_with_both_switches_is_refused_at_the_admission_gate(self):
         """The refusal `_resolve_identity` used to carry was reachable only with

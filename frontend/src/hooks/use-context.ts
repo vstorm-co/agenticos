@@ -127,9 +127,9 @@ export function useContextFiles({
 export interface ContextEdit {
   description: string | null;
   content: string;
-  format: string;
-  mode: ContextMode;
-  enabled: boolean;
+  format?: string;
+  mode?: ContextMode;
+  enabled?: boolean;
 }
 
 /**
@@ -145,7 +145,7 @@ export function useContextFile(fileId: string | null) {
   const t = useTranslations("context");
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.context.detail(fileId ?? ""),
     queryFn: () => apiClient.get<ContextFile>(`/context/${fileId}`),
     enabled: fileId !== null,
@@ -161,5 +161,5 @@ export function useContextFile(fileId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
-  return { file: data, isLoading, save };
+  return { file: data, isLoading, error, refetch, save };
 }

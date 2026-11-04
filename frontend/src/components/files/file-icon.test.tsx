@@ -25,10 +25,11 @@ describe("marking a file by what it is", () => {
     expect(new Set([mark("a.png"), mark("a.mp3"), mark("a.mp4")]).size).toBe(3);
   });
 
-  it("marks markup and data as code", () => {
-    expect(mark("a.json")).toBe(mark("a.ts"));
-    expect(mark("a.html")).toBe(mark("a.ts"));
-    // An SVG is markup, and this is the visible half of that decision.
+  it("distinguishes source code, JSON data and markup", () => {
+    expect(new Set([mark("script.py"), mark("data.json"), mark("page.html")]).size).toBe(3);
+    expect(mark("a.py")).toBe(mark("a.ts"));
+    expect(mark("a.JSON")).toBe(mark("a.json"));
+    expect(mark("a.jsonl")).toBe(mark("a.json"));
     expect(mark("logo.svg")).toBe(mark("a.ts"));
   });
 
@@ -37,9 +38,9 @@ describe("marking a file by what it is", () => {
     expect(mark("a.csv")).not.toBe(mark("a.ts"));
   });
 
-  it("marks the three document kinds as one", () => {
-    expect(mark("a.pdf")).toBe(mark("a.md"));
-    expect(mark("a.pdf")).toBe(mark("a.docx"));
+  it("distinguishes PDF from text documents", () => {
+    expect(mark("a.pdf")).not.toBe(mark("a.md"));
+    expect(mark("a.md")).toBe(mark("a.docx"));
   });
 
   it("marks an archive as an archive", () => {
@@ -47,8 +48,8 @@ describe("marking a file by what it is", () => {
     expect(mark("a.zip")).not.toBe(mark("a.txt"));
   });
 
-  it("falls back to plain for text and for what it cannot name", () => {
-    expect(mark("a.txt")).toBe(mark("blob.bin"));
+  it("distinguishes plain text from an unrecognized format", () => {
+    expect(mark("a.txt")).not.toBe(mark("blob.bin"));
     expect(mark("a.txt")).not.toBe(mark("a.ts"));
   });
 

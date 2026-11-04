@@ -1,16 +1,21 @@
 "use client";
 import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
+import type { TurnFileSource } from "@/types/chat";
 import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
+import { useMediaSurface } from "@/lib/generated-media";
 import { AgentStep } from "./agent-step";
 import { ChartMessage, parseChartResult } from "./chart-message";
 import { RAGSearchResults } from "./tool-results/rag";
 import { WebSearchResults, parseWebSearch } from "./tool-results/web-search";
 import { parsePublishedArtifact, PublishedArtifactResult } from "./tool-results/artifact";
 import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/generated-image";
+import { GeneratedSpeechResult, parseGeneratedSpeech } from "./tool-results/generated-speech";
+import { GeneratedVideoResult, parseGeneratedVideo } from "./tool-results/generated-video";
+import { DesktopScreenshotResult, parseDesktopScreenshot } from "./tool-results/desktop-screenshot";
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
@@ -27,14 +32,8 @@ import { useTranslations } from "next-intl";
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
-  /**
-   * The conversation this call happened in, when it is known.
-   *
-   * Only the workspace tools use it, and only to turn a file they wrote into a file
-   * somebody can open - the files live in *this* conversation's workspace, and the
-   * route that serves them is addressed through it.
-   */
-  conversationId?: string;
+  /** The immutable workspace recorded when this tool ran. */
+  fileSource?: TurnFileSource;
   /**
    * The organization's MCP connections, for naming a call that came from one.
    *
@@ -79,7 +78,7 @@ interface ToolCallCardProps {
  */
 export function ToolCallCard({
   toolCall,
-  conversationId,
+  fileSource,
   mcpServers,
   startOpen = false,
   agents = [],
@@ -134,12 +133,12 @@ export function ToolCallCard({
   );
   const [showRaw, setShowRaw] = useState(false);
 
-  const resultText =
-    toolCall.result !== undefined
-      ? typeof toolCall.result === "string"
-        ? toolCall.result
-        : JSON.stringify(toolCall.result, null, 2)
-      : "";
+  const resultText = useMemo(() => {
+    if (!expanded || toolCall.result === undefined) return "";
+    return typeof toolCall.result === "string"
+      ? toolCall.result
+      : JSON.stringify(toolCall.result, null, 2);
+  }, [expanded, toolCall.result]);
 
   const isRAGSearch =
     renderer === "rag" && toolCall.status === "completed" && typeof toolCall.result === "string";
@@ -149,11 +148,32 @@ export function ToolCallCard({
     typeof toolCall.result === "string"
       ? parseWebSearch(toolCall.result)
       : null;
+  const mediaSurface = useMediaSurface();
   const generatedImage =
     renderer === "generated-image" &&
     toolCall.status === "completed" &&
     typeof toolCall.result === "string"
-      ? parseGeneratedImage(toolCall.result)
+      ? parseGeneratedImage(toolCall.result, mediaSurface)
+      : null;
+
+  const generatedSpeech =
+    renderer === "generated-speech" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedSpeech(toolCall.result, mediaSurface)
+      : null;
+
+  const generatedVideo =
+    renderer === "generated-video" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseGeneratedVideo(toolCall.result, mediaSurface)
+      : null;
+  const desktopScreenshot =
+    renderer === "desktop-screenshot" &&
+    toolCall.status === "completed" &&
+    typeof toolCall.result === "string"
+      ? parseDesktopScreenshot(toolCall.result)
       : null;
 
   const publishedArtifact =
@@ -261,6 +281,12 @@ export function ToolCallCard({
         <WebSearchResults data={webResults} />
       ) : generatedImage !== null ? (
         <GeneratedImageResult data={generatedImage} />
+      ) : generatedSpeech !== null ? (
+        <GeneratedSpeechResult data={generatedSpeech} />
+      ) : generatedVideo !== null ? (
+        <GeneratedVideoResult data={generatedVideo} />
+      ) : desktopScreenshot !== null ? (
+        <DesktopScreenshotResult data={desktopScreenshot} />
       ) : publishedArtifact !== null ? (
         <PublishedArtifactResult data={publishedArtifact} />
       ) : chartSpec !== null ? (
@@ -284,11 +310,7 @@ export function ToolCallCard({
       ) : delegate !== null ? (
         <DelegationResult brief={brief} answer={resultText} />
       ) : renderer === "workspace" ? (
-        <WorkspaceToolResult
-          toolCall={toolCall}
-          resultText={resultText}
-          conversationId={conversationId}
-        />
+        <WorkspaceToolResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
       ) : (
         // Everything else, and every renderer whose payload turned out not to be one:
         // a `web_search` that errored, a `create_chart` that came back as a sentence.

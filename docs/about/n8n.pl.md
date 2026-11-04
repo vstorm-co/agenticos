@@ -1,5 +1,5 @@
 ---
-source_sha: "3b37854bab7f"
+source_sha: "e65292f64912"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternatywa na Apache-2.0 dla agentów AI"
 description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i role bez płatnych planów, budżety per agent zamiast limitów wykonań oraz zatwierdzenia."
@@ -7,17 +7,21 @@ description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i 
 
 # AgenticOS vs n8n { #agenticos-vs-n8n }
 
-n8n to narzędzie do automatyzacji workflow. Na kanwie łączysz wyzwalacze, integracje i kroki z kodem, a węzły AI Agent dodają do workflow modele i narzędzia. AgenticOS zaczyna natomiast od agenta: instrukcji, modelu, capability, wiedzy i budżetu, publikowanych jako wersja i zarządzanych na serwerze.
+n8n łączy wizualne workflowy, węzły AI Agent i natywnych agentów w wersji preview. Natywni agenci mają własne instrukcje, narzędzia, skills, wiedzę i harmonogramy. AgenticOS również oferuje agentów i workflowy; porównaj sposób działania, licencję, dostęp i kontrolę wydatków dla konkretnego zadania.
 
 Dobrze się uzupełniają. n8n przenosi dane między systemami według harmonogramu. AgenticOS uruchamia agentów, którzy potrzebują właściciela, osoby zatwierdzającej i limitu wydatków.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres n8n: strona z cennikiem, dokumentacja i licencja w wersji n8n@2.44.5, bez testowanego planu chmurowego ani licencji Enterprise dla self-hostingu.
 
+Opisy funkcji AgenticOS odświeżono 2 listopada 2026 na podstawie v1.35.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
+Dostępność natywnych agentów i konfigurację wiedzy w self-hostingu sprawdzono ponownie w oficjalnej dokumentacji n8n 2 listopada 2026. Natywni agenci są w wersji preview w Cloud i planach self-hosted od 2.32.3. Nie odświeża to powyższego audytu cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | n8n | AgenticOS |
 | --- | --- | --- |
-| Jednostka pracy | Workflow złożony z węzłów | Agent, publikowany jako wersjonowany spec |
+| Jednostka pracy | Workflowy, węzły AI Agent i natywni agenci w wersji preview | Agent, publikowany jako wersjonowany spec |
 | Licencja | Sustainable Use License, z plikami `.ee` na n8n Enterprise License | Apache-2.0 |
 | Gdzie działa | Self-hosting lub n8n Cloud we Frankfurcie | Twoja infrastruktura |
 | Logowanie | SSO w self-hostowanych Business i Enterprise oraz w Cloud Enterprise | OIDC SSO, LDAP i Kerberos w każdym wdrożeniu |
@@ -34,7 +38,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 
 Sustainable Use License n8n pozwala na użycie „wyłącznie do własnych wewnętrznych celów biznesowych albo do użytku niekomercyjnego lub osobistego”. Funkcje w plikach `.ee` wymagają płatnego klucza licencyjnego. Strona z cennikiem n8n mówi, że klucz licencyjny w self-hostingu codziennie łączy się z serwerem licencji.
 
-AgenticOS jest na licencji Apache-2.0. Możesz go uruchamiać dla klientów, zmieniać i budować na nim produkt; sprawdź [licencje dołączonych komponentów](../licenses.md#the-agpl-component) dla obrazu, który dostarczasz. Świeża instalacja [niczego nigdzie nie wysyła](../data-protection.md#nothing-leaves-by-default).
+AgenticOS jest na licencji Apache-2.0. Możesz go uruchamiać dla klientów, zmieniać i budować na nim produkt; sprawdź [licencje dołączonych komponentów](../licenses.md#the-agpl-component) dla obrazu, który dostarczasz. Świeża instalacja [nie wysyła nigdzie promptów ani dokumentów](../data-protection.md#nothing-leaves-by-default); [diagnostyka wdrożenia](../configuration.md#diagnostics) jest domyślnie włączona i można ją wyłączyć.
 
 ### Kontrole klasy enterprise bez zmiany planu { #enterprise-controls-without-a-plan-upgrade }
 
@@ -51,16 +55,16 @@ n8n liczy wykonania, a jedna tura agenta to jedno wykonanie, niezależnie od teg
 
 ### Agent, którego może zmienić właściciel biznesowy { #an-agent-a-business-owner-can-change }
 
-Zmiana workflow w n8n oznacza edycję węzłów na kanwie. Agent AgenticOS zmienia się, gdy jego właściciel edytuje instrukcje i publikuje. Konfiguracja może sięgać tylko po [capability](../reference/capabilities.md) zarejestrowane przez inżynierów, a każda [wersja](../concepts.md#version) pozostaje czytelna.
+Oba produkty pozwalają właścicielowi konfigurować agentów i workflowy. Natywni agenci n8n są w wersji preview. Agent AgenticOS zmienia się, gdy jego właściciel edytuje instrukcje i publikuje. Konfiguracja może sięgać tylko po [capability](../reference/capabilities.md) zarejestrowane przez inżynierów, a każda [wersja](../concepts.md#version) pozostaje czytelna.
 
 ### Wiedza jako zarządzana kolekcja { #knowledge-as-a-managed-collection }
 
-n8n buduje wyszukiwanie z węzłów: loaderów, embeddingów i wybranej przez ciebie bazy wektorowej. Jego funkcja Agents w wersji preview dodaje zarządzaną bazę wiedzy, która przy self-hostingu wymaga sandboksa Daytona. AgenticOS przechowuje [kolekcje](../file-processing.md#rag-document-ingestion) w twoim Postgresie z wyborem parsera, OCR, opisem obrazów i [konektorami synchronizacji](../howto/configure-sync-sources.md#what-a-sync-removes), które usuwają to, co usunięto w źródle.
+n8n buduje wyszukiwanie z węzłów: loaderów, embeddingów i wybranej przez ciebie bazy wektorowej. Jego funkcja Agents w wersji preview dodaje zarządzaną bazę wiedzy, która przy self-hostingu wymaga skonfigurowanego sandboksa. AgenticOS przechowuje [kolekcje](../file-processing.md#rag-document-ingestion) w twoim Postgresie z wyborem parsera, OCR, opisem obrazów i [konektorami synchronizacji](../howto/configure-sync-sources.md#what-a-sync-removes), które usuwają to, co usunięto w źródle.
 
 ## Kiedy n8n pasuje lepiej { #when-n8n-is-the-better-fit }
 
 - Zadanie polega na przenoszeniu danych między wieloma systemami, z rozgałęzieniami, ponowieniami i harmonogramami.
-- Chcesz jego dużej biblioteki integracji i wizualnej kanwy. AgenticOS nie ma kanwy workflow.
+- Wolisz bibliotekę węzłów, integracje i sposób edycji workflow tego produktu. AgenticOS także ma wizualny edytor; dostępne węzły i semantyka wykonania różnią się.
 - Potrzebujesz jego kanałów przeglądu, takich jak Microsoft Teams, WhatsApp czy Gmail, albo jego metryk ewaluacji. AgenticOS nie ma jeszcze ani jednego, ani drugiego.
 
 ## Używaj obu razem { #use-them-together }

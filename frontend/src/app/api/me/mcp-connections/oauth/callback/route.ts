@@ -7,6 +7,7 @@ import {
   mcpOAuthUpstreamRefusal,
   safeMcpOAuthReturn,
 } from "@/lib/mcp-oauth";
+import { ACCOUNT_OAUTH_COOKIE, ACCOUNT_OAUTH_CALLBACK } from "@/lib/connected-account-oauth";
 import { backendFetch } from "@/lib/server-api";
 
 /**
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
     });
     // One consent, one return: a stale cookie must not steer the next.
     response.cookies.delete(MCP_OAUTH_RETURN_COOKIE);
+    response.cookies.set(ACCOUNT_OAUTH_COOKIE, "", { path: ACCOUNT_OAUTH_CALLBACK, maxAge: 0 });
     return response;
   };
 
@@ -66,7 +68,11 @@ export async function GET(request: NextRequest) {
       error: string | null;
     }>("/api/v1/me/mcp-connections/oauth/callback", {
       method: "POST",
-      body: JSON.stringify({ code, state }),
+      body: JSON.stringify({
+        code,
+        state,
+        browser_nonce: request.cookies.get(ACCOUNT_OAUTH_COOKIE)?.value,
+      }),
     });
     if (!result.ok) {
       return servers(

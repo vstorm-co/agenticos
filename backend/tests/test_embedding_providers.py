@@ -7,11 +7,16 @@ keyed, or a model whose width nothing else agrees with, is an entry that fails
 on its first document rather than at import.
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from app.core import secret_purposes
 from app.core.exceptions import BadRequestError
+from app.services import model_catalog
+from app.services.model_catalog import CatalogModel
 from app.services.rag import embedding_providers
+from app.services.rag.embedding_providers import EmbeddingModelEntry
 
 
 class TestTheCatalog:
@@ -113,3 +118,109 @@ class TestRequiringOne:
 
     def test_an_id_nobody_offers_reads_as_absent(self):
         assert embedding_providers.get("a-provider-that-left") is None
+
+
+def _listing(*ids: str) -> AsyncMock:
+    return AsyncMock(return_value=tuple(CatalogModel(id=model, name=model) for model in ids))
+
+
+class TestWhatAnEndpointServes:
+    """A regional endpoint serves a subset of the catalog, and only it knows which."""
+
+    @pytest.mark.anyio
+    async def test_the_listing_picks_the_models_and_the_catalog_keeps_the_widths(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(
+            model_catalog,
+            "embedding_models_at",
+            _listing("mistralai/mistral-embed-2312", "vendor/not-in-the-catalog"),
+        )
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+
+        served = await embedding_providers.models_at(entry, "https://eu.openrouter.ai/api/v1")
+
+        assert served == (EmbeddingModelEntry(model="mistralai/mistral-embed-2312", dim=1024),)
+
+    @pytest.mark.anyio
+    async def test_a_bare_catalog_id_matches_its_namespaced_listing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The OpenAI models are stored bare on rows older than the namespaced ones."""
+        monkeypatch.setattr(
+            model_catalog, "embedding_models_at", _listing("openai/text-embedding-3-small")
+        )
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+
+        served = await embedding_providers.models_at(entry, "https://openrouter.ai/api/v1")
+
+        assert served is not None
+        assert [model.model for model in served] == ["text-embedding-3-small"]
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_that_cannot_be_asked_is_no_answer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(model_catalog, "embedding_models_at", AsyncMock(return_value=None))
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+
+        assert await embedding_providers.models_at(entry, "https://eu.openrouter.ai/api/v1") is None
+
+
+class TestRequiringAServedModel:
+    @pytest.mark.anyio
+    async def test_a_model_the_endpoint_leaves_out_is_refused_on_the_named_field(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """What uploads to the EU endpoint failed with, refused before the first one."""
+        monkeypatch.setattr(
+            model_catalog, "embedding_models_at", _listing("mistralai/mistral-embed-2312")
+        )
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+
+        with pytest.raises(BadRequestError) as refusal:
+            await embedding_providers.require_served_at(
+                entry,
+                "https://eu.openrouter.ai/api/v1",
+                model="text-embedding-3-small",
+                field="embedding_model",
+            )
+
+        assert refusal.value.details["fields"][0]["field"] == "embedding_model"
+        assert "mistralai/mistral-embed-2312" in refusal.value.message
+
+    @pytest.mark.anyio
+    async def test_an_endpoint_serving_none_of_the_catalog_says_so(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(model_catalog, "embedding_models_at", _listing())
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+
+        with pytest.raises(BadRequestError, match="none of this build's models"):
+            await embedding_providers.require_served_at(
+                entry, "https://x.example/v1", model="text-embedding-3-small", field="f"
+            )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("listing", [_listing("mistralai/mistral-embed-2312"), None])
+    async def test_a_served_model_or_an_unanswered_question_passes(
+        self, monkeypatch: pytest.MonkeyPatch, listing: AsyncMock | None
+    ):
+        """An endpoint that could not be asked has not said no."""
+        monkeypatch.setattr(
+            model_catalog, "embedding_models_at", listing or AsyncMock(return_value=None)
+        )
+        entry = embedding_providers.get("openrouter")
+        assert entry is not None
+
+        await embedding_providers.require_served_at(
+            entry,
+            "https://eu.openrouter.ai/api/v1",
+            model="mistralai/mistral-embed-2312",
+            field="embedding_model",
+        )

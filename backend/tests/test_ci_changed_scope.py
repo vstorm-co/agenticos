@@ -136,6 +136,22 @@ class TestWhatMayBeSkipped:
         decided = ci_changed_scope.scope(["frontend/src/app/api/admin/users/route.ts"])
         assert decided == {"backend": True, "frontend": True, "e2e": True}
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "backend/app/core/catalog/artifact_data_bridge.js",
+            "backend/app/core/catalog/mcp_servers.json",
+        ],
+    )
+    def test_a_backend_file_a_frontend_test_reads_runs_the_frontend_suite(self, path: str) -> None:
+        """`artifact-data-bridge.test.ts` runs the page's data bridge and
+        `mcp-catalog.test.ts` reads the server catalog, both from `backend/`."""
+        assert path in ci_changed_scope.FRONTEND_READS
+        assert ci_changed_scope.scope([path])["frontend"] is True
+        assert (
+            ci_changed_scope.scope(["backend/app/core/catalog/portals.json"])["frontend"] is False
+        )
+
     def test_a_change_to_both_halves_skips_nothing(self) -> None:
         decided = ci_changed_scope.scope(
             ["backend/app/api/routes/v1/agents.py", "frontend/src/hooks/use-agents.ts"]

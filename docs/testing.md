@@ -70,12 +70,9 @@ make docs-build         # mkdocs --strict — a dead link is a failure
 make audit              # the locked dependency set against the advisory database
 ```
 
-About five minutes serial, against CI's twelve in parallel — the backend `test`
-job the long pole there, which #520 is cutting. The equality is
-maintained rather than asserted: the workflow calls these targets rather than
-repeating their commands, and `tests/test_ci_parity.py` fails if a gating job
-grows a step `make check` does not run. It has drifted four times — see
-[Commands](commands.md#before-a-pull-request) for what `check` leaves out and why.
+CI executes independent checks in parallel. The workflow calls the same
+Makefile targets as local checks; `tests/test_ci_parity.py` guards their parity.
+See [Commands](commands.md#before-a-pull-request) for the deliberate exceptions.
 
 !!! info "CI may run fewer jobs than `check` does, and that is not drift"
 
@@ -492,13 +489,40 @@ own — that fixture is what puts the schema in place.
 
 The `schema_url` fixture runs `create_all` a single time. The function-scoped
 `engine` fixture then hands each test an empty database by `TRUNCATE`-ing every model
-table — and dropping any table a test created outside the models, a runtime
-`rag_<collection>` or an ordering probe — rather than rebuilding the schema.
+table that holds a row — and dropping any table a test created outside the models, a
+runtime `rag_<collection>` or an ordering probe — rather than rebuilding the schema.
+One `EXISTS` per table finds the populated ones, and every sequence is reset in place,
+so an empty table whose identity advanced still starts from 1.
 
 It used to `drop_all` + `create_all` before *every* test: ~0.4s of DDL that was very
 nearly the entire runtime of a suite whose assertions are microseconds of Postgres
 work. Building it once cut `tests/integration` from ~125s to ~50s
 ([#215](https://github.com/vstorm-co/agenticos/issues/215)).
+
+**`make test`, `make test-fast`, `make test-integration` and `make test-cov` run against a
+throwaway Postgres, not your development one.**
+
+`make docker-test-db` starts it from `docker-compose.test.yml` (a project of its own,
+`agenticos-test`, on `localhost:5433`), and those targets start it for you and point
+pytest at it. It runs with `fsync=off`, `synchronous_commit=off` and
+`full_page_writes=off`, and its data directory is `tmpfs`, so a crash loses the cluster
+— which is fine, because the suite creates and drops its own database in it.
+
+The reason is fsync. Every `TRUNCATE` gives each table it touches new relation files
+that Postgres must flush, and on WSL2 or a Docker volume one flush costs ~7 ms: a full
+run took about three hours where CI takes ten minutes. Without the flush the same run
+is CI-fast, and the development database stays untouched and durable.
+
+```bash
+make docker-test-db        # start it (idempotent); waits until it is healthy
+make docker-test-db-down   # stop it and discard its data
+make test TEST_DB_PORT=5434          # another port, when 5433 is taken
+make test TEST_DB=external           # no container: use the database POSTGRES_* / .env name
+```
+
+A scoped `pytest` run is not wrapped by `make`, so point it there yourself:
+`POSTGRES_HOST=localhost POSTGRES_PORT=5433 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres uv run pytest tests/integration/test_x.py`.
+CI sets `CI`, which selects `TEST_DB=external` — its service container is the database.
 
 `TRUNCATE` rather than a transaction rollback, because the API-flow tests commit
 through the real `get_db_session` and their rows outlive a rollback.
@@ -564,9 +588,10 @@ did not start is not an environment that cannot answer, and the two are
 indistinguishable in pytest's output.
 
 `make test-migrations` still exists and is still the one to run by hand after
-touching `alembic/versions/`, but it points at whatever `backend/.env` says, which
-on a laptop is the database with your own work in it. Prefer
-`uv run pytest tests/test_migrations.py`, which cannot reach it.
+touching `alembic/versions/`, and on a laptop it runs against
+a database of its own on the throwaway test Postgres (:5433), so it cannot reach the
+one with your own work in it. In CI (`TEST_DB=external`) it uses the database
+`POSTGRES_*` names. `uv run pytest tests/test_migrations.py` is the quicker check.
 
 ## The worker's tests
 
@@ -607,3 +632,20 @@ asserts the payload, as the `queued_fires` fixture in
   lists in `backend/pyproject.toml`.
 - The order is shuffled every run; replay a failure with its printed seed before
   concluding anything about the change.
+
+## CI distribution
+
+The backend suite measures all application code once. The platform report still
+requires 100% coverage; `make coverage-all REUSE_COVERAGE=1` reports inherited
+code from the same data without running tests again.
+
+Frontend lint, production build and four test shards run independently. Shards
+retain file isolation and defer the unchanged coverage thresholds to one merged
+report. The required `test-frontend` check fails if a job or shard is missing,
+skipped unexpectedly or unsuccessful. E2E reuses the production build and runs
+four shards, each with its own database, Redis, backend, seed and stub server;
+files within a shard still execute serially with no retries.
+
+CI PostgreSQL uses a disposable RAM-backed data directory and disables fsync,
+synchronous commits and full-page writes only inside its service container.
+Production and development databases retain their normal durability settings.

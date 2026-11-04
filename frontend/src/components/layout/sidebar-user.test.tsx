@@ -1,9 +1,27 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { MAC_MAIN } from "@/components/desktop/fixtures";
+import type { ShellInfo } from "@/lib/desktop/shell";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { User } from "@/types";
 
 import { SidebarUser } from "./sidebar-user";
+
+const desktop = vi.hoisted(() => ({ shell: null as ShellInfo | null, change: vi.fn() }));
+vi.mock("@/hooks/use-shell", () => ({ useShell: () => desktop.shell }));
+vi.mock("@/hooks/use-desktop", () => ({
+  useChangeServer: () => ({ mutate: desktop.change, isPending: false }),
+}));
+vi.mock("@/components/layout/account-preferences", () => ({
+  AppearanceMenu: () => null,
+  LanguageMenu: () => null,
+}));
+vi.mock("@/components/teams", () => ({ OrganizationMenuItems: () => null }));
+beforeEach(() => {
+  desktop.shell = null;
+  desktop.change.mockClear();
+});
 
 const currentUser = vi.fn<() => User | null>();
 
@@ -23,12 +41,6 @@ vi.mock("@/stores", () => ({
     selector({ avatarVersion: 0 }),
 }));
 
-/**
- * jsdom cannot open a Radix menu - it has no layout and no real pointer events -
- * so what the menu offers is left to `e2e/auth.spec.ts`, which signs out for
- * real. What is asserted here is everything the closed trigger has to get
- * right, which is most of why this block moved out of the top bar.
- */
 describe("SidebarUser", () => {
   it("says which account is signed in without being opened", () => {
     // On a platform where the account decides what every request is allowed to
@@ -70,4 +82,34 @@ describe("SidebarUser", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+});
+
+it.each([false, true])(
+  "shows server switching only after opening the account menu (compact: %s)",
+  async (compact) => {
+    desktop.shell = MAC_MAIN;
+    currentUser.mockReturnValue({ ...OWNER, full_name: "Ada Owner" });
+    render(<SidebarUser compact={compact} />);
+    expect(screen.queryByText("change")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "change" }));
+    expect(desktop.change).toHaveBeenCalledOnce();
+  },
+);
+
+it("opens the setup checklist from the account menu without navigating", async () => {
+  desktop.shell = MAC_MAIN;
+  currentUser.mockReturnValue(OWNER);
+  const open = vi.fn();
+  window.addEventListener("agenticos:open-desktop-setup", open);
+  try {
+    render(<SidebarUser />);
+    expect(screen.queryByRole("menuitem", { name: "title" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "title" }));
+    expect(open).toHaveBeenCalledOnce();
+    expect(desktop.change).not.toHaveBeenCalled();
+  } finally {
+    window.removeEventListener("agenticos:open-desktop-setup", open);
+  }
 });

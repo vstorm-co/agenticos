@@ -29,7 +29,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmbeddingProviderFields, useEmbeddingProviders } from "@/components/kb/embedding-picker";
+import {
+  EmbeddingProviderFields,
+  useEmbeddingProviders,
+  useEndpointEmbeddingModels,
+} from "@/components/kb/embedding-picker";
 import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settings";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useKnowledgeBases } from "@/hooks";
@@ -67,6 +71,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
+  const [embeddingBaseUrl, setEmbeddingBaseUrl] = useState("");
   const [embeddingEndpointId, setEmbeddingEndpointId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -82,7 +87,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // beside them stays empty until somebody chooses one.
   const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
   const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
-  const offered = providerEntry?.models ?? [];
+  // A custom endpoint narrows the catalog to what it lists, which for
+  // OpenRouter's EU endpoint is none of the OpenAI models the catalog starts on.
+  const { served: endpointModels, checking: checkingEndpoint } = useEndpointEmbeddingModels(
+    provider,
+    embeddingBaseUrl,
+  );
+  const offered = endpointModels?.models ?? providerEntry?.models ?? [];
   const firstOffered = offered[0]?.model ?? "";
   const model = offered.some((entry) => entry.model === embeddingModel)
     ? (embeddingModel ?? firstOffered)
@@ -116,6 +127,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingProvider(null);
     setEmbeddingSecretId(null);
     setEmbeddingEndpointId(null);
+    setEmbeddingBaseUrl("");
     setDetailsOpen(false);
     setErrors({});
   };
@@ -143,6 +155,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
       if (embeddingEndpointId) input.embedding_endpoint_id = embeddingEndpointId;
+      if (provider === "openrouter" && embeddingBaseUrl.trim())
+        input.embedding_base_url = embeddingBaseUrl.trim();
       const kb = await createKB(input);
       reset();
       onOpenChange(false);
@@ -163,8 +177,10 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             "name",
             "description",
             "embedding_provider",
+            "embedding_model",
             "embedding_secret_id",
             "embedding_endpoint_id",
+            "embedding_base_url",
             ...INGESTION_FORM_FIELDS,
           ],
         },
@@ -233,6 +249,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     provider={provider}
                     secretId={embeddingSecretId}
                     endpointId={embeddingEndpointId}
+                    baseUrl={embeddingBaseUrl}
+                    onBaseUrl={setEmbeddingBaseUrl}
                     onProvider={setEmbeddingProvider}
                     onSecretId={setEmbeddingSecretId}
                     onEndpointId={setEmbeddingEndpointId}
@@ -240,11 +258,13 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   />
                   {(errors.embedding_provider ??
                     errors.embedding_secret_id ??
-                    errors.embedding_endpoint_id) !== undefined && (
+                    errors.embedding_endpoint_id ??
+                    errors.embedding_base_url) !== undefined && (
                     <p className="text-destructive text-xs">
                       {errors.embedding_provider ??
                         errors.embedding_secret_id ??
-                        errors.embedding_endpoint_id}
+                        errors.embedding_endpoint_id ??
+                        errors.embedding_base_url}
                     </p>
                   )}
                   <div className="space-y-1.5">
@@ -285,6 +305,20 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       </SelectContent>
                     </Select>
                     <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
+                    {checkingEndpoint ? (
+                      <p className="text-muted-foreground text-xs">{t("checkingEndpointModels")}</p>
+                    ) : endpointModels?.source === "curated" ? (
+                      <p className="text-muted-foreground text-xs">
+                        {t("endpointModelsUnconfirmed")}
+                      </p>
+                    ) : endpointModels !== undefined && offered.length === 0 ? (
+                      <p className="text-destructive text-xs">{t("endpointServesNoModel")}</p>
+                    ) : endpointModels !== undefined ? (
+                      <p className="text-muted-foreground text-xs">{t("endpointModelsListed")}</p>
+                    ) : null}
+                    {errors.embedding_model !== undefined && (
+                      <p className="text-destructive text-xs">{errors.embedding_model}</p>
+                    )}
                   </div>
                 </>
               )}
@@ -347,7 +381,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             </Button>
             <Button
               type="submit"
-              disabled={!canSubmit || isSubmitting}
+              disabled={!canSubmit || isSubmitting || checkingEndpoint}
               data-tour="kb-dialog-create"
             >
               {isSubmitting ? t("creating") : t("create")}

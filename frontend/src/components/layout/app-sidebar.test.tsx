@@ -21,6 +21,8 @@ const recentProjects = vi.fn<() => { id: string; name: string }[]>(() => []);
 vi.mock("@/hooks/use-projects", () => ({
   useProjects: () => ({ projects: recentProjects() }),
 }));
+const waiting = vi.fn<() => { id: string }[]>(() => []);
+vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
 const sidebar = { openGroups: [] as string[], toggleGroup: vi.fn<(key: string) => void>() };
 vi.mock("@/stores", () => ({
   useAuthStore: () => ({ user: currentUser() }),
@@ -305,13 +307,34 @@ describe("the navigation definition", () => {
     // and the backend narrows it to what they are part of - a permission here
     // would hide somebody's own files behind an operator's authority. Groups too:
     // any member reads them, because a group is what somebody shares with (#2072).
+    // The inbox holds only what was brought to the person looking (#2301).
     // Everything else must state what it needs, or a Viewer is shown pages that
     // will refuse them.
-    const open = new Set(["dashboard", "chat", "organizations", "groups", "documents"]);
+    const open = new Set(["dashboard", "chat", "inbox", "organizations", "groups", "documents"]);
     const unguarded = NAV_GROUPS.filter((group) => !group.adminOnly)
       .flatMap((group) => group.items)
       .filter((item) => !item.permission && !open.has(item.labelKey));
 
     expect(unguarded).toEqual([]);
+  });
+});
+
+describe("the inbox count (#2301)", () => {
+  it("says how many wait, as a number in the column and a dot on the rail", () => {
+    can.mockReturnValue(true);
+    waiting.mockReturnValue([{ id: "s1" }, { id: "s2" }]);
+    const { unmount } = render(<SidebarNav />);
+    expect(screen.getByLabelText("inboxCount")).toHaveTextContent("2");
+    unmount();
+
+    render(<SidebarNav collapsed />);
+    expect(screen.getByLabelText("inboxCount")).toBeEmptyDOMElement();
+  });
+
+  it("shows nothing when nothing waits", () => {
+    can.mockReturnValue(true);
+    waiting.mockReturnValue([]);
+    render(<SidebarNav />);
+    expect(screen.queryByLabelText("inboxCount")).toBeNull();
   });
 });

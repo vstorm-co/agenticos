@@ -26,6 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.db.vector_tables import VectorScope
 from app.services.rag.config import RAGSettings
 from app.services.rag.filters import RetrievalQuery, TenantScope
 from app.services.rag.models import SearchResult
@@ -124,7 +125,10 @@ async def test_org_a_does_not_find_org_bs_colliding_document(engine: AsyncEngine
     await _insert(store, doc_id="doc-b", tenant=ORG_B)
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, tenant=ORG_A
+        COLLECTION,
+        source_path=SOURCE_PATH,
+        content_hash=CONTENT_HASH,
+        scope=VectorScope(tenant=ORG_A),
     )
 
     assert hit is None
@@ -135,7 +139,10 @@ async def test_org_a_finds_only_its_own_document(engine: AsyncEngine) -> None:
     await _seed_both_tenants(store)
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, tenant=ORG_A
+        COLLECTION,
+        source_path=SOURCE_PATH,
+        content_hash=CONTENT_HASH,
+        scope=VectorScope(tenant=ORG_A),
     )
 
     assert hit is not None
@@ -148,7 +155,7 @@ async def test_org_a_cannot_delete_org_bs_document(engine: AsyncEngine) -> None:
     store = _store(engine)
     await _seed_both_tenants(store)
 
-    await store.delete_document(COLLECTION, "doc-b", ORG_A)
+    await store.delete_document(COLLECTION, "doc-b", VectorScope(tenant=ORG_A))
 
     assert await _parent_ids(store) == {"doc-a", "doc-b"}
 
@@ -157,7 +164,7 @@ async def test_org_a_deletes_its_own_document(engine: AsyncEngine) -> None:
     store = _store(engine)
     await _seed_both_tenants(store)
 
-    await store.delete_document(COLLECTION, "doc-a", ORG_A)
+    await store.delete_document(COLLECTION, "doc-a", VectorScope(tenant=ORG_A))
 
     assert await _parent_ids(store) == {"doc-b"}
 
@@ -166,9 +173,9 @@ async def test_listing_and_count_are_scoped_per_tenant(engine: AsyncEngine) -> N
     store = _store(engine)
     await _seed_both_tenants(store)
 
-    a_docs = await store.get_documents(COLLECTION, ORG_A)
-    b_docs = await store.get_documents(COLLECTION, ORG_B)
-    a_info = await store.get_collection_info(COLLECTION, tenant=ORG_A)
+    a_docs = await store.get_documents(COLLECTION, VectorScope(tenant=ORG_A))
+    b_docs = await store.get_documents(COLLECTION, VectorScope(tenant=ORG_B))
+    a_info = await store.get_collection_info(COLLECTION, VectorScope(tenant=ORG_A))
 
     assert [d.document_id for d in a_docs] == ["doc-a"]
     assert [d.document_id for d in b_docs] == ["doc-b"]
@@ -179,7 +186,7 @@ async def test_reading_chunks_is_scoped_per_tenant(engine: AsyncEngine) -> None:
     store = _store(engine)
     await _seed_both_tenants(store)
 
-    a_chunks = await store.get_document_chunks(COLLECTION, "doc-b", ORG_A)
+    a_chunks = await store.get_document_chunks(COLLECTION, "doc-b", VectorScope(tenant=ORG_A))
 
     assert a_chunks == []
 
@@ -211,9 +218,12 @@ async def test_a_deployment_wide_collection_sees_only_untagged_rows(engine: Asyn
     await _insert(store, doc_id="doc-none", tenant=None)
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path=SOURCE_PATH, content_hash=CONTENT_HASH, tenant=None
+        COLLECTION,
+        source_path=SOURCE_PATH,
+        content_hash=CONTENT_HASH,
+        scope=VectorScope(tenant=None),
     )
-    docs = await store.get_documents(COLLECTION, None)
+    docs = await store.get_documents(COLLECTION, VectorScope(tenant=None))
 
     assert hit is not None and hit.document_id == "doc-none"
     assert [d.document_id for d in docs] == ["doc-none"]

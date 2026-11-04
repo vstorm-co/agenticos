@@ -1,5 +1,5 @@
 ---
-source_sha: "d61a7f894dfb"
+source_sha: "f3bfbd97d90e"
 ---
 
 # Escribe las instrucciones de un agent { #write-an-agents-instructions }
@@ -19,7 +19,9 @@ source_sha: "d61a7f894dfb"
 |---|---|---|
 | Las instrucciones de un agent | `AgentSpec.instructions`, editado en el Builder | Quien pueda editar el agent |
 | Las instrucciones de un especialista en línea | `InlineSpecialistSpec.instructions`, en el mismo spec | Los mismos |
-| El texto de partida que recibe un agent nuevo | `backend/app/agents/default_instructions.py` | Un deploy — es la idea de asistente que tiene este despliegue |
+| El texto de partida que recibe un agent nuevo | La plantilla AgenticOS, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | Un deploy — es la idea de asistente que tiene este despliegue |
+| Lo que se le dice al agent sobre lo que puede y no puede hacer | Montado a partir de sus capabilities en cada run, bajo **Your setup** | Nadie — cambiar una capability lo cambia |
+| Lo que se le dice al agent sobre la persona | Su idioma, zona horaria, rol y trabajo, de su cuenta, tras las instrucciones en cada run | La propia persona, en **Settings → Profile** |
 | Un procedimiento que comparten muchos agents | Un [skill](../skills.md), una fila en la base de datos | Un responsable de soporte, un martes por la tarde, sin ningún deploy |
 
 La última fila es la que conviene aprovechar. Veinte procedimientos en un solo
@@ -28,9 +30,11 @@ cuestan casi nada, porque el modelo ve los nombres y carga solo lo que necesita.
 
 ## Qué va dentro de las instrucciones { #what-belongs-in-instructions }
 
-Lee `default_instructions.py` antes de escribir las tuyas — es el ejemplo
-trabajado, y explica sus propias decisiones. Dos de ellas deciden buena parte de
-la calidad:
+Lee las instrucciones de la plantilla AgenticOS antes de escribir las tuyas — un
+agent nuevo empieza con ellas, así que son el ejemplo trabajado. Empiezan por el
+propio `{{agent_name}}` del agent, guían a la persona paso a paso, ofrecen un
+siguiente paso después de una tarea y no nombran ninguna herramienta que no
+traiga una capability. Dos decisiones deciden buena parte de la calidad:
 
 - **Escribe pensando en los rechazos.** Los párrafos que se ganan su sitio son los
   que hablan de no inventar hechos, de decir de qué fuente salió una respuesta y
@@ -80,9 +84,12 @@ publicar, no en el momento de ejecutar. Consulta
 
 ## Iterar sobre ellas { #iterating-on-it }
 
-- **Un `draft` no puede ejecutarse.** Un agent ejecuta su versión publicada, así
-  que probar un prompt nuevo pasa por publicar uno — algo barato por diseño, y por
-  eso una vuelta atrás es una promoción y no una restauración. Itera en un
+- **Un `draft` solo se ejecuta como prueba.** Allí donde está disponible, un
+  agent responde con su versión publicada; el panel de pruebas del Builder - y
+  `POST /agents/{id}/run` con `"draft": true`, que llama el `test_agent_draft`
+  del Architect - responden como el `draft` sin publicar, en un run de prueba.
+  Publicar es barato por diseño, y una vuelta atrás es una promoción y no una
+  restauración. Itera en un
   [entorno](../concepts.md#version) `dev` que siga cada publicación, y deja
   `production` esperando a que promocionen algo sobre él.
 - **Prueba con consultas reales, no con las ideales.**

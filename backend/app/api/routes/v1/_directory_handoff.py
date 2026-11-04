@@ -23,7 +23,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token
 from app.db.models.user import User
-from app.services.oauth_exchange import OAuthExchangeService
+from app.services.oauth_exchange import OAuthExchangeService, native_code_challenge
 from app.services.session import SessionService
 
 _NEGOTIATE = "negotiate"
@@ -94,7 +94,12 @@ async def issue_sign_in_code(
     )
     session_id: UUID = uuid4()
     access_token = create_access_token(subject=str(user.id), sid=str(session_id))
-    code = await exchange_service.issue(access_token=access_token, refresh_token=refresh_token)
+    challenge = native_code_challenge(
+        request.query_params.get("client"), request.query_params.get("desktop_nonce")
+    )
+    code = await exchange_service.issue(
+        access_token=access_token, refresh_token=refresh_token, code_challenge=challenge
+    )
     await session_service.create_session(
         user_id=user.id,
         refresh_token=refresh_token,

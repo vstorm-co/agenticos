@@ -16,14 +16,17 @@ import json
 from collections.abc import AsyncGenerator
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.db.vector_tables import (
     VECTOR_CONTENT_HASH_INDEX_SUFFIX,
     VECTOR_FILENAME_INDEX_SUFFIX,
+    VECTOR_KB_INDEX_SUFFIX,
     VECTOR_ORG_INDEX_SUFFIX,
+    VECTOR_PARENT_INDEX_SUFFIX,
     VECTOR_SOURCE_PATH_INDEX_SUFFIX,
+    VectorScope,
 )
 from app.services.rag.vectorstore import PgVectorStore
 
@@ -108,6 +111,12 @@ async def test_ensure_collection_builds_an_index_per_lookup_key(engine: AsyncEng
         name = f"{TABLE}{suffix}"
         assert name in defs
         assert "USING hash" in defs[name]
+    # The base key the scope narrows to (#2537): a bounded UUID, few distinct
+    # values per table, so a btree - which a hash bucket of one value is not.
+    assert "USING btree" in defs[f"{TABLE}{VECTOR_KB_INDEX_SUFFIX}"]
+    # The document key the per-document reads filter by (#2552); see
+    # `0252_index_rag_parent_doc_id` for why it is plain.
+    assert defs[f"{TABLE}{VECTOR_PARENT_INDEX_SUFFIX}"].endswith("USING btree (parent_doc_id)")
 
 
 async def test_source_path_wins_and_returns_that_documents_own_hash(engine: AsyncEngine) -> None:
@@ -136,7 +145,10 @@ async def test_source_path_wins_and_returns_that_documents_own_hash(engine: Asyn
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/srv/sync/handbook.pdf", content_hash="unrelated"
+        COLLECTION,
+        source_path="/srv/sync/handbook.pdf",
+        content_hash="unrelated",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is not None
@@ -165,7 +177,10 @@ async def test_the_filename_fallback_keeps_the_unaddressed_rule(engine: AsyncEng
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/elsewhere/handbook.pdf", content_hash=""
+        COLLECTION,
+        source_path="/elsewhere/handbook.pdf",
+        content_hash="",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is not None
@@ -180,7 +195,10 @@ async def test_content_hash_is_the_last_resort(engine: AsyncEngine) -> None:
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/new/renamed.pdf", content_hash="same"
+        COLLECTION,
+        source_path="/new/renamed.pdf",
+        content_hash="same",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is not None
@@ -201,7 +219,7 @@ async def test_the_fallback_tiebreak_is_deterministic(engine: AsyncEngine) -> No
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/nowhere/dup.pdf", content_hash=""
+        COLLECTION, source_path="/nowhere/dup.pdf", content_hash="", scope=VectorScope(tenant=None)
     )
 
     assert hit is not None
@@ -217,10 +235,67 @@ async def test_a_source_path_too_long_for_a_btree_index_still_ingests(engine: As
     long_path = "s3://bucket/" + "a" * 3000
     await _insert(store, doc_id="big", source_path=long_path, filename="big.pdf", content_hash="h")
 
-    hit = await store.find_existing_document(COLLECTION, source_path=long_path, content_hash="")
+    hit = await store.find_existing_document(
+        COLLECTION, source_path=long_path, content_hash="", scope=VectorScope(tenant=None)
+    )
 
     assert hit is not None
     assert hit.document_id == "big"
+
+
+async def test_the_lookups_cannot_walk_the_document_index_for_their_order(
+    engine: AsyncEngine,
+) -> None:
+    """#2552 review: each lookup reads the first match by `(parent_doc_id, id)`
+    with `LIMIT 1`. The btree on `parent_doc_id` offers that order, and on a real
+    table the planner took it when the key value was common elsewhere in the
+    table and absent from the caller's scope - walking the whole index and
+    filtering every row, about 1 s against 22 ms on 300k rows. Sorting is
+    switched off here to make that ordered walk the only plan without a sort,
+    which is what the skewed statistics did; the lookups must not offer it."""
+    store = _store(engine)
+    await store._ensure_collection(COLLECTION)
+    await _insert(
+        store, doc_id="kept", source_path="/srv/a.pdf", filename="a.pdf", content_hash="h1"
+    )
+    lookups: list[tuple[str, tuple[object, ...]]] = []
+
+    def capture(
+        _conn: object,
+        _cursor: object,
+        statement: str,
+        parameters: tuple[object, ...],
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        if "LIMIT 1" in statement:
+            lookups.append((statement, parameters))
+
+    event.listen(engine.sync_engine, "before_cursor_execute", capture)
+    try:
+        await store.find_existing_document(
+            COLLECTION,
+            source_path="/srv/b.pdf",
+            content_hash="h2",
+            scope=VectorScope(tenant=None),
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", capture)
+    # One per key: source_path, filename, content_hash.
+    assert len(lookups) == 3
+
+    async with engine.connect() as conn:
+        driver = (await conn.get_raw_connection()).driver_connection
+        assert driver is not None
+        await driver.execute("SET enable_sort = off")
+        try:
+            for statement, parameters in lookups:
+                plan = "\n".join(
+                    row[0] for row in await driver.fetch(f"EXPLAIN {statement}", *parameters)
+                )
+                assert VECTOR_PARENT_INDEX_SUFFIX not in plan, plan
+        finally:
+            await driver.execute("RESET enable_sort")
 
 
 async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:
@@ -231,7 +306,10 @@ async def test_no_key_matches_answers_none(engine: AsyncEngine) -> None:
     )
 
     hit = await store.find_existing_document(
-        COLLECTION, source_path="/srv/absent.pdf", content_hash="nope"
+        COLLECTION,
+        source_path="/srv/absent.pdf",
+        content_hash="nope",
+        scope=VectorScope(tenant=None),
     )
 
     assert hit is None
@@ -249,5 +327,10 @@ async def test_every_document_at_an_address_is_found_and_nothing_else(engine: As
         store, doc_id="upload", source_path="intro.md", filename="intro.md", content_hash="v2"
     )
 
-    assert await store.document_ids_at(COLLECTION, source_path=address) == ["new", "old"]
-    assert await store.document_ids_at("absent", source_path=address) == []
+    assert await store.document_ids_at(
+        COLLECTION, source_path=address, scope=VectorScope(tenant=None)
+    ) == ["new", "old"]
+    assert (
+        await store.document_ids_at("absent", source_path=address, scope=VectorScope(tenant=None))
+        == []
+    )

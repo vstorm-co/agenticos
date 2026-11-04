@@ -15,12 +15,14 @@ from starlette.middleware.gzip import DEFAULT_EXCLUDED_CONTENT_TYPES, GZipMiddle
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
+from app.schemas.channel_bot import AccessPolicy
 from starlette.routing import Route
 
 from app.services import (
     browse_plans,
     change_feed,
     chat_room,
+    device_hub,
     live_browse,
     live_turn,
     platform_mcp,
@@ -161,6 +163,11 @@ async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None 
             token=token,
             api_base_url=_bot.api_base_url,
             app_token=app_token,
+            approved_guild_ids=(
+                tuple(AccessPolicy.model_validate(_bot.access_policy).discord_guild_ids)
+                if _bot.platform == "discord"
+                else ()
+            ),
             take_over=False,
         )
         started += 1
@@ -170,7 +177,7 @@ async def _start_channel_polling(*platforms: str, bot_ids: Sequence[str] | None 
         )
 
 
-_POLLING_PLATFORMS = ("telegram", "mattermost", "slack")
+_POLLING_PLATFORMS = ("telegram", "mattermost", "slack", "discord")
 
 _DISCOVER_BOTS_EVERY_SECONDS = 60.0
 """How often the keeper re-reads which bots should stream. Leases are checked on
@@ -239,6 +246,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # correct but pays a connect per request (#1079).
     claim_pooled_engines()
     watchdog = EventLoopWatchdog(wedged_after=settings.EVENT_LOOP_WEDGED_AFTER)
+    # Again, now that the server has configured its own loggers: uvicorn's access
+    # log has a handler of its own, and in some launch modes it is created after
+    # `create_app` ran the first call.
+    setup_logging()
     setup_logfire()
     # Capability modules register themselves on import; nothing the Builder can
     # offer exists until this has run.
@@ -279,6 +290,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # And the change feed (#2061): its middleware publishes above the dependency
     # graph, and its sockets outlive the request that opened them.
     change_feed.configure(redis_client)
+    # And the device hub (#2305): a computer's socket outlives any request, and a
+    # call to it is routed to whichever host holds that socket.
+    device_hub.configure(redis_client)
     # And browses' live views (#2128): published from a tool call, read by sockets
     # that outlive any request.
     live_browse.configure(redis_client)
@@ -300,8 +314,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # that the API and the test suite pay for on every process start and never
     # use. The adapters are only ever needed from this point on: registered at
     # startup, and stopped after the yield below (#520).
+    from app.services.channels.discord import DiscordAdapter
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
+    from app.services.channels import teams as channel_teams
+    from app.services.channels.teams import TeamsAdapter
     from app.services.channels.telegram import TelegramAdapter
 
     # A previous lifespan in this process (a test, a reload) may have declined
@@ -322,12 +339,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     except (OSError, ValueError, RuntimeError) as _mm_exc:
         logger.error("Mattermost: failed to start the event stream: %s", _mm_exc)
 
+    # Teams posts to the bot's endpoint and holds no connection to open (#1985);
+    # the files it waits on consent for live in the Redis every worker shares.
+    channel_teams.configure(redis_client)
+    _teams_adapter = TeamsAdapter()
+    register_adapter(_teams_adapter)
+
     _slack_adapter = SlackAdapter()
     register_adapter(_slack_adapter)
     try:
         await _start_channel_polling("slack")
     except (OSError, ValueError, RuntimeError) as _slack_exc:
         logger.error("Slack: failed to start Socket Mode: %s", _slack_exc)
+
+    _discord_adapter = DiscordAdapter()
+    register_adapter(_discord_adapter)
+    try:
+        await _start_channel_polling("discord")
+    except (OSError, ValueError, RuntimeError) as _discord_exc:
+        logger.error("Discord: failed to open the Gateway: %s", _discord_exc)
 
     keeping_streams = asyncio.create_task(_keep_channel_streams(), name="keep_channel_streams")
 
@@ -361,6 +391,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
+    for _dbid in list(_discord_adapter._socket_tasks.keys()):
+        await _discord_adapter.stop_polling(_dbid)
     # Intake has stopped and serving is already drained, so what is left is
     # in-flight fire-and-forget work - an ingestion or a sync a request or a
     # channel message handed off. It reads the stores and the session below, so
@@ -374,7 +406,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     await stream_lease.leases().release()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
-    for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter):
+    for _adapter in (
+        _telegram_adapter,
+        _mattermost_adapter,
+        _slack_adapter,
+        _teams_adapter,
+        _discord_adapter,
+    ):
         await _adapter.aclose()
     # The shared outbound clients web search and the model-catalog listings reuse,
     # closed the same way now that nothing can still be mid-request on them (#1263).
@@ -397,6 +435,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     trigger_dedupe.configure(None)
     maintenance.configure(None)
     change_feed.configure(None)
+    device_hub.configure(None)
     live_browse.configure(None)
     live_turn.configure(None)
     chat_room.configure(None)

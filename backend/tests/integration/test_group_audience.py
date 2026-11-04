@@ -5,6 +5,7 @@ request, which makes them private and shares them with each group.
 """
 
 import uuid
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -203,6 +204,31 @@ class TestKnowledgeReach:
         assert by_name["ledger"].reaches_fewer_than_agent
         assert by_name["style"].whole_organization
         assert not by_name["style"].reaches_fewer_than_agent
+
+    async def test_many_private_sources_use_one_audience_query(self, db: AsyncSession) -> None:
+        from app.repositories import resource_grant_repo
+        from app.services.knowledge_reach import KnowledgeReachService
+
+        organization, owner = await _setup(db)
+        finance = await _department(db, organization)
+        skills = [
+            await _create(
+                db, owner, SkillCreate(name=f"source-{i}", description="x", group_ids=[finance.id])
+            )
+            for i in range(12)
+        ]
+        agent = await self._agent(db, owner, skill_ids=[skill.id for skill in skills])
+        with patch.object(
+            resource_grant_repo, "list_for_resources", wraps=resource_grant_repo.list_for_resources
+        ) as listing:
+            reach = await KnowledgeReachService(db).for_agent(owner, agent.id)
+        assert len(reach.sources) == 12
+        skill_queries = [
+            call for call in listing.await_args_list if call.kwargs["resource_type"] == "skill"
+        ]
+        assert len(skill_queries) == 1
+        assert set(skill_queries[0].kwargs["resource_ids"]) == {skill.id for skill in skills}
+        assert all(source.groups == [finance.name] for source in reach.sources)
 
     async def test_a_finance_agent_reading_finance_knowledge_is_not_flagged(
         self, db: AsyncSession

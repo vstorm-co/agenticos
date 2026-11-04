@@ -1,0 +1,30 @@
+import { beforeEach, expect, it } from "vitest";
+import { projectFolderKey, useProjectFoldersStore } from "./project-folders-store";
+const folder = { folder: "/approved/project", mode: "read_only" } as const;
+beforeEach(() => useProjectFoldersStore.setState({ byProject: {} }));
+it("isolates shared project folders by account and organization", () => {
+  const a = projectFolderKey("alice", "org", "project");
+  const b = projectFolderKey("bob", "org", "project");
+  const c = projectFolderKey("alice", "other", "project");
+  expect(new Set([a, b, c]).size).toBe(3);
+  expect(projectFolderKey(null, "org", "project")).toBeNull();
+  expect(projectFolderKey("alice", null, "project")).toBeNull();
+  if (!a || !b || !c) throw new Error("Expected scopes");
+  useProjectFoldersStore.getState().bind(a, folder);
+  expect(useProjectFoldersStore.getState().byProject[b]).toBeUndefined();
+  expect(useProjectFoldersStore.getState().byProject[c]).toBeUndefined();
+});
+it("persists folders and disconnects only the selected project", async () => {
+  const store = useProjectFoldersStore.getState();
+  store.bind("one", folder);
+  store.bind("two", folder);
+  const saved = localStorage.getItem("project-folders");
+  if (!saved) throw new Error("Folder preferences were not persisted");
+  useProjectFoldersStore.setState({ byProject: {} });
+  localStorage.setItem("project-folders", saved);
+  await useProjectFoldersStore.persist.rehydrate();
+  expect(useProjectFoldersStore.getState().byProject.one).toEqual(folder);
+  store.bind("one", null);
+  expect(useProjectFoldersStore.getState().byProject.one).toBeUndefined();
+  expect(useProjectFoldersStore.getState().byProject.two).toEqual(folder);
+});

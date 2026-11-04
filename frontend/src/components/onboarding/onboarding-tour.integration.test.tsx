@@ -7,7 +7,8 @@ import { toast } from "sonner";
 
 import { OnboardingTour } from "./onboarding-tour";
 import { RestartTourButton } from "./restart-tour-button";
-import { activateTab, pulse, waitForElement } from "@/components/onboarding/spotlight";
+import { pulse, waitForElement } from "@/components/onboarding/spotlight";
+import { activateTab } from "@/lib/activate-tab";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
@@ -47,13 +48,13 @@ const spotlight = vi.hoisted(() => ({ highlight: vi.fn(), destroy: vi.fn() }));
 vi.mock("@/components/onboarding/spotlight", () => ({
   createTourDriver: () => ({ highlight: spotlight.highlight, destroy: spotlight.destroy }),
   waitForElement: vi.fn(async () => ({}) as Element),
-  activateTab: vi.fn(),
   pulse: vi.fn(async () => {}),
   isTypingTarget: vi.fn(() => false),
   revealDisclosures: vi.fn(),
   keepClearOf: vi.fn(),
   prefersReducedMotion: () => false,
 }));
+vi.mock("@/lib/activate-tab", () => ({ activateTab: vi.fn() }));
 // The light the reader sees. `focus` records what it was pointed at and resolves
 // at once, unless a test holds it to prove what waits for the light to land.
 const light = vi.hoisted(() => ({
@@ -97,7 +98,7 @@ function servePermissions(permissions: readonly string[]) {
   vi.mocked(apiClient.get).mockImplementation((path: string) => {
     if (path === "/agents") {
       return Promise.resolve({
-        items: [{ id: "agent-1", slug: "claude-code-like", name: "Claude Code like" }],
+        items: [{ id: "agent-1", slug: "agenticos", name: "AgenticOS" }],
         total: 1,
       });
     }
@@ -169,6 +170,47 @@ describe("OnboardingTour", () => {
     act(() => shownStep().popover?.onNextClick?.(undefined, {} as DriveStep, {} as never));
     await waitFor(() => expect(shownStep().popover?.title).toBe("Slice the dashboard"));
     expect(shownStep().popover?.onPopoverRender).toBeUndefined();
+  });
+
+  it("asks the reader's role on the welcome card and keeps it on their account (#2301)", async () => {
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockResolvedValue(user({ job_title: "Sales" }));
+    useAuthStore.setState({ user: user({ job_title: "Finance" }) });
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    const description = document.createElement("div");
+    shownStep().popover?.onPopoverRender?.({ description } as never, {} as never);
+    const roles = description.querySelector(
+      '[aria-label="What do you do? Your agents will know."]',
+    );
+    const buttons = Array.from(roles?.querySelectorAll("button") ?? []);
+    expect(buttons.find((b) => b.getAttribute("aria-pressed") === "true")?.textContent).toBe(
+      "Finance",
+    );
+    buttons.find((b) => b.textContent === "Sales")?.click();
+
+    await waitFor(() =>
+      expect(apiClient.patch).toHaveBeenCalledWith("/users/me", { job_title: "Sales" }),
+    );
+    await waitFor(() => expect(useAuthStore.getState().user?.job_title).toBe("Sales"));
+  });
+
+  it("lets a role that could not be saved go quietly, for Settings to hold", async () => {
+    servePermissions(OWNER);
+    vi.mocked(apiClient.patch).mockRejectedValue(new Error("offline"));
+    render(<OnboardingTour />, { wrapper });
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Welcome to AgenticOS"));
+
+    const description = document.createElement("div");
+    shownStep().popover?.onPopoverRender?.({ description } as never, {} as never);
+    const roles = description.querySelector(
+      '[aria-label="What do you do? Your agents will know."]',
+    );
+    Array.from(roles?.querySelectorAll("button") ?? [])[0]?.click();
+
+    await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("advances to the next highlight when Next is clicked", async () => {
@@ -309,6 +351,29 @@ describe("OnboardingTour", () => {
     await waitFor(() =>
       expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain("/agents"),
     );
+  });
+});
+
+describe("the tables walk", () => {
+  it("'?' on a table shows that table's controls where the reader is, with their copy", async () => {
+    // With no detail target for the table pseudo-page, the engine read it as a
+    // route and pushed to `table-detail`, which loaded a table of that id.
+    servePermissions(OWNER);
+    nav.pathname = "/tables/t-1";
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Its columns"));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("'?' on the catalog captions its stops with their copy, not their keys", async () => {
+    servePermissions(OWNER);
+    nav.pathname = ROUTES.TABLES;
+    useOnboardingStore.setState({ isOpen: true, index: 0, mode: "page" });
+    render(<OnboardingTour />, { wrapper });
+
+    await waitFor(() => expect(shownStep().popover?.title).toBe("Your tables"));
   });
 });
 

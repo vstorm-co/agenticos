@@ -64,7 +64,9 @@ class MessageRatingRead(MessageRatingBase, TimestampSchema):
 
     id: UUID
     message_id: UUID
-    user_id: UUID
+    user_id: UUID | None = Field(
+        description="Application account author, or null for a verified channel participant"
+    )
 
 
 class MessageRatingWithDetails(MessageRatingRead):

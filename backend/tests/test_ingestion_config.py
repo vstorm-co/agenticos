@@ -373,6 +373,36 @@ class TestResolvingTheModelThatReadsImages:
 
         assert resolved == "openai:gpt-4.1"
 
+    @pytest.mark.parametrize("build", [False, True], ids=["configuration", "worker"])
+    async def test_a_non_chat_profile_is_refused_before_configuration_or_build(self, build: bool):
+        profile, credential = _profile_and_credential()
+        profile.model = "gpt-4o-mini-tts"
+        config = IngestionConfig(
+            describe_images=True,
+            image_description=ImageDescription(model_profile_id=profile.id),
+        )
+        patches = _resolving_to(profile, credential)
+        with patches[0], patches[1], pytest.raises(BadRequestError, match="not a chat model"):
+            service = IngestionConfigService(_db())
+            if build:
+                await service.build_describer(ORG, config)
+            else:
+                await service.resolved_image_model(ORG, config)
+
+    async def test_a_custom_endpoint_is_not_classified_by_its_model_name(self) -> None:
+        profile, credential = _profile_and_credential()
+        profile.model = "whisper-1"
+        profile.base_url = "http://local/v1"
+        config = IngestionConfig(
+            describe_images=True, image_description=ImageDescription(model_profile_id=profile.id)
+        )
+        patches = _resolving_to(profile, credential)
+        with patches[0], patches[1]:
+            assert (
+                await IngestionConfigService(_db()).resolved_image_model(ORG, config)
+                == "openai:whisper-1"
+            )
+
     async def test_a_configuration_naming_no_model_is_told_so(self) -> None:
         """The refusal belongs on the form that turned this on, not on an upload.
 

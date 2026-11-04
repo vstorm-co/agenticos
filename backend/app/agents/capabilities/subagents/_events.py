@@ -27,7 +27,6 @@ from pydantic_ai.messages import (
     ModelResponsePartDelta,
     PartDeltaEvent,
     PartStartEvent,
-    RetryPromptPart,
     TextPart,
     TextPartDelta,
     ThinkingPart,
@@ -45,7 +44,7 @@ from app.agents.subagent_events import (
 UNNAMED_TOOL = "unknown"
 """What a tool result is attributed to when the part does not name one.
 
-`RetryPromptPart.tool_name` is optional, so a result frame either invents a name
+An upstream tool result can have an empty name, so a result frame either invents a name
 or is dropped - and dropping it leaves a row open in the panel forever, which
 reads as a delegate still working on something that already failed.
 """
@@ -91,9 +90,7 @@ def frame_for(event: AgentStreamEvent, labels: FrameLabels) -> SubagentEvent | N
             depth=labels.depth,
             tool_name=event.part.tool_name or UNNAMED_TOOL,
             tool_call_id=event.tool_call_id,
-            # A `RetryPromptPart` is how a tool that raised comes back, so this
-            # is the one thing that tells a panel a step went wrong.
-            ok=not isinstance(event.part, RetryPromptPart),
+            ok=event.part.outcome == "success",
         )
     return None
 

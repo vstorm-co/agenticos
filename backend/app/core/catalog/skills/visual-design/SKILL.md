@@ -276,6 +276,35 @@ asks to see it ("chart it", "which is cheapest over five years"), call
 the follow-up. Draw a comparison only when the person needs to weigh it
 themselves: sliders for the weights, the ranking recalculated.
 
+## Countries and regions: a world map
+
+For anything by country - customers, offices, a route between two cities - load the
+world map kit. It is plain SVG from outlines the deployment serves, so it needs no
+map server and always draws:
+
+```html
+<script src="lib/d3-7.9.0.min.js"></script>
+<script src="lib/topojson-client-3.1.0.min.js"></script>
+<script src="lib/world-atlas-2.0.2-110m.js"></script>
+<script src="lib/agenticos-worldmap-1.js"></script>
+<div id="world"></div>
+<script>
+  const result = AOWorldMap.draw(document.getElementById("world"), {
+    countries: { Poland: 42, Germany: 88, USA: 130 },
+    pins: [{ name: "Warsaw", lat: 52.23, lng: 21.01 }],
+    routes: [{ from: "Warsaw", to: { lat: 40.71, lng: -74.0 } }],
+    legend: "customers",
+  });
+</script>
+```
+
+Countries shade by value, darker for more; `highlight: ["Poland"]` marks countries
+that have no value, and `focus: [...]` zooms to the countries named. A country is
+named in English as the data has it ("United States of America", "Czechia"), by
+a common alias ("USA", "UK") or by its ISO numeric code. `draw` returns `{ unmatched }`,
+the names it could not place: if it is not empty, say which ones in your answer.
+Do not restyle it; give the element a width and let it set its own height.
+
 ## Follow a trip: a map
 
 Load Leaflet and the map kit, then hand it the stops:
@@ -283,7 +312,7 @@ Load Leaflet and the map kit, then hand it the stops:
 ```html
 <link rel="stylesheet" href="lib/leaflet-1.9.4/leaflet.css">
 <script src="lib/leaflet-1.9.4/leaflet.js"></script>
-<script src="lib/agenticos-map-1.js"></script>
+<script src="lib/agenticos-map-2.js"></script>
 <div id="trip"></div>
 <script>
   AOMap.itinerary("#trip", {
@@ -294,14 +323,23 @@ Load Leaflet and the map kit, then hand it the stops:
 </script>
 ```
 
-It drops numbered pins in order, joins them with a dashed line, offers Pause and
-Replay, and lays the stops out as cards under the map; clicking a pin or a card
+It shows numbered pins joined in order by a dashed line, replays them dropping
+one by one on request (`autoplay: true` plays them on load), and lays the stops
+out as cards under the map; clicking a pin or a card
 jumps to it. Your instructions say whether this deployment has map tiles: with
 them it is a real map with its credit under it, without them an outline of the
-stops - say so if the person expects streets. Pass `labels` in the person's
+stops. Without tiles, say so in your answer - not as a note inside the drawing -
+with the reason your instructions give. Pass `labels` in the person's
 language. A stop may carry `image` (`{{image:NAME}}` from `images`), `imageAlt`,
 and the photo's `credit` and `creditUrl` - show the author and the licence for
 every photo you did not make. Two to twelve stops read best.
+
+The itinerary is a whole layout - map, controls and stop cards - 16:9 of the
+page's width and never lower than its `height`. Put its element straight on the page: no border, background or
+`min-height` around it, and no second list of the same stops beside it - the
+cards are that list, and a framed box with a fixed height leaves the map touching
+its edges over a band of empty space. Put any day-by-day detail in the stops'
+`note`, or under the map.
 
 Start from `templates/itinerary.html`.
 

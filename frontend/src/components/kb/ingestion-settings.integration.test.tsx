@@ -205,6 +205,8 @@ describe("the model that describes the images", () => {
   });
 
   it("says the chosen model has no key, which is what decides whether ingestion runs", async () => {
+    // As the server lists a profile whose key was deleted (#2478).
+    state.profiles = [profile({ secret_id: null, missing_key: true })];
     show("p1");
 
     const current = await screen.findByRole("group", { name: "Current model" });

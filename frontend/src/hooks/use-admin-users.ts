@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -20,6 +20,13 @@ export function useAdminUsers() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState<string | null>(null);
+  const latestRequest = useRef(0);
+  useEffect(
+    () => () => {
+      latestRequest.current += 1;
+    },
+    [],
+  );
 
   const fetchUsers = useCallback(
     async ({
@@ -35,6 +42,7 @@ export function useAdminUsers() {
       sortBy?: string;
       sortDir?: "asc" | "desc";
     } = {}) => {
+      const request = ++latestRequest.current;
       setIsLoading(true);
       try {
         const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
@@ -42,15 +50,16 @@ export function useAdminUsers() {
         if (sortBy) params.set("sort_by", sortBy);
         if (sortDir) params.set("sort_dir", sortDir);
         const data = await apiClient.get<AdminUserListResponse>(`/admin/users?${params}`);
+        if (request !== latestRequest.current) return;
         setUsers(data.items);
         setTotal(data.total);
         setError(null);
       } catch {
         // Inline rather than a toast: a toast expires, and an empty table under
         // it then reads as a deployment with no users (#32's shape).
-        setError(t("failedLoadUsers"));
+        if (request === latestRequest.current) setError(t("failedLoadUsers"));
       } finally {
-        setIsLoading(false);
+        if (request === latestRequest.current) setIsLoading(false);
       }
     },
     [t],

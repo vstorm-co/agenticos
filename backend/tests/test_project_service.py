@@ -47,6 +47,8 @@ def _project(**overrides: Any) -> MagicMock:
         default_agent_id=None,
         backend="service",
         sandbox_connection_id=None,
+        workspace_generation=None,
+        workspace_move_job_id=None,
         runtime=None,
         created_at=datetime(2026, 10, 17, tzinfo=UTC),
         updated_at=None,
@@ -107,6 +109,15 @@ class TestWhoMaySeeAndChangeIt:
     async def test_seeing_it_is_not_changing_or_working_in_it(self, perm: Perm, says: str) -> None:
         with pytest.raises(AuthorizationError, match=says):
             await _service(_project(), Perm.PROJECTS_VIEW).get(_ctx(), uuid.uuid4(), perm=perm)
+
+    @pytest.mark.parametrize("perm", [Perm.PROJECTS_VIEW, Perm.PROJECTS_USE, Perm.PROJECTS_EDIT])
+    async def test_project_use_and_edit_share_the_transaction_lock(self, perm: Perm) -> None:
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW, perm)
+        assert await service.get(_ctx(), project.id, perm=perm) is project
+        assert module.project_repo.get.call_args.kwargs["for_update"] is (
+            perm is not Perm.PROJECTS_VIEW
+        )
 
     async def test_a_new_chat_needs_the_right_to_work_in_it(self) -> None:
         project = _project()
@@ -362,9 +373,14 @@ class TestListing:
         assert (second.chat_count, second.can_use, second.default_agent_name) == (0, False, None)
 
     async def test_one_project_reads_the_same_way(self) -> None:
-        project = _project()
+        project = _project(sandbox_connection_id=uuid.uuid4())
         service = _service(None)
         with (
+            patch.object(
+                module.sandbox_connection_repo,
+                "names_for_ids",
+                AsyncMock(return_value={project.sandbox_connection_id: "Local sandbox"}),
+            ),
             patch.object(module.project_repo, "chat_activity", AsyncMock(return_value={})),
             patch.object(module, "groups_sharing", AsyncMock(return_value={project.id: []})),
             patch.object(module, "accessible_ids", AsyncMock(side_effect=[set(), set(), set()])),
@@ -372,6 +388,8 @@ class TestListing:
         ):
             read = await service.read(_ctx(), project)
         assert (read.name, read.chat_count, read.can_edit) == ("Launch", 0, False)
+
+        assert read.sandbox_connection_name == "Local sandbox"
 
 
 class TestARunInAProject:
@@ -558,3 +576,245 @@ class TestFiles:
         # The host's own words go to the log, not to the reader.
         assert "Permission denied" not in str(refusal.value.details)
         service.workspaces.close.assert_awaited_once()
+
+
+class TestFileManagement:
+    def setup_method(self) -> None:
+        self.project = _project()
+        self.service = _service(self.project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
+        self.document = CappedStateBackend({}, (), max_bytes=10_000_000)
+        self.workspace = Workspace(
+            StateWorkspaceBackend({"k": self.document}, ref=WorkspaceRef(provider="state", id="k"))
+        )
+        self.opened = MagicMock(workspace=self.workspace, document=self.document, kind="state")
+        self.service.workspaces.open_project = AsyncMock(return_value=self.opened)
+        patch.object(module.agent_workspace_repo, "lock_project_files", AsyncMock()).start()
+        patch.object(module, "record_audit", AsyncMock()).start()
+
+    async def test_rename_keeps_binary_contents_and_empty_subfolders(self) -> None:
+        await self.workspace.write_bytes("docs/data.bin", b"\x00\xff")
+        await self.workspace.make_dir("docs/empty")
+        before = self.document.files["/docs/data.bin"]
+        assert (
+            await self.service.move_path(
+                _ctx(), self.project.id, source="/docs", destination="notes"
+            )
+            == "notes"
+        )
+        assert await self.workspace.read_bytes("notes/data.bin") == b"\x00\xff"
+        assert await self.workspace.exists("notes/empty")
+        assert not await self.workspace.exists("docs")
+        assert self.document.files["/notes/data.bin"] == before
+        self.service.workspaces.close.assert_awaited_once()
+
+    @pytest.mark.parametrize("destination", ["docs", "docs/nested", "../out", ".agenticos/x"])
+    async def test_a_move_cannot_escape_or_move_into_itself(self, destination: str) -> None:
+        await self.workspace.make_dir("docs")
+        with pytest.raises(BadRequestError):
+            await self.service.move_path(
+                _ctx(), self.project.id, source="docs", destination=destination
+            )
+        assert await self.workspace.exists("docs")
+
+    async def test_move_refuses_collisions_missing_sources_and_missing_parents(self) -> None:
+        from app.core.exceptions import AlreadyExistsError
+
+        await self.workspace.write_bytes("a.txt", b"a")
+        await self.workspace.write_bytes("b.txt", b"b")
+        for origin, target, error in [
+            ("a.txt", "b.txt", AlreadyExistsError),
+            ("absent", "c.txt", NotFoundError),
+            ("a.txt", "absent/a.txt", BadRequestError),
+            ("a.txt", "b.txt/a.txt", BadRequestError),
+        ]:
+            with pytest.raises(error):
+                await self.service.move_path(
+                    _ctx(), self.project.id, source=origin, destination=target
+                )
+        assert await self.workspace.read_bytes("a.txt") == b"a"
+        assert await self.workspace.read_bytes("b.txt") == b"b"
+
+    async def test_edits_preserve_whitespace_and_refuse_a_changed_revision(self) -> None:
+        from app.core.exceptions import AlreadyExistsError
+
+        await self.workspace.write_bytes("a.txt", b"old")
+        self.service.workspaces.project_bytes = AsyncMock(return_value=b"old")
+        original = await self.service.editable_file(_ctx(), self.project.id, path="a.txt")
+        saved = await self.service.edit_file(
+            _ctx(), self.project.id, path="a.txt", content="  new\n", revision=original.revision
+        )
+        assert await self.workspace.read_bytes("a.txt") == b"  new\n"
+        assert saved.revision != original.revision
+        with pytest.raises(AlreadyExistsError):
+            await self.service.edit_file(
+                _ctx(), self.project.id, path="a.txt", content="stale", revision=original.revision
+            )
+        assert await self.workspace.read_bytes("a.txt") == b"  new\n"
+        with pytest.raises(NotFoundError):
+            await self.service.edit_file(
+                _ctx(), self.project.id, path="missing", content="new", revision=original.revision
+            )
+
+    @pytest.mark.parametrize(
+        "data",
+        [b"\x00binary", b"\xff", b"x" * 1_048_577],
+        ids=["binary", "invalid-utf8", "over-one-mib"],
+    )
+    async def test_the_editor_refuses_binary_and_overlarge_files(self, data: bytes) -> None:
+        self.service.workspaces.project_bytes = AsyncMock(return_value=data)
+        with pytest.raises(BadRequestError):
+            await self.service.editable_file(_ctx(), self.project.id, path="a.txt")
+
+    async def test_a_viewer_cannot_move_or_edit_files(self) -> None:
+        service = _service(self.project, Perm.PROJECTS_VIEW)
+        with pytest.raises(AuthorizationError):
+            await service.move_path(_ctx(), self.project.id, source="a", destination="b")
+        with pytest.raises(AuthorizationError):
+            await service.editable_file(_ctx(), self.project.id, path="a")
+        with pytest.raises(AuthorizationError):
+            await service.edit_file(
+                _ctx(), self.project.id, path="a", content="b", revision="0" * 64
+            )
+        service.workspaces.open_project.assert_not_awaited()
+
+
+@pytest.mark.parametrize("code,still_exists", [(0, False), (1, False), (0, True)])
+async def test_a_remote_move_uses_no_clobber_and_reports_a_refused_move(
+    code: int, still_exists: bool
+) -> None:
+    project = _project()
+    service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
+    remote = MagicMock(
+        exists=AsyncMock(side_effect=[True, False, True, still_exists]),
+        stat=AsyncMock(return_value=MagicMock(is_dir=True)),
+        run=AsyncMock(return_value=MagicMock(exit_code=code)),
+    )
+    service.workspaces.open_project = AsyncMock(
+        return_value=MagicMock(workspace=remote, document=None)
+    )
+    with (
+        patch.object(module.agent_workspace_repo, "lock_project_files", AsyncMock()),
+        patch.object(module, "record_audit", AsyncMock()) as audit,
+    ):
+        if code != 0 or still_exists:
+            with pytest.raises(BadRequestError, match="Could not move"):
+                await service.move_path(_ctx(), project.id, source="a.txt", destination="b.txt")
+            audit.assert_not_awaited()
+        else:
+            assert (
+                await service.move_path(_ctx(), project.id, source="a.txt", destination="b.txt")
+                == "b.txt"
+            )
+    assert remote.run.await_args.args[0] == ["mv", "-T", "-n", "--", "a.txt", "b.txt"]
+    service.workspaces.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "operation", ["add_file", "add_folder", "remove", "move_path", "edit_file"]
+)
+async def test_a_failed_flush_is_not_reported_as_a_successful_file_mutation(operation: str) -> None:
+    import hashlib
+
+    from app.core.exceptions import WorkspaceCapacityError
+    from app.services.sandbox_workspace import WorkspaceFlushFailure
+
+    project = _project()
+    service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
+    document = CappedStateBackend({}, (), max_bytes=10_000_000)
+    workspace = Workspace(
+        StateWorkspaceBackend({"k": document}, ref=WorkspaceRef(provider="state", id="k"))
+    )
+    await workspace.write_bytes("a.txt", b"old")
+    service.workspaces.open_project = AsyncMock(
+        return_value=MagicMock(workspace=workspace, document=document, kind="state")
+    )
+    service.workspaces.close = AsyncMock(
+        return_value=WorkspaceFlushFailure(WorkspaceCapacityError(message="Too large", details={}))
+    )
+    with (
+        patch.object(module.agent_workspace_repo, "lock_project_files", AsyncMock()),
+        patch.object(module, "record_audit", AsyncMock()) as audit,
+        pytest.raises(WorkspaceCapacityError),
+    ):
+        if operation == "add_file":
+            await service.add_file(_ctx(), project.id, path="b.txt", data=b"new")
+        elif operation == "add_folder":
+            await service.add_folder(_ctx(), project.id, path="docs")
+        elif operation == "remove":
+            await service.remove(_ctx(), project.id, path="a.txt")
+        elif operation == "move_path":
+            await service.move_path(_ctx(), project.id, source="a.txt", destination="b.txt")
+        else:
+            await service.edit_file(
+                _ctx(),
+                project.id,
+                path="a.txt",
+                content="new",
+                revision=hashlib.sha256(b"old").hexdigest(),
+            )
+    audit.assert_not_awaited()
+
+
+def test_file_paths_cannot_contain_control_characters() -> None:
+    with pytest.raises(BadRequestError, match="control characters"):
+        project_path("a\x00b")
+
+
+async def test_a_project_can_choose_stored_files_even_when_a_sandbox_is_available() -> None:
+    created = _project(backend="state")
+    service = _service(None)
+    connections = MagicMock(ensure_local_connection=AsyncMock())
+    with (
+        patch.object(module, "SandboxConnectionService", return_value=connections),
+        patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
+        patch.object(module, "record_audit", AsyncMock()),
+    ):
+        await service.create(_ctx(), ProjectCreate(name="Notes", backend="state"))
+    assert create.await_args.kwargs["backend"] == "state"
+    assert create.await_args.kwargs["sandbox_connection_id"] is None
+    connections.ensure_local_connection.assert_not_awaited()
+
+
+async def test_a_project_pins_the_sandbox_connection_chosen_at_creation() -> None:
+    created = _project()
+    service = _service(None)
+    host = MagicMock(id=uuid.uuid4(), is_active=True)
+    connections = MagicMock(get=AsyncMock(return_value=host), ensure_local_connection=AsyncMock())
+    with (
+        patch.object(module, "SandboxConnectionService", return_value=connections),
+        patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
+        patch.object(module, "record_audit", AsyncMock()),
+    ):
+        await service.create(
+            _ctx(), ProjectCreate(name="Build", backend="service", sandbox_connection_id=host.id)
+        )
+    assert create.await_args.kwargs["backend"] == "service"
+    assert create.await_args.kwargs["sandbox_connection_id"] == host.id
+    connections.ensure_local_connection.assert_not_awaited()
+
+
+async def test_project_sandbox_selection_refuses_inactive_unavailable_and_unauthorized_hosts() -> (
+    None
+):
+    service = _service(None)
+    host = MagicMock(id=uuid.uuid4(), is_active=False)
+    connections = MagicMock(
+        get=AsyncMock(return_value=host), ensure_local_connection=AsyncMock(return_value=None)
+    )
+    with patch.object(module, "SandboxConnectionService", return_value=connections):
+        with pytest.raises(BadRequestError):
+            await service.create(
+                _ctx(),
+                ProjectCreate(name="Build", backend="service", sandbox_connection_id=host.id),
+            )
+        with pytest.raises(BadRequestError):
+            await service.create(
+                _ctx(), ProjectCreate(name="Build", backend="state", sandbox_connection_id=host.id)
+            )
+        with pytest.raises(BadRequestError):
+            await service.create(_ctx(), ProjectCreate(name="Build", backend="service"))
+        with (
+            patch.object(module.AuthContext, "has", return_value=False),
+            pytest.raises(AuthorizationError),
+        ):
+            await service.create(_ctx(), ProjectCreate(name="Build", sandbox_connection_id=host.id))

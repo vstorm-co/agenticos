@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, inspect, or_, select, update
+from sqlalchemy import String, and_, cast, func, inspect, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation, Message
+from app.db.models.project import Project
 
 
 async def get_by_key(
@@ -40,6 +41,7 @@ async def create(
     owner_ref: str | None = None,
     connection_id: UUID | None = None,
     files: dict[str, Any] | None = None,
+    recovery_of_id: UUID | None = None,
 ) -> AgentWorkspace:
     """The workspace under this key - the one created here, or one created first.
 
@@ -61,6 +63,7 @@ async def create(
             backend=backend,
             connection_id=connection_id,
             files=files,
+            recovery_of_id=recovery_of_id,
             bytes_total=0,
             version=0,
             last_used_at=datetime.now(UTC),
@@ -145,9 +148,21 @@ async def get_for_project(
     """A project's container, the most recently used where a moved project left two."""
     result = await db.execute(
         select(AgentWorkspace)
+        .join(Project, Project.id == AgentWorkspace.project_id)
         .where(
             AgentWorkspace.organization_id == organization_id,
             AgentWorkspace.project_id == project_id,
+            AgentWorkspace.recovery_of_id.is_(None),
+            AgentWorkspace.backend == Project.backend,
+            or_(
+                Project.sandbox_connection_id.is_(None),
+                AgentWorkspace.connection_id == Project.sandbox_connection_id,
+            ),
+            AgentWorkspace.scope_key.endswith(
+                func.replace(
+                    cast(func.coalesce(Project.workspace_generation, Project.id), String), "-", ""
+                )
+            ),
         )
         .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
         .limit(1)
@@ -180,8 +195,9 @@ async def kept_for_conversation(
     rows = await list_for_conversation(
         db, organization_id=organization_id, conversation_id=conversation_id
     )
-    if rows:
-        return rows[0]
+    active = next((row for row in rows if row.recovery_of_id is None), None)
+    if active is not None:
+        return active
     project_id = await db.scalar(
         select(Conversation.project_id).where(
             Conversation.id == conversation_id, Conversation.organization_id == organization_id
@@ -226,6 +242,26 @@ async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> l
         select(AgentWorkspace)
         .where(AgentWorkspace.organization_id == organization_id)
         .order_by(AgentWorkspace.last_used_at.desc().nullslast())
+    )
+    return list(result.scalars().all())
+
+
+async def project_recovery_candidates(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[AgentWorkspace]:
+    """Tenant-local recovery metadata; the service must authorize each project.
+
+    Ordinary project files stay on their project page. Recovery copies also
+    need a discoverable home in Documents when a project mutation returns 409.
+    """
+    result = await db.execute(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.project_id.is_not(None),
+            AgentWorkspace.recovery_of_id.is_not(None),
+        )
+        .options(defer(AgentWorkspace.files, raiseload=True))
     )
     return list(result.scalars().all())
 
@@ -315,3 +351,21 @@ async def load_files(db: AsyncSession, rows: Sequence[AgentWorkspace]) -> None:
 async def delete(db: AsyncSession, *, workspace: AgentWorkspace) -> None:
     await db.delete(workspace)
     await db.flush()
+
+
+async def lock_project_files(db: AsyncSession, *, project_id: UUID, organization_id: UUID) -> None:
+    """Refresh and lock the stored snapshot before a person's file mutation.
+
+    Runs flush under the same row lock, so a rename/edit cannot pass its checks
+    against one snapshot then overwrite a newer committed document.
+    """
+    await db.execute(
+        select(AgentWorkspace)
+        .where(
+            AgentWorkspace.project_id == project_id,
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.scope == "project",
+        )
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )

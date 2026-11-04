@@ -15,7 +15,8 @@ down a layer, below both, removes the cycle rather than tiptoeing around it.
 This module imports nothing from `app`.
 """
 
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -74,6 +75,23 @@ class ApprovalRequest:
     account: str | None = None
     """Which account of an MCP service the call acts as, where its binding names one -
     see `app.agents.mcp.ACCOUNT`."""
+
+    capability_tool_id: str | None = None
+    """The stable id the owning capability declares the tool under, or `None` for a
+    tool no capability owns. `tool_name` is what the model called, which a binding
+    may have renamed; a surface that words the call by tool reads this instead."""
+
+    describe: Callable[[], Awaitable[dict[str, str] | None]] | None = field(
+        default=None, compare=False, repr=False
+    )
+    """Names the ids in `tool_args` - `{"view": "Closed tickets"}` - as the run's
+    person may see them, or `None` when the tool has no describer. Never raises, and
+    answers `None` when describing failed.
+
+    Lazy, so the channel awaits it only for a call it is about to record: a call it
+    already has a decision for - a resumed run's - would pay a database session and
+    up to the gate's timeout for a description nobody reads. Shown beside the
+    arguments, never instead of them: the arguments are what runs."""
 
 
 @dataclass(frozen=True)

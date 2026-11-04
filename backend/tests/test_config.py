@@ -135,3 +135,166 @@ class TestStoreTls:
 
     def test_a_plaintext_redis_url_carries_no_tls_parameters(self):
         assert "?" not in Settings(REDIS_SSL=False, REDIS_PASSWORD="pw").REDIS_URL
+
+
+class TestWorkflowAdmissionQuota:
+    """The admission ceilings must never sit below one graph's worth of nodes,
+    and a deployment that only raised the graph cap must still start."""
+
+    def test_the_defaults_hold_at_the_default_graph_cap(self):
+        settings = Settings()
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG == 5000
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL == 2000
+
+    def test_a_raised_graph_cap_scales_the_unset_ceilings(self):
+        # Only the graph cap is set; the ceilings derive above it rather than
+        # failing startup on a fixed default that is now too low.
+        settings = Settings(WORKFLOW_GRAPH_MAX_NODES=3000)
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG == 30000
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL == 12000
+
+    def test_an_explicit_ceiling_below_the_graph_cap_is_refused(self):
+        with pytest.raises(ValidationError):
+            Settings(WORKFLOW_GRAPH_MAX_NODES=500, WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_ORG=100)
+
+    def test_an_explicit_ceiling_at_or_above_the_cap_is_kept(self):
+        settings = Settings(
+            WORKFLOW_GRAPH_MAX_NODES=500, WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL=600
+        )
+        assert settings.WORKFLOW_MAX_ACTIVE_NODE_RUNS_PER_PRINCIPAL == 600
+
+
+class TestMcpAllowedHosts:
+    """Read from the environment as a JSON list, like `CORS_ORIGINS`.
+
+    `_env_file=None` keeps a developer's `backend/.env` out of the answer.
+    """
+
+    def test_a_deployment_that_never_set_it_lists_nothing(self, monkeypatch):
+        """Empty is what keeps every internal address refused, so it has to be
+        the default and not a value somebody remembered to write."""
+        monkeypatch.delenv("MCP_ALLOWED_HOSTS", raising=False)
+
+        assert Settings(_env_file=None).MCP_ALLOWED_HOSTS == []
+
+    def test_the_environment_names_the_hosts_as_a_json_list(self, monkeypatch):
+        monkeypatch.setenv("MCP_ALLOWED_HOSTS", '["postgres-mcp"]')
+
+        assert Settings(_env_file=None).MCP_ALLOWED_HOSTS == ["postgres-mcp"]
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "169.254.169.254",
+            "[fe80::1]",
+            "fe80::1",
+            "metadata.google.internal",
+            "Metadata.Google.Internal.",
+            " instance-data ",
+            "100.100.100.200",
+            "fd00:ec2::254",
+            "2852039166",
+            "0xa9fea9fe",
+            "::ffff:169.254.169.254",
+        ],
+    )
+    def test_a_metadata_or_link_local_entry_stops_the_settings_loading(self, entry):
+        """A listed host is never range-checked, so these would hand any
+        connection the instance's credentials. Refused however it is spelled,
+        including the metadata addresses outside link-local and the numeric
+        forms a resolver reads as `169.254.169.254`."""
+        with pytest.raises(ValidationError, match="cloud metadata, link-local or loopback"):
+            Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry])
+
+    @pytest.mark.parametrize(
+        "entry",
+        [
+            "localhost",
+            "LOCALHOST.",
+            "api.localhost",
+            "127.0.0.1",
+            "127.1",
+            "[::1]",
+            "0.0.0.0",
+            "::ffff:127.0.0.1",
+        ],
+    )
+    def test_a_loopback_entry_stops_the_settings_loading(self, entry):
+        """Loopback is the API's own host: listing it would open every port the
+        deployment binds there to every account."""
+        with pytest.raises(ValidationError, match="cloud metadata, link-local or loopback"):
+            Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry])
+
+    @pytest.mark.parametrize("entry", ["postgres-mcp", "10.0.0.5", "fd00::1", "100.64.0.5"])
+    def test_a_private_address_is_still_allowed(self, entry):
+        """A private address is the reason the setting exists."""
+        hosts = Settings(_env_file=None, MCP_ALLOWED_HOSTS=[entry]).MCP_ALLOWED_HOSTS
+
+        assert hosts == [entry]
+
+
+class TestOutboundPrivateAllowlist:
+    """Read from the environment as a JSON list, like `MCP_ALLOWED_HOSTS`."""
+
+    def test_a_deployment_that_never_set_it_lists_nothing(self, monkeypatch):
+        monkeypatch.delenv("OUTBOUND_PRIVATE_ALLOWLIST", raising=False)
+
+        assert Settings(_env_file=None).OUTBOUND_PRIVATE_ALLOWLIST == []
+
+    def test_the_environment_names_entries_as_a_json_list(self, monkeypatch):
+        monkeypatch.setenv("OUTBOUND_PRIVATE_ALLOWLIST", '["10.1.2.0/24", ".corp.example"]')
+
+        assert Settings(_env_file=None).OUTBOUND_PRIVATE_ALLOWLIST == [
+            "10.1.2.0/24",
+            ".corp.example",
+        ]
+
+    @pytest.mark.parametrize("entry", ["127.0.0.0/8", ".internal", "http://wiki", "*.corp.example"])
+    def test_a_refused_entry_stops_the_settings_loading_naming_it(self, entry):
+        with pytest.raises(ValidationError, match="OUTBOUND_PRIVATE_ALLOWLIST lists") as raised:
+            Settings(_env_file=None, OUTBOUND_PRIVATE_ALLOWLIST=[entry])
+
+        assert repr(entry) in str(raised.value)
+
+    @pytest.mark.parametrize(
+        ("host", "entry"),
+        [("db", "db"), ("pg.svc.example", ".svc.example"), ("10.0.0.7", "10.0.0.0/24")],
+    )
+    def test_the_database_host_cannot_be_listed(self, host, entry):
+        with pytest.raises(ValidationError, match="reaches this deployment's database"):
+            Settings(_env_file=None, POSTGRES_HOST=host, OUTBOUND_PRIVATE_ALLOWLIST=[entry])
+
+    @pytest.mark.parametrize(
+        ("host", "entry"),
+        [("cache", "cache"), ("redis.svc.example", ".svc.example"), ("10.0.0.8", "10.0.0.0/24")],
+    )
+    def test_the_redis_host_cannot_be_listed(self, host, entry):
+        with pytest.raises(ValidationError, match="reaches this deployment's Redis"):
+            Settings(_env_file=None, REDIS_HOST=host, OUTBOUND_PRIVATE_ALLOWLIST=[entry])
+
+    def test_the_api_host_cannot_be_listed_but_a_suffix_over_it_can(self):
+        with pytest.raises(ValidationError, match="reaches this deployment's API"):
+            Settings(
+                _env_file=None,
+                PUBLIC_BASE_URL="https://agents.corp.example",
+                OUTBOUND_PRIVATE_ALLOWLIST=["agents.corp.example"],
+            )
+
+        accepted = Settings(
+            _env_file=None,
+            PUBLIC_BASE_URL="https://agents.corp.example",
+            OUTBOUND_PRIVATE_ALLOWLIST=[".corp.example"],
+        )
+        assert accepted.OUTBOUND_PRIVATE_ALLOWLIST == [".corp.example"]
+
+    def test_the_mcp_alias_is_checked_against_the_stores_too(self):
+        with pytest.raises(ValidationError, match="MCP_ALLOWED_HOSTS lists"):
+            Settings(_env_file=None, POSTGRES_HOST="db", MCP_ALLOWED_HOSTS=["db"])
+
+    def test_an_api_host_that_is_an_address_cannot_be_listed_by_a_range(self):
+        with pytest.raises(ValidationError, match="reaches this deployment's API"):
+            Settings(
+                _env_file=None,
+                PUBLIC_BASE_URL="https://10.0.0.9",
+                OUTBOUND_PRIVATE_ALLOWLIST=["10.0.0.0/24"],
+            )

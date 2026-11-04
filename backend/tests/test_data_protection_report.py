@@ -43,8 +43,10 @@ from app.commands.data_protection import (
     _walk_media,
     data_protection_report,
 )
+from app.commands.vault_rotate import SEALED_TABLES
 from app.core.config import settings
 from app.db.base import Base
+from app.db.models.organization_secret import OrganizationSecret
 
 pytestmark = pytest.mark.anyio
 
@@ -56,6 +58,10 @@ def _result(rows: list[tuple]) -> MagicMock:
     result.all.return_value = rows
     result.scalars.return_value.all.return_value = [row[0] for row in rows]
     return result
+
+
+# `_credentials` counts every sealed table except `organization_secrets`, which it lists.
+SEALED_IN_PLACE = sum(1 for table in SEALED_TABLES if table.model is not OrganizationSecret)
 
 
 def _db(*row_lists: list[tuple], counts: list[int] | None = None) -> MagicMock:
@@ -87,7 +93,7 @@ class TestWhatItReports:
         assert section.rows[1][4] == "provider default"
 
     async def test_credentials_name_the_third_party_and_never_the_value(self) -> None:
-        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * 8)
+        db = _db([("City", "llm", "api_key", "OpenAI production")], counts=[0] * SEALED_IN_PLACE)
 
         section = await _credentials(db)
 
@@ -95,7 +101,7 @@ class TestWhatItReports:
 
     async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
         """A bot token is a sealed credential that has no organization_secrets row."""
-        db = _db([], counts=[3] + [0] * 7)
+        db = _db([], counts=[3] + [0] * (SEALED_IN_PLACE - 1))
 
         section = await _credentials(db)
 
@@ -208,7 +214,7 @@ class TestCapabilityDestinations:
 
         section = await _capability_destinations(db)
 
-        assert len(section.rows) == 1
+        assert len(section.rows) == 2
         assert section.rows[0][:3] == ["agent research", "default v4", "web_research"]
         assert "DuckDuckGo" in section.rows[0][3]
 
@@ -218,6 +224,43 @@ class TestCapabilityDestinations:
         section = await _capability_destinations(db)
 
         assert section.rows[0][1] == "environment production v2"
+
+    @pytest.mark.parametrize(
+        "config", [{"runs_on": "this_computer"}, {"runs_on": "sandbox"}, {}, None]
+    )
+    async def test_coding_agent_destination_follows_the_published_execution_target(
+        self, config: dict[str, str] | None
+    ) -> None:
+        db = _db(
+            [("coder", 3, {"capabilities": [{"id": "coding_agent", "config": config}]})],
+            [],
+        )
+        section = await _capability_destinations(db)
+        destination = section.rows[0][3]
+        if config and config.get("runs_on") == "this_computer":
+            assert "directly from that computer" in destination
+            assert "does not control its model, endpoint or sign-in" in destination
+            assert "sandbox" not in destination
+        else:
+            assert "from the agent's sandbox" in destination
+
+    @pytest.mark.parametrize(
+        "bindings", [[], [{"id": "coding_agent", "config": {"runs_on": "sandbox"}}]]
+    )
+    async def test_runtime_local_coding_is_reported_independently_of_the_published_spec(
+        self, bindings: list[dict[str, object]]
+    ) -> None:
+        section = await _capability_destinations(
+            _db([("agent", 1, {"capabilities": bindings})], [])
+        )
+        row = section.rows[-1]
+        assert row[:3] == [
+            "desktop chat",
+            "per-conversation override",
+            "coding_agent (this computer)",
+        ]
+        assert "directly from that computer" in row[3]
+        assert "not evidence" in section.note
 
     def test_every_registered_capability_is_classified(self) -> None:
         """A new capability fails here rather than leaving the inventory short."""
@@ -310,6 +353,8 @@ class TestUnreferencedMedia:
     """The one number a reviewer cannot re-derive from the database alone."""
 
     def test_walk_skips_what_has_no_row_by_design(self, tmp_path) -> None:
+        """Generated media is not skipped: `generated_media` records each file since
+        #2310, so one with no row - made before the table existed - is counted."""
         (tmp_path / "user").mkdir()
         (tmp_path / "user" / "a.pdf").write_text("x")
         (tmp_path / "generated_org").mkdir()
@@ -317,7 +362,7 @@ class TestUnreferencedMedia:
         (tmp_path / "_rag_tmp").mkdir()
         (tmp_path / "_rag_tmp" / "scratch.pdf").write_text("x")
 
-        assert _walk_media(tmp_path) == ["user/a.pdf"]
+        assert _walk_media(tmp_path) == ["generated_org/chart.png", "user/a.pdf"]
 
     def test_a_missing_media_dir_is_no_files_rather_than_an_error(self, tmp_path) -> None:
         assert _walk_media(tmp_path / "absent") == []
@@ -426,6 +471,45 @@ class TestTheReportItself:
 
         assert cells.count("unset") == 4
         assert "none" in cells
+
+    @pytest.mark.parametrize(
+        ("hosts", "shown"),
+        [
+            (["postgres-mcp"], "postgres-mcp"),
+            (["postgres-mcp", "10.0.0.5"], "postgres-mcp, 10.0.0.5"),
+            ([], "none"),
+        ],
+    )
+    def test_the_mcp_allowlist_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, hosts: list[str], shown: str
+    ) -> None:
+        """Each listed host is one this deployment may reach inside its own
+        network, so a reviewer should find it here, with the mem0 and browser
+        allowlists. Read by row: `none` in the cells could come from either of
+        those."""
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", hosts)
+
+        rows = {row[0]: row[1] for row in _settings_section().rows}
+
+        assert rows["MCP_ALLOWED_HOSTS"] == shown
+
+    @pytest.mark.parametrize(
+        ("entries", "shown"),
+        [
+            (["wiki", ".corp.example"], "wiki, .corp.example"),
+            (["10.1.0.0/16"], "10.1.0.0/16"),
+            ([], "none"),
+        ],
+    )
+    def test_the_private_allowlist_is_reported(
+        self, monkeypatch: pytest.MonkeyPatch, entries: list[str], shown: str
+    ) -> None:
+        """Every member can reach what is listed here, so a reviewer finds it by name."""
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", entries)
+
+        rows = {row[0]: row[1] for row in _settings_section().rows}
+
+        assert rows["OUTBOUND_PRIVATE_ALLOWLIST"] == shown
 
     def test_the_settings_say_which_mail_path_is_live(
         self, monkeypatch: pytest.MonkeyPatch

@@ -223,11 +223,18 @@ class VisualsToolset:
           "three/addons/": "./lib/three-0.186.0/addons/"}}</script>`, then
           `import * as THREE from "three"` and
           `import { OrbitControls } from "three/addons/controls/OrbitControls.js"`.
+        - a world map - countries shaded by a value, pins, routes - with no tile server:
+          `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js` and
+          `lib/agenticos-worldmap-1.js` after d3, then `AOWorldMap.draw(element,
+          {countries: {Poland: 12}, pins: [{name, lat, lng}], routes: [{from, to}]})`.
+          Prefer it to the itinerary map for anything about countries or regions;
         - a map: `lib/leaflet-1.9.4/leaflet.css`, `lib/leaflet-1.9.4/leaflet.js` and
-          `lib/agenticos-map-1.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
+          `lib/agenticos-map-2.js`, then `AOMap.itinerary(element, {stops: [{name, lat,
           lng, day, note}]})` - numbered pins dropped in order, pause and replay, and
           cards for the stops. It draws on the deployment's map tiles, or as an outline
-          of the stops where there are none; your instructions say which.
+          of the stops where there are none; your instructions say which. It is its
+          own layout: put the element straight on the page, without a border or a
+          `min-height` around it, and do not list the stops again beside it.
 
         Controls run inside the drawing. A button may also continue the conversation
         with what the person picked: `agenticos.followUp("Plan day 2 in Kyoto")`. The
@@ -257,8 +264,9 @@ class VisualsToolset:
             A line naming the drawing and its visual id, and - when somebody is
             watching - how it rendered in their browser: cleanly, or the script
             errors, failed loads and refused requests to fix with `revise_visual`.
-            The user is already looking at it: do not repeat its source or describe
-            it at length. Pass the id to `read_visual` to read it back.
+            Describe it briefly without repeating its source. Claim it is on
+            screen only when the result confirms that. Pass the id to
+            `read_visual` to read it back.
         """
         if ctx.deps.delegated:
             return DELEGATED
@@ -520,7 +528,9 @@ async def _checked(ctx: RunContext[AgentDeps], call_id: str) -> str:
         # Not "under your message": where nobody watches the web chat, the person
         # sees it later, or as a picture in a chat app.
         return (
-            "It is kept with the conversation and shown where the person reads it. "
+            "It is kept with the conversation; delivery is not confirmed. Chat apps "
+            "receive a picture only if the deployment's visual renderer succeeds. "
+            "Do not claim it is on screen or has been sent. "
             "Refer to it, do not repeat it."
         )
     report = await reports.wait(call_id, REPORT_TIMEOUT)

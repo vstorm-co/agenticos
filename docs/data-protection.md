@@ -15,13 +15,23 @@ deployment has actually decided.
     agreements signed and the operator running it. Every such condition is
     named below as something to obtain and verify, never assumed.
 
-## Nothing leaves by default
+The capability inventory also includes the selectable per-conversation desktop coding-agent override, even when the published spec has no coding-agent binding or uses a sandbox. That row describes a possible route, not evidence that it was used.
 
-A fresh deployment holds everything in its own PostgreSQL and on its own disk
-and sends nothing anywhere. Every external hop is a row or a setting somebody
-adds afterwards: a model profile naming a provider, a collection choosing a
-parser, a search method on a spec, a Logfire token, a mem0 host, an MCP server,
-a channel bot. Remove the row and the hop is gone.
+## What leaves by default { #nothing-leaves-by-default }
+
+A fresh deployment holds everything in its own PostgreSQL and on its own disk or
+the object storage it is configured with. It sends no prompts, conversations or
+documents anywhere. Every external hop is a row or a setting somebody adds
+afterwards: a model profile naming a provider, a collection choosing a parser or a
+remote embedding provider (which then receives the document chunks), a search
+method on a spec, a Logfire token, a mem0
+host, an MCP server, a channel bot. Remove the row and the hop is gone.
+
+One report is on by default and carries no content: [deployment
+diagnostics](#deployment-diagnostics) send installation health, coarse usage
+counts, counts of failed runs, jobs and ingestions by closed category, and a
+pseudonymous activity signal to a collector. A deployment that wants **no
+outbound contact at all** sets `DIAGNOSTICS_ENABLED=false`.
 
 So a deployment that wants **no third party in the chain** configures itself
 that way and the software cooperates:
@@ -34,7 +44,7 @@ that way and the software cooperates:
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |
 | Search, browsing, memory, tools | Bind no `search` secret, no `web_fetch`, `browser_use` or `memory_mem0` capability, no MCP connection. The web browser can stay when every site it may open is on `allowed_domains` and its steps go to a model you host |
 | Mail | Your own SMTP relay |
-| Speech and images | For speech, no provider at all: keep dictation on `off` or `browser` and channel bots switched off, since a self-hosted speech-to-text server cannot be named yet (a planned follow-up). For images, a profile on a provider you host, or no such profile |
+| Speech, images and video | For speech to text, no provider at all: keep dictation on `off` or `browser` and channel bots switched off, since a self-hosted speech-to-text server cannot be named yet (a planned follow-up). For speech generation and video, no `text_to_speech` or `video_generation` capability. For images, a profile on a provider you host, or no such profile |
 
 Embeddings included: the catalog names OpenRouter and OpenAI, which a
 collection reaches with a vault key, and `ollama`, which a collection reaches
@@ -48,7 +58,7 @@ hardware creates every collection there.
 | Party | Role | What that means here |
 |---|---|---|
 | The organization deploying it (a city, a company) | **Controller** | Decides purposes, retention, which providers an agent may reach, and signs the agreements with them |
-| Vstorm, as the software's author | **Neither**, for a self-hosted deployment | The code runs on your infrastructure and nothing phones home. Vstorm never sees your data |
+| Vstorm, as the software's author | **Neither**, for a self-hosted deployment | The code runs on your infrastructure. Vstorm never sees your prompts, conversations or documents. While the default collector is in use, which Vstorm operates, it receives [deployment diagnostics](#deployment-diagnostics); with `DIAGNOSTICS_ENABLED=false` or your own collector it receives none |
 | Vstorm, if it operates the deployment for you | **Processor** | A data processing agreement is a contract between us, not a setting. It has to exist before the first agent is published |
 | A model, embedding, parsing, search or observability provider | **Sub-processor**, chosen by configuration | The platform records *which* provider and *which* endpoint each agent uses. Their location, retention and training terms are theirs, and are verified per deployment |
 
@@ -68,52 +78,107 @@ parent's check.
 
 ### The database
 
+The aggregate ceiling is checked inside the mutation savepoint, under an organization lock, before commit. An over-limit write rolls back its record and every retained copy, including a batch row; remaining batch rows are reported as refused. Receipt replay, unchanged writes, reads and deletion remain available after a limit is lowered. Retention releases the bytes it removes. Stored PostgreSQL JSONB payload bytes per organization across records, history, receipts and outbox; physical table/index overhead is separate.
+
 | Store | Holds | Personal data in it | Purpose |
 |---|---|---|---|
-| `users`, `sessions`, `organization_members` | Accounts and sign-ins | Email, name, avatar, hashed password or the Google account id, refresh-token hash, IP address and user agent per session | Authentication and authorization |
+| `users`, `sessions`, `organization_members` | Accounts and sign-ins | Email, name, avatar, hashed password or the Google account id, refresh-token hash, IP address and user agent per session; what the person told agents about themselves - console language, time zone, role, what they work on, working hours - and the first messages written for their empty chat | Authentication and authorization; what every agent is told about the person |
 | `browser_sign_ins` | A person's kept sign-ins to sites, for the web browser | The site, the organization, when it was last used, and the session itself (cookies and the site's `localStorage`) sealed through the vault under the person's own scope | Starting a later browse that acts for them already signed in. The personal-data export lists the sites, never the session |
 | `conversations`, `messages`, `tool_calls` | Every chat on every surface | The text people wrote, the model's answers and reasoning, tool arguments and results, a rolling summary of long threads | The product's core function; history the person returns to |
 | `voice_calls` | Each connection of a [voice call](voice.md) | The caller's user id (none for a visitor), the agent, run, conversation and embed it belonged to, the provider and model, the provider's call id, the id of the vault key it was held with, the worker holding it, its heartbeat, start, end and hang-up times, its cost, seconds and guardrail hit count. **No audio and no transcript** - the call's words are ordinary rows in `messages`, each marked with a `turn_id` and, when the caller talked over it, `interrupted` | Hanging up a call whose process died, and counting the organization's monthly call minutes |
 | `chat_files` | Attachments to a message | Filename, type, size, the extracted text (`parsed_content`) and the path of the bytes on disk | Answering about a file |
+| `generated_media` | One row per image, speech clip or video an agent generated | The organization, the conversation it was made in where the run had one, the file's name, storage path and size - **not its content**, which is a file under `MEDIA_DIR` | Counting each organization's generated media against its quota, and deleting it with its conversation or after its retention period |
 | `context_files` | Standing knowledge a builder wrote for agents | Whatever the author put there - and it reaches the prompt verbatim. See [Context files](context.md) | Instructions and facts an agent should always know |
-| `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read; the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Apps](artifacts.md) | Sharing a result under a stable link |
+| `virtual_table_records`, `virtual_table_record_history`, `virtual_table_receipts`, `virtual_table_outbox` | The rows of a [Virtual Table](virtual-tables.md) and the trail of every change to them | Whatever the organization put in its cells, which can be personal data. The current values (records); the whole record on a create and a delete and only the cells that changed on an update (history); the whole record as a keyed write returned it (receipts); the ids and external id of each created record (outbox, no values). A record delete removes only the current row: history and receipts keep the values until the daily retention sweep removes them, receipts after 24 hours, dispatched outbox rows after 3 days and history after 365 days, all deployment settings. Deleting an account removes its receipts and clears it as the actor on history; deleting the organization removes all four | Typed records for agents and workflows, safe retries of a write, and the hand-off of a created record |
+| `virtual_table_triggers`, `virtual_table_trigger_revisions`, `table_trigger_admissions` | A table's [triggers](virtual-tables.md#triggers), every configuration each has had, and what each decided about a created record | The member a trigger runs as; its filter values and mapping keys, which can hold personal data if a builder typed some (a filter on an email address). A decision holds a status, a coarse reason and the run it started, never the record's values. No retention class sweeps them: they go with their table and trigger, and deleting an account clears it as the member, after which the trigger starts nothing | Running a workflow when a record is added |
+| `artifacts`, `artifact_versions` and their files | Pages agents published - reports, dashboards | Whatever the page shows, which the run built from what it could read - or, for a page bound to table data, its page queries (table, filters, sort, limit and columns, each resolved to ids) with the records themselves read at view time with the page owner's access and never stored in the page; per version, who published it and the owner's consent to share its data (a fingerprint of the queries, the owner's membership and when) and the page's public data consent (who confirmed it, the owner's membership, when); the organization row holds the `public_live_data` switch; the owner, the run that wrote each version and, when one is on, the public link's key, its settings (a password as a bcrypt hash) and how often it was opened - a count and a time, nothing about the visitor. See [Apps](artifacts.md) | Sharing a result under a stable link |
 | `agent_memory_files` | Notes an agent wrote about a person or a group chat | Whatever the agent decided was worth remembering, keyed to `person:<user_id>` or a chat room | Continuity between conversations |
 | `rag_documents`, `knowledge_bases` and one vector table per collection | Uploaded and synced documents, their chunks and embeddings | The document text and its vectors, the file's original path in the source | Retrieval |
-| `agent_runs`, `tool_approvals`, `run_manifests` | What each run cost and did | The system prompt and last request handed to the model, tool arguments awaiting approval, the deciding person and their note | Budgets, approvals, run history |
+| `agent_runs`, `tool_approvals`, `run_manifests` | What each run cost and did | The system prompt and last request handed to the model, tool arguments awaiting approval, the deciding person and their note. Beside the arguments, `tool_approvals.context` holds the names a parked call's ids stand for - a view's and a table's name, never a record's contents - resolved as the run's person when the call parked. It is kept with the approval row, after the view or table is renamed or gone, and read by whoever may decide approvals, whatever their own access to that table | Budgets, approvals, run history |
+| `workflow_runs`, `node_runs`, `node_attempts`, `workflow_events`, `dispatch_outbox`, `resource_refs` | Each run of a workflow, every node's attempts and the run's event stream | The account the run acts as, and for a run started from a [page's action](artifacts.md#actions) the page and its version number; each attempt's result, which holds whatever the node produced from the data it was given; a failure's code and message; the file and table references a graph bound. Workflow history and files follow `run_retention_days`. The sweep keeps active retry sources, called runs still needed by a live caller, and file producers referenced by retained consumers. Deleting a workflow explicitly can still remove its history. | Running a workflow to completion across restarts, and showing its history |
+| `workflow_approvals` | The requests a workflow's [`human.approval`](reference/workflow-nodes.md#human-approval) steps raised | The step's title and details, the proposal bound to it and the approved final text (content, in plaintext), the ids of the named approvers, the deciding person and their note, and how much of the proposal the approver changed (`edit_ratio`, a number between 0 and 1, never text). Deleted with the run | Letting a person approve, reject or edit what a workflow is about to do |
+| `workflow_files` | The files a workflow run's steps stored - downloads, written files, rendered pages, transformed images, a script's output, and the attachments of a Gmail or Outlook message that started the run | Whatever the file holds, which can be personal data, and its name. The bytes live under `MEDIA_DIR` or the object store. Workflow history and files follow `run_retention_days`. The sweep keeps active retry sources, called runs still needed by a live caller, and file producers referenced by retained consumers. Deleting a workflow explicitly can still remove its history. | Handing files from one step to the next, and downloading them from the run |
+| `workflow_exposures`, `workflow_webhook_deliveries` | A workflow's webhooks and schedules, and every webhook delivery it admitted | The member each runs as, a schedule's input, a webhook's signing secret sealed in the vault, and each delivery's id beside the run it started. They go with their workflow and organization, and the member is cleared when the account is deleted | Running a workflow from outside the console exactly once per delivery |
 | `agent_triggers` | Scheduled and event-driven runs | The prompt and the event source's configuration and filter | Running an agent without a person |
 | `app_admin_audit_logs` | Who changed access or spent money - the organization trail and the deployment admin's share one table | Actor, impersonator, IP address, the action and a `details` map. The map mostly names fields, but some entries hold values: the impersonated account's email, the email of an account an admin deleted, a publish note | Accountability. See [Governance](governance.md#audit) |
-| `notifications`, `notification_deliveries` | Every notification addressed to somebody, and its email delivery. A row is written even when the recipient has turned every channel off for that event - it is what stops the same occurrence being written twice - and is simply never shown or sent; only the delivery row is conditional | The recipient, a pre-rendered summary (never a raw comment or secret value) and the typed variables an email re-renders from; a delivery row adds its channel, status, attempts and a sanitized failure reason - never the provider's own error text | Alerts a person reads once, unattended. See [Governance](governance.md#alerts) |
+| `notifications`, `notification_deliveries` | Every notification addressed to somebody, and its email delivery. A row is written even when the recipient has turned every channel off for that event - it is what stops the same occurrence being written twice - and is simply never shown or sent; only the delivery row is conditional | The recipient, a pre-rendered summary (never a raw comment or secret value) and the typed variables an email re-renders from; a delivery row adds its channel, status, attempts and a sanitized failure reason - never the provider's own error text. An approval asked by an unlinked chat account keeps that display name or handle in the summary and the variables, until the notification retention sweep removes the row - deleting the identity does not reach it | Alerts a person reads once, unattended. See [Governance](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Per-event channel toggles, and an app admin's own broadcasts | A user id per toggle; a broadcast's sender, its body and the organizations and role it was addressed to - never the resolved recipient list, which is reconstructable from `notifications` only until that row ages out under [the notification retention sweep](governance.md#alerts) - after which the audit entry behind it keeps a count, never the recipients | Opt-out, and the composer's own record |
-| `embed_visitors`, `channel_identities`, `channel_sessions` | Strangers on a hosted page and people on Slack, Telegram or Mattermost | A random visitor key; a platform user id, username and display name; the chat id | Resuming the right thread |
+| `embed_visitors`, `channel_identities`, `channel_sessions` | Strangers on a hosted page and people on Slack, Teams, Telegram or Mattermost | A random visitor key; a platform user id, username and display name; the chat id | Resuming the right thread. For an unlinked asker, the display name or handle is also shown in the approvals queue, its CSV export and the approval email, to the people who decide |
 | `message_ratings` | Thumbs and comments on answers | The rater and their comment | Quality review |
+| `suggestions` | What the [proactive work](governance.md#proactive-work) proposed to a person, and whether they took it | The person, a title and a line of detail drawn from their recent requests, the routine prompt or profile it would set, and a key that stops a dismissed proposal being made again | Proposals the person decides on |
+| `watches` | What a person asked the [proactive work](governance.md#proactive-work) to watch in their own connections | The person, which of their connections, what to look for and leave out in their own words, how often and when it last looked | Watches the person sets up |
 | `ml_service_calls` | Every call to the [ML services](ml-services.md), and every transcription: dictation, a channel voice message, the API, a visitor's dictation on a hosted page or a widget | The organization, who asked, which service, byte and unit counts, the duration and how it ended; for a transcription also the provider and model, the id of the vault key it was sent with, where it arrived, the agent and channel bot it was for and the recording's length. A channel voice message's row names the person the sender's account is linked to, and nobody for an unlinked sender. A visitor's row names nobody - not the visitor, who has no account, and not whoever published the page. Deleting the person, the agent, the bot or the key clears the link and keeps the row - **none of what was submitted and none of what came back** | Usage reporting, and an operator's view of an integration that is failing |
 | `agent_workspaces`, `sandbox_operations` | Files an agent worked on and the log of what it ran | For the `state` backend the files themselves, as JSON; for a container the session id and every command, target and result summary | The sandbox. See [The sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Credentials and where they point | Sealed ciphertext only, with a hint; the provider, model and `base_url` in clear | Reaching providers. See [Secrets](secrets.md) |
+
+`workflow_node_spend` retains direct decision and embedding fees after execution history is deleted: organization, attempt UUID, cost, partial-cost flag and timestamps. It holds no prompts, results, files or member identity. Agent fees remain on `agent_runs` and are not counted twice. Historical usage that was never recorded cannot be reconstructed.
 
 `messages.search_vector` is a full-text index over the same content, and
 `conversations.summary_messages` is a model-written compression of it. Both
 are copies of the chat and go with it.
 
+### Generated media
+
+An image, a speech clip or a video an agent generates is a file under
+`generated_<org>/` and a `generated_media` row naming it. The row records the
+organization, the conversation where the run had one, and the size - so the
+organization's total is bounded by `GENERATED_MEDIA_QUOTA_MB` (5120), checked
+before each paid generation call. Every file counts, including one made with no
+conversation: a preview or a test run, a channel `/btw` aside, an API run that
+names no conversation, or a file whose conversation was deleted by a path that
+left it behind.
+
+The file is deleted with its
+conversation, with the account whose conversation it was, by the daily
+`sweep-generated-media` job once it is older than
+`GENERATED_MEDIA_RETENTION_DAYS` (90) even while its conversation is still
+there, and by prefix with its organization. 0 turns either bound off. A file
+with no conversation is nothing a member could delete to free the space, so the
+same job deletes it after 7 days, whatever `GENERATED_MEDIA_RETENTION_DAYS` is,
+0 included. A link to it - in a channel reply or an API response - stops
+working then.
+
+Deleting a conversation, an account or an organization removes the rows in its
+own transaction and queues the unlink of the bytes as a background job in that
+same transaction, so the bytes go only if the rows do, and a restart after the
+commit does not lose the unlink. That job retries a prefix the store will not
+remove whole - an organization's - and a single file of a deleted conversation
+or account that the store refuses, because nothing else could find those bytes
+again. A file the store still refuses after the job's last attempt stays under
+`generated_<org>/` with no row until its organization goes, and the report
+below counts it.
+
+The sweep deletes a
+file first and its row only once the file is gone; a file the store refuses
+keeps its row, and the next sweep tries it again.
+
+Files generated before the table existed have no row. They are still served, but
+they are not counted against the quota and the sweep cannot see them: they go
+with their organization, or by hand, and the data-protection report counts them
+among the files with no row.
+
 ### Outside the database
 
 | Store | Holds | Deleted when |
 |---|---|---|
-| `MEDIA_DIR` on the API host (`media_data` volume) | Chat attachments under `<user_id>/`, avatars, embed logos, generated images under `generated_<org>/`, and a temporary copy of each document under `_rag_tmp` while it is parsed | A document is deleted through the product. **Nothing in the product removes a chat attachment's bytes** - not deleting its conversation, not deleting its owner. See [What deletion reaches](#what-deletion-reaches) |
+| `MEDIA_DIR` on the API host (`media_data` volume) | Chat attachments under `<user_id>/`, avatars, embed logos, the images, speech and video agents generated under `generated_<org>/`, and a temporary copy of each document under `_rag_tmp` while it is parsed | A document is deleted through the product. Its parse copy under `_rag_tmp` goes when its ingest job ends - indexed, refused, its document gone, or failed on its last attempt - and when the document is deleted; the hourly `sweep-rag-scratch` job removes one whose document is gone or no longer processing, and is what clears the copies earlier releases never removed. A chat attachment's bytes are unlinked after the commit that deletes its conversation or its owner. A generated file goes with the conversation it was made in, after `GENERATED_MEDIA_RETENTION_DAYS` (90) whatever became of the conversation - after 7 days when it has no conversation - and with its organization; see [Generated media](#generated-media). See [What deletion reaches](#what-deletion-reaches) |
 | `SANDBOXD_WORKSPACE_ROOT` on the sandbox host | The files of every container-backed workspace | The conversation is deleted, or `SANDBOXD_WORKSPACE_TTL` sweeps them; unset, they are kept indefinitely. See [How long anything survives](sandbox.md#how-long-anything-survives) |
 | Redis | Rate-limit buckets keyed on the caller - for a public surface that is the **plain IP address**, in the key, for the window's TTL; trigger and channel deduplication keys; OAuth exchange state; staged invitations; a browse's live view - its latest screenshot, its steps, and what the person holding it clicked and typed until the browse reads it; a person's replayable browse steps - the addresses and labels of what their finished browses pressed, never what they typed | On expiry: a live view an hour after the browse's last frame, replayable steps a fortnight after the task was last done, everything else within minutes |
-| `background_jobs` in PostgreSQL | Each background job's payload, its last error and an asynchronous API run's answer | The retention sweep removes a finished job after `BACKGROUND_JOB_RETENTION_DAYS` (14). Payloads are ids and paths, with two exceptions: an **event-triggered fire's `event_context`** - the sender, subject and body of a Gmail message, a GitHub issue, a webhook payload - and an **asynchronous API run's prompt and answer** travel in the job until then. The worker's logs pass the same redaction filter as the API's |
+| `background_jobs` in PostgreSQL | Each background job's payload, its last error and an asynchronous API run's answer | The retention sweep removes a finished job after `BACKGROUND_JOB_RETENTION_DAYS` (14). Payloads are ids and paths, with two exceptions: an **event-triggered fire's `event_context`** - the sender, subject and body of a Gmail or Outlook message with its message and thread ids, a GitHub issue, a webhook payload - and an **asynchronous API run's prompt and answer** travel in the job until then. The worker's logs pass the same redaction filter as the API's |
 | Logfire, when configured | Traces of every run | The provider's retention. Today a trace carries the full prompt, output and tool arguments - see [Traces](#traces) |
-| Your SMTP relay | Invitations, magic links, approval requests, budget alerts, usage reports, and the [notification inbox's](governance.md#alerts) own mail - a run finishing or failing unattended, a document's ingestion completing or failing, a security event or configuration change, an admin's own broadcast | Whatever the relay keeps. Approval mail names the agent, the tool and a link, not the tool's arguments |
+| Your SMTP relay | Invitations, magic links, approval requests, budget alerts, usage reports, and the [notification inbox's](governance.md#alerts) own mail - a run finishing or failing unattended, a document's ingestion completing or failing, a security event or configuration change, an admin's own broadcast - and the subject and text of a workflow's [`email.send`](reference/workflow-nodes.md#email-send) step, to whatever addresses it was given | Whatever the relay keeps. Approval mail names the agent, the tool and a link, not the tool's arguments; for a call asked by an unlinked chat account it also names that account's display name or handle and the bot |
 | Backups | A `pg_dump` is the whole database; the media volume is the files | Your backup expiry. Erasure never reaches a backup already taken - see [Backups](deploy.md#backups) |
 
 ## What leaves the deployment
 
-Nothing leaves unless a row or a setting names a destination. This is the
+Nothing leaves unless a row or a setting names a destination, with one exception:
+[deployment diagnostics](#deployment-diagnostics) are on by default. This is the
 complete list of destinations, with the configuration that decides each.
 
 | Destination | What is sent | Decided by | Location and terms |
 |---|---|---|---|
-| The chat model | The conversation so far, attachments pasted or described, retrieved chunks, tool results | A [model profile](models.md#a-model-profile): `provider`, `model`, `base_url` and a sealed key. Twenty-seven providers; `ollama` and `litellm` are keyless and reached at an endpoint you host, and `openai`, `anthropic`, `google`, `huggingface` and others accept a `base_url`, so an EU endpoint or a gateway is a field, not a fork. An `openai` or `azure` profile on the Responses API sends `store: false`, so the provider keeps no stored, retrievable response unless the profile sets `openai_store`; OpenAI's abuse-monitoring retention still applies unless the account has zero data retention | The provider's. Verify per profile |
+| The diagnostics collector | Installation health, coarse usage counts, counts of failed runs, jobs and ingestions by closed category, and a pseudonymous activity signal sent by each browser or app; no prompts, conversations, file names, account names, email addresses or provider keys | `DIAGNOSTICS_ENABLED` (default `true`) and `DIAGNOSTICS_COLLECTOR_URL` | `https://analytics-agenticos.testapp.ovh` by default; [what is sent](configuration.md#diagnostics) |
+| The chat model | The conversation so far, attachments pasted or described, retrieved chunks, tool results; once a night, for the [proactive work](governance.md#proactive-work), a person's recent requests, their profile and what their agent noted about them | A [model profile](models.md#a-model-profile): `provider`, `model`, `base_url` and a sealed key. Twenty-seven providers; `ollama` and `litellm` are keyless and reached at an endpoint you host, and `openai`, `anthropic`, `google`, `huggingface` and others accept a `base_url`, so an EU endpoint or a gateway is a field, not a fork. An `openai` or `azure` profile on the Responses API sends `store: false`, so the provider keeps no stored, retrievable response unless the profile sets `openai_store`; OpenAI's abuse-monitoring retention still applies unless the account has zero data retention | The provider's. Verify per profile |
 | The embedding model | Every chunk of every document in a collection, and every retrieval query | Per collection, and only there: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog) and, for the first two, the vault key `embedding_secret_id` that pays. There is no deployment-wide embedding key; a keyed collection without one refuses to index or search. `ollama` is keyless and reached at the local service the collection names (`embedding_endpoint_id`), a host you run | The provider's, or your own host. [A permanent choice](choosing-models.md#embeddings-are-a-separate-permanent-choice) |
 | LlamaCloud | The whole document | A collection whose `pdf_parser` is `llamaparse`; it must name a vault key (`llamaparse_secret_id`), there is no deployment key. The default `pymupdf` parses in the worker | LlamaCloud's, if used |
 | An OCR server | Rendered pages of a document | A collection whose `pdf_parser` is `liteparse` **and** whose `ocr_endpoint_id` names a local service; with none, OCR runs in the worker | Your own host - a local service is on the deployment's network by construction |
@@ -122,22 +187,100 @@ complete list of destinations, with the configuration that decides each.
 | Web fetch and the web browser | The URL; for the browser, what it types into the sites it opens | The capability on the spec; the browser also needs a CDP endpoint on `BROWSER_CDP_ALLOWED_HOSTS`, empty by default | The site fetched; the browser host and the sites it opens |
 | An agent's browser proxy or hosted browser | Everything the browser loads and sends, the way the browser in the deployment otherwise would - pages, form contents, cookies, sign-ins - plus the proxy's or the service's own record of it | `browser_use.connection` on the spec (#2130); `built_in` by default | The proxy, or the hosted browser service (Browserbase, Steel or another), under the organization's own contract with it |
 | The web browser's steps | Every step of a browse goes to the agent's own model: the page's URL, its title, the labels of the elements in view and up to 4,000 characters of its visible text, plus a screenshot when `vision` is on - which may be the contents of an internal system. What a field holds is not repeated: the element table says only that a field is filled | The `browser_use` capability on the spec | The agent's model provider, as for the conversation |
+| Computer use | Every screenshot of the desktop goes to the agent's own model, and may show anything open on it; none is stored with the run. The actions, including the text the model types, go to the desktop | The `computer_use` capability on the spec, with a sandbox connection for a desktop in the sandbox; a daemon desktop needs its host on `COMPUTER_DAEMON_ALLOWED_HOSTS`, empty by default, and the organization's token for it in the vault | The agent's model provider; the agent's sandbox connection, or the `computerd` host the operator runs |
+| Local coding agents | The task and code Claude Code or Codex reads on the person's computer | `coding_agent.runs_on: this_computer`, a full-access folder grant and native launch confirmation. The local agent controls its own model, endpoint and sign-in; the deployment does not select them | Directly from that computer to the provider or gateway configured in the local agent. The data-protection report distinguishes this path from sandbox execution |
 | The sandbox, outbound | **Anything in the workspace, to any host** - the `workbench` runtime has a network, a shell and `curl` | The `sandbox` capability and a runtime with `needs_network`; command approval gates what runs, not where it connects | Wherever the command went. Egress control is the sandbox host's firewall, not a setting here |
-| An MCP server | Tool arguments and results | `mcp_connections.url`, per organization or per person | The server's operator |
+| An MCP server | Tool arguments and results, an agent's or a workflow's [`mcp.call`](reference/workflow-nodes.md#mcp-call) step's | `mcp_connections.url`, per organization or per person | The server's operator |
+| Google Workspace and Microsoft 365, through a server you run | What an agent's or a workflow's `mcp.call` step asks for - search terms, message and thread ids, reply text, event details - sent on to Google's or Microsoft's APIs by your own server, which also holds the signed-in tokens | An organization or personal connection made from the `google-workspace` or `ms-365` catalog entry | Your server, then Google or Microsoft |
+| Microsoft Work IQ | What a tool call asks for, and the answer, in Microsoft's hosted service; it bills in Copilot Credits | A connection made from the `work-iq` catalog entry | Microsoft's |
+| A host on your own network | Whatever a workflow HTTP step, a connector, an A2A call or an MCP connection sends there | `OUTBOUND_PRIVATE_ALLOWLIST`, empty by default; `MCP_ALLOWED_HOSTS` for MCP alone | The host you list. Every account of every organization can reach every port on it |
 | A virtual terminal's services | The commands the agent runs against each mounted folder, and what it writes there; what it reads comes back to the agent's model | The `mirage` capability's folders on the spec: a service, its options and a vault secret or a [connected account](secrets.md#connected-accounts). A typed host must be in `MIRAGE_ALLOWED_HOSTS` | Each mounted service's - Google, GitHub, Notion, your own database or server |
 | mem0 | The memories written for a person or a chat | The `memory_mem0` capability's `base_url`, which must be in `MEM0_ALLOWED_HOSTS` | The mem0 host you allow |
 | Logfire | Spans for every request and run | `LOGFIRE_TOKEN` deployment-wide; an `observability` token on a spec, or `logfire_token_secret_id` on an environment, redirects those runs to another project. `LOGFIRE_BASE_URL` picks the US or EU deployment. Unset everywhere, nothing is sent | Pydantic's, US or EU |
 | Speech to text, image generation | A channel voice note, a recording dictated in `/chat`, or an anonymous visitor's recording on a hosted page or a widget; the prompt | The provider a recording resolves to - the bot's own pair, the agent's override, or the organization's default, which a bot inherits unless switched off - sent with the vault key named beside that pair - an API key for `groq`, `mistral` or `openai`, organization-visible at the organization and on a bot; for dictation in `/chat`, also the organization's engine set to `server`, and for a page or a widget its own `dictation: server`. A profile for `google` or `openai` for images. A dictation's audio is not stored here. With `browser` on a page or a widget, the visitor's browser sends the audio to its vendor and none of it passes through this deployment | The provider's, or your own host for images; for `browser`, the browser vendor's |
 | A realtime voice provider | During a [voice call](voice.md): the caller's audio, the agent's instructions and tool definitions, tool results, and the conversation's earlier turns as text when a call starts or reconnects | The agent's Voice section: `provider`, `model` (or an Azure deployment) and the vault key `secret_id`, published; with no Voice section the agent takes no calls. Over WebRTC (OpenAI) the audio flows between the browser and the provider directly; over the relay (Azure, Gemini, xAI) it passes through this deployment without being stored. No audio is kept here, and the session keeps transcripts only | The provider's |
-| Slack, Telegram, Mattermost | The agent's replies | A `channel_bots` row with its token in the vault | The messaging vendor already holds the chat |
+| Text to speech | The text to be spoken, and any direction on how to speak it | The `text_to_speech` capability's `provider`: `openai`, `elevenlabs` or `google`, with the binding's key | The provider's |
+| Video generation | The prompt, and any starting image | The `video_generation` capability's `provider`: `google`, `byteplus`, `xai` or `alibaba`, with the binding's key. `google` stores the interaction (`store: true`), because Gemini delivers a clip by address only from a stored one; the other three are not asked to | The provider's |
+| Slack, Teams, Telegram, Mattermost | The agent's replies; a new member's email address, to find them for a [welcome](channels.md#a-welcome-for-a-new-member) in Slack, Mattermost or Teams | A `channel_bots` row with its token in the vault | The messaging vendor already holds the chat |
 | Google sign-in | Nothing outbound; Google returns the email, name, picture and account id | `GOOGLE_CLIENT_ID` | Google's |
-| Your SMTP relay | The mail above | `SMTP_HOST`, `SMTP_TLS` | Yours |
+| Your SMTP relay | The mail above, and a workflow's [`email.send`](reference/workflow-nodes.md#email-send) text, to the addresses its builder chose | `SMTP_HOST`, `SMTP_TLS` | Yours, then each recipient's |
 
 Sync connectors run the other way: a Google Drive or S3 source pulls documents
 **in**, authenticated by a `connector` secret, and from then on the documents
 are the deployment's copy and follow the rules above. The people who can read
 what a source ingested is
 [a decision the source row makes](file-processing.md#who-ends-up-able-to-read-what-a-source-ingested).
+
+## Table data shown on a page { #table-data-on-a-page }
+
+A published [page](artifacts.md#live-data) can show records from a table, and those
+records may be personal data. This is **a flow inside the deployment, from the
+page's owner to everyone who can open the page** - not a destination outside it - but it
+bypasses the table's own access control, so it is listed here.
+
+- **What flows.** Only the columns a page query names, and the rows its filters
+  select, up to 1,000 a binding. A filter may use a column the page does not show, and
+  the owner is told which. Formulas, lookups, rollups and link labels carry data from
+  linked tables too, and the consent names those tables.
+- **On whose authority.** The page owner's. Every viewer is served the same records,
+  whatever their own access to the table. The data leaves the table only once the owner has
+  confirmed it, after reading the queries in words and who can open the page now
+  and later (the roles that open every page, the visibility, people and groups). The
+  data is read again on every load and never stored in the page. Reads for members are
+  not cached; reads for a public page are, as described below.
+- **What is stored about it.** Per page version: who published it, a fingerprint of its
+  queries, whether the owner consented, when and under which membership. Share requests keep
+  the requester, the kind, an optional note, the decision and who made it. The audit trail
+  records consent, withdrawal, auto-consent, `edit_data` grants, ownership changes and
+  requests, with the text a person confirmed.
+- **What is never logged.** Record values, filter values and the content address of a
+  page served with its data. The audit entries and notifications name the page and the
+  people, never a row.
+- **What does not reach it.** A deleted member's consent lapses with their membership,
+  and a page whose owner left serves no data until another owner confirms it.
+
+### To people with no account { #table-data-on-a-public-page }
+
+This is the one flow here that **leaves the circle of people who have an account**. A
+page's [public link and its embeds](artifacts.md#live-data-on-a-public-link) can write the
+same records into the page for anyone who opens the address, and for every site that
+embeds it, with no sign-in. Two decisions open it, and a deployment that does not want
+the flow leaves the first one off.
+
+- **Off by default, organization-wide.** `public_live_data` is a switch only an Owner or
+  Admin changes, as themselves. Off, no page shows data on a link or in an embed, whatever
+  its owner confirmed.
+- **Then per page.** The page's owner, or an Owner or Admin for them, confirms it after a
+  screen that names the tables and columns and says who can read them - anyone with the
+  link, its password and expiry, each embedding site. The consent is bound to the page
+  queries and to that audience. Adding a site, removing the password, turning the link
+  off, archiving the page, a new owner and a withdrawn member consent clear it.
+- **What is stored.** On the page: the fingerprint of the queries it was given to, who
+  confirmed it, the owner's membership and when. The organization row holds the switch.
+  The audit trail records `organization.public_live_data_changed`,
+  `artifact.public_data_consented`, `artifact.public_data_withdrawn` and
+  `artifact.public_data_voided` with table and column names, the embedding sites, whether a
+  password is set, the reason - never a row, a value or a visitor.
+- **The cache.** A binding's records are kept for 30 seconds in the memory of the API
+  process, so a busy page does not read its table once per visitor. They are **never
+  written to Redis**, the database or a file, the memory is bounded in bytes
+  (`ARTIFACT_PUBLIC_DATA_CACHE_BYTES`) and gone when the process stops. Every access gate runs
+  before the cache is read, so turning the switch off or rotating the link ends the flow
+  at the next load; what a visitor already loaded stays in their browser.
+- **What is never logged.** Record values, filter values, the link's key and the content
+  address of a page loaded with its data are kept out of logs, traces and audit entries.
+  No visitor is recorded: the link counts openings, not people. Only the rate-limit key holds the visitor's IP, in Redis, for minutes.
+- **Nobody is told why.** A visitor whose load fails a gate sees the page without its
+  data and no reason, so the page does not say what a table holds or why it is hidden.
+- **What a site that embeds the page sees.** The embedding site frames the page; the page
+  runs in an opaque origin with no network, so the site cannot read the records out of
+  the frame, but whoever opens the site reads them.
+
+Records shown to anyone with a link can be copied by anyone who sees them. Bind a public
+page only to columns that are meant to be public.
+
+A deployment that must keep a table's rows from some of its members should not bind
+a page to it that those members can open; the confirmation names who they are.
 
 ## Controls, and where each is proved
 
@@ -156,14 +299,14 @@ one.
 | In transit, to the stores | `POSTGRES_SSLMODE` and `REDIS_SSL`; `agenticos cmd doctor` reports whether the connection it made was encrypted | [Encrypted connections](configuration.md#encrypted-connections-tls); `tests/integration/test_store_tls.py` |
 | In transit, to providers | HTTPS to every catalogued endpoint. A custom `base_url` is refused without a host or with credentials in it, but **`http://` is accepted**, for an Ollama or a gateway on the deployment's own network; a plain-HTTP profile pointing off that network sends prompts and the key in clear. Item 4 of the checklist lists every such profile | `refused_field("base_url", ...)` in the model profile service; operator control for the scheme |
 | Secrets in responses, logs, audit, exports | No endpoint returns a plaintext; `SecretStr` everywhere; specs reference secrets by id | [Secrets](secrets.md#what-never-happens) |
-| Personal data in logs | `app/core/logging.py` redacts email addresses, JWTs, API keys, bearer tokens and `password=` pairs from every log record, API and worker alike | `tests/test_logging.py`; the worker installs it in `app/worker/__main__.py`, and each ingestion child in `app/worker/child.py` (#440) |
+| Personal data in logs | `app/core/logging.py` redacts email addresses, JWTs, API keys, bearer tokens, Discord interaction tokens, signed Discord attachment URL queries, `password=` pairs and the secret segment of an address - an artifact's link key or content token, a shared conversation's, a workflow form's, a webhook test's, a channel link's or an invitation's token, or a workflow run's resume token - and the value of a credential query parameter - the agent widget socket's `visitor` and `token`, a sign-in's `code`, `state` and `invitation_handle`, and the `token` of an emailed link - from every log record, API and worker alike, uvicorn's access log and WebSocket lines included. The same segments and values are redacted in Logfire spans and the endpoint arguments they carry, before a span is copied or printed. A Discord call authenticated by an interaction token, which travels in its URL, is not traced. The bundled Traefik and Nginx configurations leave the path, the query string and `Referer` out of the proxy's access log | `tests/test_logging.py`, `tests/test_discord_adapter.py` (interaction tracing), `tests/test_logfire_redaction.py`; the worker installs it in `app/worker/__main__.py`, and each ingestion child in `app/worker/child.py` (#440); [Deploy](deploy.md#choose-a-reverse-proxy) |
 | Personal data reaching the model | The `guardrails` capability redacts IBANs, card numbers, US social security numbers, phone numbers and email addresses from prompts, answers, tool results and tool arguments when configured | [Capabilities](reference/capabilities.md); its tests under `tests/` |
 | Personal data in a failure column | `rag_documents.error_message` and friends record the stage and class, never the client's text | `app/services/rag/failures.py` (#423) |
 | Accountability | Audit entries share the acting transaction and fail closed; impersonation names both people; bulk exports are recorded | [Governance](governance.md#audit) |
 | Audit export | `GET /audit/export`, CSV or JSONL over a window, gated on `audit:read` and recorded in the trail itself | [Governance](governance.md#audit) (#1422) |
 | Tamper evidence on the trail | Every entry joins a per-organization hash chain, and each chain carries a checkpoint at its high-water mark, so a rewritten entry, a dropped tail and a deleted chain are all detectable. `agenticos cmd audit-verify` walks them and exits non-zero on a break | [Governance](governance.md#audit) (#1622, #1648). Detection, not prevention: whoever holds the database's own credentials can re-forge a chain or drop the checkpoint's trigger |
 | Traces | `observability.content` per agent: `full` records everything, `none` records timing, tokens, cost and tool names only, and a specialist of that agent inherits it | [Environments](environments.md) (#1413); a `redacted` middle ground was decided against, [#1616](https://github.com/vstorm-co/agenticos/issues/1616) |
-| Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8) |
+| Retention on a schedule | Per organization and per class - conversations and their files, runs and manifests, workspaces, agent memory, uploaded documents and audit - within a deployment-wide default, ceiling and audit floor. A daily sweep hard-deletes and records counts, never content. Virtual Tables' receipts, dispatched outbox rows and history are swept in the same run, on deployment-wide periods rather than per-organization ones. Backups and anything already shipped to an external collector are outside it. `notifications` is not one of those classes: it sweeps on its own fixed schedule instead, a *read* row after 90 days and any row after a year regardless - `announcements` themselves are excluded, so what was sent stays answerable from the audit trail after its deliveries age out Generated media is also separate, under `GENERATED_MEDIA_RETENTION_DAYS`. | [Retention](governance.md#retention); `test_retention.py`, `tests/integration/test_retention_sweep.py`; the notification sweep is `tests/integration/test_notification_retention.py` (#1598, Decision 8); `test_generated_media.py`, `tests/integration/test_generated_media.py` |
 | Erasure of one person | Account deletion reconciles what would block it, unlinks the attachment bytes after the commit, and purges what no cascade reaches - the notes agents wrote about them, their platform identities, their user-scoped workspaces. Memory erasure is also a call of its own, and reaches mem0 | [What deletion reaches](#what-deletion-reaches) for what is deliberately retained; `test_personal_data.py` |
 | Access to one's own data | A person reads what every agent here has written down about them at Settings → Memory, and may suppress a note, restore it or delete it. Reading somebody *else's* store is the deployment administrator's alone - not an organization role - and is audited with the actor, the tenant, the subject and a reason, never the content. External (mem0) stores are named rather than listed | [Reading it, and erasing it](reference/capabilities.md#reading-it-and-erasing-it); `test_memory_self_service.py`. Everything else held about them comes back from `GET /me/data/export`, bounded and audited (#1421) |
 | Enterprise identity | Google sign-in, passwords, generic OIDC against the provider you already run - configured by discovery from `OIDC_ISSUER` alone - and your own directory over LDAP or Kerberos. The directory's address, display name and stable identifier are kept on the account; its groups are read at each sign-in and not stored, only the memberships the organizations' mappings make of them. No SAML or SCIM | [Directory sign-in and groups](directory.md); `OIDC_ISSUER`, `LDAP_URL` |
@@ -194,11 +337,13 @@ retention is [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 
 | Action | Removes | Leaves |
 |---|---|---|
-| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade - a voice call's transcript among them, since its turns are messages; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy; a `voice_calls` row keeps its times and cost with the conversation link cleared |
+| `DELETE /conversations/{id}` (the owner) | The conversation, its messages, tool calls, ratings, shares and `chat_files` rows, by cascade - a voice call's transcript among them, since its turns are messages; the attachments' bytes under `MEDIA_DIR`, collected before the delete and unlinked after it commits; the images, speech and video its agents generated - the rows in the delete, the bytes by a job queued with it; the thread's offloaded media objects by prefix; a container workspace through `purge_for_conversation` | Run rows and manifests that named the conversation keep their prompt copy; a `voice_calls` row keeps its times and cost with the conversation link cleared |
 | `DELETE /memory/person/{user_id}` (the person, or `members:manage`) | Every `agent_memory_files` row keyed to the person across the organization's agents, and the same in each bound mem0 store | Notes keyed to a group chat the person spoke in |
-| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations outside any project and chat files by cascade; their bytes, unlinked after the commit; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns, and the project chats they started, kept for the team with no starter; their turns there are drawn as a former member's |
-| Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit | Nothing, once the flow has run; `sync_logs` counts remain |
-| Deleting an organization | Everything scoped to it, with the same deferred teardown | Personal collections that merely carried the id |
+| `DELETE /users/{id}` | The account, its sessions, its personal organization and personal collections with their vector tables and files, by explicit teardown; conversations outside any project and chat files by cascade; their bytes, unlinked after the commit; the images, speech and video agents generated in those conversations, the rows in the delete and the bytes by a job queued with it; and what no cascade reaches - the notes agents wrote about them (`owner_key` is a string, not a foreign key), their platform identities and their user-scoped workspaces | Audit entries naming the actor id and, for some actions, the email - retained deliberately, because an entry with its actor removed is worse than one naming a deleted account. Messages in conversations somebody else owns, and the project chats they started, kept for the team with no starter, with the media generated in them; their turns there are drawn as a former member's. The media the person generated with no conversation - previews and test runs, channel `/btw` asides, API runs that named no conversation - which no row links to them; it goes after 7 days |
+| Deleting a document or a collection | The rows, the vector table and the stored file, through a durable flow after commit; the parse copy under `_rag_tmp`, when the document is deleted or its ingest job next runs, and otherwise by the hourly sweep once the copy is an hour old - within about two hours of the upload. A copy is kept while its document is still processing | Nothing, once the flow has run; `sync_logs` counts remain |
+| Deleting an organization | Everything scoped to it, with the same deferred teardown - its generated media by prefix, including files written before they were recorded | Personal collections that merely carried the id |
+
+Channel messages store only the sender’s text. Author labels are resolved from channel identities immediately before model dispatch, outside system instructions. The console and copy, pin and shortcut actions receive the plain body. Persisted histories and paused runs keep opaque identity references, and manifests omit the injected channel reference parts. Deleting an account removes its channel identities, so future requests cannot resolve that person’s platform labels; shared message bodies remain.
 
 None of these reach a backup. A restore brings back what was erased, so the
 backup expiry is part of the retention policy and is written down with it.
@@ -272,9 +417,18 @@ removed.
 Its last section counts the bytes no row names any more. Deleting a conversation
 or an account now unlinks their attachments after the commit, so that path no
 longer adds to it; what it still finds is what predates those deletes, plus an
-unlink a best-effort sweep did not complete. Generated images and the parse
-scratch directory are excluded, having no row by design; everything else counted
-there is bytes the product can no longer find and cannot delete. It reports a directory and a count rather than a
+unlink a best-effort sweep did not complete.
+
+The parse scratch directory is
+excluded, having no row by design; the hourly `sweep-rag-scratch` job removes a
+copy whose document is gone or no longer processing.
+
+Generated media is counted since
+`generated_media` records each file, so what shows up under a `generated_<org>`
+directory is mostly a file generated before that table existed, which goes only
+with its organization. It can also be a file whose unlink failed after its row
+was deleted, or one still being saved, before its row is written. Everything else counted there is bytes the product
+can no longer find and cannot delete. It reports a directory and a count rather than a
 filename, because a stored path keeps the name the file was uploaded under.
 
 Two sections are read off what runs rather than off a table. **Capability
@@ -323,3 +477,14 @@ egress and legal pages of the previous section. Each is the kind of evidence
 
 A review that finds every row above either closed or accepted in writing has
 what this page can give it. The rest is the deployment's.
+
+## Deployment diagnostics { #deployment-diagnostics }
+
+The collector receives installation health, coarse usage buckets, grouped failure
+counts (a component, a closed error code and a count, never exception text) and
+pseudonymous foreground presence, which each signed-in browser or app sends to it
+directly. Reporting is enabled by default, including upgrades with
+older `.env` files, and the default collector is a remote address,
+`https://analytics-agenticos.testapp.ovh`. See [diagnostic configuration](configuration.md#diagnostics)
+for the exact fields, retention, how to point it at your own collector, and how to
+turn it off with `DIAGNOSTICS_ENABLED=false`.

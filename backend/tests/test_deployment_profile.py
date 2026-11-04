@@ -71,6 +71,59 @@ async def _sheet(
     return {row.key: (row.outcome, row.detail) for row in await evaluate(db, "hipaa")}
 
 
+class TestThePrivateNetworkControl:
+    async def _control(self, monkeypatch, outbound: list[str], mcp: list[str]):
+        monkeypatch.setattr(settings, "OUTBOUND_PRIVATE_ALLOWLIST", outbound)
+        monkeypatch.setattr(settings, "MCP_ALLOWED_HOSTS", mcp)
+        rows = {row.key: row for row in await evaluate(_db(), "hipaa")}
+        return rows["private-network"]
+
+    async def test_the_private_network_control_is_met_when_both_lists_are_empty(
+        self, monkeypatch
+    ) -> None:
+        row = await self._control(monkeypatch, [], [])
+
+        assert row.outcome == "met"
+        assert row.safeguard == "§164.312(e)(1)"
+        assert "OUTBOUND_PRIVATE_ALLOWLIST and MCP_ALLOWED_HOSTS are empty" in row.detail
+        assert row.detail.endswith(
+            "no workflow HTTP step, git, web or S3 source, A2A call or MCP connection can "
+            "reach a private address"
+        )
+
+    async def test_it_is_attested_with_the_deployment_list_alone(self, monkeypatch) -> None:
+        row = await self._control(monkeypatch, ["wiki", " .corp.example ", "10.1.0.0/16"], [])
+
+        assert row.outcome == "attested"
+        assert row.safeguard == "§164.312(e)(1)"
+        assert (
+            "OUTBOUND_PRIVATE_ALLOWLIST admits wiki, .corp.example, 10.1.0.0/16: every member "
+            "of every organization can reach these hosts through workflow HTTP steps, "
+            "connectors, A2A and MCP"
+        ) in row.detail
+        assert "MCP_ALLOWED_HOSTS" not in row.detail
+        assert row.detail.endswith(
+            "that each one checks its own credential is the operator's to evidence"
+        )
+
+    async def test_it_is_attested_with_the_mcp_list_alone(self, monkeypatch) -> None:
+        row = await self._control(monkeypatch, [], ["postgres-mcp", "10.2.0.0/24"])
+
+        assert row.outcome == "attested"
+        assert (
+            "MCP_ALLOWED_HOSTS admits postgres-mcp, 10.2.0.0/24: every member of every "
+            "organization can reach these hosts through MCP connections"
+        ) in row.detail
+        assert "OUTBOUND_PRIVATE_ALLOWLIST" not in row.detail
+
+    async def test_it_names_both_lists_when_both_are_set(self, monkeypatch) -> None:
+        row = await self._control(monkeypatch, ["wiki"], ["postgres-mcp"])
+
+        assert row.outcome == "attested"
+        assert "OUTBOUND_PRIVATE_ALLOWLIST admits wiki:" in row.detail
+        assert "; MCP_ALLOWED_HOSTS admits postgres-mcp:" in row.detail
+
+
 class TestWhatCountsAsConfiguredSso:
     """`sso_issuer` is the seam the sheet reads, and it answers for a sign-in
     that can actually happen rather than for a setting that is merely present."""

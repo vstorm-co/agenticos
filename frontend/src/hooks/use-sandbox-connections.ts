@@ -49,8 +49,11 @@ interface UseSandboxConnectionsResult {
  * Patching the edited row would leave two rows claiming to be the default until
  * something else refetched, and "which host does an agent with no connection
  * get" is precisely the question that view answers.
+ *
+ * `enabled: false` skips the list, for a caller who may not read it
+ * (`connections:view`) and would only be refused.
  */
-export function useSandboxConnections(): UseSandboxConnectionsResult {
+export function useSandboxConnections(enabled = true): UseSandboxConnectionsResult {
   const t = useTranslations("sandboxes");
   const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
@@ -62,6 +65,7 @@ export function useSandboxConnections(): UseSandboxConnectionsResult {
   } = useQuery({
     queryKey: qk.sandboxConnections.list(),
     queryFn: listSandboxConnections,
+    enabled,
   });
 
   const invalidate = useCallback(async () => {

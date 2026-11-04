@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import SecretStr
 
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, ExternalServiceError, NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.secret_kinds import ApiKeySecret
@@ -53,6 +53,7 @@ def _service(agents=()) -> MemoryService:
     scalars.all.return_value = list(agents)
     result = MagicMock()
     result.scalars.return_value = scalars
+    result.all.return_value = [(agent.id, agent.draft_spec.get("capabilities")) for agent in agents]
     db.execute = AsyncMock(return_value=result)
     return MemoryService(db)
 
@@ -161,12 +162,10 @@ class TestTheHalfMem0Holds:
 
         assert (result.mem0_agents_cleared, forget.await_count) == (0, 0)
 
-    async def test_a_key_that_no_longer_resolves_is_skipped_rather_than_guessed_at(self):
+    async def test_an_unavailable_key_refuses_to_claim_external_memory_is_gone(self):
         service = _service([_agent()])
-
-        result, forget = await self._forget(service, resolved={SECRET: None})
-
-        assert (result.mem0_agents_cleared, forget.await_count) == (0, 0)
+        with pytest.raises(ExternalServiceError, match="credential is unavailable"):
+            await self._forget(service, resolved={SECRET: None})
 
     async def test_a_self_hosted_url_travels_with_the_delete(self):
         """A memory kept on somebody's own mem0 is not deleted by calling the cloud
@@ -292,3 +291,53 @@ class TestClearingOneAgent:
             await service.clear_agent(_ctx(PERSON, role=OrgRoleName.VIEWER), agent.id)
 
         assert access.await_args.args[3] is Perm.AGENTS_EDIT
+
+
+async def test_erasure_reaches_distinct_historical_endpoints_after_the_draft_drops_mem0() -> None:
+    agent = _agent(mem0=False)
+    snapshots = [
+        (agent.id, [{"id": "memory_mem0", "secret_id": str(SECRET), "config": {"base_url": url}}])
+        for url in ["https://old.mem0", "https://current.mem0", "https://old.mem0"]
+    ]
+    service = _service()
+    with (
+        patch(
+            f"{FACADE}.agent_repo.memory_erasure_capabilities", AsyncMock(return_value=snapshots)
+        ),
+        patch(f"{REPO}.delete_for_person", AsyncMock(return_value=1)),
+        patch(f"{FACADE}.record_audit", AsyncMock()),
+        patch.object(
+            service.secrets,
+            "resolve_for_bindings",
+            AsyncMock(return_value={SECRET: ApiKeySecret(api_key="test-api-key")}),
+        ),
+        patch(f"{FACADE}.mem0_forget_person", AsyncMock()) as forget,
+    ):
+        result = await service.forget_person(_ctx(PERSON), PERSON)
+    assert {call.kwargs["base_url"] for call in forget.await_args_list} == {
+        "https://old.mem0",
+        "https://current.mem0",
+    }
+    assert forget.await_count == 2
+    assert result.mem0_agents_cleared == 1
+
+
+async def test_clearing_an_agent_erases_its_external_stores_as_well() -> None:
+    agent = _agent()
+    service = _service([agent])
+    with (
+        patch(f"{FACADE}.agent_repo.get", AsyncMock(return_value=agent)),
+        patch(f"{FACADE}.resolve_access", AsyncMock(return_value=True)),
+        patch(f"{REPO}.delete_all_for_agent", AsyncMock(return_value=7)),
+        patch(f"{FACADE}.record_audit", AsyncMock()),
+        patch.object(
+            service.secrets,
+            "resolve_for_bindings",
+            AsyncMock(return_value={SECRET: ApiKeySecret(api_key="test-api-key")}),
+        ),
+        patch(f"{FACADE}.mem0_forget_agent", AsyncMock()) as forget,
+    ):
+        result = await service.clear_agent(_ctx(PERSON), agent.id)
+    assert result.notes_deleted == 7 and result.mem0_agents_cleared == 1
+    assert forget.await_args.kwargs["organization_id"] == ORG
+    assert forget.await_args.kwargs["agent_id"] == agent.id

@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "d6e3bf78d15a"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -95,8 +95,13 @@ utwardzające, zdefiniowane w `frontend/src/lib/csp.ts` i
 `frontend/src/lib/security-headers.ts`, jedne i drugie potwierdzone testami.
 Polityka to `default-src 'self'` z `connect-src` nazywającym dokładnie ten origin,
 `PUBLIC_API_URL` i `PUBLIC_WS_URL`, `img-src` dopuszczającym `data:` dla znaków
-marki i awatarów, `frame-src 'self' blob:` dla podglądów dokumentów, `object-src
-'none'`, `base-uri 'self'` oraz `frame-ancestors 'none'`.
+marki i awatarów, `frame-src` dopuszczającym `'self'` i `blob:` dla podglądów
+dokumentów oraz trasę treści artefaktów
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`), `object-src
+'none'`, `base-uri 'self'` oraz `frame-ancestors 'none'`. Trasa treści jest
+wskazana ścieżką, a nie originem, więc ramka może załadować opublikowaną stronę
+i nic innego, co serwuje API; zobacz
+[Jak strona jest izolowana](artifacts.md#how-the-page-is-isolated).
 
 `script-src` nie zawiera `'unsafe-inline'`. Middleware generuje nonce dla
 każdego żądania, wpisuje `'nonce-…' 'strict-dynamic'` do dyrektywy, a Next
@@ -169,11 +174,11 @@ i ją zaprasza.
 
 Jeszcze trzy rzeczy, które łatwo tu pomylić — i które pomylono:
 
-**Pierwszy użytkownik zawsze zostaje wpuszczony.** Świeża instalacja nie ma kont,
-więc jej administrator jeszcze nie istnieje; zamknięte wdrożenie, które odrzuca
-także osobę, która miałaby je otworzyć, to wdrożenie, do którego nikt nie wejdzie
-i którego nie ma z czego naprawić. `register` i tak podnosi to pierwsze konto do
-`is_app_admin`, a polityka opiera się na tym samym fakcie.
+**Pierwszy użytkownik jest zawsze przyjmowany.** Nowa instalacja nie ma kont.
+Pierwsze zatwierdzone konto zostaje administratorem wdrożenia (`is_app_admin`),
+niezależnie od rejestracji hasłem lub przez OAuth. Blokada transakcyjna przyznaje ten
+wyjątek tylko jednej równoczesnej rejestracji. Kolejne muszą spełniać politykę
+wdrożenia; jeśli pierwsza zostanie wycofana, inna może przejąć uprawnienia startowe.
 
 **`invite_only` istnieje dlatego, że zamknięcie rejestracji zepsułoby inaczej
 zaproszenia.** `InvitationService.accept` wymaga istniejącego, zalogowanego
@@ -540,6 +545,24 @@ Odrzucenie nazywa pułap i liczbę, względem której go zmierzono
 a nie pamięć administratora. Jest podnoszone w serwisie, który tworzy daną rzecz,
 a nie na trasie, bo trasa nie jest jedyną drogą do środka.
 
+Konsola nie czeka na tę odmowę. `GET /agents/ceiling`, dostępne dla wywołującego
+z `agents:edit`, zwraca limit (`limit`, null, gdy nie jest ustawiony) oraz to, czy
+utworzenie agenta by go przekroczyło (`at_limit`), a na limicie strona Agenci
+wyłącza **Nowy agent (New agent)** i instalowanie szablonów i mówi dlaczego, zanim
+ktokolwiek wypełni formularz.
+
+Jeśli inna operacja zapełni limit podczas tworzenia agenta z przewodnikiem,
+przewodnik kończy się zamiast blokować stronę wokół wyłączonego przycisku.
+Udane utworzenie agenta w tym przewodniku jest zapisywane przed odświeżeniem
+limitu, więc zajęcie ostatniego miejsca nie przerywa dalszych kroków w Builderze.
+
+Sam licznik (`held`) dostaje tylko wywołujący,
+którego `agents:view` obejmuje wszystkich agentów organizacji: licznik obejmuje
+agentów, których Członek (Member) nie widzi, a zestawiony z jego własną listą
+mówiłby, ilu przed nim ukryto. **Duplikuj (Duplicate)** i **Przywróć (Restore)**
+są nadal odrzucane dopiero przy próbie. Gwarancją pozostaje odmowa: licznik jest
+prognozą, czytaną bez blokady.
+
 Zero jest odrzucane przez schemat: konto, które nie może posiadać żadnej
 organizacji, to konto, którego nie da się utworzyć, skoro rejestracja daje każdemu
 z nich organizację osobistą.
@@ -642,7 +665,9 @@ pokazuje ten sam dzień jako kartę.
 
 Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
 
-- **Retry** daje martwemu zadaniu nowy zestaw prób.
+- **Retry** daje martwemu zadaniu nowy zestaw prób. Martwy ingest dokumentu
+  jest odrzucany: jego kopia do parsowania zniknęła razem z nim, więc ponów
+  dokument z jego bazy wiedzy, co ponownie parsuje zapisany plik.
 - **Cancel** wycofuje zadanie, którego nikt jeszcze nie zaczął.
 - **Resume** pozwala workerom znowu pobierać wstrzymany rodzaj.
 
@@ -652,7 +677,7 @@ parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomie
 aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
 się, dopóki któryś z nich jej nie wznowi. Pauza podaje organizację, której
 zadania ją wywołały, a dla pozostałych ten rodzaj działa dalej. Martwe zadania ponawiaj dopiero po
-usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
+usunięciu przyczyny, inaczej zginą tak samo - martwy ingest dokumentu ponawiaj z jego bazy wiedzy. Ustawienia są w
 [Konfiguracji](configuration.md#background-work).
 
 ## Podsumowanie { #recap }

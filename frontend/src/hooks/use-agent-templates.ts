@@ -38,7 +38,11 @@ export function useAgentTemplates(
       toast.success(t("installed", { name: result.name }));
       onInstalled?.(result);
     },
-    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+    onError: (error) => {
+      // A refused install may be the agent limit the cached ceiling missed.
+      void queryClient.invalidateQueries({ queryKey: qk.agents.ceiling() });
+      toast.error(getErrorMessage(error, tErrors));
+    },
   });
 
   return {

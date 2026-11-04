@@ -6,6 +6,8 @@ export type ChangeResource =
   | "context"
   | "knowledge_base"
   | "artifact"
+  | "table"
+  | "workflow"
   | "member"
   | "invitation"
   | "group"

@@ -1,5 +1,5 @@
 ---
-source_sha: "67b5c3162745"
+source_sha: "3e5746cd74c2"
 ---
 
 # Instalacja { #install }
@@ -38,6 +38,10 @@ ma kroku, który on wykonuje, a którego ty nie możesz.
 
 ## Wymagania { #requirements }
 
+Wdrożenia Podmana korzystają z [ręcznej ścieżki z Docker Compose](deploy.md#podman-support)
+i dodatkowego override dla socketu sandboxa i uprawnień workspace. Quickstart
+obsługuje Dockera; `podman-compose` 1.6.0 nie jest wspierany.
+
 | Żeby | Potrzebujesz |
 |---|---|
 | **Uruchomić** | Docker z wtyczką Compose, 2.24 lub nowszą - Docker Desktop, OrbStack albo Engine z `docker-compose-plugin`. <https://docs.docker.com/get-docker/> |
@@ -47,6 +51,21 @@ ma kroku, który on wykonuje, a którego ty nie możesz.
 
     Makefile i skrypty pomocnicze zakładają bash. **WSL2** albo **Git Bash**.
     Gdy już jesteś w jednym z nich, wszystko poniżej jest identyczne.
+
+!!! note "Ciasteczka logowania i współdzielone hosty"
+
+    Konsola używa ciasteczek `agenticos_access_token` i
+    `agenticos_refresh_token`, aby aplikacje z ogólnymi nazwami ciasteczek nie
+    nadpisywały ich przypadkowo. Po aktualizacji ze starych nazw zaloguj się
+    ponownie jeden raz. Migracja `0173_revoke_cookie_sessions.py` kończy
+    istniejące sesje logowania, w tym łańcuchy odświeżania i impersonacje.
+    Klienci API korzystający z sesji również muszą zalogować się ponownie;
+    klucze API pozostają aktywne. Downgrade nie przywraca unieważnionych sesji.
+
+    Nadaj niezależnym aplikacjom osobne nazwy hostów. Ciasteczka są współdzielone
+    między portami tej samej nazwy hosta; nazwy właściwe dla aplikacji zapobiegają
+    przypadkowym kolizjom, ale nie blokują otrzymywania twoich tokenów przez inną
+    aplikację pod tą samą nazwą hosta.
 
 ## Uruchom z opublikowanych obrazów { #run-it-from-the-published-images }
 
@@ -83,7 +102,7 @@ flowchart LR
 
     | | |
     |---|---|
-    | `AGENTICOS_VERSION` | Które wydanie uruchomić. `latest`, gdy nieustawione; wersja taka jak `0.0.380`, żeby przypiąć jedną, `edge` dla tego, co `main` opublikował ostatnio |
+    | `AGENTICOS_VERSION` | Które wydanie uruchomić. `latest`, gdy nieustawione; wersja taka jak `0.0.380`, żeby przypiąć jedną, `edge` dla tego, co `main` opublikował ostatnio. Przypinaj razem z `docker-compose.yml` tego wydania (`https://raw.githubusercontent.com/vstorm-co/agenticos/v<version>/docker-compose.yml`): ten plik przypina `sandboxd`, którym mówi backend tego wydania |
     | `PUBLIC_API_URL`, `PUBLIC_WS_URL`, `PUBLIC_SITE_URL` | To, co *przeglądarce* każe się wołać, gdy host jest osiągalny pod nazwą inną niż `localhost`. `FRONTEND_URL` i `CORS_ORIGINS` backendu to ten sam fakt z jego strony |
     | `OAUTH_PROVIDERS`, `CHAT_MAX_UPLOAD_SIZE_MB` | Przyciski logowania, które oferuje konsola, oraz to, co composer odrzuca przed wysłaniem |
     | `SECRET_KEY`, `VAULT_MASTER_KEY` | Opcjonalne na laptopie, gdzie wartościami domyślnymi są stała z repozytorium i vault zapieczętowany pod nią. `scripts/quickstart.sh` generuje oba; ręcznie - `openssl rand -hex 32` dla każdego. I zrób kopię klucza vaulta razem z bazą danych, bo zrzut odtworzony obok innego klucza jest nie do odczytania |
@@ -174,18 +193,23 @@ potrzebuje klucza, klucz potrzebuje organizacji — a to przechodzi ten łańcuc
 | Właściciela | `admin@example.com` / `admin123` albo `--email` / `--password` |
 | Wpis w vault | Twój klucz providera, zapieczętowany dla tej organizacji |
 | Profil modelu | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` albo `openai/gpt-4.1`, zależnie od tego, którego providera dotyczy klucz |
-| Dwóch agentów | **Architekta** w rogu każdej strony i **Claude Code like**, obu opublikowanych, jeśli jest klucz |
+| Dwóch agentów | **Architekta** w rogu każdej strony i **AgenticOS**, obu opublikowanych, jeśli jest klucz |
 
 Teraz otwórz <http://localhost:3000>, zaloguj się jako `admin@example.com` /
-`admin123` i zapytaj któregoś z nich o coś: **Claude Code like** w **Chat** albo
+`admin123` i zapytaj któregoś z nich o coś: **AgenticOS** w **Chat** albo
 **Architekta** z rogu dowolnej strony.
 
-Claude Code like to agent ogólnego przeznaczenia: czyta, zanim zacznie działać,
-planuje pracę w kilku krokach, edytuje pliki i uruchamia polecenia w swoim
-sandboksie, szuka w internecie, deleguje pracę swoim specjalistom i sprawdza, co
-zrobił. Architekt zna tę platformę: znajduje agentów, runy i bazy wiedzy, wyjaśnia,
-dlaczego run się nie udał i ile kosztował, i przygotowuje agenta albo bazę wiedzy do
-twojego zatwierdzenia.
+AgenticOS to agent ogólnego przeznaczenia: czyta, zanim zacznie działać, planuje
+pracę w kilku krokach, edytuje pliki i uruchamia polecenia w swoim sandboksie,
+szuka w internecie, deleguje pracę swoim specjalistom i sprawdza, co zrobił. Po
+drodze pokazuje też, co potrafi platforma - proponuje rutynę, gdy prośba będzie
+wracać, mówi, co mógłby zrobić po włączeniu jakiejś capability, zapamiętuje twoje
+preferencje i przełącza język konsoli, gdy go o to poprosisz. Każdy agent, którego
+tworzysz od zera, zaczyna jako jego kopia.
+
+Architekt buduje z tobą agentów, jedną decyzję naraz - od tego, co agent ma
+robić, do przetestowanego, opublikowanego agenta; znajduje też agentów, runy i
+bazy wiedzy oraz wyjaśnia, dlaczego run się nie udał i ile kosztował.
 
 Otwórz któregoś w Builderze, żeby zobaczyć jak: każda z tych rzeczy to capability,
 którą ktoś włączył, a instrukcje agenta to pole tekstowe, które możesz zmienić.
@@ -197,7 +221,7 @@ którą ktoś włączył, a instrukcje agenta to pole tekstowe, które możesz z
     potrafi odpowiedzieć, a opublikowanie takiego, który zawiedzie na pierwszej
     wiadomości, jest gorsze niż nieopublikowanie go.
 
-    Dodaj klucz w **Settings → AI providers**, a potem opublikuj Claude Code like.
+    Dodaj klucz w **Settings → AI providers**, a potem opublikuj AgenticOS.
     Architekt opublikuje się sam na pierwszym modelu organizacji.
 
 !!! note "`make seed` to coś innego"

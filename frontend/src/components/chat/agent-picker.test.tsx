@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentPicker } from "./agent-picker";
+import type { WorkflowRead } from "@/lib/workflows/types";
 import type { Agent, AgentStatus } from "@/types/agents";
 
 const listed = vi.fn<() => Agent[]>(() => []);
@@ -11,15 +12,37 @@ const defaultId = vi.fn<() => string | null>(() => null);
 const select = vi.fn();
 const setDefault = vi.fn();
 
+const workflowsListed = vi.fn<() => WorkflowRead[]>(() => []);
+const selectedWorkflowId = vi.fn<() => string | null>(() => null);
+const selectWorkflow = vi.fn();
+const mayRun = vi.fn(() => true);
+const workflowsEnabled = vi.fn();
+
 vi.mock("@/hooks", () => ({
   useAgents: () => ({ agents: listed(), isLoading: loading, isFetching: loading || fetching }),
+  usePermissions: () => ({ can: () => mayRun() }),
+  useWorkflows: ({ enabled }: { enabled: boolean }) => {
+    workflowsEnabled(enabled);
+    return { workflows: enabled ? workflowsListed() : [] };
+  },
 }));
 vi.mock("@/stores", () => ({
   useAgentSelectionStore: (pick: (state: unknown) => unknown) =>
-    pick({ selectedAgentId: selectedId(), defaultAgentId: defaultId(), select, setDefault }),
+    pick({
+      selectedAgentId: selectedId(),
+      defaultAgentId: defaultId(),
+      select,
+      setDefault,
+      selectedWorkflowId: selectedWorkflowId(),
+      selectWorkflow,
+    }),
   useConversationStore: (pick: (state: unknown) => unknown) =>
     pick({ currentConversationId: "c1" }),
 }));
+
+/** The page's query string - `?agent=` hands over one agent (#2301). */
+let search = "";
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(search) }));
 
 let loading = false;
 /** A refetch in flight over data already on screen - the stale-while-revalidate window. */
@@ -255,4 +278,102 @@ describe("the chat's agent picker", () => {
     expect(screen.queryByText(/No published agents yet/)).not.toBeInTheDocument();
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
+});
+
+const workflow = (id: string, name: string, overrides: Partial<WorkflowRead> = {}) =>
+  ({
+    id,
+    name,
+    description: null,
+    status: "published",
+    current_version_id: "v1",
+    live_trigger: "trigger.chat",
+    ...overrides,
+  }) as WorkflowRead;
+
+describe("workflows in the chat's picker", () => {
+  beforeEach(() => {
+    workflowsListed.mockReturnValue([
+      workflow("w1", "Lead triage", { description: "Scores new leads." }),
+      workflow("w2", "Drafted", { current_version_id: null }),
+      workflow("w3", "Retired", { status: "archived" }),
+      // Live, but it starts from a webhook: the chat's door does not run it.
+      workflow("w4", "Inbound", { live_trigger: "trigger.webhook" }),
+    ]);
+    selectedWorkflowId.mockReturnValue(null);
+    mayRun.mockReturnValue(true);
+  });
+
+  it("offers the workflows with a live version, and hands the chat to one", async () => {
+    await open();
+    const group = screen.getByRole("radiogroup", { name: "Workflows" });
+    expect(group.textContent).toContain("Lead triage");
+    expect(group.textContent).toContain("Scores new leads.");
+    expect(group.textContent).not.toContain("Drafted");
+    expect(group.textContent).not.toContain("Retired");
+    expect(group.textContent).not.toContain("Inbound");
+    await userEvent.click(screen.getByRole("radio", { name: /Lead triage/ }));
+    expect(selectWorkflow).toHaveBeenCalledWith("w1");
+  });
+
+  it("names the workflow on the trigger once it answers, and unmarks the agent", async () => {
+    selectedWorkflowId.mockReturnValue("w1");
+    await open();
+    expect(screen.getByRole("button", { name: "Agent: Lead triage" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /Lead triage/ }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("radio", { name: /Support/ }).getAttribute("aria-checked")).toBe(
+      "false",
+    );
+  });
+
+  it("asks for no workflows when the member may not run them", async () => {
+    mayRun.mockReturnValue(false);
+    await open();
+    expect(workflowsEnabled).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("radiogroup", { name: "Workflows" })).toBeNull();
+  });
+});
+
+describe("a link asking for one agent", () => {
+  beforeEach(() => {
+    search = "";
+  });
+
+  it("selects the agent a link names by its handle, over the default", async () => {
+    search = "agent=sales";
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
+
+    await waitFor(() => expect(select).toHaveBeenLastCalledWith("a2"));
+  });
+
+  it("accepts an id, and ignores an agent nobody may run here", async () => {
+    search = "agent=a1";
+    listed.mockReturnValue(PUBLISHED);
+    selectedId.mockReturnValue("a2");
+    const { unmount } = render(<AgentPicker />);
+    await waitFor(() => expect(select).toHaveBeenCalledWith("a1"));
+    unmount();
+
+    select.mockClear();
+    search = "agent=ghost";
+    render(<AgentPicker />);
+    expect(select).not.toHaveBeenCalled();
+  });
+});
+
+it("opens without focusing a clipped agent outline and supports deliberate keyboard navigation", async () => {
+  await open();
+  expect(screen.getByRole("radiogroup")).toHaveFocus();
+  await userEvent.keyboard("{ArrowDown}");
+  expect(screen.getByRole("radio", { name: /Support/ })).toHaveFocus();
+  await userEvent.keyboard("{End}");
+  expect(screen.getByRole("radio", { name: /Sales/ })).toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+  expect(select).toHaveBeenCalledWith("a2");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("button", { name: /^Agent:/ })).toHaveFocus();
 });

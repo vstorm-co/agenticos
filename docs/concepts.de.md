@@ -1,5 +1,5 @@
 ---
-source_sha: "4fe91aa6f038"
+source_sha: "f96ca8950f4c"
 ---
 
 # Begriffe { #concepts }
@@ -48,6 +48,15 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
     auch nach einem Upgrade noch lädt. Ein Feld zu entfernen oder umzubenennen
     ist eine Migration, keine Bearbeitung.
 
+!!! info "Eine Antwort kann Daten sein"
+
+    Standardmäßig antwortet ein Agent in Text. Stellen Sie **Answer format** auf
+    strukturierte Daten oder `output_schema` im Spec, und er antwortet stattdessen
+    mit einem Objekt benannter Felder: Das Modell wird um diese Form gebeten, und
+    eine Antwort, die sie verletzt, geht zum Korrigieren zurück, bevor der Run
+    endet. Die API gibt das Objekt als `structured` zurück, Chat und Kanäle zeigen
+    es als JSON-Block, und ein `agent.run`-Schritt gibt es weiter.
+
 !!! info "Ein Template ist ein Spec, den jemand schon geschrieben hat"
 
     Die [Agent-Templates](first-agent.md#3-build-the-agent), die mit der
@@ -75,14 +84,20 @@ Der Spec hält zwei Regeln ein, und sie sind es, die ihn nützlich machen.
 
 **Ein eingefrorener Spec.**
 
-Das Veröffentlichen kopiert den Draft in eine Version und richtet den Agent
-darauf aus. Runs halten fest, welche Version ausgeführt wurde.
+Das Veröffentlichen kopiert den Draft in eine Version. Umgebungen bestimmen,
+welche Version eine Oberfläche bedient. Runs halten die ausgeführte Version fest.
 
 Deshalb bleibt *was hat dieser Agent letzten Dienstag getan* auch nach einem
 Dutzend Bearbeitungen beantwortbar. Deshalb veröffentlicht ein Rollback auch eine
 **neue** Version, kopiert aus der alten, statt Historie zu löschen — die
 Zeitleiste zeigt, dass ein Rollback stattgefunden hat, statt so zu tun, als habe
 es die schlechte Version nie gegeben.
+
+Draft-Speicherung, Veröffentlichung, Rollback und Umgebungsänderungen werden pro
+Agent nacheinander ausgeführt. Eine Speicherung, die auf eine Veröffentlichung
+wartet, bleibt danach als Draft erhalten. Gleichzeitige Veröffentlichungen
+erhalten eigene Versionsnummern. Die Standardumgebung und die ausführbare Version
+des Agenten bleiben synchron. Neue Runs können während der Validierung starten.
 
 ### Environments { #environments }
 
@@ -209,9 +224,10 @@ nicht kann — zu diesen Bedingungen:
   niemand geprüft hat, und eine daraus geschriebene Notiz würde jeder spätere Chat
   als die eigene des Erstellers lesen.
 - **Frühere Gespräche bleiben verschlossen**, so oder so.
-- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung
-  oder den Filter eines Triggers ändert, den er nicht angelegt hat, schaltet es
-  aus, sodass niemand umschreibt, was als Sie läuft. Ein Administrator, der per
+- **Die Änderung eines anderen schaltet es aus.** Wer die Nachricht, die Umgebung,
+  den Filter oder den Teams-Kanal eines Triggers ändert, den er nicht angelegt
+  hat, schaltet es aus, sodass niemand umschreibt, was als Sie läuft, oder die
+  Antwort woandershin schickt. Ein Administrator, der per
   Impersonation als Sie handelt, oder ein Skript mit Ihrem API-Schlüssel kann es
   nicht einschalten.
 - **Ebenso eine neue Version, die du nicht selbst veröffentlicht hast.** Eine
@@ -221,6 +237,12 @@ nicht kann — zu diesen Bedingungen:
 - **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
   jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
   Mitglied, als das es gehandelt hat.
+- **Er darf auf dem eigenen Computer des Erstellers arbeiten.** Mit Run as me kann
+  der Ersteller den Trigger unter **Arbeiten auf (Work on)** auf einen Ordner
+  seines Computers richten; jedes Auslösen arbeitet dann dort über die
+  [Desktop-App](desktop.md#work-on-this-computer). Run as me abzuschalten löscht
+  das, und ein Auslösen, das nicht als sein Ersteller handelt, bekommt den
+  Computer nicht.
 
 Die Regel entscheidet, wie Sie einen Agent entwerfen, der über einen Trigger
 läuft:
@@ -245,7 +267,9 @@ genutzt* einen unbeaufsichtigten Run von dem einer Person unterscheiden kann.
 Jedes Auslösen ist ein eigener Run in Activity, und seine Antworten sammeln sich
 in einer Run-Log-Unterhaltung, die der Trigger einmal eröffnet — sofort, sobald
 der Trigger angelegt ist, sodass er ein anklickbarer Eintrag ist, bevor er je
-ausgelöst hat.
+ausgelöst hat. Ein Trigger kann außerdem jede Antwort in einem Teams-Channel oder
+Gruppenchat posten, in dem der Bot seiner Organisation ist
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Zwei Arten auszulösen { #two-ways-to-fire }
 
@@ -288,7 +312,7 @@ Jeder Trigger lässt sich außerdem **jetzt ausführen**: ein zusätzliches Ausl
 auf Zuruf, das seine Taktung unberührt lässt.
 
 Es wird *angenommen* statt abgewartet. Die Anfrage antwortet, sobald das Auslösen
-als eigener Flow-Run an den Worker übergeben ist — dieselbe dauerhafte Tür, durch
+als Job für den Worker eingereiht ist — dieselbe dauerhafte Tür, durch
 die ein geplantes oder zugestelltes Auslösen geht —, und der Run erscheint in der
 Run-Log-Unterhaltung des Triggers, während er läuft.
 
@@ -637,7 +661,10 @@ Profil statt an vierzig Specs.
 
 Ein Profil ohne Credential dahinter ist überall, wo es erscheint, mit `no key`
 markiert, denn das ist die eine Tatsache, die darüber entscheidet, ob der Agent
-überhaupt laufen kann.
+überhaupt laufen kann. Die Auswahllisten bieten es nicht an, und das
+Veröffentlichen lehnt es ab, bis es wieder einen Schlüssel hat. Ein Profil, das
+Agents nutzen, lässt sich nicht löschen; siehe
+[Schlüssel oder Endpunkt eines Profils ändern](models.md#changing-a-profiles-key-or-endpoint).
 
 Die Preise kommen von
 [`genai-prices`](https://github.com/pydantic/genai-prices), das Pydantic pflegt,

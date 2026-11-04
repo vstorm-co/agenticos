@@ -93,7 +93,7 @@ export function ExportMenu({
     <Button
       variant="outline"
       size="sm"
-      className="gap-1.5"
+      className="w-full shrink-0 gap-1.5 sm:w-auto"
       disabled={busy}
       onClick={() => void download()}
     >

@@ -18,7 +18,7 @@ export function ModelMixWidget({ title, hint, period, seeAll, options }: Dashboa
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-      <UsageBody period={period} emptyKey="model-mix" options={options}>
+      <UsageBody period={period} emptyKey="model-mix" loadingVariant="bars" options={options}>
         {(usage) => {
           const rows = (usage.by_model ?? []).map((row) => ({
             // How often this model sent broken JSON that had to be repaired - a

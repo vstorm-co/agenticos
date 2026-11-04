@@ -116,6 +116,8 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "model-mix",
         "version-compare",
         "approvals",
+        "approval-outcomes",
+        "workflow-logs",
         "recent-failures",
         "budget-headroom",
         "department-spend",
@@ -132,6 +134,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "my-quality",
         "shared-with-you",
         "background-jobs",
+        "background-tasks",
         "sandbox-capacity",
         "sandbox-sessions",
         "sandbox-policy",
@@ -140,10 +143,13 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "activity-rhythm",
         "routines",
         "notifications",
+        "tables",
+        "workflows",
         "artifacts",
         "voice-minutes",
         "projects",
         "recent-visuals",
+        "suggestions",
     }
 )
 

@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/locales";
+
 export interface User {
   id: string;
   email: string;
@@ -29,6 +31,21 @@ export interface User {
   notify_approval_requests?: boolean;
   notify_usage_reports?: boolean;
   /**
+   * The console language the person chose, on every device - by the menu or by
+   * asking an agent. Null until they choose, and the cookie decides as before.
+   */
+  locale?: Locale | null;
+  /** The IANA zone agents read the person's times in; taken from the browser when unset. */
+  time_zone?: string | null;
+  /** The person's role, as every agent is told it. */
+  job_title?: string | null;
+  /** What the person works on, as every agent is told it. */
+  about?: string | null;
+  /** When the person works, in their own time zone - knowledge for the agent only. */
+  working_hours?: WorkingHours | null;
+  /** This person left themselves out of the organization's nightly look (#2301). */
+  proactive_opt_out?: boolean;
+  /**
    * Set while an administrator is acting as this account, and what the banner
    * is drawn from. Absent - not merely null - on a persisted store that predates
    * it, which reads the same as nobody acting as anybody.
@@ -53,6 +70,11 @@ export interface Session {
   device_type?: string | null;
   ip_address?: string | null;
   is_current: boolean;
+  /** The AgenticOS app the session runs in - `macos`, `ios`… - or null for a browser. */
+  app_platform?: string | null;
+  app_version?: string | null;
+  /** This sign-in registered its browser or phone for push notifications. */
+  push?: boolean;
   created_at: string;
   last_used_at: string;
 }
@@ -121,4 +143,11 @@ export interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+}
+
+/** When a person works: ISO weekdays (1 = Monday) and HH:MM in their own zone (#2301). */
+export interface WorkingHours {
+  days: number[];
+  start: string;
+  end: string;
 }

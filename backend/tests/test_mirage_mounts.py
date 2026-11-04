@@ -129,9 +129,7 @@ async def test_a_host_inside_a_secret_is_checked_when_it_is_dialled(
     assert [mount.path for mount in allowed.mounts] == ["/db/"]
 
 
-async def test_a_typed_host_off_the_list_is_refused_and_a_missing_one_is_fine(
-    ctx, vault, accounts, monkeypatch
-):
+async def test_typed_and_default_hosts_both_need_the_allowlist(ctx, vault, accounts, monkeypatch):
     monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", [])
     terminal = await _resolve(
         ctx,
@@ -140,7 +138,8 @@ async def test_a_typed_host_off_the_list_is_refused_and_a_missing_one_is_fine(
             {"path": "/traces/", "backend": "jaeger"},
         ),
     )
-    assert [mount.path for mount in terminal.mounts] == ["/traces/"]
+    assert terminal.mounts == ()
+    assert "localhost" in terminal.notes[1]
     assert "build.acme.internal" in terminal.notes[0]
 
 
@@ -282,8 +281,8 @@ async def test_each_of_a_persons_accounts_is_a_folder_of_its_own(ctx, vault, acc
     )
 
     assert [mount.path for mount in terminal.mounts] == [
-        "/mail/ana-acme.com/",
-        "/mail/ana.home-gmail.com/",
+        f"/mail/ana-acme.com-{work.id.hex}/",
+        f"/mail/ana.home-gmail.com-{home.id.hex}/",
     ]
     assert accounts.list_accounts.await_args.kwargs == {"provider": "google", "user_id": person}
 
@@ -360,3 +359,55 @@ def test_the_host_of_a_typed_address(value, host) -> None:
 
 def test_an_address_slug_is_never_empty() -> None:
     assert mirage_mounts._slug("@@@") == "account"
+
+
+async def test_qdrant_checks_only_its_effective_target(ctx, vault, accounts, monkeypatch):
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["vectors.acme.internal"])
+    by_url = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/vectors/",
+                "backend": "qdrant",
+                "options": {"url": "https://vectors.acme.internal", "host": "unused.invalid"},
+            }
+        ),
+    )
+    assert len(by_url.mounts) == 1 and not by_url.notes
+    by_host = await _resolve(
+        ctx,
+        _config(
+            {"path": "/vectors/", "backend": "qdrant", "options": {"host": "vectors.acme.internal"}}
+        ),
+    )
+    assert len(by_host.mounts) == 1 and not by_host.notes
+    no_address = await _resolve(ctx, _config({"path": "/vectors/", "backend": "qdrant"}))
+    assert not no_address.mounts and "localhost" in no_address.notes[0]
+
+
+async def test_langfuses_cloud_default_also_requires_permission(ctx, vault, accounts, monkeypatch):
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", [])
+    config = _config(
+        {
+            "path": "/traces/",
+            "backend": "langfuse",
+            "options": {"public_key": "pk-demo"},
+            "secrets": {"secret_key": str(TOKEN)},
+        }
+    )
+    refused = await _resolve(ctx, config)
+    assert not refused.mounts and "cloud.langfuse.com" in refused.notes[0]
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["cloud.langfuse.com"])
+    allowed = await _resolve(ctx, config)
+    assert len(allowed.mounts) == 1 and not allowed.notes
+
+
+async def test_ssh_allows_an_approved_host_without_an_alternate_hostname(
+    ctx, vault, accounts, monkeypatch
+):
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["build.acme.internal"])
+    terminal = await _resolve(
+        ctx,
+        _config({"path": "/build/", "backend": "ssh", "options": {"host": "build.acme.internal"}}),
+    )
+    assert len(terminal.mounts) == 1 and not terminal.notes

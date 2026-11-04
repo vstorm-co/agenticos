@@ -16,7 +16,7 @@ keeps. The two that matter most:
 import enum
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from pydantic import JsonValue
@@ -741,6 +741,30 @@ async def cancel_queued(db: AsyncSession, job_id: UUID) -> bool:
     return result.scalar_one_or_none() is not None
 
 
+async def cancel_queued_for_payload(
+    db: AsyncSession, *, kind: str, organization_id: UUID, payload_key: str, payload_value: UUID
+) -> int:
+    """Withdraw `organization_id`'s queued jobs of `kind` whose payload names `payload_value` under `payload_key`.
+
+    For a caller that owns the work a job stands for and has just ended it - a
+    cancelled workflow run's timers - not an operator's choice, so it ignores
+    `cancellable`. Settled in the same write: what such a job would leave outside
+    the queue is closed by whoever cancelled it. Answers how many were withdrawn.
+    """
+    result = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.kind == kind,
+            BackgroundJob.organization_id == organization_id,
+            BackgroundJob.status == "queued",
+            BackgroundJob.payload[payload_key].astext == str(payload_value),
+        )
+        .values(status="cancelled", finished_at=func.now(), settled_at=func.now())
+        .returning(BackgroundJob.id)
+    )
+    return len(result.scalars().all())
+
+
 async def delete_finished_before(db: AsyncSession, *, cutoff: datetime, limit: int) -> int:
     """Forget finished jobs older than `cutoff`, at most `limit` per call. Answers how many."""
     doomed = (
@@ -800,3 +824,45 @@ def _finished_unless_queued() -> ColumnElement[datetime | None]:
         (_superseded(), func.now()),
         else_=None,
     )
+
+
+async def lock_workspace_attempt(
+    db: AsyncSession, job_id: UUID, *, attempt: int
+) -> BackgroundJob | None:
+    """Fence activation against cancellation, takeover and an expired lease."""
+    result = await db.execute(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == attempt,
+            BackgroundJob.lease_until > datetime.now(UTC),
+        )
+        .execution_options(populate_existing=True)
+        .with_for_update()
+    )
+    return result.scalar_one_or_none()
+
+
+async def workspace_move_progress(
+    db: AsyncSession, job_id: UUID, *, attempt: int, result: dict[str, JsonValue]
+) -> bool:
+    changed = await db.execute(
+        update(BackgroundJob)
+        .where(
+            BackgroundJob.id == job_id,
+            BackgroundJob.status == "running",
+            BackgroundJob.attempts == attempt,
+            BackgroundJob.lease_until > datetime.now(UTC),
+        )
+        .values(result=result)
+        .returning(BackgroundJob.id)
+    )
+    return changed.scalar_one_or_none() is not None
+
+
+async def for_project_moves(db: AsyncSession, ids: list[UUID]) -> dict[UUID, BackgroundJob]:
+    if not ids:
+        return {}
+    rows = await db.execute(select(BackgroundJob).where(BackgroundJob.id.in_(ids)))
+    return {row.id: row for row in rows.scalars().all()}

@@ -11,7 +11,13 @@ import type { FileText } from "./file-access";
 import { postWithProgress } from "./upload-with-progress";
 import type { WorkspaceFiles } from "./sandbox-workspaces-api";
 import type { Conversation, ProjectChat } from "@/types/conversation";
-import type { Project, ProjectCreate, ProjectList, ProjectUpdate } from "@/types/projects";
+import type {
+  Project,
+  ProjectCreate,
+  ProjectList,
+  ProjectUpdate,
+  ProjectWorkspaceMove,
+} from "@/types/projects";
 
 const ROOT = "/projects";
 
@@ -59,7 +65,9 @@ export async function listProjectChats(
 
 /** The project a conversation was started in, or null for one outside any. */
 export async function projectOfConversation(conversationId: string): Promise<string | null> {
-  const conversation = await apiClient.get<Conversation>(`/conversations/${conversationId}`);
+  const conversation = await apiClient.get<Pick<Conversation, "project_id">>(
+    `/conversations/${conversationId}/metadata`,
+  );
   return conversation.project_id ?? null;
 }
 
@@ -111,4 +119,40 @@ export async function createProjectFolder(id: string, path: string): Promise<{ p
 /** Remove a file, or a folder with everything in it. */
 export async function removeProjectPath(id: string, path: string): Promise<void> {
   await apiClient.delete<void>(`${ROOT}/${id}/files?path=${encodeURIComponent(path)}`);
+}
+
+export interface EditableProjectFile {
+  content: string;
+  revision: string;
+}
+
+export function moveProjectPath(
+  id: string,
+  source: string,
+  destination: string,
+): Promise<{ path: string }> {
+  return apiClient.post(`${ROOT}/${id}/files/move`, { source, destination });
+}
+
+export function readEditableProjectFile(id: string, path: string): Promise<EditableProjectFile> {
+  return apiClient.get(`${ROOT}/${id}/files/text?${new URLSearchParams({ path })}`);
+}
+
+export function saveProjectFile(
+  id: string,
+  path: string,
+  file: EditableProjectFile,
+): Promise<EditableProjectFile> {
+  return apiClient.put(`${ROOT}/${id}/files/text?${new URLSearchParams({ path })}`, file);
+}
+
+/** Activate a new sandbox only after the worker has copied and verified its files. */
+export async function moveProjectWorkspace(
+  id: string,
+  target: string,
+): Promise<ProjectWorkspaceMove> {
+  return apiClient.post<ProjectWorkspaceMove>(`${ROOT}/${id}/workspace-move`, {
+    backend: target === "state" ? "state" : "service",
+    sandbox_connection_id: target === "state" ? null : target,
+  });
 }

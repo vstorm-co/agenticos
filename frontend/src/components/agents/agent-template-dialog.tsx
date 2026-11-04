@@ -28,13 +28,21 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/states";
-import { DIALOG_CANVAS, DIALOG_FILL, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
+import {
+  DIALOG_BROAD,
+  DIALOG_CANVAS,
+  DIALOG_COLUMN,
+  DIALOG_FILL,
+  DIALOG_SCROLL_GUTTER,
+} from "@/lib/dialog-sizes";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAgentTemplates } from "@/hooks/use-agent-templates";
 import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { useMcpCatalog } from "@/hooks/use-mcp-servers";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { AgentLimitNotice, isAtAgentLimit } from "@/components/agents/agent-limit-notice";
+import type { AgentCeiling } from "@/types/agents";
 import type { AgentTemplate, TemplateIndustry } from "@/types/providers";
 
 /** Icon per industry directory. An id with no entry falls back rather than blank. */
@@ -49,15 +57,23 @@ const INDUSTRY_ICONS: Record<string, LucideIcon> = {
   general: Sparkles,
 };
 
+/**
+ * At the agent limit (`ceiling`) installing a template would be refused - it
+ * creates an agent - so the dialog says why and disables installs. Browsing
+ * stays open.
+ */
 export function AgentTemplateDialog({
   open,
   onOpenChange,
+  ceiling,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  ceiling: AgentCeiling | null;
 }) {
   const t = useTranslations("agentTemplates");
   const router = useRouter();
+  const atLimit = isAtAgentLimit(ceiling);
   const [industryId, setIndustryId] = useState<string | null>(null);
 
   const { industries, isLoading, isError, install, isInstalling, installingKey } =
@@ -77,11 +93,15 @@ export function AgentTemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className={cn(DIALOG_FILL, DIALOG_CANVAS)}>
+      <DialogContent
+        className={cn(industry ? [DIALOG_FILL, DIALOG_CANVAS] : [DIALOG_COLUMN, DIALOG_BROAD])}
+      >
         <DialogHeader>
           <DialogTitle>{industry ? t(`industry.${industry.id}`) : t("title")}</DialogTitle>
           <DialogDescription>{industry ? t("industryHint") : t("description")}</DialogDescription>
         </DialogHeader>
+
+        {atLimit ? <AgentLimitNotice ceiling={ceiling} /> : null}
 
         {isLoading ? (
           <LoadingState variant="skeleton-tiles" />
@@ -94,6 +114,7 @@ export function AgentTemplateDialog({
             onInstall={install}
             isInstalling={isInstalling}
             installingKey={installingKey}
+            blocked={atLimit}
           />
         ) : (
           <IndustryCards industries={industries} onPick={setIndustryId} />
@@ -122,9 +143,9 @@ function IndustryCards({
               key={industry.id}
               type="button"
               onClick={() => onPick(industry.id)}
-              className="group hover:border-primary hover:bg-accent flex flex-col items-center gap-3 rounded-lg border p-8 text-center transition-colors"
+              className="group hover:border-primary hover:bg-accent grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
             >
-              <Icon className="text-muted-foreground group-hover:text-primary size-10 transition-colors" />
+              <Icon className="text-muted-foreground group-hover:text-primary row-span-3 size-7 transition-colors sm:size-8" />
               <span className="font-medium">{t(`industry.${industry.id}`)}</span>
               <span className="text-muted-foreground text-sm">
                 {t("count", { count: industry.templates.length })}
@@ -143,12 +164,15 @@ function IndustryTemplates({
   onInstall,
   isInstalling,
   installingKey,
+  blocked,
 }: {
   industry: TemplateIndustry;
   onBack: () => void;
   onInstall: (key: string) => void;
   isInstalling: boolean;
   installingKey: string | undefined;
+  /** At the agent limit, where every install would be refused. */
+  blocked: boolean;
 }) {
   const t = useTranslations("agentTemplates");
 
@@ -165,7 +189,7 @@ function IndustryTemplates({
             key={template.key}
             template={template}
             busy={isInstalling && installingKey === template.key}
-            disabled={isInstalling}
+            disabled={isInstalling || blocked}
             onInstall={() => onInstall(template.key)}
           />
         ))}

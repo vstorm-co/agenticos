@@ -68,20 +68,20 @@ beforeEach(() => {
 });
 
 describe("dropping files on the context page", () => {
-  it("opens the form prefilled from the file, mode still unanswered", async () => {
+  it("opens the library form with content and leaves usage settings to the agent", async () => {
     await mount();
 
     act(() => void window.dispatchEvent(drop([textFile("Refund Policy.md", "# Refunds")])));
 
     // The name is the handle, without the extension it carries in `format`.
     expect(await screen.findByDisplayValue("refund-policy")).toBeInTheDocument();
-    expect(screen.getByLabelText("Format")).toHaveTextContent("md");
+    expect(screen.queryByLabelText("Format")).not.toBeInTheDocument();
     // The dialog opens on the source, so the dropped bytes are in the editor
     // rather than in a rendering of them.
     expect(screen.getByLabelText(/source/i)).toHaveValue("# Refunds");
-    // Nothing was created: the mode question is on screen, unanswered.
+    // Importing prepares the library entry; agent-specific usage is not asked here.
     expect(post).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Mode")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Mode")).not.toBeInTheDocument();
   });
 
   it("takes the extension as the format, so a .txt is not called Markdown", async () => {
@@ -90,7 +90,14 @@ describe("dropping files on the context page", () => {
     act(() => void window.dispatchEvent(drop([textFile("notes.txt", "plain", "text/plain")])));
 
     expect(await screen.findByDisplayValue("notes")).toBeInTheDocument();
-    expect(screen.getByLabelText("Format")).toHaveTextContent("txt");
+    expect(screen.queryByLabelText("Format")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        "/context",
+        expect.objectContaining({ format: "txt", mode: "inject" }),
+      ),
+    );
   });
 
   it("queues the rest and says how many, one file at a time", async () => {
@@ -174,4 +181,34 @@ describe("dropping files on the context page", () => {
     await waitFor(() => expect(screen.queryByDisplayValue("two")).toBeNull());
     expect(screen.queryByDisplayValue("one")).toBeNull();
   });
+});
+
+it("recovers the context editor when its detail query fails", async () => {
+  const summary = {
+    id: "c1",
+    name: "refunds",
+    description: null,
+    format: "md",
+    mode: "inject",
+    enabled: true,
+    visibility: "org",
+    size_bytes: 10,
+    excerpt: "",
+  };
+  let failed = true;
+  get.mockImplementation(async (path: string) => {
+    if (path.startsWith("/context?")) return { items: [summary], total: 1 };
+    if (path === "/context/c1") {
+      if (failed) throw new Error("unavailable");
+      return { ...summary, content: "# Refunds", owner_user_id: null };
+    }
+    return { items: [], total: 0 };
+  });
+  await mount();
+  await userEvent.click(await screen.findByText("refunds"));
+  const retry = await screen.findByRole("button", { name: "Retry" });
+  failed = false;
+  await userEvent.click(retry);
+  expect(await screen.findByLabelText(/source/i)).toHaveValue("# Refunds");
+  expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
 });

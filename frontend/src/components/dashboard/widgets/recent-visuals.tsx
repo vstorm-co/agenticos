@@ -31,7 +31,7 @@ export function RecentVisualsWidget({ title, hint, seeAll, options }: DashboardW
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
       {isLoading ? (
-        <WidgetSkeleton />
+        <WidgetSkeleton variant="gallery" rows={6} />
       ) : error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : visuals.length === 0 ? (

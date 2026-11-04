@@ -12,6 +12,7 @@ from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
 from app.services.channels.base import FeedbackComment, read_feedback
 from app.services.channels.feedback import ChannelFeedback
+from app.services.channels.next_steps import ChannelNextSteps, read_next
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.slack_app import SlackSurfaces
@@ -33,6 +34,19 @@ async def process_channel_event(incoming: Any) -> None:
         logger.exception("channel_event_processing_failed")
 
 
+async def refusal_before_publishing(incoming: Any) -> str | None:
+    """Why a sender's words may not be posted as the bot yet, or `None`.
+
+    A failure to decide is a refusal: nothing is posted on a guess.
+    """
+    try:
+        async with get_db_context() as db:
+            return await ChannelMessageRouter().refusal_before_publishing(incoming, db)
+    except Exception:
+        logger.exception("channel_preflight_failed")
+        return "That could not be checked just now. Try again in a moment."
+
+
 async def process_channel_press(press: Any) -> None:
     """Decide or answer what a pressed button was offered for (#2064, #2067).
 
@@ -41,22 +55,32 @@ async def process_channel_press(press: Any) -> None:
     """
     try:
         async with get_db_context() as db:
-            # A thumbs button rates an answer; every other button answers a prompt.
+            # A thumbs button rates an answer, a next step is the presser's next
+            # message, and every other button answers a prompt.
             if read_feedback(press.value) is not None:
                 await ChannelFeedback(db).rate(press)
+            elif read_next(press.value) is not None:
+                said = await ChannelNextSteps(db).take(press)
+                if said is not None:
+                    await ChannelMessageRouter().route(said, db)
             else:
                 await ChannelPrompts(db).press(press)
     except Exception:
         logger.exception("channel_press_processing_failed")
 
 
-async def process_feedback_comment(comment: FeedbackComment) -> None:
-    """Keep what somebody said was wrong with an answer (#2084); failures are logged."""
+async def process_feedback_comment(comment: FeedbackComment) -> bool:
+    """Keep what somebody said was wrong with an answer (#2084), and say whether it was.
+
+    False for a refusal - an unlinked account, a run that is gone - and for a
+    failure, which is logged.
+    """
     try:
         async with get_db_context() as db:
-            await ChannelFeedback(db).comment(comment)
+            return await ChannelFeedback(db).comment(comment)
     except Exception:
         logger.exception("channel_feedback_comment_failed")
+        return False
 
 
 async def process_slack_surface(payload: dict[str, Any], bot_id: str) -> None:

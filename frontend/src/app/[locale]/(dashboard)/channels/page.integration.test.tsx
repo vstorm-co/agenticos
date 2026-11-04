@@ -38,6 +38,14 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     webhook_mode: false,
     webhook_url: null,
     api_base_url: "https://mattermost.acme.com",
+    access_policy: {
+      mode: "open",
+      whitelist: [],
+      allowed_groups: [],
+      require_link: false,
+      rate_limit_rpm: 10,
+      denied_message: "Denied",
+    },
     has_webhook_secret: true,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
@@ -274,11 +282,13 @@ describe("the channels page", () => {
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
     await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
     await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
+    await userEvent.click(screen.getByRole("switch", { name: "Respond to group mentions" }));
     await userEvent.click(screen.getByRole("button", { name: "Register" }));
 
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/channels/bots", {
         platform: "mattermost",
+        access_policy: { respond_to_broadcasts: true },
         name: "Acme Support",
         token: "a-long-enough-token",
         api_base_url: "https://mattermost.acme.com",

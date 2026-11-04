@@ -45,6 +45,7 @@ Pick the pool by what the job spends:
 | Pool | For | How it runs |
 |---|---|---|
 | `agent` | Agent runs and trigger fires: long, waiting on models | On the worker's loop, `WORKER_AGENT_CONCURRENCY` at once |
+| `workflow` | Workflow nodes: HTTP, file and sandbox steps, mostly waiting | On the worker's loop, `WORKER_WORKFLOW_CONCURRENCY` at once |
 | `ingest` | Parsing and embedding: CPU and memory heavy | One job per child process, under `WORKER_INGEST_MEMORY_MB` |
 | `system` | Sweeps, cleanups, reports: short | On the worker's loop, `WORKER_SYSTEM_CONCURRENCY` at once |
 

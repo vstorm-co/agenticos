@@ -3,10 +3,11 @@
 Contains database operations for SyncLog entities.
 """
 
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.sync_log import SyncLog
@@ -17,21 +18,43 @@ async def get_by_id(db: AsyncSession, sync_id: UUID) -> SyncLog | None:
     return await db.get(SyncLog, sync_id)
 
 
+@dataclass(frozen=True)
+class SyncLogScope:
+    """The sync runs a listing may include.
+
+    A run carries a collection name and, when a sync source started it, that
+    source - no organization and no base. The name alone is not whose a run is:
+    an app-scoped base and an organization's base can share it, and every
+    member of every organization reads the app base. So a run started by a
+    source is listed only when that source is one of `sync_source_ids` - the
+    sources feeding a base the caller reads - and a run with no source (a local
+    directory or command-line sync, or one whose source was deleted) by its name.
+    """
+
+    collections: list[str]
+    sync_source_ids: list[UUID]
+
+
 async def get_all(
     db: AsyncSession,
-    collections: list[str] | None = None,
+    scope: SyncLogScope | None = None,
     sync_source_id: UUID | None = None,
     limit: int = 20,
 ) -> list[SyncLog]:
-    """Get sync logs, optionally filtered by collections or sync source.
+    """Get sync logs, optionally filtered by a scope or one sync source.
 
-    `collections` is checked with `is not None` rather than for truthiness:
-    an empty list means "no collection is in scope", and must answer with
-    nothing rather than with everything.
+    An empty `scope` means "nothing is in scope", and answers with nothing
+    rather than with everything.
     """
     query = select(SyncLog)
-    if collections is not None:
-        query = query.where(SyncLog.collection_name.in_(collections))
+    if scope is not None:
+        query = query.where(
+            SyncLog.collection_name.in_(scope.collections),
+            or_(
+                SyncLog.sync_source_id.is_(None),
+                SyncLog.sync_source_id.in_(scope.sync_source_ids),
+            ),
+        )
     if sync_source_id:
         query = query.where(SyncLog.sync_source_id == sync_source_id)
     query = query.order_by(SyncLog.started_at.desc()).limit(limit)

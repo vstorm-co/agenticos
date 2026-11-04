@@ -13,7 +13,6 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
-    RetryPromptPart,
     SpeechPart,
     SpeechPartDelta,
     TextPart,
@@ -383,10 +382,11 @@ async def test_a_tool_that_asked_for_a_retry_is_saved_as_failed_without_its_raw_
     )
     await pump.handle(
         FunctionToolResultEvent(
-            part=RetryPromptPart(
+            part=ToolReturnPart(
                 tool_name="web_search",
                 content="401 Unauthorized for url 'https://api.example.com/search?key=k'",
                 tool_call_id="c1",
+                outcome="retried",
             )
         ),
         _SESSION,

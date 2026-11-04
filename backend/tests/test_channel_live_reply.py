@@ -509,12 +509,21 @@ class TestAScreenedAnswerInTheChat:
 class TestAParkedTurnOffersItsChoices:
     """A turn that stopped for somebody puts the choices in the chat (#2064, #2067)."""
 
-    async def _run(self, parked_run_id: object) -> AsyncMock:
+    async def _run(
+        self, parked_run_id: object, next_steps: list[str] | None = None
+    ) -> tuple[AsyncMock, AsyncMock]:
         from app.services.channels.router import ChannelMessageRouter
 
         router = ChannelMessageRouter()
-        answered = MagicMock(text="", refused=[], parked_run_id=parked_run_id)
+        answered = MagicMock(
+            text="",
+            refused=[],
+            parked_run_id=parked_run_id,
+            run_id="run-1",
+            next_steps=next_steps or [],
+        )
         offer = AsyncMock()
+        offer_steps = AsyncMock()
 
         async def turn() -> object:
             return answered
@@ -522,8 +531,10 @@ class TestAParkedTurnOffersItsChoices:
         with (
             patch.object(router, "_deliver", new=AsyncMock()),
             patch("app.services.channels.router.ChannelPrompts") as prompts,
+            patch("app.services.channels.router.ChannelNextSteps") as next_steps_service,
         ):
             prompts.return_value.offer = offer
+            next_steps_service.return_value.offer = offer_steps
             handled = await router._run_turn(
                 MagicMock(),
                 MagicMock(platform="slack", platform_chat_id="C1:1.0"),
@@ -534,10 +545,10 @@ class TestAParkedTurnOffersItsChoices:
                 file_refusals=[],
             )
         assert handled is True
-        return offer
+        return offer, offer_steps
 
     async def test_a_parked_run_is_offered_where_it_was_asked(self):
-        offer = await self._run("run-1")
+        offer, _ = await self._run("run-1")
 
         assert offer.await_args.kwargs == {
             "platform": "slack",
@@ -546,6 +557,19 @@ class TestAParkedTurnOffersItsChoices:
         }
 
     async def test_a_finished_run_offers_nothing(self):
-        offer = await self._run(None)
+        offer, offer_steps = await self._run(None)
 
         offer.assert_not_awaited()
+        offer_steps.assert_not_awaited()
+
+    async def test_a_finished_run_offers_the_next_steps_it_suggested(self):
+        """Buttons in the chat, a press of which is the next message (#2301)."""
+        offer, offer_steps = await self._run(None, ["Make it a table"])
+
+        offer.assert_not_awaited()
+        assert offer_steps.await_args.kwargs == {"run_id": "run-1", "steps": ["Make it a table"]}
+
+    async def test_a_parked_run_offers_its_choices_rather_than_next_steps(self):
+        _, offer_steps = await self._run("run-1", ["Make it a table"])
+
+        offer_steps.assert_not_awaited()

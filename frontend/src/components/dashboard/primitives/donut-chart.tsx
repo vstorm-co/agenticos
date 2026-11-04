@@ -34,7 +34,7 @@ export interface DonutLegendRow {
  * ones it did not, because "no runs were refused for budget" is an answer.
  *
  * Each legend row carries the colour of the segment it names, so the key can
- * never show a colour the ring does not draw. A row at zero is dimmed rather
+ * never show a colour the ring does not draw. A row at zero is kept rather
  * than dropped, and every row prints its count: colour separates the arcs,
  * it never carries the value.
  *
@@ -68,10 +68,7 @@ export function DonutChart({
         </div>
         <ul className="w-full min-w-0 space-y-2 @[26rem]:flex-1">
           {rows.map((row) => (
-            <li
-              key={row.name}
-              className={cn("flex items-center gap-2 text-xs", row.value === 0 && "opacity-45")}
-            >
+            <li key={row.name} className="flex items-center gap-2 text-xs">
               <span
                 className="size-2.5 shrink-0 rounded-[3px]"
                 style={{ background: row.color }}

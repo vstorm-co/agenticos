@@ -1,15 +1,16 @@
 /**
  * The routes served to somebody who is not a member of any organization.
  *
- * A hosted page (`/e/<key>`), a shared conversation (`/shared/<token>`) and a
- * published artifact's public link (`/a/<key>`), and what makes them a category
- * rather than three paths is that nobody signs in on any of them: there is no
+ * A hosted page (`/e/<key>`), a shared conversation (`/shared/<token>`), a
+ * published artifact's public link (`/a/<key>`) and a workflow's form
+ * (`/f/<token>`), and what makes them a category rather than four paths is that
+ * nobody signs in on any of them: there is no
  * session, no organization header, and the visitor is identified - if at all - by
  * one `localStorage` key of their own browser's making. Anything written for a
  * member is therefore wrong here by construction, not merely unhelpful, which is
  * what the cookie banner demonstrated (#644).
  */
-const PUBLIC_SURFACES = ["/e/", "/shared/", "/a/"] as const;
+const PUBLIC_SURFACES = ["/e/", "/shared/", "/a/", "/f/"] as const;
 
 /**
  * Whether this path is one of them.

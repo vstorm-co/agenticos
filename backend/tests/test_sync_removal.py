@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import BadRequestError
+from app.db.vector_tables import VectorScope
 from app.services.rag.connectors import RemoteFile, RemoteListing, WithdrawnFile
 from app.services.rag.models import IngestionStatus
 from app.worker.tasks import rag_tasks
@@ -26,6 +27,9 @@ from app.worker.tasks import rag_tasks
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("sole_source_run")]
 
 SOURCE_ID = uuid.uuid4()
+# The base a removed row is filed under - not the one the sync resolves to,
+# which is unbound here (`_knowledge_base_for` answers None).
+ROW_SCOPE = VectorScope(tenant=uuid.uuid4(), knowledge_base_id=uuid.uuid4())
 KEPT = RemoteFile(id="k", name="kept.md", source_path="web://docs.example.com/kept")
 HIDDEN = RemoteFile(id="h", name="hidden.md", source_path="web://docs.example.com/hidden")
 
@@ -98,6 +102,7 @@ async def _syncing(
         ),
         stale_for_source=AsyncMock(return_value=[]),
         forget_document=AsyncMock(),
+        vector_scope=AsyncMock(return_value=ROW_SCOPE),
     )
     syncs = MagicMock(complete_sync=AsyncMock(return_value=log))
     notifications = MagicMock(sync_completed=AsyncMock(), sync_failed=AsyncMock())
@@ -116,7 +121,7 @@ async def _syncing(
 
     @asynccontextmanager
     async def _db() -> Any:
-        yield MagicMock()
+        yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())
 
     with (
         patch.object(rag_tasks, "VectorStore", return_value=store),
@@ -154,9 +159,22 @@ class TestAgainstACompleteListing:
         async with _syncing(_connector(RemoteListing(files=[KEPT])), unlisted=[gone]) as run:
             pass
 
-        run["remove"].assert_awaited_once_with("docs", "vec-gone")
+        run["remove"].assert_awaited_once_with("docs", "vec-gone", ROW_SCOPE)
         run["documents"].forget_document.assert_awaited_once_with(str(gone.id))
         assert run["completed"]["removed"] == 1
+
+    @pytest.mark.security
+    async def test_the_vectors_go_under_the_base_the_row_is_filed_under(self) -> None:
+        """Not the base the sync resolves to now: the two differ once a base is
+        created or deleted, and a delete in the wrong base matches nothing while
+        the row is forgotten, leaving the chunks searchable (#2537)."""
+        gone = _row("web://docs.example.com/gone")
+
+        async with _syncing(_connector(RemoteListing(files=[KEPT])), unlisted=[gone]) as run:
+            pass
+
+        run["documents"].vector_scope.assert_awaited_once_with(gone)
+        assert run["remove"].await_args.args[2] == ROW_SCOPE
         assert run["completed"]["status"] == "done"
         assert run["completed"]["error_message"] is None
 
@@ -364,4 +382,4 @@ class TestOneRunOfASourceAtATime:
 
 @asynccontextmanager
 async def _no_db() -> Any:
-    yield MagicMock()
+    yield MagicMock(execute=AsyncMock(), refresh=AsyncMock())

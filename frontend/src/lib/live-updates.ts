@@ -17,6 +17,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   context: () => [qk.context.all(), qk.sharing.all()],
   knowledge_base: () => [qk.kb.all(), qk.sharing.all()],
   artifact: () => [qk.artifacts.all(), qk.sharing.all()],
+  table: () => [qk.tables.all(), qk.sharing.all()],
+  workflow: () => [qk.workflows.all(), qk.sharing.all()],
   member: (orgId) => [
     qk.organizations.members(orgId),
     qk.organizations.groups(orgId),
@@ -33,7 +35,12 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   channel: () => [qk.channelBots.list(), qk.exposures.all()],
   notification: () => [qk.notifications.all()],
   secret: () => [qk.secrets.all(), qk.sharing.all()],
-  mcp_connection: () => [qk.mcpConnections.all(), qk.sharing.all()],
+  mcp_connection: () => [
+    qk.mcpConnections.all(),
+    qk.mcpServers.lists(),
+    qk.mcpServers.entries(),
+    qk.sharing.all(),
+  ],
   // Run history, the approvals inbox and spend all live under `runs`; the chat
   // list reads its running, unread and order state off runs too - a run started
   // by the API, a routine or another tab would otherwise leave it stale. The

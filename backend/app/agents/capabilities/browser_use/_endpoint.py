@@ -11,6 +11,7 @@ from urllib.parse import urlparse, urlsplit
 
 import anyio
 
+from app.core.config import settings
 from app.core.sanitize import UrlRefusedError, resolve_pinned_url
 
 DEBUGGER_KEY = "webSocketDebuggerUrl"
@@ -19,6 +20,15 @@ DEBUGGER_KEY = "webSocketDebuggerUrl"
 
 class EndpointError(RuntimeError):
     """A CDP endpoint that cannot be used, said once and in the caller's words."""
+
+
+def check_navigation(url: str) -> None:
+    """Distinguish Chromium's failed-load page from a domain policy refusal."""
+    if url.startswith("chrome-error://"):
+        raise EndpointError(
+            "The browser could not load the page. Check its network connection, "
+            "egress proxy and the destination's availability. This is not a domain allowlist refusal."
+        )
 
 
 def version_url(cdp_url: str) -> str:
@@ -137,7 +147,10 @@ def domain_allowed(url: str, patterns: list[str] | None) -> bool:
     works. The port is deliberately not matched - a host is a trust boundary and a
     port is not - and a URL with no host at all is refused either way.
     """
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
     if parsed.scheme not in BROWSABLE_SCHEMES:
         return False
     host = (parsed.hostname or "").lower()
@@ -182,3 +195,17 @@ async def egress_refused(url: str, allowed_domains: list[str] | None) -> bool:
     except UrlRefusedError:
         return True
     return False
+
+
+def is_renderer(cdp_url: str) -> bool:
+    """Whether `cdp_url` names this deployment's page renderer (`ARTIFACT_RENDER_CDP_URL`).
+
+    That browser draws people's records for `preview_artifact` and is the operator's
+    alone, so a browsing agent is refused it - when it is published, and again on
+    every browse, since the renderer may be named after the agent was. Matched by
+    host name, case-folded, any port; an alias or address of it is kept out by
+    `BROWSER_CDP_ALLOWED_HOSTS` itself.
+    """
+    renderer = urlsplit((settings.ARTIFACT_RENDER_CDP_URL or "").strip()).hostname
+    host = urlsplit(cdp_url.strip()).hostname
+    return renderer is not None and host is not None and host.lower() == renderer.lower()

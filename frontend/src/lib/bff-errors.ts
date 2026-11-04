@@ -31,6 +31,7 @@ export const BFF_ERROR_KEYS = {
   MISSING_TOKENS: "missingTokens",
   NOT_AUTHENTICATED: "notAuthenticated",
   NO_REFRESH_TOKEN: "noRefreshToken",
+  RELEASE_CHECK_UNAVAILABLE: "releaseCheckUnavailable",
   REGISTRATION_FAILED: "registrationFailed",
   SESSION_EXPIRED: "sessionExpired",
   UPLOAD_FAILED: "uploadFailed",

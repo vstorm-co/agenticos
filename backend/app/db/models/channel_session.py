@@ -43,6 +43,14 @@ class ChannelSession(Base, TimestampMixin):
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    thread_history_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    """Text context format already read, independent of downloaded thread files.
+
+    Version 1 preserves original timestamps. A text-only refresh must not reset
+    the file marker and download all earlier attachments a second time.
+    """
     thread_backfilled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -62,8 +70,8 @@ class ChannelSession(Base, TimestampMixin):
     A timestamp rather than a boolean because it costs the same and answers
     "when", which is what somebody asks when a transcript looks short.
 
-    **Widening what "read the thread" means requires nulling this column in the
-    same change**, and `0068_reread_channel_threads` is the migration to copy. It
+    **Widening file backfill requires nulling this column in the same change**;
+    `0068_reread_channel_threads` is the migration to copy. It
     says *when* a thread was read and not *what* was read from it, so a stamp
     written by an earlier, narrower reader is indistinguishable from a complete
     one - and the rows that most need re-reading are exactly the ones that will

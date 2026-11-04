@@ -86,6 +86,49 @@ describe("ChatInput typing", () => {
     await userEvent.clear(screen.getByRole("textbox"));
     expect(onTyping).toHaveBeenCalledTimes(2);
   });
+
+  it("says when the box holds words of the person's own, and when it no longer does", async () => {
+    // What hides the latest answer's next steps from the composer (#2301).
+    const onDraftChange = vi.fn();
+    render(<ChatInput onSend={vi.fn()} onDraftChange={onDraftChange} />);
+    expect(onDraftChange).toHaveBeenLastCalledWith(false);
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+    expect(onDraftChange).toHaveBeenLastCalledWith(true);
+
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(onDraftChange).toHaveBeenLastCalledWith(false);
+  });
+});
+
+describe("ChatInput offline", () => {
+  it("says it is reconnecting where it would ask for a message (#2301)", () => {
+    render(<ChatInput onSend={vi.fn()} offline disabled />);
+
+    expect(screen.getByText("Reconnecting…")).toBeInTheDocument();
+  });
+});
+
+describe("ChatInput idle slot", () => {
+  it("offers the call in Send's place until there is something to send (#2301)", async () => {
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        idleSlot={
+          <button type="button" aria-label="Start a call">
+            call
+          </button>
+        }
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Start a call" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send message" })).toBeNull();
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+
+    expect(screen.getByRole("button", { name: "Send message" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start a call" })).toBeNull();
+  });
 });
 
 describe("ChatInput paste", () => {
@@ -504,6 +547,26 @@ describe("ChatInput dictation engines", () => {
     expect(toast.info).not.toHaveBeenCalled();
   });
 
+  it("starts recording once when a shortcut asks, and only on the server engine", () => {
+    const dictation = serverDictation();
+    const started = vi.fn();
+    const { rerender } = render(
+      <ChatInput onSend={vi.fn()} dictation={dictation} dictateNow onDictateStarted={started} />,
+    );
+    rerender(
+      <ChatInput onSend={vi.fn()} dictation={dictation} dictateNow onDictateStarted={started} />,
+    );
+    expect(dictation.actions.start).toHaveBeenCalledOnce();
+    expect(started).toHaveBeenCalledOnce();
+
+    const browser = serverDictation({ engine: "browser" });
+    const taken = vi.fn();
+    render(<ChatInput onSend={vi.fn()} dictation={browser} dictateNow onDictateStarted={taken} />);
+    expect(taken).toHaveBeenCalledOnce();
+    expect(browser.actions.start).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
   it("shows the microphone beside Send whichever engine dictates", async () => {
     const dictation = serverDictation();
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
@@ -761,4 +824,95 @@ describe("ChatInput inserting a transcript", () => {
 
     expect(messageOf(screen.getByRole("textbox"))).toBe("");
   });
+});
+
+describe("a run waiting for its person", () => {
+  it("disables Stop while cancelling without showing Call", async () => {
+    const stop = vi.fn();
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        canStop
+        stopDisabled
+        onStop={stop}
+        idleSlot={<button>Call</button>}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Stop generating" });
+    expect(button).toBeDisabled();
+    await userEvent.click(button);
+    expect(stop).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
+  });
+
+  it("offers Stop instead of Call even though the parked turn is not streaming", async () => {
+    const stop = vi.fn();
+    render(
+      <ChatInput
+        onSend={vi.fn()}
+        disabled
+        isProcessing={false}
+        canStop
+        onStop={stop}
+        idleSlot={<button>Call</button>}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Stop generating" }));
+    expect(stop).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
+  });
+});
+
+it("keeps composing while focus moves to Send, and exits without losing an unsent draft", async () => {
+  const onSend = vi.fn();
+  render(
+    <>
+      <button>Outside</button>
+      <ChatInput onSend={onSend} />
+    </>,
+  );
+  const editor = screen.getByRole("textbox");
+  const form = editor.closest("form");
+  await userEvent.type(editor, "Phone draft");
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+  expect(form).not.toHaveAttribute("data-editing");
+  expect(messageOf(editor)).toBe("Phone draft");
+  await userEvent.click(editor);
+  const send = screen.getByRole("button", { name: "Send message" });
+  fireEvent.blur(editor, { relatedTarget: send });
+  fireEvent.focus(send, { relatedTarget: editor });
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(send);
+  expect(onSend).toHaveBeenCalledWith("Phone draft", undefined, undefined, undefined);
+});
+
+it("does not take touch-keyboard focus on arrival or when a reply finishes", async () => {
+  const original = window.matchMedia("");
+  const media = vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+    ...original,
+    media: query,
+    matches: query === "(pointer: coarse)",
+  }));
+  try {
+    const onSend = vi.fn();
+    const view = (processing: boolean) => (
+      <>
+        <button>Read here</button>
+        <ChatInput onSend={onSend} isProcessing={processing} />
+      </>
+    );
+    const { rerender } = render(view(false));
+    const editor = screen.getByRole("textbox");
+    expect(editor).not.toHaveFocus();
+    const outside = screen.getByRole("button", { name: "Read here" });
+    await userEvent.click(outside);
+    rerender(view(true));
+    rerender(view(false));
+    expect(outside).toHaveFocus();
+    await userEvent.click(editor);
+    expect(editor).toHaveFocus();
+  } finally {
+    media.mockRestore();
+  }
 });

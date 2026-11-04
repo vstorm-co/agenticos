@@ -3,11 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { ChatPrompt } from "@/components/chat/chat-container";
 import type { IncomingFiles } from "@/components/chat/chat-input";
+import { useArchitectAskStore } from "@/stores/architect-ask-store";
+import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 import type { AssistantState } from "@/types/assistant";
 
 import { BUBBLE_VISIBLE_MS } from "./assistant-bubble";
+import { AssistantFace, WidgetRoot } from "./assistant-launcher";
 import { AssistantWidget, DOCK_AFTER_MS } from "./assistant-widget";
 
 const state = vi.hoisted(() => ({
@@ -131,6 +135,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  act(() => useArchitectMarkStore.setState({ agentId: null }));
+  delete window.__AGENTICOS_SHELL__;
   vi.useRealTimers();
   vi.restoreAllMocks();
   localStorage.clear();
@@ -138,6 +144,37 @@ afterEach(() => {
 });
 
 describe("the Architect widget", () => {
+  it.each([null, 4])("matches the agent avatar after clearing its picture (colour %s)", (color) => {
+    act(() => useArchitectMarkStore.setState({ agentId: "a1" }));
+    const cleared = assistant({ avatar_color: color });
+    const { container } = render(
+      <>
+        <AgentAvatar agentId="a1" slug="ai-architect" colorSlot={color} size="lg" />
+        <AssistantFace assistant={cleared} agentId="a1" size="sm" />
+        <AssistantFace assistant={cleared} agentId="a1" size="lg" />
+      </>,
+    );
+    const drawings = Array.from(container.querySelectorAll("g.mo-root"), (face) => face.innerHTML);
+    expect(drawings).toHaveLength(3);
+    expect(new Set(drawings).size).toBe(1);
+    expect(container.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
+  });
+
+  it("keeps the web launcher at the edge in the native desktop console", () => {
+    state.assistant = assistant();
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      window: "main",
+      version: "0.2.0",
+      vibrancy: false,
+    };
+    render(<AssistantWidget />);
+    expect(screen.getByRole("button", { name: "Open Architect" })).toHaveAttribute(
+      "data-docked",
+      "true",
+    );
+  });
+
   it.each([
     ["there is no assistant", null],
     ["the person may not run agents", { can_use: false }],
@@ -150,13 +187,14 @@ describe("the Architect widget", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("is the Architect in the reader's language until it is renamed, and wears its mark", () => {
+  it("is the Architect in the reader's language until it is renamed, and uses its generated face when its picture is cleared", () => {
     // Installed beside an agent that took its handle: the name had to differ,
     // the console still calls it the Architect.
     state.assistant = assistant({ name: "Architect (AgenticOS)" });
     const { unmount } = render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Architect" })).toBeInTheDocument();
-    expect(document.querySelector('svg circle[fill="#2557d6"]')).not.toBeNull();
+    expect(document.querySelector("g.mo-root")).not.toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
     unmount();
 
     state.assistant = assistant({
@@ -168,7 +206,7 @@ describe("the Architect widget", () => {
     render(<AssistantWidget />);
     expect(screen.getByRole("button", { name: "Open Ola z IT" })).toBeInTheDocument();
     // Given a picture, it wears the picture.
-    expect(document.querySelector('svg circle[fill="#2557d6"]')).toBeNull();
+    expect(document.querySelector('svg rect[fill="#2557d6"]')).toBeNull();
   });
 
   it("walks through connecting a model when it has none", () => {
@@ -193,6 +231,24 @@ describe("the Architect widget", () => {
     expect(document.querySelector("iframe")).toBeNull();
     expect(chat()).toHaveAttribute("data-prompt", expect.stringMatching(/new agent/));
     expect(screen.queryByText(/Want a new agent/)).toBeNull();
+  });
+
+  it("opens and asks what somebody elsewhere in the console asked it, each ask once", () => {
+    useArchitectAskStore.setState({ request: null });
+    const { rerender } = render(<AssistantWidget />);
+
+    act(() => useArchitectAskStore.getState().ask("Make an agent of this"));
+
+    expect(screen.getByRole("dialog", { name: "Architect" })).not.toHaveClass("hidden");
+    expect(chat()).toHaveAttribute("data-prompt", "Make an agent of this");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close", expanded: true }));
+    rerender(<AssistantWidget />);
+    expect(screen.getByRole("dialog", { name: "Architect" })).toHaveClass("hidden");
+    expect(useArchitectAskStore.getState().request).toBeNull();
+
+    act(() => useArchitectAskStore.getState().ask("And another"));
+    expect(chat()).toHaveAttribute("data-prompt", "And another");
   });
 
   it("lets a bubble fade when nobody answers it, and holds it while the pointer rests on it", () => {
@@ -311,6 +367,15 @@ describe("the Architect widget", () => {
     lookAtThePage();
 
     expect(screen.getByText(/waiting for your approval/)).toBeInTheDocument();
+  });
+
+  it("keeps quiet in the chat, where the composer has its corner and no launcher shows", () => {
+    state.signals.pendingApprovals = 2;
+    state.pathname = "/chat";
+    render(<AssistantWidget />);
+    lookAtThePage();
+
+    expect(screen.queryByText(/waiting for your approval/)).toBeNull();
   });
 
   it("says what is waiting once a visit, not again on every page, until more arrives", () => {
@@ -479,7 +544,7 @@ describe("the Architect widget", () => {
     fireEvent.click(screen.getByRole("link", { name: "console link" }));
 
     expect(state.push).toHaveBeenCalledWith("/agents");
-    expect(state.pointAt).toHaveBeenCalledWith("agents-new");
+    expect(state.pointAt).toHaveBeenCalledWith("agents-new", "/agents");
     expect(screen.getByRole("dialog")).not.toHaveClass("hidden");
   });
 
@@ -548,6 +613,23 @@ describe("the Architect widget", () => {
 
     expect(outside).not.toHaveBeenCalled();
     document.removeEventListener("pointerdown", outside);
+  });
+
+  it("lets its own controls have the press first, so a menu opening on it opens", () => {
+    // The composer's `+` is a menu that opens on pointerdown; a listener that
+    // stopped the press before React saw it left it dead in the window.
+    const pressed = vi.fn();
+    render(
+      <WidgetRoot>
+        <button type="button" onPointerDown={pressed}>
+          Add to message
+        </button>
+      </WidgetRoot>,
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Add to message" }));
+
+    expect(pressed).toHaveBeenCalledOnce();
   });
 
   it("stays quiet on a page somebody silenced", () => {

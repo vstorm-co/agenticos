@@ -262,8 +262,8 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
 
   if (connection === null)
     return (
-      <Card>
-        <CardContent className="p-0">
+      <Card className="flex flex-1 flex-col">
+        <CardContent className="flex flex-1 flex-col p-0">
           <ListCardEmpty
             icon={Activity}
             title={t("noContainerConnection")}
@@ -276,7 +276,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
   const sessions = listing?.sessions ?? [];
 
   return (
-    <Card>
+    <Card className="flex flex-1 flex-col">
       <CardHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-4">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-sm">
@@ -322,7 +322,7 @@ export function SessionsPanel({ connections }: SessionsPanelProps) {
           </label>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="flex flex-1 flex-col p-0">
         <ListCardControlsRow>
           <SearchInput value={query} onChange={setQuery} placeholder={t("searchSessions")} />
         </ListCardControlsRow>

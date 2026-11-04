@@ -54,7 +54,9 @@ async def test_each_server_names_the_agents_using_it(service: MagicMock) -> None
         is_default=False,
         created_at=datetime.now(UTC),
     )
-    writer = AgentUsage(id=uuid.uuid4(), name="Writer")
+    writer = AgentUsage(
+        id=uuid.uuid4(), name="Writer", slug="writer", has_avatar=True, avatar_color=4
+    )
     service.list_for_org = AsyncMock(return_value=([connection], 1))
     service.used_by = AsyncMock(return_value={connection.id: [writer]})
 
@@ -62,7 +64,15 @@ async def test_each_server_names_the_agents_using_it(service: MagicMock) -> None
         resp = await client.get(f"{V1}/mcp-connections")
 
     assert resp.status_code == 200
-    assert resp.json()["items"][0]["used_by"] == [{"id": str(writer.id), "name": "Writer"}]
+    assert resp.json()["items"][0]["used_by"] == [
+        {
+            "id": str(writer.id),
+            "name": "Writer",
+            "slug": "writer",
+            "has_avatar": True,
+            "avatar_color": 4,
+        }
+    ]
 
 
 async def test_a_server_s_call_log(service: MagicMock) -> None:

@@ -69,13 +69,16 @@ export function publishedApps(toolCalls: ToolCall[]): PublishedArtifactPayload[]
  *
  * The version and not the artifact, so a conversation read back after the agent
  * republished still opens what was published in it - which is the evidence the
- * run left, not whatever the link shows today.
+ * run left, not whatever the link shows today. It opens in a new tab, so the
+ * conversation stays where it was.
  */
 export function PublishedArtifactResult({ data }: { data: PublishedArtifactPayload }) {
   const t = useTranslations("chat.tools");
   return (
     <Link
       href={`${ROUTES.ARTIFACT_DETAIL(data.artifactId)}?version=${encodeURIComponent(data.versionId)}`}
+      target="_blank"
+      rel="noopener noreferrer"
       className="hover:bg-accent/40 my-1 flex items-center gap-3 rounded-xl border p-2 pr-3 transition-colors"
     >
       {/* The page itself, the way the Artifacts listing draws it: an icon and a

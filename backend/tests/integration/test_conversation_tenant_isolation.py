@@ -20,6 +20,10 @@ assert the consequence: the row is reported missing, and nothing is written.
 import uuid
 
 import pytest
+from pydantic_ai.messages import ModelRequest, UserPromptPart
+from sqlalchemy import inspect
+from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.db.models.conversation import Conversation, Message
@@ -78,6 +82,50 @@ async def _conversation(db, organization: Organization, owner: User) -> Conversa
     db.add(Message(id=uuid.uuid4(), conversation_id=conversation.id, role="user", content="secret"))
     await db.flush()
     return conversation
+
+
+@pytest.mark.parametrize("include_messages", [False, True])
+async def test_normal_reads_leave_model_summary_unloaded_but_the_run_can_read_it(
+    db: AsyncSession, include_messages: bool
+) -> None:
+    organization = await _org(db, name="Summary")
+    owner = await _member(db)
+    conversation = await _conversation(db, organization, owner)
+    content = "x" * 500_000
+    summary = [{"kind": "request", "parts": [{"part_kind": "user-prompt", "content": content}]}]
+    conversation.summary_messages = summary
+    conversation.summary_ordinal = 1
+    await db.flush()
+    conversation_id = conversation.id
+    organization_id, owner_id = organization.id, owner.id
+    db.expunge_all()
+
+    light = await ConversationService(db).get_conversation(
+        conversation_id,
+        organization_id=organization_id,
+        user_id=owner_id,
+        include_messages=include_messages,
+    )
+    assert light is not None
+    assert "summary_messages" in inspect(light).unloaded
+    if include_messages:
+        assert len(light.messages) == 1
+    else:
+        assert "messages" in inspect(light).unloaded
+    with pytest.raises(InvalidRequestError, match="raiseload"):
+        _ = light.summary_messages
+
+    # The identity map already holds the light row. A model read still has to
+    # load its summary explicitly instead of triggering async implicit I/O.
+    full = await conversation_repo.get_conversation_by_id(db, conversation_id, include_summary=True)
+    assert full is light
+    assert full.summary_messages == summary
+    assert full.summary_ordinal == 1
+    db.expire(full, ["summary_messages"])
+    history = await ConversationService(db).model_history(conversation_id, limit=50)
+    assert isinstance(history[0], ModelRequest)
+    assert isinstance(history[0].parts[0], UserPromptPart)
+    assert history[0].parts[0].content == content
 
 
 class TestReadingAnotherOrganizationsTranscript:
@@ -283,3 +331,23 @@ class TestSharedWithMeDropsCrossOrgRows:
         assert (
             await conversation_share_repo.count_conversations_shared_with_user(db, outsider.id) == 0
         )
+
+
+async def test_submission_correlation_round_trips_with_its_actual_author(db) -> None:
+    organization = await _org(db, name="Correlated")
+    owner = await _member(db)
+    conversation = await _conversation(db, organization, owner)
+    service = ConversationService(db)
+    saved = await service.add_message(
+        conversation.id,
+        MessageCreate(role="user", content="repeat", client_message_id="local-123"),
+        organization_id=organization.id,
+        user_id=owner.id,
+    )
+    items, total, _cost = await service.transcript(
+        conversation.id, organization_id=organization.id, user_id=owner.id, include_tool_calls=True
+    )
+    assert total == 2
+    correlated = next(item for item in items if item.id == saved.id)
+    assert correlated.client_message_id == "local-123"
+    assert correlated.sender.user_id == owner.id

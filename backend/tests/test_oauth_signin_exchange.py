@@ -6,11 +6,13 @@ refresh token is good for a week. The callback therefore hands out a single-use
 code that the frontend swaps for the pair server to server.
 """
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
+import anyio
 import pytest
 from httpx import AsyncClient
 from starlette.responses import Response
@@ -38,6 +40,9 @@ class _FakeRedis:
     async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
         self._store[key] = value
         return True
+
+    async def get(self, key: str) -> str | None:
+        return self._store.get(key)
 
     async def getdel(self, key: str) -> str | None:
         return self._store.pop(key, None)
@@ -200,7 +205,9 @@ async def test_a_desktop_sign_in_returns_through_the_deep_link(
     monkeypatch.setattr(oauth.google, "authorize_redirect", started)
 
     # One client, so the session cookie the login sets is the one the callback reads.
-    await client.get(f"{settings.API_V1_STR}/oauth/google/login?client=desktop&desktop_nonce=n0nce")
+    await client.get(
+        f"{settings.API_V1_STR}/oauth/google/login?client=desktop&desktop_nonce=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+    )
     # The marker is filed under the state this attempt was started with, so the
     # callback has to carry it back - which is what the provider does.
     state = started.await_args.kwargs["state"]
@@ -211,7 +218,7 @@ async def test_a_desktop_sign_in_returns_through_the_deep_link(
     assert location.startswith("agenticos://auth/callback?code=")
     # And the shell's own nonce rides back, so it can refuse a deep link it did
     # not ask for - any local process can invoke a custom scheme.
-    assert "desktop_nonce=n0nce" in location
+    assert "desktop_nonce=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" in location
 
 
 async def test_a_second_sign_in_does_not_steal_the_first_ones_destination(
@@ -241,7 +248,9 @@ async def test_a_second_sign_in_does_not_steal_the_first_ones_destination(
     started = AsyncMock(return_value=Response(status_code=302))
     monkeypatch.setattr(oauth.google, "authorize_redirect", started)
 
-    await client.get(f"{settings.API_V1_STR}/oauth/google/login?client=desktop&desktop_nonce=n0nce")
+    await client.get(
+        f"{settings.API_V1_STR}/oauth/google/login?client=desktop&desktop_nonce=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+    )
     desktop_state = started.await_args.kwargs["state"]
     await client.get(f"{settings.API_V1_STR}/oauth/google/login")
     browser_state = started.await_args.kwargs["state"]
@@ -322,3 +331,72 @@ async def test_the_return_scheme_is_the_deployments_not_the_callers(
     redirect = await client.get(f"{_CALLBACK}?client=desktop&scheme=evil")
 
     assert redirect.headers["location"].startswith(settings.FRONTEND_URL.rstrip("/"))
+
+
+@pytest.mark.security
+async def test_native_proof_rejects_an_intercepted_code_without_consuming_it():
+    service = OAuthExchangeService(_FakeRedis())
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+    challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+    code = await service.issue(
+        access_token="access", refresh_token="refresh", code_challenge=challenge
+    )
+    assert await service.redeem(code) is None
+    assert await service.redeem(code, code_verifier=challenge) is None
+    assert await service.redeem(code, code_verifier="x" * 43) is None
+    assert await service.redeem(code, code_verifier="invalid") is None
+    assert await service.redeem(code, code_verifier=verifier) == ("access", "refresh")
+    assert await service.redeem(code, code_verifier=verifier) is None
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("suffix", ["", "&desktop_nonce=invalid"])
+async def test_native_start_requires_the_public_s256_challenge(client, suffix):
+    response = await client.get(f"{settings.API_V1_STR}/oauth/google/login?client=desktop{suffix}")
+    assert response.status_code == 401
+
+
+@pytest.mark.security
+async def test_concurrent_native_redemption_has_exactly_one_winner():
+    class RacingRedis(_FakeRedis):
+        async def get(self, key: str) -> str | None:
+            value = await super().get(key)
+            await anyio.lowlevel.checkpoint()
+            return value
+
+    service = OAuthExchangeService(RacingRedis())
+    code = await service.issue(access_token="access", refresh_token="refresh")
+    answers = await asyncio.gather(service.redeem(code), service.redeem(code))
+    assert answers.count(("access", "refresh")) == 1
+    assert answers.count(None) == 1
+
+
+@pytest.mark.security
+async def test_native_exchange_http_requires_the_private_verifier(client):
+    fake = _FakeRedis()
+    app.dependency_overrides[get_redis] = lambda: fake
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+    code = await OAuthExchangeService(fake).issue(
+        access_token="access",
+        refresh_token="refresh",
+        code_challenge="E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+    )
+    assert (await client.post(_EXCHANGE, json={"code": code})).status_code == 401
+    assert (
+        await client.post(_EXCHANGE, json={"code": code, "code_verifier": "x" * 43})
+    ).status_code == 401
+    response = await client.post(_EXCHANGE, json={"code": code, "code_verifier": verifier})
+    assert response.status_code == 200
+    assert response.json()["access_token"] == "access"
+
+
+@pytest.mark.security
+async def test_a_changed_cache_value_is_not_redeemed_using_an_earlier_proof():
+    class ChangedRedis(_FakeRedis):
+        async def getdel(self, key: str) -> str | None:
+            await super().getdel(key)
+            return "changed"
+
+    service = OAuthExchangeService(ChangedRedis())
+    code = await service.issue(access_token="access", refresh_token="refresh")
+    assert await service.redeem(code) is None

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Boxes, FileText } from "lucide-react";
+import { AlertTriangle, Boxes, FileText, Laptop } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import {
@@ -21,7 +21,7 @@ import { useTranslations } from "next-intl";
 
 import { ConnectionKindIcon } from "@/components/sandboxes/connection-kind-icon";
 
-type Backend = "state" | "service";
+type Backend = "state" | "service" | "local";
 type Scope = "run" | "conversation" | "channel" | "user" | "agent";
 
 interface WorkspaceSectionProps {
@@ -36,7 +36,7 @@ interface WorkspaceSectionProps {
 }
 
 /**
- * Two tiles, not four.
+ * Files, a registered container, or the person’s own computer.
  *
  * Docker and Daytona used to be separate choices here, which asked an agent
  * author a question they cannot answer: *where* sandboxes run is a property of
@@ -52,6 +52,7 @@ const BACKENDS: {
 }[] = [
   { id: "state", words: "backendState", icon: FileText },
   { id: "service", words: "backendService", icon: Boxes },
+  { id: "local", words: "backendComputer", icon: Laptop },
 ];
 
 const SCOPES: { id: Scope; words: string }[] = [
@@ -130,7 +131,8 @@ export function WorkspaceSection({
       // the host it runs on. Carrying either onto the stored workspace is
       // refused at publish, so both are cleared here rather than left to fail in
       // a form somebody has already left.
-      ...(next === "state" ? { runtime: null, connection_id: null } : {}),
+      ...(next !== "service" ? { runtime: null, connection_id: null } : {}),
+      ...(next === "local" ? { session_scope: "conversation" } : {}),
     });
   };
 
@@ -142,7 +144,7 @@ export function WorkspaceSection({
     <div className="space-y-4">
       <fieldset disabled={disabled} className="space-y-2">
         <legend className="sr-only">{t("workspace")}</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           {BACKENDS.map((option) => (
             <button
               key={option.id}
@@ -169,12 +171,17 @@ export function WorkspaceSection({
 
       {enabled && (
         <div className="space-y-4">
+          {backend === "local" && (
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              {t("backendComputerConsent")}
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="workspace-scope">{t("whoSharesByDefault")}</Label>
               <Select
                 value={scope}
-                disabled={disabled}
+                disabled={disabled || backend === "local"}
                 onValueChange={(value) => setConfig({ session_scope: value })}
               >
                 <SelectTrigger id="workspace-scope">

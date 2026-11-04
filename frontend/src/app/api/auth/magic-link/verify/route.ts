@@ -8,7 +8,7 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 
 interface TokenResponse {
   access_token: string;
@@ -38,14 +38,14 @@ export async function POST(request: NextRequest) {
       access_token: data.access_token,
       return_to: data.return_to ?? null,
     });
-    response.cookies.set("access_token", data.access_token, {
+    response.cookies.set(ACCESS_TOKEN_COOKIE, data.access_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",
       maxAge: 60 * 15,
       path: "/",
     });
-    response.cookies.set("refresh_token", data.refresh_token, {
+    response.cookies.set(REFRESH_TOKEN_COOKIE, data.refresh_token, {
       httpOnly: true,
       secure: secureCookies(request),
       sameSite: "lax",

@@ -1,10 +1,10 @@
-"""One page read into text and links (`app/services/rag/connectors/web_page.py`, #984)."""
+"""One page read into text and links (`app/services/rag/web_page.py`, #984)."""
 
 from html.parser import HTMLParser
 
 import pytest
 
-from app.services.rag.connectors.web_page import parse_page
+from app.services.rag.web_page import parse_page
 
 URL = "https://docs.example.com/guide/intro"
 

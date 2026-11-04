@@ -1,12 +1,12 @@
-"""A dedicated, bounded thread pool for blocking file work.
+"""A dedicated, bounded thread pool for blocking I/O.
 
 `asyncio.to_thread` runs on the event loop's default `ThreadPoolExecutor`, which
 that same loop also uses for `bcrypt` password hashing and pinned-host DNS
 resolution. A burst of concurrent uploads parsing pymupdf/openpyxl could occupy
 every worker there and leave an unbounded queue of upload buffers in front of
-sign-in and outbound requests (#1108). File parsing and storage byte IO run here
-instead, on a pool sized by `settings.FILE_IO_MAX_WORKERS` - so a parse storm
-saturates its own pool and nothing else.
+sign-in and outbound requests (#1108). File parsing, storage byte I/O and synchronous
+embedding calls run here instead, on a pool sized by `settings.FILE_IO_MAX_WORKERS`.
+This keeps their work away from the loop's DNS and authentication executor.
 
 The pool is created once, lazily, on first use and lives for the process the way
 the default executor does; its threads are joined at interpreter exit.
@@ -17,6 +17,7 @@ import contextlib
 import weakref
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextvars import copy_context
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -72,8 +73,13 @@ async def _submit[T](fn: Callable[..., T], *args: object) -> Future[T]:
     limiter = _limiter()
     await limiter.acquire()
     loop = asyncio.get_running_loop()
+    context = copy_context()
+
+    def in_context() -> T:
+        return context.run(fn, *args)
+
     try:
-        future = _pool().submit(fn, *args)
+        future = _pool().submit(in_context)
     except BaseException:
         limiter.release()
         raise
@@ -128,7 +134,8 @@ async def create_cancel_safe(
     """
     future = asyncio.wrap_future(await _submit(create, *args))
     try:
-        await asyncio.shield(future)
+        await asyncio.wait({future})
+        future.result()
     except asyncio.CancelledError:
         # Awaiting a shielded coroutine once is not enough: a second
         # cancellation - a cancelled request whose loop then begins shutting
@@ -141,7 +148,7 @@ async def create_cancel_safe(
         cleanup = asyncio.ensure_future(_discard(future, undo))
         while not cleanup.done():
             with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.shield(cleanup)
+                await asyncio.wait({cleanup})
         raise
 
 
@@ -175,9 +182,20 @@ async def delete_cancel_safe(fn: Callable[..., None], *args: object) -> None:
     `write_bytes_cancel_safe`, which restores the atomicity a plain sync unlink on
     the loop had before the offload (#1108, #1294).
     """
+    await run_blocking_settled(fn, *args)
+
+
+async def run_blocking_settled[T](fn: Callable[..., T], *args: object) -> T:
+    """Run bounded blocking I/O, draining it before propagating cancellation.
+
+    Use when the thread's result or accounting must settle before the caller
+    unwinds. Context variables carry the caller's tenant and spend ledger.
+    The callable must bound its own external I/O: cancellation cannot stop a thread.
+    """
     future = asyncio.wrap_future(await _submit(fn, *args))
     try:
-        await asyncio.shield(future)
+        await asyncio.wait({future})
+        return future.result()
     except asyncio.CancelledError:
         # A second cancellation - a cancelled request whose loop then begins
         # shutting down - would raise straight out and detach the drain, unwinding
@@ -186,7 +204,7 @@ async def delete_cancel_safe(fn: Callable[..., None], *args: object) -> None:
         drain = asyncio.ensure_future(_drain(future))
         while not drain.done():
             with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.shield(drain)
+                await asyncio.wait({drain})
         raise
 
 

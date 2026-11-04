@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { memo } from "react";
 
 export interface MarkdownContentProps {
   content: string;
@@ -23,6 +24,8 @@ export interface MarkdownContentProps {
    * run was read. Chat does not pass it - there the reader wrote the thread.
    */
   inertImages?: boolean;
+  /** Document media: render direct video links with playback controls. */
+  documentMedia?: boolean;
   /**
    * The text is still arriving: each word is wrapped so it fades in as it
    * lands. Off once the turn ends, so a finished answer is plain markup.
@@ -52,11 +55,12 @@ const MarkdownContentImpl = dynamic(
   },
 );
 
-export function MarkdownContent({
+export const MarkdownContent = memo(function MarkdownContent({
   content,
   onCiteClick,
   bareCode,
   inertImages,
+  documentMedia,
   streaming,
 }: MarkdownContentProps) {
   return (
@@ -65,7 +69,8 @@ export function MarkdownContent({
       onCiteClick={onCiteClick}
       bareCode={bareCode}
       inertImages={inertImages}
+      documentMedia={documentMedia}
       streaming={streaming}
     />
   );
-}
+});

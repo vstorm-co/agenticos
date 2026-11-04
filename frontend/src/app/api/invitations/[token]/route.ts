@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BackendApiError, backendFetch, bffJson, bffRefusal } from "@/lib/server-api";
+import { ACCESS_TOKEN_COOKIE } from "@/lib/session-cookie";
 
 interface RouteParams {
   params: Promise<{ token: string }>;
@@ -7,7 +8,7 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { token } = await params;
     const data = await backendFetch(`/api/v1/invitations/${encodeURIComponent(token)}/accept`, {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const accessToken = request.cookies.get("access_token")?.value;
+    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
     if (!accessToken) return bffRefusal("NOT_AUTHENTICATED", 401);
     const { token } = await params;
     await backendFetch(`/api/v1/invitations/${encodeURIComponent(token)}`, {

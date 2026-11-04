@@ -11,7 +11,7 @@ describe("useCapabilityGuide", () => {
     expect(sandbox?.name).toBe("Sandbox");
     expect(sandbox?.examples).toHaveLength(3);
     expect(result.current("media")?.examples).toHaveLength(1);
-    expect(sandbox?.never).toMatch(/^Never reaches your computer/);
+    expect(sandbox?.never).toContain("only after you choose and approve it in the desktop app");
   });
 
   it("has nothing to say about a capability it has no words for", () => {

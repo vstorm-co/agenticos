@@ -1,5 +1,5 @@
 ---
-source_sha: "12eb1406746c"
+source_sha: "d6e3bf78d15a"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -100,9 +100,14 @@ Härtungs-Header, definiert in `frontend/src/lib/csp.ts` und
 `frontend/src/lib/security-headers.ts`, beide durch Tests abgesichert. Die Policy
 ist `default-src 'self'` mit einem `connect-src`, das genau diese Origin,
 `PUBLIC_API_URL` und `PUBLIC_WS_URL` benennt, einem `img-src`, das `data:` für
-die Markenglyphen und Avatare erlaubt, `frame-src 'self' blob:` für
-Dokumentvorschauen, `object-src 'none'`, `base-uri 'self'` und
-`frame-ancestors 'none'`.
+die Markenglyphen und Avatare erlaubt, einem `frame-src`, das `'self'` und
+`blob:` für Dokumentvorschauen sowie die Inhaltsroute der Artifacts
+(`{ARTIFACT_ORIGIN or PUBLIC_API_URL}/api/v1/artifact-content/`) erlaubt,
+`object-src 'none'`, `base-uri 'self'` und `frame-ancestors 'none'`. Die
+Inhaltsroute wird über ihren Pfad benannt, nicht über ihre Origin, sodass ein
+Frame eine veröffentlichte Seite laden kann und sonst nichts, was die API
+ausliefert; siehe
+[Wie die Seite isoliert wird](artifacts.md#how-the-page-is-isolated).
 
 `script-src` enthält kein `'unsafe-inline'`. Die Middleware erzeugt pro Anfrage
 einen Nonce, schreibt `'nonce-…' 'strict-dynamic'` in die Direktive, und Next
@@ -180,10 +185,10 @@ aufnehmen muss, wechselt also zu `invite_only` und lädt sie ein.
 Drei weitere Dinge daran sind leicht falsch zu machen und waren es:
 
 **Der erste Nutzer wird immer zugelassen.** Eine frische Installation hat keine
-Konten, ihr Administrator existiert also noch nicht; ein geschlossenes Deployment,
-das auch die Person abweist, die es öffnen würde, ist eines, das niemand betreten
-kann, ohne Konsole, um es zu reparieren. `register` befördert dieses erste Konto
-ohnehin zu `is_app_admin`, und die Policy beugt sich derselben Tatsache.
+Konten. Das erste bestätigte Konto wird zum Deployment-Administrator (`is_app_admin`),
+bei Registrierung mit Passwort ebenso wie über OAuth. Eine Transaktionssperre
+gewährt diese Ausnahme nur einer gleichzeitigen Registrierung. Weitere müssen die
+Policy erfüllen. Wird die erste zurückgerollt, kann eine andere das Startrecht erhalten.
 
 **`invite_only` existiert, weil das Schließen der Registrierung sonst Einladungen
 kaputtmachen würde.** `InvitationService.accept` verlangt einen bestehenden,
@@ -581,6 +586,25 @@ Antwort beantwortet und nicht vom Gedächtnis eines Administrators. Sie wird in 
 Service ausgelöst, der die Sache anlegt, und nicht an der Route, denn die Route
 ist nicht der einzige Weg hinein.
 
+Die Konsole wartet nicht auf diese Ablehnung. `GET /agents/ceiling`, offen für
+einen Aufrufer mit `agents:edit`, liefert das Limit (`limit`, null, wo keines
+gesetzt ist) und ob eine Erstellung daran scheitern würde (`at_limit`), und am
+Limit deaktiviert die Seite Agenten **Neuer Agent (New agent)** und das
+Installieren von Vorlagen und sagt, warum, bevor jemand ein Formular ausfüllt.
+
+Wenn eine andere Erstellung während der geführten Agent-Erstellung das Limit
+erreicht, endet die Anleitung, statt die Seite um einen deaktivierten Button
+zu sperren. Ein erfolgreich in dieser Anleitung erstellter Agent wird vor der
+Aktualisierung des Limits erfasst. Der letzte freie Platz unterbricht deshalb
+nicht die weiteren Schritte im Builder.
+
+Die Zählung selbst (`held`) erhält nur ein Aufrufer, dessen `agents:view` jeden Agenten
+der Organisation erreicht: Sie umfasst Agenten, die ein Mitglied (Member) nicht
+sieht, und neben seiner eigenen Liste würde sie verraten, wie viele vor ihm
+verborgen sind. **Duplizieren (Duplicate)** und **Wiederherstellen (Restore)**
+werden weiterhin erst beim Versuch abgelehnt. Die Garantie bleibt die Ablehnung:
+Die Zählung ist eine Vorhersage, gelesen ohne die Sperre.
+
 Null wird vom Schema abgelehnt: ein Konto, das keine Organisation besitzen darf,
 ist ein Konto, das nicht angelegt werden kann, denn die Anmeldung gibt jedem von
 ihnen eine persönliche Organisation.
@@ -686,7 +710,10 @@ Karte.
 
 Drei Aktionen, jede mit dem Handelnden auditiert:
 
-- **Retry** gibt einem toten Job eine neue Reihe von Versuchen.
+- **Retry** gibt einem toten Job eine neue Reihe von Versuchen. Ein toter
+  Dokument-Ingest wird abgelehnt: seine Parse-Kopie ist mit ihm gegangen, also
+  wiederholen Sie das Dokument aus seiner Wissensbasis, die die gespeicherte Datei
+  erneut parst.
 - **Cancel** zieht einen Job zurück, den noch niemand begonnen hat.
 - **Resume** lässt die Worker eine pausierte Art wieder abholen.
 
@@ -697,7 +724,8 @@ E-Mail, und die Benachrichtigung lässt sich nicht abschalten - Arbeit dieser Ar
 staut sich, bis einer von ihnen sie fortsetzt. Eine Pause nennt die
 Organisation, deren Jobs sie ausgelöst haben, und für alle anderen läuft die Art
 weiter. Versuchen Sie die toten Jobs erst
-erneut, wenn die Ursache behoben ist, sonst sterben sie auf dieselbe Weise. Die
+erneut, wenn die Ursache behoben ist, sonst sterben sie auf dieselbe Weise - einen toten Dokument-Ingest
+stattdessen aus seiner Wissensbasis. Die
 Einstellungen stehen unter [Konfiguration](configuration.md#background-work).
 
 ## Zusammenfassung { #recap }

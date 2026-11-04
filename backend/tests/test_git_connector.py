@@ -27,6 +27,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import SecretStr
 
+from app.core.config import settings as app_settings
 from app.core.exceptions import (
     AppException,
     BadRequestError,
@@ -440,6 +441,52 @@ class TestWhatGitIsTold:
 
     def test_the_vault_hint_is_the_tokens_last_four_and_not_the_host(self) -> None:
         assert _token().hint == TOKEN[-4:]
+
+
+class TestAListedHost:
+    @pytest.fixture(autouse=True)
+    def _listed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_getaddrinfo(host: str, port: int, **_kwargs: object) -> list[tuple[object, ...]]:
+            return [(2, 1, 6, "", ("10.1.2.5", port))]
+
+        monkeypatch.setattr("app.core.sanitize.socket.getaddrinfo", fake_getaddrinfo)
+
+    @pytest.mark.security
+    async def test_a_repository_on_a_listed_host_is_resolved_and_pinned(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(app_settings, "OUTBOUND_PRIVATE_ALLOWLIST", ["10.1.2.0/24"])
+        parsed = GitConfig.model_validate(
+            _config(repository_url="https://git.corp.example/acme/docs.git")
+        )
+
+        env = await GitConnector()._environment(parsed, _token(host="git.corp.example"))
+        refusal = await GitConnector().validate_config(
+            _config(repository_url="https://git.corp.example/acme/docs.git")
+        )
+
+        assert "git.corp.example:443:10.1.2.5" in env.values()
+        assert refusal is None
+
+    @pytest.mark.security
+    async def test_an_unlisted_private_host_is_still_refused(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(app_settings, "OUTBOUND_PRIVATE_ALLOWLIST", ["10.9.9.0/24"])
+
+        refusal = await GitConnector().validate_config(
+            _config(repository_url="https://git.corp.example/acme/docs.git")
+        )
+        with pytest.raises(BadRequestError):
+            await GitConnector()._environment(
+                GitConfig.model_validate(
+                    _config(repository_url="https://git.corp.example/acme/docs.git")
+                ),
+                _token(host="git.corp.example"),
+            )
+
+        assert refusal is not None
+        assert refusal.field == "repository_url"
 
 
 class _Process:

@@ -16,7 +16,16 @@ from uuid import uuid4
 
 import pytest
 
-from app.agents.audience import RunAudience, derive_audience
+from app.agents.audience import (
+    RunAudience,
+    acting_for_no_person,
+    acting_impersonated,
+    derive_audience,
+    for_no_person,
+    run_impersonated,
+    run_person_for,
+)
+from app.db.models.agent_run import RunSurface
 
 PERSON = uuid4()
 ROOM = "room:slack:C1"
@@ -103,6 +112,150 @@ class TestPrivacy:
 
         with pytest.raises(FrozenInstanceError):
             audience.user_id = uuid4()  # ty: ignore[invalid-assignment]
+
+
+# Every kind of run and whether a member is behind it (D18, D18a). `public_origin`
+# is what the runner has already worked out from the door the run came through;
+# this function only combines it with the publisher-fallback rule.
+_RUN_PERSON_TABLE = [
+    pytest.param(RunSurface.WEB, False, False, PERSON, id="web chat"),
+    pytest.param(RunSurface.API, False, False, PERSON, id="HTTP API, a signed-in member"),
+    pytest.param(
+        RunSurface.SLACK, False, False, PERSON, id="Slack / Telegram / Mattermost, linked sender"
+    ),
+    pytest.param(RunSurface.EMBED, True, False, None, id="widget, embed, unlinked channel sender"),
+    pytest.param(
+        RunSurface.SCHEDULE, True, False, PERSON, id='schedule, or "Run now" of any trigger'
+    ),
+    pytest.param(
+        RunSurface.SCHEDULE,
+        True,
+        True,
+        None,
+        id="event trigger fired by a GitHub or GitHub App delivery",
+    ),
+    pytest.param(
+        RunSurface.SCHEDULE, True, True, None, id="event trigger fired by an email delivery"
+    ),
+    pytest.param(
+        RunSurface.SCHEDULE,
+        True,
+        True,
+        None,
+        id="event trigger fired by a webhook-relay delivery",
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW,
+        False,
+        False,
+        PERSON,
+        id="workflow agent.run, admitted by API, WebSocket, chat, schedule or a private chain",
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW,
+        False,
+        False,
+        PERSON,
+        id="workflow agent.run, admitted by run_workflow from a run with a person",
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW, False, True, None, id="workflow agent.run, admitted by a webhook"
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW, False, True, None, id="workflow agent.run, admitted by a form"
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW,
+        False,
+        True,
+        None,
+        id="workflow agent.run, admitted by a channel message",
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW, False, True, None, id="workflow agent.run, admitted by Gmail"
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW, False, True, None, id="workflow agent.run, admitted by GitHub"
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW,
+        False,
+        True,
+        None,
+        id="workflow agent.run in any run of a public chain",
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW,
+        False,
+        True,
+        None,
+        id="workflow agent.run in a table run fired by a record a no-person run wrote",
+    ),
+    pytest.param(
+        RunSurface.WORKFLOW,
+        False,
+        True,
+        None,
+        id="any workflow run with no active dispatch",
+    ),
+]
+
+
+class TestTheRunPerson:
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("surface", "fallback", "public_origin", "expected"), _RUN_PERSON_TABLE
+    )
+    def test_run_person_for(self, surface, fallback, public_origin, expected):
+        """A member is behind a run only when one wrote its input or set it up.
+
+        A schedule's creator counts even though they stand in as a publisher
+        fallback - they set the run up and answer for it. An outsider's input
+        never does, whoever the run executes as."""
+        assert (
+            run_person_for(
+                user_id=PERSON,
+                subject_is_publisher_fallback=fallback,
+                surface=surface,
+                public_origin=public_origin,
+            )
+            == expected
+        )
+
+    def test_no_subject_is_no_person(self):
+        assert (
+            run_person_for(
+                user_id=None,
+                subject_is_publisher_fallback=False,
+                surface=RunSurface.WEB,
+                public_origin=False,
+            )
+            is None
+        )
+
+    def test_the_impersonation_flag_is_scoped_to_its_block(self):
+        assert run_impersonated() is False
+        with acting_impersonated(True):
+            assert run_impersonated() is True
+        with pytest.raises(RuntimeError), acting_impersonated(True):
+            raise RuntimeError("the run failed")
+        assert run_impersonated() is False
+
+    def test_the_no_person_flag_is_scoped_to_its_block(self):
+        """Read by a record write to mark what a run with no person wrote, so it
+        must not outlive the run that set it - not even one that raised."""
+        assert for_no_person() is False
+
+        with acting_for_no_person(True):
+            assert for_no_person() is True
+            with acting_for_no_person(False):
+                assert for_no_person() is False
+            assert for_no_person() is True
+        assert for_no_person() is False
+
+        with pytest.raises(RuntimeError), acting_for_no_person(True):
+            raise RuntimeError("the run failed")
+        assert for_no_person() is False
 
 
 class TestAFireActingAsItsCreator:

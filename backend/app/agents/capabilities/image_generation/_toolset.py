@@ -13,14 +13,11 @@ run's ledger through :func:`record_ambient_usage` - the runner holds a
 `metered_by` block open around the whole run, so a tool call inside it reaches the
 same ledger the main model requests do.
 
-Where the image goes is two answers at once. It is always persisted
-organization-scoped (:mod:`app.services.generated_media`) and returned as a
-reference the interface renders. When the run also has a workspace open - an agent
-with the sandbox capability - the same bytes are written into it under
-`/output`, so a later `execute` step can use the image it just made: assemble it
-into a PDF, a slide, a page. An agent without a workspace still generates and
-shows images; it simply has nowhere to build with them, which is the honest
-difference between the two.
+Where the image goes is two answers at once - stored organization-scoped and,
+when a workspace is open, written under `output/` as well - and it is the same
+answer for speech and video, so it lives in :mod:`app.agents.capabilities._generated`.
+A later `execute` step can then use the image it just made: assemble it into a
+PDF, a slide, a page.
 """
 
 import logging
@@ -36,26 +33,23 @@ from pydantic_ai.native_tools import ImageGenerationTool
 from pydantic_ai.providers import infer_provider_class
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
-from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
-from app.agents.capabilities.budget import record_ambient_usage
+from app.agents.capabilities._generated import admit, store_generated
+from app.agents.capabilities._metered import MeteredModel
+from app.agents.capabilities.budget import can_afford_ambient_call
 from app.agents.deps import AgentDeps
-from app.services.generated_media import generated_image_url, save_generated_image
+from app.agents.observability import inherited_instrumentation
 
 logger = logging.getLogger(__name__)
 
-WORKSPACE_OUTPUT_DIR = "output"
-"""Where a generated image lands in the run's workspace, when there is one.
+RESERVED_BYTES = 16 * 1024 * 1024
+"""What one image holds against the quota while it is drawn (#2310).
 
-A single well-known directory so the model can be told where to look for what it
-made without the path being an argument it has to remember and repeat.
-
-Relative to the working directory, for the reason `UPLOAD_DIR` is: an absolute
-path is resolved as absolute, which put a generated image outside the workspace -
-unreachable by the agent's own shell, absent from the browser, and not in the
-snapshot a channel diffs to decide what to post back (#1039).
-"""
+The image models here answer at most a few megapixels - a PNG of a 4096-pixel
+square at its worst runs to tens of megabytes, a typical answer to one or two -
+so a flat 16 MiB covers what is usually made with room to spare. An image larger
+than this is still recorded at its real size."""
 
 _SUBAGENT_INSTRUCTIONS = (
     "Generate an image based on the user prompt. Do not ask clarifying questions."
@@ -148,72 +142,49 @@ def build_image_toolset(
             # the preview and test paths that build without a key: the run
             # survives, and nothing is spent or stored.
             return steer(ctx, "Image generation has no API key configured.")
-
-        model = _build_image_model(model_id, api_key)
-        agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
-            model,
-            output_type=BinaryImage,
-            capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
-            instructions=_SUBAGENT_INSTRUCTIONS,
-        )
-        try:
-            result = await agent.run(prompt)
-        except (UserError, UnexpectedModelBehavior) as exc:
-            # The image model refused or misbehaved - a bad prompt, an
-            # unsupported setting. Hand it back for the model to rephrase rather
-            # than ending the turn on an error string. Its own text does not
-            # travel: on the last attempt `steer` returns this rather than
-            # raising it, and a returned string is stored and streamed verbatim
-            # where a retry prompt is replaced with a notice (#681, #695).
-            logger.exception("Image generation failed")
-            return steer(
-                ctx,
-                f"Image generation failed ({type(exc).__name__}). "
-                "Rephrase the prompt, or answer without an image.",
+        if not await can_afford_ambient_call():
+            return "Not made: this run has spent its budget."
+        slot = await admit(ctx, estimate_bytes=RESERVED_BYTES, verdict="Not made")
+        if isinstance(slot, str):
+            return slot
+        async with slot:
+            model = MeteredModel(_build_image_model(model_id, api_key))
+            agent: PydanticAgent[None, BinaryImage] = PydanticAgent(
+                model,
+                output_type=BinaryImage,
+                capabilities=[NativeTool(ImageGenerationTool(**tool_settings))],
+                instructions=_SUBAGENT_INSTRUCTIONS,
             )
-
-        image = result.output
-        # Booked to the run's ledger, which the runner is holding open. The model
-        # names itself and its provider (`model.system`), the hint `genai-prices`
-        # prices from - the same shape the image describer books usage with. Image
-        # models are frequently unpriced there, in which case this records at zero
-        # and flags the run's cost as partial - the honest outcome, and the one
-        # #58 asked to be sure of rather than assume.
-        record_ambient_usage(model.model_name, result.usage, provider=model.system)
-
-        image_format = image.format or "png"
-        organization_id = ctx.deps.organization_id
-        filename: str | None = None
-        url: str | None = None
-        if organization_id is not None:
-            filename = await save_generated_image(
-                organization_id, image.data, image_format=image_format
-            )
-            url = generated_image_url(filename)
-
-        # Into the run's workspace too, when it has one, for later steps to build
-        # with. An agent without the sandbox capability generates images all the
-        # same - it simply has nowhere to build with them.
-        workspace_path: str | None = None
-        if ctx.workspace.attached:
-            leaf = filename or f"image.{image_format}"
+            agent.instrument = inherited_instrumentation(ctx.agent)
             try:
-                await ctx.workspace.write_bytes(f"{WORKSPACE_OUTPUT_DIR}/{leaf}", image.data)
-                workspace_path = f"{WORKSPACE_OUTPUT_DIR}/{leaf}"
-            except OSError, WorkspaceError:
-                # A full workspace - a `state` document past its ceiling raises
-                # `OSError`, a container's shell `WorkspaceError` - the image is
-                # still stored and linked above, and naming a path that holds
-                # nothing would send the model to it.
-                logger.info("generated_image_not_written", extra={"leaf": leaf})
+                result = await agent.run(prompt)
+            except (UserError, UnexpectedModelBehavior) as exc:
+                # The image model refused or misbehaved - a bad prompt, an
+                # unsupported setting. Hand it back for the model to rephrase rather
+                # than ending the turn on an error string. Its own text does not
+                # travel: on the last attempt `steer` returns this rather than
+                # raising it, and a returned string is stored and streamed verbatim
+                # where a retry prompt is replaced with a notice (#681, #695).
+                logger.exception("Image generation failed")
+                return steer(
+                    ctx,
+                    f"Image generation failed ({type(exc).__name__}). "
+                    "Rephrase the prompt, or answer without an image.",
+                )
 
-        return GeneratedImage(
-            filename=filename,
-            url=url,
-            media_type=image.media_type,
-            prompt=prompt,
-            workspace_path=workspace_path,
-        ).model_dump_json()
+            image = result.output
+            image_format = image.format or "png"
+            stored = await store_generated(
+                ctx, image.data, filename=f"image.{image_format}", slot=slot
+            )
+
+            return GeneratedImage(
+                filename=stored.filename,
+                url=stored.url,
+                media_type=image.media_type,
+                prompt=prompt,
+                workspace_path=stored.workspace_path,
+            ).model_dump_json()
 
     toolset: FunctionToolset[Any] = FunctionToolset()
     toolset.add_function(generate_image, takes_ctx=True)

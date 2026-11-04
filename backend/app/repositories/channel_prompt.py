@@ -1,14 +1,14 @@
 """Channel prompts: the approvals and questions a chat was offered as buttons."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus
-from app.db.models.channel_prompt import QUESTION, ChannelPrompt
+from app.db.models.channel_prompt import APPROVAL, QUESTION, ChannelPrompt
 
 
 async def create(
@@ -25,6 +25,7 @@ async def create(
     question_index: int | None = None,
     multi_select: bool = False,
     allow_custom: bool = False,
+    chat_type: str | None = None,
 ) -> ChannelPrompt:
     prompt = ChannelPrompt(
         organization_id=organization_id,
@@ -38,6 +39,7 @@ async def create(
         question_index=question_index,
         multi_select=multi_select,
         allow_custom=allow_custom,
+        chat_type=chat_type,
     )
     db.add(prompt)
     await db.flush()
@@ -97,6 +99,43 @@ async def answer(
     await db.flush()
     await db.refresh(prompt)
     return prompt
+
+
+SettledBy = Literal["decided", "answered", "continued", "stopped", "expired", "ended"]
+
+
+async def settle_open(
+    db: AsyncSession, *, run_id: UUID, by: SettledBy, approval_id: UUID | None = None
+) -> int:
+    """Close the approval and question buttons a run still has open in its chat.
+
+    The run was decided, answered, stopped or ended somewhere else, so a press on
+    these would find nothing to answer. They are marked answered, and a later press
+    says so. `approval_id` limits it to one approval's row, for a decision that
+    leaves the run's other calls pending. Next-step rows are never touched.
+
+    Rows another transaction holds - a press in flight - are skipped rather than
+    waited for: this runs ahead of the audit lock and must never queue behind a
+    chat press. That press then finds the decision already made.
+    """
+    stmt = select(ChannelPrompt.id).where(
+        ChannelPrompt.run_id == run_id,
+        ChannelPrompt.answered_at.is_(None),
+        ChannelPrompt.kind.in_((APPROVAL, QUESTION)),
+    )
+    if approval_id is not None:
+        stmt = stmt.where(ChannelPrompt.approval_id == approval_id)
+    ids = list((await db.execute(stmt.with_for_update(skip_locked=True))).scalars().all())
+    if not ids:
+        return 0
+    await db.execute(
+        update(ChannelPrompt)
+        .where(ChannelPrompt.id.in_(ids))
+        .values(answered_at=datetime.now(UTC), answer={"settled": by})
+        .execution_options(synchronize_session="fetch")
+    )
+    await db.flush()
+    return len(ids)
 
 
 async def pick(db: AsyncSession, *, prompt: ChannelPrompt, selected: list[str]) -> ChannelPrompt:

@@ -91,13 +91,79 @@ describe("who answered in a conversation", () => {
     const { container, rerender } = render(
       <ConversationAgents agents={[agent("A"), agent("B")]} showName={false} />,
     );
-    const second = () => container.querySelectorAll(".ring-2")[1]!;
-    expect(second().className).toContain("-ml-1.5");
+    const second = () => container.querySelectorAll<HTMLElement>("[data-agent-avatar]")[1]!;
+    expect(second().className).toContain("-ml-3");
 
     rerender(<ConversationAgents agents={[agent("A"), agent("B"), agent("C")]} showName={false} />);
-    expect(second().className).toContain("-ml-3.5");
-    expect(second().className).toContain("group-hover/stack:ml-0.5");
+    expect(second().className).toContain("-ml-4");
+    expect(second().className).toContain("group-hover/stack:-ml-3");
     // The first face never moves: the stack opens to the right of it.
-    expect(container.querySelectorAll(".ring-2")[0]!.className).not.toContain("-ml-");
+    expect(
+      container.querySelectorAll<HTMLElement>("[data-agent-avatar]")[0]!.className,
+    ).not.toContain("-ml-");
   });
+});
+
+it("keeps full-size rail faces overlapping within 40px and hides older overflow", () => {
+  const { container } = render(
+    <ConversationAgents
+      agents={[agent("Newest"), agent("Recent"), agent("Third"), agent("Old"), agent("Oldest")]}
+      showName={false}
+      compact
+      size="md"
+    />,
+  );
+  const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
+  expect(Array.from(faces, (face) => face.dataset.agentAvatar)).toEqual([
+    "Newest-id",
+    "Recent-id",
+    "Third-id",
+  ]);
+  for (const face of faces) expect(face).toHaveClass("w-9");
+  expect(faces[1]).toHaveClass("-ml-[34px]");
+  expect(faces[2]).toHaveClass("-ml-[34px]");
+  expect(faces[0]).toHaveClass("z-30");
+  expect(faces[1]).not.toHaveClass("group-hover/stack:ml-0.5");
+  // 3 * 36px - 2 * 34px = 40px, with the most recent face in front.
+  expect(screen.queryByText(/^\+/)).toBeNull();
+  expect(screen.getByTitle("Newest → Recent → Third → Old → Oldest")).toBeInTheDocument();
+});
+
+it("overlaps two full-size faces without shrinking either one", () => {
+  const { container } = render(
+    <ConversationAgents
+      agents={[agent("Newest"), agent("Older")]}
+      compact
+      size="md"
+      showName={false}
+    />,
+  );
+  const faces = container.querySelectorAll<HTMLElement>("[data-agent-avatar]");
+  expect(faces[0]).toHaveClass("w-9");
+  expect(faces[1]).toHaveClass("w-9", "-ml-8");
+});
+
+it("keeps the platform agent and identifies the coding harness by name and brand", () => {
+  render(
+    <ConversationAgents agents={[agent("AgenticOS")]} codingAgents={["claude_code"]} size="md" />,
+  );
+  expect(screen.getByText("AgenticOS · Claude Code")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Claude Code" })).toBeVisible();
+  expect(screen.getByTitle("AgenticOS → Claude Code")).toBeVisible();
+});
+it("shows coding-only history and keeps both harnesses visible ahead of extra agent portraits", () => {
+  const view = render(<ConversationAgents agents={undefined} codingAgents={["codex"]} compact />);
+  expect(screen.getByText("Codex")).toBeVisible();
+  expect(screen.getByRole("img", { name: "Codex" })).toBeVisible();
+  view.rerender(
+    <ConversationAgents
+      agents={[agent("A"), agent("B"), agent("C")]}
+      codingAgents={["claude_code", "codex"]}
+      showName={false}
+      size="md"
+    />,
+  );
+  expect(screen.getByRole("img", { name: "Claude Code" })).toBeVisible();
+  expect(screen.getByRole("img", { name: "Codex" })).toBeVisible();
+  expect(screen.getByText("+2")).toBeVisible();
 });

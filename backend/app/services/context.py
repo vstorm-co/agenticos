@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.context import ContextConfig
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, NotFoundError
 from app.core.excerpt import excerpt
@@ -27,7 +28,7 @@ from app.schemas.context import (
     ContextFileUpdate,
     ContextModeLiteral,
 )
-from app.services.access import CONTEXT, resolve_access, visible_resource_ids
+from app.services.access import CONTEXT, accessible_ids, resolve_access, visible_resource_ids
 from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
 from app.services.sharing import SharingService
 
@@ -147,10 +148,17 @@ class ContextService:
         groups = await groups_sharing(
             self.db, ctx, resource_type=CONTEXT, resource_ids=[file.id for file in items]
         )
+        editable = await accessible_ids(
+            self.db, ctx, items, Perm.CONTEXT_EDIT, resource_type=CONTEXT
+        )
         return ContextFileList(
             items=[
                 _summary(file).model_copy(
-                    update={"used_by": used[file.id], "shared_groups": groups[file.id]}
+                    update={
+                        "used_by": used[file.id],
+                        "shared_groups": groups[file.id],
+                        "can_edit": file.id in editable,
+                    }
                 )
                 for file in items
             ],
@@ -158,7 +166,7 @@ class ContextService:
         )
 
     async def resolve_for_agent(
-        self, ctx: AuthContext, context_ids: list[UUID]
+        self, ctx: AuthContext, context_ids: list[UUID], *, config: ContextConfig | None = None
     ) -> list[ContextFile]:
         """The enabled context files an agent is bound to.
 
@@ -184,7 +192,8 @@ class ContextService:
         resolved = []
         for context_id in context_ids:
             file = found.get(context_id)
-            if file is None or not file.enabled:
+            setting = config.file_settings.get(context_id) if config is not None else None
+            if file is None or not (setting.enabled if setting is not None else file.enabled):
                 logger.warning(
                     "Agent references context file %s which is disabled, deleted, or not org %s's",
                     context_id,

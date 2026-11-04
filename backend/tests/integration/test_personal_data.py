@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -30,7 +31,7 @@ from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message, ToolCall
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.notification import (
@@ -41,6 +42,7 @@ from app.db.models.notification import (
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthClient, OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.user import User
 from app.repositories import (
     agent_run_repo,
     conversation_repo,
@@ -209,7 +211,11 @@ class TestTheExport:
         organization, _ = await _org_and_agent(db)
         db.add(
             OrganizationMember(
-                id=uuid4(), organization_id=organization.id, user_id=user_id, role="member"
+                id=uuid4(),
+                organization_id=organization.id,
+                user_id=user_id,
+                role="member",
+                personal_starters=["Plan my week"],
             )
         )
         await db.flush()
@@ -219,6 +225,8 @@ class TestTheExport:
         assert [(row["organization"], row["role"]) for row in export.memberships] == [
             ("Acme", "member")
         ]
+        # The first messages written for them there, drawn from their own requests.
+        assert export.memberships[0]["personal_starters"] == ["Plan my week"]
 
     async def test_the_archive_flag_and_the_layout_are_the_values_on_the_row(self, db):
         """Both were exported as `null` for every person: the model's attributes
@@ -264,6 +272,99 @@ class TestTheExport:
         assert export.profile["pending_email"] == "export-profile-new@example.com"
         assert "hashed_password" not in export.profile
         assert "is_app_admin" not in export.profile
+
+    async def test_the_profile_carries_what_agents_are_told_about_them(self, db):
+        """Codex on #2324: their role, their work, their hours, their language and
+        whether the nightly look may reach them are theirs to take away."""
+        user = await _person(db, "export-context@example.com")
+        user_id = user.id
+        user.job_title = "Head of sales"
+        user.about = "Runs the EMEA pipeline"
+        user.time_zone = "Europe/Warsaw"
+        user.locale = "pl"
+        user.working_hours = {"days": [1, 2, 3, 4, 5], "start": "09:00", "end": "17:00"}
+        user.proactive_opt_out = True
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert export.profile["job_title"] == "Head of sales"
+        assert export.profile["about"] == "Runs the EMEA pipeline"
+        assert export.profile["time_zone"] == "Europe/Warsaw"
+        assert export.profile["locale"] == "pl"
+        assert export.profile["working_hours"]["start"] == "09:00"
+        assert export.profile["proactive_opt_out"] is True
+
+    async def test_it_carries_what_the_platform_proposed_to_them_declined_ones_too(self, db):
+        """Codex on #2324: a suggestion is drawn from their requests and kept after a
+        "Not now" - held about them either way."""
+        from app.db.models.suggestion import SuggestionStatus
+        from app.repositories import suggestion_repo
+
+        user = await _person(db, "export-suggestions@example.com")
+        user_id = user.id
+        other = await _person(db, "export-suggestions-other@example.com")
+        organization, _ = await _org_and_agent(db)
+        for person, key in ((user_id, "mine"), (other.id, "theirs")):
+            made = await suggestion_repo.propose(
+                db,
+                organization_id=organization.id,
+                user_id=person,
+                kind="routine",
+                title=f"Routine {key}",
+                detail="You asked three times",
+                payload={"prompt": "Summarise"},
+                dedupe_key=f"routine:{key}",
+            )
+            assert made is not None
+            if person == user_id:
+                await suggestion_repo.decide(db, suggestion=made, status=SuggestionStatus.DISMISSED)
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        assert [(row["title"], row["status"]) for row in export.suggestions] == [
+            ("Routine mine", "dismissed")
+        ]
+
+    async def test_it_carries_what_they_asked_to_have_watched(self, db):
+        """#2301: a watch is their own words about their own account."""
+        from app.db.models.mcp_connection import McpConnection
+        from app.repositories import watch_repo
+
+        user = await _person(db, "export-watches@example.com")
+        user_id = user.id
+        organization, _ = await _org_and_agent(db)
+        connection = McpConnection(
+            scope="user",
+            user_id=user_id,
+            name="github",
+            catalog_key="github",
+            url="https://mcp.example.com/mcp",
+            secret_key_version=1,
+        )
+        db.add(connection)
+        await db.flush()
+        await watch_repo.create(
+            db,
+            organization_id=organization.id,
+            user_id=user_id,
+            connection_id=connection.id,
+            preset_key="github-reviews",
+            title="Reviews",
+            instructions="Waiting on my review.",
+            urgent=True,
+            interval_minutes=60,
+            next_run_at=datetime.now(UTC),
+        )
+
+        export = await PersonalDataService(db).export(user_id, actor_user_id=user_id)
+
+        (row,) = export.watches
+        assert (row["title"], row["instructions"], row["urgent"]) == (
+            "Reviews",
+            "Waiting on my review.",
+            True,
+        )
 
     async def test_more_text_than_one_document_can_carry_is_refused(self, db, monkeypatch):
         """The document is assembled and serialized whole, so without a ceiling
@@ -822,3 +923,87 @@ class TestDeletingYourOwnChatHistory:
             await ConversationService(db).delete_conversation(
                 conversation_id, organization_id=organization.id, user_id=mine.id
             )
+
+
+@pytest.mark.security
+async def test_channel_authors_are_erased_without_copying_labels_into_message_bodies(
+    db: AsyncSession,
+) -> None:
+    from app.schemas.conversation import MessageRead
+
+    going = await _person(db, "channel-author-gone@example.com")
+    staying = await _person(db, "channel-author-kept@example.com")
+    going_id = going.id
+    organization, _ = await _org_and_agent(db)
+    own_identity = await _identity_for(db, going.id, platform_user_id="U-GONE")
+    own_identity.platform_display_name = "Deleted Person"
+    other_identity = await _identity_for(db, staying.id, platform_user_id="U-STAYS")
+    other_identity.platform_display_name = "Remaining Person"
+    chat = await conversation_repo.create_conversation(
+        db, organization_id=organization.id, user_id=staying.id
+    )
+    own = await conversation_repo.create_message(
+        db,
+        conversation_id=chat.id,
+        role="user",
+        content="My actual text.",
+        channel_identity_id=own_identity.id,
+    )
+    other = await conversation_repo.create_message(
+        db,
+        conversation_id=chat.id,
+        role="user",
+        content="A colleague's text.",
+        channel_identity_id=other_identity.id,
+    )
+    import json
+
+    from pydantic_ai import Agent
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from app.agents.manifest import RecordingModel, RunRecorder, as_payload
+    from app.services.channels.formatting import ChannelReference, channel_author_references
+    from app.services.message_history import CHANNEL_AUTHOR_ID
+
+    await db.commit()
+    conversations = ConversationService(db)
+    history = await conversations.model_history(chat.id, limit=20)
+    assert history[0].metadata[CHANNEL_AUTHOR_ID] == str(own_identity.id)
+    assert "U-GONE" not in str(history) and "Deleted Person" not in str(history)
+    recorder = RunRecorder()
+    seen = []
+
+    def respond(messages, info):
+        seen.append(messages)
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    agent = Agent(
+        RecordingModel(FunctionModel(respond), recorder),
+        capabilities=[
+            ChannelReference("", authors_by_timestamp=channel_author_references(history))
+        ],
+    )
+    await agent.run("Who said what?", message_history=history)
+    assert "U-GONE" in str(seen) and "Deleted Person" in str(seen)
+    assert "U-STAYS" in str(seen) and "Remaining Person" in str(seen)
+    assert own.content == "My actual text."
+    assert MessageRead.model_validate(own).model_dump(mode="json")["content"] == "My actual text."
+    for private in ["U-GONE", "Deleted Person", "U-STAYS", "Remaining Person"]:
+        assert private not in json.dumps(as_payload(recorder), default=str)
+
+    await UserService(db).delete(going_id)
+    await db.commit()
+    await db.refresh(own)
+    await db.refresh(other)
+    assert own.channel_identity_id is None
+    assert own.content == "My actual text."
+    seen.clear()
+    # A parked history can still carry an opaque identity reference. A new
+    # dispatch cannot turn a deleted row back into personal platform labels.
+    await agent.run("Continue", message_history=history)
+    assert "U-GONE" not in str(seen) and "Deleted Person" not in str(seen)
+    assert "U-STAYS" in str(seen) and "Remaining Person" in str(seen)
+    assert other.content == "A colleague's text."
+    assert await db.get(User, going_id) is None
+    assert await db.get(Conversation, chat.id) is not None

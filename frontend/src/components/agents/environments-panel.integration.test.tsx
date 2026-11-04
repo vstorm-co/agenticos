@@ -118,3 +118,20 @@ describe("the environments panel against the real hooks", () => {
     await waitFor(() => expect(apiClient.patch).not.toHaveBeenCalled());
   });
 });
+
+it("recovers a failed environment query through the visible retry action", async () => {
+  let failed = true;
+  vi.mocked(apiClient.get).mockImplementation(async (path) => {
+    if (path === `/agents/${AGENT_ID}/environments`) {
+      if (failed) throw new Error("unavailable");
+      return { items: [environment()] };
+    }
+    return { items: [], total: 0 };
+  });
+  render(<EnvironmentsPanel agentId={AGENT_ID} canManage />, { wrapper });
+  const retry = await screen.findByRole("button", { name: "Retry" });
+  failed = false;
+  await userEvent.click(retry);
+  expect(await screen.findByText("dev")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+});

@@ -1,5 +1,5 @@
 ---
-source_sha: "9833e468f549"
+source_sha: "1c1b897485ce"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -35,11 +35,24 @@ W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie s
 zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
 któreś z nich zostało ustawione.
 
-Capabilities, które ma agent startowy - szablon **Claude Code like**, który świeża
+Capabilities, które ma agent startowy - szablon **AgenticOS**, który świeża
 organizacja dostaje przy pierwszym uruchomieniu - mają odznakę **Polecane**, a
 agent utworzony przez **New agent** startuje dokładnie z nimi włączonymi i
-skonfigurowanymi tak, jak konfiguruje je szablon. Jego autor wyłącza to, czego
-agent nie powinien robić.
+skonfigurowanymi tak, jak konfiguruje je szablon, razem z instrukcjami, skillami,
+narzędziami platformy i budżetem szablonu. Jego autor wyłącza to, czego agent nie
+powinien robić.
+
+Niezależnie od tego, z jakimi capabilities agent skończy, każdy run dostaje w
+instrukcjach, pod **Your setup**, listę tych, które ma, i tych, których nie ma -
+więc opisuje tylko to, co potrafi, i mówi, co trzeba by włączyć do reszty.
+
+Gdy prośba wymaga capability, której agent nie ma, pokazuje w czacie kartę z
+nią i z powodem. Ktoś, kto może edytować agenta, włącza ją z karty - powiązaną
+tak, jak wiąże ją agent startowy, i sprawdzoną tak, jak sprawdza publikacja.
+Publikuje się od razu tylko wtedy, gdy w szkicu nie było nic nieopublikowanego,
+a ta osoba może publikować; inaczej czeka w szkicu na Builder. Każdy inny prosi
+z karty właściciela agenta, a właściciel dostaje powiadomienie, które otwiera
+Toolbox agenta.
 
 Dwie z nich zależą od tego, co uruchamia wdrożenie. Przestrzeń robocza to
 kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publikacja
@@ -57,17 +70,24 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — | bez zmian |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany | bez zmian |
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
+| `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | bez zmian |
+| `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | bez zmian |
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
-| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
+| `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
+| `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
+| `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
 | `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany | przekazana |
+| `monitor` | Obserwuj polecenie | analiza | `start_monitor`, `list_monitors`, `stop_monitor` | `sandbox:execute` | — | przekazana |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
+| `background_tasks` | Tematy w tle | reasoning | `start_background_task`, `list_background_tasks`, `stop_background_task` | — | — | przekazywane |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
 | `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
@@ -77,9 +97,10 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — | bez efektu |
 | `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — | bez efektu |
 | `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
-| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
-| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | bez zmian |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | niedostępna |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -112,7 +133,8 @@ agenta, któremu rozmowa przekazuje zadanie
 Builderze wymienia je dla agenta, który je ma, tak jak pracę w trakcie narzędzi,
 która tylko wysyła przekazane narzędzie w tło. *Na ekranie* zadaje pytania na
 karcie w widoku rozmowy w `/chat`. Podgląd kanału czatu jest *niedostępny*, bo
-rozmowy nigdy nie prowadzi się w kanale. *Bez efektu* oznacza trzy capability, które działają na żądaniach
+rozmowy nigdy nie prowadzi się w kanale, i tak samo Następne kroki - rozmowa
+głosowa nie ma gdzie pokazać ich przycisków. *Bez efektu* oznacza trzy capability, które działają na żądaniach
 do modelu w tekstowym runie i na ich zapisanej historii, a tych rozmowa nie
 wysyła.
 
@@ -136,6 +158,17 @@ Przeszukuje kolekcje, które wiąże spec agenta, i cytuje to, czego użył. Mod
 pyta, *czego* szukać, nigdy *gdzie*: kolekcje są rozwiązywane ze speca przed
 runem i przekazywane capability, więc agent nie sięgnie do kolekcji, której nikt
 do niego nie podłączył.
+
+Każdy wynik podaje swój dokument i miejsce dopasowania w nim. PDF, prezentacja lub
+plik edytora tekstu taki jak `.doc`, `.odt` czy `.rtf` podaje stronę. Plik Markdown,
+arkusz kalkulacyjny, strona internetowa lub obraz nie ma strony, którą czytelnik
+może otworzyć. Podaje tylko nazwę dokumentu, podobnie jak pliki tekstowe i `.docx`.
+Chunki nie zachowują wiarygodnych granic sekcji, więc wiersz zaczynający się od
+krzyżyka nie jest traktowany jako nagłówek: może być komentarzem w bloku kodu,
+którego początek znalazł się w poprzednim chunku.
+
+O tym decyduje typ dokumentu w chwili pokazania wyniku, więc kolekcja zaindeksowana
+wcześniej nie wymaga ponownej ingestii.
 
 | Konfiguracja | Domyślnie | Zakres wartości |
 |---|---|---|
@@ -412,6 +445,11 @@ w cudzej usłudze i ta strona ich nie listuje — API mem0 odpowiada, co pasuje 
 pominięci, bo lista notatek natywnych podana jako pełny inwentarz byłaby gorsza
 niż taka, która mówi, czego jej brakuje. Wymazywanie sięga mem0; czytanie nie.
 
+Wymazywanie pamięci sprawdza szkice i wszystkie zachowane wersje agenta, także
+dawne endpointy mem0. Czyszczenie agenta usuwa również przestrzenie mem0 wszystkich
+jego właścicieli. Brak poświadczenia, błąd dostawcy lub niepełna lista przestrzeni
+zwraca błąd; przywróć dostęp i ponów operację, aby dokończyć wymazywanie.
+
 ## Pamięć (mem0) { #memory-mem0 }
 
 `remember`, `recall`
@@ -437,6 +475,10 @@ Self-hostowany `base_url` musi być https i musi znajdować się na
 w całości i jest to celowe: klucz podróżuje w nagłówku `Authorization`, więc
 twórca, który może wiązać współdzielony klucz, ale nie może go odczytać, nie może
 mieć możliwości skierowania go na własny serwer.
+
+## Tematy w tle { #background-tasks }
+
+Jawne zadanie w nowym temacie, które trwa dłużej niż odpowiedź źródłowa. Agent źródłowy podsumowuje wynik z aktualną historią, bez narzędzi. [Tematy w tle](../console.pl.md#background-topics) opisują limity, zgody, zatrzymanie i przerwaną pracę. To mechanizm oddzielny od tymczasowego `background_tools` i asynchronicznych subagentów jednego uruchomienia.
 
 ## Poprzednie rozmowy { #conversation-search }
 
@@ -503,7 +545,7 @@ które poszerzałoby korpus.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa` |
+| `method` | `duckduckgo` | `duckduckgo`, `native`, `tavily`, `brave`, `exa`, `keenable` |
 | `max_results` | 5 | 1–10, ignorowane przez `native` |
 
 Konsola nazywa każdą metodę zamiast wypisywać przechowywaną wartość i rysuje obok
@@ -518,6 +560,7 @@ konfiguracyjny do rozpoznania, a nie jak produkt do wybrania.
 - **`tavily`** — wyniki streszczone pod kątem czytania przez model.
 - **`brave`** — własny indeks.
 - **`exa`** — wyszukiwanie po znaczeniu, a nie po słowie kluczowym.
+- **`keenable`** — bez konta; opcjonalny klucz API z sekretów organizacji przełącza na endpoint z kluczem.
 
 Trzy płatne metody wymagają klucza API z [sekretów](../secrets.md) organizacji,
 wskazanego przez `secret_id` powiązania. Wymóg jest warunkowy, a nie sztywny:
@@ -670,12 +713,28 @@ ma skutków ubocznych.
 w rękach samego agenta: jedna akcja na wywołanie, wybrana przez model runa w jego
 własnej turze, a każda odpowiada stroną po akcji - adresem, ponumerowanymi elementami
 i tekstem. Bez drugiego zapytania na krok, a agent mówi w czacie, co robi, między
-akcjami. Kroki rysują się w jednym oknie na żywo pod wiadomością agenta, tym, które otworzył
-pierwszy `browser_open`, a człowiek może przejąć kartę między dowolnymi dwoma z nich.
+akcjami. Przeglądarka otwiera się automatycznie w pełnym panelu obok czatu. Człowiek może przejąć kartę między akcjami.
 Zmierzone na Claude przez OpenRouter: krok `browse_web` trwa 3,5-5 s, prawie w całości
 osobne zapytanie do modelu; zadanie z dwoma kliknięciami, które agent poprowadził sam,
 zajęło 13 s, a `browse_web` około 20. Narzędzia są lepsze do krótkiego zadania albo
 takiego, które ktoś chce oglądać, `browse_web` do długiego zadania przekazanego w całości.
+
+Przed każdym wywołaniem modelu starsze wyniki narzędzi tracą tylko nieaktualne
+tabele numerowanych elementów. Ostatnia tabela, tekst artykułów i wyniki akcji
+pozostają, a zapisana rozmowa zachowuje pełne wyniki. Przeglądanie DOM korzysta
+z niezależnego podglądu i zapisuje końcowy obraz po zatrzymaniu transmisji. Vision
+nadal czeka na obraz dla modelu. Gotowość zależy od widocznej treści strony zamiast
+niezwiązanych zmian w tle; pusty dokument otrzymuje jedną ograniczoną próbę ponownego odczytu.
+
+**Kilka kart i wznowienie.** `browser_new_tab(url)` otwiera osobną stronę,
+`browser_tabs` zwraca identyfikatory, `browser_switch_tab(tab_id)` wybiera i odczytuje
+stronę, a `browser_close_tab(tab_id)` ją zamyka. Run może mieć do ośmiu kart.
+`browser_open` zmienia adres wybranej karty. W prywatnych rozmowach `browser_read`
+odtwarza zaszyfrowany zapis dostępny przez godzinę: adresy, cookies i local storage.
+Zdalne strony zamykają się po runie. Wznowienie wczytuje strony i nowe numery elementów;
+nie zachowuje formularzy bez zapisu, pamięci JavaScript ani historii nawigacji.
+Przeglądarki hostowane nie otrzymują tych zapisów. Karty połączeń z ikonami są pierwszym
+ustawieniem przeglądarki; w aplikacji desktopowej można je nadpisać dla rozmowy.
 
 **Akcja wskazuje wiersz, nigdy selektor.** Każdy element, na którym model może działać,
 jest wierszem tabeli zbudowanej na serwerze z żywego DOM, więc strona nie może
@@ -732,29 +791,53 @@ przyjdzie; człowiek trzyma przeglądarkę najwyżej piętnaście minut. Podglą
 jest trzymany w Redisie, więc go wymaga, i trwa godzinę od ostatniej akcji
 przeglądania.
 
+Gdy sterujesz przeglądarką, możesz edytować adres oraz używać przycisków Wstecz,
+Dalej i Odśwież. Nawigacja respektuje dozwolone domeny agenta; odmowa jest widoczna
+w podglądzie. Ekrany computer use nie oferują nawigacji przeglądarki.
+
+Bezpośrednie narzędzia przeglądarki utrzymują strumień podglądu między wywołaniami
+aż do końca runu. Obrazy przestają być przesyłane po odłączeniu ostatniego widza
+i wracają po jego ponownym połączeniu; lekkie odczyty adresu i tytułu aktualizują
+je także między akcjami. Wpisywanie nie czeka na screenshot po każdym znaku. Akcje czekają
+na ograniczoną czasowo stabilność DOM, a jawna nawigacja śledzi nowy dokument także
+przy niezmienionym URL-u.
+
+Zdalne karty Chromium nadal zamykają się po runie; natywne karty lokalne pozostają
+otwarte dla rozmowy — zobacz [Lokalna przeglądarka](../desktop.md#local-browser-models-and-mcp).
+Podgląd zachowuje tylko najnowszą oczekującą klatkę i rozłącza odbiorcę, który nie
+przyjmuje danych przez dwie sekundy. Obrazy płyną raz przez live view, bez kopii w
+strumieniu czatu.
+
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `cdp_url` | pusty | endpoint DevTools Chromium; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS` |
 | `allowed_domains` | null | hosty, na których może być przeglądarka; wzorce typu `*.example.com` dozwolone; null to brak ograniczeń w sieci. Każde żądanie, które wskazuje do wnętrza sieci wdrożenia (adres prywatny, loopback, link-local albo metadanych, także po przekierowaniu), jest odrzucane, chyba że jego host jest tu wpisany - wpisz wewnętrzne narzędzie, żeby je przeglądać (a za `BROWSER_EGRESS_PROXY` dodaj je też do wyjątków proxy) |
 | `max_steps` | 50 | 1–200; kroki na wywołanie, każdy to jedno zapytanie do modelu |
 | `vision` | `false` | wysyłaj modelowi także zrzut ekranu z każdego kroku; model musi czytać obrazy |
+| `prefer_native_browser` | `true` | natywna osadzona karta do lokalnego DOM; wyłącz dla zgodności z Chromium. Vision i zmiana języka/strefy czasowej używają Chromium; połączenia zdalne pozostają bez zmian |
 | `candidate_cap` | 60 | 2–200; ile elementów można zaproponować w jednym kroku |
 | `preview` | `true` | wysyłaj widok przeglądarki do czatu w trakcie przeglądania |
 | `preview_width` | 1024 | 320–1920; szerokość widoku, a więc i klatek |
 | `step_model_profile_id` | puste | profil modelu, o który `browse_web` pyta w każdym kroku zamiast modelu agenta - tańszy model obniża koszt długiego browse, a przyspiesza go tylko tam, gdzie jego dostawca odpowiada szybko (Claude Haiku przez OpenRouter był na krok tak samo wolny jak Sonnet); puste to model agenta, a własne narzędzia przeglądarki agenta zawsze go używają |
-| `connection` | `built_in` | `built_in`, `proxy` albo `hosted`: jak przeglądarka wychodzi do sieci |
+| `connection` | `built_in` | `built_in`, `proxy`, `hosted` albo `local`: jak przeglądarka wychodzi do sieci |
 | `proxy_url` | puste | przy `proxy`: `http://`, `https://` albo `socks5://` z hostem i portem; sekret bindingu, jeśli jest, to jego `username:password` |
 | `hosted_url` | puste | przy `hosted`: adres CDP usługi, `wss://`; sekret bindingu to jej klucz i jest wymagany |
 | `hosted_key_param` | `apiKey` | jak hostowana przeglądarka nazywa swój klucz w zapytaniu adresu |
 | `timezone` | puste | strefa IANA, którą podaje przeglądarka - ustaw ją na region proxy |
 | `locale` | puste | tag języka, np. `pl-PL`, wysyłany jako `Accept-Language` i `navigator.language` |
 
+Dla `local` wybierz lokalne przeglądanie w **Pracuj na** w sparowanej [aplikacji desktopowej](../desktop.pl.md#local-browser-models-and-mcp). Endpoint CDP serwera nie jest potrzebny. Tymczasowy, widoczny profil Chromium korzysta z sieci komputera, również usług LAN po natywnej zgodzie; lista domen stron nadal obowiązuje. Bindingi proxy i hosted są odrzucane zamiast ignorowane. Nadpisanie strefy czasowej i języka jest obsługiwane. Poniższa konfiguracja przeglądarki wdrożenia dotyczy pozostałych trybów.
+
 **Przeglądarkę uruchamiasz ty, a operator mówi którą.** W obrazie API nie ma Chromium:
 `cdp_url` wskazuje usługę przeglądarki, którą operator uruchamia i izoluje. Pliki
 compose mają ją za profilem `browser` — `docker compose --profile browser up -d
 browser`, osiągalną jako `http://browser:9222`. Host musi być na
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta lista — domyślna — odrzuca
-automatyzację przeglądarki całkowicie, przy publikacji.
+automatyzację przeglądarki całkowicie. Host z
+[`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts) jest
+odrzucany, nawet gdy allowlista go wymienia: ta przeglądarka rysuje strony ludzi
+dla `preview_artifact` i nigdy nie należy do autora. Sprawdzane **przy
+publikacji**, przy zapisie spec, a nie przy każdym runie.
 
 Przeglądarka z compose działa we własnej sieci Dockera, do której dołączają tylko
 API i worker, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
@@ -837,6 +920,149 @@ Spece zapisane przed wersją 13, które wiązały przeglądarkę krok po kroku
 `browse_page` przechodzą na `browse_web`; ustawienia modelu decyzyjnego i klucz TypeSafe
 są usuwane.
 
+## Obsługa komputera { #computer-use }
+
+`computer_screenshot` — *Take a screenshot of the desktop.*
+
+`computer_act` — *Act on the desktop: click, type, press keys, scroll, drag, open an app or wait.*
+
+`computer_apps` — *List the applications installed on the desktop, to open one with `launch`.*
+
+`computer_save_screenshot` — *Save a screenshot of the desktop for the user: shown in the chat and kept.*
+
+Agent obsługuje cały pulpit, więc może używać dowolnej aplikacji, nie tylko
+strony WWW. Patrzy na zrzut ekranu i wysyła kilka akcji myszy i klawiatury w
+pikselach tego zrzutu. Każda odpowiedź `computer_act` zawiera świeży zrzut
+ekranu. Większe ekrany są pomniejszane do `screen_width`x`screen_height`, zanim
+zobaczy je model, a każdy punkt jest przeliczany z powrotem na współrzędne
+samego pulpitu, także na punkty Maca z ekranem Retina.
+
+**Akceptacja dotyczy działania i trzeba ją włączyć.** Jak każde narzędzie, żadne
+z nich nie czeka na akceptację, dopóki właściciel agenta o nią nie poprosi.
+`computer_screenshot` niczego nie zmienia. Po ustawieniu `tool_approval:
+{computer_act: required}` każda paczka akcji czeka na akceptację względem zrzutu
+ekranu, który widział i model, i akceptujący. Punkt spoza tego zrzutu jest
+odrzucany, zanim cokolwiek się wykona. Zaakceptowana paczka wykonuje się w
+osobnym runie, który najpierw mierzy ekran i działa tylko wtedy, gdy ma on wciąż
+ten sam kształt co na zrzucie, na podstawie którego wybrano paczkę. Zmieniona
+rozdzielczość albo proporcje nie robią nic i pokazują modelowi nowy ekran.
+`max_actions` dotyczy całego runa, niezależnie od tego, ile razy czeka on na
+akceptację. Akceptacja obejmuje akcje, a nie piksele pod nimi: okno może się
+zmienić między zrzutem a kliknięciem, choć ekran zachowa rozmiar, więc odrzuć
+partię wymierzoną w okno, któremu nie ufasz, że pozostanie bez zmian.
+
+| `desktop` | Pulpit | Wymaga |
+|---|---|---|
+| `sandbox` | Pulpit Linux (XFCE i Firefox) we własnym [sandboksie](#files-shell) agenta, na tej samej maszynie, na której działają jego powłoka i narzędzia plikowe | Capability [Sandbox](#files-shell) na połączeniu sandboksa, z runtime'em `desktop` |
+| `daemon` | `computerd` uruchomiony przez operatora: jego własny pulpit Linux (X11), własny ekran Maca (`uv run deploy/computer/computerd.py`) albo pulpit w kontenerze (`deploy/computer/Dockerfile`) | `daemon_url` na liście `COMPUTER_DAEMON_ALLOWED_HOSTS` oraz token daemona jako sekret bindingu |
+| `e2b` | Pulpit E2B własny dla runa, z szablonu `desktop` E2B, zabijany, gdy run go puszcza | Klucz E2B organizacji jako sekret bindingu |
+| `local` | Własny ekran osoby, w czacie pracującym na jej komputerze przez [aplikację desktopową](../desktop.md#the-screen) | Nic: aplikacja pyta osobę przed pierwszym zrzutem |
+| `auto` | Ekran osoby, gdy czat pracuje na jej komputerze, w przeciwnym razie pulpit E2B, gdy binding wskazuje klucz, w przeciwnym razie sandbox | To, czego potrzebuje pulpit, na który trafi |
+
+Pulpit w sandboksie nie potrzebuje niczego własnego: ani adresu, ani tokena, ani
+providera. Żyje i jest współdzielony dokładnie tak jak sandbox, na rozmowę albo
+na agenta, według `session_scope` capability Sandbox, a plik, który agent
+zapisze narzędziami plikowymi, jest plikiem, który może otworzyć na ekranie.
+
+Publikacja odrzuca pulpit `sandbox` u agenta bez połączenia sandboksa oraz u
+specjalisty inline bez własnego połączenia albo takiego, które udostępnia mu
+rodzic. Odrzuca też taki, którego sandbox nie działa na runtime'ie `desktop`,
+odczytanym tak, jak odczytuje go uruchomienie: `runtime` capability Sandbox, a w
+przeciwnym razie domyślny runtime połączenia. Sandbox, który nie wskazuje
+żadnego, też jest odrzucany, bo domyślny runtime dostarczany z platformą to
+`workbench`, który nie ma ekranu. Połączenie Daytony jest odrzucane, bo
+uruchamia własny obraz.
+
+**Otwieranie aplikacji.** `computer_apps` wypisuje aplikacje, które pokazuje
+menu pulpitu, każdą z nazwą w języku pulpitu i identyfikatorem, czyli nazwą
+pliku wpisu menu. Akcja `launch` otwiera jedną z nich po jednym albo drugim,
+zamiast szukać jej ikony. Dopasowanie jest dokładne, bez względu na wielkość
+liter: nazwa, którą mają dwa wpisy, na przykład systemowy Firefox i Firefox z
+Flatpaka, jest odrzucana razem z ich identyfikatorami, a nieznana nazwa ze
+wskazówką, żeby wywołać `computer_apps`. `launch` przyjmuje tylko nazwę, nigdy
+ścieżkę ani argumenty: bez ukośnika i znaków sterujących, a na początku litera
+albo cyfra.
+
+Czytany jest każdy katalog ścieżki menu (`$XDG_DATA_HOME` i `$XDG_DATA_DIRS`,
+więc także `/usr/local/share` i eksporty Flatpaka) razem z podkatalogami:
+`kde/konsole.desktop` ma identyfikator `kde-konsole`. Wpis, którego menu by nie
+pokazało, jest pomijany: ukryty, niebędący aplikacją, przeznaczony dla innego
+pulpitu niż XFCE albo wskazujący w `TryExec` program, którego nie ma. Wpis
+otwiera `exo-open`, a akcja wraca, gdy pojawi się nowe okno albo przesunie się
+fokus. Jeśli w ciągu dziesięciu sekund nie stanie się ani jedno, ani drugie,
+uruchomienie się nie udaje i reszta partii akcji nie jest wykonywana, więc nic
+nie zostanie wpisane w okno, które wcześniej miało fokus.
+
+Uruchamianie działa tylko na pulpitach linuksowych: w sandboksie, na pulpicie
+E2B i w kontenerze computerd, gdzie aplikacja działa jako `desk`, a nie jako
+konto, które trzyma token. computerd na Macu albo na własnym pulpicie Linux
+operatora oraz własny komputer użytkownika, osiągany przez aplikację
+desktopową, odrzucają `launch` i `computer_apps`. Przez aplikację desktopową
+model dostaje wskazówkę, żeby użył launchera tego komputera; przez demona,
+który może być jednym albo drugim, żeby najpierw wywołał `computer_apps`, a gdy
+zostanie odrzucone, użył launchera komputera.
+
+Narzędzie `execute` nie jest potrzebne, a jego wyłączenie trzyma akcje na
+pulpicie za `computer_act` i jego akceptacją: z `execute` agent może uruchomić
+`xdotool` z powłoki.
+
+Jeden daemon to jeden pulpit: każdy run skierowany na niego dzieli tę maszynę i
+wszystko, na co jest na niej zalogowany. Daj mu osobną maszynę albo konto, nie
+czyjąś sesję roboczą. Agent może odczytać wszystko, co może odczytać konto, na
+którym działa daemon, łącznie z jego tokenem; dlatego kontener z
+`deploy/computer/` uruchamia daemona na osobnym koncie.
+
+**Token daemona należy do organizacji.** `COMPUTERD_TOKEN`, z którym uruchomiono
+daemona, jest przechowywany w [vaulcie](../secrets.md) organizacji jako klucz API
+i wskazany przez `secret_id` bindingu, a publikacja odrzuca daemona bez niego.
+`COMPUTER_DAEMON_ALLOWED_HOSTS` to lista wdrożenia, dokąd run może wysłać ten
+token. Jest sprawdzana przy publikacji i ponownie za każdym razem, gdy run
+otwiera daemona, więc zdjęcie z niej hosta zatrzymuje agentów już opublikowanych.
+Każda organizacja może wskazać dozwolony host, więc to token, a nie lista,
+trzyma jedną organizację z dala od pulpitu innej: daj każdemu pulpitowi własny
+token. `daemon_url` to wyłącznie adres daemona, a adres z zapytaniem (query),
+fragmentem albo danymi logowania jest odrzucany.
+
+| Ustawienie | Domyślnie | Zakres |
+|---|---|---|
+| `desktop` | `auto` | `auto`, `sandbox`, `daemon`, `e2b`, `local` |
+| `daemon_url` | puste, odrzucane przy publikacji dla `daemon` | dozwolony host, bez query, fragmentu ani danych logowania |
+| `screen_width` × `screen_height` | 1280 × 800 | 640–1920 × 480–1200 |
+| `max_actions_per_call` | 20 | 1–50, nie więcej niż `max_actions` |
+| `max_actions` | 200 | 1–2000 na run |
+| `preview` | włączone | |
+
+Czat rysuje pulpit w oknie pod wiadomością, gdy agent pracuje: jedno okno na
+run, otwarte przez pierwszy zrzut ekranu, z klatką po każdym wywołaniu i linią
+na akcję. Tekst wpisywany przez model
+jest tam widoczny tak, jak został wpisany.
+
+**Oglądanie i przejmowanie.** Każdy pulpit jest też publikowany w podglądzie runa
+na żywo, tym samym, którego używa browse, więc run z kanału albo rutyny można
+oglądać z konsoli. **Przejmij** oddaje pulpit osobie między wywołaniami agenta:
+jej kliknięcia, klawisze i przewijania są na nim wykonywane, agent czeka, a
+**Oddaj** zwraca go, a model dostaje polecenie, żeby spojrzeć jeszcze raz. Kto może
+oglądać i przejmować, to reguła browse; własny ekran osoby jest tylko jej.
+
+**Zrzut ekranu, który zostaje u użytkownika.** `computer_screenshot` jest dla
+modelu i nic go nie przechowuje: run czekający na akceptację, jego manifest i
+skompaktowana rozmowa zapisują w jego miejscu jedno zdanie. Gdy użytkownik chce zobaczyć ekran albo wynik
+kroku ma zostać zachowany jako dowód, agent wywołuje `computer_save_screenshot`.
+Zapisuje on ekran w pełnej rozdzielczości dla organizacji i pokazuje go w czacie
+z linkiem do pliku w pełnym rozmiarze. Gdy agent ma workspace, zapisuje też plik
+w `output/`, więc odpowiedź na kanale go zawiera, a kolejny krok może dołączyć go
+do raportu. Bez workspace'u odpowiedź na kanale nie zawiera pliku, tak jak przy
+generowaniu obrazów. Niczego na pulpicie nie zmienia i nie czeka na akceptację, chyba że
+właściciel o nią poprosi.
+
+!!! warning "Tekst na ekranie jest niezaufany"
+
+    Instrukcje mówią modelowi, że to, co jest na ekranie, to dane, nigdy
+    polecenia, i że ma się zatrzymać przed hasłami, płatnościami i decyzjami
+    należącymi do użytkownika. Egzekwuje to akceptacja, a jest wyłączona, dopóki
+    nie ustawi jej właściciel agenta: bez niej `computer_act` pozwala agentowi
+    działać według tego, co powie mu dowolne okno.
+
 ## Obliczenia { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
@@ -918,11 +1144,14 @@ przy tym polu, panel plików podpisuje, czyj to workspace, zamiast nazywać go
 użytkownik, który widzi plik, którego nie stworzył, powinien móc się dowiedzieć
 dlaczego.
 
-**Zmiana backendu albo połączenia zaczyna świeży workspace, a nie podłącza się
-ponownie do starego.** Zapisany dokument, wolumen kontenera i sandbox Daytony to
-trzy różne rzeczy, a dwie instalacje `sandboxd` to dwie różne rzeczy — więc każda
-dostaje własny workspace, a poprzedni zostaje tam, gdzie był, nadal wypisywany i
-nadal do odczytu. Przenoszenie żywego agenta nie jest więc sposobem na przeniesienie
+**Zmiana backendu, połączenia albo runtime'u zaczyna świeży workspace, a nie
+podłącza się ponownie do starego.** Zapisany dokument, wolumen kontenera i sandbox
+Daytony to trzy różne rzeczy, a dwie instalacje `sandboxd` to dwie różne rzeczy —
+więc każda dostaje własny workspace, a poprzedni zostaje tam, gdzie był, nadal
+wypisywany i nadal do odczytu. Runtime kontenera jest wybierany przy jego
+utworzeniu, więc w przeciwnym razie workspace przeniesiony na inny runtime nadal
+działałby na starym obrazie. Brak runtime'u i `workbench`, domyślny runtime dostarczany z
+platformą, to ten sam workspace. Przenoszenie żywego agenta nie jest więc sposobem na przeniesienie
 jego plików; agent zastaje na nowym hoście pusty workspace. Ponieważ
 `connection_id: null` oznacza „domyślne połączenie organizacji", oznaczenie innego
 połączenia jako domyślnego daje ten sam efekt bez zmiany jakiegokolwiek speca.
@@ -1063,12 +1292,28 @@ więc przekierowanie, `cp`, `tee` i `rm` są wychwytywane. Zapis, którego żadn
 próba na sucho nie przewidziała, np. `echo x > $TARGET`, jest odrzucany, chyba
 że wywołanie zatwierdzono.
 
-**To instalacja opcjonalna.** Wdrożenie instaluje terminal z extra `mirage`
-(`EXTRAS="--extra mirage"`), a build instaluje wtedy kompilator dla parsera
-powłoki. Bez tego Builder informuje, że terminal nie jest zainstalowany, a
-publikacja odrzuca spec, który go wiąże. Backendów z rodziny S3, Box, LanceDB,
-Qdrant i Langfuse nie da się zamontować w tym wydaniu; Builder podaje powód przy
-każdym.
+**Limity i wznowienie po zatwierdzeniu.** Mirage 0.0.8 ma limit 16 MiB pamięci
+podręcznej plików oraz 16 MiB pamięci workspace. Polecenie zwraca maksymalnie
+64 KiB na strumień wyjściowy; po przekroczeniu limitu odczyt jest zatrzymywany,
+a wynik oznaczany jako niepełny. Foldery RAM są zachowywane w metadanych
+wiadomości zaparkowanego runu i odtwarzane po zatwierdzeniu, również u delegatów.
+Nie obejmuje to poświadczeń ani cache usług zewnętrznych. Folder konta osobistego
+zawiera jego stały identyfikator, więc podobne adresy e-mail nie nadpisują kont.
+
+**To instalacja opcjonalna.** Zainstaluj extra `mirage`
+(`EXTRAS="--extra mirage"`). Mirage 0.0.8 nie wymaga już poprzedniego kroku
+kompilacji parsera powłoki. Bez extra Builder informuje o braku terminala,
+a publikacja odrzuca spec, który go wiąże. Backendów rodziny S3, Box i LanceDB nie można zamontować w tym obrazie; Builder wyjaśnia przyczynę.
+Wszystkie konfigurowalne hosty, także domyślne adresy backendów, muszą znajdować
+się na `MIRAGE_ALLOWED_HOSTS`.
+
+
+
+Qdrant i Langfuse są dostępne w extra. Qdrant obsługuje listowanie i odczyt plików
+oraz tekstowy grep; semantyczne wyszukiwanie wymagające modelu nie jest włączone.
+Zgodę na połączenie konta należy dokończyć w tej samej przeglądarce i na tym samym
+zalogowanym koncie, na którym ją rozpoczęto.
+
 
 ## Wykresy { #charts }
 
@@ -1169,11 +1414,163 @@ wtedy run zapisuje wywołanie po zerze i oznacza swoją sumę jako częściową
 organizacja** i zwracany przez
 [`GET /api/v1/generated/{filename}`](../architecture.md), zawężony do organizacji
 wywołującego — szersza granica niż przy pliku wrzuconym na czacie, który należy do
-jednego użytkownika, bo nie ma zapisu o tym, kto obraz wyprodukował. Gdy agent ma
+jednego użytkownika. Jest zapisany przy konwersacji, w której powstał, i usuwany
+razem z nią, wliczany do limitu wygenerowanych mediów organizacji i usuwany po
+okresie retencji ([konfiguracja](../configuration.md#generated-media)). Po
+przekroczeniu limitu narzędzie odpowiada o tym, zanim cokolwiek wyda. Gdy agent ma
 też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 `/output`, żeby późniejszy krok `execute` mógł coś z niego zbudować — złożyć PDF,
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
+
+## Zamiana tekstu na mowę { #text-to-speech }
+
+`generate_speech` — *Speak a text aloud as an audio clip.*
+
+Odczytuje tekst na głos przez providera mowy wybranego przez autora i zachowuje
+się jak generowanie obrazów: nagranie jest zapisywane, pokazywane w rozmowie jako
+odtwarzacz i zapisywane w `output/`, gdy workspace jest otwarty (#2259).
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `provider` | `openai` | `openai`, `elevenlabs`, `google` |
+| `model` | `gpt-4o-mini-tts` | Modele tego providera z `app/core/catalog/text_to_speech_models.json` |
+| `voice` | pierwszy głos modelu | Domyślny głos agenta; może przełączyć się dla każdego klipu w obrębie `voices`. Głos z katalogu dla OpenAI i Gemini; id z własnej biblioteki głosów dla ElevenLabs |
+| `voices` | brak: dowolny głos modelu | Do 20 głosów, na które agent może się przełączyć dla każdego klipu, każdy jako `id` i - dla głosu z konta - `note` do 120 znaków mówiąca, kto to jest. Pusta lista dopuszcza każdy głos modelu - dla ElevenLabs dowolne id głosu z konta |
+| `output_format` | pierwszy format providera | `mp3`, `wav` (Gemini zwraca tylko `wav`) |
+| `max_characters` | `5000` | 1–10 000; najwięcej tekstu, jaki może wypowiedzieć jedno wywołanie |
+
+**Providerzy, modele, głosy i ceny to dane** w pliku katalogu. Provider jest
+[celem sekretu](../secrets.md) przyjmującym zwykły klucz API - ElevenLabs nie
+uruchamia modeli czatu, więc jest usługą w vault, a nie providerem modeli - a
+wpis, którego celu brakuje albo którego kształt API nie ma klienta, jest
+pomijany. Starsze `tts-1` i `tts-1-hd` od OpenAI mówią dziewięcioma z trzynastu
+głosów, więc głosy są wypisane per model.
+
+**Głosy ElevenLabs należą do konta.** Wspólne domyślne głosy wygasają
+31.12.2026, więc katalog nie wypisuje żadnego, a binding wskazuje jeden z głosów
+konta po id; publikacja bez niego jest odrzucana.
+
+**Głos jest domyślny; dozwolone głosy są limitem.** `voice` to głos, którym
+agent mówi, dopóki nie poprosi o inny, a `voices` wymienia jedyne pozostałe, na
+które może się przełączyć - do dialogu albo dla narratora i postaci. Pusta lista
+dopuszcza każdy głos modelu; w ElevenLabs dowolne id głosu z konta, łącznie ze
+sklonowanymi, o czym Builder ostrzega. Głosy trafiają do modelu jako `enum`
+parametru `voice` narzędzia, ze zwykłym głosem jako domyślnym i z opisem każdego
+z katalogu albo - dla głosu z konta - z notatką autora. Otwarty głos z konta to
+wolny tekst, którego format jest sprawdzany. Głos z listy, którego model nie ma,
+jest odrzucany przy publikacji, a głos spoza listy wraca do modelu ze wskazówką.
+
+**Picker kluczy pokazuje klucze wybranego providera.** Sekret jest wymagany dla
+każdego providera i zadeklarowany jako wymagany *gdy* `provider` jest jednym z
+nich, co mówi Builderowi, że provider jest celem klucza.
+
+**Długi tekst to jedno nagranie.** Tekst ponad limit modelu na żądanie jest
+cięty na akapicie, zdaniu albo słowie i wypowiadany po kolei. Kawałki MP3 są
+łączone jeden za drugim; WAV jest pobierany od każdego providera jako PCM 24 kHz
+i opakowany jednym nagłówkiem. `instructions` - ton, tempo, akcent - trafiają do
+modeli, które je czytają (`gpt-4o-mini-tts` od OpenAI, Gemini), a dla reszty są
+pomijane.
+
+**Budget jest pytany z ceną nagrania.** Mowa jest sprzedawana za znak, więc
+katalog trzyma datowaną cenę za milion znaków i koszt jest znany przed
+wywołaniem. Run dostaje odmowę nagrania, które przekroczyłoby limit, a potem koszt
+jest księgowany; przy błędzie w połowie księgowane są też kawałki już
+wypowiedziane. Modele rozliczane w tokenach są sprawdzane po cenie za znak
+typowej mowy. Gemini, które zwraca dźwięk jako surowe PCM, jest potem księgowane z
+dźwięku, który zwrócił każdy kawałek - tokeny tekstu na wejściu i 25 tokenów audio
+na sekundę na wyjściu - więc wolne mówienie kosztuje tyle, ile nalicza provider.
+Datowana cena działa od swojego dnia - tak zapisane jest podwojenie cen Gemini
+1.01.2027.
+
+**Księgowane w trakcie mówienia, jedno nagranie naraz.** Każdy kawałek długiego
+tekstu jest księgowany, gdy przychodzi jego audio, więc błąd albo anulowany run w
+połowie wciąż księguje kawałki, które wróciły. Sprawdzenie budgetu niczego nie
+rezerwuje, więc narzędzie wykonuje jedno wywołanie naraz. `instructions` ma limit
+1000 znaków, trafia do providera z każdym kawałkiem i nie jest wyceniane.
+
+**Ma skutki uboczne**, z tych samych powodów co generowanie obrazów: wydaje
+pieniądze i tworzy nagranie, które ktoś może opublikować.
+
+**Błędy trafiają do tego, kto może je naprawić.** Pusty tekst, tekst ponad
+`max_characters` albo tekst odrzucony przez providera wraca do modelu, podobnie
+provider, który ogranicza ruch albo nie działa. Odrzucony klucz, nieznany głos i
+wyczerpany budget są zwracane jako wynik, bo naprawić je może tylko autor albo
+operator; głos wybrany przez model, którego provider nie zna, wraca do modelu.
+Logowany jest tylko kod błędu providera; jego tekst błędu nie trafia ani do logów,
+ani do modelu.
+
+## Generowanie wideo { #video-generation }
+
+`generate_video` — *Make a short video from a written description.*
+
+Tworzy krótki klip przez providera wideo wybranego przez autora i zachowuje się
+jak generowanie obrazów: klip jest zapisywany, pokazywany w rozmowie jako
+odtwarzacz i zapisywany w `output/`, gdy workspace jest otwarty (#2260). Może
+zacząć od obrazu - `filename` zwróconego przez `generate_image` w tym samym runie
+albo ścieżki w workspace, gdzie wygenerowany obraz leży też w `output/` -
+rozpoznanego po bajtach, a nie po nazwie. Sama nazwa pliku nigdy nie sięga do
+wygenerowanych plików organizacji: run musi sam zrobić ten obraz.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `provider` | `google` | `google`, `byteplus`, `xai`, `alibaba` |
+| `model` | `gemini-omni-1.1-flash` | Modele tego providera z `app/core/catalog/video_models.json` |
+| `resolution` | pierwsza modelu | Domyślna; agent może poprosić o inną dla każdego klipu, do `max_resolution` |
+| `max_resolution` | brak: dowolna, którą renderuje model | Najwyższa, o jaką może poprosić agent; co najmniej `resolution` |
+| `aspect_ratio` | pierwsze modelu | Domyślne; agent może poprosić o dowolne proporcje, które renderuje model |
+| `seconds` | 5 albo najbliższa wartość modelu | W zakresie modelu; odrzucane dla Gemini Omni, który sam decyduje |
+| `max_seconds` | najdłuższy klip modelu | Najdłuższy klip, o jaki może poprosić agent; odrzucane dla Gemini Omni |
+| `audio` | domyślne providera | Domyślnie włączony albo wyłączony; agent może poprosić o jedno lub drugie dla każdego klipu. Odrzucane, gdy dźwięk modelu jest stały |
+| `alibaba_workspace` | brak: wspólny endpoint DashScope | Tylko Alibaba: id workspace'u Model Studio, jedna etykieta hosta; Wan jest wtedy wywoływany pod `https://{workspace}.{region}.maas.aliyuncs.com/api/v1` |
+| `alibaba_region` | `ap-southeast-1` | Tylko Alibaba: `ap-southeast-1`, `us-east-1`, `eu-central-1`, `ap-northeast-1`, `cn-beijing`, `cn-hongkong` |
+| `timeout_seconds` | `600` | 60–1800 |
+
+**To, co potrafi każdy model, to dane.** Katalog podaje zakres długości modelu,
+proporcje obrazu, rozdzielczości, czy klipy mają dźwięk i czy model może zacząć
+od obrazu, a Builder oferuje tylko to. BytePlus jest [celem sekretu](../secrets.md)
+w vault; Google, xAI i Alibaba Cloud już są providerami modeli. Brakuje OpenAI:
+jego API wideo wyłączono 24.09.2026.
+
+**Ustawienia są domyślne; najwyższa rozdzielczość jest limitem.** Rozdzielczość,
+proporcje, długość i dźwięk ustawione w bindingu dostaje klip, jeśli agent nie
+poprosi o inne w danym wywołaniu. Długość kończy się na `max_seconds`, proporcje
+na tych, które renderuje model, a rozdzielczość na `max_resolution`: puste
+pozwala agentowi poprosić o każdą rozdzielczość modelu, o czym Builder ostrzega,
+bo od rozdzielczości zależy cena sekundy. Budżet jest sprawdzany ceną wybranej
+rozdzielczości. Proporcje i rozdzielczość trafiają do modelu jako `enum` ze
+zwykłą wartością jako domyślną, a dźwięk jest oferowany tylko tam, gdzie model
+robi go opcjonalnym.
+
+**Klip to zadanie, na które czeka się jak na obraz.** Gemini odpowiada w samym
+żądaniu; BytePlus, xAI i Alibaba przyjmują zadanie, o które się odpytuje. W obu
+przypadkach wywołanie czeka minutę albo kilka, najwyżej `timeout_seconds`.
+Zadanie po tym czasie jest anulowane tam, gdzie provider na to pozwala - w
+BytePlus, póki czeka w kolejce - a wywołanie dostaje odpowiedź zamiast ponowienia,
+bo xAI i Alibaba nie dokumentują anulowania i mogą dokończyć oraz rozliczyć
+zadanie. Klip jest pobierany, zanim wygaśnie adres providera, a klucz nigdy nie
+trafia do hosta z plikami.
+
+**Budget jest pytany z ceną klipu.** Każdy provider rozlicza sekundy według
+stawki zależnej od rozdzielczości, więc katalog trzyma datowaną cenę za sekundę
+dla każdej rozdzielczości. Run dostaje odmowę klipu, który przekroczyłby limit, a
+potem księgowana jest długość podana przez providera. Gemini Omni sam decyduje o
+długości i jej nie podaje, więc tam klip jest wyceniany i księgowany według
+najdłuższego klipu modelu.
+
+**Ma skutki uboczne**, z tych samych powodów co generowanie obrazów, i to
+bardziej: klip to najdroższe pojedyncze wywołanie, jakie robi agent.
+
+**Błędy trafiają do tego, kto może je naprawić.** Pusty prompt, długość albo
+proporcje, których model nie robi, i obraz, którego nie da się odczytać, wracają
+do modelu ze wskazówką, podobnie jak provider, który ogranicza ruch albo nie
+działa. Odrzucony klucz, wyczerpany budżet, prompt odrzucony przez politykę
+treści providera i zadanie po limicie czasu są zwracane jako wynik: wskazówka
+ponowienia przy odmowie zachęcałaby do jej obejścia. Zadanie po limicie czasu albo
+anulowane razem z przebiegiem jest księgowane według szacunku, o ile jego żądanie
+mogło już dotrzeć do providera, bo provider może je jeszcze dokończyć i rozliczyć. Klip zrobiony, ale nie
+do pobrania, też jest księgowany i zwracany jako wynik, a nie kierowany z powrotem
+do modelu: druga próba zostałaby rozliczona ponownie.
 
 ## Coding agent { #coding-agent }
 
@@ -1189,10 +1586,11 @@ a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
-| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (tylko Claude Code) |
+| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (Claude Code lub Codex na tym komputerze) |
 | `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
 | `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
 | `timeout_minutes` | 15 | 1–60, na jedno zadanie |
+| `runs_on` | `sandbox` | `sandbox` uruchamia zadanie w sandboxie agenta na kluczu; `this_computer` uruchamia je w folderze wybranym przez osobę na jej komputerze w aplikacji desktopowej, na logowaniu, które agent już ma, bez klucza |
 
 **Jedno narzędzie, a binding decyduje, co wolno.** Przy `edit` harness edytuje
 dowolny plik i uruchamia dowolne polecenie w sandboxie z wyłączonymi własnymi
@@ -1202,12 +1600,16 @@ przełączniki są opisane. Przy `read_only` Claude Code działa w trybie planu,
 żadnego narzędzia, które pisze - bez narzędzi edycji i bez powłoki - i czyta przez
 Read, Grep i Glob; wie, że niczego innego nie da się zatwierdzić. Nawet poleceń
 czytających: żadna lista prefiksów poleceń nie robi z powłoki narzędzia tylko do
-odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex nie ma `read_only`: jego tryb tylko do odczytu
+odczytu, bo `git log --output=<plik>` pasuje do `git log` tak samo jak każdy odczyt. Codex w kontenerze nie ma `read_only`: jego tryb tylko do odczytu
 to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
 odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
 **Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
 jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
 narzędzie to sama capability.
+
+**Na tym komputerze.** Ustaw `runs_on` na `this_computer`, aby użyć zainstalowanego harnessu przez [Agent Client Protocol](https://agentclientprotocol.com). Desktop uruchamia przypięty adapter przez `npx`, a protokół prowadzi serwer. Wybierz folder z pełnym dostępem w **Work on** i potwierdź każdy start w natywnym oknie. Folder jest katalogiem roboczym, nie sandboxem systemowym. Harness używa własnego logowania, więc klucz w vault jest opcjonalny. Prośby o uprawnienia stosują `access`; zgoda obowiązuje raz na zadanie. Claude read-only wyłącza bypass i narzędzia zapisujące; lokalny Codex wybiera natywny tryb odczytu.
+
+Kolejne zadania ładują tę samą sesję rozmowy; `fresh_session` jawnie zaczyna od nowa. Korekta przerywa turę ACP i kontynuuje tę samą sesję po potwierdzeniu zatrzymania. Identyfikatory sesji pozostają poza repozytorium i są usuwane po odłączeniu. Niewycenione zadania subskrypcji, także rozpoczęte zadania zakończone błędem, oznaczają koszt runu jako dolną granicę. Zobacz [aplikację desktopową](../desktop.md#coding-agents-on-this-computer).
 
 **Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
 (`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego
@@ -1255,6 +1657,14 @@ zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, któ
 uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
 planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
 
+**Klucz pasuje do harnessu.** Picker proponuje Claude Code tylko klucze zapisane
+dla Anthropic, a Codex tylko klucze OpenAI i logowania ChatGPT. Klucz zapisany
+jako `custom` pasuje do obu, tak samo jak klucz już podpięty. Publikacja odrzuca
+klucz zapisany dla innego dostawcy i nazywa tych, których harness przyjmuje: klucz
+OpenAI podpięty do Claude Code przeszedłby publikację, a potem zawodził przy
+każdym zadaniu. Gdy `base_url` jest ustawiony, klucz należy do bramki - OpenRouter,
+LiteLLM czy innej - więc Claude Code przyjmuje tam dowolny klucz.
+
 **Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
 workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma
 gdzie uruchomić harnessu. Daj delegującemu agentowi capability `sandbox` na połączeniu
@@ -1268,6 +1678,20 @@ zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `m
 jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy. Tak
 samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
 nieudane, przerwane limitem czasu albo zatrzymane.
+
+## Obserwuj polecenie { #monitor }
+
+`start_monitor`, `list_monitors`, `stop_monitor` — *Obserwuj długo działające polecenie i dowiaduj się o jego wyjściu, gdy się pojawia.*
+
+Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, ogon logu, build, odpytywanie CI lub wdrożenia - i dowiadywać się o jego wyjściu bez odpytywania. Polecenie działa odłączone w przestrzeni roboczej przebiegu, a jego wyjście trafia tam do pliku. Przed każdym zapytaniem do modelu nowe linie są odczytywane, filtrowane opcjonalnymi słowami `match` (rozdzielonymi `|`, bez względu na wielkość liter; zwykły tekst, nie wyrażenie regularne) i dodawane na końcu zapytania jako tymczasowa notatka, tak jak przypomnienie sterujące, więc nic nie trafia do historii rozmowy. Obserwacja, która się zakończy, jest zgłaszana z kodem wyjścia.
+
+| Narzędzie | Co robi |
+|---|---|
+| `start_monitor` | Uruchamia `command` z opcjonalnymi `label` i `match`; naraz działają co najwyżej cztery |
+| `list_monitors` | Wypisuje obserwacje ze stanem, kodem wyjścia, liczbą dopasowanych linii i ostatnimi dziesięcioma |
+| `stop_monitor` | Zatrzymuje jedną obserwację i uruchomione przez nią procesy |
+
+**Obserwacja żyje tyle, co przebieg.** Każda obserwacja jest zatrzymywana na końcu tury, więc polecenie nigdy nie przeżywa tury, która o nie poprosiła. Wymaga trwałej powłoki sandboxa. Lokalna powłoka desktopu kończy procesy po każdym poleceniu, więc narzędzie odmawia uruchomienia obserwacji przed startem procesu. To, co drukuje obserwowane polecenie, to dane, a nie instrukcje, i agent o tym wie. Dodaj **Human approval**, żeby pytać przed startem polecenia.
 
 ## Wizualizacje { #visuals }
 
@@ -1296,8 +1720,9 @@ wysłanie wyboru osoby jako jej następnej wiadomości - *Zaplanuj ten przystane
 osoba kliknie *Wyślij*; prośba, za którą nie stoi kliknięcie, jest odrzucana. Zobacz
 [follow-upy](../artifacts.md#visuals).
 
-**Mapy.** `lib/agenticos-map-1.js` rysuje trasę - ponumerowane pinezki wbijane po
-kolei, linię między nimi, pauzę i powtórkę oraz kartę dla każdego przystanku - na
+**Mapy.** `lib/agenticos-map-2.js` rysuje trasę - ponumerowane pinezki po kolei i
+linię między nimi, pokazane od razu i wbijane jedna po drugiej na życzenie, na mapie
+w proporcji 16:9 do szerokości strony, oraz kartę dla każdego przystanku - na
 serwerze kafelków wskazanym przez `VISUAL_MAP_TILES`, a na deploymencie, który
 żadnego nie wskazuje, jako zarys przystanków. Instrukcje capability mówią modelowi,
 który to przypadek, żeby nie obiecywał ulic, których nie pokaże.
@@ -1345,11 +1770,18 @@ Zobacz [Wizualizacje](../artifacts.md#visuals).
 podsumowanie — pod stałym linkiem.*
 `read_artifact` — *Przeczytaj bieżącą wersję strony opublikowanej przez tego
 agenta, taką, jaką ją napisano.*
+`list_artifacts` — *Wymień strony opublikowane przez tego agenta, które ten run
+może otworzyć, od najnowszej.*
+`preview_artifact` — *Zobacz opublikowaną stronę tak, jak zobaczy ją ktoś, kto ją
+otworzy: obraz i to, co poszło nie tak.*
+`share_artifact` — *Poproś o udostępnienie opublikowanej przez siebie strony większej liczbie
+osób; samo to niczego nie udostępnia.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
-[aplikację](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
-grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
-konfiguracji.
+[aplikacja](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
+grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Jedno
+ustawienie: `preview_screenshot` (domyślnie włączone) przekazuje modelowi obraz
+narysowany przez podgląd; wyłącz je dla modelu, który nie czyta obrazów.
 
 **Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
 aplikację, więc następny run tego samego agenta, który publikuje `weekly-report` — z
@@ -1373,6 +1805,27 @@ a nie retry.
 runa może otworzyć w konsoli, i nic na publicznym widgecie, w embedzie, w harmonogramie ani w triggerze
 zdarzeń, gdzie nie słucha żadna zidentyfikowana osoba.
 
+**Lista.** `list_artifacts` zwraca JSON: strony tego agenta w środowisku runa, od
+najnowszej, najwyżej 50, z `total`, każdą z nazwą, tytułem, wersją, formatem,
+bindingami, widocznością, publicznym linkiem, czasem publikacji, `url` w konsoli i
+`may_edit` (czy publikacja pod tą nazwą z tego runa ją zaktualizuje). Jest czytana
+jako słuchająca osoba, według zasady listowania konsoli; w czacie grupowym
+wymieniane są tylko strony całej organizacji, nigdy taka, do której ta osoba ma
+dostęp sama. Tam, gdzie nie słucha żadna zidentyfikowana osoba, nic nie jest
+wymieniane.
+
+**Podgląd.** `preview_artifact` rysuje bieżącą wersję w szerokości 1280 pikseli, o
+wysokości najwyżej 2400, w przeglądarce uruchomionej przez operatora
+([`ARTIFACT_RENDER_CDP_URL`](../configuration.md#published-artifacts)), z danymi
+czytanymi jako słuchająca osoba. W czacie grupowym otwiera tylko stronę całej
+organizacji i rysuje ją bez danych; tak samo dla runu, za który nikt nie odpowiada,
+np. uruchomionego przez webhook albo formularz. Zwraca raport tekstowy (dane każdego bindingu,
+nieprzechwycone błędy, błędy konsoli, odmowy polityki, odrzucone żądania, okna
+dialogowe, ostrzeżenia przy publikacji) i obraz jako część obrazkową. Na każde
+żądanie renderu odpowiada API albo je odrzuca. Bez renderera albo dodatku
+`browser`, albo po przekroczeniu 15 sekund, raport przychodzi sam i mówi dlaczego.
+Resztę opisuje [Jak wygląda strona](../artifacts.md#seeing-the-page-preview).
+
 **Bez skutków ubocznych.** Pierwsza publikacja jest prywatna dla osoby, dla której
 był run, i tylko człowiek poszerza grono czytelników, więc bramka zatwierdzeń
 jedynie wstrzymałaby zaplanowany raport, dla którego to istnieje. Autor, który
@@ -1383,6 +1836,82 @@ chce zatwierdzać każdą ponowną publikację udostępnionej strony, ustawia
 `sandbox` z `connect-src 'none'`, a tekst narzędzia mówi modelowi, żeby własne dane
 wstawiał inline, a wykresy ładował z [zestawu bibliotek](../artifacts.md#the-library-set)
 wdrożenia zamiast z CDN. Zobacz [jak strona jest izolowana](../artifacts.md#how-the-page-is-isolated).
+
+**Jak wygląda strona.** Capability dodaje do instrukcji agenta krótki, statyczny
+kontrakt strony: szkielet, najczęściej używane klasy biblioteki, ikony Lucide
+zamiast emoji i `AO.records` dla związanych danych. Gdy run oferuje skill
+`artifact-pages`, a ten nie jest załadowany, pierwsza cała strona HTML w runie to
+retry z prośbą, żeby model go załadował i zbudował stronę od nowa; raz na run, a
+przy ostatniej próbie strona publikuje się zamiast tego z tą radą. Każda
+opublikowana strona HTML jest sprawdzana, a `warning` w wyniku wymienia, co
+wygląda źle, jeden problem na wiersz — zobacz
+[kontrakt strony i ostrzeżenia przy publikacji](../artifacts.md#the-page-contract-and-the-publish-warnings).
+Ostrzeżenie nigdy nie zatrzymuje publikacji.
+
+**Dane na żywo.** `bindings` w `publish_artifact` wiążą stronę HTML z danymi tabel
+w postaci `{name: query}`. Zapytanie wskazuje `table` (id albo dokładną nazwę, z
+`list_tables`) albo zapisany `view` (id albo dokładną nazwę, z `list_views`), nigdy
+oba, oraz `fields`, które przypisuje każdej nazwie czytanej przez stronę kolumnę po id
+albo etykiecie. Opcjonalnie: `filters` (`[{column, op, value}]`, wszystkie muszą być
+spełnione, dodawane do filtrów widoku; wybór po etykiecie), `sort` (`{by, direction}`)
+i `limit` (najwyżej i domyślnie 1000), które zastępują te z widoku. Filtry i
+sortowanie widoku są **kopiowane** przy publikacji strony, a późniejsze edycje widoku
+niczego nie zmieniają; jego `visible_columns` i `group_by` są ignorowane, a widok z
+wyszukiwaniem pełnotekstowym albo z filtrem na kolumnie, której już nie ma, jest
+odrzucany. Pominięcie `bindings` zachowuje bieżące bindingi strony; `{}` je usuwa.
+
+Spec agenta musi przyznawać odczyt tabeli, a osoba, w imieniu której działa run, musi
+czytać każdą tabelę, do której sięga zapytanie, także powiązane. Strona wywołuje
+`agenticos.onData(render)`, które działa z pierwszymi danymi i przy każdym
+odświeżeniu; `agenticos.data` to Promise pierwszych danych. **Każdy, kto otwiera
+stronę, czyta te same rekordy, czytane z dostępem jej właściciela**, gdy właściciel
+potwierdzi ich udostępnienie; wiąż tylko to, co mogą zobaczyć wszyscy. Binding, którego
+nie da się obsłużyć, przychodzi jako `unavailable`. Nazwy pasują do
+`^[a-z_][a-z0-9_]{0,63}$`, najwyżej 5 bindingów i po 50 pól w każdym. Limity opisuje
+[Dane na żywo](../artifacts.md#live-data).
+
+**Wynik publikacji.** Powtarza każde zapytanie słowami — `table`, `filters`, `sort`,
+`limit` i każde pole z tym, co czyta (`Status (single_select)`, `Pay band: formula over
+Salary, Level`) — albo `kept` dla bindingu przeniesionego bez zmian; to powtórzenie jest
+tym, na co zgadza się właściciel, więc agent je sprawdza. `consent` mówi, na czym stoją
+dane wersji (`not_needed`, `pending`, `consented`, `declined`, `withdrawn`), a
+`audience` mówi, co widzą wszyscy inni, dopóki czeka: „the audience still sees v2 until
+Alex confirms". Wersję `pending` osoba potwierdza w konsoli; agent jej o tym mówi.
+Nowa strona jest prywatna dla osoby, w imieniu której działa run.
+
+**Akcje.** `actions` w `publish_artifact` deklaruje do pięciu workflowów, które przyciski
+strony mogą poprosić o uruchomienie, jako `[{workflow, label}]` - workflow po id albo
+dokładnej nazwie oraz to, jak nazywa go strona. Każdy musi być powiązany w capability
+[Workflowy](#workflows) agenta, aktywny, startować od **Manual** albo **API request** i być
+taki, który osoba stojąca za runem może zobaczyć i uruchomić; workflow, do którego osoba
+nie ma dostępu, jest odrzucany tak, jakby nie był powiązany, a zarchiwizowany albo
+niestartowany ręcznie, do którego dostęp ma, jest odrzucany z nazwy. Pominięcie `actions`
+zachowuje obecne, `[]` je usuwa, a run bez osoby za sobą nie może ich zmieniać. Wynik
+publikacji wymienia każdą po nazwie i etykiecie albo podaje `kept`. Agent niczego nie
+uruchamia: oglądający potwierdza każdy run w konsoli i run działa w jego imieniu. Strona
+wywołuje `AO.run`. Zobacz [Akcje](../artifacts.md#actions).
+
+**`share_artifact(name, visibility?, people?)`.** Prosi o udostępnienie strony.
+Niczego nie udostępnia i **nie** jest bramkowane zatwierdzeniem narzędzia: składa
+[prośbę](../artifacts.md#share-requests) typu `audience` jako osoba runa — także gdy to
+run samego właściciela — i odpowiada „Waiting for Alex to approve in the page's Share
+dialog". Właściciel odpowiada w konsoli, zalogowany jako on sam. `visibility` to `team`
+albo `org`, nie ma `public`, a `people` to członkowie po pełnym imieniu i nazwisku albo
+e-mailu oraz grupy po nazwie, każdy z prośbą o poziom podglądu; nazwa, która nie pasuje
+do nikogo albo do kilku osób, jest zgłaszana, nigdy zgadywana. Run bez osoby oraz
+strona czatu grupowego, która nie jest ogólnoorganizacyjna, nie mogą prosić. Jest
+`side_effecting=False`: wywołanie niczego nie stosuje.
+
+**Run bez osoby.** Stronę z bindingami publikuje tylko run działający w imieniu
+członka: zalogowanego członka (czat webowy, HTTP API), powiązanego nadawcy z
+kanału albo twórcy harmonogramu. Odwiedzający widget, embed albo hostowaną stronę,
+niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta (GitHub,
+e-mail, przekaźnik webhooków) i run workflow przyjęty przez publiczne wejście — albo
+gdziekolwiek w łańcuchu takiego runa — nie publikują strony z bindingami. Autor, który
+chce zatwierdzać każdą ponowną publikację strony z bindingami, ustawia
+`tool_approval` na `publish_artifact`. Run bez osoby może ponownie opublikować stronę z
+bindingami tylko bez zmian, a publikacja edytora jest odrzucana, gdy właściciel strony
+nie może czytać tabeli, do której ona sięga.
 
 ## Delegowanie { #delegation }
 
@@ -1616,7 +2145,17 @@ tym, co zawraca go z powrotem przez tę platformę.
     ta platforma odrzuca go jeszcze wcześniej, w `DelegatingToolset._refuse_dynamic`.
 
 Model może nazwać wyłącznie taki model, dla którego organizacja ma profil, a odmowa
-podaje listę. Nie może dołączać capability: pozwolenie modelowi na przyznanie
+podaje listę.
+
+Profil na czyimś
+[logowaniu do ChatGPT](../models.md#running-on-a-chatgpt-subscription) albo taki,
+którego pierwsze trzy fallbacki do niego docierają, jest na liście tylko wtedy, gdy spec agenta
+nazywa dokładnie ten profil - własny model agenta, model recenzenta, wbudowanego
+specjalisty albo włączonej capability - bo logowanie to subskrypcja jednej osoby.
+Profil, którego osoba uruchamiająca agenta nie może użyć, jest pomijany, zamiast
+przerywać run.
+
+Model nie może dołączać capability: pozwolenie modelowi na przyznanie
 własnemu dziecku capability to ta sama porażka nieprzyznanego zakresu w nowym
 kapeluszu. Nie dostaje żadnej wiedzy, żadnych własnych delegatów i nic nie jest
 utrwalane między runami — zachowanie specjalisty oznacza opublikowanie agenta, co
@@ -1728,13 +2267,13 @@ step, or a batch, without replacing the plan.*
 `add_subtask`, `set_dependency`, `get_available_tasks` — *dependency-aware planning,
 offered only under `enable_subtasks`.*
 
-Lista kontrolna, którą model prowadzi dla siebie w trakcie pracy: co zrobione, co w
-toku, co zostało. Przy pracy wieloetapowej model radzi sobie lepiej, gdy najpierw
-zapisze kroki i trzyma je przed sobą, więc bieżący plan jest przywoływany co turę
-jako **przypomnienie w ogonie, bezpieczne dla cache'u** — doklejane za punktem
-cache'owania, tak by stabilny prefiks promptu pozostawał bajt w bajt taki sam i by
-co turę czytany był ponownie tylko zmienny plan. Plan nigdy nie ląduje w prompcie
-systemowym.
+Model prowadzi listę ukończonych, aktywnych i pozostałych kroków. Narzędzia
+zmieniające plan zwracają go w ramce `<plan_reminder>`. Gdy widoczny plan różni
+się od magazynu, np. po kompakcji lub na początku runa, harness zapisuje go jako
+treść kanału użytkownika w historii runa. Plan nie staje się promptem systemowym.
+Cache kontrolują ustawienia modelu. Jeśli agent używał `planning.cache_ttl`,
+przenieś czas przechowywania do ustawienia modelu `cache`, np. `cache: "1h"`;
+poprzednie pole capability nadal jest akceptowane, ale ignorowane.
 
 Nakłada się to na [Delegowanie](#delegation) tak, jak plan nakłada się na zespół:
 planowanie decyduje, *jakie* są kroki, delegowanie decyduje, *kto* je wykonuje. Są
@@ -1744,7 +2283,7 @@ narzędzi plus otoczka runa — więc agent może wiązać oba, jedno albo żadn
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `enable_subtasks` | `false` | dodaje trzy narzędzia do podzadań i zależności oraz status `blocked` |
-| `cache_ttl` | `5m` | `5m`, `1h` — jak długo może się cache'ować prefiks przed przypomnieniem |
+| `cache_ttl` | `5m` | Poprzednie pole: akceptowane, ale ignorowane; skonfiguruj `cache` w ustawieniach modelu |
 
 **Żadne z dziewięciu narzędzi nie działa na świat.** Każde zmienia listę kontrolną,
 którą model prowadzi dla siebie, więc nie ma tu czego zatwierdzać i capability
@@ -1835,7 +2374,7 @@ przy pracy wymagającej utrzymania w głowie kilku kroków naraz.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `effort` | nieustawione | `minimal`, `low`, `medium`, `high`, `xhigh` |
+| `effort` | nieustawione | `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 
 Nieustawione oznacza własny domyślny wysiłek providera. Poziom, którego provider
 nie ma, mapuje się na najbliższy, więc spec pozostaje przenośny przy zmianie modelu.
@@ -1853,7 +2392,7 @@ Są trzy rodzaje przypomnień, każdy z własnym rytmem:
 | Rodzaj | Koszt | Tekst, który wstrzykuje |
 |---|---|---|
 | `reminders[]` | żaden | Stała linia, którą piszesz |
-| `goal_reanchor` | żaden | Pierwsza prośba użytkownika w tym runie, powtórzona jako kotwica |
+| `goal_reanchor` | żaden | Wskazanie pierwszej prośby użytkownika w tym runie, bez powtarzania jej treści |
 | `llm_reminder` | jedno wywołanie modelu na odpalenie | Krótkie ponaglenie, które model pisze z ostatniego zapisu rozmowy |
 
 Każdy rodzaj przyjmuje `interval` (odpalaj co N żądań do modelu), `first_after`
@@ -1892,6 +2431,66 @@ cofa się do linii kotwiczącej cel. Nieudane generowanie nigdy nie blokuje runa
 Używa własnego modelu runa — tego, którego poświadczenie rozwiązał vault — a nie
 nazwy z konfiguracji, czyli tej samej decyzji, którą wobec swojego streszczacza
 podejmuje [Zarządzanie kontekstem](#context-management).
+
+## Tabele { #tables }
+
+Czyta i zapisuje [Virtual Tables](../virtual-tables.md), do których binding daje
+dostęp. Panel w Builderze wypisuje tabele organizacji. Zaznacz tabelę i wybierz, co
+agent może w niej robić: czytać, dodawać, zmieniać i usuwać rekordy. Upsert wymaga
+dodawania i zmiany naraz, bo tworzy rekord, gdy żaden nie ma jego klucza.
+
+Uprawnienia są częścią opublikowanego specu, którego model nie może zmienić.
+Wywołanie wskazujące inną tabelę albo operację, której uprawnienie nie obejmuje,
+jest odrzucane, zanim cokolwiek zostanie przeczytane. Każde wywołanie przechodzi też
+własną kontrolę dostępu serwisu tabel jako członek, w imieniu którego działa run,
+odbudowany z jego członkostwa przy każdym wywołaniu. Tabela, którą przestano
+udostępniać, albo zawężona rola zatrzymuje więc następne wywołanie.
+
+`create_table` jest dostępne tylko z **Allow create**, a członek nadal potrzebuje
+`tables:create`. Narzędzia rekordów nigdy nie tworzą tabel. Tabela, którą agent
+utworzy, jest dostępna do końca tego runa.
+
+`list_views` zwraca zapisane widoki tabel, które agent może czytać, z id każdego
+widoku, jego kolumnami i informacją, czy jest współdzielony. Strona może od niego
+zacząć swoje zapytanie, co kopiuje filtry i sortowanie widoku; potem nic z widoku nie
+jest powiązane, a widoku z wyszukiwaniem nie można powiązać.
+[Strony i widoki](../virtual-tables.md#views-for-pages) mówią, jak strona czyta
+tabelę. Narzędzie `share_view` już nie istnieje, a spec, który nadal je bramkuje albo
+zmienia jego nazwę, ładuje się bez niego, z ostrzeżeniem w logu.
+
+Narzędzia zapisu są oznaczone jako mające skutki uboczne osobno dla każdego
+narzędzia, więc polityka zatwierdzeń obejmuje je, a nie odczyty. Klucz operacji
+zapisu pochodzi z runa i wywołania narzędzia, więc ponowione wywołanie odtwarza
+pierwszą odpowiedź. Wartości podaje się po id albo etykiecie kolumny, a wybór w
+kolumnie wyboru to etykieta opcji - tak samo przy zapisie, filtrowaniu i odczycie. Konflikty,
+walidacja, limity, historia i audyt są takie same jak w konsoli i API, bo każde
+narzędzie wywołuje ten sam serwis.
+
+## Workflowy { #workflows }
+
+Pozwala agentowi uruchamiać opublikowane [workflowy](../workflows.md), które wskazuje
+jego binding, i czytać, jak poszły. Panel w Builderze wypisuje workflowy organizacji,
+po wierszu na każdy, a zaznaczony wiersz to ten, który agent może uruchomić. Workflow
+będący szkicem albo startujący od webhooka, harmonogramu, wiadomości z czatu lub
+tabeli jest widoczny, ale nie da się go zaznaczyć: agent uruchamia tylko to, co
+startuje ręcznie, przez API albo wywołaniem z innego workflow. **Wait for a run**
+ogranicza, jak długo wywołanie czeka: 60 sekund, jeśli nie ustawiono inaczej, od 5 do 300.
+
+`list_workflows` wymienia te, które agent może uruchomić, z polami wejścia, które każdy
+deklaruje. `run_workflow` uruchamia jeden z tymi polami i czeka na jego odpowiedź, a
+`get_workflow_run` czyta run, który wciąż trwał, gdy oczekiwanie się skończyło. Każdy
+start to to samo żądanie co w API, wykonane jako członek, w którego imieniu działa run,
+odtwarzany z członkostwa przy każdym wywołaniu: jego dostęp, zadeklarowane wejście,
+budżety i limity przyjęć obowiązują, a run podaje, że uruchomił go **An agent**.
+
+Workflow spoza bindingu zostaje odrzucony, zanim cokolwiek wystartuje. `run_workflow`
+ma skutki uboczne, więc polityka zatwierdzeń może go bramkować, a odczyty działają
+swobodnie. Agent działający jako krok workflow niczego w ten sposób nie uruchamia: inny
+workflow wywołuje krok **Run a workflow**, zachowując limity pętli i głębokości łańcucha.
+Dlatego okno agenta w samym kroku nie oferuje tej capability.
+Run, za którym nie stoi żaden członek (odwiedzający widget, embed albo hostowaną
+stronę, niepowiązany nadawca z kanału, dostarczenie triggera zdarzeniowego agenta),
+niczego nie uruchamia.
 
 ## Data i godzina { #date-and-time }
 
@@ -2210,6 +2809,14 @@ platformą działającą poprawnie, a operator filtrujący problemy powinien mó
 znaleźć, a nie czytać ją jak każdą ukończoną odpowiedź. Zobacz
 [Nadzór](../governance.md).
 
+**Wiadomość z zablokowanej tury nie wraca do modelu.** Każde sprawdzenie czyta
+tylko to, co nowe w jego własnej turze, więc historia kolejnej tury nie odtwarza
+wiadomości z runa `guardrail_blocked`, niezależnie od tego, które sprawdzenie go
+zatrzymało. W jej miejscu model czyta krótką notkę, że guardrail zatrzymał tę turę,
+bez treści wiadomości i bez tego, co dodały wysłane z nią pliki. Rozmowa nadal
+pokazuje osobie to, co wpisała. Wyszukiwanie w dawnych rozmowach
+(`conversation_search`) jeszcze nie pomija tych wiadomości.
+
 **Sprawdzenie wyjścia działa, zanim ktokolwiek zobaczy odpowiedź.** Każda
 powierzchnia streamuje: czat w przeglądarce i osadzony widżet wysyłają odpowiedź
 w trakcie pisania, a bot na kanale edytuje swoją odpowiedź, w miarę jak przychodzi
@@ -2253,6 +2860,24 @@ dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpi
 osoba, łącznie z danymi osobowymi. Każdy, kto może czytać rozmowę, może przeczytać tę
 wiadomość.
 
+**Krawędź wejścia sprawdza załącznik, zanim zostanie zapisany.** Załączony plik
+trafia do promptu jako nazwa, ścieżka i pierwsze 20 linii (najwyżej 2000 znaków), a
+krawędź wejścia czyta je razem z wiadomością osoby. Agent z workspace'em ma ten
+tekst sprawdzony, zanim plik zostanie skopiowany do `uploads/`, więc tura
+zablokowana przez krawędź nic nie zapisuje, a późniejsza tura w workspace'ie o
+zakresie `conversation`, `user` lub `agent` nie ma odrzuconego pliku do otwarcia.
+Krawędź czyta tylko te początkowe linie, więc zablokowane słowo dalej w pliku nie
+jest tu wychwytywane; do tego służy sprawdzanie wyników narzędzi. Obraz wysłany
+bezpośrednio nie jest tekstem, więc krawędź go nie czyta: w prompcie z obrazem
+krawędź sprawdza same słowa, nigdy bajty obrazu, a redakcja zmienia te słowa i
+zostawia obraz. Prompt zbudowany w kodzie może też nieść
+plik tekstowy, sprawdzany jako tekst UTF-8, który dostaje model; plik, który
+deklaruje inne kodowanie znaków albo nie jest poprawny w zadeklarowanym, blokuje
+turę. Taki prompt może też nieść link, który też jest sprawdzany:
+redakcji nie da się wpisać w link bez jego zepsucia, więc dopasowanie w linku
+blokuje. Ponieważ bajty już nie decydują, sprawdzenie przed
+zapisem przewiduje turę z obrazem tak samo jak każdą inną.
+
 **Prześwietlanie wyników narzędzi jest powodem, dla którego ta krawędź znaczy
 najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do pętli —
 pobraną stroną, plikiem, odpowiedzią serwera MCP — gdzie ładunek z prompt injection
@@ -2270,6 +2895,9 @@ tego samego mechanizmu to dokładnie to, czego unika się jednymi drzwiami.
 `list_channel_members` — *List the people in this channel.*
 `search_channels` — *Find other channels by name or purpose, without reading them.*
 `read_channel_history` — *Read the most recent messages in this channel, newest last.*
+`send_channel_file` — *Wyślij zamówiony plik z workspace.*
+
+Aby połączyć konto, wyślij botowi w wiadomości prywatnej samo `link` (bez ukośnika). Otwórz prywatny link po zalogowaniu do AgenticOS, a następnie wróć na kanał. Jeśli wcześniejsze pliki wątku wymagają połączenia konta, bot wyjaśnia to bez pobierania plików i ponawia odczyt po połączeniu. Obrazy kanałów mają dwukrotną rozdzielczość CSS; bardzo szerokie poziome diagramy Mermaid otrzymują układ pionowy tylko w PNG.
 
 Jedyna capability, której spec agenta nie może związać. Przyznaje się ją **per
 powiązanie**, w Builderze pod *Where this agent is available*, bo organizacja może
@@ -2328,6 +2956,57 @@ może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
 
+## Następne kroki { #follow-ups }
+
+Przyciski są obsługiwane w czacie konsoli i wymienionych kanałach wiadomości.
+Publiczne widgety, strony hostowane i surowe sockety embed nie obsługują kart
+propozycji, więc nie uruchamiają płatnego przebiegu follow-up. Przed generowaniem
+i dostarczeniem kanały ponownie sprawdzają zapisaną tożsamość nadawcy, powiązanie
+bota, aktualną politykę dostępu i członkostwo w pokoju. Dopuszczony nadawca bez
+podpiętego konta pozostaje odrębny od publikującego używanego do rozliczeń.
+
+Przyciski następnych kroków generuje wyłącznie osobny model wybrany w polu
+**Model następnych kroków** (`model_profile_id`). Puste pole wyłącza sugestie.
+Po aktualizacji wybierz profil w możliwości Follow-ups, aby nadal używać
+przycisków. Główny model nie dostaje `suggest_next_steps` i nie czeka na sugestie,
+aby zakończyć odpowiedź lub przyjąć następny prompt.
+
+Po zatwierdzeniu zapisu odpowiedzi opcjonalne zadanie w tle czyta pytanie tego
+runu i zapisaną odpowiedź. Zwraca do trzech krótkich kroków w języku użytkownika
+albo pustą listę. Konsola dostaje późniejsze zdarzenie z identyfikatorem rozmowy
+i konkretnej odpowiedzi; nowsza tura pozostaje bez zmian. Zapisane przyciski
+wracają po otwarciu rozmowy. Slack, Teams, Telegram i Mattermost rozpoczynają to
+zadanie po wysłaniu głównej odpowiedzi i osobno wysyłają przyciski.
+
+Model pomocniczy nie ma narzędzi ani instrukcji głównego agenta. Jego osobny run
+sprawdza budżety agenta, działu i organizacji, dziedziczy prywatność trace’ów i
+osobno zapisuje koszt, również po błędzie. Koszt głównej odpowiedzi się nie
+zmienia. Jeden proces dopuszcza cztery takie zadania naraz; nadmiar pomija.
+Wywołanie modelu ma limit 15 sekund, najwyżej dwóch żądań i 512 tokenów wyjścia.
+Nie ma automatycznego retry. Sugestie mogą przepaść przy zamykaniu procesu lub
+utracie połączenia; nigdy nie zastępują odpowiedzi błędem.
+
+Activity oznacza run pomocniczy jako **Następne kroki**. Dziedziczy on
+prawo odczytu rozmowy źródłowej i wchodzi do jej łącznego kosztu, ale nie oznacza
+rozmowy jako zajętej i nie zastępuje jej ostatniego głównego runu.
+
+`suggest_next_steps` pozostaje identyfikatorem zapisanych przycisków, dla historii
+i istniejących ustawień specyfikacji; główny model nie może wywołać tego narzędzia.
+
+`propose_setup` proponuje do trzech rzeczy do ustawienia, rysowanych jako karty
+pod odpowiedzią: własnego agenta osoby, rutynę albo usługę do podłączenia. Karta
+działa jednym kliknięciem - rutyna otwiera wypełnione okno rutyny na agencie,
+który ją zaproponował; agent to pytanie do Architekta.
+
+Połączenie, które wskazuje serwer kluczem z katalogu, jest kartą tej usługi - z jej logo i przyciskiem
+Podłącz, który prowadzi prosto do logowania u dostawcy i z powrotem do rozmowy -
+a połączenie bez klucza otwiera stronę serwerów MCP przy przycisku dodawania.
+Agent AgenticOS kończy nimi rozmowę powitalną i proponuje kartę połączenia
+zawsze, gdy prośba wymaga usługi, której osoba jeszcze nie podłączyła. Karty są tylko w konsoli; aplikacja czatu ich nie rysuje.
+
+Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
+Rozmowa głosowa jej nie używa.
+
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 
 Katalog jest odpowiedzią deploymentu na pytanie „co istnieje". Wpis w
@@ -2379,8 +3058,12 @@ sprawdzane w chwili składania agenta:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
+| `tables:read` | `virtual_tables` i każdy [węzeł workflow dla tabel](workflow-nodes.md#virtual-tables) |
+| `tables:write` | węzły workflow dla tabel, które zapisują |
+| `workflows:run` | `workflows` |
+| `computer:use` | `computer_use` |
 
-!!! note "Wszystkie osiem jest dziś przyznanych domyślnie"
+!!! note "Wszystkie dwanaście jest dziś przyznanych domyślnie"
 
     `DEFAULT_GRANTED_SCOPES` w `app/services/agent_registry.py`. Zarządzanie
     zakresami per organizacja jest pracą z

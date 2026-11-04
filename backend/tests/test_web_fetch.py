@@ -29,7 +29,6 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
-    RetryPromptPart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -159,9 +158,7 @@ class TestARunThatMeetsRefusals:
 
         def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
             fetched = sum(
-                isinstance(part, ToolReturnPart | RetryPromptPart)
-                for message in messages
-                for part in message.parts
+                isinstance(part, ToolReturnPart) for message in messages for part in message.parts
             )
             if fetched < len(urls):
                 return ModelResponse(parts=[ToolCallPart("web_fetch", {"url": urls[fetched]})])
@@ -209,12 +206,12 @@ class TestARunThatMeetsRefusals:
 
         assert result.output == "None of them would let me in."
         answered = [
-            [type(part) for part in message.parts]
+            [part.outcome for part in message.parts if isinstance(part, ToolReturnPart)]
             for message in result.all_messages()
             if isinstance(message, ModelRequest)
-            and any(isinstance(part, RetryPromptPart | ToolReturnPart) for part in message.parts)
+            and any(isinstance(part, ToolReturnPart) for part in message.parts)
         ]
-        assert answered == [[RetryPromptPart, RetryPromptPart], [ToolReturnPart, ToolReturnPart]]
+        assert answered == [["retried", "retried"], ["success", "success"]]
 
 
 class TestWhoFetches:

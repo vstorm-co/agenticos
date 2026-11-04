@@ -1,4 +1,7 @@
+import type { LucideIcon } from "lucide-react";
+
 import type { BrandName } from "@/lib/brand-glyphs.generated";
+import { navSectionFor } from "@/lib/nav-sections";
 
 /**
  * The service a web address belongs to, by the domains people actually link.
@@ -96,4 +99,36 @@ export function isAppLink(href: string, origin: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The web page on another site an `href` opens, as the browser resolves it
+ * against the console, or `null` for a page here, an address that opens no web
+ * page (`mailto:`) and one that does not parse, which the browser does not follow.
+ *
+ * Decided on the parsed URL, never the raw string (#2550): `//evil.example`,
+ * `/\evil.example`, `HTTPS:/evil.example` and, on an `http:` console,
+ * `https:evil.example` all name another host without starting `https://`.
+ * The `href` is model-written, so it is treated as hostile.
+ */
+export function offsiteUrl(href: string, origin: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(href, origin);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  return url.origin === origin ? null : url.href;
+}
+
+/**
+ * The icon of the console section a relative link opens - `/routines`, `/mcp-servers`
+ * - as the sidebar draws it, so a link an agent writes to a page wears that
+ * page's mark. `null` for anything else: another site, a fragment, a page
+ * outside every section.
+ */
+export function consolePageIcon(href: string, origin: string): LucideIcon | null {
+  if (!href.startsWith("/") || href.startsWith("//")) return null;
+  return navSectionFor(new URL(href, origin).pathname)?.item.icon ?? null;
 }

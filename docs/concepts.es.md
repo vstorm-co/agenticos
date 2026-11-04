@@ -1,5 +1,5 @@
 ---
-source_sha: "4fe91aa6f038"
+source_sha: "f96ca8950f4c"
 ---
 
 # Conceptos { #concepts }
@@ -46,6 +46,15 @@ El spec cumple dos reglas, y son las que lo hacen útil.
     sigue cargando después de una actualización. Quitar o renombrar un campo es
     una migración, no una edición.
 
+!!! info "Una respuesta puede ser datos"
+
+    Por defecto, un agent responde en texto. Pon **Answer format** en datos
+    estructurados, o `output_schema` en el spec, y responderá con un objeto de
+    campos con nombre: al modelo se le pide esa forma, y una respuesta que la
+    incumple vuelve para corregirse antes de que termine el run. La API devuelve el
+    objeto como `structured`, el chat y los canales lo muestran como un bloque
+    JSON, y un paso `agent.run` lo pasa adelante.
+
 !!! info "Una plantilla es un spec que ya escribió alguien"
 
     Las [plantillas de agent](first-agent.md#3-build-the-agent) que vienen con la
@@ -73,13 +82,19 @@ El spec cumple dos reglas, y son las que lo hacen útil.
 
 **Un spec congelado.**
 
-Publicar copia el borrador en una versión y apunta el agent a ella. Los runs
-registran qué versión se ejecutó.
+Publicar copia el borrador en una versión. Los entornos deciden qué versión
+atiende cada superficie, y los runs registran cuál se ejecutó.
 
 Por eso *qué hizo este agent el martes pasado* sigue teniendo respuesta después
 de una docena de ediciones. Y también por eso un rollback publica una **nueva**
 versión copiada de la antigua en lugar de borrar historial — la línea de tiempo
 muestra que hubo un rollback, en vez de fingir que la versión mala nunca existió.
+
+Los cambios de borrador, publicaciones, rollbacks y cambios de entorno se
+ejecutan en orden para cada agente. Un guardado que espera a una publicación
+permanece después como borrador. Las publicaciones concurrentes reciben números
+de versión distintos. Promover el entorno predeterminado mantiene alineada la
+versión que sirve el agente. Los nuevos runs pueden comenzar durante la validación.
 
 ### Entornos { #environments }
 
@@ -197,9 +212,9 @@ condiciones:
   evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
   escrita a partir de él la leería cada chat posterior como propia del creador.
 - **Las conversaciones anteriores siguen cerradas** en ambos casos.
-- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
-  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
-  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno, el
+  filtro o el canal de Teams de un trigger que no creaste lo desactiva, así que
+  nadie reescribe lo que se ejecuta como tú ni envía su respuesta a otro sitio. Un administrador que actúa como tú mediante suplantación, o
   un script con tu clave de API, no puede activarlo.
 - **También una versión nueva que no publicaste tú.** Una publicación, una
   promoción o una reversión de cualquier otra persona lo desactiva, y también una
@@ -207,6 +222,11 @@ condiciones:
 - **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
   de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
   que actuó.
+- **Puede trabajar en el ordenador del propio creador.** Con Run as me activado,
+  el creador puede dirigir el trigger a una carpeta de su ordenador, en
+  **Trabajar en (Work on)**; cada disparo trabaja entonces allí a través de la
+  [app de escritorio](desktop.md#work-on-this-computer). Desactivar Run as me lo
+  borra, y a un disparo que no actúa como su creador se le niega el ordenador.
 
 La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 
@@ -230,7 +250,9 @@ distinguir un run desatendido del de una persona. Cada disparo es su propio run
 en Activity, y sus respuestas se acumulan en una única conversación de registro
 que el trigger abre una vez — de forma anticipada, en el momento en que se crea
 el trigger, así que es un elemento en el que puedes pulsar antes de que se haya
-disparado nunca.
+disparado nunca. Un trigger también puede publicar cada respuesta en un canal o
+chat de grupo de Teams en el que esté el bot de su organización
+([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dos formas de disparar { #two-ways-to-fire }
 
@@ -273,7 +295,7 @@ Cualquier trigger puede además **ejecutarse ahora**: un disparo extra bajo
 demanda que deja su cadencia intacta.
 
 Se *acepta* en lugar de esperarse. La petición responde en cuanto el disparo se
-le entrega al worker como su propio flow run — la misma puerta durable por la que
+encola como job para el worker — la misma puerta durable por la que
 pasa un disparo programado o entregado — y el run aparece en la conversación de
 registro del trigger según ocurre.
 
@@ -605,7 +627,10 @@ Esa indirección es lo importante. Rotar una clave, o mover cada agent de un
 modelo a otro, es una edición en un perfil y no en cuarenta specs.
 
 Un perfil sin credencial detrás se marca como `no key` allá donde aparezca,
-porque ese es el único dato que decide si el agent puede ejecutarse siquiera.
+porque ese es el único dato que decide si el agent puede ejecutarse siquiera. Los
+selectores no lo ofrecen y la publicación lo rechaza hasta que vuelva a tener
+clave. Un perfil que usan agents no se puede borrar; consulta
+[Cambiar la clave o el endpoint de un perfil](models.md#changing-a-profiles-key-or-endpoint).
 
 Los precios vienen de [`genai-prices`](https://github.com/pydantic/genai-prices),
 que mantiene Pydantic, en lugar de una tabla en este repositorio — una tabla

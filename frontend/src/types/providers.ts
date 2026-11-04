@@ -15,6 +15,9 @@ import type { SecretKind } from "./secrets";
 /** Which of OpenAI's two APIs a profile's requests go to. */
 export type ModelApi = "chat" | "responses";
 
+/** Where a profile's requests may run, for a provider that takes a region (Stav). */
+export type ModelRegion = "eu" | "eea" | "global";
+
 /** One selectable provider, as the credential form reads it. */
 export interface ProviderInfo {
   id: string;
@@ -23,6 +26,7 @@ export interface ProviderInfo {
   secret_kind: SecretKind;
   /** False means a custom endpoint would be ignored, so storing one is refused. */
   supports_base_url: boolean;
+  requires_base_url?: boolean;
   /**
    * Whether this provider can run with no credential at all. True only for
    * self-hosted servers, and a keyless credential still has to carry a
@@ -41,6 +45,16 @@ export interface ProviderInfo {
    * implements. Null where `apis` is empty.
    */
   native_api: ModelApi | null;
+  /**
+   * Where a profile on this provider may run its requests, for a provider that
+   * takes a region. The first is the default. Empty for every other provider.
+   */
+  regions?: ModelRegion[];
+  /**
+   * Whether the API is chosen from the model's own listing (Stav.ai) rather
+   * than by the person adding it. The form shows the choice instead of asking.
+   */
+  api_from_model?: boolean;
 }
 
 export interface ProviderCatalog {
@@ -74,6 +88,8 @@ export interface ModelProfile {
   base_url?: string | null;
   /** Which API the requests go to. Null on every provider that serves one. */
   api?: ModelApi | null;
+  /** Where the requests may run. Null on every provider that takes no region. */
+  region?: ModelRegion | null;
   params: Record<string, unknown>;
   fallback_profile_ids: string[];
   /**
@@ -86,6 +102,19 @@ export interface ModelProfile {
    * that already exists.
    */
   context_length?: number | null;
+  /**
+   * Whether an agent can run on this model (#2487). False only for one the
+   * platform knows is something else - text to speech, transcription, image,
+   * video or embeddings. Absent reads as true: a model nothing classifies is
+   * never hidden.
+   */
+  chat_capable?: boolean;
+  /**
+   * Whether it has nothing to authenticate with, so no run can use it (#2478):
+   * its key was deleted from the vault or never set, on a provider that needs
+   * one. A keyless provider with an endpoint is false. Absent reads as false.
+   */
+  missing_key?: boolean;
   created_at?: string;
 }
 
@@ -114,7 +143,6 @@ export interface Skill {
   content: string;
   /** A grouping label for people ("marketing", "devops"); null is uncategorized. */
   category: string | null;
-  enabled: boolean;
   version: number;
   visibility: string;
   owner_user_id: string | null;
@@ -127,11 +155,12 @@ export interface Skill {
 }
 
 export interface SkillSummary {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string;
   category: string | null;
-  enabled: boolean;
   /** `org` is everyone; `private` is its owner and whoever it is shared with. */
   visibility: string;
   /** How many files the skill carries beyond its body. */
@@ -180,6 +209,8 @@ export interface ContextFile {
 
 /** A context file as the listing shows it - the body is a byte count only. */
 export interface ContextFileSummary {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string | null;

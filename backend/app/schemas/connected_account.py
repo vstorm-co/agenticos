@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import Field
+
 from app.db.models.mcp_connection import McpConnection
 from app.schemas.base import BaseSchema
 
@@ -29,10 +31,10 @@ class ConnectedAccountRead(BaseSchema):
         return cls(
             id=account.id,
             provider="google",
-            email=account.label or account.name,
+            email=account.account_email or account.label or account.name,
             scopes=sorted(account.granted_scopes or ()),
             owner="organization" if account.scope == "org" else "personal",
-            needs_reconnect=account.authorization_expired,
+            needs_reconnect=not account.account_authorized or account.authorization_expired,
             created_at=account.created_at,
         )
 
@@ -40,3 +42,7 @@ class ConnectedAccountRead(BaseSchema):
 class ConnectedAccountList(BaseSchema):
     items: list[ConnectedAccountRead]
     total: int
+
+
+class ConnectedAccountStart(BaseSchema):
+    browser_nonce: str = Field(min_length=32, max_length=128)

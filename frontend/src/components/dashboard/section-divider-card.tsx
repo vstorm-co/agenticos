@@ -118,7 +118,7 @@ export function SectionDividerCard({
         onChange={(event) => onLabelChange(event.target.value)}
         aria-label={t("edit.sectionLabel")}
         placeholder={t("edit.sectionPlaceholder")}
-        className="h-8 max-w-64 min-w-32 flex-1 border-transparent bg-transparent text-sm font-semibold shadow-none focus-visible:bg-transparent"
+        className="h-8 max-w-64 min-w-32 flex-1 border-transparent bg-transparent text-base font-semibold shadow-none focus-visible:bg-transparent md:text-sm"
         maxLength={60}
       />
 

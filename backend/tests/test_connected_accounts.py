@@ -6,6 +6,7 @@ owns the account, what it is named once Google says, a re-consent folding into t
 grant it replaces, and what a run is handed.
 """
 
+import hashlib
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -24,6 +25,8 @@ from app.services.mcp_connection import McpConnectionService, connection_scope
 from app.services.portals import google_oauth
 
 pytestmark = pytest.mark.anyio
+NONCE = "n" * 43
+INITIATOR = uuid4()
 
 
 @pytest.fixture
@@ -40,6 +43,8 @@ def repo(monkeypatch) -> MagicMock:
     mock.delete = AsyncMock()
     mock.list_accounts = AsyncMock(return_value=[])
     mock.get_account = AsyncMock(return_value=None)
+    mock.get_pending_account = AsyncMock(return_value=None)
+    mock.lock_account_owner = AsyncMock()
     monkeypatch.setattr(service_module, "mcp_connection_repo", mock)
     return mock
 
@@ -87,6 +92,8 @@ def _payload(**overrides) -> McpOAuthPayload:
         "resource": "https://www.googleapis.com",
         "redirect_uri": "https://app/api/me/mcp-connections/oauth/callback",
         "provider": "google",
+        "browser_nonce_digest": hashlib.sha256(NONCE.encode()).hexdigest(),
+        "account_initiator_id": INITIATOR,
         "access_token": "AT",
         "refresh_token": "RT",
     }
@@ -110,7 +117,7 @@ async def test_connecting_asks_google_for_every_service_with_the_orgs_client(
     ctx, repo, client, for_organization
 ):
     url = await McpConnectionService(AsyncMock()).account_start(
-        ctx, for_organization=for_organization
+        ctx, for_organization=for_organization, browser_nonce=NONCE
     )
 
     assert url.startswith(google_oauth.AUTHORIZE_ENDPOINT)
@@ -135,7 +142,9 @@ async def test_an_impersonating_administrator_cannot_connect_as_the_member(
         MagicMock(side_effect=AuthorizationError(message="not while impersonating")),
     )
     with pytest.raises(AuthorizationError):
-        await McpConnectionService(AsyncMock()).account_start(ctx, for_organization=False)
+        await McpConnectionService(AsyncMock()).account_start(
+            ctx, for_organization=False, browser_nonce=NONCE
+        )
     repo.create.assert_not_called()
 
 
@@ -149,7 +158,11 @@ async def test_a_new_account_is_named_by_its_address(repo, monkeypatch):
     named = await McpConnectionService(AsyncMock())._name_account(account, "AT")
 
     update = repo.update.await_args.kwargs["update_data"]
-    assert update == {"label": "ana@acme.com", "name": "google:ana@acme.com"}
+    assert update == {
+        "account_email": "ana@acme.com",
+        "label": "ana@acme.com",
+        "name": f"google-account-{account.id.hex}",
+    }
     assert named is account
 
 
@@ -189,9 +202,10 @@ async def test_an_unreadable_new_grant_leaves_the_earlier_one_as_it_was(repo, mo
     fresh = _account(user_id=None, scope="org", organization_id=org, oauth_payload="garbage")
     repo.list_accounts = AsyncMock(return_value=[earlier, fresh])
 
-    await McpConnectionService(AsyncMock())._name_account(fresh, "AT")
+    with pytest.raises(service_module.OAuthError, match="cannot be read"):
+        await McpConnectionService(AsyncMock())._name_account(fresh, "AT")
 
-    assert repo.update.await_args.kwargs["update_data"]["oauth_payload"] == "kept"
+    repo.update.assert_not_awaited()
     assert repo.list_accounts.await_args.kwargs["organization_id"] == org
 
 
@@ -218,7 +232,9 @@ async def test_the_shared_callback_names_an_account_rather_than_probing_it(repo,
     probe = AsyncMock()
     monkeypatch.setattr(McpConnectionService, "_probe", probe)
 
-    await McpConnectionService(AsyncMock()).oauth_callback(state="state", code="code")
+    await McpConnectionService(AsyncMock()).oauth_callback(
+        state="state", code="code", browser_nonce=NONCE, acting_user_id=INITIATOR
+    )
 
     name.assert_awaited_once()
     assert name.await_args.args[1] == "AT"
@@ -296,7 +312,10 @@ def _google(handler) -> None:
 @pytest.mark.parametrize(
     ("response", "expected"),
     [
-        (httpx.Response(200, json={"email": "ana@acme.com"}), "ana@acme.com"),
+        (
+            httpx.Response(200, json={"email": "ana@acme.com", "email_verified": True}),
+            "ana@acme.com",
+        ),
         (httpx.Response(200, json={"name": "Ana"}), None),
         (httpx.Response(200, json=["x"]), None),
         (httpx.Response(200, text="not json"), None),
@@ -338,3 +357,67 @@ def test_the_read_says_whose_account_it_is_and_never_a_token():
         _account(scope="org", user_id=None, organization_id=uuid4())
     )
     assert unnamed.email == "google-account-x" and unnamed.owner == "organization"
+
+
+async def test_unidentified_accounts_do_not_overwrite_an_existing_unknown_grant(repo, monkeypatch):
+    monkeypatch.setattr(google_oauth, "account_email", AsyncMock(return_value=None))
+    old = _account(label="Google account", oauth_payload="old-grant")
+    fresh = _account(user_id=old.user_id)
+    repo.list_accounts.return_value = [old, fresh]
+    await McpConnectionService(AsyncMock())._name_account(fresh, "AT")
+    repo.delete.assert_not_awaited()
+    assert repo.update.await_args.kwargs["db_connection"] is fresh
+
+
+async def test_a_long_email_has_a_short_label_and_a_complete_identity(repo, monkeypatch):
+    email = "a" * 64 + "@a-long-workspace-domain.example.com"
+    monkeypatch.setattr(google_oauth, "account_email", AsyncMock(return_value=email))
+    await McpConnectionService(AsyncMock())._name_account(_account(), "AT")
+    update = repo.update.await_args.kwargs["update_data"]
+    assert update["account_email"] == email
+    assert len(update["label"]) == 64 and len(update["name"]) <= 64
+
+
+@pytest.mark.parametrize(
+    "nonce,actor", [(None, INITIATOR), ("wrong", INITIATOR), (NONCE, None), (NONCE, uuid4())]
+)
+async def test_account_consent_requires_the_starting_browser_and_identity(
+    repo, nonce, actor, monkeypatch
+):
+    pending = _account(oauth_state="state")
+    pending.oauth_pending_payload = _sealed(pending, _payload(access_token=None))
+    repo.get_by_oauth_state = AsyncMock(return_value=pending)
+    exchange = AsyncMock()
+    monkeypatch.setattr(google_oauth, "exchange_code", exchange)
+    with pytest.raises(service_module.OAuthError, match="browser and account"):
+        await McpConnectionService(AsyncMock()).oauth_callback(
+            state="state", code="code", browser_nonce=nonce, acting_user_id=actor
+        )
+    exchange.assert_not_awaited()
+
+
+async def test_an_abandoned_consent_is_reused(ctx, repo, client):
+    pending = _account(user_id=ctx.subject_id, auth_type="oauth")
+    repo.get_pending_account.return_value = pending
+    await McpConnectionService(AsyncMock()).account_start(
+        ctx, for_organization=False, browser_nonce=NONCE
+    )
+    repo.create.assert_not_awaited()
+    assert repo.update.await_args.kwargs["db_connection"] is pending
+
+
+async def test_a_connected_account_is_not_editable_through_the_mcp_server_routes(repo):
+    account = _account()
+    repo.get_by_id_for_update = AsyncMock(return_value=account)
+    with pytest.raises(NotFoundError):
+        await McpConnectionService(AsyncMock())._get_owned(
+            user_id=account.user_id, connection_id=account.id, for_update=True
+        )
+
+
+async def test_a_revoked_grant_is_not_handed_to_a_mount():
+    from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED
+
+    account = _account(last_status="error", last_error=AUTHORIZATION_EXPIRED)
+    account.oauth_payload = _sealed(account, _payload())
+    assert await McpConnectionService(AsyncMock()).account_grant(account) is None

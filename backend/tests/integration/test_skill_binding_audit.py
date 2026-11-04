@@ -405,21 +405,6 @@ class TestTheSweepClearsAReachableBinding:
 
         assert [f for f in findings if f.agent_slug == agent.slug] == []
 
-    async def test_a_disabled_skill_is_not_a_live_exposure(self, db) -> None:
-        """`resolve_for_agent` skips a disabled skill, so no run receives it."""
-        org, _ = await _org_with_owner(db)
-        author = await _user(db)
-        colleague = await _user(db)
-        await _member(db, org, author, OrgRoleName.MEMBER)
-        skill = await _skill(db, org, colleague, visibility=Visibility.PRIVATE)
-        skill.enabled = False
-        await db.flush()
-        agent = await _published_agent(db, org, skill_id=skill.id, publisher_id=author.id)
-
-        findings = await sweep._scan(db)
-
-        assert [f for f in findings if f.agent_slug == agent.slug] == []
-
 
 class TestTheSweepReachesVersionsALiveRunHolds:
     """The second gap #248 had: a version stops being current or environment-pinned

@@ -1,5 +1,5 @@
 ---
-source_sha: "ecc5b8b8c62c"
+source_sha: "7972364d6328"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -31,7 +31,7 @@ despliegues - está [Escalar más allá de un host](scaling.md).
 | | |
 |---|---|
 | **Un host** | 4 vCPU y 8 GB de RAM lo hacen funcionar. Ver [dimensionado](#sizing-the-host) |
-| **Docker** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR |
+| **Motor de contenedores** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR. Como alternativa, usa la [ruta manual de Podman](#podman-support). |
 | **Dos nombres de host** | uno para el sitio, otro para la API — ver [por qué dos](#why-two-hostnames) |
 | **Un proxy inverso** | [Traefik](#option-a-traefik) o [Nginx](#option-b-nginx). Termina el TLS |
 | **Ninguna clave de provider** | los modelos de chat y los embeds llevan ambos su clave por organización, en el vault del producto. El entorno no guarda credenciales para ninguno de los dos — consulta [Protección de datos](data-protection.md#nothing-leaves-by-default) |
@@ -49,6 +49,95 @@ certificado propio.
 `app.example.com` y `api.example.com` es la forma. Pueden ser dos nombres
 cualesquiera; lo que no pueden ser es un solo nombre con un prefijo de ruta,
 porque las cookies de la API y las del sitio están limitadas al host.
+
+### Compatibilidad con Podman { #podman-support }
+
+**Podman está soportado mediante la instalación manual con Docker Compose como
+proveedor.** Se probaron Podman 6.1.4 y Docker Compose v2.40.3 en Fedora CoreOS
+44 (VM de Podman en macOS, ARM64, cgroups v2, SELinux enforcing). El archivo
+distribuido requiere Compose 2.24 o posterior.
+
+**No uses `podman-compose` 1.6.0.** Arrancó el stack y un agente respondió, pero
+una migración que falló de forma controlada no impidió iniciar la app dependiente.
+Docker Compose rechazó correctamente ese inicio. Los proveedores tienen versiones
+independientes; `podman-compose` 1.6.0 no es Docker Compose 1.6.0.
+
+El inicio rápido sigue limitado a Docker y dirige Podman detectado a esta ruta
+manual, también con `--no-sandbox`. Desde la raíz del repositorio configurado,
+elige el ejecutable real de Docker Compose (binario independiente o plugin CLI):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Comprueba que `podman compose version` identifica Docker Compose. El `-f`
+explícito excluye el override local de compilación desde fuentes; esta
+instalación usa imágenes publicadas. Tras iniciar los servicios, sigue
+[Instalación](install.md) para configurar la organización y el modelo.
+
+**Sandbox opcional.** `pydantic-ai-backend` 0.2.39 funcionó con sockets Podman
+rootful y rootless. No necesita un backend ni una versión nuevos. Usa
+`docker-compose-podman.yml` para adaptar los montajes del socket y workspace;
+prepara sus permisos antes de activar el perfil.
+
+En Linux nativo con Podman rootless:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+Para Linux rootful, activa el `podman.socket` del sistema, establece
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock` y prepara el workspace con
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Dirige Compose a
+ese motor rootful. El grupo del socket suele ser 0; para un socket rootful
+personalizado, indica su grupo real en `DOCKER_GID`.
+
+En una VM Podman rootless en macOS, ambos orígenes bind pertenecen a la VM Linux,
+no a macOS. Prepáralos dentro de esa VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Conserva las claves existentes del despliegue. Configura un `SANDBOXD_TOKEN`
+no vacío y `SANDBOX_URL=http://sandboxd:8080` en el archivo env que lee el stack,
+como se describe en [configuración de sandbox](sandbox.md). Después, inicia con
+ambos archivos:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+El override desactiva el etiquetado SELinux solo para `sandboxd`, que ya posee
+el socket del motor. Comparte la etiqueta del workspace con `:z`, pues también
+lo montan las sandboxes hermanas. Los contenedores sandbox conservan sus etiquetas
+y `no-new-privileges`; no cambies la etiqueta del socket ni desactives SELinux
+globalmente. En rootless, la propiedad del socket se mapea al grupo 0 dentro
+del espacio de nombres de usuario.
+
+En un servidor usa una ruta persistente para el workspace: `/tmp` es solo un
+ejemplo local. Conserva los ajustes de socket, workspace y grupo en el entorno
+del operador para los siguientes comandos Compose. `DOCKER_HOST` en el host no
+cambia el montaje del socket dentro de `sandboxd`.
+
+Se verificaron un run por HTTP con finalización persistida, archivos de workspace,
+códigos de error, timeouts, límites RAM/CPU/PID efectivos y builds de runtimes.
+La imagen workbench distribuida leyó/escribió XLSX, generó un gráfico y ejecutó
+Node y LibreOffice. El modelo fue un servidor de prueba determinista compatible
+con OpenAI; no se probaron el runtime desktop ni todas las distribuciones Linux.
+El [informe de pruebas](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+registra versiones, alcance y reproducción del fallo de migración.
 
 ## Dimensionar el host { #sizing-the-host }
 
@@ -187,6 +276,14 @@ fiarse de una etiqueta:
     `scripts/deploy.sh` la fija por ti - a la etiqueta `sha-` del commit que
     despliega - exactamente mientras dura el despliegue.
 
+    Fíjala desde el checkout de esa release: `git checkout v0.0.380` junto a la
+    variable. La imagen del servicio de sandbox está fijada en el archivo compose,
+    en la versión que habla el backend del mismo commit, así que un backend más
+    antiguo ejecutado desde un checkout más nuevo se encuentra con un `sandboxd`
+    más nuevo - y `latest` desde un checkout antiguo es el mismo desajuste al
+    revés. `scripts/deploy.sh` hace checkout del commit que despliega, así que un
+    despliegue o una vuelta atrás con el script mantiene los dos juntos.
+
 Los dos paquetes se descargan de forma anónima. Si una descarga responde
 `unauthorized`, el paquete se ha hecho privado o hay un `docker login ghcr.io`
 caducado en medio; ninguna de las dos cosas la puede arreglar un host por sí
@@ -259,6 +356,63 @@ proxy con el que se configuró este host y no el que asumiera un script.
     etiquetados*, así que sobrevive a que alguien añada un servicio sin pensar en
     el proxy.
 
+!!! warning "Algunas rutas y query strings de petición son credenciales"
+
+    Estos segmentos de ruta abren algo a quien los lea:
+
+    - la clave de un enlace público, en `/a/<key>`, `/api/v1/public/artifacts/<key>`
+      y `/api/v1/artifact-embed/<key>`, hasta que se rota el enlace;
+    - una dirección de contenido firmada, `/api/v1/artifact-content/<token>`,
+      mientras dura su vigencia;
+    - el token de una conversación compartida, en `/shared/<token>` y
+      `/api/v1/conversations/shared/<token>`;
+    - el token de un formulario de workflow, en `/f/<token>` y
+      `/api/v1/public/workflow-forms/<token>`;
+    - el token de una prueba de webhook, en `/api/v1/workflow-webhook-tests/<token>`
+      y `/api/v1/workflows/<id>/webhook-test/<token>`;
+    - el token de un enlace de canal, en `/link/<token>` y
+      `/api/v1/me/channel-link/<token>`;
+    - el token de una invitación, en `/invitations/<token>`,
+      `/api/v1/invitations/<token>` y `/api/v1/invitations/<token>/accept`;
+    - el token de reanudación de una ejecución de workflow, en
+      `/api/v1/workflow-resume/<run_id>/<token>`.
+
+    Y también estos parámetros de consulta:
+
+    - `visitor` y `token` en el socket del widget del agente,
+      `/api/v1/embed/<key>/ws`: la clave de una página alojada, que reanuda la
+      conversación del visitante, y el token de visitante firmado del cliente;
+    - `code` y `state` en el retorno de un proveedor de inicio de sesión,
+      `/api/v1/oauth/<provider>/callback`, y `code` en el `/auth/callback` de
+      la consola;
+    - `invitation_handle` en `/api/v1/oauth/<provider>/login` y
+      `/api/v1/auth/kerberos/login`, que canjea la invitación que representa;
+    - `token` en `/reset-password`, `/auth/magic-link` y `/auth/email-change`
+      de la consola, los enlaces que envían un restablecimiento de contraseña,
+      un enlace de inicio de sesión y un cambio de correo.
+
+    Una petición hecha desde una de esas páginas puede llevar su dirección en la
+    cabecera `Referer`. La API sustituye los segmentos de la API y los valores
+    de esos parámetros por `[REDACTED]` en su propio log de acceso, en la línea
+    de uvicorn de cada WebSocket aceptado, en cada registro de log y en los
+    spans de Logfire, incluidos la salida de consola, los argumentos del
+    endpoint y la copia que Logfire hace al empezar un span. Los demás
+    parámetros de consulta, como `q`, `skip`, `limit` y los ids, se conservan.
+
+    Traefik puede conservar, eliminar o redactar un campo entero, pero no
+    reescribir una parte de él, así que `traefik/traefik.yml` elimina
+    `RequestPath`, que incluye la query string, del log de acceso de
+    Traefik. Nginx sí puede reescribir parte de un valor, pero
+    `nginx/nginx.conf` elimina la ruta, la query string y el `Referer` de
+    la misma manera, con el formato de log `agenticos_no_path` que nombra cada
+    bloque `server`, para que la lista de rutas secretas se mantenga en un solo
+    sitio. Ambos logs siguen teniendo el cliente, el estado, el tamaño y la
+    duración. El log de errores de Nginx escribe la línea de petición y el
+    `Referer` de una petición fallida, y ningún ajuste lo cambia, así que
+    mantén el log de errores en el host. Si necesitas las rutas en el log de
+    acceso, quita esa regla de campo o ese formato de log y trata el log como un
+    secreto: guárdalo en el host y no lo envíes a un servicio de logs.
+
 ### Opción B: Nginx { #option-b-nginx }
 
 Para un host donde Nginx ya termina el TLS, o donde el proxy no está en Docker en
@@ -274,7 +428,10 @@ make prod-frontend
 `server_name` de cada bloque es `${DOMAIN:-localhost}`, y Nginx no lo expande —
 pon los dos nombres de host a mano. Los certificados son tuyos de obtener y
 renovar, y también lo es la cabecera `Strict-Transport-Security`, que el backend
-deja deliberadamente a lo que termine el TLS.
+deja deliberadamente a lo que termine el TLS. El log de acceso de la plantilla deja
+fuera la ruta de la petición, la query string y el `Referer`; *Algunas
+rutas y query strings de petición son credenciales*, más arriba, explica
+por qué y qué sigue escribiendo el log de errores.
 
 !!! warning "`BIND_HOST` es un ajuste de seguridad, no una comodidad"
 
@@ -339,7 +496,7 @@ provider se añade en el producto, por organización, desde el vault.
     del host no puede ver.
 
 Después, una vez, a mano: inicia sesión, invita a alguien (lo que demuestra
-`SMTP_*`) y envía un mensaje a Claude Code like (lo que demuestra la clave
+`SMTP_*`) y envía un mensaje a AgenticOS (lo que demuestra la clave
 de provider y el WebSocket). Cada cosa recorre un camino que aquí no comprueba
 nada más.
 
@@ -354,6 +511,23 @@ nada más.
 
     **HSTS se deja deliberadamente al proxy**, que es donde termina el TLS. Un
     proxy que ponga su propia CSP debería ser al menos tan estricto como esta.
+
+### Servicios en tu propia red { #services-on-your-own-network }
+
+Una petición que configura un miembro - un paso HTTP de workflow, una fuente de
+Git, de sitio web o de S3, un agente A2A o una conexión MCP - se rechaza cuando su host
+resuelve a una dirección privada, así que una wiki, un servidor Git o un servidor
+MCP dentro de tu red quedan fuera de alcance por defecto.
+
+Para abrir uno, lístalo en `OUTBOUND_PRIVATE_ALLOWLIST` en `backend/.env`, como
+host, `.suffix`, dirección o rango CIDR, y reinicia la API y el worker. La fila
+de este ajuste en [la referencia de configuración](configuration.md#project-settings)
+da las formas, lo que se rechaza sea cual sea tu lista y lo que puede alcanzar
+entonces toda cuenta. Lista solo servicios que comprueben su propia credencial.
+
+`agenticos cmd doctor` informa de la lista en su línea `private network`. Falla
+cuando un rango listado cubre la base de datos o Redis, y avisa de un rango más
+ancho que /16 (IPv4) o /48 (IPv6).
 
 ### Encender la sandbox { #turning-the-sandbox-on }
 
@@ -370,10 +544,10 @@ sudo chown 10001:10001 /var/lib/agenticos/sandbox-workspaces
 
 Después un despliegue la levanta: `scripts/deploy.sh` pasa `--profile sandbox`
 cuando `SANDBOXD_TOKEN` en `backend/.env` tiene valor, así que es el propio host
-quien dice si ejecuta una. También exporta `DOCKER_GID` leído del socket — todos
-los archivos de compose de aquí lo interpolan en el `group_add` de la sandbox, y
-su valor por defecto `0` es el propietario del socket en casi ninguna
-distribución de Linux. No hace falta nada más en `.env`: el backend llega al
+quien dice si ejecuta una. Como `make` y quickstart, exporta `DOCKER_GID` al
+`group_add` de la sandbox: el grupo del socket en Linux (siguiendo enlaces simbólicos)
+o `0` en Docker Desktop, donde el socket montado pertenece a la VM. Un `DOCKER_GID`
+explícito en el entorno o en la línea de comandos de `make` tiene prioridad. No hace falta nada más en `.env`: el backend llega al
 demonio a través de una *conexión* de sandbox que alguien crea en la consola, y
 `http://sandboxd:8080` se reconoce como propio de este despliegue.
 
@@ -386,6 +560,21 @@ demonio a través de una *conexión* de sandbox que alguien crea en la consola, 
     (#1506). Por eso el script lee el token en vez de aceptar un flag.
 
 ## Desplegar un cambio { #deploying-a-change }
+
+### El límite del formato del historial en 1.25.0 { #retry-history-upgrade }
+
+La versión 1.25.0 adopta los resultados de herramientas `retried` y los mensajes
+independientes `retry-feedback` de Pydantic AI 2.61. Los historiales y checkpoints
+de runs existentes se leen sin migrar la base de datos ni volver a publicar agentes.
+Los historiales con estas partes requieren el lector nuevo: un backend anterior no puede
+reproducir estos formatos de mensajes.
+
+Actualiza juntos todos los procesos de API y workers, drenando o deteniendo los
+anteriores antes de que los nuevos acepten trabajo. No mezcles réplicas de backend
+anteriores y nuevas con la misma base de datos. Después de guardar uno de los nuevos formatos de reintento,
+no se admite volver atrás solo en el código a través de este límite; hay
+que mantener el lector nuevo o restaurar un snapshot de la base de datos anterior
+a la actualización.
 
 ### A mano { #by-hand }
 
@@ -422,9 +611,9 @@ eso lleva.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` ofrece cada merge a `main` para desplegarlo y
+`.github/workflows/deploy.yml` ofrece cada release estable publicado para desplegarlo y
 espera a que alguien lo apruebe. Esa barrera es **un ajuste del repositorio, no
-un paso del archivo** — sin ella, el workflow despliega cada merge sin
+un paso del archivo** — sin ella, el workflow despliega cada release estable publicado sin
 supervisión.
 
 Configúralo una vez:
@@ -440,7 +629,7 @@ Configúralo una vez:
     Todas las ejecuciones comparten el grupo de concurrencia `deploy-production`,
     y una ejecución parada en la barrera de aprobación lo retiene. No caduca por
     sí sola — GitHub cancela una sin atender después de 30 días — así que hasta
-    que alguien la apruebe o la cancele, los merges posteriores hacen cola detrás
+    que alguien la apruebe o la cancele, los releases posteriores hacen cola detrás
     de una decisión que nadie va a tomar, y el servidor sigue ejecutando lo
     último que se desplegó.
 
@@ -452,8 +641,8 @@ Configúralo una vez:
     `deploy-queue.yml` es lo que ocurre cuando se deja de todos modos: cada seis
     horas cancela una ejecución de Deploy que lleve más de doce esperando una
     aprobación, y abre una incidencia que nombra esa ejecución y dice cuánto se ha
-    alejado `main` del último despliegue correcto. No aprueba nada ni despliega
-    nada — vacía la cola para que el siguiente merge llegue a la barrera, y dice
+    alejado el último release estable del último despliegue correcto. No aprueba nada ni despliega
+    nada — vacía la cola para que el siguiente release publicado llegue a la barrera, y dice
     que lo ha hecho. A mano, con `gh workflow run deploy-queue.yml`.
 
 !!! danger "Aprobar desde la cola del entorno aprueba la ejecución **más antigua**"
@@ -462,7 +651,7 @@ Configúralo una vez:
     momento en que la cola se atascó, no el que se acaba de empujar — así llegó a
     este servidor un commit de hace dos semanas. Aprueba desde la página de la
     ejecución del commit que quieres, o arranca una nueva con
-    `gh workflow run deploy.yml --ref main` y aprueba esa.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` y aprueba esa.
 
 | Secreto | Qué |
 |---|---|

@@ -7,9 +7,28 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.locks import LockScope, hold_name
 from app.db.models.conversation import Conversation
 from app.db.models.user import User
 from app.repositories._search import contains_ci
+
+
+async def has_accounts(db: AsyncSession) -> bool:
+    """Whether this installation already has an account, without scanning it."""
+    return bool(await db.scalar(select(select(User.id).exists())))
+
+
+async def claim_first_account(db: AsyncSession) -> bool:
+    """Claim first-account admission until the caller commits or rolls back.
+
+    Ordinary sign-ups never wait on the bootstrap lock. Fresh-install contenders
+    re-read after acquiring it, so only the account actually created first gets
+    the policy exception and deployment-administrator authority.
+    """
+    if await has_accounts(db):
+        return False
+    await hold_name(db, LockScope.ACCOUNT_BOOTSTRAP, "deployment")
+    return not await has_accounts(db)
 
 
 async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
@@ -17,13 +36,29 @@ async def get_by_id(db: AsyncSession, user_id: UUID) -> User | None:
     return await db.get(User, user_id)
 
 
-async def get_by_id_for_update(db: AsyncSession, user_id: UUID) -> User | None:
-    """Fetch a user row and acquire a SELECT FOR UPDATE lock."""
-    result = await db.execute(select(User).where(User.id == user_id).with_for_update())
+async def get_by_ids(db: AsyncSession, user_ids: Sequence[UUID]) -> list[User]:
+    """The users with these ids, in one query; an id with no user is left out."""
+    if not user_ids:
+        return []
+    result = await db.execute(select(User).where(User.id.in_(user_ids)))
+    return list(result.scalars().all())
+
+
+async def get_by_id_for_update(
+    db: AsyncSession, user_id: UUID, *, nowait: bool = False
+) -> User | None:
+    """Fetch a user row and acquire a SELECT FOR UPDATE lock.
+
+    `nowait=True` raises (SQLSTATE `55P03`) instead of waiting when another
+    transaction holds a conflicting lock on the row.
+    """
+    result = await db.execute(select(User).where(User.id == user_id).with_for_update(nowait=nowait))
     return result.scalar_one_or_none()
 
 
-async def get_by_id_for_no_key_update(db: AsyncSession, user_id: UUID) -> User | None:
+async def get_by_id_for_no_key_update(
+    db: AsyncSession, user_id: UUID, *, nowait: bool = False
+) -> User | None:
     """Fetch a user row and acquire a SELECT FOR NO KEY UPDATE lock.
 
     Weaker than FOR UPDATE: it serialises against another FOR UPDATE (so two
@@ -31,10 +66,11 @@ async def get_by_id_for_no_key_update(db: AsyncSession, user_id: UUID) -> User |
     with the FOR KEY SHARE an unrelated foreign-key write takes on this row - a
     channel identity relinked to this user, say - so locking a delete's heirs
     this way does not deadlock against those writes (#1134). `key_share=True`
-    is SQLAlchemy's spelling of FOR NO KEY UPDATE.
+    is SQLAlchemy's spelling of FOR NO KEY UPDATE. `nowait` as on
+    `get_by_id_for_update`.
     """
     result = await db.execute(
-        select(User).where(User.id == user_id).with_for_update(key_share=True)
+        select(User).where(User.id == user_id).with_for_update(key_share=True, nowait=nowait)
     )
     return result.scalar_one_or_none()
 
@@ -44,18 +80,21 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
 
     `FOR KEY SHARE` is exactly what a foreign key referencing these rows takes
     when it is inserted, so this acquires nothing extra - it only acquires it
-    *earlier*. That is the whole purpose: `record_audit` holds a
+    *earlier*. The first purpose: `record_audit` holds a
     transaction-scoped lock on the audit chain, and a write that reaches for a
-    user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`,
-    which takes its rows first and the chain second (#1763). A caller about to
+    user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`
+    (`admin_update`) or a deleted account's own row lock, either taken first and
+    the chain second (#1763). A caller about to
     write notifications inside an audited transaction takes them here instead,
-    before the chain lock, so every transaction takes user rows first.
+    before the chain lock, so every transaction takes user rows first. The
+    second: a failed ingest's settlement takes its uploader before the
+    document row, the order an account deletion takes them in (#2682).
 
     `ORDER BY id`, for the same reason `app_admin_ids_for_update` orders: two
     callers taking overlapping sets take them in the same order and one waits
     rather than both holding half. Key share conflicts with nothing another
     audited write does, so this queues only against an exclusive locker - an
-    admin deletion, which is the other side of the cycle.
+    admin update or the deleted account's own row.
     """
     if not user_ids:
         return
@@ -65,6 +104,24 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
         .order_by(User.id)
         .with_for_update(read=True, key_share=True)
     )
+
+
+async def app_admin_ids_for_no_key_update(db: AsyncSession, *, nowait: bool = False) -> list[UUID]:
+    """`app_admin_ids_for_update`, one step weaker: `FOR NO KEY UPDATE`.
+
+    It still conflicts with another lock of the set and with a demotion's
+    update, so it serialises what the set's lock is for (#1208), but not with
+    the `FOR KEY SHARE` every write referencing an administrator takes. Account
+    deletion takes the set this way and without waiting (#2682), where the
+    stronger lock would refuse it for traffic that has nothing to do with it.
+    """
+    result = await db.execute(
+        select(User.id)
+        .where(User.is_app_admin.is_(True))
+        .order_by(User.id)
+        .with_for_update(key_share=True, nowait=nowait)
+    )
+    return list(result.scalars().all())
 
 
 async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:

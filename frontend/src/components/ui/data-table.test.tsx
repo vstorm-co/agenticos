@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -33,6 +33,16 @@ function renderTable(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) 
 }
 
 describe("DataTable", () => {
+  it("keeps an add action immediately after the rows in the same table body", () => {
+    renderTable({
+      rows: [{ id: "one", name: "Existing row" }],
+      afterRows: <button>Add row</button>,
+    });
+    const action = screen.getByRole("button", { name: "Add row" }).closest("tr");
+    expect(action?.parentElement?.tagName).toBe("TBODY");
+    expect(action?.previousElementSibling).toHaveTextContent("Existing row");
+  });
+
   it("draws the rows it was given", () => {
     renderTable({ rows: [{ id: "1", name: "Billing clerk" }] });
 
@@ -248,4 +258,110 @@ describe("DataTable server-side sorting", () => {
 
     expect(onSort).toHaveBeenCalledWith({ by: "name", dir: "asc" });
   });
+});
+
+describe("DataTable with a fixed row height", () => {
+  const many: Row[] = Array.from({ length: 100 }, (_, i) => ({ id: String(i), name: `Row ${i}` }));
+
+  /** The scroll container, sized and scrolled as a browser would report it. */
+  function scroll(container: HTMLElement, { top, height }: { top: number; height: number }) {
+    const element = container.querySelector(".overflow-x-auto") as HTMLElement;
+    Object.defineProperty(element, "clientHeight", { configurable: true, value: height });
+    Object.defineProperty(element, "scrollHeight", { configurable: true, value: 100 * 40 });
+    element.scrollTop = top;
+    fireEvent.scroll(element);
+  }
+
+  it("draws only the rows in view, with space standing in for the rest", () => {
+    const { container } = renderTable({ rows: many, rowHeight: 40, fillHeight: true });
+
+    expect(screen.getByText("Row 0")).toBeInTheDocument();
+    expect(screen.queryByText("Row 50")).not.toBeInTheDocument();
+
+    scroll(container, { top: 2000, height: 400 });
+
+    expect(screen.getByText("Row 50")).toBeInTheDocument();
+    expect(screen.queryByText("Row 0")).not.toBeInTheDocument();
+    const spacers = container.querySelectorAll('tr[aria-hidden="true"]');
+    expect(spacers).toHaveLength(2);
+  });
+
+  it("asks for more as the scroll nears the end, and not before", () => {
+    const onEndReached = vi.fn();
+    const { container } = renderTable({
+      rows: many,
+      rowHeight: 40,
+      fillHeight: true,
+      onEndReached,
+    });
+
+    scroll(container, { top: 1000, height: 400 });
+    expect(onEndReached).not.toHaveBeenCalled();
+
+    scroll(container, { top: 3500, height: 400 });
+    expect(onEndReached).toHaveBeenCalled();
+  });
+
+  it("asks for more at the end of a table that draws every row", () => {
+    const onEndReached = vi.fn();
+    const { container } = renderTable({ rows: many, onEndReached });
+
+    scroll(container, { top: 3500, height: 400 });
+
+    expect(onEndReached).toHaveBeenCalled();
+    expect(screen.getByText("Row 0")).toBeInTheDocument();
+  });
+});
+
+it("opens a focused row with Enter or Space without hijacking its controls", async () => {
+  const open = vi.fn();
+  const action = vi.fn();
+  renderTable({
+    rows: [{ id: "1", name: "Billing clerk" }],
+    onRowClick: open,
+    columns: [
+      { key: "name", header: "Name", cell: (row) => row.name },
+      {
+        key: "action",
+        header: "Action",
+        cell: () => (
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              action();
+            }}
+          >
+            Inspect
+          </button>
+        ),
+      },
+    ],
+  });
+  const user = userEvent.setup();
+  await user.tab();
+  expect(screen.getByRole("row", { name: "Billing clerk Inspect" })).toHaveFocus();
+  await user.keyboard("{Enter} ");
+  expect(open).toHaveBeenCalledTimes(2);
+  await user.tab();
+  expect(screen.getByRole("button", { name: "Inspect" })).toHaveFocus();
+  await user.keyboard("{Enter}");
+  expect(action).toHaveBeenCalledOnce();
+  expect(open).toHaveBeenCalledTimes(2);
+});
+
+it("leaves a read-only row out of the keyboard action order", () => {
+  renderTable({ rows: [{ id: "1", name: "Billing clerk" }] });
+  expect(screen.getByRole("row", { name: "Billing clerk" })).not.toHaveAttribute("tabindex");
+});
+
+it("keeps an empty or failed full-height table inside its row scrollport", () => {
+  const view = renderTable({ fillHeight: true, rows: [], empty: "No ratings" });
+  const scroller = view.container.querySelector(".overflow-y-auto");
+  expect(scroller).toHaveClass("min-h-0", "flex-1");
+  expect(scroller).toContainElement(screen.getByText("No ratings"));
+  view.unmount();
+  const failed = renderTable({ fillHeight: true, error: "Read failed" });
+  expect(failed.container.querySelector(".overflow-y-auto")).toContainElement(
+    screen.getByRole("alert"),
+  );
 });

@@ -9,6 +9,7 @@ import {
   ListOrdered,
   Loader2,
   Paperclip,
+  RotateCcw,
   Send,
   X,
 } from "lucide-react";
@@ -23,6 +24,10 @@ interface PendingMessagesProps {
   /** Sent into the running task, until the model has read them. */
   steers?: SteerDraft[];
   onCancel: (id: string) => void;
+  /** Sends a message the server refused again. */
+  onRetry?: (id: string) => void;
+  /** No connection: the queue goes when there is one, not after an answer. */
+  waitingForNetwork?: boolean;
   /** Absent where nothing can be sent now - no running task to join. */
   onSendNow?: (id: string) => void;
   /** Absent where the order cannot change. */
@@ -46,6 +51,8 @@ export function PendingMessages({
   messages,
   steers = [],
   onCancel,
+  onRetry,
+  waitingForNetwork = false,
   onSendNow,
   onMove,
 }: PendingMessagesProps) {
@@ -75,8 +82,13 @@ export function PendingMessages({
             : t("whileWorking.steersWaiting")}
         </span>
         {messages.length > 0 && (
-          <span className="text-muted-foreground shrink-0 text-xs max-sm:hidden">
-            {t("queuedSendsAfterCurrent")}
+          <span
+            className={cn(
+              "text-muted-foreground shrink-0 text-xs",
+              !waitingForNetwork && "max-sm:hidden",
+            )}
+          >
+            {waitingForNetwork ? t("queuedWaitingForNetwork") : t("queuedSendsAfterCurrent")}
           </span>
         )}
         <ChevronDown
@@ -138,8 +150,15 @@ export function PendingMessages({
                   <span className="text-muted-foreground w-4 shrink-0 text-center font-mono text-[11px] tabular-nums">
                     {index + 1}
                   </span>
-                  <span className="text-foreground min-w-0 flex-1 truncate text-[13px]">
-                    {message.content}
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block truncate text-[13px]">
+                      {message.content}
+                    </span>
+                    {message.refused !== undefined && (
+                      <span className="text-destructive block truncate text-xs">
+                        {t("queuedNotSent", { reason: message.refused })}
+                      </span>
+                    )}
                   </span>
                   {fileCount > 0 && (
                     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-xs">
@@ -149,7 +168,13 @@ export function PendingMessages({
                   )}
                   {/* On hover, as the actions under a message are; always there on
                       a touch screen. The arrows are the keyboard's way to reorder. */}
-                  <span className="touch:opacity-100 flex shrink-0 items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                  <span
+                    className={cn(
+                      "touch:opacity-100 flex shrink-0 items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100",
+                      // A refused message waits on the person: its choices stay out.
+                      message.refused !== undefined && "opacity-100",
+                    )}
+                  >
                     {onMove && (
                       <>
                         <button
@@ -173,6 +198,17 @@ export function PendingMessages({
                           <ArrowDown aria-hidden />
                         </button>
                       </>
+                    )}
+                    {message.refused !== undefined && onRetry && (
+                      <button
+                        type="button"
+                        onClick={() => onRetry(message.id)}
+                        title={t("queuedRetry")}
+                        className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
+                      >
+                        <RotateCcw aria-hidden />
+                        {t("queuedRetry")}
+                      </button>
                     )}
                     {onSendNow && (
                       <button

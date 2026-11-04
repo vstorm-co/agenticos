@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.db.vector_tables import VectorScope
 from app.services.rag import vectorstore as vectorstore_module
 from app.services.rag.models import (
     Document,
@@ -78,7 +79,7 @@ async def test_a_document_spanning_several_batches_writes_every_row(
     collection = f"batched_{uuid.uuid4().hex[:8]}"
     store = _store(engine)
 
-    await store.insert_document(collection, _document(chunks=250))
+    await store.insert_document(collection, _document(chunks=250), VectorScope(tenant=None))
 
     assert await _count(engine, f"rag_{collection}") == 250
 
@@ -93,10 +94,10 @@ async def test_re_inserting_the_same_chunks_updates_rather_than_duplicates(
     store = _store(engine)
     document = _document(chunks=10)
 
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, VectorScope(tenant=None))
     for chunk in document.chunked_pages:
         chunk.chunk_content = f"revised {chunk.chunk_num}"
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, VectorScope(tenant=None))
 
     table = f"rag_{collection}"
     assert await _count(engine, table) == 10
@@ -118,8 +119,8 @@ async def test_the_chunks_are_readable_back_in_document_order(
     document = _document(chunks=8)
     parent = document.chunked_pages[0].parent_doc_id
 
-    await store.insert_document(collection, document)
+    await store.insert_document(collection, document, VectorScope(tenant=None))
 
-    chunks = await store.get_document_chunks(collection, parent)
+    chunks = await store.get_document_chunks(collection, parent, VectorScope(tenant=None))
     assert [chunk.content for chunk in chunks] == [f"chunk {index}" for index in range(8)]
     assert [chunk.chunk_num for chunk in chunks] == list(range(8))

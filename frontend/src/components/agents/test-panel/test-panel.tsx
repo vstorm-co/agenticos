@@ -158,11 +158,9 @@ export function TestPanel({
       data-tour="agent-test-panel"
       style={{ "--test-panel-width": `${width}px` } as React.CSSProperties}
       // One gutter from the window's top and bottom, scrolled or not. The page
-      // scrolls inside a container padded 2rem at the top, which a sticky offset
-      // counts from - so the panel is lifted by that padding in the flow and
-      // stuck 1rem above it, and both land 1rem from the window's edge. It sat
-      // 48px down once scrolled and stopped 48px short of the bottom.
-      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-[-1rem] lg:z-auto lg:-mt-8 lg:h-[calc(100dvh-2rem)] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
+      // scrolls inside a padded container. Read its actual inset so browser and
+      // desktop keep the same gutter; the native drag strip stays outside it.
+      className="bg-background fixed inset-0 z-40 flex flex-col lg:sticky lg:top-[calc(1rem-var(--page-inset-top,2rem))] lg:z-auto lg:-mt-(--page-inset-top) lg:h-[calc(100dvh-2rem-var(--window-drag-height,0px))] lg:w-[var(--test-panel-width)] lg:shrink-0 lg:rounded-xl lg:border"
     >
       <div
         role="separator"

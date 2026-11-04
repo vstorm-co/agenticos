@@ -20,6 +20,9 @@ export type SecretKind =
   | "google_oauth_app"
   | "git_token"
   | "entra_app"
+  | "http_credential"
+  | "smtp_account"
+  | "microsoft_oauth_app"
   | "openai_codex";
 
 /**
@@ -73,6 +76,24 @@ export interface SecretRequirement {
    * right kind", which is every API key in the vault.
    */
   purpose: string | null;
+  /**
+   * Which services a key may be for, by a config field whose values are not
+   * service ids - the coding agent's `claude_code` takes an `anthropic` key,
+   * `codex` an `openai` key or an `openai_codex` sign-in. Read before
+   * `required_when` and `purpose`. Optional here, always on the wire.
+   */
+  purposes_by?: PurposesByValue | null;
+}
+
+/** Purposes per value of one config field. Mirrors `PurposesByValue`. */
+export interface PurposesByValue {
+  field: string;
+  purposes: Record<string, string[]>;
+  /**
+   * Per value, a config field that, once set, points the key at an endpoint the
+   * platform cannot name - Claude Code's `base_url` - so any key fits.
+   */
+  open_when_set: Record<string, string>;
 }
 
 /** "This config field is one of these values." Mirrors `SecretCondition`. */
@@ -173,6 +194,8 @@ export interface SecretPurposeList {
 export type SecretVisibility = "private" | "team" | "org";
 
 export interface Secret {
+  /** Effective edit access in listings; absent on older deployments or write responses. */
+  can_edit?: boolean;
   id: string;
   name: string;
   description: string | null;

@@ -29,6 +29,7 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.models.user import User
+from app.db.vector_tables import VectorScope
 from app.repositories import knowledge_base_repo
 from app.services.organization import OrganizationService
 from app.services.rag.config import RAGSettings
@@ -160,10 +161,14 @@ class TestTheStoreReStamp:
 
         await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
 
-        untagged = {d.document_id for d in await store.get_documents(COLLECTION, None)}
+        untagged = {
+            d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=None))
+        }
         assert untagged == {"doc-a", "doc-none"}
-        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_B)] == ["doc-b"]
-        assert await store.get_documents(COLLECTION, ORG_A) == []
+        assert [
+            d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=ORG_B))
+        ] == ["doc-b"]
+        assert await store.get_documents(COLLECTION, VectorScope(tenant=ORG_A)) == []
 
     async def test_it_untags_only_the_bases_surviving_documents(
         self, engine: AsyncEngine, db: AsyncSession
@@ -181,8 +186,12 @@ class TestTheStoreReStamp:
 
         await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
 
-        assert [d.document_id for d in await store.get_documents(COLLECTION, None)] == ["doc-a"]
-        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["residual"]
+        assert [
+            d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=None))
+        ] == ["doc-a"]
+        assert [
+            d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=ORG_A))
+        ] == ["residual"]
 
     async def test_a_document_untracked_since_is_left_stamped_not_un_deleted(
         self, engine: AsyncEngine, db: AsyncSession
@@ -206,14 +215,19 @@ class TestTheStoreReStamp:
 
         # Still stamped with the deleted org, so the IS NULL read scope does not
         # surface it - not resurrected as searchable, untracked content.
-        assert await store.get_documents(COLLECTION, None) == []
-        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["doc-a"]
+        assert await store.get_documents(COLLECTION, VectorScope(tenant=None)) == []
+        assert [
+            d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=ORG_A))
+        ] == ["doc-a"]
 
     async def test_the_untagged_rows_are_reachable_by_the_read_paths(
         self, engine: AsyncEngine, db: AsyncSession
     ) -> None:
-        """`find`, the count and the chunk read all see Org A's rows once they are
-        untagged and queried at `vector_tenant=None` - the base's new scope."""
+        """`find`, the count, the chunk read and the search all see Org A's rows
+        once they are re-stamped, read under the orphaned personal base's new
+        scope - no tenant, and no unfiled rows (#2537). The deployment-wide
+        `doc-none` stays out: the re-stamp files each row under the base, so the
+        person's base still reads only its own."""
         from unittest.mock import AsyncMock
 
         store = _store(engine)
@@ -224,22 +238,46 @@ class TestTheStoreReStamp:
 
         await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
 
+        personal = VectorScope(tenant=None, knowledge_base_id=kb_id, takes_unfiled=False)
         found = await store.find_existing_document(
-            COLLECTION, source_path="/srv/doc-a.pdf", content_hash="", tenant=None
+            COLLECTION, source_path="/srv/doc-a.pdf", content_hash="", scope=personal
         )
-        info = await store.get_collection_info(COLLECTION, tenant=None)
-        chunks = await store.get_document_chunks(COLLECTION, "doc-a", tenant=None)
+        info = await store.get_collection_info(COLLECTION, personal)
+        chunks = await store.get_document_chunks(COLLECTION, "doc-a", personal)
         store._for_collection = AsyncMock(  # type: ignore[method-assign]
             return_value=(MagicMock(embed_query=MagicMock(return_value=[0.1, 0.2, 0.3])), 3)
         )
         results = await store.search(
-            COLLECTION, "anything", RetrievalQuery(scope=AppScope()), limit=10
+            COLLECTION,
+            "anything",
+            RetrievalQuery(scope=AppScope(knowledge_base_id=kb_id, takes_unfiled=False)),
+            limit=10,
         )
 
         assert found is not None and found.document_id == "doc-a"
-        assert info.total_vectors == 2  # doc-a and doc-none, both untagged now
+        assert info.total_vectors == 1  # doc-a; doc-none is the app scope's
         assert len(chunks) == 1
-        assert "content of doc-a" in {r.content for r in results}
+        assert {r.content for r in results} == {"content of doc-a"}
+
+    async def test_a_same_named_app_base_does_not_inherit_the_restamped_rows(
+        self, engine: AsyncEngine, db: AsyncSession
+    ) -> None:
+        """Untagging alone would make the person's rows unfiled and tenant-less -
+        exactly what an app-scoped base of the same name reads - so every member of
+        every organization would see them. The re-stamp files them under their own
+        base, which keeps them out (#2537)."""
+        store = _store(engine)
+        await _seed(store)
+        kb_id = uuid.uuid4()
+        await _make_kb(db, kb_id)
+        await _track(db, kb_id, ["doc-a"])
+
+        await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)
+
+        app_base = VectorScope(tenant=None, knowledge_base_id=uuid.uuid4())
+        assert [d.document_id for d in await store.get_documents(COLLECTION, app_base)] == [
+            "doc-none"
+        ]
 
     async def test_no_survivors_or_a_missing_table_is_a_noop(
         self, engine: AsyncEngine, db: AsyncSession
@@ -252,7 +290,9 @@ class TestTheStoreReStamp:
         await _make_kb(db, kb_id)  # no tracked documents at all
 
         await store.restamp_documents_to_untagged(COLLECTION, ORG_A, kb_id)  # no survivors
-        assert [d.document_id for d in await store.get_documents(COLLECTION, ORG_A)] == ["doc-a"]
+        assert [
+            d.document_id for d in await store.get_documents(COLLECTION, VectorScope(tenant=ORG_A))
+        ] == ["doc-a"]
 
         async with engine.begin() as conn:
             await conn.execute(text(f"DROP TABLE IF EXISTS {TABLE}"))
@@ -279,11 +319,15 @@ class TestTheDeferredCleanup:
 
         assert result["restamped"] == 1
         reader = _store(engine)
-        assert {d.document_id for d in await reader.get_documents(COLLECTION, None)} == {
+        assert {
+            d.document_id for d in await reader.get_documents(COLLECTION, VectorScope(tenant=None))
+        } == {
             "doc-a",
             "doc-none",
         }
-        assert [d.document_id for d in await reader.get_documents(COLLECTION, ORG_B)] == ["doc-b"]
+        assert [
+            d.document_id for d in await reader.get_documents(COLLECTION, VectorScope(tenant=ORG_B))
+        ] == ["doc-b"]
 
 
 async def _org(db: AsyncSession, org_id: uuid.UUID) -> tuple[Organization, User]:

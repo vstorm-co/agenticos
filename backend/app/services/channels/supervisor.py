@@ -57,6 +57,7 @@ async def open_inbound_stream(
     token: str,
     api_base_url: str | None = None,
     app_token: str | None = None,
+    approved_guild_ids: tuple[str, ...] = (),
     take_over: bool = True,
 ) -> None:
     """Start this bot's stream, replacing one it already has.
@@ -95,7 +96,12 @@ async def open_inbound_stream(
         leases.drop(bot_id)
         return
     adapter = get_adapter(platform)
-    adapter.prepare_connection(bot_id, api_base_url=api_base_url, app_token=app_token)
+    adapter.prepare_connection(
+        bot_id,
+        api_base_url=api_base_url,
+        app_token=app_token,
+        approved_guild_ids=approved_guild_ids,
+    )
 
     await adapter.stop_polling(bot_id)
     if _shutting_down:

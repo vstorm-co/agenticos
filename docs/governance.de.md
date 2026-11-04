@@ -1,5 +1,5 @@
 ---
-source_sha: "5931b7688a5d"
+source_sha: "c8babc3ac8d9"
 ---
 
 # Governance { #governance }
@@ -543,6 +543,75 @@ Einen Anruf, dessen Prozess gestorben ist, schließt der Voice-Sweep zu den
 Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Run,
 dessen Ausgaben mit seinem Prozess sterben.
 
+### Arbeit aus eigener Initiative { #proactive-work }
+
+Proaktive Läufe werden dem veröffentlichten **AgenticOS**-Startagenten der
+Organisation zugeordnet (Slug `agenticos`). Diese Zuordnung ist in der Plattform
+festgelegt; sie wählt weder das Modell noch die Anweisungen des Startagenten.
+Das separate Modell und die Limits stehen unter **Organisationen → Mitglieder →
+Proaktivität**. Activity zeigt das Symbol und den Filter **Proaktiv**, die
+Modellanfragen und ihre Kosten sowie den aufgezeichneten Austausch mit
+Werkzeugergebnissen und strukturierter Endantwort. Fehlgeschlagene Prüfungen
+behalten den vor dem Fehler verfügbaren Austausch. Wie andere Activity-Einträge
+erfordern diese Aufzeichnungen `runs:view` und erzeugen keine Chats. Nicht
+aufgezeichnete ältere Abläufe lassen sich nicht wiederherstellen; übergroße
+Aufzeichnungen werden ausdrücklich als gekürzt gekennzeichnet.
+
+Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlüssel
+wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
+Modellprofil erstellen; ohne diese Berechtigung wählt es ein vorhandenes Profil.
+Ein neues Profil wird sofort gespeichert. **Speichern** übernimmt die Auswahl
+für die nächtlichen Vorschläge und Watches der Organisation, die sich dieses
+Modell und das Limit pro Person teilen.
+
+Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
+bis eine Organisation es einschaltet: die Karte **Proaktivität** auf ihrer
+Mitgliederseite (`budgets:manage`). Eingeschaltet liest ein Hintergrundjob die
+letzten Anfragen jeder Person an den Tagen und zu der Stunde, die die
+Organisation gewählt hat - in der Zeitzone jeder Person oder eine Stunde vor der
+Arbeitszeit, die ihr Profil angibt - und schlägt eine Routine für eine Anfrage
+vor, die sie immer wiederholt, ein Profil oder die ersten Nachrichten, die ihr
+leerer Chat anbietet ([Konsole](console.md#chat)).
+
+Jeder ist ein Modellaufruf,
+auf dem Modell, das die Organisation beim Einschalten gewählt hat (es gibt keinen
+Standard: `proactive_model_profile_id` ist Pflicht), in der Run-Historie als Run
+der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget der
+Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
+Assistent** ausnehmen.
+
+Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
+Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,
+auf derselben Karte eingestellt (`proactive_limit_usd`). Eine Person, bei der
+nichts Neues passiert ist, kostet nichts: Der Job ruft das Modell nur, wenn es
+etwas zu lesen gibt.
+
+**Beobachtungen** richten dieselbe Arbeit auf die eigenen Verbindungen einer
+Person. Sie werden auf derselben Karte getrennt eingeschaltet
+(`proactive_watches_enabled`), laufen auf demselben Modell und im selben Limit.
+Eine Person legt eine mit **Neue Beobachtung** unter **Routinen** an, wo eine
+Karte Beobachtungen jede mit ihrer letzten Prüfung und der Zahl ihrer wartenden
+Funde zeigt, oder mit **Beobachten** neben **Tools** des Kontos auf der Seite
+der MCP-Server. Sie wählt eine ihrer eigenen MCP-Verbindungen - jeden Server,
+den sie verbunden hat - und sagt, wonach gesucht wird - eine fertige Beobachtung
+für diesen Server oder ihre eigenen Worte - und wie oft, nie häufiger, als die
+Organisation erlaubt (`proactive_watch_min_minutes`, standardmäßig stündlich).
+
+Jeder Blick ist ein Run der Oberfläche **proactive**, dem nur die Tools angeboten
+werden, die der Server als nur lesend markiert (`readOnlyHint`), sodass eine
+Beobachtung im Konto nie etwas ändert. Was sie findet, gehört nur der Person:
+ein Vorschlag der Art `finding`, nach der eigenen ID des Elements verschlüsselt,
+sodass er einmal gemeldet wird, mit einem Link zum Öffnen. Ein Fund einer
+Beobachtung, die Dringendes sofort melden soll, und den auch das Modell für
+dringend hält, geht sofort als Benachrichtigung hinaus; der Rest wartet auf ihr
+Morgen-[Briefing](console.md#the-inbox). Anders als eine Routine schweigt eine Beobachtung, wenn nichts neu ist.
+
+Auf derselben Karte liegt die **Willkommensnachricht**, standardmäßig aus und
+an `org:settings` gebunden: eine Direktnachricht der Slack-, Teams- und
+Mattermost-Bots der Organisation an ein neues Mitglied, in den eigenen Worten der
+Organisation, wenn sie welche geschrieben hat (`{organization}`, `{bot}` und
+`{url}` werden ausgefüllt), sonst die eingebaute Begrüßung in seiner Sprache.
+
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
 **`GET /runs` listet nur Runs der obersten Ebene, und sein `total` zählt diese.**
@@ -745,7 +814,7 @@ gibt es bewusst keine Bedienelemente.
 | Parameter | |
 |---|---|
 | `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
-| `triggered_by_user_id` | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person |
+| `triggered_by_user_id` | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person. Sie lässt Runs aus, in denen der Veröffentlicher für ein nicht verknüpftes Chat-Konto eingesprungen ist; solche Zeilen tragen stattdessen `asked_in_chat` (Plattform, Name und Bot), und ihre `triggered_by_*`-Felder sind leer |
 | `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich |
 | `oldest_first` | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss |
 
@@ -973,7 +1042,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
   aufgelösten Namen, ist die Tabelle je Person, die Entscheidung 3 des
   Activity-Designs abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
   die auslösenden und entscheidenden E-Mail-Adressen auf dem Bildschirm bereits
-  auf, also behält der Freigabe-Export sie.
+  auf, also behält der Freigabe-Export sie. Er enthält auch den Anzeigenamen oder das Handle eines Chat-Fremden, wie die Queue sie zeigt, in drei Spalten: `asked_in_chat_platform`, `asked_in_chat_account` und `asked_in_chat_bot`. In einer solchen Zeile sind beide E-Mail-Spalten leer, weil der Veröffentlicher nicht gefragt hat.
 - **Audit.** Jeder Export schreibt einen `audit_log`-Eintrag — ein privilegierter
   Massen-Lesevorgang, jetzt billig festzuhalten und später unmöglich zu
   rekonstruieren. Er nennt das Fenster, die angewendeten Filter und die
@@ -1138,7 +1207,7 @@ sequenceDiagram
     end
 ```
 
-Vier Eigenschaften, die man kennen sollte:
+Fünf Eigenschaften, die man kennen sollte:
 
 - **Ein geparkter Run ist fortsetzbar.** Seine Message-Historie ist gespeichert,
   sodass die Entscheidung auf die Unterhaltung angewendet wird, zu der sie
@@ -1181,7 +1250,19 @@ Vier Eigenschaften, die man kennen sollte:
   weggefallen, eine MCP-Verbindung nicht mehr geteilt. Der Spec wird
   zusammengesetzt, bevor der Run die Freigabe-Queue verlässt, sodass eine
   Ablehnung dort den *Versuch* ablehnt: Die Entscheidung steht, und das Fortsetzen
-  funktioniert wieder, sobald der Spec es tut.
+  funktioniert wieder, sobald der Spec es tut. Ein im Chat gestellter Run, den
+  niemand fortgesetzt hat, wird vom Sicherheitsnetz etwa eine Stunde nach seiner
+  letzten Entscheidung beendet.
+- **Wer einen im Chat gestellten Run fortsetzt.** Die Entscheidung einer Person in
+  der Konsole, im Web-Chat oder über die API setzt den Run in seinem Chat fort,
+  als sie, und die Antwort wird dort gepostet; die Entscheidung eines Schlüssels
+  wird festgehalten und setzt nichts fort. Eine Fortsetzung kann verloren gehen
+  oder abgelehnt werden, dann wartet der Run in `awaiting_approval` ohne etwas
+  Offenes. Das stündliche Sicherheitsnetz beendet einen solchen Kanal-Run
+  `STRANDED_AFTER` (eine Stunde) nach seiner letzten Entscheidung und sagt es dem
+  Chat einmal - nicht, wenn die Entscheidung mehr als 7 Tage alt ist, und nicht,
+  wenn der Chat es schon erfahren hat. Es betrachtet nur Kanal-Runs. Siehe
+  [Außerhalb des Chats entschieden](channels.md#decided-outside-the-chat).
 - **Eine entschiedene Freigabe kann nicht zweimal entschieden werden.** Die zweite
   Entscheidung wird abgelehnt — einschließlich einer Entscheidung, die eine
   Sekunde nach dem Ablauf-Sweep ankommt, der den Aufruf genommen hat.
@@ -1189,7 +1270,8 @@ Vier Eigenschaften, die man kennen sollte:
   `APPROVAL_EXPIRY_HOURS` überschreitet**, und der Run dahinter wird beendet statt
   für immer geparkt zu bleiben. Der Status ist `expired` mit einem
   `decided_by_user_id` von null, und das ist es, was in der Verantwortungsspur
-  einen Ablauf von einer Zurückweisung unterscheidet. Die Activity-Seite zeigt
+  einen Ablauf von einer Zurückweisung unterscheidet. Ein im Chat gestellter Run
+  sagt außerdem dem Chat einmal, dass die Anfrage abgelaufen ist. Die Activity-Seite zeigt
   weiterhin das **Alter** der ältesten Wartezeit, denn eine Queue innerhalb ihres
   Ablauffensters ist die, auf der jemand noch handeln kann.
 - **`required` funktioniert auf jeder Capability**, nicht nur auf
@@ -1216,6 +1298,19 @@ Vier Eigenschaften, die man kennen sollte:
   Agent, der so gelaufen ist, hört auf, mit einer Nachricht, die sagt, was zu
   ändern ist. Was aufhört, ist ein Agent, dessen Betreiber um eine Freigabe bat,
   um die nie jemand gebeten wurde.
+- **Ein geparkter Aufruf kann nennen, wofür seine IDs stehen.** Ein Tool kann
+  seinen eigenen Aufruf beschreiben: die Schreibvorgänge in Tabellen nennen den Namen der Tabelle.
+  Ein Datensatz wird nie genannt, denn das Label eines Datensatzes ist der Text
+  einer seiner Zellen, und die Freigabe bewahrt es auf. Die Namen werden als die
+  Person des Runs aufgelöst, wenn der Aufruf parkt, sodass nichts genannt wird,
+  was diese Person nicht sehen darf, und an der Freigabe als `context`
+  gespeichert. Die Karte im Chat und die Seite Approvals beginnen mit einem daraus
+  gebauten Satz, etwa „Share the view Closed tickets of Support with everyone who
+  may read the table“, über den Argumenten, die weiterhin das sind, was ausgeführt
+  wird. Der Satz wird über die stabile ID des Tools gefunden, sodass ein Tool, das
+  ein Binding umbenannt hat, ihn behält. Eine fehlgeschlagene oder langsame
+  Beschreibung parkt den Aufruf ohne sie, und ein Aufruf, den ein fortgesetzter
+  Run bereits entschieden hat, wird nicht erneut beschrieben.
 - **Ein Modellschritt kann mehrere Aufrufe parken.** Ein Modell, das mit zwei
   nebenwirkungsbehafteten Aufrufen zugleich antwortet — „mail den Kunden und den
   Kundenbetreuer an" — parkt beide, jeder mit einer eigenen Freigabe-Zeile, die
@@ -1356,9 +1451,13 @@ ein Deploy, der nicht drainiert —, eine dauerhafte Zeile hinterlässt, die nic
 mehr zu Ende bringt: für immer in Activity, und sie blockiert jeden Zeitplan, für
 dessen Trigger sie der verknüpfte Run war.
 
-Ein stündlicher Sweep beendet alles, was jenseits von
-`STALE_RUN_REAPED_AFTER_HOURS` noch `running` ist — sechs Stunden voreingestellt,
-null schaltet es ab — als **`failed`**. Niemand hat diesen Run gestoppt, die
+Während sein Modell arbeitet, stempelt der Prozess, der einen Run ausführt, ihn
+alle `RUN_HEARTBEAT_SECONDS` als lebendig. Ein minütlicher Sweep beendet alles,
+was `STALE_RUN_REAPED_AFTER_SECONDS` lang ohne Lebenszeichen noch `running` ist —
+zwei Minuten voreingestellt, null schaltet es ab — als **`failed`** und sagt es
+den offenen Konsolen, sodass ein Chat nicht mehr "Working" über einem Zug zeigt,
+den niemand beantwortet, und anbietet, erneut zu fragen. Den Run eines
+Sprachanrufs überlässt er dem Reaper der Anrufe, der den Anruf auflegt. Niemand hat diesen Run gestoppt, die
 Infrastruktur hat es getan, und ein Betreiber, der die Run-Historie nach
 Problemen filtert, ist genau der, der das sehen sollte.
 
@@ -1457,6 +1556,77 @@ ausgegeben, was sie ausgegeben hat.
     Zugang. Beim Modellanbieter ausgeführte Tools durchlaufen das lokale
     Freigabe-Gate nicht.
 
+### Ein Workflow-Schritt, der eine Person fragt { #workflow-step-approvals }
+
+Ein Workflow fragt mit einem [`human.approval`](reference/workflow-nodes.md#human-approval)-Schritt
+statt mit einem abgesicherten Tool: Der Schritt schreibt seine eigene Anfrage -
+einen Titel, die ihm übergebenen Details, wer entscheiden darf und bis wann -, und
+sein Run wartet darauf. Der Tab **Approvals** listet sie über den Tool-Aufrufen,
+und eine Entscheidung weckt den Run, der nach der Antwort weitergeht. Eine
+Entscheidung ist endgültig und wird mit dem Gefragten im Audit-Trail festgehalten und bleibt unter **Decided** neben dem
+Protokoll der Tool-Aufrufe aufgelistet.
+Einen Schritt, der seine Freigebenden nennt, können nur sie entscheiden. Eine
+Anfrage, die niemand rechtzeitig entscheidet, läuft ab, und ein abgebrochener Run
+bricht seine Anfragen ab.
+
+Ein Schritt mit `editable` zeigt der freigebenden Person auch einen Vorschlag,
+etwa eine vorbereitete Antwort, den sie vor der Freigabe ändern darf. Der
+Audit-Eintrag hält fest, ob der Schritt editierbar war, ob die Person ihn geändert
+hat (`edited`) und wie lang der Vorschlag und der freigegebene Text sind
+(`proposal_length`, `final_length`), nie den Text selbst. Der Text liegt im
+Klartext bei der Anfrage, bis die Historie des Runs gelöscht wird.
+
+Die Anfragen werden auch gezählt. Die Stats-Karte eines Workflows und seine
+Statistik-API melden je Schritt und je Tag, wie viele wie vorgeschlagen freigegeben,
+bearbeitet, abgelehnt wurden oder abgelaufen sind, wie lange die Entscheidung dauerte
+und wie stark die Änderungen den Text verändert haben, jede als Verhältnis von `0` bis
+`1` (`edit_ratio`, auch im Audit-Eintrag); siehe
+[Running a workflow](workflows.md#running-a-workflow). Die organisationsweite
+Übersicht, `GET /api/v1/workflow-approvals/stats`, braucht `workflows:view` und
+umfasst nur Workflows, die das Mitglied ansehen darf. Sie enthält weder Vorschlag noch
+freigegebenen Text noch eine Zahl zu einzelnen Freigebenden: Sie zählt Anfragen, nicht
+Personen.
+
+### Artefakt-Einträge { #artifact-entries }
+
+Eine Seite, die Tabellendaten liest, wird mit der Einwilligung ihres Besitzers
+geteilt, und jeder Schritt davon hinterlässt einen Eintrag mit der Person, die ihn
+getan hat. Keiner trägt einen Datensatz, einen Filterwert oder eine Zeile: Sie
+halten Versionen, Fingerabdrücke, Anfrage-IDs und die Worte, die eine Person
+bestätigt hat.
+
+| Aktion | Aufgezeichnet, wenn |
+|---|---|
+| `artifact.published` | Eine Version veröffentlicht wurde, mit ihrer Nummer, dem Fingerabdruck ihrer Seitenabfragen und `actions`, den IDs der Workflows, die sie deklariert |
+| `artifact.data_consented` | Der Besitzer die Daten einer Version bestätigt hat oder ihr automatisch zugestimmt wurde (`automatic`). Nennt die Version und den Fingerabdruck, `for_owner`, wenn ein Owner oder Admin für ihn bestätigt hat, und `via_grant`, wenn ein `edit_data`-Grant sie erteilt hat |
+| `artifact.data_withdrawn` | Ein Editor die Seite daran gehindert hat, ihre Daten zu teilen; nennt die Version, die der Zielgruppe ausgeliefert wurde, ob die automatische Einwilligung an war, und wie viele `edit_data`-Grants es auf `edit` gesenkt hat |
+| `artifact.auto_consent_changed` | Der Besitzer „Share new versions automatically“ ein- oder ausgeschaltet hat, mit dem Text, den er bestätigt hat |
+| `artifact.edit_data_granted` | Der Besitzer oder ein Owner oder Admin einer Person oder Gruppe „Can edit, including data“ gegeben hat, mit dem Text, den er bestätigt hat |
+| `artifact.owner_changed` | Eine Seite den Besitzer gewechselt hat: der alte und der neue Besitzer, wer es getan hat, und alle `edit_data`-Grants, die es entfernt hat |
+| `artifact.share_requested` | Eine Anfrage gestellt wurde - eine `audience`-, `access`- oder `version`-Anfrage - von einer Person oder vom Run ihres Agents |
+| `artifact.share_request_approved` und `artifact.share_request_declined` | Eine Anfrage entschieden wurde, und von wem |
+| `organization.public_live_data_changed` | Ein Owner oder Admin **Public pages with live data** für die Organisation ein- oder ausgeschaltet hat, mit dem alten und dem neuen Wert |
+| `artifact.public_data_consented` | Der Besitzer oder ein Owner oder Admin für ihn bestätigt hat, dass jeder mit dem öffentlichen Link der Seite und die Websites, die sie einbetten, ihre Daten lesen dürfen. Nennt die Version, den Fingerabdruck, die Tabellen und Spalten, die einbettenden Websites und ob ein Passwort gesetzt ist, sowie `for_owner`, wenn jemand für ihn bestätigt hat |
+| `artifact.public_data_withdrawn` | Ein Bearbeiter diese Einwilligung zurückgezogen hat, angemeldet als er selbst (nicht imitierend), mit dem Fingerabdruck, den sie hielt |
+| `artifact.public_data_voided` | Die Einwilligung gelöscht wurde, weil sich etwas darunter geändert hat, mit einem `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` oder `archived` |
+| `artifact.action_started` | Ein Mitglied hat einen Workflow aus der Aktion einer Seite bestätigt und gestartet. Nennt die Seite, die Version, den Workflow und den Run, nie die Eingabewerte, die am Run stehen |
+
+**Public pages with live data** ist eine Einstellung der Organisation, standardmäßig
+aus, in den Einstellungen der Organisation neben dem Verzicht auf Freigaben. Sie
+entscheidet, ob die Daten einer Seite Personen ohne Konto über einen öffentlichen Link
+oder ein Embed erreichen dürfen. Anders als der Verzicht braucht sie `org:settings` -
+Owner oder Admin - und muss angemeldet als man selbst geändert werden: Eine
+imitierende Session wird abgelehnt. Die Seite braucht weiterhin die
+[Einwilligung ihres Besitzers für öffentliche Daten](artifacts.md#live-data-on-a-public-link).
+Das Ausschalten ist ein Kill-Switch: Öffentliche Seiten verlieren ihre Daten beim
+nächsten Laden und behalten ihre Einwilligung, die wieder gilt, sobald der Schalter
+wieder an ist.
+
+Die Sichtbarkeit oder die Grants einer Seite zu erweitern, wird wie bei jeder
+anderen Ressource als Einträge `resource.share`, `resource.unshare` und
+`resource.visibility_changed` aufgezeichnet. Das Tool `share_view` gibt es nicht
+mehr, und damit auch nicht die Freigabe, die es abgesichert hat.
+
 ## Alerts { #alerts }
 
 Jeder Alert hier handelt von einem Run, auf den niemand schaut. Ein Chat-Run, der
@@ -1477,9 +1647,17 @@ ausgefallenes SMTP-Relay - ohne dass der andere je davon erfährt.
 
 Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
-Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
+Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt.
+
+Anfragen zum Teilen einer Seite und Besitzerwechsel nennen die Seite und die Person, nie ihre Daten.
+
+Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
+unbeaufsichtigt fertig wird oder scheitert - das Ende einer Routine nach ihr
+benannt und mit dem Anfang ihrer Antwort, für die Person, die sie eingerichtet
+hat -, die Bitte, eine Capability einzuschalten, für den Besitzer des Agents, Vorschläge,
+die die [Arbeit aus eigener Initiative](#proactive-work) für eine Person gemacht
+hat, die Ingestion eines Dokuments, die
 **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und
@@ -1563,6 +1741,13 @@ ersten leiser zu stellen, war, für den zweiten taub zu werden.
 | **Budget** | dieser Agent sein eigenes monatliches Cap erreicht hat | die Admins und der Besitzer des Agents |
 | **Freigaben** | ein Tool-Aufruf geparkt hat | wer den Run gestartet hat, plus die Admins |
 | **Nutzung** | wöchentlich und monatlich, was dieser Agent ausgegeben hat | aus |
+
+Das Log eines Workflows hat eigene Alerts, die auf der Logs-Seite des Workflows gesetzt
+werden statt in einer Spec; siehe [Alerts](workflows.md#log-alerts). Sie lösen aus, wenn
+die passenden Zeilen einer Regel ihren Schwellenwert in ihrem Fenster erreichen, und
+gehen an den Eigentümer des Workflows, sofern die Regel nichts anderes sagt. Es gelten
+dieselben Glocken- und E-Mail-Einstellungen wie im Rest dieses Abschnitts, unter
+**Workflow log alerts**.
 
 Ein Publikum ist eine Liste von Rollen, nicht von Adressen:
 
@@ -1828,6 +2013,12 @@ Zu setzen unter **Organisationen → ein Workspace → Mitglieder → Aufbewahru
 abgesichert über `org:settings`. Ein Sweep läuft einmal täglich und löscht
 **hart**: eine Richtlinie, die die Zeilen behielte, wäre keine.
 
+Daten der [Virtual Tables](virtual-tables.md#limits-and-retention) gehören zum selben Sweep,
+mit Fristen für das ganze Deployment, die keine Organisation setzt: Idempotenz-Receipts nach
+24 Stunden, zugestellte Outbox-Zeilen nach 3 Tagen und die History eines Datensatzes nach
+365 Tagen, wodurch auch die History eines gelöschten Datensatzes entfernt wird. Der Eintrag,
+den er schreibt, nennt `table_receipts`, `table_outbox` oder `table_history` und eine Zahl.
+
 Die drei eigenen Zahlen des Deployments - `retention_defaults`,
 `retention_max_days` und `audit_retention_floor_days` - sind Felder der
 Deployment-Einstellungen, von einer App-Administratorin über
@@ -1839,10 +2030,10 @@ Ort für die Fristen je Tenant.
 
 | Klasse | Was mitgeht | Gemessen ab |
 |---|---|---|
-| Gespräche | Nachrichten, Tool-Aufrufe und die daran hängenden Chat-Dateien — die gespeicherten Bytes **vor** den Zeilen, sodass eine Datei, die sich nicht entfernen ließ, ihre Zeile für den nächsten Durchlauf behält, statt sie unauffindbar zu überleben | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
+| Gespräche | Nachrichten, Tool-Aufrufe und Dateien; eine gesperrte Charge lässt Gespräche mit nicht abgeschlossenen Runs aus, und ein dauerhafter Auftrag zur Dateilöschung wird zusammen mit den Zeilen bestätigt | Der letzten Aktivität des Threads, damit einer, zu dem jemand zurückkehrt, nicht alt ist |
 | Runs | Die Run-Zeile, ihr Manifest und ihre Tool-Freigaben | Dem Start des Runs |
 | Workspaces | Die Aufzeichnung der Plattform über die Dateien eines Agenten. Beim `state`-Backend *ist* die Zeile der Speicher; die Dateien eines Sandbox-Backends räumt dessen eigene TTL ab. Die eines Projekts bleiben, solange das Projekt besteht | Der letzten Nutzung |
-| Apps | Eine [veröffentlichte Seite](artifacts.md) mit jeder Version, ihren gespeicherten Bytes (**vor** den Zeilen, wie bei Gesprächen), ihren Grants und ihrem öffentlichen Link | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
+| Apps | Eine [veröffentlichte Seite](artifacts.md), alle Versionen, Grants und der öffentliche Link; die Dateilöschung wird in derselben Transaktion eingereiht | Der letzten Veröffentlichung, damit ein Bericht, den ein Zeitplan neu veröffentlicht, nicht alt ist |
 | Gedächtnis | Die Gedächtnisdateien eines Agenten | Dem letzten Schreiben, denn eine Notiz wird einmal geschrieben und monatelang gelesen |
 | Hochgeladene Dokumente | Die Zeile, ihre Vektoren und die hochgeladene Datei | Dem Zeitpunkt des Hochladens |
 | Audit | Einträge auf der Spur dieser Organisation | Dem Zeitpunkt des Eintrags |
@@ -1921,6 +2112,11 @@ Gelöscht wird in Chargen von 500, bis zu vierzig Durchläufe je Klasse und Swee
 Eine Organisation, die nach zwei Jahren auf neunzig Tage stellt, arbeitet ihren
 Rückstand über mehrere Tage ab statt in einem Sweep, der eine Stunde lang eine
 Sperre hält, mit allen anderen periodischen Flows dahinter in der Schlange.
+
+Jede Klasse läuft in einem Savepoint: Ein SQL-Fehler nimmt ihre Änderungen und
+Löschaufträge zurück, ohne spätere Klassen abzubrechen. Dauerhafte Jobs entfernen
+Dateien erst nach dem Commit. Speicherfehler und Wiederholungen sind unter
+Background jobs sichtbar. Ein Rollback der Löschung lässt die Dateien intakt.
 
 ### Was das nicht erreicht { #what-this-does-not-reach }
 

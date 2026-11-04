@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "3b553bcc7ca4"
 ---
 
 # Kod konsoli { #the-consoles-code }
@@ -24,6 +24,19 @@ Playwright. Menedżer pakietów i runner: **bun**.
 
 Server Components są domyślne. `"use client"` jest od stanu, efektów i
 handlerów, a nie z przyzwyczajenia.
+
+## Wygląd konsoli { #console-presentation }
+
+Używaj `PageHeader` do zwartych tytułów i akcji. Katalogi kart korzystają z
+`ListCard layout="grid"`, bez dodatkowego panelu; tabele zachowują panel.
+Przyciski używają neutralnych tokenów `action`, niezależnych od `primary`
+dla zaznaczonych kontrolek i odznak. Fokus i krawędzie pól pozostają widoczne.
+
+Osoby i organizacje korzystają z `EntityAvatar`: zdjęcia są kadrowane do koła,
+a zastępują je inicjały na stałym kolorze. Agenci zachowują generowane twarze.
+Opisy w katalogach zajmują dwa wiersze; otwarcie elementu pokazuje pełny opis.
+
+Akcje asynchroniczne korzystają z `Button loading`, aby zachować etykietę i wymiary oraz blokować ponowne wysłanie. Stan oczekiwania trwa do końca wszystkich kroków, także przesyłania plików. Przyciski oparte na linkach zachowują jedno dziecko i blokują aktywację, gdy są niedostępne. Kontrolki mają spójny fokus klawiatury, zwarte rozmiary na desktopie i pola dotykowe 44px tam, gdzie jest miejsce. Nakładki animują się od swojego punktu zaczepienia; podpowiedzi zawijają tekst w granicach okna. Kalendarz używa języka konsoli, a postęp udostępnia rzeczywistą wartość i maksimum technologiom asystującym. Animacje respektują ustawienie Motion użytkownika.
 
 ## Przeglądarka nigdy nie woła backendu { #the-browser-never-calls-the-backend }
 
@@ -51,6 +64,24 @@ hooka.** Żadnego `fetch` w komponencie.
 Dane serwerowe mieszkają w warstwie zapytań; **store'y trzymają wyłącznie stan
 UI i stan ulotny**. Zarejestruj każdy klucz zapytania w `query-keys.ts`, żeby
 unieważnianie po zapisie pozostawało spójne.
+
+## Historia czatu i aktualizacje streamu { #chat-history-and-streamed-updates }
+
+Konsola otwiera najnowszą stronę transcriptu i doczytuje wcześniejsze wiadomości na
+żądanie. Chip projektu odczytuje `/conversations/{id}/metadata`, z tą samą kontrolą
+czytelnika i organizacji, bez ładowania wiadomości. Odczyty repozytorium pomijają
+zapisane podsumowanie modelu, chyba że odtworzenie historii modelu jawnie go żąda.
+
+Socket czatu dostarcza serie ramek raz na klatkę animacji, z fallbackiem 50 ms dla
+ukrytych kart i limitem kolejki 256 ramek. Sąsiednie delty tekstu lub rozumowania
+są łączone; granice sterowania, narzędzi i części zachowują kolejność. Zmiana
+rozmowy, konta lub organizacji usuwa oczekujące ramki.
+
+Niezmieniony Markdown i wyniki narzędzi są wykorzystywane ponownie. Przewijanie
+śledzi zmierzony przyrost treści. Gotowe wizualizacje montują się blisko viewportu
+i odmontowują poza nim, zachowując zmierzone miejsce; ich skrypty uruchamiają się
+ponownie po powrocie. Streamowane wizualizacje pozostają aktywne, a pełny ekran
+wstrzymuje kopię w transcripcie.
 
 ## Uprawnienia to decyzja o renderowaniu { #permissions-are-a-rendering-decision }
 

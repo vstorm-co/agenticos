@@ -6,6 +6,7 @@ import { BudgetHeadroomWidget } from "./budget-headroom";
 const agent = (id: string, name: string, cap: number | null) => ({
   id,
   name,
+  slug: name.toLowerCase(),
   budget_monthly_usd: cap,
 });
 
@@ -51,6 +52,7 @@ describe("the budget headroom card", () => {
       />,
     );
 
+    expect(document.querySelectorAll("[data-agent-avatar]")).toHaveLength(2);
     expect(screen.getByText("40%")).toBeInTheDocument();
     expect(screen.getByText("Near")).toBeInTheDocument();
     expect(screen.getByText("Half")).toBeInTheDocument();

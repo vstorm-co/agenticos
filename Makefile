@@ -1,4 +1,4 @@
-.PHONY: docker-minio install format lint desktop-dev desktop-build desktop-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -27,13 +27,10 @@ COMPOSE_LOCAL := -f docker-compose.yml -f docker-compose.override.yml
 # so a host that will not have that removes `sandbox` from here.
 COMPOSE_DEV_PROFILES ?= --profile sandbox
 
-# The group that owns the Docker socket, which the sandbox service takes as a
-# supplementary group to reach it. Every compose file interpolates
-# `${DOCKER_GID:-0}` and nothing set it, so the service came up in group 0 - root
-# on the host, and not the socket's owner on any Linux distribution shipping a
-# `docker` group. Read from the socket, because the socket is what knows; empty
-# on a host without one, where the default is as good as anything (#1506).
-export DOCKER_GID := $(shell stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null)
+# Docker Desktop proxies the socket through its VM as group 0; the Mac's
+# symlink/socket group is unrelated. Linux uses the socket's actual owner.
+# Keep an explicit environment or command-line override for custom daemons.
+export DOCKER_GID ?= $(shell if [ "$$(uname -s)" = Linux ]; then stat -Lc '%g' /var/run/docker.sock 2>/dev/null; else echo 0; fi)
 
 # The sandbox service refuses to start without a token, deliberately: it can run
 # commands on this host, so an empty default would be a shared secret of "".
@@ -58,6 +55,12 @@ sandbox-runtimes:
 # Idempotent — re-run anytime. Migrations are no-ops when already at head;
 # admin seeding is a separate target (`make seed`) so re-running `make dev`
 # doesn't keep retrying user creation.
+# `up` pulls an image it does not build only when that tag is not on the host. That
+# is enough because the images are pinned to exact versions: a bump is a new tag,
+# so it reaches a laptop on the next `make dev`. A moving tag would not - a cached
+# `sandboxd:0.2` once served an older API than the backend's client spoke, and
+# every command failed as a lost session (#2484). `--pull missing` would add
+# nothing, and would override `pull_policy: never` on the images built here.
 dev: sandbox-token
 	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
 	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
@@ -239,6 +242,7 @@ install:
 	fi
 	cd frontend && bun install --frozen-lockfile
 	cd desktop && bun install --frozen-lockfile
+	cd mobile && bun install --frozen-lockfile
 	@echo ""
 	@echo "✅ Installation complete!"
 	@echo ""
@@ -312,8 +316,8 @@ lint: lint-backend lint-frontend lint-spelling lint-precommit
 # outside `backend/` and so is a fourth path rather than a second invocation; its
 # relaxations are declared in `pyproject.toml` under `../scripts/**`.
 lint-backend:
-	uv run --directory backend ruff check . ../scripts
-	uv run --directory backend ruff format . ../scripts --check
+	uv run --directory backend ruff check . ../scripts ../deploy/updater
+	uv run --directory backend ruff format . ../scripts ../deploy/updater --check
 	uv run --directory backend ty check
 	uv run --directory backend vulture
 	uv run --directory backend deptry app cli alembic
@@ -404,18 +408,61 @@ lint-precommit:
 # applying it, so without the second line here the only way to fix a formatting
 # failure would be to let the pre-commit hook rewrite the file for you.
 format:
-	uv run --directory backend ruff format . ../scripts
-	uv run --directory backend ruff check . ../scripts --fix
+	uv run --directory backend ruff format . ../scripts ../deploy/updater
+	uv run --directory backend ruff check . ../scripts ../deploy/updater --fix
 	cd frontend && bunx prettier --write "src/**/*.{ts,tsx}" "e2e/**/*.ts"
 
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
 #
-# CI overrides the report because Codecov wants XML. The terminal list of
-# uncovered lines is kept beside it, files at 100% skipped: a red gate that says
-# only "99.99%" sends whoever reads it hunting through every module by hand.
+# The suite runs once, measuring all of `app`; the gate is a report over that
+# data narrowed to the platform layer, `[tool.coverage.run] include` in
+# backend/pyproject.toml, read from there so the list keeps one home. Measured
+# that way an included file no test imports counts at 0% rather than going
+# unreported. `coverage-all` reports the same data whole, so CI does not run the
+# suite a second time for it.
+#
+# CI adds XML for Codecov. The terminal list of uncovered lines is printed either
+# way, files at 100% skipped: a red gate that says only "99.99%" sends whoever
+# reads it hunting through every module by hand. The reports are written even
+# when a test failed, and the recipe then fails with the suite's status.
 COV_REPORT ?= term-missing
-COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:skip-covered)
+PLATFORM_COVERAGE = $(shell uv run --quiet --directory backend python -c 'import tomllib; print(",".join(tomllib.load(open("pyproject.toml", "rb"))["tool"]["coverage"]["run"]["include"]))')
+
+# The backend suite runs against a throwaway Postgres (docker-compose.test.yml)
+# rather than the development one. The integration reset TRUNCATEs the tables
+# before every test, each TRUNCATE creates new relation files, and Postgres fsyncs
+# them - ~7 ms apiece on WSL2 or a Docker volume, which made a full run take hours
+# where CI takes minutes. That container has fsync off and a RAM data directory,
+# and it is nobody's data, so the suite cannot hurt a database with your work in it.
+#
+# `TEST_DB_PORT` moves it off :5433. `TEST_DB=external` skips the container and
+# uses the database `POSTGRES_*` / `backend/.env` already name, which is what CI
+# does (it has a service container and sets `CI=true`).
+TEST_DB_PORT ?= 5433
+ifeq ($(CI),true)
+TEST_DB ?= external
+endif
+TEST_DB ?= throwaway
+ifeq ($(filter $(TEST_DB),throwaway external),)
+$(error TEST_DB must be 'throwaway' or 'external', not '$(TEST_DB)')
+endif
+ifeq ($(TEST_DB),throwaway)
+TEST_DB_START := $(MAKE) --no-print-directory docker-test-db
+TEST_DB_ENV := env POSTGRES_HOST=localhost POSTGRES_PORT=$(TEST_DB_PORT) POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres
+else
+TEST_DB_START :=
+TEST_DB_ENV :=
+endif
+
+# Only the workflow's ephemeral service container may use reduced durability.
+ci-test-db-configure:
+	@test "$(CI)" = true && test -n "$(POSTGRES_CONTAINER)"
+	@for setting in fsync synchronous_commit full_page_writes; do \
+	  docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c "ALTER SYSTEM SET $$setting = off" || exit 1; \
+	done
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SELECT pg_reload_conf()'
+	docker exec "$(POSTGRES_CONTAINER)" psql -U postgres -c 'SHOW fsync' -c 'SHOW synchronous_commit' -c 'SHOW full_page_writes'
 
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
@@ -425,18 +472,26 @@ COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:ski
 # per-worker data, so the 100% gate holds unchanged. A scoped `pytest <file>`
 # stays serial: worker startup is not worth paying for one file.
 test:
-	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) $(COV_TERM) -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	@status=0; \
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -v --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4 || status=$$?; \
+	$(if $(findstring xml,$(COV_REPORT)),uv run --directory backend coverage xml -q --fail-under=0 --include="$(PLATFORM_COVERAGE)" || status=1;) \
+	uv run --directory backend coverage report --include="$(PLATFORM_COVERAGE)" || [ $$status -ne 0 ] || status=2; \
+	exit $$status
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:
-	uv run --directory backend pytest tests/ -q --no-cov -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -q --no-cov -n auto --maxprocesses 4
 
-# Integration tests only. These talk to a real database; start it with `make docker-db`.
+# Integration tests only. These talk to a real database: the throwaway one above.
 test-integration:
-	uv run --directory backend pytest tests/integration -v --no-cov -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/integration -v --no-cov -n auto --maxprocesses 4
 
 test-cov:
-	uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ --cov --cov-report=html --cov-report=term-missing -n auto --maxprocesses 4
 	@echo "Open backend/htmlcov/index.html"
 
 # Just the refusal tests, by the `security` marker. This is a report, not a gate:
@@ -444,7 +499,8 @@ test-cov:
 # 100% bar, and `-p no:randomly` so the printed list is stable to read and diff.
 # The CI security-report step runs this same selection with `--collect-only`.
 test-security:
-	uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
+	$(TEST_DB_START)
+	$(TEST_DB_ENV) uv run --directory backend pytest tests/ -m security -q --no-cov -p no:randomly
 
 # The list of refusal tests written to backend/security-tests.txt, and appended to
 # the CI job summary when one is present. Collection only - no database, no run -
@@ -468,18 +524,31 @@ security-report:
 # not held to the platform bar, because mock-heavy tests over code we did not
 # design buy a number rather than confidence.
 #
-# It runs across workers like every other suite here. It was the one that did not,
-# which made it the longest step in the `test` job - 14m46s of the 25 that job is
-# allowed, against 8m39s for the gated suite beside it - so a runner about three
-# times slower than usual took the whole job past its bound (#879).
+# `REUSE_COVERAGE=1` reports the data `make test` just measured instead of running
+# the suite again, which is what CI does: two full runs no longer fit its job.
 coverage-all:
-	uv run --directory backend pytest tests/ -q --cov=app --cov-report=term-missing --cov-fail-under=0 -n auto --maxprocesses 4
+	$(TEST_DB_START)
+	$(if $(REUSE_COVERAGE),,$(TEST_DB_ENV) uv run --directory backend pytest tests/ -q --cov=app --cov-report= --cov-fail-under=0 -n auto --maxprocesses 4)
+	uv run --directory backend coverage report --fail-under=0
 
 test-frontend:
 	cd frontend && bun run test:run
 
 test-frontend-cov:
-	cd frontend && bun run test:coverage
+	cd frontend && bun run test:coverage $(VITEST_ARGS)
+
+test-frontend-jobs-check:
+	@test "$(LINT)" = success && test "$(BUILD)" = success && test "$(TESTS)" = success
+
+build-frontend-pack:
+	tar --exclude='.next/cache' -czf "$(RUNNER_TEMP)/frontend-build.tar.gz" -C frontend .next
+
+test-frontend-reports-check:
+	@for shard in 1 2 3 4; do test -s "frontend/.vitest-reports/blob-$$shard-4.json" || exit 1; done
+	@test "$$(find frontend/.vitest-reports -maxdepth 1 -name "blob-*.json" -type f | wc -l | tr -d " ")" = 4
+
+test-frontend-merge:
+	cd frontend && bunx vitest --merge-reports=./.vitest-reports --coverage
 
 # `next build` type-checks the route tree and fails on a server component that
 # cannot render - neither of which tsc or vitest sees, which is why CI builds on
@@ -488,8 +557,8 @@ build-frontend:
 	cd frontend && bun run build
 
 # The desktop shell is a window around a deployment's console, not a build of
-# the frontend: `desktop/ui` is the one page it carries itself, so none of these
-# needs `frontend/`. Rust comes from rustup; the Tauri CLI is pinned in
+# the frontend: `desktop/ui` is the one page it carries itself, and the only file
+# it reads from `frontend/` is blobby's cast. Rust comes from rustup; the Tauri CLI is pinned in
 # `desktop/package.json`. `desktop-check` is not in `lint` or `check`, because CI
 # has no Rust toolchain yet and `tests/test_ci_parity.py` would refuse the
 # difference (docs/desktop.md).
@@ -500,8 +569,22 @@ desktop-build:
 	cd desktop && bun run build
 
 desktop-check:
-	cd desktop && bun test
+	cd desktop/core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 	cd desktop/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
+
+# The phone app (#2097): the same kind of shell for iOS and Android, sharing
+# the desktop's sign-in rules through `desktop/core`. Each target needs that
+# platform's toolchain - Xcode for iOS; the Android SDK, NDK and a JDK for
+# Android - and an emulator, a simulator or a phone. Like `desktop-check`, it
+# is not in `lint` or `check`: CI has no mobile toolchain yet.
+mobile-android:
+	cd mobile && bun run android
+
+mobile-ios:
+	cd mobile && bun run ios
+
+mobile-check:
+	cd mobile/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test -q
 
 # CI's `security` job. Audits what the lockfile resolves to - which is what a
 # deployment installs - rather than whatever this machine happens to have in its
@@ -620,7 +703,7 @@ test-e2e:
 		exit 1; \
 	fi
 	@echo "▶ frontend :$(E2E_PORT)  ·  stub model :$(E2E_STUB_MODEL_PORT)  ·  backend $(E2E_BACKEND)"
-	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e
+	cd frontend && E2E_PORT=$(E2E_PORT) E2E_STUB_MODEL_PORT=$(E2E_STUB_MODEL_PORT) bun run test:e2e $(PLAYWRIGHT_ARGS)
 
 # The load and resilience suite (NFA-004). Not part of `make check` and never in
 # CI: a load result is a measurement of one machine, and a number produced on a
@@ -685,18 +768,20 @@ load-test:
 #     backend: `make dev && make platform-bootstrap && make test-e2e`.
 #   - the image build, publish and Trivy scan, which `images.yml` runs on a push
 #     to `main` and on a `v*` tag.
-#   - `test-migrations`. CI cycles the chain against a throwaway database; here
-#     `alembic downgrade base` points at whatever `backend/.env` says, which on a
-#     laptop is the database with your own work in it.
+#   - `test-migrations`. CI cycles the chain against its service database;
+#     locally it runs against a database of its own on the throwaway Postgres,
+#     but it is slow and rarely needed, so `check` leaves it to a hand run.
 CHECK_DB_PORT ?= 5432
+# Where `test` reached its database: the throwaway one, or the one `CHECK_DB_PORT` names.
+INTEGRATION_DB_PORT = $(if $(TEST_DB_START),$(TEST_DB_PORT),$(CHECK_DB_PORT))
 
 check: lint test db-check test-frontend-cov build-frontend docs-build docs-slug-check audit audit-frontend licenses-check
 	@echo ""
 	@echo "All checks passed — every CI job except e2e."
-	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(CHECK_DB_PORT)), 1).close()' 2>/dev/null; then \
+	@if ! python3 -c 'import socket; socket.create_connection(("127.0.0.1", $(INTEGRATION_DB_PORT)), 1).close()' 2>/dev/null; then \
 		echo ""; \
-		echo "⚠  No database on 127.0.0.1:$(CHECK_DB_PORT), so tests/integration skipped itself"; \
-		echo "   — and CI's test job has one, so it did not. 'make docker-db' closes that gap."; \
+		echo "⚠  No database on 127.0.0.1:$(INTEGRATION_DB_PORT), so tests/integration skipped itself"; \
+		echo "   — and CI's test job has one, so it did not. '$(if $(TEST_DB_START),make docker-test-db,make docker-db)' closes that gap."; \
 	fi
 
 # === Documentation ===
@@ -751,10 +836,24 @@ presentation:
 
 # Migrations against a real database, forwards and back. The only way to know a
 # backfill or a check constraint actually works.
+#
+# Locally this starts the throwaway test Postgres and cycles the chain in a
+# database it drops and creates first (`MIGRATIONS_TEST_DB`), so `downgrade base`
+# can never empty a database with your work in it. With `TEST_DB=external` (CI)
+# it runs against the database `POSTGRES_*` / `backend/.env` name, as before.
+MIGRATIONS_TEST_DB ?= agenticos_migrations_test
 test-migrations:
+ifeq ($(TEST_DB),throwaway)
+	$(TEST_DB_START)
+	docker compose -p agenticos-test -f docker-compose.test.yml exec -T db psql -U postgres -v ON_ERROR_STOP=1 -c 'DROP DATABASE IF EXISTS $(MIGRATIONS_TEST_DB) WITH (FORCE)' -c 'CREATE DATABASE $(MIGRATIONS_TEST_DB)'
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic downgrade base
+	$(TEST_DB_ENV) POSTGRES_DB=$(MIGRATIONS_TEST_DB) uv run --directory backend alembic upgrade head
+else
 	uv run --directory backend alembic upgrade head
 	uv run --directory backend alembic downgrade base
 	uv run --directory backend alembic upgrade head
+endif
 	@echo "Migration chain applies and rolls back cleanly."
 
 # Do the models and the migrations still agree? `alembic check` autogenerates
@@ -893,6 +992,16 @@ docker-db:
 docker-db-stop:
 	docker compose stop db
 
+# The suite's throwaway Postgres (see TEST_DB_PORT). `up --wait` returns once the
+# healthcheck passes and is a no-op when it is already running.
+docker-test-db:
+	@command -v docker >/dev/null || { echo "make test needs Docker for its test Postgres, or TEST_DB=external"; exit 1; }
+	docker compose -p agenticos-test -f docker-compose.test.yml up -d --wait
+	@echo "Test PostgreSQL (fsync off, in memory) on localhost:$(TEST_DB_PORT)"
+
+docker-test-db-down:
+	docker compose -p agenticos-test -f docker-compose.test.yml down -v
+
 docker-minio:
 	docker compose --profile objectstore up -d minio
 	@echo ""
@@ -960,7 +1069,10 @@ help:
 	@echo "  make lint          Every static check: ruff, ty, eslint, prettier, tsc, the guards, codespell"
 	@echo "  make desktop-dev   Open the desktop shell against a console you name"
 	@echo "  make desktop-build Package the desktop shell for this machine"
-	@echo "  make desktop-check bun test, rustfmt, clippy and the shell's Rust tests"
+	@echo "  make desktop-check rustfmt, clippy and the shell's Rust tests"
+	@echo "  make mobile-android Run the phone app on an Android emulator or phone"
+	@echo "  make mobile-ios    Run the phone app on an iOS simulator or phone"
+	@echo "  make mobile-check  rustfmt, clippy and the phone app's Rust tests"
 	@echo "  make lint-backend  Just the Python half"
 	@echo "  make lint-frontend Just the TypeScript half"
 	@echo "  make lint-spelling Just codespell, over every tracked file"
@@ -1019,3 +1131,7 @@ help:
 	@echo "  make routes        Show all API routes"
 	@echo "  make clean         Clean cache files"
 	@echo ""
+
+.PHONY: release-cut
+release-cut: ## Plan a release train cut (BUMP=patch|minor; CREATE_PR=1 opens it)
+	python3 scripts/release_cut.py $(BUMP) $(if $(filter 1,$(CREATE_PR)),--create-pr,)

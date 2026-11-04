@@ -39,6 +39,7 @@ from app.services.file_storage import (
 # magic-number signature the byte phase can still check (#1654 review).
 _WEB_SAFE_IMAGE_MIMES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 from app.services.office_archive import safe_unzip
+from app.services.office_archive import zip_has_too_many_members as zip_has_too_many_members
 from app.services.office_convert import libreoffice_convert
 
 logger = logging.getLogger(__name__)

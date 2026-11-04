@@ -19,15 +19,22 @@ that is not listed there is not served.
 | `mermaid-12.1.0.min.js` | Mermaid, the bundled build (`window.mermaid`) | 12.1.0 | MIT, with bundled dependencies below | npm `mermaid@12.1.0`, `dist/mermaid.min.js` |
 | `idiomorph-0.8.0.min.js` | idiomorph, which morphs a visual's markup in place while it streams (`window.Idiomorph`) | 0.8.0 | 0BSD | npm `idiomorph@0.8.0`, `dist/idiomorph.min.js` |
 | `leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet, the map library (`window.L`), which the map kit draws on | 1.9.4 | BSD-2-Clause | npm `leaflet@1.9.4`, `dist/` |
+| `topojson-client-3.1.0.min.js` | topojson-client, the UMD build (`window.topojson`), which reads the country outlines | 3.1.0 | ISC | npm `topojson-client@3.1.0`, `dist/topojson-client.min.js` |
+| `world-atlas-2.0.2-110m.js` | The 110m country outlines as `window.AO_WORLD_110M`: the package's `countries-110m.json` behind one assignment, so a page needs no request for data | 2.0.2 | ISC; the outlines are Natural Earth, public domain | npm `world-atlas@2.0.2`, `countries-110m.json` |
+| `agenticos-worldmap-1.js` | `window.AOWorldMap`: a world map in SVG - countries shaded by a value, pins and great-circle routes - with no tile server and no network | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-1.css` | The console's design tokens for pages | 1 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.css` | The console's look and the `ao-` components pages are built from | 2 | Apache-2.0 (this repository) | written here |
 | `agenticos-2.js` | `window.AO`: Chart.js in the console's style, number formatting, icons, tabs | 2 | Apache-2.0 (this repository) | written here |
+| `agenticos-3.css` | Version 2's classes, forgiving of a header or table built loosely, plus loading, notes, lists, a toolbar and the header's icon and actions | 3 | Apache-2.0 (this repository) | written here |
+| `agenticos-3.js` | Version 2's `window.AO`, plus icons drawn as a script adds them, `AO.onData` and `AO.records` | 3 | Apache-2.0 (this repository) | written here |
 | `agenticos-map-1.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
+| `agenticos-map-2.js` | `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 2 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
+| `agenticos-map-1.js` | Version 1, kept for the pages that name it; it drops the pins on load and keeps one height. `window.AOMap`: an itinerary of numbered pins on the deployment's tile server, or an outline without one | 1 | Apache-2.0 (this repository); the pin-drop timing adapted from Open Intelligent UI, MIT | written here |
 
 The libraries are copied byte for byte from the registry tarballs, whose
 `sha512` integrity was checked against the npm registry when they were added
 (Chart.js, d3 and Lucide on 2026-09-30; three.js, Mermaid and idiomorph on
-2026-10-16; Leaflet on 2026-10-21). `.pre-commit-config.yaml` excludes them from the whitespace hooks so
+2026-10-16; Leaflet on 2026-10-21; topojson-client and world-atlas on 2026-11-01). `.pre-commit-config.yaml` excludes them from the whitespace hooks so
 they stay that way. Chart.js, Lucide and Leaflet end with a `sourceMappingURL` comment for a
 map that is not shipped; a browser asks for it only with developer tools open.
 
@@ -43,6 +50,12 @@ keep rendering. Remove an old file only when no kept version can still name it.
 
 Add the licence to `licenses/components.toml` and `NOTICE`, and the file to the
 `artifact-pages` bundled skill, which is how an agent learns the set exists.
+
+The page kit (`agenticos-<n>.css` and `.js`) follows the same rule, and
+`tests/test_artifact_pages.py` pins the bytes of every shipped version: a fix
+that would change how an existing page looks or behaves is the next version.
+`app/services/artifact_lint.py` reads each kit stylesheet's classes, so the
+publish warnings know a new version's classes without a list to update.
 
 ## Licences
 
@@ -228,9 +241,45 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+### topojson-client
+
+Copyright 2012-2019 Michael Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+### world-atlas
+
+Copyright 2013-2019 Michael Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+The outlines in it are from Natural Earth (https://www.naturalearthdata.com), which is in
+the public domain; world-atlas is Mike Bostock's conversion of them to TopoJSON.
+
 ### Open Intelligent UI
 
-`agenticos-map-1.js` adapts the pin-drop timing of `createTripAnimator`, and the
+`agenticos-map-1.js` and `agenticos-map-2.js` adapt the pin-drop timing of
+`createTripAnimator`, and the
 `visual-design` skill borrows guidance from the playbook and skills, of Open
 Intelligent UI (https://github.com/CopilotKit/OpenIntelligentUI, at
 `8391a94c1c3939c679e40ddd7bfc08a9ef690e70`). The notice is kept in the file's

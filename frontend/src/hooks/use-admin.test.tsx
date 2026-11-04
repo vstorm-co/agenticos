@@ -43,6 +43,32 @@ beforeEach(() => {
  * the dashboard as them (#1044).
  */
 describe("useAdminUsers", () => {
+  it.each([false, true])("ignores an older search response or failure (%s)", async (fails) => {
+    const older = Promise.withResolvers<{ items: { id: string }[]; total: number }>();
+    const newer = Promise.withResolvers<{ items: { id: string }[]; total: number }>();
+    vi.mocked(apiClient.get).mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+    const { result } = renderHook(() => useAdminUsers());
+    let first: Promise<void>;
+    let second: Promise<void>;
+    act(() => {
+      first = result.current.fetchUsers({ search: "old" });
+      second = result.current.fetchUsers({ search: "new" });
+    });
+    await act(async () => {
+      newer.resolve({ items: [{ id: "new" }], total: 2 });
+      await second;
+    });
+    await act(async () => {
+      if (fails) older.reject(new Error("stale refusal"));
+      else older.resolve({ items: [{ id: "old" }], total: 1 });
+      await first;
+    });
+    expect(result.current.users).toEqual([{ id: "new" }]);
+    expect(result.current.total).toBe(2);
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+  });
+
   it("pages the list, with the defaults the screen opens on", async () => {
     const { result } = renderHook(() => useAdminUsers());
 

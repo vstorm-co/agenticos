@@ -56,7 +56,7 @@ from pydantic_core import PydanticCustomError
 
 from app.core.exceptions import BadRequestError
 from app.core.pinned_http import PinnedAsyncClient
-from app.core.sanitize import UrlRefusedError, resolve_pinned_url
+from app.core.sanitize import PrivateAllowlist, UrlRefusedError, allowlist_for, resolve_pinned_url
 from app.core.secret_kinds import SecretKind, StorableSecret
 from app.services.rag.connectors import (
     BaseSyncConnector,
@@ -410,6 +410,7 @@ class WebConnector(BaseSyncConnector):
         self._next_request_at = 0.0
         self._pages: dict[str, str] = {}
         self._cached_bytes = 0
+        self._private_allowlist: PrivateAllowlist | None = None
         # One instance serves one sync and is made as it starts.
         self._deadline = time.monotonic() + self.MAX_DURATION
 
@@ -429,11 +430,16 @@ class WebConnector(BaseSyncConnector):
             error = exc.errors(include_url=False, include_input=False)[0]
             field = str(error["loc"][0]) if error["loc"] else None
             return ConfigRefusal(message=error["msg"], field=field)
+        # From the start URL alone: the sitemap is on its host, and a start URL
+        # that is public earns no exemption for anything it points at.
+        listed = await asyncio.to_thread(allowlist_for, _normalized(checked.root_url))
         for field, url in (("root_url", checked.root_url), ("sitemap_url", checked.sitemap_url)):
             if url is None:
                 continue
             try:
-                await asyncio.to_thread(resolve_pinned_url, _normalized(url))
+                await asyncio.to_thread(
+                    resolve_pinned_url, _normalized(url), private_allowlist=listed
+                )
             except UrlRefusedError as exc:
                 return ConfigRefusal(message=str(exc), field=field)
         return None
@@ -444,7 +450,7 @@ class WebConnector(BaseSyncConnector):
         """The site's pages: followed from the start URL, or listed by its sitemap."""
         settings = WebConfig.model_validate(config)
         scope = _Scope.of(settings)
-        async with self._client() as client:
+        async with await self._client(settings) as client:
             await self._load_robots(client, settings)
             if settings.sitemap_url is not None:
                 return await self._from_sitemap(client, settings, scope)
@@ -483,7 +489,7 @@ class WebConnector(BaseSyncConnector):
         """
         if self._out_of_time():
             raise BadRequestError(message=self._time_limit_problem(urlsplit(url).hostname or ""))
-        async with self._client() as client:
+        async with await self._client(settings) as client:
             await self._load_robots(client, settings)
             if not self._allowed(url):
                 raise WithdrawnFile(f"robots.txt no longer allows {_shown(url)}.")
@@ -512,8 +518,17 @@ class WebConnector(BaseSyncConnector):
             "so the pages after it were not read."
         )
 
-    def _client(self) -> PinnedAsyncClient:
-        return PinnedAsyncClient(timeout=_TIMEOUT, transport=self._transport)
+    async def _client(self, settings: WebConfig) -> PinnedAsyncClient:
+        """The client for this sync, with the allowlist its start URL earns - worked out once."""
+        if self._private_allowlist is None:
+            self._private_allowlist = await asyncio.to_thread(
+                allowlist_for, _normalized(settings.root_url)
+            )
+        return PinnedAsyncClient(
+            timeout=_TIMEOUT,
+            transport=self._transport,
+            private_allowlist=self._private_allowlist,
+        )
 
     async def _crawl(
         self, client: PinnedAsyncClient, settings: WebConfig, scope: _Scope

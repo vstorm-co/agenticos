@@ -13,7 +13,11 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.deps import Auth, McpConnectionSvc, require
 from app.core.permissions import Perm
-from app.schemas.connected_account import ConnectedAccountList, ConnectedAccountRead
+from app.schemas.connected_account import (
+    ConnectedAccountList,
+    ConnectedAccountRead,
+    ConnectedAccountStart,
+)
 from app.schemas.mcp_connection import McpOAuthStartResult
 
 router = APIRouter()
@@ -38,12 +42,16 @@ async def list_org_accounts(service: McpConnectionSvc, ctx: Auth) -> Any:
     response_model=McpOAuthStartResult,
     dependencies=[Depends(require(Perm.MCP_MANAGE))],
 )
-async def start_org_account(service: McpConnectionSvc, ctx: Auth) -> Any:
+async def start_org_account(
+    data: ConnectedAccountStart, service: McpConnectionSvc, ctx: Auth
+) -> Any:
     """Begin connecting a Google account for the organization.
 
     A `404` while the organization has stored no Google OAuth client.
     """
-    authorization_url = await service.account_start(ctx, for_organization=True)
+    authorization_url = await service.account_start(
+        ctx, browser_nonce=data.browser_nonce, for_organization=True
+    )
     return McpOAuthStartResult(authorization_url=authorization_url)
 
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { Files, ListChecks, RefreshCw } from "lucide-react";
+
 import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -72,6 +74,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     documents,
     documentsTotal,
     hasMoreDocuments,
+    ingestion,
+    ingestionPending,
     syncSources,
     orgIntegrations,
     connectors,
@@ -83,6 +87,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     uploadProgress,
     error,
     refresh,
+    refreshIngestion,
     loadMoreDocuments,
     updateIngestion,
     updateEmbeddings,
@@ -168,7 +173,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     refresh();
   }, [refresh]);
 
-  usePollWhileIngesting(documents, refresh);
+  // The loaded documents alone stop the poll as soon as their page has settled,
+  // which a large batch does long before the rest of it (#2486).
+  usePollWhileIngesting(documents, refreshIngestion, ingestionPending);
 
   const handleFiles = async (files: FileList | null) => {
     if (!mayEdit || !files || files.length === 0) return;
@@ -193,7 +200,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
   if (!kb) return null;
 
   return (
-    <FileDropZone collectionName={kb.name} onFiles={handleFiles}>
+    <FileDropZone collectionName={kb.name} onFiles={handleFiles} className="flex flex-1 flex-col">
       <input
         ref={fileInputRef}
         type="file"
@@ -222,6 +229,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         documentsTotal={documentsTotal}
         loadedVectors={loadedVectors}
         hasMoreDocuments={hasMoreDocuments}
+        ingestion={ingestion}
       />
 
       {/* Reached only with a `kb` in hand, so this is a refresh that failed, with
@@ -297,20 +305,27 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           its panel with `aria-controls`, so a root that closed after the list
           left those references dangling and the visible section with no
           `role="tabpanel"` and no relationship to the tab that chose it. */}
-      <Tabs value={tab} onValueChange={(next) => setTab(next as KBTab)}>
+      <Tabs
+        value={tab}
+        onValueChange={(next) => setTab(next as KBTab)}
+        className="flex flex-1 flex-col"
+      >
         <TabsList data-tour="kb-tabs">
           <TabsTrigger value="documents" data-tour="kb-tab-documents">
+            <Files className="size-4 shrink-0" aria-hidden />
             {t("documents")}
           </TabsTrigger>
           <TabsTrigger value="ingestion" data-tour="kb-tab-ingestion">
+            <ListChecks className="size-4 shrink-0" aria-hidden />
             {t("howDocumentsAreRead")}
           </TabsTrigger>
           <TabsTrigger value="sync" data-tour="kb-tab-sync">
+            <RefreshCw className="size-4 shrink-0" aria-hidden />
             {t("syncSources")}
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="documents">
+        <TabsContent value="documents" className="flex flex-1 flex-col">
           <DocumentsTable
             kbId={id}
             documents={documents}
@@ -326,8 +341,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           />
         </TabsContent>
 
-        <TabsContent value="ingestion">
-          <div className="mb-8" data-tour="kb-ingestion">
+        <TabsContent value="ingestion" className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col" data-tour="kb-ingestion">
             <IngestionPanel
               kb={kb}
               onEdit={mayEdit ? () => setIngestionOpen(true) : undefined}
@@ -336,7 +351,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="sync">
+        <TabsContent value="sync" className="flex flex-1 flex-col">
           <SyncSourcesSection
             kbId={id}
             syncSources={syncSources}

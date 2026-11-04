@@ -125,9 +125,7 @@ async def _bootstrap(
     if api_key is None:
         warning("  No API key given - add one under Settings → AI providers to run the agents.")
     else:
-        click.echo(
-            "  Open Chat and ask Claude Code like something, or the Architect in the corner."
-        )
+        click.echo("  Open Chat and ask AgenticOS something, or the Architect in the corner.")
 
 
 async def _resolve_mcp_mirror(db) -> None:
@@ -251,11 +249,11 @@ async def _resolve_model(
 
 
 async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | None) -> None:
-    """The two agents a new organization opens with: the Architect and Claude Code like.
+    """The two agents a new organization opens with: the Architect and AgenticOS.
 
     The Architect is the organization's assistant, installed the way a member's
-    first look installs it and published on the first model there is. Claude
-    Code like comes from its template, visible to the whole organization, and is
+    first look installs it and published on the first model there is. AgenticOS
+    comes from its template, visible to the whole organization, and is
     published on the bootstrapped model when its spec allows - a deployment with
     no sandbox to give it leaves it a draft and says why, rather than stopping.
     Idempotent: a second run finds both.

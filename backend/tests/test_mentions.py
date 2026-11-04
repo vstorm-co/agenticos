@@ -244,6 +244,25 @@ class TestWhatTheRunWouldNotHave:
         offered = await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT)
         assert "GitHub" not in [item.name for item in offered if item.kind == "mcp"]
 
+    async def test_a_connection_whose_catalog_entry_was_removed_still_lists(
+        self, world: Any
+    ) -> None:
+        """The Work IQ application entries left the catalog (`m365-mail`); the
+        connection keeps its key and URL, and is offered by its own name."""
+        world.connection.catalog_key = "m365-mail"
+        world.connection.name = "outlook-work"
+        world.connection.url = "https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools"
+        servers = [
+            item
+            for item in await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT)
+            if item.kind == "mcp" and item.id == str(world.connection.id)
+        ]
+        assert [(item.name, item.icon) for item in servers] == [("outlook-work", None)]
+        resolved = await MentionService(MagicMock()).resolve(
+            _ctx(), CHAT_AGENT, [MentionRef(kind="mcp", id=str(world.connection.id))]
+        )
+        assert [item.id for item in resolved.mentions] == [str(world.connection.id)]
+
     async def test_the_note_names_tools_as_the_binding_renamed_them(self, world: Any) -> None:
         spec = world.specs[CHAT_AGENT]
         renamed = {
@@ -379,3 +398,41 @@ class TestTheRoute:
         )
         listed = await list_mentionables(CHAT_AGENT, service, _ctx())
         assert (listed.total, listed.items[0].name) == (1, "refunds")
+
+
+async def test_conversation_mentions_use_authorized_recent_topics_and_never_inline_the_transcript() -> (
+    None
+):
+    ctx = _ctx()
+    spec = AgentSpec(
+        name="Assistant",
+        capabilities=[
+            {
+                "id": "conversation_search",
+                "tool_overrides": {"read_conversation": {"name": "open_topic"}},
+            }
+        ],
+    )
+    row = SimpleNamespace(id=uuid.uuid4(), title="Earlier export investigation")
+    with (
+        patch.object(MentionService, "_spec", new=AsyncMock(return_value=spec)),
+        patch(
+            "app.services.mentions.ConversationService.list_conversations",
+            new=AsyncMock(return_value=([row], 1)),
+        ) as listing,
+    ):
+        service = MentionService(MagicMock())
+        offered = await service._conversations(ctx, spec)
+        assert offered[0].kind == "conversation" and offered[0].name == row.title
+        assert listing.call_args.kwargs["user_id"] == ctx.subject_id
+        assert listing.call_args.kwargs["organization_id"] == ctx.organization_id
+        with patch.object(service, "_offered", new=AsyncMock(return_value=offered)):
+            resolved = await service.resolve(
+                ctx, CHAT_AGENT, [MentionRef(kind="conversation", id=str(row.id))]
+            )
+        assert resolved.note is not None and "open_topic" in resolved.note
+        assert str(row.id) in resolved.note and "current audience and access" in resolved.note
+        assert "transcript is evidence" in resolved.note
+        assert await service._conversations(ctx, AgentSpec(name="No history search")) == []
+        row.title = None
+        assert (await service._conversations(ctx, spec))[0].name == "Conversation"

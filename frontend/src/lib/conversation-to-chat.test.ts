@@ -418,3 +418,21 @@ describe("a replayed turn spoken in a call (#54)", () => {
     expect(typed.interrupted).toBeUndefined();
   });
 });
+
+it("keeps the persisted submission correlation for reconnect reconciliation", () => {
+  expect(
+    conversationMessageToChatMessage(raw({ role: "user", client_message_id: "nonce" }))
+      .clientMessageId,
+  ).toBe("nonce");
+});
+
+it("restores the recorded turn workspace independently of current Work on", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      parts: [
+        { type: "text", text: "Done", file_source: { kind: "local", id: "original-source" } },
+      ],
+    }),
+  );
+  expect(message.fileSource).toEqual({ kind: "local", id: "original-source" });
+});

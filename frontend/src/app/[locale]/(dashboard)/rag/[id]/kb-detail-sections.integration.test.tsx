@@ -132,6 +132,14 @@ function mockApi({
         ? Promise.reject(new Error("Bad gateway"))
         : Promise.resolve({ items: syncSources, total: syncSources.length });
     }
+    if (endpoint === `/kb/${KB_ID}/ingestion`) {
+      return Promise.resolve({
+        indexing_status: "complete",
+        processing_count: 0,
+        indexed_count: documents.length,
+        failed_count: 0,
+      });
+    }
     return Promise.resolve({ items: [], total: 0 });
   });
 }

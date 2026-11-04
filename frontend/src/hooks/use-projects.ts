@@ -15,6 +15,8 @@ import {
   listProjectChats,
   listProjectFiles,
   listProjects,
+  moveProjectPath,
+  moveProjectWorkspace,
   projectOfConversation,
   removeProjectPath,
   updateProject,
@@ -82,6 +84,8 @@ export function useProject(projectId: string) {
   const { data, isLoading, error } = useQuery({
     queryKey: qk.projects.detail(projectId),
     queryFn: () => getProject(projectId),
+    refetchInterval: (query) =>
+      ["queued", "running"].includes(query.state.data?.workspace_move?.status ?? "") ? 1500 : false,
     retry: false,
   });
 
@@ -105,7 +109,14 @@ export function useProject(projectId: string) {
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 
-  return { project: data ?? null, isLoading, error, update, remove };
+  const moveWorkspace = useMutation({
+    mutationFn: (target: string) => moveProjectWorkspace(projectId, target),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.projects.all() });
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+  return { project: data ?? null, isLoading, error, update, remove, moveWorkspace };
 }
 
 /** A path inside the project for a file being uploaded: a folder upload keeps its tree. */
@@ -186,6 +197,13 @@ export function useProjectFiles(projectId: string) {
     onSettled: refresh,
   });
 
+  const move = useMutation({
+    mutationFn: ({ source, destination }: { source: string; destination: string }) =>
+      moveProjectPath(projectId, source, destination),
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+    onSettled: refresh,
+  });
+
   const remove = useMutation({
     mutationFn: (path: string) => removeProjectPath(projectId, path),
     onSuccess: () => toast.success(t("removed")),
@@ -200,6 +218,7 @@ export function useProjectFiles(projectId: string) {
     upload,
     uploads,
     addFolder,
+    move,
     remove,
   };
 }

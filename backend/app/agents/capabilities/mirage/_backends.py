@@ -18,7 +18,7 @@ must never reach a person editing an agent:
 
 Addresses an author does type - an SSH host, a Postgres DSN, an IMAP server -
 are kept, and checked against `MIRAGE_ALLOWED_HOSTS` at publish and again when
-the mount is built (`_hosts.py`).
+the mount is built (`app.services.mirage_mounts`).
 
 A backend is **unavailable** when this deployment cannot run it, with the reason
 said rather than the backend left out: an author looking for S3 should read why
@@ -54,6 +54,9 @@ _HIDDEN_FIELDS = frozenset(
         "on_refresh_token_rotated",
         "identity_file",
         "known_hosts",
+        "embed",
+        "embedding_model",
+        "cloud_inference",
     }
 )
 """Endpoint overrides, host paths and callbacks, on every backend that has them."""
@@ -77,6 +80,9 @@ ADDRESS_FIELDS: Mapping[str, tuple[str, ...]] = {
     "postgres": ("dsn",),
     "redis": ("url",),
     "ssh": ("host", "hostname"),
+    "tidb_filesystem": ("host",),
+    "qdrant": ("url", "host"),
+    "langfuse": ("host",),
 }
 """Fields that name a host the deployment will connect to, by backend.
 
@@ -123,6 +129,8 @@ _GROUPS: Mapping[str, Group] = {
     "jaeger": "servers",
     "ssh": "servers",
     "ram": "scratch",
+    "qdrant": "data",
+    "langfuse": "servers",
 }
 
 _S3_FAMILY = frozenset(
@@ -150,9 +158,7 @@ UNAVAILABLE: Mapping[str, str] = {
         _S3_FAMILY,
         "Needs aioboto3, which pins boto3 below the version this deployment runs on.",
     ),
-    "qdrant": "Its client publishes no build for the Python this deployment runs.",
     "lancedb": "Not installed: it brings pyarrow, which is too heavy for the image.",
-    "langfuse": "Not installed: it would change the OpenTelemetry the platform traces with.",
     "disk": "It reads the server's own filesystem.",
     "box": "Box replaces its refresh token on every use, so a stored one stops working.",
 }
@@ -181,6 +187,8 @@ _TITLES: Mapping[str, str] = {
     "wandb": "Weights & Biases",
     "mem0": "Mem0",
     "ram": "Scratch folder",
+    "qdrant": "Qdrant",
+    "langfuse": "Langfuse",
 }
 
 

@@ -551,3 +551,141 @@ describe("sending", () => {
     expect(sockets()).toEqual([]);
   });
 });
+
+describe("buffered socket delivery", () => {
+  const event = (data = "delta") => new MessageEvent("message", { data });
+
+  it("refuses the old account's frames even before the replacement socket opens", () => {
+    const consume = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ identity }) =>
+        useWebSocket({
+          url: "wss://api/chat",
+          identity,
+          onMessageBatch: consume,
+        }),
+      { initialProps: { identity: "account-a" } },
+    );
+    act(() => result.current.connect());
+    act(() => latest().onmessage?.(event("buffered")));
+    rerender({ identity: "account-b" });
+    act(() => latest().onmessage?.(event("arrived before reconnect")));
+    act(() => vi.advanceTimersByTime(50));
+    expect(consume).not.toHaveBeenCalled();
+  });
+
+  it("batches messages on a paint and reads the current consumer", () => {
+    const first = vi.fn();
+    const next = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ consume }) => useWebSocket({ url: "wss://api/chat", onMessageBatch: consume }),
+      { initialProps: { consume: first } },
+    );
+    act(() => result.current.connect());
+    const one = event("one");
+    const two = event("two");
+    act(() => {
+      latest().onmessage?.(one);
+      latest().onmessage?.(two);
+    });
+    expect(first).not.toHaveBeenCalled();
+    rerender({ consume: next });
+    act(() => vi.advanceTimersToNextFrame());
+    expect(first).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledExactlyOnceWith([one, two]);
+  });
+
+  it.each(["close", "error"] as const)(
+    "flushes buffered frames before reporting a socket %s",
+    (kind) => {
+      const order: string[] = [];
+      const { result } = renderHook(() =>
+        useWebSocket({
+          url: "wss://api/chat",
+          onMessageBatch: () => order.push("frames"),
+          onClose: () => order.push("close"),
+          onError: () => order.push("error"),
+        }),
+      );
+      act(() => result.current.connect());
+      act(() => latest().onmessage?.(event()));
+      act(() => {
+        if (kind === "close") latest().drop(1000);
+        else latest().onerror?.(new Event("error"));
+      });
+      expect(order).toEqual(["frames", kind]);
+    },
+  );
+
+  it("discards buffered messages when its conversation scope changes", () => {
+    const consume = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ scope }) =>
+        useWebSocket({
+          url: "wss://api/chat",
+          messageScope: scope,
+          onMessageBatch: consume,
+        }),
+      { initialProps: { scope: "conversation-a" } },
+    );
+    act(() => result.current.connect());
+    act(() => latest().onmessage?.(event("old")));
+    rerender({ scope: "conversation-b" });
+    act(() => vi.advanceTimersByTime(50));
+    expect(consume).not.toHaveBeenCalled();
+    act(() => latest().onmessage?.(event("new")));
+    act(() => vi.advanceTimersToNextFrame());
+    expect(consume.mock.calls[0]![0][0].data).toBe("new");
+  });
+
+  it.each(["disconnect", "reopen", "replace", "unmount"] as const)(
+    "discards pending frames on %s",
+    (operation) => {
+      const consume = vi.fn();
+      const { result, rerender, unmount } = renderHook(
+        ({ url }) =>
+          useWebSocket({
+            url,
+            onMessageBatch: consume,
+          }),
+        { initialProps: { url: "wss://api/old" } },
+      );
+      act(() => result.current.connect());
+      const stale = latest().onmessage!;
+      act(() => stale(event("old")));
+      act(() => {
+        if (operation === "disconnect") result.current.disconnect();
+        else if (operation === "reopen") result.current.reopen();
+        else if (operation === "unmount") unmount();
+      });
+      if (operation === "replace") {
+        rerender({ url: "wss://api/new" });
+        act(() => result.current.connect());
+      }
+      // Even a callback already queued by the browser cannot cross a replaced
+      // socket, nor deliver after an intentional disconnect.
+      act(() => stale(event("late old")));
+      act(() => vi.advanceTimersByTime(50));
+      expect(consume).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not lose buffered frames when the consumer returns to immediate delivery", () => {
+    const consume = vi.fn();
+    const immediate = vi.fn();
+    const initialProps: { batch: ((events: readonly MessageEvent[]) => void) | undefined } = {
+      batch: consume,
+    };
+    const { result, rerender } = renderHook(
+      ({ batch }: { batch: ((events: readonly MessageEvent[]) => void) | undefined }) =>
+        useWebSocket({ url: "wss://api/chat", onMessageBatch: batch, onMessage: immediate }),
+      { initialProps },
+    );
+    act(() => result.current.connect());
+    const one = event();
+    act(() => latest().onmessage?.(one));
+    rerender({ batch: undefined });
+    act(() => vi.advanceTimersToNextFrame());
+    expect(immediate).toHaveBeenCalledExactlyOnceWith(one);
+  });
+});

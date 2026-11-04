@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -222,4 +222,18 @@ describe("useContextFile", () => {
     ).rejects.toThrow();
     expect(toastError).toHaveBeenCalledWith("stale");
   });
+});
+
+it("exposes a failed context detail read and recovers on retry", async () => {
+  const error = new Error("unavailable");
+  vi.mocked(apiClient.get)
+    .mockRejectedValueOnce(error)
+    .mockResolvedValue({ id: "c1", content: "body" });
+  const { result } = renderHook(() => useContextFile("c1"), { wrapper });
+  await waitFor(() => expect(result.current.error).toBe(error));
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.file?.content).toBe("body"));
+  expect(result.current.error).toBeNull();
 });

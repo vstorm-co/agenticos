@@ -3,20 +3,23 @@ import {
   PanelsTopLeft,
   Activity,
   Boxes,
-  FileText,
+  NotebookTabs,
   FolderKanban,
-  FolderOpen,
-  BookOpen,
-  Bot,
+  Files,
+  Inbox,
+  Waypoints,
+  BotMessageSquare,
   Building2,
-  Database,
+  LibraryBig,
   KeyRound,
   LayoutDashboard,
   MessageSquare,
   Network,
   Plug,
-  Repeat,
+  Workflow,
+  TimerReset,
   ShieldCheck,
+  Table2,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +53,8 @@ export type NavItem = {
   tabbed?: boolean;
   /** Lit on its own page only - a project's page lights the project's own row instead. */
   exact?: boolean;
+  /** A count beside the label: how much waits there. Only the inbox has one. */
+  count?: "inbox";
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -77,6 +82,14 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
+      // What the platform brought each person on its own (#2301): theirs, so ungated.
+      {
+        labelKey: "inbox",
+        href: ROUTES.INBOX,
+        icon: Inbox,
+        dataTour: "nav-inbox",
+        count: "inbox",
+      },
     ],
   },
   // Somebody's ongoing work: the projects they are in, most recent first, drawn
@@ -103,14 +116,26 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         labelKey: "agents",
         href: ROUTES.AGENTS,
-        icon: Bot,
+        icon: BotMessageSquare,
         permission: Perm.agentsView,
         dataTour: "nav-agents",
+      },
+      {
+        labelKey: "workflows",
+        href: ROUTES.WORKFLOWS,
+        icon: Workflow,
+        permission: Perm.workflowsView,
+        dataTour: "nav-workflows",
       },
       // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
       // the floor for seeing an agent's schedule; the create controls inside gate
       // further on `agents:run`, so a viewer sees the list without the buttons.
-      { labelKey: "routines", href: ROUTES.ROUTINES, icon: Repeat, permission: Perm.agentsView },
+      {
+        labelKey: "routines",
+        href: ROUTES.ROUTINES,
+        icon: TimerReset,
+        permission: Perm.agentsView,
+      },
       {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,
@@ -129,8 +154,15 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         labelKey: "knowledgeBases",
         href: ROUTES.RAG,
-        icon: Database,
+        icon: LibraryBig,
         permission: Perm.collectionsView,
+      },
+      {
+        labelKey: "tables",
+        href: ROUTES.TABLES,
+        icon: Table2,
+        permission: Perm.tablesView,
+        dataTour: "nav-tables",
       },
       {
         // Deliberately ungated. These are the files an agent kept *for the
@@ -139,10 +171,15 @@ export const NAV_GROUPS: NavGroup[] = [
         // an operator's authority.
         labelKey: "documents",
         href: ROUTES.DOCUMENTS,
-        icon: FolderOpen,
+        icon: Files,
       },
-      { labelKey: "skills", href: ROUTES.SKILLS, icon: BookOpen, permission: Perm.skillsView },
-      { labelKey: "context", href: ROUTES.CONTEXT, icon: FileText, permission: Perm.contextView },
+      { labelKey: "skills", href: ROUTES.SKILLS, icon: Waypoints, permission: Perm.skillsView },
+      {
+        labelKey: "context",
+        href: ROUTES.CONTEXT,
+        icon: NotebookTabs,
+        permission: Perm.contextView,
+      },
     ],
   },
   // What the organization is connected to. Set up once, revisited rarely, so

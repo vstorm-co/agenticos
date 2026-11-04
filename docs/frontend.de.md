@@ -1,5 +1,5 @@
 ---
-source_sha: "22652979b979"
+source_sha: "3b553bcc7ca4"
 ---
 
 # Der Code der Konsole { #the-consoles-code }
@@ -24,6 +24,21 @@ Playwright. Paketmanager und Runner: **bun**.
 
 Server Components sind der Default. `"use client"` ist für State, Effects und
 Handler da, nicht für die Gewohnheit.
+
+## Darstellung der Konsole { #console-presentation }
+
+Verwende `PageHeader` für kompakte Titel und Aktionen. Kartenkataloge verwenden
+`ListCard layout="grid"` ohne zusätzlichen Rahmen; Tabellen behalten ihr Panel.
+Aktionsschaltflächen nutzen neutrale `action`-Tokens, unabhängig von den
+`primary`-Tokens für aktivierte Steuerelemente und Badges. Fokus und
+Eingabefeldränder bleiben sichtbar.
+
+Personen und Organisationen verwenden `EntityAvatar`: Fotos werden kreisförmig
+zugeschnitten; Initialen auf einer stabilen Farbe dienen als Ersatz. Agenten
+behalten ihre generierten Gesichter. Katalogbeschreibungen belegen zwei Zeilen;
+beim Öffnen eines Eintrags erscheint die vollständige Beschreibung.
+
+Asynchrone Aktionen verwenden `Button loading`, damit Beschriftung und Abmessungen erhalten bleiben und wiederholtes Absenden verhindert wird. Dieser Zustand endet erst nach allen Schritten, einschließlich Uploads. Linkbasierte Schaltflächen behalten ein einzelnes Kind und blockieren die Aktivierung, solange sie nicht verfügbar sind. Steuerelemente teilen einen einheitlichen Tastaturfokus und kompakte Desktop-Größen; bei ausreichend Platz sind Touch-Ziele 44px groß. Overlays animieren von ihrem Anker aus; Tooltips umbrechen innerhalb des Fensters. Kalenderüberschriften folgen der Konsolensprache, und Fortschrittsanzeigen melden tatsächlichen Wert und Höchstwert an assistive Technologien. Animationen beachten die Motion-Einstellung der Person.
 
 ## Der Browser ruft nie das Backend auf { #the-browser-never-calls-the-backend }
 
@@ -53,6 +68,26 @@ konsumiert.** Kein `fetch` in einer Komponente.
 Serverdaten wohnen in der Query-Schicht; **Stores halten nur UI- und flüchtigen
 State**. Registrieren Sie jeden Query Key in `query-keys.ts`, damit die
 Invalidierung nach einem Schreibvorgang konsistent bleibt.
+
+## Chatverlauf und Stream-Aktualisierungen { #chat-history-and-streamed-updates }
+
+Die Konsole öffnet die neueste Transcript-Seite und lädt frühere Nachrichten auf
+Anforderung. Projekt-Chips lesen `/conversations/{id}/metadata` mit denselben
+Leser- und Organisationsprüfungen, ohne Nachrichten zu laden. Repository-Lesezugriffe
+lassen die gespeicherte Modellzusammenfassung aus, sofern die Rekonstruktion des
+Modellverlaufs sie nicht ausdrücklich anfordert.
+
+Chat-Sockets liefern Nachrichtenserien einmal pro Animationsframe, mit einem
+50-ms-Fallback für verborgene Tabs und einer Warteschlangengrenze von 256 Frames.
+Benachbarte Text- oder Denk-Deltas werden zusammengefasst; Steuerungs-, Tool- und
+Teilgrenzen behalten ihre Reihenfolge. Ein Wechsel von Unterhaltung, Konto oder
+Organisation verwirft gepufferte Frames.
+
+Unverändertes Markdown und Tool-Ausgaben werden wiederverwendet. Das Scrollen folgt
+dem gemessenen Inhaltswachstum. Fertige Zeichnungen werden nahe dem Viewport
+eingebunden und außerhalb entfernt, behalten aber ihren gemessenen Platz; bei der
+Rückkehr starten ihre Skripte neu. Gestreamte Zeichnungen bleiben aktiv, und der
+Vollbildmodus pausiert die Inline-Kopie.
 
 ## Permissions sind eine Rendering-Entscheidung { #permissions-are-a-rendering-decision }
 

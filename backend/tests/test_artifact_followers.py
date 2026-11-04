@@ -8,7 +8,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactMediaType, ArtifactVersion
+from app.db.models.artifact import (
+    Artifact,
+    ArtifactFollower,
+    ArtifactMediaType,
+    ArtifactVersion,
+    ConsentState,
+)
 from app.db.models.notification import Notification, NotificationEventType
 from app.db.models.resource_grant import Visibility
 from app.services import artifact as artifacts
@@ -47,6 +53,9 @@ def _version(artifact: Artifact, *, number: int = 1, sha: str = "0") -> Artifact
         size_bytes=20,
         sha256=sha * 64,
         storage_path="artifacts/x.html",
+        bindings=[],
+        actions=[],
+        consent_state=ConsentState.NOT_NEEDED.value,
         run_id=None,
         created_at=datetime(2026, 9, 22, tzinfo=UTC),
     )
@@ -146,6 +155,7 @@ class TestWhatIsANewVersion:
                 ),
             ),
             patch(f"{PATH}._prune", new=AsyncMock()),
+            patch(f"{PATH}.on_new_version", new=AsyncMock()),
             patch(f"{PATH}.record_audit", new=AsyncMock()),
             patch(f"{PATH}.get_file_storage", return_value=storage),
             patch(f"{PATH}.artifact_repo.follower_ids", new=AsyncMock(return_value=[uuid.uuid4()])),
@@ -211,7 +221,10 @@ class TestTheInboxChecksAgain:
         self, notice: Notification, *, artifact: Artifact | None, readable: bool
     ) -> bool:
         with (
-            patch(f"{CENTER}.artifact_repo.get", new=AsyncMock(return_value=artifact)),
+            patch(
+                f"{CENTER}.artifact_repo.get_by_ids",
+                new=AsyncMock(return_value=[] if artifact is None else [artifact]),
+            ),
             patch(f"{CENTER}.resolve_access", new=AsyncMock(return_value=readable)),
         ):
             gate = await NotificationCenterService(MagicMock()).gate_for(self._ctx(), notice)
@@ -266,3 +279,35 @@ async def test_a_key_changes_nobody_s_follows(change: str) -> None:
 
     follow.assert_not_awaited()
     unfollow.assert_not_awaited()
+
+
+class TestAVersionWaitingForConsent:
+    async def test_a_pending_version_tells_nobody_until_the_owner_consents(self) -> None:
+        """Followers are served the version before it, so a notice would send them to nothing new."""
+        artifact = _artifact()
+        version = _version(artifact, number=3)
+        version.consent_state = ConsentState.PENDING.value
+        told = AsyncMock()
+        with (
+            patch(f"{PATH}.artifact_repo.create_version", new=AsyncMock(return_value=version)),
+            patch(f"{PATH}.artifact_repo.update", new=_apply),
+            patch(f"{PATH}.on_new_version", new=AsyncMock()),
+            patch(f"{PATH}._prune", new=AsyncMock()),
+            patch(f"{PATH}._notify_followers", new=told),
+        ):
+            await artifacts._append_version(
+                MagicMock(),
+                artifact,
+                _version(artifact, number=2),
+                media_type="html",
+                size_bytes=1,
+                sha256="0" * 64,
+                storage_path="x",
+                run_id=None,
+                bindings=[],
+                actions=[],
+                consent=MagicMock(),
+                actor_user_id=None,
+            )
+
+        told.assert_not_called()

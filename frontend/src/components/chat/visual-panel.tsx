@@ -65,6 +65,7 @@ import {
 import type { ChatMessage, ToolCall } from "@/types";
 import { copySvgImage, downloadVisual, svgPng } from "./visual-actions";
 import { VisualFrame } from "./visual-frame";
+import { ViewportVisualFrame } from "./viewport-visual-frame";
 import { VisualSaveDialog } from "./visual-save-dialog";
 import { VisualZoom } from "./visual-zoom";
 
@@ -500,7 +501,8 @@ function VisualPanel({ call }: { call: ToolCall }) {
             !done && "bg-foreground/[0.03]",
           )}
         >
-          <VisualFrame
+          <ViewportVisualFrame
+            suspended={full}
             key={frameKey}
             kind={shown.kind}
             title={shown.title}

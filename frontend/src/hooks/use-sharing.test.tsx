@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSharing } from "./use-sharing";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
+import { toast } from "sonner";
 import type { ResourceSharing } from "@/types/sharing";
 
 vi.mock("@/lib/api-client", () => ({
@@ -146,6 +148,49 @@ describe("useSharing", () => {
     expect(client.getQueryState(["agents", "a1"])?.isInvalidated).toBe(false);
   });
 
+  it("leaves an open artifact's page and live data alone when its visibility changes", async () => {
+    // Who else may open it changes nothing the viewer is reading, so the page
+    // is not minted again - which would blank a live page while it reloads.
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    for (const key of [
+      ["artifacts", "r1", "view", "current"],
+      ["artifacts", "r1", "data", "v1"],
+      ["artifacts", "r1", "versions"],
+      ["artifacts", "r2", "view", "current"],
+    ]) {
+      client.setQueryData(key, {});
+    }
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("artifact", "r1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    const stale = (key: string[]) => client.getQueryState(key)?.isInvalidated;
+    expect(stale(["artifacts", "r1", "view", "current"])).toBe(false);
+    expect(stale(["artifacts", "r1", "data", "v1"])).toBe(false);
+    expect(stale(["artifacts", "r1", "versions"])).toBe(true);
+    expect(stale(["artifacts", "r2", "view", "current"])).toBe(true);
+  });
+
+  it("marks a table's own queries stale when its visibility changes", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...SHARING, visibility: "org" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["tables", "t1"], { id: "t1", visibility: "private" });
+    const own = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSharing("table", "t1"), { wrapper: own });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    expect(client.getQueryState(["tables", "t1"])?.isInvalidated).toBe(true);
+  });
+
   it("marks the resource's own queries stale on a grant and a revoke too", async () => {
     // A project's header names the groups it reaches, read off the project: after
     // a group share it went on naming the old audience until something refetched.
@@ -231,5 +276,71 @@ describe("useSharing", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(apiClient.get).toHaveBeenCalledWith("/kb/c1/sharing");
+  });
+});
+
+describe("useSharing for a page whose data needs its owner's say", () => {
+  const DEFERRED = { status: "requested", request_id: "req1", waiting_for: "Olga Owner" };
+  const needsConsent = new ApiError(409, "Confirm the page's data before sharing it", {
+    error: { code: "CONSENT_REQUIRED", message: "Confirm", details: null },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockResolvedValue({ ...SHARING, resource_type: "artifact" });
+  });
+
+  it("says who a share's request waits on, and does not report it as shared", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue(DEFERRED);
+    const { result } = renderHook(() => useSharing("artifact", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share.mutateAsync({ subject_user_id: "u-sam", level: "read" });
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Request sent to Olga Owner"));
+    expect(toast.success).not.toHaveBeenCalledWith("Sharing updated");
+  });
+
+  it("says so when nobody is left to decide a visibility request", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue({ ...DEFERRED, waiting_for: null });
+    const { result } = renderHook(() => useSharing("artifact", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setVisibility.mutateAsync("org");
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Request sent. Nobody can approve it yet."),
+    );
+    expect(toast.success).not.toHaveBeenCalledWith("Visibility updated");
+  });
+
+  it("hands missing consent to the caller instead of a toast", async () => {
+    vi.mocked(apiClient.put).mockRejectedValue(needsConsent);
+    vi.mocked(apiClient.patch).mockRejectedValue(needsConsent);
+    const onConsentRequired = vi.fn();
+    const { result } = renderHook(() => useSharing("artifact", "a1", { onConsentRequired }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share
+      .mutateAsync({ subject_user_id: "u-sam", level: "read" })
+      .catch(() => undefined);
+    await result.current.setVisibility.mutateAsync("org").catch(() => undefined);
+
+    await waitFor(() => expect(onConsentRequired).toHaveBeenCalledTimes(2));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("toasts the refusal when nobody offered a way through", async () => {
+    vi.mocked(apiClient.put).mockRejectedValue(needsConsent);
+    const { result } = renderHook(() => useSharing("artifact", "a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.share
+      .mutateAsync({ subject_user_id: "u-sam", level: "read" })
+      .catch(() => undefined);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
   });
 });

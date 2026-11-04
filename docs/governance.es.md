@@ -1,5 +1,5 @@
 ---
-source_sha: "5931b7688a5d"
+source_sha: "c8babc3ac8d9"
 ---
 
 # Governance { #governance }
@@ -501,6 +501,78 @@ Una llamada cuyo proceso murió la cierra el barrido de voz con el coste que
 registró su último heartbeat, a diferencia de un run de texto, cuyo gasto muere
 con su proceso.
 
+### Trabajo por iniciativa propia { #proactive-work }
+
+Las ejecuciones proactivas se atribuyen al agente inicial **AgenticOS**
+publicado de la organización (slug `agenticos`). Esta asociación está fijada por
+la plataforma; no selecciona el modelo ni ejecuta las instrucciones del agente
+inicial.
+
+El modelo independiente y los límites se eligen en **Organizaciones →
+Miembros → Proactividad**. Activity muestra el icono y filtro **Proactivo**, las
+solicitudes al modelo y sus costes, y el intercambio registrado con resultados
+de herramientas y respuesta estructurada final. Las comprobaciones fallidas
+conservan el intercambio disponible antes del error. Como los demás registros
+de Activity, requieren `runs:view` y no crean conversaciones en Chat. No se
+pueden recuperar intercambios antiguos que nunca se registraron; los registros
+demasiado grandes indican explícitamente que se recortaron.
+
+El campo del modelo usa el mismo selector de proveedor, modelo y clave del
+Vault que el Builder de agentes. Con `connections:manage`, una persona puede
+crear un perfil de modelo allí; sin ese permiso, elige un perfil existente.
+El perfil nuevo se guarda inmediatamente. **Guardar** aplica la selección a las
+sugerencias nocturnas y los watches de la organización, que comparten este
+modelo y el límite por persona.
+
+La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
+hasta que una organización lo activa: la tarjeta **Proactividad** en su página de
+miembros (`budgets:manage`). Activada, una tarea en segundo plano lee las
+peticiones recientes de cada persona los días y a la hora que eligió la
+organización - en la zona horaria de cada persona, o una hora antes del horario
+laboral que indica su perfil - y propone una rutina para una petición que repite,
+un perfil o los primeros mensajes que ofrece su chat vacío
+([Consola](console.md#chat)).
+
+Cada uno es una llamada al modelo, con el modelo
+que la organización eligió al activarla (no hay uno por defecto:
+`proactive_model_profile_id` es obligatorio), registrada en el historial de runs
+como un run de la superficie **proactive** y contada contra el budget de la
+organización como cualquier otra. Una persona puede excluirse en **Ajustes →
+Asistente**.
+
+Además, los runs por iniciativa propia de cada persona en un mes natural los
+limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por
+defecto, que se fija en la misma tarjeta (`proactive_limit_usd`). Una persona a la
+que no le pasó nada nuevo no cuesta nada: la tarea solo llama al modelo cuando hay
+algo que leer.
+
+Las **vigilancias** apuntan el mismo trabajo a las conexiones propias de una
+persona. Se activan aparte en la misma tarjeta (`proactive_watches_enabled`),
+con el mismo modelo y dentro del mismo límite. Una persona crea una con **New
+watch** en **Rutinas**, donde una tarjeta de vigilancias muestra cada una con
+cuándo revisó por última vez y cuántos de sus hallazgos esperan, o con **Watch**
+junto a **Tools** de la cuenta en la página de servidores MCP.
+
+Elige una de sus propias conexiones MCP - cualquier servidor que haya conectado
+- y dice qué buscar - una vigilancia hecha para ese servidor o sus propias
+palabras - y cada cuánto, nunca más a menudo de lo que permite la organización
+(`proactive_watch_min_minutes`, cada hora por defecto).
+
+Cada revisión es un run de la superficie **proactive** al que solo se le ofrecen
+las herramientas que el servidor marca como de solo lectura (`readOnlyHint`), así
+que una vigilancia nunca cambia nada en la cuenta. Lo que encuentra es solo de la
+persona: una sugerencia de tipo `finding`, con la clave del id propio del
+elemento para que se avise una vez, con un enlace para abrirlo. Un hallazgo de
+una vigilancia configurada para avisar lo urgente al momento, que el modelo
+también juzgó urgente, se envía enseguida como notificación; el resto espera a su
+[briefing](console.md#the-inbox) de la mañana. A diferencia de una rutina, una vigilancia calla cuando no hay nada nuevo.
+
+La misma tarjeta tiene el **mensaje de bienvenida**, desactivado por defecto y
+sujeto a `org:settings`: un mensaje directo de los bots de Slack, Teams y
+Mattermost de la organización a un miembro nuevo, con las palabras de la
+organización si las escribió (`{organization}`, `{bot}` y `{url}` se rellenan) o
+el saludo incorporado en su idioma.
+
 ### Qué muestra el historial de runs { #what-run-history-shows }
 
 **`GET /runs` lista solo runs de nivel superior, y su `total` cuenta esos.** El
@@ -686,7 +758,7 @@ controles en una fila ya resuelta.
 | Parámetro | |
 |---|---|
 | `status` | Se repite. Ausente significa pendientes — la cola |
-| `triggered_by_user_id` | De quién son los runs que aparcaron la llamada. Se lee de `agent_runs`: una aprobación pertenece a un run y un run pertenece a una persona |
+| `triggered_by_user_id` | De quién son los runs que aparcaron la llamada. Se lee de `agent_runs`: una aprobación pertenece a un run y un run pertenece a una persona. Deja fuera los runs en que el publicador sustituyó a una cuenta de chat sin enlazar; esas filas llevan en su lugar `asked_in_chat` (plataforma, nombre y bot), y sus campos `triggered_by_*` quedan vacíos |
 | `created_from`, `created_to` | Cuándo se aparcó la llamada, inclusive por ambos extremos |
 | `oldest_first` | Por defecto verdadero, y el valor por defecto es determinante — mira arriba: nada hace caducar una llamada, así que el orden inverso enterraría la fila que más necesita verse |
 
@@ -893,7 +965,7 @@ las rutas de listado no tienen por qué responder:
   nombres resueltos es la tabla por persona que rechazó la decisión 3 del diseño de
   actividad, llegando como descarga. La cola de aprobaciones ya resuelve en pantalla
   los correos de quien disparó y quien decidió, así que la exportación de aprobaciones
-  los conserva.
+  los conserva. También lleva el nombre visible o el handle de un desconocido del chat, tal como lo muestra la cola, en tres columnas: `asked_in_chat_platform`, `asked_in_chat_account` y `asked_in_chat_bot`. En esa fila las dos columnas de correo quedan vacías, porque el publicador no preguntó.
 - **Auditoría.** Cada exportación escribe una entrada de `audit_log` — una lectura
   masiva privilegiada, barata de registrar ahora e imposible de reconstruir después.
   Nombra la ventana, los filtros aplicados y el número de filas, nunca el cuerpo de la
@@ -1052,7 +1124,7 @@ sequenceDiagram
     end
 ```
 
-Cuatro propiedades que conviene conocer:
+Cinco propiedades que conviene conocer:
 
 - **Un run aparcado es reanudable.** Su historial de mensajes está guardado, así que
   la decisión se aplica a la conversación a la que pertenece en lugar de empezar de
@@ -1091,14 +1163,26 @@ Cuatro propiedades que conviene conocer:
   modelo eliminado, una capability caída en un despliegue, una conexión MCP dejada de
   compartir. El spec se ensambla antes de que el run salga de la cola de aprobaciones,
   así que un rechazo ahí rechaza el *intento*: la decisión se mantiene y reanudar
-  vuelve a funcionar en cuanto el spec funcione.
+  vuelve a funcionar en cuanto el spec funcione. Un run planteado en un chat que nadie
+  continuó lo termina la red de seguridad aproximadamente una hora después de su
+  última decisión.
+- **Quién continúa un run planteado en un chat.** La decisión de una persona en la
+  consola, en el chat web o por la API continúa el run en su chat, como ella, y la
+  respuesta se publica allí; la decisión de una clave se registra y no continúa
+  nada. Una continuación puede perderse o ser rechazada, y entonces el run espera en
+  `awaiting_approval` sin nada pendiente. La red de seguridad horaria termina un run
+  de canal así `STRANDED_AFTER` (una hora) después de su última decisión y se lo dice
+  al chat una vez - no cuando la decisión tiene más de 7 días, ni cuando el chat ya
+  lo supo. Solo mira runs de canal. Véase
+  [Decidido fuera del chat](channels.md#decided-outside-the-chat).
 - **Una aprobación resuelta no se puede decidir dos veces.** La segunda decisión se
   rechaza — incluida una decisión que llegue un segundo después de que el barrido de
   caducidad se llevara la llamada.
 - **Una llamada aparcada se deniega por tiempo en cuanto pasa de
   `APPROVAL_EXPIRY_HOURS`**, y el run que hay detrás se resuelve en vez de quedar
   aparcado para siempre. El estado es `expired` con un `decided_by_user_id` nulo, que
-  es lo que distingue una caducidad de un rechazo en el rastro de responsabilidad. La
+  es lo que distingue una caducidad de un rechazo en el rastro de responsabilidad. Un run planteado en un chat también le
+  dice una vez al chat que la petición caducó. La
   página Activity sigue mostrando la **edad** de la espera más antigua, porque una cola
   dentro de su ventana de caducidad es aquella sobre la que alguien todavía puede
   actuar.
@@ -1123,6 +1207,20 @@ Cuatro propiedades que conviene conocer:
   deliberado: un agent que llevaba tiempo funcionando así se detiene, con un mensaje
   que dice qué cambiar. Lo que se detiene es un agent cuyo operador pidió una
   aprobación que nunca se le estaba pidiendo a nadie.
+- **Una llamada aparcada puede nombrar lo que representan sus ids.** Una
+  herramienta puede describir su propia llamada: las escrituras en tablas dan el
+  nombre de la tabla. Nunca
+  se nombra un registro, porque la etiqueta de un registro es el texto de una de
+  sus celdas, y la aprobación la conservaría. Los nombres se resuelven como la
+  persona del run cuando la llamada se aparca, así que no se nombra nada que esa
+  persona no pueda ver, y se guardan en la aprobación como `context`. La tarjeta
+  del chat y la página Approvals empiezan con una frase construida a partir
+  de ellos, como "Share the view Closed tickets of Support with everyone who may
+  read the table", encima de los argumentos, que siguen siendo lo que se ejecuta.
+  La frase se encuentra por el id estable de la herramienta, así que una
+  herramienta que un binding renombró la conserva. Una descripción que falla o
+  tarda aparca la llamada sin ella, y una llamada que un run reanudado ya decidió
+  no se vuelve a describir.
 - **Un solo paso de modelo puede aparcar varias llamadas.** Un modelo que responde con
   dos llamadas con efectos externos a la vez — "escribe al cliente y al gestor de
   cuenta" — aparca ambas, cada una con su propia fila de aprobación decidida por
@@ -1255,8 +1353,13 @@ La fila de un run se confirma como `running` antes de llamar a su modelo
 que no drena — deja una fila duradera sin nada que la termine: en Activity para
 siempre, y bloqueando cualquier horario del que fuera el run enlazado de su trigger.
 
-Un barrido cada hora termina como **`failed`** todo lo que siga en `running` pasadas
-`STALE_RUN_REAPED_AFTER_HOURS` — seis horas por defecto, cero lo apaga. Nadie detuvo
+Mientras su modelo trabaja, el proceso que ejecuta un run lo marca como vivo cada
+`RUN_HEARTBEAT_SECONDS`. Un barrido cada minuto termina como **`failed`** todo lo
+que siga en `running` sin señal de vida durante `STALE_RUN_REAPED_AFTER_SECONDS` —
+dos minutos por defecto, cero lo apaga — y avisa a las consolas abiertas, así que
+un chat deja de mostrar "Working" sobre un turno que nadie responde y ofrece
+preguntar de nuevo. El run de una llamada de voz queda para el reaper de llamadas,
+que la cuelga. Nadie detuvo
 este run, lo hizo la infraestructura, y quien filtra el historial de runs buscando
 problemas es exactamente quien debería verlo.
 
@@ -1344,6 +1447,73 @@ delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
     ejecutadas dentro del proveedor del modelo no pasan por la puerta de
     aprobación local.
 
+### Un paso de workflow que pregunta a una persona { #workflow-step-approvals }
+
+Un workflow pregunta con un paso [`human.approval`](reference/workflow-nodes.md#human-approval)
+en lugar de una herramienta protegida: el paso escribe su propia solicitud - un
+título, los detalles que recibió, quién puede decidir y hasta cuándo - y su run la
+espera. La pestaña **Approvals** las lista encima de las llamadas a herramientas, y
+decidir una despierta el run, que sigue según la respuesta.
+
+Una decisión es
+definitiva y queda en el registro de auditoría junto con lo que se preguntó, y sigue listada en **Decided** junto al registro de
+las llamadas a herramientas. Un
+paso que nombra a quienes aprueban solo puede decidirlo esa gente. Una solicitud
+que nadie decide a tiempo caduca, y un run cancelado cancela sus solicitudes.
+
+Un paso `editable` también muestra a quien aprueba una propuesta, como una
+respuesta redactada, que puede cambiar antes de aprobarla. La entrada de auditoría
+registra si el paso era editable, si la persona lo editó (`edited`) y la longitud
+de la propuesta y del texto aprobado (`proposal_length`, `final_length`), nunca el
+texto en sí. El texto se guarda en texto plano en la solicitud hasta que se borra
+el historial del run.
+
+Las solicitudes también se cuentan. La tarjeta Stats de un workflow y su API de
+estadísticas informan, por paso y por día, cuántas se aprobaron como se propuso, se
+editaron, se rechazaron o caducaron, cuánto tardaron las personas en decidir y cuánto
+cambiaron sus ediciones el texto, cada una como una razón de `0` a `1` (`edit_ratio`,
+también en la entrada de auditoría); véase
+[Running a workflow](workflows.md#running-a-workflow). El resumen de toda la
+organización, `GET /api/v1/workflow-approvals/stats`, requiere `workflows:view` y solo
+abarca los workflows que el miembro puede ver. No contiene ni la propuesta ni el texto
+aprobado ni cifra alguna de quien aprueba: cuenta solicitudes, no personas.
+
+### Entradas de artefactos { #artifact-entries }
+
+Una página que lee datos de tabla se comparte con el consentimiento de su propietario, y
+cada paso de eso deja una entrada con la persona que lo dio. Ninguna lleva un registro, un
+valor de filtro ni una fila: contienen versiones, huellas, ids de solicitud y las palabras
+que una persona confirmó.
+
+| Acción | Se registra cuando |
+|---|---|
+| `artifact.published` | Se publicó una versión, con su número, la huella de sus page queries y `actions`, los ids de los workflows que declara |
+| `artifact.data_consented` | El propietario confirmó los datos de una versión, o se consintió automáticamente (`automatic`). Nombra la versión y la huella, `for_owner` cuando un Owner o Admin confirmó por él, y `via_grant` cuando lo dio una concesión `edit_data` |
+| `artifact.data_withdrawn` | Un editor dejó de compartir los datos de la página; nombra la versión que se servía a la audiencia, si el consentimiento automático estaba activo y cuántas concesiones `edit_data` bajó a `edit` |
+| `artifact.auto_consent_changed` | El propietario activó o desactivó «Share new versions automatically», con el texto que confirmó |
+| `artifact.edit_data_granted` | El propietario, o un Owner o Admin, dio a una persona o a un grupo «Can edit, including data», con el texto que confirmó |
+| `artifact.owner_changed` | Una página cambió de manos: el propietario anterior y el nuevo, quién lo hizo y las concesiones `edit_data` que se descartaron |
+| `artifact.share_requested` | Se presentó una solicitud — de tipo `audience`, `access` o `version` — por una persona o por el run de su agent |
+| `artifact.share_request_approved` y `artifact.share_request_declined` | Se decidió una solicitud, y quién |
+| `organization.public_live_data_changed` | Un Owner o Admin activó o desactivó **Public pages with live data** para la organización, con el valor anterior y el nuevo |
+| `artifact.public_data_consented` | El propietario, o un Owner o Admin en su nombre, confirmó que cualquiera con el enlace público de la página, y los sitios web que la incrustan, puede leer sus datos. Nombra la versión, la huella, las tablas y columnas, los sitios web que incrustan y si hay una contraseña, y `for_owner` cuando alguien lo confirmó en su nombre |
+| `artifact.public_data_withdrawn` | Un editor retiró ese consentimiento, con la sesión iniciada como uno mismo (sin suplantar), con la huella que tenía |
+| `artifact.public_data_voided` | El consentimiento se borró porque cambió algo de lo que dependía, con un `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` o `archived` |
+| `artifact.action_started` | Un miembro confirmó e inició un workflow desde la acción de una página. Nombra la página, la versión, el workflow y el run, nunca los valores de entrada, que están en el run |
+
+**Public pages with live data** es un ajuste de la organización, desactivado por defecto, en los
+ajustes de la organización junto a la exención de aprobación. Decide si los datos de una página
+pueden llegar a personas sin cuenta mediante un enlace público o un embed. A diferencia de la
+exención, requiere `org:settings` - Owner o Admin - y debe cambiarse con la sesión iniciada como
+uno mismo: una sesión que suplanta se rechaza. La página sigue necesitando el
+[consentimiento de datos públicos](artifacts.md#live-data-on-a-public-link) de su propietario.
+Desactivar el interruptor es un interruptor de emergencia: las páginas públicas pierden sus datos en
+la siguiente carga y conservan su consentimiento, que vuelve a valer cuando se activa de nuevo.
+
+Ampliar la visibilidad o las concesiones de una página se registra como entradas
+`resource.share`, `resource.unshare` y `resource.visibility_changed`, como en cualquier otro
+recurso. La herramienta `share_view` ya no existe, y con ella la aprobación que la protegía.
+
 ## Alertas { #alerts }
 
 Cada alerta de aquí trata de un run que nadie está mirando. Un run de chat que se
@@ -1363,13 +1533,22 @@ un relay SMTP caído — sin que el otro se entere jamás.
 
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
-las aprobaciones y apagar su correo, o al revés. La misma página lleva además
+las aprobaciones y apagar su correo, o al revés.
+
+Las solicitudes para compartir páginas y los cambios de propietario nombran la página y la persona, nunca sus datos.
+
+La misma página lleva además
 cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que **falla**, la cifra propia de un
+desatendido - el final de una rutina con su nombre y el comienzo de su
+respuesta, para quien la configuró -, la petición de activar una capability,
+para el propietario del agent, la ingesta de un documento que **falla**, la cifra propia de un
 ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
+
+Llegan también las propuestas que el [trabajo por iniciativa
+propia](#proactive-work) hizo para una persona.
 
 Un documento que se indexó limpiamente no escribe nada, y es deliberado. Antes
 escribía una fila cada uno, lo que en el caso corriente — una carpeta de
@@ -1446,6 +1625,12 @@ sordo al segundo.
 | **Budget** | este agent alcanzó su propio tope mensual | los admins y el dueño del agent |
 | **Approvals** | una llamada a herramienta se aparcó | quien inició el run, más los admins |
 | **Usage** | semanal y mensual, lo que gastó este agent | apagada |
+
+El log de un workflow tiene alertas propias, que se fijan en la página Logs del workflow
+y no en una spec; ver [Alertas](workflows.md#log-alerts). Se disparan cuando las líneas
+coincidentes de una regla alcanzan su umbral dentro de su ventana, y van al propietario
+del workflow salvo que la regla diga otra cosa. Siguen las mismas preferencias de campana
+y correo que el resto de esta sección, en **Workflow log alerts**.
 
 Una audiencia es una lista de roles, no de direcciones:
 
@@ -1692,6 +1877,13 @@ Se configura en **Organizaciones → un workspace → Miembros → Retención**,
 protegido por `org:settings`. Un barrido corre una vez al día y **borra de
 verdad**: una política que conservara las filas no sería una política.
 
+Los datos de [Virtual Tables](virtual-tables.md#limits-and-retention) entran en el mismo
+barrido, con plazos de todo el deployment que ninguna organización fija: los receipts de
+idempotencia a las 24 horas, las filas de outbox despachadas a los 3 días y el history de
+un registro a los 365 días, que es también lo que elimina el history de un registro
+borrado. La entrada que escribe nombra `table_receipts`, `table_outbox` o `table_history` y
+un recuento.
+
 Los tres números propios del despliegue —`retention_defaults`,
 `retention_max_days` y `audit_retention_floor_days`— son campos de los ajustes
 del despliegue, escritos por una app admin con `PATCH /admin/deployment-settings`
@@ -1702,10 +1894,10 @@ ellos; la página de la organización es donde se fijan los periodos por tenant.
 
 | Clase | Qué se va con ella | Medido desde |
 |---|---|---|
-| Conversaciones | Mensajes, llamadas a herramientas y los archivos de chat colgados de ellos — los bytes **antes** que las filas, de modo que un archivo que no se pudo desenlazar conserva su fila para la siguiente pasada en vez de sobrevivirla sin que nada pueda encontrarlo | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
+| Conversaciones | Mensajes, llamadas a herramientas y archivos; un lote bloqueado excluye conversaciones con runs sin terminar, y la tarea duradera de borrar archivos se confirma junto con las filas | La última actividad del hilo, para que uno al que alguien vuelve no sea viejo |
 | Runs | La fila del run, su manifiesto y sus aprobaciones de herramientas | El inicio del run |
 | Workspaces | El registro que la plataforma tiene de los archivos de un agente. Con el backend `state` la fila *es* el almacenamiento; los archivos de un backend de sandbox los recoge el TTL del propio sandbox. Los de un proyecto se conservan mientras exista el proyecto | El último uso |
-| Aplicaciones | Una [página publicada](artifacts.md) con todas sus versiones, sus bytes almacenados (**antes** que las filas, como en las conversaciones), sus grants y su enlace público | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
+| Aplicaciones | Una [página publicada](artifacts.md), todas sus versiones, grants y enlace público; el borrado de archivos se encola en la misma transacción | La última publicación, para que un informe que una programación vuelve a publicar no sea viejo |
 | Memoria | Los archivos de memoria de un agente | La última escritura, porque una nota se escribe una vez y se lee durante meses |
 | Documentos subidos | La fila, sus vectores y el archivo subido | El momento de la subida |
 | Auditoría | Entradas en el rastro de esta organización | El momento de la entrada |
@@ -1782,6 +1974,11 @@ Los borrados van en lotes de 500, hasta cuarenta pasadas por clase y barrido. Un
 organización que llega a una política de noventa días tras dos años se quita el
 atraso a lo largo de varios días, en vez de en un barrido que retiene un bloqueo
 durante una hora con todos los demás flujos periódicos haciendo cola detrás.
+
+Cada clase usa un savepoint: un error SQL revierte sus cambios y tareas de
+limpieza sin abortar las clases siguientes. Las tareas duraderas borran los
+archivos tras el commit. Los fallos del almacenamiento y los reintentos aparecen
+en Background jobs. Revertir el borrado conserva los archivos intactos.
 
 ### Adónde no llega { #what-this-does-not-reach }
 

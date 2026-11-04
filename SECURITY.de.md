@@ -1,4 +1,4 @@
-<!-- source_sha: c911383112ac -->
+<!-- source_sha: 471d6c338ae3 -->
 
 # Sicherheit
 
@@ -44,7 +44,12 @@ ausliefern, und ihre Lizenzen in [Lizenzen](docs/licenses.de.md).
 - [ ] Die Rate Limits auf jeder öffentlichen Oberfläche prüfen — das Limit an
       Nachrichten je Besucher beim Embed-Widget und das `rate_limit_rpm` je
       Absender bei jedem Channel-Bot. Die Routen der Konsole selbst werden nicht
-      gemessen.
+      gemessen, außer Schreibzugriffen auf Virtual Tables, die auf
+      `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` angerechnet werden.
+- [ ] Die Limits der Virtual Tables (`TABLES_MAX_PER_ORGANIZATION`,
+      `TABLES_MAX_RECORDS_PER_TABLE`, `TABLES_MAX_RECORD_BYTES`) und die Aufbewahrung von
+      Receipts, Outbox und History (`TABLES_RECEIPT_TTL_HOURS`,
+      `TABLES_OUTBOX_RETENTION_DAYS`, `TABLES_HISTORY_RETENTION_DAYS`) prüfen.
 - [ ] Hinter einem Proxy oder CDN `RATE_LIMIT_TRUST_FORWARDED_FOR=true` setzen
       **und** sicherstellen, dass die API nicht zusätzlich direkt erreichbar ist
       — sonst teilen sich alle Besucher einen Bucket, oder der Header lässt sich

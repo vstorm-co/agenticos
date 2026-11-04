@@ -54,6 +54,11 @@ class KnowledgeBaseCreate(AudienceChoice):
             "then supplies."
         ),
     )
+    embedding_base_url: str | None = Field(
+        default=None,
+        max_length=2048,
+        description="OpenRouter embedding API endpoint. Omitted preserves the existing endpoint on update; explicit null restores the global endpoint. Custom endpoints require connections:manage.",
+    )
     embedding_endpoint_id: UUID | None = Field(
         default=None,
         description=(
@@ -113,6 +118,11 @@ class KnowledgeBaseUpdate(BaseSchema):
             "no deployment-wide key to fall back to."
         ),
     )
+    embedding_base_url: str | None = Field(
+        default=None,
+        max_length=2048,
+        description="OpenRouter embedding API endpoint. Omitted preserves the existing endpoint on update; explicit null restores the global endpoint. Custom endpoints require connections:manage.",
+    )
     embedding_endpoint_id: UUID | None = Field(
         default=None,
         description=(
@@ -143,6 +153,7 @@ class KnowledgeBaseRead(BaseSchema, TimestampSchema):
     # Editable, unlike the two above - see `KnowledgeBaseUpdate`.
     embedding_provider: str
     embedding_secret_id: UUID | None = None
+    embedding_base_url: str | None = None
     embedding_endpoint_id: UUID | None = None
     # Derived per request from `rag_documents`, not stored. Defaulted rather than
     # required so the single-row responses - create, read, update - stay

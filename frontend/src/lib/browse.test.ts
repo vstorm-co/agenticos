@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { applyBrowserFrame, browseById, isRunning, type Browse } from "./browse";
+import {
+  recordedBrowserPage,
+  turnBrowseVisits,
+  applyBrowserFrame,
+  browseById,
+  isRunning,
+  withLivePreview,
+  type Browse,
+} from "./browse";
 import type { BrowserFrame } from "@/types";
 
 function frame(overrides: Partial<BrowserFrame> = {}): BrowserFrame {
@@ -267,4 +275,184 @@ describe("applyBrowserFrame - the agent's cursor", () => {
     );
     expect(browse?.pointer).toEqual({ x: 0, y: 0, step: 1 });
   });
+});
+
+it("keeps navigation capability and control errors separate from painted frames", () => {
+  const opened = applyBrowserFrame([], {
+    kind: "browser_opened",
+    call_id: "tab",
+    step: 0,
+    navigable: true,
+  });
+  expect(opened[0]?.navigable).toBe(true);
+  const refused = applyBrowserFrame(opened, {
+    kind: "browser_control_error",
+    call_id: "tab",
+    step: 0,
+    detail: "Outside allowed domains",
+  });
+  expect(refused[0]?.controlError).toBe("Outside allowed domains");
+  const cleared = applyBrowserFrame(refused, {
+    kind: "browser_control_error",
+    call_id: "tab",
+    step: 0,
+  });
+  expect(cleared[0]?.controlError).toBeNull();
+});
+
+it("keeps completion authoritative while retaining the cached final picture", () => {
+  const streamed = fold(
+    frame({ kind: "browser_opened" }),
+    frame({ kind: "browser_finished", outcome: "done" }),
+  )[0]!;
+  const live = { ...streamed, image: "cached-final", imageStep: 3, outcome: null };
+  expect(withLivePreview(streamed, live)).toMatchObject({
+    outcome: "done",
+    image: "cached-final",
+    imageStep: 3,
+  });
+  expect(withLivePreview(streamed, null)).toBe(streamed);
+  expect(withLivePreview(streamed, { ...live, callId: "other" })).toBe(streamed);
+  expect(withLivePreview({ ...streamed, outcome: null }, live)).toBe(live);
+  expect(
+    withLivePreview({ ...streamed, image: "streamed", imageStep: 4 }, { ...live, image: null }),
+  ).toMatchObject({ image: "streamed", imageStep: 4 });
+});
+
+it("accepts a delayed first image after newer metadata without treating metadata as a picture", () => {
+  const [browse] = fold(
+    frame({ kind: "browser_opened", step: 0 }),
+    frame({ kind: "browser_frame", step: 5, url: "https://example.test/next" }),
+    frame({ kind: "browser_frame", step: 3, image: "delayed-first-picture" }),
+  );
+  expect(browse).toMatchObject({ image: "delayed-first-picture", imageStep: 3 });
+});
+
+describe("recordedBrowserPage", () => {
+  it.each([
+    [
+      { args: {}, result: "PAGE: A - title - https://example.com/article\n" },
+      { url: "https://example.com/article", title: "A - title" },
+    ],
+    [
+      { args: { url: "https://old.example" }, result: "PAGE: New page - https://example.com/new" },
+      { url: "https://example.com/new", title: "New page" },
+    ],
+    [{ args: { start_url: "http://example.com" } }, { url: "http://example.com/", title: null }],
+    [
+      { args: { url: "https://example.com" }, result: { text: "not a report" } },
+      { url: "https://example.com/", title: null },
+    ],
+    [
+      { args: {}, result: "PAGE: (untitled) - https://example.com" },
+      { url: "https://example.com/", title: null },
+    ],
+    [
+      { args: {}, result: "PAGE: Invalid - https://[broken" },
+      { url: null, title: null },
+    ],
+    [{ args: { url: "javascript:alert(1)" } }, { url: null, title: null }],
+    [{ args: { url: "file:///etc/passwd" } }, { url: null, title: null }],
+    [{ args: { url: 123 } }, { url: null, title: null }],
+    [{ args: {} }, { url: null, title: null }],
+  ])("extracts a safe page identity from %j", (call, expected) => {
+    expect(recordedBrowserPage(call)).toEqual(expected);
+  });
+});
+
+describe("turnBrowseVisits", () => {
+  const call = (id: string, name: string, args: Record<string, unknown> = {}, result?: string) => ({
+    id,
+    name,
+    args,
+    result,
+    status: "completed" as const,
+  });
+  const report = (title: string) => `PAGE: ${title} - https://example.com/page`;
+
+  it("keeps separate tabs even at the same URL and updates the original tab after switching back", () => {
+    const calls = [
+      call("first", "browser_open", {}, report("First")),
+      call("second", "browser_new_tab", {}, `TAB: two\n${report("Second")}`),
+      call("switch", "browser_switch_tab", { tab_id: "main" }, report("First updated")),
+    ];
+    const entries = turnBrowseVisits(calls, []);
+    expect(entries.map((entry) => entry.id)).toEqual(["first", "second"]);
+    expect(entries.map((entry) => entry.call.id)).toEqual(["switch", "second"]);
+  });
+
+  it("uses the selected tab after listing or closing tabs and ignores failed switches and non-browser tools", () => {
+    const calls = [
+      call("first", "browser_open", {}, report("First")),
+      call(
+        "second",
+        "browser_new_tab",
+        { url: "https://example.com/page" },
+        `TAB: two\n${report("Second")}`,
+      ),
+      call("list", "browser_tabs", {}, "* main: First - https://example.com/page"),
+      call("failed", "browser_switch_tab", { tab_id: "missing" }, "That tab is not open"),
+      call("mcp", "mcp_browser_read", {}, report("Unrelated")),
+      call(
+        "close",
+        "browser_close_tab",
+        {},
+        "Closed tab.\n* main: First - https://example.com/page",
+      ),
+      call("read", "browser_read", {}, report("Updated")),
+      call("pending", "browser_click"),
+      call("empty-list", "browser_tabs"),
+    ];
+    const entries = turnBrowseVisits(calls, []);
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.call.id).toBe("read");
+    expect(entries[1]?.id).toBe("second");
+  });
+
+  it("accepts a read from a switch without an explicit id without duplicating the selected tab", () => {
+    expect(
+      turnBrowseVisits(
+        [
+          call("open", "browser_open", {}, report("First")),
+          call("switch", "browser_switch_tab", {}, report("Updated")),
+        ],
+        [],
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("ignores list and close replies without a selected tab", () => {
+    expect(
+      turnBrowseVisits(
+        [call("list", "browser_tabs", {}, "No tabs"), call("close", "browser_close_tab")],
+        [],
+      ),
+    ).toEqual([]);
+  });
+});
+
+it("does not invent a card when a new tab is refused or has not opened yet", () => {
+  const calls = [
+    {
+      id: "pending",
+      name: "browser_new_tab",
+      args: { url: "https://example.com" },
+      status: "running" as const,
+    },
+    {
+      id: "limit",
+      name: "browser_new_tab",
+      args: { url: "https://example.com" },
+      result: "Eight tabs are open.",
+      status: "completed" as const,
+    },
+    {
+      id: "refused",
+      name: "browser_new_tab",
+      args: { url: "https://example.com" },
+      result: "TAB: refused\nOutside allowed domains",
+      status: "completed" as const,
+    },
+  ];
+  expect(turnBrowseVisits(calls, [])).toEqual([]);
 });

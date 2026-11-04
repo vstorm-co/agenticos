@@ -27,6 +27,7 @@ import type { PublicConfig } from "./public-config";
 export type CspDirective =
   | "default-src"
   | "script-src"
+  | "worker-src"
   | "style-src"
   | "img-src"
   | "frame-src"
@@ -40,6 +41,19 @@ export type CspDirective =
 /** The origin a public URL names, so `connect-src` lists a host and not a path. */
 function originOf(url: string): string {
   return new URL(url).origin;
+}
+
+/**
+ * The one path a console frame loads an artifact from: the signed content route,
+ * `{ARTIFACT_ORIGIN or the API}/api/v1/artifact-content/<token>`, which the backend
+ * builds from the same variables. A source ending in `/` matches every path under
+ * it, so each token's address is allowed and nothing else on that origin is - when
+ * `ARTIFACT_ORIGIN` is unset that origin is the API itself. A browser stops
+ * matching the path after a redirect and checks only the origin, which can widen
+ * this but never refuse a frame; the content route answers without redirecting.
+ */
+function artifactContentSource(config: PublicConfig): string {
+  return `${config.artifactUrl}/api/v1/artifact-content/`;
 }
 
 /** What each directive allows for a deployment, in the order the header is written. */
@@ -57,6 +71,11 @@ export function cspDirectives(
     // (`src/middleware.ts`) - a constant one is `'unsafe-inline'` wearing a
     // disguise (#1624).
     "script-src": ["'self'", "'unsafe-eval'", `'nonce-${nonce}'`, "'strict-dynamic'"],
+    // The service worker Web Push arrives through (`public/sw.js`, #2097). Its
+    // registration is checked against this rather than `script-src`, whose
+    // `'strict-dynamic'` ignores `'self'` and would refuse a worker - which has
+    // no nonce to carry - outright. `'self'` only: no `blob:` worker.
+    "worker-src": ["'self'"],
     "style-src": ["'self'", "'unsafe-inline'"],
     // `blob:` for a canvas export and for bytes fetched then handed to an `img`;
     // `https:` because a model provider's avatar and a connector's brand mark are
@@ -69,16 +88,24 @@ export function cspDirectives(
     // `frame-src` exists to refuse. A blob URL can only be minted by this
     // origin's own script.
     //
-    // And the origin a published artifact is served from. That document is
+    // And the route a published artifact is served from. That document is
     // agent-authored script, which is why it is framed from another origin under
-    // a `sandbox` policy of its own rather than minted into a blob here.
-    "frame-src": [...new Set(["'self'", "blob:", originOf(config.artifactUrl)])],
+    // a `sandbox` policy of its own rather than minted into a blob here. The route,
+    // not the origin: the origin is the API's unless `ARTIFACT_ORIGIN` moved it.
+    "frame-src": ["'self'", "blob:", artifactContentSource(config)],
     "font-src": ["'self'", "data:"],
     // This origin's own BFF routes, the API the browser calls directly - OAuth,
     // the hosted chat's uploads - and the chat's WebSocket. Named from the
     // deployment's configuration, not a scheme: `wss:` alone would let the socket
     // open to any host.
-    "connect-src": [...new Set(["'self'", originOf(config.apiUrl), originOf(config.wsUrl)])],
+    "connect-src": [
+      ...new Set([
+        "'self'",
+        originOf(config.apiUrl),
+        originOf(config.wsUrl),
+        ...(config.diagnosticsUrl ? [originOf(config.diagnosticsUrl)] : []),
+      ]),
+    ],
     // Nothing may frame the console, itself included. The embed widget is served
     // from its own route, which sets its own header.
     "frame-ancestors": ["'none'"],

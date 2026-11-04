@@ -43,15 +43,17 @@ from app.api.deps import (
     limit_dictation,
     require,
 )
-from app.api.public_api import PUBLIC
+from app.api.public_api import INTERNAL, PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
     AgentA2ARequest,
     AgentAvatarColorRequest,
+    AgentCeiling,
     AgentClone,
     AgentCreate,
     AgentDetail,
@@ -71,6 +73,8 @@ from app.schemas.agent import (
     AgentVersionRead,
     CapabilityCatalog,
     CapabilityCatalogEntry,
+    CapabilityEnabled,
+    CapabilityRequest,
     CapabilityToolContract,
     DelegationTree,
     McpCatalog,
@@ -191,8 +195,9 @@ async def install_agent_template(
     """Create a draft agent from a template, installing the skills it expects.
 
     A draft, not a published agent: the template names no model - there is no
-    organization-wide default here - and may name no collection. The result says
-    what is still to attach.
+    organization-wide default here, so the draft starts on the organization's
+    model only when it has exactly one an agent can run on - and may name no
+    collection. The result says what is still to attach.
     """
     return await service.install_template(ctx, data.key)
 
@@ -234,7 +239,13 @@ async def list_platform_mcp_tools() -> Any:
     by who reads this list.
     """
     items = [
-        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        PlatformMcpTool(
+            name=tool.name,
+            description=tool.summary,
+            writes=tool.writes,
+            ungated=tool.ungated,
+            held=tool.held,
+        )
         for tool in platform_tool_catalog()
     ]
     return PlatformMcpToolList(items=items, total=len(items))
@@ -247,15 +258,21 @@ async def list_platform_mcp_tools() -> Any:
 )
 async def list_mcp_servers(
     db: DBSession,
-    q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
+    ctx: Auth,
+    q: str = Query(
+        "", max_length=255, description="Filter by key, name, description, host or category"
+    ),
     category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
     auth: Literal["", "none", "token", "oauth"] = Query(
         "", description="What the server asks for, or blank for any"
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    state: Literal["all", "connected", "not-connected"] = Query(
+        "all", description="Whether an accessible saved account exists, regardless of its health"
+    ),
 ) -> Any:
-    """One paged list: the curated catalog, then the mirrored public registry.
+    """One paged list: curated servers, the local registry mirror and custom servers.
 
     The console used to hold the curated hundred and filter it in the browser,
     which is right for a list the client holds - and this one stopped being that
@@ -264,13 +281,20 @@ async def list_mcp_servers(
     the list needs, so the join happens in `mcp_listing.page` and the client
     renders rows.
 
+    Connection state, search, category and sign-in filters apply before counting
+    and pagination. Connected includes every accessible saved account, including
+    disabled accounts and servers that need authorization or failed a check.
+    Personal accounts belong to the caller; organization accounts obey the same
+    permission and audience checks as their management endpoint.
+
     A registry row carries `reviewed: false`: nobody here wrote it, the description
     is the publisher's, and there is no token hint because the registry has no such
-    field. `verified` and `check` say what the last catalog check found, for either
-    kind; a registry listing it found dead or duplicated is not on the list.
+    field. `verified` and `check` say what the last catalog check found. Browsing
+    hides dead or duplicated registry listings; Connected keeps their saved
+    accounts manageable.
     """
     found = await mcp_listing.page(
-        db, query=q, category=category, auth=auth, skip=skip, limit=limit
+        db, ctx=ctx, query=q, category=category, auth=auth, state=state, skip=skip, limit=limit
     )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],
@@ -315,6 +339,24 @@ async def list_agents(
     return AgentList(items=items, total=total, categories=categories, tags=tags)
 
 
+@router.get(
+    "/ceiling",
+    response_model=AgentCeiling,
+    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+)
+async def get_agent_ceiling(service: AgentRegistrySvc, ctx: Auth) -> Any:
+    """The deployment's agents-per-organization limit, and whether a create would hit it.
+
+    So a console can say a create would be refused before a form is filled in;
+    the create itself stays the guarantee. `limit` is null where the deployment
+    sets no limit. `held`, the organization's count of agents that are not
+    archived, is given only to a caller whose `agents:view` reaches every agent
+    in the organization - to anyone else it would reveal how many are hidden
+    from them - and `at_limit` to every caller.
+    """
+    return await service.ceiling(ctx)
+
+
 @router.post(
     "",
     response_model=AgentRead,
@@ -331,6 +373,7 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         tags=data.tags,
         group_ids=data.group_ids,
         user_ids=data.user_ids,
+        from_starter=data.from_starter,
     )
 
 
@@ -431,6 +474,39 @@ async def publish_agent(
 ) -> Any:
     """Validate the draft and freeze it as the version that runs."""
     return await service.publish(ctx, agent_id, note=data.note)
+
+
+@router.post(
+    "/{agent_id}/capabilities/{capability_id}/enable",
+    response_model=CapabilityEnabled,
+    openapi_extra=INTERNAL,
+)
+async def enable_capability(
+    agent_id: UUID, capability_id: str, service: AgentRegistrySvc, ctx: Auth
+) -> Any:
+    """Switch on a capability the agent said it lacks, from its card in the chat (#2301).
+
+    Published at once only when nothing else was waiting in the draft and the
+    caller may publish; otherwise it waits in the draft for the Builder.
+    """
+    return await service.enable_capability(ctx, agent_id, capability_id)
+
+
+@router.post(
+    "/{agent_id}/capabilities/{capability_id}/request",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    openapi_extra=INTERNAL,
+)
+async def request_capability(
+    agent_id: UUID,
+    capability_id: str,
+    data: CapabilityRequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Ask the agent's owner to switch a capability on, from its card in the chat (#2301)."""
+    await service.ask_for_capability(ctx, agent_id, capability_id, reason=data.reason)
 
 
 @router.post(
@@ -817,6 +893,10 @@ async def run_agent(
     then is `Idempotency-Key` honoured; a synchronous call carrying one is refused
     rather than letting the caller believe a retry is safe when it is not.
     """
+    if respond_async and data.draft:
+        raise refused_field(
+            "draft", "A draft is tried synchronously - leave out Prefer: respond-async"
+        )
     if respond_async:
         queued = await api_runs.queue(ctx, agent_id, data, idempotency_key=idempotency_key)
         return JSONResponse(
@@ -846,6 +926,7 @@ async def run_agent(
         # under - so a caller cannot attach a file by guessing its id.
         user_id=ctx.subject_id,
     )
+    structured: list[dict[str, Any]] = []
     output, run = await service.execute(
         ctx,
         agent_id,
@@ -855,12 +936,15 @@ async def run_agent(
         message_history=history,
         environment_id=data.environment_id,
         attachments=attachments,
+        structured=structured,
         reports_failure=True,
+        draft=data.draft,
     )
     return AgentRunResult(
         run_id=run.id,
         conversation_id=conversation_id,
         output=output,
+        structured=structured[0] if structured else None,
         status=run.status,
         cost_usd=run.cost_usd,
         cost_is_partial=run.cost_is_partial,

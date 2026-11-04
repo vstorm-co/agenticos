@@ -13,6 +13,7 @@ the allowance is consumed from the Redis every worker shares.
 """
 
 import asyncio
+import json
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,6 +24,7 @@ from app.core.exceptions import BadRequestError
 from app.services import rate_limit
 from app.services.channels import router as router_module
 from app.services.channels.base import IncomingMessage, thread_key
+from app.services.channels.mattermost import MattermostAdapter
 from app.services.channels.router import ChannelMessageRouter, _ChatLocks
 
 pytestmark = pytest.mark.anyio
@@ -243,3 +245,52 @@ class TestTheAllowanceAChatAccountGets:
         assert windows.consume("b", attempts=1, window_seconds=60) is True
         assert windows.consume("a", attempts=1, window_seconds=60) is True, "a new window"
         assert len(windows) == 2
+
+
+@pytest.mark.parametrize("text", ["", " \n\t"])
+async def test_an_empty_post_after_mention_removal_never_starts_a_turn(text, locks):
+    routed = AsyncMock()
+    with patch.object(ChannelMessageRouter, "_route_inner", routed):
+        await ChannelMessageRouter().route(_message(platform="mattermost", text=text), MagicMock())
+    routed.assert_not_awaited()
+    router_module.claim_delivery.assert_not_awaited()
+
+
+async def test_a_media_only_post_still_reaches_the_attachment_pipeline(locks):
+    routed = AsyncMock()
+    with patch.object(ChannelMessageRouter, "_route_inner", routed):
+        await ChannelMessageRouter().route(
+            _message(text="", attachments=[MagicMock()]), MagicMock()
+        )
+    routed.assert_awaited_once()
+
+
+@pytest.mark.parametrize("transport", ["socket", "webhook"])
+async def test_a_mattermost_bot_mention_alone_does_not_claim_a_turn(transport, locks):
+    adapter = MattermostAdapter()
+    adapter._own_names["bot-1"] = "helper"
+    payload = (
+        {
+            "event": "posted",
+            "data": {
+                "post": json.dumps(
+                    {
+                        "id": "p1",
+                        "user_id": "u1",
+                        "channel_id": "c1",
+                        "message": "@helper",
+                    }
+                ),
+                "channel_type": "D",
+            },
+        }
+        if transport == "socket"
+        else {"user_name": "person", "user_id": "u1", "channel_id": "c1", "text": "@helper"}
+    )
+    incoming = adapter.parse_incoming(payload, "bot-1")
+    assert incoming is not None and incoming.text == ""
+    routed = AsyncMock()
+    with patch.object(ChannelMessageRouter, "_route_inner", routed):
+        await ChannelMessageRouter().route(incoming, adapter)
+    routed.assert_not_awaited()
+    router_module.claim_delivery.assert_not_awaited()

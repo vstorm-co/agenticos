@@ -11,7 +11,8 @@
  * `randomUUID` at all. Chat is the first thing that would break there, and it
  * would break with a `TypeError` rather than a degraded id. The fallback is
  * uniqueness without the cryptographic guarantee, which is all a local key
- * needs: these ids never leave the tab and are replaced by the server's own.
+ * needs. A submitted prompt also sends its id as a correlation value scoped
+ * by conversation and author; database rows still get the server's own ids.
  */
 export function clientId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

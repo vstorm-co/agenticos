@@ -1,0 +1,8 @@
+[
+  { "id": "pebble", "name": "Pebble", "shape": 0.11, "hue": 215 },
+  { "id": "mochi", "name": "Mochi", "shape": 0.35, "hue": 340 },
+  { "id": "byte", "name": "Byte", "shape": 0.54, "hue": 170 },
+  { "id": "nimbus", "name": "Nimbus", "shape": 0.83, "hue": 255 },
+  { "id": "sprig", "name": "Sprig", "shape": 0.89, "hue": 135 },
+  { "id": "sunny", "name": "Sunny", "shape": 0.965, "hue": 45 }
+]

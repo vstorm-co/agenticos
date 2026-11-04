@@ -32,6 +32,16 @@ export function setUrlParam(key: string, value: string | null): void {
   window.history.replaceState({}, "", url.toString());
 }
 
+/** Rewrite every occurrence of a repeated query parameter; none removes it. */
+export function setUrlParams(key: string, values: string[]): void {
+  /* v8 ignore next -- an SSR guard, and the test environment is jsdom */
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete(key);
+  for (const value of values) url.searchParams.append(key, value);
+  window.history.replaceState({}, "", url.toString());
+}
+
 export function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
   if (!pw) return { score: 0, label: "", color: "" };
   let score = 0;
@@ -116,6 +126,19 @@ export function formatDateTime(date: Date | string, locale: string): string {
   });
 }
 
+/** `formatDateTime` down to the second, for lines written within the same minute. */
+export function formatDateTimeSeconds(date: Date | string, locale: string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 /**
  * How long a run took, human-readable, or "-" when it has not finished.
  *
@@ -126,10 +149,40 @@ export function formatDateTime(date: Date | string, locale: string): string {
  */
 export function formatRunDuration(startedAt: string | null, endedAt: string | null): string {
   if (!startedAt || !endedAt) return "-";
-  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+  return formatElapsed(new Date(endedAt).getTime() - new Date(startedAt).getTime());
+}
+
+/**
+ * A cost in dollars to four places, and "<$0.0001" for a real cost below that:
+ * a run that spent a fraction of a cent has spent something, which "$0.0000"
+ * would deny. Exactly zero stays "$0.0000".
+ */
+export function formatCostUsd(amount: number): string {
+  if (amount > 0 && amount < 0.0001) return "<$0.0001";
+  return `$${amount.toFixed(4)}`;
+}
+
+/**
+ * A run's cost, with "+" when some of its steps could not be priced. Below the
+ * display floor "<$0.0001" already reads as a bound, so it takes no "+".
+ */
+export function formatRunCostUsd(amount: number, partial: boolean): string {
+  const cost = formatCostUsd(amount);
+  return partial && !cost.startsWith("<") ? `${cost}+` : cost;
+}
+
+/** A span of milliseconds, human-readable, or "-" for one that is not a span. */
+export function formatElapsed(ms: number): string {
   if (Number.isNaN(ms) || ms < 0) return "-";
   if (ms < 1000) return `${Math.round(ms)} ms`;
-  return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  if (ms < 60_000)
+    return `${(ms / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} s`;
+  // A run parked on an approval can last a day; "80,081.7 s" reads as nothing.
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes} min ${Math.floor((ms % 60_000) / 1000)} s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${minutes % 60} min`;
+  return `${Math.floor(hours / 24)} d ${hours % 24} h`;
 }
 
 export function truncate(str: string, maxLength: number): string {

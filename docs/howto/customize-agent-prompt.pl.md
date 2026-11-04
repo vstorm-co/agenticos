@@ -1,5 +1,5 @@
 ---
-source_sha: "d61a7f894dfb"
+source_sha: "f3bfbd97d90e"
 ---
 
 # Napisz instrukcje agenta { #write-an-agents-instructions }
@@ -19,7 +19,9 @@ source_sha: "d61a7f894dfb"
 |---|---|---|
 | Instrukcje jednego agenta | `AgentSpec.instructions`, edytowane w Builderze | Ten, kto może edytować agenta |
 | Instrukcje wbudowanego specjalisty | `InlineSpecialistSpec.instructions`, w tym samym specu | Ten sam |
-| Tekst startowy, który dostaje nowy agent | `backend/app/agents/default_instructions.py` | Deploy — to jest wyobrażenie tego deploymentu o asystencie |
+| Tekst startowy, który dostaje nowy agent | Szablon AgenticOS, `backend/app/core/catalog/agent_templates/general/agenticos/AGENT.md` | Deploy — to jest wyobrażenie tego deploymentu o asystencie |
+| Co agent słyszy o tym, co potrafi, a czego nie | Składane z jego capabilities przy każdym runie, pod **Your setup** | Nikt — przełączenie capability to zmienia |
+| Co agent słyszy o osobie | Jej język, strefa czasowa, rola i praca z jej konta, po instrukcjach przy każdym runie | Ta osoba, w **Ustawienia → Profil (Settings → Profile)** |
 | Procedura współdzielona przez wiele agentów | [Skill](../skills.md), wiersz w bazie danych | Lider wsparcia, we wtorek po południu, bez żadnego deployu |
 
 Ostatni wiersz to ten, po który warto sięgać. Dwadzieścia procedur w jednym polu
@@ -29,9 +31,11 @@ potrzebuje.
 
 ## Co należy do instrukcji { #what-belongs-in-instructions }
 
-Przeczytaj `default_instructions.py`, zanim napiszesz własne — to jest
-przerobiony przykład i sam wyjaśnia swoje wybory. Dwa z nich decydują o
-większości jakości:
+Przeczytaj instrukcje szablonu AgenticOS, zanim napiszesz własne — nowy agent
+zaczyna od nich, więc to one są przerobionym przykładem. Zaczynają się od własnego
+`{{agent_name}}` agenta, prowadzą człowieka krok po kroku, po zadaniu proponują
+jeden następny krok i nie wymieniają żadnego narzędzia, którego nie przynosi
+capability. O większości jakości decydują dwa wybory:
 
 - **Pisz pod odmowy.** Akapity, które zarabiają na swoje miejsce, to te o
   niewymyślaniu faktów, o mówieniu, z którego źródła pochodzi odpowiedź, i o
@@ -82,10 +86,12 @@ publikacji, a nie w momencie uruchomienia. Zobacz
 
 ## Iterowanie nad nimi { #iterating-on-it }
 
-- **Draft nie może zostać uruchomiony.** Agent uruchamia swoją opublikowaną
-  wersję, więc wypróbowanie nowego promptu oznacza opublikowanie go — co jest
-  tanie z założenia i dlatego rollback jest promocją, a nie przywróceniem.
-  Iteruj na środowisku `dev`
+- **Draft uruchamia się tylko jako test.** Wszędzie, gdzie agent jest dostępny,
+  odpowiada swoją opublikowaną wersją; panel testowy Buildera - i
+  `POST /agents/{id}/run` z `"draft": true`, które wywołuje `test_agent_draft`
+  Architekta - odpowiadają jako nieopublikowany draft, w runie testowym.
+  Publikacja jest tania z założenia, a rollback jest promocją, a nie
+  przywróceniem. Iteruj na środowisku `dev`
   ([environment](../concepts.md#version)), które podąża za każdą publikacją, a
   `production` zostaw czekające na promocję.
 - **Testuj prawdziwymi zapytaniami, a nie idealnymi.**

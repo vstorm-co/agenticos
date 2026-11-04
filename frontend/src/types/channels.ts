@@ -1,6 +1,8 @@
-/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost. */
+/** Channel bots - the organization-level bindings to Slack, Telegram, Mattermost, Teams, Discord. */
 
-export type ChannelPlatform = "telegram" | "slack" | "mattermost";
+import type { OrgRole } from "./organization";
+
+export type ChannelPlatform = "telegram" | "slack" | "mattermost" | "teams" | "discord";
 
 /** How a streamed answer shows its tool calls: one row each, or one plan (#2084). */
 export type StepDisplay = "timeline" | "plan";
@@ -36,7 +38,20 @@ export interface UsageReporting {
   every_n: number;
 }
 
+export interface ChannelAccessPolicy {
+  mode: "open" | "whitelist" | "jwt_linked" | "group_only";
+  whitelist: string[];
+  allowed_groups: string[];
+  /** Explicit server approvals for Discord; absent or empty permits DMs only. */
+  discord_guild_ids?: string[];
+  require_link: boolean;
+  rate_limit_rpm: number;
+  denied_message: string;
+  respond_to_broadcasts?: boolean;
+}
+
 export interface ChannelBot extends AnswerStyle {
+  access_policy: ChannelAccessPolicy;
   id: string;
   platform: ChannelPlatform;
   name: string;
@@ -59,6 +74,15 @@ export interface ChannelBot extends AnswerStyle {
   has_command_token: boolean;
   /** Mattermost only: the request URL to paste into the `/agent` slash command. */
   command_url: string | null;
+  /**
+   * Teams only: the Azure Bot's app and tenant (#1985). Identifiers, not
+   * credentials - the app package is built from them; the client secret is the
+   * token and is never read back.
+   */
+  teams_app_id?: string | null;
+  teams_tenant_id?: string | null;
+  /** Teams only: the messaging endpoint to paste into the Azure Bot resource. */
+  messaging_endpoint?: string | null;
   /**
    * Whether the socket this bot receives on is actually up.
    *
@@ -138,6 +162,7 @@ export interface ChannelBotList {
 }
 
 export interface ChannelBotCreate {
+  access_policy?: Partial<ChannelAccessPolicy>;
   platform: ChannelPlatform;
   name: string;
   /** The bot token as issued by the platform. Encrypted at rest, never read back. */
@@ -167,6 +192,10 @@ export interface ChannelBotCreate {
   webhook_mode?: boolean;
   /** Mattermost only: the token Mattermost shows for the `/agent` slash command. */
   command_token?: string;
+  /** Teams only, and required there: the Azure Bot's Microsoft App ID. */
+  teams_app_id?: string;
+  /** Teams only, and required there: the tenant the single-tenant bot is registered in. */
+  teams_tenant_id?: string;
   ack_reaction?: string | null;
   stream_answers?: boolean;
   step_display?: StepDisplay;
@@ -175,6 +204,15 @@ export interface ChannelBotCreate {
   speech_to_text_model?: string | null;
   /** Required with a pair, refused without one. */
   speech_to_text_secret_id?: string | null;
+}
+
+/** A Teams channel or group chat a bot is in - where a trigger can post (#1985). */
+export interface TeamsConversation {
+  id: string;
+  bot_id: string;
+  name: string | null;
+  conversation_type: "channel" | "groupChat";
+  last_activity_at: string;
 }
 
 /**
@@ -191,6 +229,7 @@ export interface ChannelBotCreate {
  * typed into is sent.
  */
 export interface ChannelBotUpdate {
+  access_policy?: ChannelAccessPolicy;
   name?: string;
   /** A replacement bot token. Sealed at rest like the first one. */
   token?: string;
@@ -216,4 +255,49 @@ export interface ChannelBotUpdate {
   speech_to_text_model?: string | null;
   /** The key goes with the pair: sent whenever the pair or the key moved. */
   speech_to_text_secret_id?: string | null;
+}
+
+/**
+ * A role in one of a Discord bot's servers, mapped to a group here (#2569).
+ *
+ * A linked member holding the role is placed in the group before each turn and
+ * by a periodic sync, and leaves it when the role is taken away. With `role`
+ * set, a linked holder who is not a member yet is admitted with that role.
+ */
+export interface DiscordRoleMapping {
+  id: string;
+  channel_bot_id: string;
+  guild_id: string;
+  guild_name: string;
+  discord_role_id: string;
+  discord_role_name: string;
+  group_id: string;
+  /** Resolved for display; null when the group could not be named. */
+  group_name: string | null;
+  role: OrgRole | null;
+  created_at: string;
+}
+
+export interface DiscordRoleMappingList {
+  items: DiscordRoleMapping[];
+  total: number;
+}
+
+export interface DiscordRoleMappingCreate {
+  guild_id: string;
+  discord_role_id: string;
+  group_id: string;
+  role: OrgRole | null;
+}
+
+/** A server the bot is in, with the roles a mapping may name - not `@everyone`, not managed ones. */
+export interface DiscordServer {
+  id: string;
+  name: string;
+  roles: { id: string; name: string }[];
+}
+
+export interface DiscordServerList {
+  items: DiscordServer[];
+  total: number;
 }

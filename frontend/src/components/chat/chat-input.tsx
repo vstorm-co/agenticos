@@ -1,6 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
@@ -15,7 +23,7 @@ import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
 import { ReplyingTo } from "./reply-quote";
 import { useChatStore } from "@/stores";
-import { ComposerSheet } from "./composer-sheet";
+import { ComposerSheet, type AttachSource } from "./composer-sheet";
 
 /**
  * Render `row` where the page wants it, or in place when it named nowhere.
@@ -41,9 +49,11 @@ import {
 import { SlashCommandPalette } from "./slash-command-palette";
 import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
 import { ComposerHints } from "./composer-hints";
+import { LocalAgentChip } from "./local-agent-chip";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
 import {
+  MAX_MENTIONS,
   insertMention,
   matching,
   mentionAt,
@@ -53,6 +63,10 @@ import {
 import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
 import { useChanged } from "@/hooks/use-changed";
+import { useShell } from "@/hooks/use-shell";
+import { isMobileShell, reportShellFailure } from "@/lib/desktop/shell";
+import { offerRecentPhoto, openAttachSheet } from "@/lib/mobile/attach";
+import type { SharedContent } from "@/lib/mobile/shared";
 import { useFileDrop } from "@/hooks/use-file-drop";
 import { useTranslations } from "next-intl";
 import type { UseMicrophoneResult } from "voice-glow";
@@ -89,9 +103,6 @@ export interface ComposerDictation {
  */
 const PASTE_AS_FILE_CHARS = 2000;
 
-/** What one message may point at; the server refuses a frame with more (`agent_chat.MAX_MENTIONS`). */
-const MAX_MENTIONS = 10;
-
 /** A file queued for upload, shown as a card before the server has answered. */
 interface PendingUpload {
   key: number;
@@ -112,6 +123,10 @@ interface Attachment {
   pasted: boolean;
 }
 
+/** What the file picker offers: the types an attachment may be. */
+const ACCEPTED =
+  "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml";
+
 interface ChatInputProps {
   onSend: (
     message: string,
@@ -130,7 +145,10 @@ interface ChatInputProps {
   hints?: boolean;
   disabled?: boolean;
   isProcessing?: boolean;
-  /** When set, a stop control replaces the send button while processing. */
+  /** A live or parked run can be stopped even while the composer is disabled. */
+  canStop?: boolean;
+  stopDisabled?: boolean;
+  /** When set, a stop control replaces the send button for a stoppable run. */
   onStop?: () => void;
   /** Local actions for slash commands. Wire from <ChatContainer>. */
   slashContext?: SlashCommandContext;
@@ -167,10 +185,32 @@ interface ChatInputProps {
    */
   actionsSlot?: ReactNode;
   /**
+   * The same controls as rows of the phone's `+` sheet, where the composer's one
+   * row has no room for them (#2066). The caller hides `actionsSlot` there.
+   */
+  phoneRows?: ReactNode;
+  /**
+   * Drawn in Send's place while there is nothing to send - the call button, so
+   * an empty box offers a call and a written one sends it (#2301).
+   */
+  idleSlot?: ReactNode;
+  /**
+   * The socket is down: the box says it is reconnecting where it would ask for a
+   * message - the one place a person looks when they cannot send (#2301).
+   */
+  offline?: boolean;
+  /**
    * The selected agent's dictation engine and, for `server`, the recording.
    * Absent, the microphone is the browser's own speech recognition.
    */
   dictation?: ComposerDictation;
+  /**
+   * Start dictating as if the microphone were pressed - a phone shortcut's
+   * "Dictate" (#2097), set once the agent's engine is known. `onDictateStarted`
+   * hears that it was taken, so it is taken once.
+   */
+  dictateNow?: boolean;
+  onDictateStarted?: () => void;
   /**
    * Hears when the browser's own recognition starts listening, with how to stop
    * it, and when it stops - for the page's dictation pill (#54).
@@ -183,6 +223,8 @@ interface ChatInputProps {
   incoming?: IncomingFiles | null;
   /** Called as the person types, so a shared chat can say they are. */
   onTyping?: () => void;
+  /** Whether the box holds words of the person's own, as it changes. */
+  onDraftChange?: (drafting: boolean) => void;
   /**
    * Projects `@` offers beside what the agent reaches, before the first message;
    * picking one starts the chat in it rather than mentioning it.
@@ -208,6 +250,8 @@ export function ChatInput({
   onSend,
   disabled,
   isProcessing,
+  canStop = isProcessing,
+  stopDisabled = false,
   onStop,
   slashContext,
   commands,
@@ -216,13 +260,19 @@ export function ChatInput({
   controlsSlot,
   onProject,
   actionsSlot,
+  phoneRows,
+  idleSlot,
+  offline = false,
   dictation,
+  dictateNow = false,
+  onDictateStarted,
   onListeningChange,
   incoming = null,
   agentId = null,
   mentionsFromDraft = false,
   hints = false,
   onTyping,
+  onDraftChange,
   projects,
   onPickProject,
 }: ChatInputProps) {
@@ -235,6 +285,9 @@ export function ChatInput({
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
+  const [editing, setEditing] = useState(false);
+  const drafting = message.trim().length > 0;
+  useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [isListening, setIsListening] = useState(false);
@@ -387,7 +440,9 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading) editorRef.current?.focus();
+    // Phones enter writing deliberately, rather than reopening the keyboard
+    // on arrival or when a reply finishes while the person is reading.
+    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
 
   const runSlashCommand = useCallback(
@@ -579,6 +634,22 @@ export function ChatInput({
     finalTranscript = message;
   }, [isListening, message, mic]);
 
+  // A shortcut's "Dictate": the microphone pressed for the person, once - the
+  // caret taken as the request arrives, the recording started after. The
+  // server's engine only: a phone's webview has no speech recognition of its
+  // own, and that is where the shortcut lives.
+  const startsDictating = dictateNow && server !== null && !disabled;
+  if (useChanged(startsDictating) && startsDictating) {
+    setCaret({ from: message.length, to: message.length, text: message });
+  }
+  const dictateOnRequest = useEffectEvent(() => {
+    onDictateStarted?.();
+    if (startsDictating) void server.actions.start();
+  });
+  useEffect(() => {
+    if (dictateNow) dictateOnRequest();
+  }, [dictateNow]);
+
   // File upload to backend - shared by the file picker, drag-and-drop and paste.
   const uploadFiles = useCallback(
     async (files: File[], { pasted = false }: { pasted?: boolean } = {}) => {
@@ -620,6 +691,55 @@ export function ChatInput({
     void uploadFiles(incoming.files);
     if (incoming.text) editorRef.current?.focus();
   }, [incoming, uploadFiles]);
+
+  // The phone app (#2097): a tile in "+" opens the app's own picker for it,
+  // and opening the chat offers a photo taken a moment ago - both drawn by the
+  // app, which hands over only what the person tapped.
+  const onPhone = isMobileShell(useShell());
+  const tShare = useTranslations("mobile.share");
+  const takeFromPhone = useCallback(
+    (chosen: SharedContent | null) => {
+      if (chosen === null) return;
+      if (chosen.refused.length > 0) {
+        toast.warning(tShare("notAttached", { names: chosen.refused.join(", ") }));
+      }
+      if (chosen.files.length > 0) void uploadFiles(chosen.files);
+    },
+    [tShare, uploadFiles],
+  );
+  const attach = (source: AttachSource = "files") => {
+    const input = fileInputRef.current;
+    if (!onPhone && input) {
+      // One input, told each time what to offer: a phone's browser opens the
+      // camera for `capture` and its photos for `image/*`.
+      input.accept = source === "files" ? ACCEPTED : "image/*";
+      if (source === "camera") input.setAttribute("capture", "environment");
+      else input.removeAttribute("capture");
+      input.click();
+      return;
+    }
+    openAttachSheet(source)
+      .then(takeFromPhone)
+      .catch((error: unknown) => reportShellFailure("could not open the attach sheet", error));
+  };
+  useEffect(() => {
+    if (!onPhone) return;
+    let gone = false;
+    const offer = () => {
+      if (document.visibilityState !== "visible") return;
+      offerRecentPhoto()
+        .then((chosen) => {
+          if (!gone) takeFromPhone(chosen);
+        })
+        .catch((error: unknown) => reportShellFailure("could not offer a recent photo", error));
+    };
+    offer();
+    document.addEventListener("visibilitychange", offer);
+    return () => {
+      gone = true;
+      document.removeEventListener("visibilitychange", offer);
+    };
+  }, [onPhone, takeFromPhone]);
   // The words that came with them, once per hand-off and after whatever is
   // already typed - written during render, as state that follows a prop is.
   const [wroteIncoming, setWroteIncoming] = useState<number | null>(null);
@@ -703,7 +823,22 @@ export function ChatInput({
           server?.actions.cancel();
         }
       }}
-      className="relative"
+      className="chat-input-form relative"
+      data-editing={editing || undefined}
+      onFocusCapture={(event) => {
+        if (
+          event.target instanceof HTMLElement &&
+          event.target.getAttribute("contenteditable") === "true"
+        )
+          setEditing(true);
+      }}
+      onBlurCapture={(event) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setEditing(false);
+      }}
     >
       <span role="status" aria-live="polite" className="sr-only">
         {announcement}
@@ -752,7 +887,13 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
-      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+      {replyTo && (
+        <div className="chat-input-reply">
+          <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />
+        </div>
+      )}
+
+      <LocalAgentChip />
 
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
@@ -761,46 +902,47 @@ export function ChatInput({
       {/* Plain text with real chips in it: a picked mention and a settled
           address are drawn as what they name, and the message is still the
           one string it always was. */}
-      <ComposerEditor
-        ref={editorRef}
-        value={message}
-        mentions={mentions}
-        onChange={typed}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        placeholder={t("placeholder")}
-        idle={
-          hints && !disabled ? (
-            <ComposerHints
-              offered={offered.items}
-              commands={allCommands.map((command) => command.name)}
-            />
-          ) : undefined
-        }
-        disabled={disabled}
-        readOnly={dictating}
-        // What a phone's keyboard offers: a return key that reads as a line
-        // break where Enter makes one. 16px text, never less: iOS zooms the
-        // page into any field smaller than that when it is focused (#2066).
-        enterKeyHint={touchKeyboard() ? "enter" : "send"}
-      />
-
+      <div className="chat-input-editor min-w-0">
+        <ComposerEditor
+          ref={editorRef}
+          value={message}
+          mentions={mentions}
+          onChange={typed}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={offline ? t("reconnecting") : t("placeholder")}
+          idle={
+            hints && !disabled ? (
+              <ComposerHints
+                offered={offered.items}
+                commands={allCommands.map((command) => command.name)}
+              />
+            ) : undefined
+          }
+          disabled={disabled}
+          readOnly={dictating}
+          // What a phone's keyboard offers: a return key that reads as a line
+          // break where Enter makes one. 16px text, never less: iOS zooms the
+          // page into any field smaller than that when it is focused (#2066).
+          enterKeyHint={touchKeyboard() ? "enter" : "send"}
+        />
+      </div>
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
       {/* Inert rather than hidden while dictating: the composer does not change
           under the page's dictation pill, and the agent the recording goes to
           must not change under it either. */}
-      <div className="flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
+      <div className="chat-input-actions flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
         <input
           ref={fileInputRef}
           type="file"
           onChange={handleFileSelect}
-          accept="image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml"
+          accept={ACCEPTED}
           multiple
           className="hidden"
         />
         <ComposerSheet
-          onAttach={() => fileInputRef.current?.click()}
+          onAttach={attach}
           // The agent's engine: the browser's recogniser, or a recording sent
           // to its provider.
           onVoice={server ? startDictation : toggleMic}
@@ -813,14 +955,15 @@ export function ChatInput({
               : undefined
           }
           onProject={onProject}
+          phoneRows={phoneRows}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
         {controlsSlot ? (
-          <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
+          <div className="chat-input-selection flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
 
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="chat-input-send ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
           {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
               server recording takes the box over with its own bar, so this
@@ -831,7 +974,7 @@ export function ChatInput({
             size="icon"
             onClick={server ? startDictation : toggleMic}
             disabled={disabled}
-            className="h-9 w-9 shrink-0"
+            className="chat-input-mic h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >
@@ -842,17 +985,20 @@ export function ChatInput({
             )}
           </Button>
 
-          {isProcessing && onStop ? (
+          {canStop && onStop ? (
             <Button
               type="button"
               size="icon"
               onClick={onStop}
+              disabled={stopDisabled}
               className="h-9 w-9 shrink-0 rounded-lg"
               title={t("stopGenerating")}
             >
               <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
               <span className="sr-only">{t("stopGenerating")}</span>
             </Button>
+          ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
+            idleSlot
           ) : (
             <Button
               type="submit"

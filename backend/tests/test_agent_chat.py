@@ -441,6 +441,7 @@ class TestAddressingAModel:
 class TestWhatTheClientIsShown:
     def test_an_answer_is_shown_as_the_model_wrote_it(self):
         assert display_output("42 days") == "42 days"
+        assert display_output({"days": 42}) == '```json\n{\n  "days": 42\n}\n```'
 
     def test_a_parked_run_produces_no_text_of_its_own(self):
         """This value is stored as the assistant message's `content`, so a notice
@@ -1041,6 +1042,46 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         assert (written["message_id"], written["conversation_id"]) == (message_id, conversation_id)
         assert "month,total" in written["context"]
 
+    @pytest.mark.security
+    async def test_a_blocked_turn_does_not_keep_what_its_file_added(self):
+        """#2578: the briefing is written before the input edge runs, and every
+        later turn replays it - so a file the edge refused reached the model one
+        follow-up later. The terminal write takes it back off the row."""
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="notes.txt",
+            mime_type="text/plain",
+            size=64,
+            storage_path="u/1/notes.txt",
+            file_type="text",
+            parsed_content="SECRETWORD payload",
+        )
+        prepared = _prepared()
+        prepared.workspace = None
+        conversation_id, message_id = uuid.uuid4(), uuid.uuid4()
+        blocked = GuardrailBlocked(edge="input", message="This request was blocked.")
+
+        with (
+            _runner(prepared),
+            patch("app.services.agent_chat.conversation_repo.link_message_to_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_chat.conversation_repo.set_attachment_context",
+                new=AsyncMock(),
+            ) as kept,
+            pytest.raises(GuardrailBlocked),
+        ):
+            await _run(
+                _db(),
+                stream=AsyncMock(side_effect=blocked),
+                attachments=[attachment],
+                conversation_id=conversation_id,
+                prompt_message_id=message_id,
+            )
+
+        last = kept.await_args.kwargs
+        assert (last["message_id"], last["conversation_id"]) == (message_id, conversation_id)
+        assert last["context"] is None
+
     async def test_the_workspace_the_run_opened_is_the_one_the_file_lands_in(self):
         """Not a fresh one, and not none - the file has to be where the agent
         will look for it."""
@@ -1077,6 +1118,48 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
             await _run(_db(), attachments=[attachment])
 
         assert any(path.startswith("/uploads/") for path in document.files)
+
+    @pytest.mark.security
+    async def test_a_file_the_input_edge_refuses_is_not_written(self):
+        """Screened before routing, not only on the first model request: a refused
+        file written first stayed in a conversation's workspace for the next turn
+        to open (#2559). The text still goes to the run, whose edge refuses it."""
+        from pydantic_ai_backends import StateBackend
+
+        from app.agents.spec import AgentSpec, CapabilityBindingSpec
+        from tests.workspaces import document_workspace
+
+        attachment = SimpleNamespace(
+            id=uuid.uuid4(),
+            filename="raport.csv",
+            mime_type="text/csv",
+            size=512,
+            storage_path="u/1/raport.csv",
+            file_type="text",
+            parsed_content="month,total\nXYZZY,10",
+        )
+        document = StateBackend()
+        prepared = _prepared()
+        prepared.spec = AgentSpec(
+            name="Clerk",
+            capabilities=[
+                CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": "XYZZY"})
+            ],
+        )
+        prepared.workspace = SimpleNamespace(
+            workspace=document_workspace(document), briefing=None, parses_documents=False
+        )
+        load = AsyncMock(return_value=b"month,total")
+
+        with (
+            _runner(prepared),
+            patch("app.services.attachments.get_file_storage", lambda: SimpleNamespace(load=load)),
+        ):
+            await _run(_db(), attachments=[attachment])
+
+        assert document.files == {}
+        load.assert_not_awaited()
+        assert "XYZZY" in prepared.built.agent.iter.call_args.args[0]
 
     async def test_a_prompt_already_assembled_as_parts_keeps_its_text(self):
         """A caller passing the richer shape would otherwise have its
@@ -1232,3 +1315,31 @@ class TestSayingTheSandboxIsStillOpening:
             await _run(_db(), on_sandbox_wait=AsyncMock())
 
         assert prepared.workspace is None
+
+
+@pytest.mark.parametrize(
+    "raw", [{"folder": ""}, "not-a-target", {"folder": "/work", "mode": "invalid"}]
+)
+def test_invalid_local_workspace_selection_is_refused(raw: object) -> None:
+    from app.services.agent_chat import requested_local
+
+    with pytest.raises(BadRequestError, match="not a folder"):
+        requested_local({"local": raw})
+
+
+def test_a_chat_frame_preserves_every_native_grant() -> None:
+    from app.services.agent_chat import requested_local
+
+    result = requested_local(
+        {
+            "local": {
+                "folder": "/work",
+                "model_service": "model",
+                "mcp_services": ["files"],
+                "browser": True,
+            }
+        }
+    )
+    assert result is not None
+    assert result.folder == "/work" and result.model_service == "model"
+    assert result.mcp_services == ["files"] and result.browser

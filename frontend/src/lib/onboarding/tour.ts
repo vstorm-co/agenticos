@@ -67,6 +67,27 @@ export const GROUP_DETAIL = "group-detail";
  */
 export const WORKSPACE_DETAIL = "workspace-detail";
 
+/** A table's detail view, `/tables/<id>`, collapsed to one identity the same way. */
+export const TABLE_DETAIL = "table-detail";
+
+/**
+ * One workflow's runs, `/workflows/<id>/runs`, collapsed the same way. Not
+ * `/workflows/runs` - every workflow's runs - which is a page of its own.
+ */
+export const WORKFLOW_DETAIL = "workflow-detail";
+
+export const WORKFLOW_RUNS_DETAIL = "workflow-runs-detail";
+
+/** One workflow's log, `/workflows/<id>/logs`: "?"-only and shown in place, like its runs. */
+export const WORKFLOW_LOGS_DETAIL = "workflow-logs-detail";
+
+/**
+ * An artifact's page, `/apps/<id>`, collapsed to one identity. It is the
+ * viewer, outside the dashboard layout: its strip carries its own "?" and the
+ * walk is mounted in the viewer's layout, "?"-only and shown in place.
+ */
+export const ARTIFACT_DETAIL = "artifact-detail";
+
 /**
  * One project, `/projects/<id>`. Like a Documents folder there is no seeded
  * example to open, so its stop is "?"-only help shown on a project of the
@@ -114,9 +135,11 @@ export interface TourStep {
   id: string;
   page?: string;
   target?: string;
-  /** A `[data-tour="…"]` to click before spotlighting — a tab that reveals the target. */
-  activate?: string;
+  /** Controls to activate in order before spotlighting, such as a dialog and its tab. */
+  activate?: string | readonly string[];
   permission?: Permission;
+  /** A section visible to holders of any of these grants. */
+  anyPermission?: readonly Permission[];
   /** Part of the curated first-run walkthrough. Omitted means "?"-only. */
   inTour?: boolean;
   /**
@@ -163,13 +186,45 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-start", page: ROUTES.CHAT, target: "chat-start", inTour: true },
   { id: "chat-agent-picker", page: ROUTES.CHAT, target: "chat-agent-picker", inTour: true },
   { id: "chat-composer", page: ROUTES.CHAT, target: "chat-composer" },
+  {
+    id: "chat-local-skills",
+    page: ROUTES.CHAT,
+    target: "chat-local-skills",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
+    id: "chat-local-coding",
+    page: ROUTES.CHAT,
+    target: "chat-local-coding",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
+    id: "chat-coding-settings",
+    page: ROUTES.CHAT,
+    target: "chat-coding-settings",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
+    id: "chat-background-tasks",
+    page: ROUTES.CHAT,
+    target: "chat-background-tasks",
+    optional: true,
+  },
   // Only there once an agent has planned something, so `optional` - an
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
-  { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  {
+    id: "chat-model-picker",
+    page: ROUTES.CHAT,
+    target: "chat-model-picker",
+    activate: "chat-settings",
+  },
   // The call button sits in the composer whenever an agent is selected - offered
   // or crossed out - but readiness loads after the page, so the stop is optional:
   // a slow read must not pin the caption to nothing (#54).
@@ -181,7 +236,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-approval-mode",
     page: ROUTES.CHAT,
     target: "chat-approval-mode",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-preferences"],
     optional: true,
   },
   // Same popover, and rendered only for an agent bound to each person's own
@@ -191,7 +246,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-your-connections",
     page: ROUTES.CHAT,
     target: "chat-your-connections",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-preferences"],
     optional: true,
   },
 
@@ -199,6 +254,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agents-templates",
     page: ROUTES.AGENTS,
     target: "agents-templates",
+    activate: "page-secondary-actions",
     permission: Perm.agentsEdit,
     inTour: true,
   },
@@ -212,7 +268,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
 
   // The builder, entered from the Agents list. The engine opens an example agent
-  // (the seeded "Claude Code like", or the first one there is), switches to the
+  // (the seeded "AgenticOS", or the first one there is), switches to the
   // named tab, then spotlights the section. The launch pass takes one per tab —
   // enough for a short line on each section; the "?" adds the sub-cards (model,
   // MCP) the launch leaves out.
@@ -226,6 +282,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-build",
     permission: Perm.agentsView,
     inTour: true,
+  },
+  // The first messages an empty chat offers, under the instructions (#2301).
+  {
+    id: "agent-starters",
+    page: AGENT_BUILDER,
+    target: "agent-starters",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
   },
   {
     id: "agent-model",
@@ -320,6 +384,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-test",
     page: AGENT_BUILDER,
     target: "agent-test",
+    activate: "page-secondary-actions",
     permission: Perm.agentsEdit,
     inTour: true,
   },
@@ -329,6 +394,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-share",
     page: AGENT_BUILDER,
     target: "agent-share",
+    activate: "page-secondary-actions",
     permission: Perm.agentsView,
   },
   {
@@ -352,6 +418,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "skills-gallery",
     page: ROUTES.SKILLS,
     target: "skills-gallery",
+    activate: "page-secondary-actions",
     permission: Perm.skillsEdit,
     inTour: true,
   },
@@ -403,6 +470,58 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
   { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
 
+  // Workflows — the visual editor's list. Same shape as Agents: a create button
+  // the launch pass points at (create-gated), and the status list the "?" adds
+  // (view-gated). The create control opens the blank/template dialog.
+  {
+    id: "workflows-new",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-new",
+    permission: Perm.workflowsCreate,
+    inTour: true,
+  },
+  {
+    id: "workflows-list",
+    page: ROUTES.WORKFLOWS,
+    target: "workflows-list",
+    permission: Perm.workflowsView,
+  },
+  {
+    id: "workflow-canvas-fullscreen",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-canvas-fullscreen",
+    optional: true,
+  },
+  {
+    id: "workflow-step-view",
+    page: WORKFLOW_DETAIL,
+    target: "workflow-step-view",
+    optional: true,
+  },
+  // Every workflow's runs, filtered on the server: one describing stop on the list.
+  {
+    id: "workflows-runs",
+    page: ROUTES.WORKFLOW_ALL_RUNS,
+    target: "workflows-runs",
+    permission: Perm.workflowsView,
+  },
+  // One workflow's runs, `/workflows/<id>/runs`: "?"-only and shown in place, like
+  // a table - there is no seeded workflow to open from the list. Ungated: anyone
+  // who reached the page may see a workflow, which is all both stops need.
+  { id: "workflow-stats", page: WORKFLOW_RUNS_DETAIL, target: "workflow-stats" },
+  { id: "workflow-run-history", page: WORKFLOW_RUNS_DETAIL, target: "workflow-run-history" },
+  // One workflow's log, `/workflows/<id>/logs`: the lines its steps' quick logs wrote.
+  { id: "workflow-logs", page: WORKFLOW_LOGS_DETAIL, target: "workflow-logs" },
+  // The alert rules under it: drawn for anyone who may view the workflow, anchored on
+  // the card's header, and optional while the page is still loading its workflow.
+  {
+    id: "workflow-log-alerts",
+    page: WORKFLOW_LOGS_DETAIL,
+    target: "workflow-log-alerts",
+    permission: Perm.workflowsView,
+    optional: true,
+  },
+
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
   {
@@ -416,6 +535,63 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "artifacts-groups",
     page: ROUTES.ARTIFACTS,
     target: "group-filter",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  // One page, `/apps/<id>`: "?"-only and shown in place, from the "?" in its
+  // strip. The anchors sit in the strip, never in a dialog or a menu: the walk
+  // opens a tab, not a dialog, so a stop cannot reveal what a click would. The
+  // first, on the strip's own header, is always there, so "?" never closes without
+  // showing anything; the rest are `optional` - the consent warning is drawn only
+  // while a version waits for consent, the Requests button and the data-change
+  // notice only while one waits, and the owner menu only for who may change the owner.
+  {
+    id: "artifact-strip",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-strip",
+    permission: Perm.artifactsView,
+  },
+  {
+    id: "artifact-consent",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-consent",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-public-data",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-public-data",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-requests",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-requests",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-review",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-review",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  // Only for a page that declares actions the viewer may run: the menu is drawn
+  // then and not otherwise.
+  {
+    id: "artifact-actions",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-actions",
+    permission: Perm.artifactsView,
+    optional: true,
+  },
+  {
+    id: "artifact-change-owner",
+    page: ARTIFACT_DETAIL,
+    target: "artifact-change-owner",
     permission: Perm.artifactsView,
     optional: true,
   },
@@ -549,19 +725,89 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.collectionsView,
   },
 
+  {
+    id: "tables-catalog",
+    page: ROUTES.TABLES,
+    target: "tables-catalog",
+    permission: Perm.tablesView,
+    inTour: true,
+  },
+  {
+    id: "tables-new",
+    page: ROUTES.TABLES,
+    target: "tables-new",
+    permission: Perm.tablesCreate,
+    inTour: true,
+  },
+  // The table detail, `/tables/<id>`. "?"-only and shown in place: it is in no
+  // section flow, so the walk never opens a table from the catalog - there is no
+  // seeded example to open, the same as `workspaces-detail` - and a "?" pressed on
+  // a table spotlights that table's own controls. `table-columns`
+  // is `optional`, not permission-gated: the button it anchors on renders from
+  // `table.can_edit`, a per-row boolean no static `Permission` can express (see
+  // `docs/virtual-tables.md#who-can-do-what`), so a role-level gate here would
+  // either hide the step from an editor or wait four seconds for a viewer whose
+  // refusal never mounted it.
+  {
+    id: "table-columns",
+    page: TABLE_DETAIL,
+    target: "table-columns",
+    activate: "page-secondary-actions",
+    optional: true,
+  },
+  // Ungated: any member who can open the table can read its triggers, and the
+  // sheet itself hides the controls from one who cannot edit them.
+  {
+    id: "table-triggers",
+    page: TABLE_DETAIL,
+    target: "table-triggers",
+    activate: "page-secondary-actions",
+  },
+  { id: "table-view-tabs", page: TABLE_DETAIL, target: "table-view-tabs" },
+
   { id: "orgs-new", page: ROUTES.ORGS, target: "orgs-new" },
 
   // The organization detail, entered from the workspaces list. Two routes, one
-  // walk: the members page (profile, then the member list) and then a step
+  // walk: the organization tabs (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
-  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
-  // The Voice card sits above the member list on the same page, so it comes
-  // before the list rather than doubling back from the roles matrix. Gated like
+  { id: "org-profile", page: ORG_MEMBERS, target: "org-profile", activate: "org-tab-profile" },
+  {
+    id: "org-governance",
+    page: ORG_MEMBERS,
+    target: "org-governance",
+    activate: "org-tab-governance",
+    anyPermission: [Perm.budgetsManage, Perm.approvalsDecide],
+  },
+  {
+    id: "org-proactivity",
+    page: ORG_MEMBERS,
+    target: "org-proactivity",
+    activate: "org-tab-proactivity",
+    anyPermission: [Perm.budgetsManage, Perm.orgSettings],
+  },
+  {
+    id: "org-proactivity-model",
+    page: ORG_MEMBERS,
+    target: "org-proactivity-model",
+    activate: "org-tab-proactivity",
+    permission: Perm.budgetsManage,
+    anyPermission: [Perm.connectionsManage],
+    optional: true,
+  },
+  {
+    id: "org-public-live-data",
+    page: ORG_MEMBERS,
+    target: "org-public-live-data",
+    activate: "org-tab-governance",
+    permission: Perm.orgSettings,
+  },
+  // Activate each settings tab before locating its card. Gated like
   // the card, which is hidden from anybody who may not change settings.
   {
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
+    activate: "org-tab-voice",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -570,10 +816,11 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-assistant",
     page: ORG_MEMBERS,
     target: "org-assistant",
+    activate: "org-tab-assistant",
     permission: Perm.orgSettings,
     optional: true,
   },
-  { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
+  { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
     id: "org-retention",
@@ -669,6 +916,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "channels-list",
     permission: Perm.agentsView,
   },
+  // A Discord bot's role mappings (#2569): only on a Discord row, and only for
+  // somebody who may manage members, so optional - most organizations have none.
+  {
+    id: "channels-discord-roles",
+    page: ROUTES.CHANNELS,
+    target: "channels-discord-roles",
+    permission: Perm.membersManage,
+    optional: true,
+  },
 
   {
     id: "sandboxes-connections",
@@ -691,6 +947,43 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.projectsView,
   },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+  { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
+  { id: "project-graph", page: PROJECT_DETAIL, target: "workspace-graph", optional: true },
+
+  {
+    id: "project-file-fullscreen",
+    page: PROJECT_DETAIL,
+    target: "workspace-fullscreen",
+    optional: true,
+  },
+  {
+    id: "workspace-file-fullscreen",
+    page: WORKSPACE_DETAIL,
+    target: "workspace-fullscreen",
+    optional: true,
+  },
+  {
+    id: "agent-editor-fullscreen",
+    page: AGENT_BUILDER,
+    target: "text-editor-expand",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+    optional: true,
+  },
+  {
+    id: "skill-editor-fullscreen",
+    page: ROUTES.SKILLS,
+    target: "text-editor-expand",
+    permission: Perm.skillsView,
+    optional: true,
+  },
+  {
+    id: "context-editor-fullscreen",
+    page: ROUTES.CONTEXT,
+    target: "text-editor-expand",
+    permission: Perm.contextView,
+    optional: true,
+  },
 
   // Other vendors' agents, reached over A2A (#2092). The list is what the page
   // is for; registering is `agents:edit`, which the button carries.
@@ -715,32 +1008,48 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // "?"-only, like the workspaces stop: the launch pass is deliberately six steps
   // - welcome, the dashboard, the chat, finish - and a seventh about work nobody
   // has scheduled yet is a page a first login has no reason to visit.
-  { id: "routines-list", page: ROUTES.ROUTINES, target: "routines-list" },
+  {
+    id: "routines-list",
+    page: ROUTES.ROUTINES,
+    target: "routines-list",
+    activate: "routines-agents-tab",
+  },
+  // Watches over the reader's own connections (#2301); the card's header is always drawn.
+  {
+    id: "routines-watches",
+    page: ROUTES.ROUTINES,
+    target: "routines-watches",
+    activate: "routines-watches-tab",
+  },
   {
     id: "routines-create",
+    activate: "routines-agents-tab",
     page: ROUTES.ROUTINES,
     target: "routines-create",
     permission: Perm.agentsRun,
   },
-  // Rendered only once the template catalog has answered, so optional.
-  {
-    id: "routines-ideas",
-    page: ROUTES.ROUTINES,
-    target: "routines-ideas",
-    permission: Perm.agentsRun,
-    optional: true,
-  },
+
+  // What the platform brought the reader on its own (#2301). "?"-only, like the
+  // routines stop: the launch walk does not take a first login here.
+  { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },
 
   { id: "workspaces-browser", page: ROUTES.DOCUMENTS, target: "workspaces-browser" },
   // The detail a workspace opens onto — the file tree. "?"-only and shown in
   // place: the reader is already on one of their own workspaces, so the walk
   // spotlights the browser rather than opening an example there is none of.
   { id: "workspaces-detail", page: WORKSPACE_DETAIL, target: "workspace-files" },
+  { id: "workspace-graph", page: WORKSPACE_DETAIL, target: "workspace-graph", optional: true },
 
   // Settings — the tabbed personal section. One "?" stop on the tabs, which live
   // in the shared layout, so it lands on whichever of the four pages the reader
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
+  {
+    id: "desktop-local-agents",
+    page: SETTINGS_DETAIL,
+    target: "desktop-local-agents",
+    optional: true,
+  },
   // The Appearance card - theme, voice glow, motion. On the profile tab only,
   // so `optional`: help opened on another tab has no card to wait four seconds
   // for. Ungated, like the tabs: these are every person's own preferences.
@@ -787,6 +1096,10 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
   [ROUTES.ORGS, ORG_MEMBERS, ORG_ROLES],
 ];
 
+/** `/workflows/<id>/runs` - three segments, so every workflow's `/workflows/runs` is not one. */
+const WORKFLOW_RUNS_PATH = /^\/workflows\/[^/]+\/runs$/;
+const WORKFLOW_LOGS_PATH = /^\/workflows\/[^/]+\/logs$/;
+
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
@@ -802,6 +1115,12 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;
+  if (path.startsWith(`${ROUTES.TABLES}/`)) return TABLE_DETAIL;
+  if (path.startsWith(`${ROUTES.ARTIFACTS}/`)) return ARTIFACT_DETAIL;
+  if (WORKFLOW_RUNS_PATH.test(path)) return WORKFLOW_RUNS_DETAIL;
+  if (WORKFLOW_LOGS_PATH.test(path)) return WORKFLOW_LOGS_DETAIL;
+  if (/^\/workflows\/[^/]+$/.test(path) && path !== ROUTES.WORKFLOW_ALL_RUNS)
+    return WORKFLOW_DETAIL;
   return path;
 }
 
@@ -810,12 +1129,19 @@ function flowFor(pageId: string): readonly string[] {
   return SECTION_FLOWS.find((flow) => flow.includes(pageId)) ?? [pageId];
 }
 
+function canVisitStep(step: TourStep, can: (permission: Permission) => boolean): boolean {
+  return (
+    (!step.permission || can(step.permission)) &&
+    (!step.anyPermission || step.anyPermission.some(can))
+  );
+}
+
 /**
  * The curated first-run walkthrough: the `inTour` steps, permission-filtered the
  * way the sidebar is, so a Viewer's tour is exactly the sections they can act on.
  */
 export function visibleTourSteps(can: (permission: Permission) => boolean): readonly TourStep[] {
-  return TOUR_STEPS.filter((step) => step.inTour && (!step.permission || can(step.permission)));
+  return TOUR_STEPS.filter((step) => step.inTour && canVisitStep(step, can));
 }
 
 /**
@@ -836,10 +1162,7 @@ export function stepsForPage(
   const flow = flowFor(current);
   const reachable = new Set(flow.slice(flow.indexOf(current)));
   return TOUR_STEPS.filter(
-    (step) =>
-      step.page !== undefined &&
-      reachable.has(step.page) &&
-      (!step.permission || can(step.permission)),
+    (step) => step.page !== undefined && reachable.has(step.page) && canVisitStep(step, can),
   );
 }
 

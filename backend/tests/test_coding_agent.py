@@ -1532,6 +1532,10 @@ class TestChoosingAModel:
     def test_the_builder_offers_each_harness_its_own_models(self) -> None:
         when = CodingAgentConfig.model_json_schema()["properties"]["model"]["x-enum-when"]
         assert when["field"] == "harness"
+        assert CodingAgentConfig.model_json_schema()["properties"]["model"]["x-visible-when"] == {
+            "field": "runs_on",
+            "equals": ["sandbox"],
+        }
         assert all(model.startswith("anthropic:") for model in when["choices"]["claude_code"])
         assert all(model.startswith("openai:") for model in when["choices"]["codex"])
 
@@ -1565,3 +1569,30 @@ class TestChoosingAModel:
         assert isinstance(built, CodingAgent)
         assert built.api_key is None and built.sign_in is not None
         assert repr(built.sign_in(uuid4())).startswith("VaultCodexCredentials(")
+
+
+def test_coding_environment_uses_icon_choice_cards() -> None:
+    from app.agents.capabilities.coding_agent import CodingAgentConfig
+
+    field = CodingAgentConfig.model_json_schema()["properties"]["runs_on"]
+    assert field["x-widget"] == "coding-environment"
+    assert field["enum"] == ["sandbox", "this_computer"]
+
+
+@pytest.mark.parametrize("runs_on", ["sandbox", "this_computer"])
+def test_personal_model_preferences_only_override_a_local_binding(runs_on: str) -> None:
+    from app.agents.capabilities.coding_agent import LOCAL_CODING_PREFERENCES, CodingPreferences
+
+    definition = get("coding_agent")
+    binding = CapabilityBinding(capability_id="coding_agent", config={"runs_on": runs_on})
+    built = definition.builder(
+        CapabilityBuildContext(
+            binding=binding,
+            config=definition.validate_config(binding.config),
+            resources={LOCAL_CODING_PREFERENCES: CodingPreferences(model="haiku", effort="low")},
+            secret=None,
+        )
+    )
+    assert isinstance(built, CodingAgent)
+    assert built.model == ("haiku" if runs_on == "this_computer" else None)
+    assert built.effort == ("low" if runs_on == "this_computer" else None)

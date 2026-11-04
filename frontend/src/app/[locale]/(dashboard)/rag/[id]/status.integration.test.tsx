@@ -8,7 +8,7 @@ import KBDetailPage from "./page";
 import { apiClient } from "@/lib/api-client";
 import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
-import type { KBDocument, KnowledgeBase } from "@/types";
+import type { KBDocument, KBIngestion, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
 
 /**
@@ -35,6 +35,14 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (permission: string) => permission === Perm.collectionsView }),
 }));
+
+/** The KB's indexing state, settled: these tests are about the documents. */
+const SETTLED_INGESTION: KBIngestion = {
+  indexing_status: "complete",
+  processing_count: 0,
+  indexed_count: 0,
+  failed_count: 0,
+};
 
 const COLLECTION: KnowledgeBase = {
   id: "kb-1",
@@ -114,6 +122,7 @@ function serve() {
     if (path.includes("/documents")) return { items: DOCUMENTS, total: DOCUMENTS.length };
     if (path.endsWith("/connectors")) return { items: [] };
     if (path.includes("/sync-sources")) return { items: SOURCES, total: SOURCES.length };
+    if (path.endsWith("/ingestion")) return SETTLED_INGESTION;
     if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
     return COLLECTION;
   });
@@ -207,6 +216,7 @@ describe("a status badge on a knowledge base", () => {
       }
       if (path.endsWith("/connectors")) return { items: [] };
       if (path.includes("/sync-sources")) return { items: [], total: 0 };
+      if (path.endsWith("/ingestion")) return SETTLED_INGESTION;
       if (!path.startsWith("/kb/kb-1")) return { items: [], total: 0 };
       return COLLECTION;
     });

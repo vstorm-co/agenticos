@@ -20,7 +20,7 @@ const TooltipContent = React.forwardRef<
         // Deliberately NOT the accent. A tooltip is a neutral inverse surface:
         // it labels whatever it points at, so tinting it would imply the
         // labelled thing is the primary action.
-        "bg-foreground text-background animate-in fade-in-0 zoom-in-95 z-50 overflow-hidden rounded-md px-3 py-1.5 text-xs",
+        "bg-foreground text-background data-[state=delayed-open]:animate-in data-[state=instant-open]:animate-in data-[state=closed]:animate-out fade-in-0 fade-out-0 zoom-in-95 zoom-out-95 z-50 max-w-[min(20rem,calc(100vw-1.5rem))] origin-[var(--radix-tooltip-content-transform-origin)] rounded-lg px-3 py-2 text-xs leading-relaxed break-words",
         className,
       )}
       {...props}

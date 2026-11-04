@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
-import { ArchitectMark } from "./architect-mark";
 import { cn } from "@/lib/utils";
 import type { AssistantState } from "@/types/assistant";
 
@@ -27,7 +25,7 @@ interface AssistantLauncherProps {
   overComposer?: boolean;
 }
 
-/** The round button with the assistant's face, in the corner of every page. */
+/** In the phone header; at the desktop edge where no top bar exists. */
 export function AssistantLauncher({
   assistant,
   agentId,
@@ -54,14 +52,16 @@ export function AssistantLauncher({
       // right edge and leaves a sliver to pull it back out by; a pointer over
       // the sliver shows the whole face again.
       className={cn(
-        "bg-background border-border fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 rounded-full border p-1 shadow-lg transition-transform duration-300 ease-out hover:scale-105 active:scale-95 md:right-6 md:bottom-6 [html[data-typing]_&]:hidden",
+        "bg-background border-border fixed top-0.5 right-14 z-40 rounded-full p-1 transition-transform duration-300 ease-out hover:scale-105 active:scale-95 md:top-auto md:right-6 md:bottom-6 md:z-50 md:border md:shadow-lg [html[data-typing]_&]:hidden",
         docked &&
-          "right-0 translate-x-[calc(100%-1.125rem)] rounded-r-none border-r-0 hover:translate-x-0 hover:scale-100 focus-visible:translate-x-0 md:right-0",
+          "md:right-0 md:translate-x-[calc(100%-1.125rem)] md:rounded-r-none md:border-r-0 md:hover:translate-x-0 md:hover:scale-100 md:focus-visible:translate-x-0",
         open && "hidden",
         overComposer && "hidden",
       )}
     >
-      <AssistantFace assistant={assistant} agentId={agentId} size="lg" />
+      <span className="block size-9 md:size-14 [&>*]:size-full">
+        <AssistantFace assistant={assistant} agentId={agentId} size="lg" />
+      </span>
       {waiting && (
         <span
           aria-hidden
@@ -82,8 +82,6 @@ export function AssistantFace({
   agentId: string;
   size: "sm" | "lg";
 }) {
-  // The Architect wears its own mark until an organization gives it a picture.
-  if (assistant.wears_mark) return <ArchitectMark size={size} watching={size === "lg"} />;
   return (
     <AgentAvatar
       agentId={agentId}
@@ -118,23 +116,22 @@ export const WINDOW_CLASSES =
  * useful exactly when somebody is stuck in a form, so the widget takes pointer
  * events back and keeps its presses from reaching the document, where the
  * dialog listens for them.
+ *
+ * Stopped in React's own handler, once the widget's controls have had the
+ * press: a native listener on this div stopped it before React - which listens
+ * at its root - ever saw it, so every control opening on `pointerdown`, the
+ * composer's `+` menu among them, was dead here. `stopImmediatePropagation`
+ * because that root may be the document itself, where the dialog listens too,
+ * later.
  */
 export function WidgetRoot({ children }: { children: React.ReactNode }) {
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // Set by the time an effect runs: the div is this component's only output.
-    const element = root.current;
-    const keep = (event: PointerEvent) => event.stopPropagation();
-    element?.addEventListener("pointerdown", keep);
-    return () => element?.removeEventListener("pointerdown", keep);
-  }, []);
   return (
     // The Builder's test panel takes the corner the widget sits in, and is a chat
     // of its own; the Architect comes back when it closes.
     <div
-      ref={root}
       data-tour="assistant-widget"
       className="pointer-events-auto [html[data-test-panel]_&]:hidden"
+      onPointerDown={(event) => event.nativeEvent.stopImmediatePropagation()}
     >
       {children}
     </div>

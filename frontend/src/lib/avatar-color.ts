@@ -7,8 +7,8 @@
  * colour is a stable function of a seed (the row's id), so one entity wears the
  * same colour everywhere it appears.
  *
- * Two shapes read it. An organization draws two letters on the fill itself
- * (`avatarInitials` + `avatarPalette`); a person and an agent draw a generated
+ * Two shapes read it. People and organizations draw initials on the fill itself
+ * (`avatarInitials` + `avatarPalette`); an agent draws a generated
  * face, which takes the same choice as a hue (`avatarHue`) rather than as a
  * class. One picker, one stored slot, two renderers.
  */

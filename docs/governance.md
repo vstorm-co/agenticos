@@ -467,6 +467,69 @@ cannot be checked before each request the way a text run is:
 A call whose process died is closed by the voice sweep at the cost its last
 heartbeat recorded, unlike a text run, whose spend dies with its process.
 
+### Proactive work { #proactive-work }
+
+Proactive runs are attributed to the organization's published **AgenticOS**
+starter agent (`agenticos` slug). This association is fixed by the platform;
+it does not select the model or run the starter's instructions. Choose the
+separate proactivity model and limits on **Organizations → Members →
+Proactivity**. Activity shows the **Proactive** icon and filter, the model
+requests and their costs, and the recorded exchange including tool results and
+the final structured answer. Failed checks retain the exchange available before
+the failure. These records require `runs:view`, like other Activity records,
+and do not create conversations in Chat. Older runs cannot recover exchanges
+that were never recorded; oversized records explicitly say they were trimmed.
+
+The model field uses the same provider, model and vault-key picker as the Agent
+Builder. With `connections:manage`, a member can create a model profile there;
+without it, they choose an existing profile. Creating a profile stores it
+immediately. **Save** applies the selection to the organization's nightly
+suggestions and watches, which share this model and the per-person limit.
+
+The platform can do a little on its own initiative, and does nothing of the kind
+until an organization turns it on: the **Proactivity** card on its members page
+(`budgets:manage`). Turned on, a background job looks at each person's recent
+requests on the days and at the hour the organization chose - in each person's
+time zone, or an hour before the working hours their profile states - and
+proposes a routine for a request they keep repeating, a profile, or the first
+messages their empty chat offers ([Console](console.md#chat)).
+
+Each is one model
+call, on the model the organization chose when it turned this on (there is no
+default: `proactive_model_profile_id` is required), recorded in run history as a
+run from the **proactive** surface and counted against the organization's budget
+like any other. A person can leave themselves out under **Settings → Assistant**.
+
+On top of that, each person's proactive runs in a calendar month are capped by
+the organization's **proactive limit** - $1 by default, set on the same card
+(`proactive_limit_usd`). A person nothing new happened to costs nothing: the job
+only calls the model when there is something to read.
+
+**Watches** point the same work at a person's own connections, switched on
+separately on the same card (`proactive_watches_enabled`), on the same model and
+inside the same limit. A person starts one with **New watch** under
+**Routines**, where a Watches card lists each with when it last looked and how
+many of its findings wait, or with **Watch** beside the account's **Tools** on
+the MCP servers page. They pick one of their own MCP connections - any server
+they connected - and say what to look for - a ready-made watch for that server
+or their own words - and how often, never more often than the organization
+allows (`proactive_watch_min_minutes`, an hour by default).
+
+Each look is one run from the **proactive** surface, offered only the tools the
+server marks read-only (`readOnlyHint`), so a watch never changes anything in the
+account. What it finds is the person's alone: a suggestion of kind `finding`,
+keyed on the item's own id so it is reported once, with a link to open it. A
+finding on a watch set to say urgent things at once, which the model also judged
+urgent, is sent straight away as a notification; the rest waits for their morning
+[briefing](console.md#the-inbox).
+Unlike a routine, a watch says nothing when nothing is new.
+
+The same card holds the **welcome message**, off by default and gated on
+`org:settings`: a new member's direct message from the organization's Slack,
+Teams and Mattermost bots, in the organization's own words when it wrote some
+(`{organization}`, `{bot}` and `{url}` are filled in) or the built-in greeting in
+their language.
+
 ### What run history shows
 
 **`GET /runs` lists top-level runs only, and its `total` counts those.** The same
@@ -647,7 +710,7 @@ not an accountability trail. There are deliberately no controls on a decided row
 | Parameter | |
 |---|---|
 | `status` | Repeats. Absent means pending — the queue |
-| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person |
+| `triggered_by_user_id` | Whose runs parked the call. Read off `agent_runs`: an approval belongs to a run and a run belongs to a person. It leaves out runs where the publisher stood in for a chat account that is not linked; those rows carry `asked_in_chat` (platform, name and bot) instead, and their `triggered_by_*` fields are empty |
 | `created_from`, `created_to` | When the call was parked, inclusive both ends |
 | `oldest_first` | Defaults to true, and the default is load-bearing — see above: nothing ages a call out, so newest-first would bury the row that most needs seeing |
 
@@ -844,7 +907,10 @@ routes do not have to:
   CSV of who-ran-what with names resolved is the per-person table decision 3 of the
   activity design refused, arriving as a download. The approvals queue already
   resolves the triggering and deciding emails on screen, so the approvals export
-  keeps them.
+  keeps them. It also carries a chat stranger's display name or handle, as the
+  queue shows it, in three columns: `asked_in_chat_platform`,
+  `asked_in_chat_account` and `asked_in_chat_bot`. For such a row the two email
+  columns are empty, because the publisher did not ask.
 - **Audit.** Every export writes one `audit_log` entry - a privileged bulk read,
   cheap to record now and impossible to reconstruct later. It names the window, the
   filters that were applied and the row count, never the request body.
@@ -989,7 +1055,7 @@ sequenceDiagram
     end
 ```
 
-Four properties worth knowing:
+Five properties worth knowing:
 
 - **A parked run is resumable.** Its message history is stored, so the decision is
   applied to the conversation it belongs to rather than starting again.
@@ -1025,13 +1091,25 @@ Four properties worth knowing:
   a binding names deleted, a model profile removed, a capability dropped in a
   deploy, an MCP connection unshared. The spec is assembled before the run leaves
   the approval queue, so a refusal there refuses the *attempt*: the decision
-  stands and resuming works again once the spec does.
+  stands and resuming works again once the spec does. A run asked in a chat that
+  nobody continued is ended by the safety net about an hour after its last
+  decision.
+- **Who continues a run asked in a chat.** A person's decision in the console, the
+  web chat or over the API continues the run in its chat, as them, and the answer
+  is posted there; a key's decision is recorded and continues nothing. A
+  continuation can be lost or refused, and then the run waits in
+  `awaiting_approval` with nothing pending. The hourly safety net ends such a
+  channel run `STRANDED_AFTER` (one hour) after its last decision, and tells the
+  chat once - not when the decision is more than 7 days old, and not when the chat
+  was already told. It looks at channel runs only. See
+  [Decided outside the chat](channels.md#decided-outside-the-chat).
 - **A decided approval cannot be decided twice.** The second decision is refused —
   including a decision arriving a second after the expiry sweep took the call.
 - **A parked call is denied by timeout once it passes `APPROVAL_EXPIRY_HOURS`**, and
   the run behind it is settled rather than left parked for ever. The status is
   `expired` with a null `decided_by_user_id`, which is what tells an expiry from a
-  rejection in the accountability trail. The Activity page still surfaces the **age**
+  rejection in the accountability trail. A run asked in a chat also tells that
+  chat once that the request expired. The Activity page still surfaces the **age**
   of the oldest wait, because a queue under its expiry window is the one somebody can
   still act on.
 - **`required` works on any capability**, not only side-effecting ones. "This only
@@ -1056,6 +1134,16 @@ Four properties worth knowing:
   deliberate: an agent that has been running like this stops, with a message
   saying what to change. What stops is an agent whose operator asked for an
   approval nobody was ever being asked for.
+- **A parked call can name what its ids stand for.** A tool may describe its own
+  call: the table writes give the table's name. A record is never named, because a record's label is the text of
+  one of its cells, and the approval keeps it. The names are resolved as the run's
+  person when the call parks, so nothing that person may not see is named, and
+  are stored on the approval as `context`. The chat card and the Approvals page
+  lead with a sentence built from them, such as "Share the view Closed tickets of
+  Support with everyone who may read the table", above the arguments, which stay
+  what runs. The sentence is found by the tool's stable id, so a tool that a
+  binding renamed keeps it. A failed or slow description parks the call without
+  one, and a call that a resumed run already decided is not described again.
 - **One model step can park several calls.** A model that answers with two
   side-effecting calls at once - "email the customer and the account manager" -
   parks both, each its own approval row decided on its own. The rows are written
@@ -1181,8 +1269,12 @@ worker killed mid-run — OOM, a deploy that does not drain — leaves a durable
 nothing left to finish it: in Activity for ever, and blocking any schedule whose
 trigger it was the linked run of.
 
-An hourly sweep ends anything still `running` past `STALE_RUN_REAPED_AFTER_HOURS` —
-six hours by default, zero switches it off — as **`failed`**. Nobody stopped this
+While its model works, the process executing a run stamps it alive every
+`RUN_HEARTBEAT_SECONDS`. A sweep every minute ends anything still `running` with no
+sign of life for `STALE_RUN_REAPED_AFTER_SECONDS` — two minutes by default, zero
+switches it off — as **`failed`**, and tells open consoles, so a chat stops saying
+"Working" over a turn nobody is answering and offers to ask again. A voice call's
+run is left to the voice reaper, which hangs the call up. Nobody stopped this
 run, the infrastructure did, and an operator filtering run history for problems is
 exactly who should see it.
 
@@ -1265,6 +1357,68 @@ it spent.
     stricter setting applies to a schedule or another entry point. Tools
     executed inside a model provider do not pass through the local approval gate.
 
+### A workflow step that asks a person { #workflow-step-approvals }
+
+A workflow asks with a [`human.approval`](reference/workflow-nodes.md#human-approval)
+step rather than a gated tool: the step writes its own request - a title, the
+details it was given, who may decide and until when - and its run waits on it.
+The **Approvals** tab lists these above the tool calls, and deciding one wakes the
+run, which goes on by the answer. A decision is final and is recorded in the audit
+trail with what was asked, and stays listed under **Decided** with the tool calls'
+own record. A step that names its approvers can be decided only by
+them. One nobody decides in time expires, and a cancelled run cancels its requests.
+
+A step that is `editable` also shows the approver a proposal, such as a drafted
+reply, which they may change before approving it. The audit entry records whether
+the step was editable, whether the approver edited it (`edited`) and the length of
+the proposal and of the approved text (`proposal_length`, `final_length`), never
+the text itself. The text is kept on the request, in plaintext, until the run's
+history is deleted.
+
+The requests are also counted. A workflow's Stats card and its stats API report, per
+step and per day, how many were approved as proposed, edited, rejected or expired,
+how long people took to decide and how much their edits changed, each edit as a
+ratio from `0` to `1` (`edit_ratio`, also in the audit entry); see
+[Running a workflow](workflows.md#running-a-workflow). The organization-wide
+summary, `GET /api/v1/workflow-approvals/stats`, needs `workflows:view` and covers
+only the workflows the member may view. It holds no proposal or approved text and no
+figure for any one approver: it counts requests, not people.
+
+### Artifact entries
+
+A page that reads table data is shared on its owner's consent, and each step of that
+leaves an entry with the person who took it. None of them carries a record, a filter
+value or a row: they hold versions, fingerprints, request ids and the words a person
+confirmed.
+
+| Action | Recorded when |
+|---|---|
+| `artifact.published` | A version was published, with its number, the fingerprint of its page queries and `actions`, the ids of the workflows it declares |
+| `artifact.data_consented` | The owner confirmed a version's data, or it was consented to automatically (`automatic`). Names the version and the fingerprint, `for_owner` when an Owner or Admin confirmed for them, and `via_grant` when an `edit_data` grant gave it |
+| `artifact.data_withdrawn` | An editor stopped the page sharing its data; names the version the audience was served and whether auto-consent was on, and how many `edit_data` grants it lowered to `edit` |
+| `artifact.auto_consent_changed` | The owner turned "Share new versions automatically" on or off, with the text they confirmed |
+| `artifact.edit_data_granted` | The owner, or an Owner or Admin, gave a person or a group "Can edit, including data", with the text they confirmed |
+| `artifact.owner_changed` | A page changed hands: the old and the new owner, who did it, and any `edit_data` grants it dropped |
+| `artifact.share_requested` | A request was filed - an `audience`, `access` or `version` request - by a person, or by their agent's run |
+| `artifact.share_request_approved` and `artifact.share_request_declined` | A request was decided, and by whom |
+| `organization.public_live_data_changed` | An Owner or Admin switched **Public pages with live data** on or off for the organization, with the old and the new value |
+| `artifact.public_data_consented` | The owner, or an Owner or Admin for them, confirmed that anyone with the page's public link, and the sites that embed it, may read its data. Names the version, the fingerprint, the tables and columns, the embedding sites and whether a password is set, and `for_owner` when someone confirmed for them |
+| `artifact.public_data_withdrawn` | An editor took that consent back, signed in as themselves (not impersonating), with the fingerprint it held |
+| `artifact.public_data_voided` | The consent was cleared because something under it changed, with a `reason`: `link_off`, `password_removed`, `origin_added`, `owner_changed`, `consent_withdrawn` or `archived` |
+| `artifact.action_started` | A member confirmed and started a workflow from a page's action. Names the page, the version, the workflow and the run, never the input values, which are on the run |
+
+**Public pages with live data** is an organization setting, off by default, in the
+organization's settings beside the approval waiver. It decides whether a page's data may
+reach people with no account through a public link or an embed. Unlike the waiver, it needs
+`org:settings` - Owner or Admin - and must be changed signed in as themselves: an impersonating
+session is refused. The page still needs its owner's
+[public data consent](artifacts.md#live-data-on-a-public-link). Turning the switch off is a
+kill switch: public pages lose their data at the next load and keep their consent, which
+holds again when it is switched back on.
+
+Widening a page's visibility or grants is recorded as `resource.share`, `resource.unshare` and
+`resource.visibility_changed` entries, as for any other resource. The tool `share_view` is gone, and with it the approval that gated it.
+
 ## Alerts
 
 Every alert here is about a run nobody is looking at. A chat run that stops on its
@@ -1283,9 +1437,16 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
-email off, or the other way round. The same page also carries every other
-event the inbox delivers: a run finishing or failing unattended, a document's
-ingestion **failing**, a connector sync's own whole-attempt figure, and an app
+email off, or the other way round.
+
+Page-sharing requests and page ownership changes name the page and person, never its data.
+
+The same page also carries every other
+event the inbox delivers: a run finishing or failing unattended - a routine's
+finish named after the routine and opening with the start of its answer, told to
+whoever set it up - an ask to switch a capability on, for the agent's owner,
+proposals the [proactive work](#proactive-work) made for a person, a
+document's ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both
 channels.
@@ -1357,6 +1518,12 @@ same setting, so the only way to quieten the first was to go deaf to the second.
 | **Budget** | this agent reached its own monthly cap | the admins and the agent's owner |
 | **Approvals** | a tool call parked | whoever started the run, plus the admins |
 | **Usage** | weekly and monthly, what this agent spent | off |
+
+A workflow's log has alerts of its own, set on the workflow's Logs page rather than in
+a spec; see [Alerts](workflows.md#log-alerts). They fire when a rule's matching lines
+reach its threshold within its window, and go to the workflow's owner unless the rule
+says otherwise. They follow the same bell and email preferences as the rest of this
+section, under **Workflow log alerts**.
 
 An audience is a list of roles, not addresses:
 
@@ -1599,6 +1766,12 @@ Set it at **Organizations → a workspace → Members → Retention**, gated on
 `org:settings`. A sweep runs once a day and **hard-deletes**: a policy that kept
 the rows would not be a policy.
 
+[Virtual Tables](virtual-tables.md#limits-and-retention) data joins the same sweep, on
+deployment-wide periods that no organization sets: idempotency receipts after 24 hours,
+dispatched outbox rows after 3 days and record history after 365 days, which is also what
+removes the history of a deleted record. The entry it writes names `table_receipts`,
+`table_outbox` or `table_history` and a count.
+
 The deployment's own three numbers - `retention_defaults`, `retention_max_days`
 and `audit_retention_floor_days` - are fields on the deployment settings, written
 by an app admin through `PATCH /admin/deployment-settings` like every other
@@ -1609,10 +1782,10 @@ where the per-tenant periods are set.
 
 | Class | What leaves with it | Measured from |
 |---|---|---|
-| Conversations | Messages, tool calls, and the chat files attached to them - the stored bytes **before** the rows, so a file that could not be unlinked keeps its row for the next pass rather than outliving it unfindable | The thread's last activity, so one somebody is still returning to is not old |
+| Conversations | Messages, tool calls and attached files; a locked batch excludes conversations with unfinished runs, and file cleanup is committed as a durable job with the row deletion | The thread's last activity, so one somebody is still returning to is not old |
 | Runs | The run row, its manifest and its tool approvals | When the run started |
 | Workspaces | The platform's record of an agent's files. For the `state` backend the row *is* the storage; a sandbox backend's files are reaped by the sandbox's own TTL. A project's are kept as long as the project is | Last use |
-| Apps | A [published page](artifacts.md) with every version, its stored bytes (**before** the rows, as for conversations), its grants and its public link | The last publication, so a report a schedule republishes is not old |
+| Apps | A [published page](artifacts.md), every version, grants and public link; file cleanup is queued in the same transaction | The last publication, so a report a schedule republishes is not old |
 | Memory | An agent's memory files | Last write, because a note is written once and read for months |
 | Uploaded documents | The row, its vectors and the uploaded file | When it was uploaded |
 | Audit | Entries on this organization's trail | When the entry was recorded |
@@ -1686,6 +1859,11 @@ Deletes go in batches of 500, up to forty passes per class per sweep. An
 organization arriving at a ninety-day policy after two years works its backlog
 off over several days rather than in one sweep that holds a lock for an hour
 with every other periodic flow queued behind it.
+
+Each class runs in a savepoint, so a SQL error rolls back that class and its
+cleanup intents without aborting later classes. Files are removed only after
+the delete commits, by durable jobs whose storage failures are visible and
+retryable in Background jobs. A rolled-back deletion leaves its files intact.
 
 ### What this does not reach
 

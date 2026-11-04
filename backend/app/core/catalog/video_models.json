@@ -1,0 +1,291 @@
+[
+  {
+    "provider": "google",
+    "api": "gemini_interactions",
+    "base_url": "https://generativelanguage.googleapis.com/v1beta",
+    "models": [
+      {
+        "id": "gemini-omni-1.1-flash",
+        "name": "Gemini Omni Flash",
+        "description": "Google's current video model, with sound in every clip. Decides its own length, 3 to 10 seconds.",
+        "min_seconds": 3,
+        "max_seconds": 10,
+        "aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "resolutions": [
+          "720p",
+          "360p",
+          "1080p",
+          "4k"
+        ],
+        "audio": "always",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "360p": "0.034",
+              "720p": "0.101",
+              "1080p": "0.152",
+              "4k": "0.304"
+            }
+          }
+        ],
+        "duration_choosable": false
+      }
+    ]
+  },
+  {
+    "provider": "byteplus",
+    "api": "byteplus_tasks",
+    "base_url": "https://ark.ap-southeast.bytepluses.com/api/v3",
+    "models": [
+      {
+        "id": "dreamina-seedance-2-5-260628",
+        "name": "Seedance 2.5",
+        "description": "ByteDance's newest, up to 30 seconds, with optional sound. The quality pick of the set.",
+        "min_seconds": 4,
+        "max_seconds": 30,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9"
+        ],
+        "resolutions": [
+          "720p",
+          "480p",
+          "1080p"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.103",
+              "720p": "0.231",
+              "1080p": "0.569"
+            }
+          }
+        ]
+      },
+      {
+        "id": "dreamina-seedance-2-0-260128",
+        "name": "Seedance 2.0",
+        "description": "Up to 15 seconds and the only Seedance that renders 4K.",
+        "min_seconds": 4,
+        "max_seconds": 15,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9"
+        ],
+        "resolutions": [
+          "720p",
+          "480p",
+          "1080p",
+          "4k"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.07",
+              "720p": "0.152",
+              "1080p": "0.374",
+              "4k": "0.778"
+            }
+          }
+        ]
+      },
+      {
+        "id": "dreamina-seedance-2-0-mini-260615",
+        "name": "Seedance 2.0 mini",
+        "description": "The cheapest Seedance, for drafts: 480p or 720p, up to 15 seconds.",
+        "min_seconds": 4,
+        "max_seconds": 15,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9"
+        ],
+        "resolutions": [
+          "720p",
+          "480p"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.036",
+              "720p": "0.076"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "provider": "xai",
+    "api": "xai_videos",
+    "base_url": "https://api.x.ai/v1",
+    "models": [
+      {
+        "id": "grok-imagine-video-1.5",
+        "name": "Grok Imagine Video 1.5",
+        "description": "xAI's video model, native 1080p, up to 15 seconds with sound.",
+        "min_seconds": 1,
+        "max_seconds": 15,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3",
+          "21:9",
+          "5:2"
+        ],
+        "resolutions": [
+          "720p",
+          "480p",
+          "1080p"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.08",
+              "720p": "0.08",
+              "1080p": "0.08"
+            }
+          }
+        ]
+      },
+      {
+        "id": "grok-imagine-video-1.5-lite",
+        "name": "Grok Imagine Video 1.5 Lite",
+        "description": "The cheapest model here, at two cents a second. 720p, upscaled for 1080p.",
+        "min_seconds": 1,
+        "max_seconds": 15,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "3:2",
+          "2:3",
+          "21:9",
+          "5:2"
+        ],
+        "resolutions": [
+          "720p",
+          "480p",
+          "1080p"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.02",
+              "720p": "0.02",
+              "1080p": "0.02"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "provider": "alibaba",
+    "api": "dashscope_tasks",
+    "base_url": "https://dashscope-intl.aliyuncs.com/api/v1",
+    "models": [
+      {
+        "id": "wan3.0-video",
+        "name": "Wan 3.0",
+        "description": "Top of the text-to-video rankings, 2 to 30 seconds, with optional sound.",
+        "min_seconds": 2,
+        "max_seconds": 30,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9"
+        ],
+        "resolutions": [
+          "720p",
+          "480p",
+          "1080p"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.05",
+              "720p": "0.10",
+              "1080p": "0.20"
+            }
+          }
+        ]
+      },
+      {
+        "id": "wan3.0-video-prime",
+        "name": "Wan 3.0 Prime",
+        "description": "Wan 3.0's higher-quality tier, at about 40% more per second.",
+        "min_seconds": 2,
+        "max_seconds": 30,
+        "aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4",
+          "21:9"
+        ],
+        "resolutions": [
+          "720p",
+          "480p",
+          "1080p"
+        ],
+        "audio": "optional",
+        "first_frame": true,
+        "prices": [
+          {
+            "since": "2026-10-20",
+            "usd_per_second": {
+              "480p": "0.068",
+              "720p": "0.14",
+              "1080p": "0.28"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

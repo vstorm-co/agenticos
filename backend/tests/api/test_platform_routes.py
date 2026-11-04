@@ -23,6 +23,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Any, Protocol
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -39,10 +40,11 @@ from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Sco
 from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
-from app.repositories.agent_run import WindowAggregates, WindowBreakdown
+from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBreakdown
 from app.schemas.agent import ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.ml import MLService
+from app.services.parked_runs import Continued, DecidedApproval
 from app.services.sharing import SharingService
 from app.services.stats import StatsService
 from app.services.transcript import RecordedToolCall
@@ -134,6 +136,7 @@ _SERVICE_DEPS = (
     deps.get_approval_service,
     deps.get_skill_service,
     deps.get_context_service,
+    deps.get_virtual_table_service,
     deps.get_memory_service,
     deps.get_model_profile_service,
     deps.get_sharing_service,
@@ -146,6 +149,7 @@ _SERVICE_DEPS = (
     deps.get_rag_document_service,
     deps.get_stats_service,
     deps.get_ml_service,
+    deps.get_workflow_registry_service,
     deps.get_voice_usage_service,
 )
 
@@ -263,6 +267,9 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("GET", "/agents/mcp-catalog", Perm.AGENTS_VIEW),
     Call("GET", "/agents", Perm.AGENTS_VIEW),
+    # How close the organization is to its agent limit: only a caller who can
+    # create an agent has a use for it.
+    Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
     # Promoting a specialist creates an agent, so it is gated like `create` - and
     # this is where "a specialist created inside someone else's run does not become
@@ -338,6 +345,34 @@ CALLS: tuple[Call, ...] = (
         Perm.CONTEXT_EDIT,
         body={"name": "glossary", "description": "What the words mean"},
     ),
+    Call("GET", "/tables", Perm.TABLES_VIEW),
+    Call("POST", "/tables", Perm.TABLES_CREATE, body={"name": "orders"}),
+    Call("GET", "/workflows/node-catalog", Perm.WORKFLOWS_VIEW),
+    Call("GET", "/workflows/summary", Perm.WORKFLOWS_VIEW, query="?from=2020-01-01&to=2020-01-07"),
+    Call("GET", "/workflows", Perm.WORKFLOWS_VIEW),
+    Call("POST", "/workflows", Perm.WORKFLOWS_CREATE, body={"name": "Import orders"}),
+    Call(
+        "POST",
+        "/workflows/prepare",
+        Perm.WORKFLOWS_CREATE,
+        body={
+            "name": "Prepare orders",
+            "graph": {
+                "entry_node_id": str(_SOME_ID),
+                "nodes": [
+                    {
+                        "id": str(_SOME_ID),
+                        "definition_id": "trigger.manual",
+                        "definition_version": 1,
+                        "config": {},
+                        "layout": {"x": 0, "y": 0},
+                    }
+                ],
+            },
+        },
+    ),
+    Call("POST", "/workflows/import", Perm.WORKFLOWS_CREATE, body={"name": "Imported"}),
+    Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
@@ -352,6 +387,8 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/text-to-speech-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/video-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
     # The organization's call minutes by agent, for the dashboard figure and the
     # Voice card: what the organization spent time on, read like its runs.
@@ -374,6 +411,12 @@ CALLS: tuple[Call, ...] = (
             "model": "gpt-4.1",
             "secret_id": "00000000-0000-0000-0000-000000000001",
         },
+    ),
+    Call(
+        "PATCH",
+        "/providers/model-profiles/{profile_id}",
+        Perm.CONNECTIONS_MANAGE,
+        body={"secret_id": "00000000-0000-0000-0000-000000000001"},
     ),
     Call("DELETE", "/providers/model-profiles/{profile_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/audit", Perm.AUDIT_READ),
@@ -428,6 +471,13 @@ CALLS: tuple[Call, ...] = (
         "/mcp-connections",
         Perm.MCP_MANAGE,
         body={"name": "github", "url": "https://mcp.example.com/mcp"},
+    ),
+    Call(
+        # A polled mailbox's check interval, one setting for every trigger on it.
+        "PUT",
+        "/mcp-connections/portals/{connection_id}/poll-interval",
+        Perm.MCP_MANAGE,
+        body={"poll_interval_minutes": 5},
     ),
     Call(
         "PATCH",
@@ -779,6 +829,22 @@ _PLATFORM_PREFIXES = (
     # Context files, shaped exactly like skills: the collection routes gate on
     # context:view/edit, the per-file routes resolve grants in the service.
     "/context",
+    # Virtual tables, shaped the same way: the collection routes gate on
+    # tables:view and tables:create, every per-table route resolves the table's
+    # visibility and grants in the service.
+    "/tables",
+    # Workflows, shaped the same way again: the collection routes (list,
+    # create, the node catalog) gate on workflows:view/create, every
+    # per-workflow route resolves the workflow's visibility and grants in
+    # the service.
+    "/workflows",
+    # Workflow runs (#1788): `POST`/`GET` a run names an existing workflow -
+    # in the body or the path - and every one of these routes resolves
+    # access against *that* workflow rather than gating on a role, the same
+    # split `/workflows` itself uses. `GET /workflow-runs` (the true
+    # collection: it can list across every workflow the caller may see) is
+    # the one exception and keeps a `workflows:view` gate.
+    "/workflow-runs",
     # Memory routes carry no `require()`: every one acts on one agent's memory and the
     # service resolves access against that agent, so the sweep must reach them here.
     "/memory",
@@ -931,6 +997,45 @@ RESOURCE_AWARE_SERVICES = (
     # or delete one is its grants' answer, resolved inside the service. Every
     # per-file route (`GET/PATCH/DELETE /context/{id}`) depends on it.
     deps.get_context_service,
+    # A table is a shared resource like a context file: who may read or write it
+    # (and every record in it) is its grants' answer, resolved inside the service.
+    deps.get_virtual_table_service,
+    # The same service on the session a CSV export streams from.
+    deps.get_streaming_virtual_table_service,
+    # A workflow is a shared resource shaped the same way: who may read, edit the
+    # draft or publish it is its grants' answer, resolved inside the service.
+    # Every per-workflow route (`GET/PATCH .../draft/POST .../publish`) depends on it.
+    deps.get_workflow_registry_service,
+    # A workflow's figures are read for whoever may view that workflow, resolved
+    # against its grants inside the service, exactly as the workflow itself is.
+    deps.get_workflow_stats_service,
+    # A step's evals are its workflow's: writing and trying them is
+    # `workflows:edit` on that workflow, resolved against its grants.
+    deps.get_workflow_eval_service,
+    # Exporting a workflow reads it through the same registry, so the file is
+    # `workflows:view` on that workflow, resolved against its grants (#1953).
+    deps.get_workflow_portable_service,
+    # A workflow run has no grants of its own: `WorkflowExecutionService`
+    # resolves access against the *workflow* it belongs to, the same
+    # indirection `get_agent_exposure_service` uses for a binding and its
+    # agent. `POST /workflow-runs`, `GET/POST .../{id}...` all depend on it.
+    deps.get_workflow_execution_service,
+    # A workflow's webhooks and schedules have no grants of their own either:
+    # `WorkflowExposureService` resolves `workflows:view`/`edit`/`run` against
+    # the workflow in the path, per workflow rather than per role (#1792).
+    deps.get_workflow_exposure_service,
+    # A webhook's test URL is the same: opening one and reading what it caught
+    # resolve `workflows:edit` against the workflow in the path (#1949).
+    deps.get_workflow_webhook_test_service,
+    # A saved view is a sub-resource of one table: listing and reading resolve
+    # against the table's own grants, and changing or deleting one additionally
+    # requires being its owner or a `tables:edit` scope of `ALL`, decided inside
+    # the service rather than at a route gate.
+    deps.get_table_view_service,
+    # A table's triggers are a sub-resource of one table too: every route
+    # resolves `tables:view`/`edit` against the table in the path, and making or
+    # changing one also resolves `workflows:run` on its workflow (#1785).
+    deps.get_table_trigger_service,
     # A memory file rides on its parent agent: every `/memory` route resolves access
     # to the agent, per agent rather than per role.
     deps.get_memory_service,
@@ -1132,22 +1237,45 @@ class TestReadingWhatARunIsParkedOn:
                         tool_call_id="call-1",
                         tool_name="send_email",
                         tool_args={"to": "ada@example.com"},
-                    )
+                    ),
+                    ParkedCall(
+                        id=shared_id,
+                        tool_call_id="call-2",
+                        tool_name="change_ticket",
+                        tool_args={"table_id": "6f1c"},
+                        capability_tool_id="update_record",
+                        context={"table": "Support"},
+                    ),
                 ]
 
+        shared_id = uuid4()
         overrides = {deps.get_agent_runner_service: lambda: _Parked()}
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.get(_url(f"/runs/{run.id}/parked"))
 
         assert response.status_code == 200
+        # The names a reloaded card puts into its sentence travel with the arguments,
+        # and a call nobody described says so with a null rather than an empty object.
         assert response.json() == [
             {
                 "id": str(approval_id),
                 "tool_call_id": "call-1",
                 "tool_name": "send_email",
                 "tool_args": {"to": "ada@example.com"},
+                "capability_tool_id": None,
+                "context": None,
                 "account": None,
-            }
+            },
+            {
+                "id": str(shared_id),
+                "tool_call_id": "call-2",
+                # Renamed by its binding: the stable id is what the card words it by.
+                "tool_name": "change_ticket",
+                "tool_args": {"table_id": "6f1c"},
+                "capability_tool_id": "update_record",
+                "context": {"table": "Support"},
+                "account": None,
+            },
         ]
 
     async def test_a_run_in_another_organization_reads_as_absent(
@@ -1168,6 +1296,50 @@ class TestReadingWhatARunIsParkedOn:
         assert response.status_code == 404
 
 
+class TestTheQueueNamesWhatItAsks:
+    """`GET /approvals` carries each row's `context`, the names its ids stand for."""
+
+    async def test_a_described_row_comes_back_with_its_names(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        row = ApprovalRow(
+            id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            agent_name="Support",
+            tool_id="change_ticket",
+            tool_args={"table_id": "6f1c"},
+            capability_tool_id="update_record",
+            context={"table": "Support"},
+            account=None,
+            subagent_name=None,
+            subagent_agent_id=None,
+            status="pending",
+            triggered_by_user_id=None,
+            triggered_by_email=None,
+            decided_by_user_id=None,
+            decided_by_email=None,
+            decided_at=None,
+            decided_via="click",
+            note=None,
+            created_at=None,
+        )
+
+        class _Queue:
+            async def list_approvals(self, *args: Any, **kwargs: Any) -> Any:
+                return [row], 1
+
+        overrides = {deps.get_approval_service: lambda: _Queue()}
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.get(_url("/approvals"))
+
+        assert response.status_code == 200
+        [item] = response.json()["items"]
+        assert item["context"] == {"table": "Support"}
+        assert item["tool_args"] == {"table_id": "6f1c"}
+        assert (item["tool_id"], item["capability_tool_id"]) == ("change_ticket", "update_record")
+
+
 class TestResumeConveysAFailedContinuation:
     """A resume whose continuation raised is a 5xx that still names the run's status.
 
@@ -1184,6 +1356,9 @@ class TestResumeConveysAFailedContinuation:
         run_id = uuid4()
 
         class _Failing:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock(surface="web")
+
             async def resume(self, *args: Any, **kwargs: Any) -> Any:
                 raise RunExecutionError(
                     details={"run_id": str(run_id), "status": "failed"}
@@ -1224,6 +1399,9 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         )
 
         class _Resuming:
+            async def get_run(self, *args: Any, **kwargs: Any) -> Any:
+                return MagicMock(surface="web")
+
             async def resume(self, *args: Any, **kwargs: Any) -> Any:
                 return RunSegment(
                     output="",
@@ -1272,6 +1450,34 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             9,
             2,
         )
+
+
+class TestAContinuationSaysWhereItsAnswerGoes:
+    async def test_a_continuation_result_says_whether_its_answer_goes_to_the_chat(self) -> None:
+        from app.api.routes.v1._run_results import run_result
+
+        run = MagicMock(
+            id=uuid4(),
+            conversation_id=None,
+            status="completed",
+            cost_usd=Decimal("0"),
+            cost_is_partial=False,
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_tokens=0,
+            cache_write_tokens=0,
+        )
+        segment = RunSegment(output="done", run=run, tool_calls=[], settled={})
+        service = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.OWNER)
+
+        told = await run_result(service, ctx, segment, continues_in_chat=True)
+        plain = await run_result(service, ctx, segment)
+
+        assert told.continues_in_chat is True
+        assert plain.continues_in_chat is False
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -1496,6 +1702,12 @@ PUBLIC_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # link's own bucket bounding a guessing loop.
         ("POST", f"{settings.API_V1_STR}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{settings.API_V1_STR}/public/artifacts/{{public_key}}/unlock"),
+        # A workflow's form (`trigger.form`). The link is the page's only
+        # credential, minted at publish with 192 bits and replaced on request;
+        # reading and submitting are counted per form before anything is read, and
+        # each submission is a run as the member who published the form.
+        ("GET", f"{settings.API_V1_STR}/public/workflow-forms/{{token}}"),
+        ("POST", f"{settings.API_V1_STR}/public/workflow-forms/{{token}}"),
         # The public API's own OpenAPI document (#1796): the contract an
         # integrator writes a client against, before they hold a key.
         ("GET", f"{settings.API_V1_STR}/public/openapi.json"),
@@ -1605,6 +1817,13 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{V1}/auth/password-reset/confirm"),
         ("POST", f"{V1}/auth/magic-link/request"),
         ("POST", f"{V1}/auth/magic-link/verify"),
+        # A phone signing in by scanning the code a signed-in console shows
+        # (#2097). The phone has no session yet - that is what it is getting -
+        # and the single-use, one-minute code is the credential, as a magic
+        # link's token is.
+        ("POST", f"{V1}/auth/pairing-codes/redeem"),
+        # Preview uses the same short-lived code without creating a session.
+        ("POST", f"{V1}/auth/pairing-codes/preview"),
         # Confirming a staged email address (#1772). The link is followed from
         # the *new* address, routinely in a different browser from the one that
         # asked for the change, so there is no session to carry - the token is
@@ -1660,6 +1879,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # 403 that names nothing, and the link's bucket counts every attempt.
         ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
+        # A workflow's form. The link is the page's only credential, 192 bits,
+        # replaced on request; reading and submitting are counted per form before
+        # anything is read, and a submission is a run as the form's publisher.
+        # Refusals: `tests/integration/test_workflow_exposures.py::TestForms`.
+        ("GET", f"{V1}/public/workflow-forms/{{token}}"),
+        ("POST", f"{V1}/public/workflow-forms/{{token}}"),
         # The library set a published page may load (#1971): static files this
         # repository ships, named in `ARTIFACT_LIBRARY` - a path, since three.js
         # keeps its package layout (#2171) - which a page in an opaque origin
@@ -1725,6 +1950,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # it is what says how to. Only an agent its organization chose to serve
         # has one; every other id is a 404.
         ("GET", f"{V1}/a2a/{{agent_id}}/.well-known/agent-card.json"),
+        # Teams (#1985): every activity carries a Bot Connector JWT, verified
+        # against the issuer's published keys, this bot's app id as audience and
+        # the activity's own service before anything in the body is used.
+        ("POST", f"{V1}/teams/{{bot_id}}/messages"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A
@@ -1735,6 +1964,23 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # installation, so the path names nothing and the installation id in the
         # payload selects the grant whose secret verifies the HMAC (#1072).
         ("POST", f"{V1}/webhooks/github-app"),
+        # A workflow webhook's inbound door (#1792). The sender signs the body with
+        # the exposure's own secret and the service verifies that HMAC against the
+        # exposure in the path; the run then acts as the member who set it up.
+        ("POST", f"{V1}/workflow-webhooks/{{exposure_id}}"),
+        # A webhook's test URL (#1949). The draft it is for has no signing secret
+        # yet, so the unguessable token in the path is the credential: minted by
+        # an editor, open for one call for two minutes, and the call is only kept
+        # for that editor to read - it never starts a run.
+        ("POST", f"{V1}/workflow-webhook-tests/{{token}}"),
+        # A GitHub trigger's door. GitHub signs the body under the trigger's own
+        # secret in `X-Hub-Signature-256`, verified like a webhook's before
+        # anything is read past the row; the run acts as the publisher.
+        ("POST", f"{V1}/workflow-github/{{exposure_id}}"),
+        # A run's resume link (#1947). The link a Resume link step hands on is the
+        # credential: the run's id and a MAC of it under the deployment's secret,
+        # compared in constant time, and a wrong one answers as if no run existed.
+        ("POST", f"{V1}/workflow-resume/{{run_id}}/{{token}}"),
         # The public face of an embedded agent. There is no session to have:
         # these are reached from a stranger's browser on somebody else's site.
         # What authorises them is the widget's key plus the `Origin` the browser
@@ -1759,6 +2005,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{V1}/embed/{{public_key}}/logo"),
         # A widget's agent picture, on the same terms as a page's logo (#2006).
         ("GET", f"{V1}/embed/{{public_key}}/avatar"),
+        # A file an agent generated for a hosted page's visitor, who has no
+        # session (#2309). An `<img>` or `<video>` cannot send a header, so the
+        # credential is a short-lived link signed for that one file on that one
+        # page, minted only for a file the visitor's own run stored, and counted
+        # per link by its rate bucket.
+        ("GET", f"{V1}/embed/{{public_key}}/generated/{{filename}}"),
         # The one open route on this surface that *writes*, and the only one whose
         # exemption is about more than a read. It exists because a page whose
         # operator ticked "a visitor may attach a file" has to accept bytes from
@@ -1971,6 +2223,7 @@ class TestAQuestionTheRunParkedOn:
     ) -> None:
         run = self._run()
         service = MagicMock(
+            get_run=AsyncMock(return_value=MagicMock(surface="web")),
             answer=AsyncMock(
                 return_value=RunSegment(
                     output="Done, casually.", run=run, tool_calls=[], settled={}
@@ -1986,6 +2239,47 @@ class TestAQuestionTheRunParkedOn:
         assert response.status_code == 200
         assert response.json()["output"] == "Done, casually."
         assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+
+    async def test_a_decision_answers_with_whether_it_continues_in_the_chat(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        approval = SimpleNamespace(
+            id=uuid4(),
+            run_id=uuid4(),
+            agent_id=uuid4(),
+            tool_id="send_email",
+            tool_args={},
+            status="approved",
+            created_at=datetime(2026, 11, 3, tzinfo=UTC),
+            decided_at=datetime(2026, 11, 3, tzinfo=UTC),
+        )
+        parked = MagicMock(decide=AsyncMock(return_value=DecidedApproval(approval, True)))
+        async with as_role(
+            only(Perm.APPROVALS_DECIDE), {deps.get_parked_run_service: lambda: parked}
+        ) as client:
+            response = await client.post(_url(f"/approvals/{approval.id}"), json={"approved": True})
+
+        assert response.status_code == 200
+        assert response.json()["continues_in_chat"] is True
+
+    async def test_a_resume_answers_with_whether_its_answer_goes_to_the_chat(
+        self, as_role: ClientFactory, synthetic_roles: None
+    ) -> None:
+        run = self._run()
+        segment = RunSegment(output="Sent.", run=run, tool_calls=[], settled={})
+        parked = MagicMock(resume=AsyncMock(return_value=Continued(segment, True)))
+        runner = MagicMock(
+            parked_calls=AsyncMock(return_value=[]), parked_questions=AsyncMock(return_value=[])
+        )
+        overrides = {
+            deps.get_parked_run_service: lambda: parked,
+            deps.get_agent_runner_service: lambda: runner,
+        }
+        async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
+            response = await client.post(_url(f"/runs/{run.id}/resume"))
+
+        assert response.status_code == 200
+        assert response.json()["continues_in_chat"] is True
 
     async def test_an_answer_with_nothing_in_it_is_refused_before_the_service(
         self, as_role: ClientFactory, synthetic_roles: None

@@ -1,5 +1,5 @@
 ---
-source_sha: "eb356ae8cd01"
+source_sha: "67159a2b0696"
 ---
 
 # Konsola { #the-console }
@@ -10,14 +10,68 @@ wyjaśnia go porządnie.
 
 Jeśli szukasz jednego ekranu, najszybszą drogą jest **"?"** w nagłówku strony —
 odtwarza on przewodnik po tej stronie, a strona, w której nagłówku nie ma "?",
-nie ma przewodnika do odtworzenia.
+nie ma przewodnika do odtworzenia. Czat nie ma nagłówka: jego wskazówki są w
+ustawieniach czatu, pod suwakami obok mikrofonu.
+
+Listy zasobów, w tym Inbox i Routines, wypełniają pozostałą wysokość strony również wtedy, gdy są puste. Szablony Routines pozostają w formularzu tworzenia zamiast osobnego panelu pomysłów. Get started rezerwuje miejsce podczas pobierania checklisty, aby Briefing i karty poniżej nie przeskakiwały.
+
+Czat używa większych portretów agentów bez obwódek. Przełącznik Files pozostaje w polu wiadomości podczas otwierania i zamykania panelu; animacja respektuje ograniczenie ruchu. Ustawienia czatu pokazują najpierw bieżący model. Rozwiń **Zmień model**, aby edytować uzupełnionego dostawcę i model; wybór zaczyna działać po zatwierdzeniu. Karty załączników znajdują się nad polem wiadomości bez dodatkowego panelu z cieniem.
+
+Wprowadzenia do stron i objaśnienia ustawień są dostępne pod ikoną informacji obok nagłówka. Bieżące podsumowania i ostrzeżenia o nieodwracalnych działaniach pozostają widoczne.
+
+W Agentach, Skills, Context i historii uruchomień przycisk **Filtry** rozwija dodatkowe opcje niezależnie od rozmiaru ekranu i pokazuje liczbę aktywnych filtrów.
+
+Karty agentów pokazują status, dostęp i datę edycji bez rozwijania. Karty Skills i Context zachowują podgląd dokumentu, opis, **Used by** z avatarami i **Dodaj do agenta**. Kategoria i odbiorcy są w zwartym wierszu obok akcji. Nie ma rozwijanych Szczegółów. Aby usunąć skill lub plik contextu, otwórz edytor i menu z trzema kropkami obok **Share**; usunięcie nadal wymaga potwierdzenia i jest dostępne tylko dla edytora.
+
+Nazwy, nawigacja i wartości formularzy używają wyraźnego tekstu pierwszego planu;
+metadane pozostają drugorzędne. Główne akcje mają kontrastujące neutralne
+wypełnienie. Glass zachowuje natywny materiał, ale treść, karty i menu mają bardziej
+kryjące powierzchnie do czytania.
+
+Zakładki organizacji, kreatora agentów i projektów mają odpowiednie ikony. Wiersze
+budżetu pokazują avatary agentów.
+
+Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7 i jaśniejszych odcieni; animują się po najechaniu, a pracujący agenci zachowują animację myślenia. Wgrane zdjęcia pozostają bez zmian. Nowe zdjęcia agentów startowych należą do tej samej rodziny; istniejące zapisane obrazy nie są automatycznie zastępowane.
+
+Ustawienia czatu pokazują Browser i Work on przed Permissions. Powiadomienia rozmowy
+i połączenia kont pozostają pod kontrolkami uprawnień.
+
+Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną zawartością. Ikony informacji objaśniają model, Browser, Work on i tryby uprawnień; opis wybranego trybu pozostaje widoczny. W **Knowledge bases → Integrations** integracje i usługi lokalne mają zwarte panele dopasowane do zawartości, z objaśnieniami pod ikonami informacji.
+
+Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
+
+Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
+
+Na telefonie modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
+
+Na telefonie główne akcje strony pozostają widoczne, a drugorzędne polecenia rozwija przycisk **Więcej akcji strony**. Filtry Inbox i format tabeli wybiera się selectem. Ustawienia z wieloma sekcjami mają menu wyboru sekcji; klienta MCP wybiera się z listy. Plik projektu lub workspace otwiera czytnik na pełnym ekranie, a strzałka wstecz wraca do folderów. Edytor kroku workflow pokazuje jeden wybrany panel: ustawienia, wejście albo wynik. Przełączanie zachowuje edycję; desktop nadal pokazuje panele obok siebie.
+
+Pola Markdown i edytory plików również mają przycisk powiększania, który zachowuje bieżący szkic. Opis i kategorię skilla można rozwinąć nad edytorem. Pole wiadomości na czacie zajmuje mniej miejsca i ogranicza wysokość długiego szkicu do dostępnej wysokości ekranu. Otwarcie nawigacji ustawia focus na panelu, a Tab nadal przechodzi do jego kontrolek. Canvas workflow ma na telefonie pływający przycisk pełnego ekranu i mniejszą minimapę.
+
+Na telefonie edytory skilli i contextu chowają opis, kategorię i zarządzanie plikami podczas pisania. Jeden przycisk przełącza źródło i podgląd. Apps ma pływające przyciski powrotu i opcji; opcje rozwijają tytuł, wersję, motyw i udostępnianie.
+
+Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Karty, wiersze panelu bocznego, zakładki i puste stany mają mniejsze odstępy na komputerze, a kontrolki zachowują większe obszary dotykowe. Długie listy sekcji ustawień również na komputerze korzystają z menu. Pola profilu mieszczą się w jednym wierszu, gdy jest miejsce; **Zapisz zmiany** jest dostępne dopiero po edycji. Karta możliwości ma jeden obszar otwierający ustawienia i osobny przełącznik włączenia. W panelu ustawień przykłady są pod ikoną informacji, zamiast powtarzanej ilustracji z galerii.
+
+Okna kategorii szablonów dopasowują się do zawartości; wybranie branży agenta lub umiejętności otwiera większą bibliotekę. Na telefonie wybór wyglądu ma postać zwartych wierszy z miniaturami.
+
+Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, przełączaniem źródła i podglądu oraz rozwijaniem. Rozwinięty Markdown zachowuje wybrany tryb źródła lub podglądu. Nieużywane zmienne promptu są początkowo zwinięte; istniejące własne zmienne lub niestandardowa strefa czasu pozostawiają panel otwarty. Rozwinięte edytory tekstu i plików zachowują równe marginesy na telefonie. Pola tekstowe na telefonie używają większej czcionki bez powiększania pól na komputerze.
+
+Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
+
+Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po zakończeniu odpowiedzi.
+
+Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukryte. Przycisk **Więcej** obok nadawcy pokazuje lub ukrywa kopiowanie, odpowiedzi, oceny i pozostałe dostępne akcje. Na komputerze przyciski nadal pojawiają się po najechaniu kursorem.
+
+Importy CSS, obrazy i fonty w podglądzie są rozwiązywane względem arkusza przez ten sam autoryzowany dostęp do plików. Podgląd dopuszcza cztery zagnieżdżone poziomy, 64 zasoby, 8 MiB wejściowych zasobów i 16 MiB rozwiniętego wyniku. Skróty plików zachowują konwersację lub folder z chwili wykonania tury, zapisane z jej osią czasu. Zmiana Work on nie przekierowuje skrótów. Starsze tury bez zapisanego źródła nie otrzymują zgadywanych linków. Otwarcie lokalnego pliku nadal wymaga aktualnej zgody na folder.
+
+Metadane linków do plików zapisują dla lokalnych tur tylko niejawny identyfikator źródła. Powiązanie z folderem pozostaje na komputerze inicjującym, w zakresie konta i organizacji; inni uczestnicy i komputery nie mogą rozwiązać tych linków. Starsze źródła zawierające lokalną ścieżkę są pomijane przy odczycie zapisanych tur.
 
 ## Dashboard { #the-dashboard }
 
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści dziewięć kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -27,28 +81,44 @@ pusty.
 Przełącznik na górze mówi, czyj to dashboard, i oferuje tylko widoki, które
 możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
-| Widok | Odpowiada na |
-|---|---|
-| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
-| **Organizacja** | Układalna strona opisana niżej |
-| **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
-| **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
+| Widok           | Odpowiada na                                                                                                                                                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ja**          | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono                                                                      |
+| **Organizacja** | Układalna strona opisana niżej                                                                                                                                                                                                                                           |
+| **Grupa**       | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
+| **Wdrożenie**   | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny                                                                                                                                                          |
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,
 sandboxy - czeka w katalogu, jedno kliknięcie dalej pod **Customize**:
 
-| Pas | Odpowiada na |
-|---|---|
-| *(bez tytułu, na górze)* | Podsumowanie, runy w czasie i to, jak się skończyły |
-| **Needs attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell) |
-| **Usage & cost** | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
+| Pas                      | Odpowiada na                                                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(bez tytułu, na górze)_ | Podsumowanie, runy w czasie i to, jak się skończyły                                                                                                                              |
+| **Needs attention**      | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, twoje najnowsze [powiadomienia](#the-bell)                                                 |
+| **Usage & cost**         | Których agentów się używa, wydatki, [minuty rozmów](#voice-calls), kiedy dzieje się praca, skąd przychodzą runy, miks modeli, opóźnienia, jakość odpowiedzi, kto z tego korzysta |
 
-Kto buduje agentów, widzi też nad pasmami kartę **Get started**, dopóki nie
-wykona wszystkich jej kroków: utworzyć agenta, opublikować go, dać mu bazę
-wiedzy, dodać działy, zaprosić kogoś z zespołu i - jeśli może - wstawić agenta do
-komunikatora. Każdy krok jest odhaczany na podstawie tego, co istnieje, gdziekolwiek
-go zrobiono; zamknięcie karty ukrywa ją w tej przeglądarce.
+Karta **Wyniki zatwierdzeń (Approval outcomes)** czeka w katalogu, dla każdego, kto może
+oglądać workflow. Pokazuje, jak ludzie rozstrzygali [kroki zatwierdzenia](workflows.md#running-a-workflow),
+o które pytały workflow w danym okresie. Pokazuje odsetek zatwierdzonych bez zmian,
+poprawki i medianę ich zmiany, czas do decyzji oraz pięć workflow z największą liczbą
+próśb. Jest pusta, gdy w okresie ustawionym na dashboardzie nie padła żadna prośba.
+
+Karta **Logi workflow (Workflow logs)** też czeka w katalogu, dla każdego, kto może
+oglądać workflow. Pokazuje najnowsze wpisy, które [Quick Logi](workflows.md#the-logs-page)
+workflow, które możesz oglądać, zapisały w prawdziwych runach, oraz ile wpisów doszło
+w ciągu ostatnich 24 godzin, w tym błędów. Wpis prowadzi do swojego runu, a nazwa
+workflow do jego strony Logs. Jest pusta, dopóki nie uruchomi się krok z Quick Logiem,
+i nie zważa na okres ustawiony na dashboardzie.
+
+Dashboard otwiera się kartą **Get started**, dopóki nie zrobisz wszystkich jej
+kroków: opowiedzieć agentom o sobie, zacząć rozmowę, podłączyć usługę własnym
+kontem, ustawić rutynę i zbudować agenta - to ostatnie jest pytaniem do
+Architekta, który buduje go razem z tobą. Kto buduje agentów, ma po nich kroki
+organizacji: opublikować agenta, dać mu bazę wiedzy, dodać działy, zaprosić kogoś
+z zespołu i - jeśli może - wstawić agenta do komunikatora. Każdy krok jest
+odhaczany na podstawie tego, co istnieje, gdziekolwiek go zrobiono, a nie z
+kliknięcia na karcie; zamknięcie karty ukrywa ją w tej przeglądarce.
 
 Twój własny widok pokazuje też **Odkryj AgenticOS**: po jednym kafelku na to, co
 łatwo przeoczyć - własny serwer MCP tego wdrożenia dla Claude Code, Codex albo
@@ -78,9 +148,50 @@ migawkę, którą chciałeś zachować.
     Filtrowanie po uprawnieniach dzieje się po rozwiązaniu układu — niezależnie
     od tego, czy układ pochodzi z domyślnego, czy z twojego zapisanego.
 
+## Rutyny i obserwacje { #routines-and-watches }
+
+Routines ma dwie zakładki. **Zadania agentów** uruchamiają wybranego agenta według
+harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
+**Moje obserwacje** tylko odczytują osobiste połączenia i przekazują znaleziska do
+prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
+`/routines?tab=watches` otwiera obserwacje.
+
+Discover na dashboardzie zaczyna się od ilustrowanych możliwości. Najedź na wykres
+w _Your period_, aby zobaczyć przedział i wartość; koszty są kwotami. Projekty
+pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
+
+Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
+
+## Inbox { #the-inbox }
+
+**Inbox**, pod Czatem w pasku bocznym, to to, co platforma przyniosła ci z
+własnej inicjatywy: co twoje [obserwacje](governance.md#proactive-work) znalazły
+na twoich połączeniach i co zaproponował nocny przegląd. Liczba obok mówi, ile
+czeka. Czyta się go jak skrzynkę pocztową: jeden wiersz na rzecz, pilne
+pierwsze, skąd i kiedy przyszła, a odpowiedzi w wierszu. Filtruj po źródle albo
+otwórz **Załatwione**, żeby zobaczyć, co już przyjąłeś lub odrzuciłeś, i
+przywrócić odrzucone. **Co znalazły** na karcie Obserwacje w Rutynach otwiera go
+zawężonego do obserwacji. Krótsze wiersze otwierają twój dashboard jako
+**Briefing**, a pusty czat z agentem startowym pokazuje pierwszą z nich jako
+kartę, z linkiem do reszty.
+
+To, co obserwacja znajdzie, a co nie musi trafić do ciebie od razu, czeka na
+twój poranek: o godzinie, którą trzyma proaktywność organizacji, jedno
+powiadomienie i jedna wiadomość prywatna od każdego jej bota w Slacku, Teams i
+Mattermost, który cię zna, wymieniają to, co nowe. Każde znalezisko trafia tylko
+do jednego briefingu.
+
+Wyszukiwanie znajduje się nad pozycjami nawigacji, ze skrótem klawiaturowym
+widocznym na komputerze. Powiadomienia i menu konta pozostają pod przewijaną listą.
+Na urządzeniach dotykowych wspólne przyciski, pola, zakładki i pozycje menu mają
+większe obszary dotykowe. Dialogi korzystają z wysokości widocznej nad klawiaturą
+ekranową; panele boczne zatrzymują fokus wewnątrz i oddają go do elementu, który je
+otworzył. W polu wyszukiwania listy Escape najpierw czyści zapytanie, a kolejne
+naciśnięcie zamyka dialog.
+
 ## Dzwonek { #the-bell }
 
-Obok wyszukiwania, w pasku bocznym: bieżący licznik tego, czego jeszcze nie
+U dołu paska bocznego: bieżący licznik tego, czego jeszcze nie
 przeczytałeś, a kliknięcie otwiera samą listę. W przeciwieństwie do widgetu
 powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciokartowy
 podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
@@ -110,7 +221,7 @@ to, co wciąż jest nieprzeczytane, a kolejne kliknięcie dokańcza resztę, zam
 
 Każde kliknięcie zawsze posuwa sprawę dalej, nawet gdy cała partia to wiersze,
 których czytający już nie widzi. Nigdy ich nie oznacza: sprawdzenie dotyczy
-*bieżących* uprawnień, więc ktoś zdegradowany na tydzień i przywrócony zastałby
+_bieżących_ uprawnień, więc ktoś zdegradowany na tydzień i przywrócony zastałby
 powiadomienia bezpieczeństwa z tego tygodnia już przeczytane. Zamiast tego
 ucięte zamiatanie mówi, gdzie się zatrzymało, a kolejne kliknięcie rusza stamtąd.
 
@@ -127,12 +238,12 @@ jako przeczytany, bo wiersz, do którego nic na ekranie już nie sięga, nie mo�
 dalej liczyć się do plakietki. Tak jak „Mark all read", jedno czyszczenie ma
 granicę — tysiąc wierszy — a dłuższa zaległość wymaga drugiego kliknięcia.
 
-Czego wyczyszczony wiersz *nie* robi, to nie wraca. Powiadomienie zostaje
+Czego wyczyszczony wiersz _nie_ robi, to nie wraca. Powiadomienie zostaje
 zachowane i przestaje być wypisywane, zamiast zostać usunięte, i właśnie to
 sprawia, że tak jest: skrzynka rozpoznaje powtórzenie po fakcie, który opisuje,
 więc usunięty wiersz to taki, który następne sprawdzenie budżetu albo następna
 próba zapisałyby ponownie. Odrzucenie alertu, którym się już zająłeś, jest więc
-ostateczne — dla tego wystąpienia; *nowy*, o nowym fakcie, nadal przyjdzie.
+ostateczne — dla tego wystąpienia; _nowy_, o nowym fakcie, nadal przyjdzie.
 Wiersze wychodzą też same z siebie: dziewięćdziesiąt dni po zapisaniu, jeśli
 zostały przeczytane, i rok niezależnie od tego.
 
@@ -143,19 +254,25 @@ następnym otwarciu strony.
 
 ## Asystent { #the-assistant }
 
-Na każdej stronie, w prawym dolnym rogu, jest **Architekt**: agent, którego
+Na telefonie **Architekt** jest w górnym pasku obok powiadomień, a na komputerze
+w prawym dolnym rogu: agent, którego
 każda organizacja dostaje bez instalowania czegokolwiek, wspólny dla wszystkich,
 którzy mogą uruchamiać agentów (`agents:run`). Jest powiązany z
 [serwerem MCP tej platformy](mcp.md#agenticos-as-an-mcp-server). Zapytaj go,
 którzy agenci odpowiadają na pytania o zwroty, dlaczego nocny run się nie udał
 albo co jest w bazie wiedzy.
 
-Poproś o szkic agenta albo zaproszenie
-współpracownika, a najpierw pokaże ci, co
-zatwierdzasz: szkic agenta jako sam szkic - gdzie powstanie, jego nazwę, co może
-robić i jego instrukcje - a wszystko inne jako dokładne wywołanie. Działa
-z twoimi uprawnieniami, więc znajduje i robi to, co ty mógłbyś, i nic więcej. Jego
-koszty liczą się jak każdego agenta.
+Powiedz mu, co agent ma robić, a zbuduje go z tobą, jedno pytanie naraz, każde z
+proponowanymi odpowiedziami: dobiera capabilities, bazę wiedzy i model, w jednym
+zdaniu mówi dlaczego, tworzy szkic agenta, sprawdza go na twoich własnych pytaniach
+jako nieopublikowany draft, poprawia to, co było źle, i publikuje go, gdy to
+zatwierdzisz. Tak samo ustawia rutynę.
+
+Zanim cokolwiek się zmieni, pokazuje ci, co zatwierdzasz: szkic agenta jako sam
+szkic - gdzie powstanie, jego nazwę, co może robić i jego instrukcje - a
+wszystko inne jako dokładne wywołanie. Działa z twoimi uprawnieniami, więc
+znajduje i robi to, co ty mógłbyś, i nic więcej. Jego koszty liczą się jak
+każdego agenta.
 
 Dymek nad nim mówi o tym, co na ciebie czeka — akceptacje, organizacja bez
 żadnego agenta — albo o stronie, na której jesteś, a czasem podsuwa wskazówkę.
@@ -181,7 +298,8 @@ wiadomości.
 
 Dłuższe zadania planuje jako listę kroków, którą widać na bieżąco,
 zapamiętuje notatki o tobie między rozmowami, powie, ile kosztują twoi agenci, i
-może cofnąć draft agenta, który utworzył przez pomyłkę — nic poza tym. Oprócz
+usuwa tylko draft agenta, który utworzył przez pomyłkę, oraz rutynę, o której
+usunięcie poprosisz. Oprócz
 akceptacji i pustej organizacji dymek odzywa się, gdy twój run właśnie się nie
 udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
@@ -271,7 +389,64 @@ pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigd
 poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
 tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
 przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
-delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz. Nad nim karty
+to własne **pierwsze wiadomości** agenta, ustawiane w Builderze pod jego
+instrukcjami; agent bez nich proponuje cztery własne wiadomości czatu, w tym jedną
+z pytaniem, co potrafi, i jedną z ustawieniem rutyny.
+
+Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Codex, gdy zapisane raporty zadań potwierdzają ich pracę w danym wątku. Sidebar, czaty projektu, dashboard i historia Quick Ask korzystają z tych samych ikon i etykiet. Każdy coding harness pojawia się raz, pozostaje po odświeżeniu i nie zależy od bieżących ustawień czatu. Sam wybór harnessu bez jego uruchomienia nie dopisuje go do historii.
+
+Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
+
+Na ekranach węższych niż 768 px rozumowanie i zwykłe kroki narzędzi podczas pracy są domyślnie zwinięte pod wierszem z czasem pracy. Dotknij go, aby rozwinąć lub zwinąć szczegóły. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne. Szersze ekrany nadal pokazują kroki na bieżąco.
+
+**Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
+proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a
+kliknięcie wysyła jeden z nich. Linijka mówi, co zanotował o tobie albo co
+zapomniał, z **Zarządzaj (Manage)** prowadzącym do
+[samych notatek](reference/capabilities.md#memory-files) - poproś, żeby coś
+zapomniał, a zapomni. Gdy prośba wymaga capability, której agent nie ma, karta
+proponuje ją włączyć albo poprosić o to właściciela agenta
+([jak](reference/capabilities.md)).
+
+**Zachowanie prośby, która zadziałała.** Najedź na własną wiadomość: kalendarz
+zamienia ją w rutynę - ten sam prompt, domyślnie co tydzień, na agencie, który
+odpowiedział - a robot prosi Architekta, żeby zbudował agenta, który to robi.
+Najedź na odpowiedź, a zakładka prosi Architekta, żeby zrobił
+[skill](skills.md) z tego, jak to zostało zrobione, i każdy agent zrobił to
+następnym razem tak samo; dostaje twoją prośbę i odpowiedź, a przycisk widzi ten,
+kto może pisać skille.
+
+**Linki, które wskazują.** Link do konsoli, który agent napisze w odpowiedzi -
+„tu jest przycisk, który podłącza twój Gmail” - otwiera tę stronę bez
+przeładowania konsoli, a `?highlight=` w nim wskazuje kontrolkę, którą nazywa,
+tak jak linki Architekta.
+
+**Agent AgenticOS poznaje cię.** Dopóki twoje konto nic nie mówi o twojej roli
+ani pracy, powitanie zaczyna krótką rozmowę: czym się zajmujesz, co wypełnia ci
+tydzień, w jakich narzędziach pracujesz - po jednym pytaniu, każde z odpowiedziami
+do wybrania. To, co powiesz, trafia do twojego profilu, więc od tej pory wie to
+każdy agent, a rozmowa kończy się maksymalnie trzema kartami do ustawienia -
+rutyną, usługą do podłączenia, własnym agentem - każda na jedno kliknięcie.
+Pomiń pytanie albo poproś o coś konkretnego, a zamiast tego zrobi robotę.
+
+**Co zauważyła w nocy.** Tam, gdzie organizacja to włączyła, raz dziennie,
+wcześnie rano twojego czasu, platforma przegląda w zadaniu w tle twoje ostatnie
+rozmowy: prośba, którą powtarzasz,
+staje się propozycją rutyny, to, czego agent dowiedział się o twojej roli -
+propozycją profilu, a twój pusty czat z AgenticOS dostaje pierwsze wiadomości
+napisane pod twoją pracę. Propozycje czekają jako karty w tym pustym czacie, na
+twoim dashboardzie i w dzwonku, a **Ustawienia → Asystent** pokazują wszystkie -
+tam przywrócisz odrzuconą albo wyłączysz to dla siebie; przyjmij jedną, a zostanie ustawiona, odrzuć, a ta sama propozycja nie
+wróci. Nic się nie uruchamia, gdy nic nowego się nie wydarzyło, a to, ile może to
+kosztować, ma [limit na osobę](governance.md#proactive-work). Link do czatu z
+`?agent=<slug>` otwiera czat na tym agencie.
+
+**Godziny pracy** w **Settings → Profile** mówią agentom, kiedy pracujesz, więc
+rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wiedza
+dla agenta, nie harmonogram.
+
+Po ponownym otwarciu rozmowy widzisz najnowsze wiadomości. Wybierz **Wczytaj wcześniejsze wiadomości** nad historią, aby przeczytać starsze tury. Trwające odpowiedzi i niezapisane wyniki pozostają widoczne podczas odświeżania zapisanej historii.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
@@ -309,33 +484,35 @@ agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otw
 pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
 rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
-**Oglądanie przeglądania.** Gdy agent z
-[przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
-przeglądarka rysuje się na żywo pod wiadomością agenta: okno z adresem i stroną taką,
-jak widzi ją agent, jedną linijką nad stroną o tym, co robi teraz, i kursorem, który
-przesuwa się do tego, co klika albo w co pisze. Okno ma stały kształt i rośnie oraz
-maleje razem z rozmową; kilka przeglądań naraz stoi obok siebie, po dwa w rzędzie, gdy
-jest miejsce. Przycisk maksymalizacji otwiera jedno na pełnym ekranie, a przywrócenie
-odkłada je z powrotem pod wiadomość. Pełna lista kroków, każdy z tym, po co był, jest
-pod przyciskiem kroków.
+**Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
+otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
+Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
+mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
+domenę i tytuł, także po ponownym otwarciu rozmowy. Każda odpowiedź ma jeden
+kafelek na kartę przeglądarki; kliknięcia, ponowne odczyty i powroty aktualizują ten kafelek. Pasek kart w panelu
+przełącza strony. Po zakończeniu
+zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
+dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;
+wznowienie wczytuje adresy, cookies i local storage, ale nie niezapisane formularze
+ani pamięć JavaScript. Agent odczytuje nowe numery elementów.
 
 **Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
 zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,
 przewijaj, wklejaj. **Oddaj** i agent kontynuuje od miejsca, w którym skończyłeś. Gdy
-agent nie przejdzie strony sam - logowanie, captcha - przeglądarka mówi *Agent
-cię potrzebuje* i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
+agent nie przejdzie strony sam - logowanie, captcha - przeglądarka mówi _Agent
+cię potrzebuje_ i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
 patrzeć, ale nie sterować. To samo okno otwiera się na osobnej stronie z linku z kanału.
 Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).
 
 **Wskazywanie na stronie.** Przycisk z dymkiem w pasku przeglądarki pozwala kliknąć
-miejsce na stronie i dopisać do niego notatkę - *ten przycisk, nie tamten*. **Add to
+miejsce na stronie i dopisać do niego notatkę - _ten przycisk, nie tamten_. **Add to
 message** wkłada stronę do Twojej wiadomości jako obrazek z zaznaczonym miejscem, razem
 z notatką i adresem strony, do wysłania albo dopisania reszty. Działa też po skończonym
 przeglądaniu, na jego ostatnim obrazie.
 
 **Zostajesz zalogowany.** Gdy przeglądanie działa w Twoim imieniu - Twój czat, Twoja
-wiadomość prywatna, Twój własny harmonogram - **Oddaj** proponuje *Zapamiętaj moje
-logowanie do* strony, na której jesteś. Zaznacz to po zalogowaniu, a kolejne
+wiadomość prywatna, Twój własny harmonogram - **Oddaj** proponuje _Zapamiętaj moje
+logowanie do_ strony, na której jesteś. Zaznacz to po zalogowaniu, a kolejne
 przeglądania w Twoim imieniu startują tam zalogowane: ciasteczka i dane strony są
 zapieczętowane w vault tylko dla Ciebie, nigdy nie są pokazywane i nie są używane dla
 odwiedzającego widget, wspólnego kanału, klucza API ani wyzwalacza zdarzeń.
@@ -345,6 +522,14 @@ przeglądarkę na dowolnej stronie tylko dla Ciebie, zanim agent będzie jej pot
 zaloguj się, oddaj ją z zaznaczonym polem, a logowanie zostanie zapamiętane tak samo.
 Wymaga przeglądarki wdrożenia do logowania
 ([`BROWSER_SIGN_IN_CDP_URL`](configuration.md)).
+
+**Zatrzymanie oczekującego uruchomienia.** Przycisk **Stop** pozostaje dostępny, gdy
+agent czeka na odpowiedź, zatwierdzenie lub połączenie konta. Działa również po
+odświeżeniu strony z oczekującym pytaniem lub zatwierdzeniem. Zatrzymanie zamyka
+oczekujące wywołania bez wznawiania modelu i zachowuje zapisany koszt. Możesz zatrzymać
+własne uruchomienie; osoby uprawnione do zatwierdzania mogą też zatrzymać uruchomienie
+oczekujące na zatwierdzenie. Jeśli tymczasowy błąd uniemożliwi zatrzymanie, karta
+pozostaje dostępna do ponownej próby.
 
 ### Dyktowanie { #dictation }
 
@@ -392,6 +577,12 @@ cała konsola: **Systemowe (System)** (domyślnie) idą za ustawieniem ogranicze
 ruchu w systemie operacyjnym, **Ograniczone (Reduce)** ograniczają ruch bez
 niego, a **Pełne (Full)** zachowują ruch niezależnie od systemu operacyjnego. Gdy ruch jest ograniczony, nie ma żadnej poświaty, pasek
 pojawia się bez wysuwania, a poziom dźwięku to pięciostopniowy wskaźnik.
+
+**Kroki workflow** w tej samej karcie wybierają, jak kanwa workflow rysuje krok:
+**W kolorze (In colour)** (domyślnie) rysuje każdy krok w barwie jego rodziny,
+**Prosty (Simple)** zostawia kafelki neutralne, a minimapę szarą. Ustawienie jest
+zapamiętywane dla każdej przeglądarki; ten sam przełącznik jest na pasku narzędzi
+kanwy. Zobacz [Jak rysowany jest krok](workflows.md#how-a-step-is-drawn).
 
 ### Karta Głos (Voice) { #the-voice-card }
 
@@ -468,7 +659,8 @@ Zanim zaproponuje rozmowę, konsola pyta, czy ten agent może ją odebrać
 to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: głosu ustawionego w
 agencie, modelu, który nadal jest oferowany, albo klucza.
 
-**Przycisk rozmowy** stoi w kompozytorze czatu, obok mikrofonu, przy każdym
+**Przycisk rozmowy** stoi w kompozytorze czatu w miejscu „Wyślij”, dopóki pole
+jest puste - po wpisaniu czegoś wraca „Wyślij” - przy każdym
 agencie. Gdy ten agent nie może odebrać rozmowy, przycisk jest przekreślony, a
 najechanie, fokus albo naciśnięcie mówi dlaczego. Ktoś, kto może edytować
 agenta, dostaje **Otwórz w Agent Builderze**, co otwiera jego kartę Głos (Voice)
@@ -520,6 +712,20 @@ wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minute
 w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
 okresie oraz trzech najczęstszych agentów.
 
+### Tematy w tle { #background-topics }
+
+Włącz **Tematy w tle** u opublikowanego agenta i poproś np.: „Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy plan wydania” albo „Niech agent finansowy sprawdzi te liczby, gdy omawiamy ofertę”. Agent może użyć swojej przypiętej wersji albo opublikowanego delegata przypiętego w specyfikacji. Zacznij z rozmowy, której jesteś właścicielem; nowy temat należy do tego samego projektu i zawiera brief agenta oraz odnośnik do źródła, bez kopiowania pierwotnego transkryptu.
+
+Pasek **Tematy w tle** nad polem wiadomości pokazuje zadania w kolejce, pracujące i oczekujące. Otwórz osobny temat, aby sprawdzić pracę lub odpowiedzieć na zwykłą prośbę o zgodę albo pytanie. **Zatrzymaj** anuluje dalszą pracę; nie cofa wykonanych zmian plików ani działań w usługach. Te same zadania znajdziesz na pulpicie. Jedna osoba może mieć do czterech aktywnych zadań; zadanie i odpowiedź z jego wynikiem nie mogą tworzyć kolejnych tematów w tle.
+
+Po zakończeniu zadania pierwotny agent budzi się, korzystając z aktualnej historii rozmowy. Czeka na koniec odpowiedzi dla użytkownika i podsumowuje bez narzędzi, aby wynik zadania nie stał się zgodą na kolejne działanie. Zachowuje wybrany model główny i ustawienie myślenia; lokalne wnioskowanie pozostaje lokalne. Lokalna praca kodująca pozostaje na konkretnym sparowanym komputerze i w zatwierdzonym folderze. Dziecko zachowuje zwykłe budżety i zgody. Zamknięcie czatu go nie anuluje. Przerwanie workera jest raportowane, a działania zewnętrzne nie są automatycznie powtarzane. Zadanie czekające na zgodę kontynuuje po jej udzieleniu; utrata członkostwa lub dostępu do projektu zatrzymuje nową pracę i przekazanie wyniku.
+
+To jawna delegacja, oddzielona od pamięci, watchów i rutyn. Istniejące tryby asynchroniczne subagentów i narzędzi nadal należą do jednego uruchomienia; do pracy dłuższej niż odpowiedź źródłowa użyj **Tematów w tle**.
+
+### Odwołanie do innej rozmowy { #conversation-references }
+
+Agent z funkcją **Poprzednie rozmowy** oferuje w menu `@` trzydzieści najnowszych rozmów, do których masz dostęp. Wybierz rozmowę i zadaj konkretne pytanie. Wzmianka wskazuje temat; nie kopiuje transkryptu ani nie zmienia odpowiadającego agenta. Agent czyta odpowiedni fragment przez istniejące narzędzie rozmów, z tymi samymi kontrolami dostępu i odbiorców. Ograniczenia czatów grupowych nadal obowiązują. Przy starszym temacie wklej odnośnik lub identyfikator i poproś agenta o przeczytanie.
+
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
 Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
@@ -536,12 +742,14 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
 | **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
+| **Tables** | Typowane rekordy i ich kolumny, oglądane jako tabela, tablica kanban lub lista | [Virtual Tables](virtual-tables.md) |
+| **Workflows** | Wieloetapowe automatyzacje, które uruchamiają Twoje agenty, budowane na kanwie | [Workflows](workflows.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Gdzie agenci uruchamiają kod: hosty, żywe sesje, polityka | [Sandbox](sandbox.md) |
 | **MCP servers** | Połączenia z zewnętrznymi narzędziami, osobiste i na całą organizację | [MCP](mcp.md) |
-| **Channels** | Boty Slacka, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
+| **Channels** | Boty Slacka, Teams, Telegrama i Mattermosta, widgety, hostowane strony | [Powierzchnie](channels.md) |
 | **Remote agents** | Agenci innych dostawców, zarejestrowani po ich agent card A2A, do których delegują agenci | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Poświadczenia, zapieczętowane per organizacja | [Sekrety](secrets.md) |
 | **Organizations** | Członkowie, role, zaproszenia | [Uprawnienia](permissions.md) |
@@ -555,13 +763,29 @@ poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
+Szczegóły organizacji są podzielone na zakładki: **Członkowie**, **Profil**, **Budżet i
+zgody**, **Proaktywność**, **Głos** i **AI Architect**. Zakładki administracyjne zależą
+od uprawnień; AI Architect pojawia się, gdy można go konfigurować. Wybrana zakładka jest
+zapisywana w URL (na przykład `?tab=voice`), a przełączanie zachowuje niezapisane
+wartości formularzy.
+
 ## Języki { #languages }
 
-Konsola mówi po angielsku, polsku i niemiecku, w całości poza stronami
-prawnymi, które zostają po angielsku. Pierwsza karta przewodnika proponuje te trzy
-języki, a menu konta zmienia język w każdej chwili; wybór jest zapamiętywany w
-przeglądarce. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+Konsola mówi po angielsku, polsku, niemiecku i turecku. Pierwsza karta
+przewodnika proponuje te cztery
+języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
+koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
+logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
+się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że
+napiszesz w innym języku. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
+
+Ta sama karta pyta, czym się zajmujesz, a **Ustawienia → Profil (Settings →
+Profile)** trzymają resztę tego, co agenci o tobie wiedzą: twoją rolę, nad czym
+pracujesz i twoją strefę czasową. Każdy agent czyta je na początku runu, więc
+nigdy nie powtarzasz ich w czacie; „w każdy poniedziałek o 9” to twoja 9. Strefa
+czasowa jest brana z przeglądarki przy pierwszym logowaniu, dopóki nie wybierzesz
+własnej.
 
 ## Następny krok { #the-next-step }
 
@@ -582,7 +806,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści dziewięć widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —
@@ -597,3 +821,18 @@ problem zostaje odczytany jako cisza.
   korzystasz, możesz ukryć.
 - Strona pokazująca "nic jeszcze nie ma" może być **nieudanym żądaniem**, a nie
   pustym zasobem.
+
+Stopka panelu bocznego pokazuje wersję kompilacji konsoli obok wyszukiwania i powiadomień, także w zwiniętym panelu i menu mobilnym. Numer pochodzi z wersji pakietu frontendu zapisanej w kompilacji, więc jego odczyt nie wymaga żądania sieciowego. Podpowiedź określa go jako wersję konsoli; osobno aktualizowany proces API może mieć inną wersję.
+
+
+Nowsze stabilne wydanie AgenticOS podświetla ten numer i dodaje zieloną kropkę. Kliknięcie pokazuje uruchomioną i dostępną wersję oraz odnośnik do oficjalnego wydania. Sprawdzenie w tle odbywa się przy otwarciu konsoli, co 30 minut podczas pracy oraz po odzyskaniu fokusu lub połączenia, jeśli dane są nieaktualne. Serwer współdzieli wyniki publicznych sprawdzeń przez pięć minut i nie wysyła do GitHuba danych konta, organizacji ani wdrożenia. Awaria sieci pozostawia numer uruchomionej wersji bez stwierdzenia, że jest najnowsza. Powiadomienie nie przeładowuje strony ani nie instaluje aktualizacji automatycznie.
+
+Po zalogowaniu **Co nowego** pokazuje publiczne informacje o zainstalowanej wersji z GitHub Releases, raz dla konta na tym urządzeniu. Okno czeka na zamknięcie onboardingu. Zamknięcie oznacza wersję jako przeczytaną; brak opisu lub błąd pobierania nie przerywa sesji. Funkcje nowszej, niezainstalowanej wersji są dostępne tylko z informacji o aktualizacji.
+
+Chat controls zapamiętuje model, tryb zatwierdzania i lokalne narzędzia dla konta i organizacji między chatami. Ustawienia plików projektu mają pierwszeństwo. Zgoda na cały komputer nadal dotyczy jednej rozmowy. Pomijanie zatwierdzeń wymaga bieżących uprawnień i zgody organizacji. Agent setting (lub Cloud dla plików) jest nieaktywne, jeśli opublikowany agent nie ma tej funkcji; lokalna opcja nie włącza się sama. Kliknięcie wybranej lokalnej opcji wyłącza ją.
+
+Wyciszanie powiadomień ma ikonę dzwonka; pole wiadomości nie powtarza już plakietki folderu i dostępu. Avatary wielu agentów zachodzą na siebie bez zmiany rozmiaru, a w rozwiniętej liście delikatnie rozsuwają się po najechaniu.
+
+Stopki list pozostają przy dolnej krawędzi panelu, ze spójnymi odstępami i kryjącym tłem. Stronicowane tabele administracyjne przewijają same wiersze, zachowując widoczne nagłówki kolumn i paginację. Puste wyniki i błędy pozostają w tym samym obszarze przewijania.
+
+Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybranym kolorze, jeśli zdjęcia nie ustawiono. Dostęp do obrazów w tym widoku mają tylko administratorzy wdrożenia; zwykły endpoint avatarów organizacji nadal wymaga członkostwa.

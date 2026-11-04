@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,9 +26,12 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
   useMcpConnections: () => ({ create: createOwn, connections: held.own }),
 }));
 vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
+import { apiClient } from "@/lib/api-client";
+import { useMcpCatalogPage, useMcpServerEntry } from "@/hooks/use-mcp-servers";
 import { toast } from "sonner";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -260,6 +263,34 @@ describe("ConnectServerDialog", () => {
       // refused at publish.
       expect(startMcpOAuth).toHaveBeenCalledWith(expect.anything(), "organization");
       expect(create).not.toHaveBeenCalled();
+      openSpy.mockRestore();
+    });
+
+    it("lands the other tab on the server's accounts and refetches here on return", async () => {
+      const tab = { location: { href: "" }, close: vi.fn() };
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      // An earlier test's consent left its own one-shot listener waiting.
+      window.dispatchEvent(new Event("focus"));
+      invalidate.mockClear();
+
+      open(OAUTH_ENTRY);
+      await submit();
+
+      await waitFor(() => expect(tab.location.href).toBe("https://consent"));
+      expect(document.cookie).toContain(
+        `mcp_oauth_return=${encodeURIComponent("/mcp-servers?server=notion")}`,
+      );
+      expect(invalidate).not.toHaveBeenCalled();
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("focus"));
+      // Once, on the first return: the listener goes with it.
+      expect(invalidate).toHaveBeenCalledTimes(3);
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-connections"] });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "list"] });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mcp-servers", "entry"] });
+      invalidate.mockRestore();
       openSpy.mockRestore();
     });
 
@@ -633,4 +664,76 @@ describe("useSignInOwn", () => {
       ),
     );
   });
+
+  it("names no page to come back to for a server outside the catalog, from another tab", async () => {
+    function NewTab({ connection }: { connection: McpConnectionRecord }) {
+      const signIn = useSignInOwn({});
+      return (
+        <button type="button" onClick={() => signIn(connection)}>
+          go
+        </button>
+      );
+    }
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    const tab = { location: { href: "" }, close: vi.fn() };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    document.cookie = "mcp_oauth_return=; path=/; max-age=0";
+    const custom = { id: "p3", name: "crm", url: "https://crm.example/mcp", catalog_key: null };
+    render(<NewTab connection={custom as McpConnectionRecord} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() => expect(tab.location.href).toBe("https://consent.example"));
+    expect(document.cookie).not.toContain("mcp_oauth_return=");
+    openSpy.mockRestore();
+  });
+});
+
+it("refreshes cached server counts and a saved bookmark after popup OAuth", async () => {
+  let connected = false;
+  const saved: McpCatalogEntry = {
+    ...OAUTH_ENTRY,
+    key: "registry/saved",
+    connection_ids: ["account-1"],
+  };
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    const items = path === "/agents/mcp-catalog" || !connected ? [] : [saved];
+    return { items, total: items.length, registry_total: 1 };
+  });
+  vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+  const tab = { opener: null, location: { href: "" }, close: vi.fn() };
+  const opened = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Probe() {
+    const listing = useMcpCatalogPage("", "", "", 0, true, "connected");
+    const bookmark = useMcpServerEntry(saved.key);
+    const connect = useConnectEntry("personal", { openForm: vi.fn() });
+    return (
+      <>
+        <button onClick={() => connect(saved)}>Sign in</button>
+        <output data-testid="saved-count">{listing.isLoading ? "Loading" : listing.total}</output>
+        <output data-testid="saved-bookmark">
+          {bookmark.isLoading ? "Loading" : (bookmark.entry?.key ?? "Missing")}
+        </output>
+      </>
+    );
+  }
+  try {
+    render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("saved-count")).toHaveTextContent("0"));
+    await waitFor(() => expect(screen.getByTestId("saved-bookmark")).toHaveTextContent("Missing"));
+    await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(tab.location.href).toBe("https://consent.example"));
+    connected = true;
+    expect(screen.getByTestId("saved-count")).toHaveTextContent("0");
+    act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(screen.getByTestId("saved-count")).toHaveTextContent("1"));
+    await waitFor(() => expect(screen.getByTestId("saved-bookmark")).toHaveTextContent(saved.key));
+  } finally {
+    opened.mockRestore();
+    client.clear();
+  }
 });

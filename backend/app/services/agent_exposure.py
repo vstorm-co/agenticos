@@ -49,7 +49,6 @@ from app.schemas.channel_bot import UsageReporting
 from app.services.agent_registry import AgentRegistryService
 from app.services.capability_contracts import ToolContract, tool_contracts
 from app.services.channels.directory import PLATFORM_TOOLS
-from app.services.channels.formatting import house_style
 from app.services.channels.prompt_variables import VARIABLES as PROMPT_VARIABLES
 
 # How many bots one organization can have bound before the picker stops being a
@@ -139,8 +138,14 @@ def _variables_for(surface: ExposureSurface) -> list[ExposureVariable]:
     """
     available = PLATFORM_TOOLS.get(surface.value, ())
     answered = {
-        "get_channel_info": {"channel_name", "channel_purpose", "channel_topic", "member_count"},
-        "list_channel_members": {"member_list"},
+        "get_channel_info": {
+            "channel_name",
+            "channel_purpose",
+            "channel_topic",
+            "member_count",
+            "channel_visibility",
+        },
+        "list_channel_members": {"member_list", "channel_members"},
     }
     fillable = {name for tool, names in answered.items() if tool in available for name in names}
     return [
@@ -329,12 +334,7 @@ class AgentExposureService:
             channel_bot_id=bot.id,
             created_by_user_id=ctx.user_id,
             environment_id=data.environment_id,
-            # The platform's own style, as the binding's starting text rather
-            # than something applied invisibly at run time. It is what the
-            # agent will be told, so it is what somebody editing it should see
-            # and be able to change. The cost is that it is a copy: improving
-            # the default later does not reach a binding that already exists.
-            prompt=house_style(surface.value),
+            prompt=None,
             session_scope=data.session_scope,
         )
         await record_audit(

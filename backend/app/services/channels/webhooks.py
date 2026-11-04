@@ -30,7 +30,16 @@ INBOUND_PATHS: dict[str, str] = {
     "telegram": "/api/v1/telegram/{bot_id}/webhook",
     "slack": "/api/v1/slack/{bot_id}/events",
     "mattermost": "/api/v1/mattermost/{bot_id}/webhook",
+    "teams": "/api/v1/teams/{bot_id}/messages",
 }
+
+
+STREAM_ONLY: frozenset[str] = frozenset({"discord"})
+"""Platforms reached only over a connection the deployment holds, never a webhook.
+
+Discord delivers messages, commands and button presses over the bot's Gateway
+connection, so a Discord bot has no inbound address and no webhook mode.
+"""
 
 
 SECRET_MINTED_BY_US: frozenset[str] = frozenset({"telegram"})

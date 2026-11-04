@@ -22,6 +22,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import Auth, SandboxConnectionSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
@@ -44,7 +45,7 @@ router = APIRouter()
 @router.get(
     "",
     response_model=SandboxConnectionList,
-    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
+    dependencies=[PUBLIC, Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def list_connections(service: SandboxConnectionSvc, ctx: Auth) -> Any:
     """Every place this organization's agents may be given a workspace."""
@@ -104,7 +105,7 @@ async def store_local_credential(service: SandboxConnectionSvc, ctx: Auth) -> An
 @router.get(
     "/runtimes",
     response_model=SandboxRuntimeCatalog,
-    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
+    dependencies=[PUBLIC, Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def list_runtimes(service: SandboxConnectionSvc, ctx: Auth) -> Any:
     """Every runtime the sandbox library ships.
@@ -180,7 +181,7 @@ async def delete_connection(
 @router.get(
     "/{connection_id}/policy",
     response_model=SandboxPolicyRead,
-    dependencies=[Depends(require(Perm.CONNECTIONS_VIEW))],
+    dependencies=[PUBLIC, Depends(require(Perm.CONNECTIONS_VIEW))],
 )
 async def read_policy(connection_id: UUID, service: SandboxConnectionSvc, ctx: Auth) -> Any:
     """What the service allows, asked of the service.

@@ -7,10 +7,10 @@ import {
   forwardedFor,
   forwardRateLimit,
 } from "@/lib/server-api";
-import { secureCookies } from "@/lib/session-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, secureCookies } from "@/lib/session-cookie";
 
 export async function POST(request: NextRequest) {
-  const refreshToken = request.cookies.get("refresh_token")?.value;
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
   if (refreshToken) {
     try {
@@ -40,14 +40,14 @@ export async function POST(request: NextRequest) {
 
   const response = bffJson({ ok: true });
 
-  response.cookies.set("access_token", "", {
+  response.cookies.set(ACCESS_TOKEN_COOKIE, "", {
     httpOnly: true,
     secure: secureCookies(request),
     sameSite: "lax",
     maxAge: 0,
     path: "/",
   });
-  response.cookies.set("refresh_token", "", {
+  response.cookies.set(REFRESH_TOKEN_COOKIE, "", {
     httpOnly: true,
     secure: secureCookies(request),
     sameSite: "lax",

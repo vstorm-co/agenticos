@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { AssistantState } from "@/types/assistant";
 
 import messages from "../../../messages/en.json";
-import { useChatSidebarStore } from "@/stores";
 import { MobileHeader } from "./mobile-header";
 
 const pathname = vi.hoisted(() => ({ current: "/chat" }));
@@ -11,30 +12,29 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathname.current }));
 vi.mock("@/components/layout/brand-link", () => ({ BrandLink: () => null }));
 vi.mock("@/components/layout/notification-bell", () => ({ NotificationBell: () => null }));
 
+const architect = vi.hoisted(() => ({
+  assistant: null as Pick<AssistantState, "can_use" | "agent_id" | "status"> | null,
+}));
+vi.mock("@/hooks/use-assistant", () => ({ useAssistant: () => architect }));
+
 function mount() {
-  render(
+  return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <MobileHeader />
     </NextIntlClientProvider>,
   );
 }
 
-beforeEach(() => {
-  useChatSidebarStore.getState().close();
-});
-
 /**
- * On a phone the chat's conversation list is a slide-over, and this header is
- * the only way into it - so the button is there on the chat and nowhere else.
+ * The phone's top bar, everywhere but the chat: there the buttons float over
+ * the transcript instead (`PhoneChatBar`), the conversation list among them.
  */
 describe("MobileHeader", () => {
-  it("opens the conversation list from the chat", () => {
+  it("steps aside on the chat, which floats its own buttons over the transcript", () => {
     pathname.current = "/pl/chat";
-    mount();
+    const { container } = mount();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open conversations" }));
-
-    expect(useChatSidebarStore.getState().isOpen).toBe(true);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("offers no conversation list away from the chat", () => {
@@ -45,3 +45,20 @@ describe("MobileHeader", () => {
     expect(screen.getByRole("button", { name: "Toggle menu" })).toBeInTheDocument();
   });
 });
+
+it.each([
+  [true, "a", "ready", true],
+  [true, "a", "needs_model", true],
+  [true, "a", "disabled", false],
+  [false, "a", "ready", false],
+  [true, null, "ready", false],
+] as const)(
+  "reserves header room only for an available Architect (%s, %s, %s)",
+  (can_use, agent_id, status, visible) => {
+    pathname.current = "/admin/users";
+    architect.assistant = { can_use, agent_id, status };
+    const { container } = mount();
+    expect(container.querySelector("[data-architect-slot]") !== null).toBe(visible);
+    architect.assistant = null;
+  },
+);

@@ -1,10 +1,11 @@
 """RAG API schemas."""
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from app.schemas.base import BaseSchema
+from app.services.rag.citation import cited_page
 from app.services.rag.config import DEFAULT_COLLECTION_NAME
 from app.services.rag.filters import RetrievalFilters
 
@@ -51,6 +52,17 @@ class RAGSearchResult(BaseSchema):
     metadata: dict[str, Any]
     parent_doc_id: str
 
+    @computed_field  # type: ignore[prop-decorator]  # pydantic's documented form
+    @property
+    def page(self) -> int | None:
+        """The page a citation may name for this chunk, or `None` when its format has none.
+
+        `metadata.page_num` is 1 for every Markdown, text and `.docx` chunk, a
+        number the parser needs rather than a location in the file, so a
+        caller showing a page reads this rather than `page_num` (#2489).
+        """
+        return cited_page(self.metadata)
+
 
 class RAGSearchResponse(BaseSchema):
     """List of results found in the vector store."""
@@ -72,13 +84,41 @@ class RAGFilterValues(BaseSchema):
     )
 
 
-class RAGCollectionInfo(BaseSchema):
-    """Statistical information about a specific collection."""
+class RAGIngestionStatus(BaseSchema):
+    """Where a collection's, or a knowledge base's, documents are in their ingestion.
+
+    Answered from the tracked documents, not from the vectors: the vectors grow
+    while the worker is still ingesting, so a caller waiting for the documents to
+    be searchable waits for `complete` (#2486).
+    """
+
+    indexing_status: Literal["indexing", "complete"] = Field(
+        default="complete",
+        description=(
+            "`indexing` while any of the documents is still queued or being ingested, "
+            "`complete` once every one has finished or failed. A failed document does "
+            "not hold it at `indexing`; it is counted in `failed_count`."
+        ),
+    )
+    processing_count: int = Field(
+        default=0, description="Documents queued or being ingested - neither finished nor failed"
+    )
+    indexed_count: int = Field(default=0, description="Documents that finished ingesting")
+    failed_count: int = Field(
+        default=0, description="Documents whose ingestion failed, and which hold no vectors"
+    )
+
+
+class RAGCollectionInfo(RAGIngestionStatus):
+    """Statistical information about a specific collection, and whether it is still indexing.
+
+    It used to report the constant `complete`, which let a script start querying
+    a collection with hundreds of uploads still queued behind it (#2486).
+    """
 
     name: str
     total_vectors: int
     dim: int
-    indexing_status: str = "complete"
 
 
 class RAGCollectionList(BaseSchema):
@@ -278,3 +318,18 @@ class EmbeddingModelsResponse(BaseSchema):
     """
 
     providers: list[EmbeddingProviderEntry]
+
+
+class EndpointEmbeddingModels(BaseSchema):
+    """The embedding models one custom endpoint serves, of those this build offers.
+
+    `source` says whether the endpoint answered. `live` is its own listing,
+    narrowed to the catalog because a width is needed and the listing states
+    none; `curated` is the provider's whole catalog, returned when the endpoint
+    could not be asked, so the form still has something to show and can say
+    that it is unconfirmed.
+    """
+
+    provider: str
+    models: list[EmbeddingModelEntry]
+    source: Literal["live", "curated"]

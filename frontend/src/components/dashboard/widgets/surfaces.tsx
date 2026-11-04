@@ -19,7 +19,12 @@ const KNOWN_SURFACES = new Set([
   "telegram",
   "mattermost",
   "a2a",
+  "teams",
+  "discord",
   "schedule",
+  "workflow",
+  "follow_ups",
+  "proactive",
 ]);
 
 /**
@@ -38,7 +43,7 @@ export function SurfacesWidget({ title, hint, period, seeAll, options }: Dashboa
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
-      <UsageBody period={period} emptyKey="surfaces" options={options}>
+      <UsageBody period={period} emptyKey="surfaces" loadingVariant="bars" options={options}>
         {(usage) => {
           const rows = (usage.by_surface ?? []).map((row) => ({
             label: KNOWN_SURFACES.has(row.surface) ? t(`names.${row.surface}`) : row.surface,

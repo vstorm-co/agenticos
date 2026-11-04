@@ -72,6 +72,8 @@ class WriteApproval(Policy):
     async def pre_command(self, ctx: CommandContext) -> Ask | None:
         # A redirect is a write the shell does, not the command, so `echo x >
         # /drive/a` carries `write=False`; its target is still among `paths`.
+        if _APPROVED.get():
+            return None
         redirected = {word.text for word in ctx.words if word.kind == WordKind.REDIRECT}
         for path in ctx.paths:
             if path.directory in self.gated and (ctx.write or path.virtual in redirected):
@@ -79,6 +81,8 @@ class WriteApproval(Policy):
         return None
 
     async def pre_vfs(self, ctx: VfsContext) -> Ask | None:
+        if _APPROVED.get():
+            return None
         if ctx.write and ctx.prefix in self.gated:
             return Ask(reason=_reason(ctx.prefix))
         return None

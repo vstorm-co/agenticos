@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { Radar } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChoiceGroup } from "./choice-group";
@@ -71,5 +72,18 @@ describe("ChoiceGroup", () => {
     await userEvent.keyboard("x");
 
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("draws a choice's icon beside its label, out of its accessible name", () => {
+    render(
+      <ChoiceGroup
+        labelledBy="none"
+        value="w"
+        options={[{ value: "w", label: "Watches", icon: Radar }]}
+        onChange={vi.fn()}
+      />,
+    );
+    const choice = screen.getByRole("radio", { name: "Watches" });
+    expect(choice.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 });

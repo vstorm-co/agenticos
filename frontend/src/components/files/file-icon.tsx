@@ -4,6 +4,9 @@ import {
   FileArchive,
   FileAudio,
   FileCode,
+  FileCode2,
+  FileJson,
+  File as PlainFile,
   FileImage,
   FileSpreadsheet,
   FileText,
@@ -16,9 +19,8 @@ import { resolveFileKind, type FileKind } from "@/lib/file-kinds";
 /**
  * The mark for a file, as an element.
  *
- * Seven marks across fourteen kinds: the point is a glance, not a taxonomy, so the
- * three media kinds are distinct, the two spreadsheet kinds share one, and everything
- * that is neither markup nor media is plain.
+ * Code, structured data, markup and documents stay distinguishable in every
+ * listing. Rendering still follows the shared FileKind contract.
  *
  * A switch returning elements rather than a table of components. Nothing is created
  * per render either way, but a static analyser cannot see that through a lookup, and
@@ -33,20 +35,24 @@ function KindIcon({ kind, className }: { kind: FileKind; className?: string }) {
     case "audio":
       return <FileAudio className={className} aria-hidden />;
     case "code":
-    case "json":
-    case "html":
       return <FileCode className={className} aria-hidden />;
+    case "json":
+      return <FileJson className={className} aria-hidden />;
+    case "html":
+      return <FileCode2 className={className} aria-hidden />;
     case "csv":
     case "spreadsheet":
       return <FileSpreadsheet className={className} aria-hidden />;
     case "pdf":
+      return <FileType className={className} aria-hidden />;
     case "markdown":
     case "document":
-      return <FileType className={className} aria-hidden />;
+    case "text":
+      return <FileText className={className} aria-hidden />;
     case "archive":
       return <FileArchive className={className} aria-hidden />;
     default:
-      return <FileText className={className} aria-hidden />;
+      return <PlainFile className={className} aria-hidden />;
   }
 }
 

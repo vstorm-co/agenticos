@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: una alternativa autoalojada"
 description: "Sauna es un asistente de IA proactivo por persona, en su nube. AgenticOS: muchos agents gobernados, cualquier modelo y budgets por agent en tus servidores."
-source_sha: "e589e2dd5acb"
+source_sha: "0b50f057f109"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -40,7 +40,7 @@ La especificación de un agent [se versiona al publicar](../concepts.md#version)
 
 Sauna es un servicio de EE. UU.: su política dice que los datos personales pueden tratarse en EE. UU. y en los países donde operan sus subencargados, con las cláusulas contractuales tipo de la UE. Al registrarte, busca información sobre ti en la web pública y guarda el resultado en tu workspace. Su sitio y su app cargan píxeles publicitarios de Meta, LinkedIn, Google y Reddit, desactivados por defecto en algunas regiones. Los datos de analítica de producto se conservan hasta siete años.
 
-AgenticOS almacena las conversaciones, los documentos y los vectores en [tu propio Postgres](../data-protection.md#where-personal-data-lives), y una instalación nueva [no envía nada a ninguna parte](../data-protection.md#nothing-leaves-by-default). Tú fijas la [retención por clase de datos](../governance.md#retention). Con un modelo local, nada tiene que salir de tu red.
+AgenticOS almacena las conversaciones, los documentos y los vectores en [tu propio Postgres](../data-protection.md#where-personal-data-lives), y una instalación nueva [no envía prompts ni documentos a ninguna parte](../data-protection.md#nothing-leaves-by-default); el [diagnóstico del deployment](../configuration.md#diagnostics) está activado por defecto y se puede desactivar. Tú fijas la [retención por clase de datos](../governance.md#retention). Con un modelo local, tu contenido no tiene que salir de tu red.
 
 ### Un modelo que eliges y un budget por agent { #a-model-you-choose-and-a-budget-per-agent }
 

@@ -13,6 +13,13 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
+from app.schemas.conversation_share import (
+    SharedConversationBody,
+    SharedConversationRead,
+    SharedConversationShare,
+    SharedMessageRead,
+    SharedVisual,
+)
 from app.services import visual as visuals
 
 logger = logging.getLogger(__name__)
@@ -166,7 +173,7 @@ class ConversationShareService:
             item.is_favourite = item.id in starred  # ty: ignore[unresolved-attribute]
         return items, total
 
-    async def get_by_token(self, token: str) -> dict:
+    async def get_by_token(self, token: str) -> SharedConversationRead:
         """Get a shared conversation by its public token."""
         share = await conversation_share_repo.get_by_token(self.db, token)
         if not share:
@@ -179,24 +186,22 @@ class ConversationShareService:
         if not conv or conv.project_id is not None:
             raise NotFoundError(message="Conversation not found")
         drawn = await visuals.shared_visuals(conv)
-        return {
-            "conversation": {
-                "id": str(conv.id),
-                "title": conv.title,
-                "messages": [
-                    {
-                        "id": str(m.id),
-                        "role": m.role,
-                        "content": m.content,
-                        "created_at": m.created_at.isoformat() if m.created_at else None,
-                        "visuals": drawn.get(m.id, []),
-                    }
+        return SharedConversationRead(
+            conversation=SharedConversationBody(
+                id=conv.id,
+                title=conv.title,
+                messages=[
+                    SharedMessageRead(
+                        id=m.id,
+                        role=m.role,
+                        content=m.content,
+                        created_at=m.created_at,
+                        visuals=[SharedVisual.model_validate(v) for v in drawn.get(m.id, [])],
+                    )
                     for m in (conv.messages or [])
                 ],
-            },
-            "share": {
-                "id": str(share.id),
-                "permission": share.permission,
-                "share_token": share.share_token,
-            },
-        }
+            ),
+            share=SharedConversationShare.model_validate(
+                {"id": share.id, "permission": share.permission}
+            ),
+        )

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activeFilterCount,
   DEFAULT_RUN_FILTERS,
   isNarrowed,
   parseRunFilters,
@@ -129,5 +130,12 @@ describe("the voice filter", () => {
     expect(runFilterParams(filters).modality).toBe("voice");
     expect(parseRunFilters(new URLSearchParams("modality=video")).modality).toBe("all");
     expect(parseRunFilters(new URLSearchParams("modality=text")).modality).toBe("text");
+  });
+});
+
+describe("activeFilterCount", () => {
+  it("counts each filter set away from its default", () => {
+    expect(activeFilterCount(DEFAULT_RUN_FILTERS)).toBe(0);
+    expect(activeFilterCount({ ...DEFAULT_RUN_FILTERS, status: "failed", test: "hide" })).toBe(2);
   });
 });

@@ -155,11 +155,43 @@ hint_for() {
 
 MISSING=0
 
+refuse_podman() {
+  die "Podman deployments use the manual setup; this quickstart supports Docker only, including with --no-sandbox.
+  For Podman, use Docker Compose ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR}+ as the provider for 'podman compose'.
+  podman-compose 1.6.0 does not enforce successful migrations before starting the application.
+  For this quickstart, use Docker Engine with Docker Compose ${COMPOSE_MIN_MAJOR}.${COMPOSE_MIN_MINOR}+ (Docker Desktop or OrbStack on macOS).
+  If Docker is also installed, make sure 'docker' invokes Docker's CLI and targets the Docker daemon,
+  rather than podman-docker or a Podman socket/context.
+  See https://vstorm-co.github.io/agenticos/deploy/#podman-support"
+}
+
+# The CLI may be podman-docker, or a real Docker CLI may target Podman's API.
+# Check both before interpreting a Compose provider's unrelated version number.
+check_container_engine() {
+  local identity
+  identity="$(docker --version 2>/dev/null || true)"
+  if printf '%s' "$identity" | grep -qi podman; then
+    refuse_podman
+  fi
+  # A symlink named `docker` makes Podman use that name in --version too.
+  # This native Podman command needs no running engine.
+  if docker system connection list --format '{{.Name}}' >/dev/null 2>&1; then
+    refuse_podman
+  fi
+  identity="$(docker version --format '{{range .Server.Components}}{{println .Name}}{{end}}' 2>/dev/null || true)"
+  if printf '%s' "$identity" | grep -qi podman; then
+    refuse_podman
+  fi
+}
+
 # `docker compose version --short` is `2.29.1` or `v2.29.1` depending on the
 # build; anything that does not parse is reported rather than assumed fine.
 check_compose_version() {
   local raw major minor
   raw="$(docker compose version --short 2>/dev/null || true)"
+  if printf '%s' "$raw" | grep -qi podman; then
+    refuse_podman
+  fi
   raw="${raw#v}"
   major="${raw%%.*}"
   minor="${raw#*.}"; minor="${minor%%.*}"
@@ -205,10 +237,14 @@ check_prerequisites() {
     *) warn "Unrecognised platform $(uname -s) — carrying on, but untested" ;;
   esac
 
+  if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
+    refuse_podman
+  fi
   need docker
   in_clone || need curl
 
   if command -v docker >/dev/null 2>&1; then
+    check_container_engine
     if docker compose version >/dev/null 2>&1; then
       check_compose_version
     else
@@ -395,7 +431,7 @@ obtain_compose() {
     STACK_DIR="$(cd "$(dirname "$INSTALL_DIR")" && pwd -P)/$(basename "$INSTALL_DIR")"
   fi
   ok "compose file in $STACK_DIR"
-  note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env."
+  note "The images come from ghcr.io/vstorm-co - pin a release with AGENTICOS_VERSION=x.y.z in .env and that release's docker-compose.yml."
 }
 
 # Compose names a project after its directory, and nothing else tells two
@@ -527,7 +563,13 @@ decide_sandbox() {
   ensure_sandbox_token
   # The group that owns the socket, which the service takes as a supplementary
   # group to reach it. 0 on Docker Desktop, where the socket is proxied.
-  DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock)"
+  if [ -z "${DOCKER_GID+x}" ]; then
+    if [ "$(uname -s)" = Linux ]; then
+      DOCKER_GID="$(stat -Lc '%g' /var/run/docker.sock)"
+    else
+      DOCKER_GID=0
+    fi
+  fi
   export DOCKER_GID
 }
 

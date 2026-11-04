@@ -28,6 +28,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DIAGNOSTICS_ENABLED: "false"
+
 jobs:
   newest:
     name: the newest release of everything
@@ -63,6 +66,7 @@ jobs:
           --health-retries 5
 
     env:
+      PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
@@ -77,7 +81,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "latest"
 
@@ -125,8 +129,7 @@ jobs:
         working-directory: backend
 
       - name: Run the whole suite
-        run: uv run pytest tests/ -q
-        working-directory: backend
+        run: make test-fast
 
       - name: Open an issue when the newest release breaks us
         if: failure()

@@ -159,7 +159,10 @@ beforeEach(() => {
   vi.stubGlobal("WebSocket", FakeSocket);
   vi.stubGlobal("RTCPeerConnection", FakePc);
   stubMic(() => Promise.resolve(micStream));
-  useAuthStore.setState({ accessToken: "jwt" });
+  useAuthStore.setState({
+    accessToken: "jwt",
+    user: { id: "user1", email: "user1@example.com", is_active: true, created_at: "2026-10-24" },
+  });
   useOrgStore.setState({ activeOrgId: "org1" });
   useVoiceCallStore.setState({ pushToTalk: false });
 });
@@ -1182,7 +1185,7 @@ describe("useVoiceSession", () => {
   });
 
   it("opens a console socket without a token protocol when there is no token", async () => {
-    useAuthStore.setState({ accessToken: null });
+    useAuthStore.setState({ accessToken: null, user: null });
     useOrgStore.setState({ activeOrgId: null });
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
     await act(() =>
@@ -1448,4 +1451,263 @@ describe("useVoiceSession over the relay (Gemini, xAI, Azure; fakes only, not ve
     );
     expect(voiceGlow.getAudioContext).not.toHaveBeenCalled();
   });
+});
+
+it.each(["organization", "account"])(
+  "invalidates pending microphone access on %s switch",
+  async (scope) => {
+    let grant: (stream: MediaStream) => void = () => undefined;
+    stubMic(
+      () =>
+        new Promise((resolve) => {
+          grant = resolve;
+        }),
+    );
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    let starting: Promise<void> = Promise.resolve();
+    act(() => {
+      starting = result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      });
+    });
+    act(() => {
+      if (scope === "organization") useOrgStore.setState({ activeOrgId: "org2" });
+      else useAuthStore.setState({ user: null, accessToken: null });
+    });
+    await act(async () => {
+      grant(micStream);
+      await starting;
+    });
+    expect(FakeSocket.instances).toHaveLength(0);
+    expect(micTrack.stop).toHaveBeenCalledOnce();
+    expect(result.current.call.phase).toBe("idle");
+  },
+);
+
+it.each(["connecting", "live", "reconnecting"])(
+  "closes %s calls on tenant switch and ignores old callbacks",
+  async (phase) => {
+    vi.useFakeTimers();
+    const onConversation = vi.fn(),
+      onTurnSaved = vi.fn();
+    const { result } = renderHook(() => useVoiceSession({ onConversation, onTurnSaved }), {
+      wrapper,
+    });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    const socket = FakeSocket.last(),
+      peer = FakePc.last();
+    if (phase !== "connecting")
+      act(() => {
+        socket.open();
+        socket.receive(READY);
+      });
+    if (phase === "reconnecting") act(() => socket.drop());
+    onConversation.mockClear();
+    act(() => useOrgStore.setState({ activeOrgId: "org2" }));
+    act(() => {
+      socket.open();
+      socket.receive(READY);
+      socket.receive({
+        type: "turn_saved",
+        message: { id: "old", role: "user", content: "old", interrupted: false, turn_id: "t" },
+      });
+      peer.ontrack?.({ streams: [micStream] });
+    });
+    await act(() => vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS + RESUME_WINDOW_MS));
+    expect(FakeSocket.instances).toHaveLength(1);
+    expect(socket.close).toHaveBeenCalled();
+    expect(peer.close).toHaveBeenCalled();
+    expect(micTrack.stop).toHaveBeenCalled();
+    expect(onConversation).not.toHaveBeenCalled();
+    expect(onTurnSaved).not.toHaveBeenCalled();
+    expect(result.current.remoteStream).toBeNull();
+    expect(result.current.call.phase).toBe("idle");
+  },
+);
+
+it("keeps public embed ownership separate from console account and tenant changes", async () => {
+  const { result } = renderHook(() => useVoiceSession(), { wrapper });
+  await act(() =>
+    result.current.start({
+      kind: "embed",
+      publicKey: "public",
+      visitorKey: "visitor",
+      token: null,
+      transport: "webrtc",
+    }),
+  );
+  const socket = FakeSocket.last();
+  act(() => {
+    useOrgStore.setState({ activeOrgId: "org2" });
+    useAuthStore.setState({ user: null });
+  });
+  expect(socket.close).not.toHaveBeenCalled();
+  expect(micTrack.stop).not.toHaveBeenCalled();
+  expect(result.current.call.phase).toBe("connecting");
+});
+
+it("uses the current tenant even when start runs before a React rerender", async () => {
+  const { result } = renderHook(() => useVoiceSession(), { wrapper });
+  let starting: Promise<void> = Promise.resolve();
+  act(() => {
+    useOrgStore.setState({ activeOrgId: "org2" });
+    starting = result.current.start({
+      kind: "console",
+      agentId: "a1",
+      conversationId: null,
+      transport: "webrtc",
+    });
+  });
+  await act(() => starting);
+  expect(FakeSocket.last().url).toContain("organization_id=org2");
+});
+
+it("ignores an old setup failure after a different tenant started a call", async () => {
+  let fail: (error: Error) => void = () => undefined;
+  const pending = new Promise<{ type: string; sdp: string }>((_resolve, reject) => {
+    fail = reject;
+  });
+  vi.stubGlobal(
+    "RTCPeerConnection",
+    class extends FakePc {
+      override createOffer = vi.fn(() => pending);
+    },
+  );
+  const { result } = renderHook(() => useVoiceSession(), { wrapper });
+  let starting: Promise<void> = Promise.resolve();
+  await act(async () => {
+    starting = result.current.start({
+      kind: "console",
+      agentId: "a1",
+      conversationId: null,
+      transport: "webrtc",
+    });
+    await Promise.resolve();
+  });
+  act(() => useOrgStore.setState({ activeOrgId: "org2" }));
+  await act(() =>
+    result.current.start({
+      kind: "console",
+      agentId: "a2",
+      conversationId: null,
+      transport: "relay",
+    }),
+  );
+  const active = FakeSocket.last();
+  await act(async () => {
+    fail(new Error("old setup failed"));
+    await starting;
+  });
+  expect(active.close).not.toHaveBeenCalled();
+  expect(result.current.call.phase).toBe("connecting");
+});
+
+it("ignores a reconnect callback retained from an invalidated tenant", async () => {
+  vi.useFakeTimers();
+  const listen = vi.spyOn(window, "addEventListener");
+  const { result } = renderHook(() => useVoiceSession(), { wrapper });
+  await act(() =>
+    result.current.start({
+      kind: "console",
+      agentId: "a1",
+      conversationId: null,
+      transport: "webrtc",
+    }),
+  );
+  act(() => {
+    FakeSocket.last().open();
+    FakeSocket.last().receive(READY);
+    FakeSocket.last().drop();
+  });
+  const online = listen.mock.calls.find(([event]) => event === "online")?.[1];
+  if (typeof online !== "function") throw new Error("No reconnect callback registered");
+  act(() => useOrgStore.setState({ activeOrgId: "org2" }));
+  await act(async () => {
+    online(new Event("online"));
+    await Promise.resolve();
+  });
+  expect(FakeSocket.instances).toHaveLength(1);
+  expect(result.current.call.phase).toBe("idle");
+  listen.mockRestore();
+});
+
+it("a stale reconnect failure cannot end another tenant's new call", async () => {
+  vi.useFakeTimers();
+  let fail: (error: Error) => void = () => undefined;
+  const pending = new Promise<{ type: string; sdp: string }>((_resolve, reject) => {
+    fail = reject;
+  });
+  let offers = 0;
+  vi.stubGlobal(
+    "RTCPeerConnection",
+    class extends FakePc {
+      override createOffer = vi.fn(() =>
+        ++offers === 1 ? Promise.resolve({ type: "offer", sdp: offerSdp }) : pending,
+      );
+    },
+  );
+  const { result } = renderHook(() => useVoiceSession(), { wrapper });
+  await act(() =>
+    result.current.start({
+      kind: "console",
+      agentId: "a1",
+      conversationId: null,
+      transport: "webrtc",
+    }),
+  );
+  act(() => {
+    FakeSocket.last().open();
+    FakeSocket.last().receive(READY);
+    FakeSocket.last().drop();
+  });
+  await act(() => vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS));
+  act(() => useOrgStore.setState({ activeOrgId: "org2" }));
+  await act(() =>
+    result.current.start({
+      kind: "console",
+      agentId: "a2",
+      conversationId: null,
+      transport: "relay",
+    }),
+  );
+  const active = FakeSocket.last();
+  await act(async () => {
+    fail(new Error("old reconnect failed"));
+    await Promise.resolve();
+  });
+  expect(active.close).not.toHaveBeenCalled();
+  expect(result.current.call.phase).toBe("connecting");
+});
+
+it("the old end timer closes only its own socket after a new call starts", async () => {
+  vi.useFakeTimers();
+  const { result } = renderHook(() => useVoiceSession(), { wrapper });
+  const target = {
+    kind: "console",
+    agentId: "a1",
+    conversationId: null,
+    transport: "webrtc",
+  } as const;
+  await act(() => result.current.start(target));
+  const old = FakeSocket.last();
+  act(() => {
+    old.open();
+    result.current.end();
+  });
+  await act(() => result.current.start(target));
+  const active = FakeSocket.last();
+  await act(() => vi.advanceTimersByTimeAsync(5000));
+  expect(old.close).toHaveBeenCalled();
+  expect(active.close).not.toHaveBeenCalled();
+  expect(result.current.call.phase).toBe("connecting");
 });

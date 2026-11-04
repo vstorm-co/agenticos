@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 
 from app.api.deps import AdminSvc, CurrentAppAdmin, DBSession, Redis
+from app.api.routes.v1._stored_bytes import stored_image_response
+from app.core.exceptions import NotFoundError
 from app.schemas.admin import AdminOrganizationDetail, AdminOrganizationList, AdminStats
 from app.schemas.health import SystemHealthResponse
 from app.services.health import system_health
@@ -88,3 +90,25 @@ async def get_system_health(
     session is what makes that safe to publish.
     """
     return await system_health(db=db, redis=redis)
+
+
+@router.get("/organizations/{organization_id}/avatar", response_model=None)
+async def get_admin_organization_avatar(
+    organization_id: UUID,
+    service: AdminSvc,
+    _user: CurrentAppAdmin,
+) -> Any:
+    """Organization avatar for a deployment administrator, including other tenants."""
+    path = await service.organization_avatar_path(organization_id)
+    response = await stored_image_response(
+        path,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=30",
+        },
+    )
+    if response is None:
+        raise NotFoundError(
+            message="Organization avatar not found", details={"organization_id": organization_id}
+        )
+    return response

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useFileActions, useFileBytes, useFileText } from "./use-file-content";
@@ -149,6 +150,41 @@ describe("one file's bytes", () => {
     unmount();
 
     expect(revoked).toEqual(["blob:0"]);
+  });
+
+  it("keeps a cached preview live through Strict Mode and revokes every allocation", async () => {
+    const access = workspaceFile("/cached.png");
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+    client.setQueryData(access.bytesKey, new Blob(["image"], { type: "image/png" }));
+    const { result, unmount } = renderHook(() => useFileBytes(access), {
+      reactStrictMode: true,
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.url).not.toBeNull());
+    expect(revoked).not.toContain(result.current.url);
+    unmount();
+    expect(new Set(revoked)).toEqual(new Set(created));
+    client.clear();
+  });
+
+  it("does not allocate browser handles during server rendering", () => {
+    const access = workspaceFile("/server.png");
+    const client = new QueryClient();
+    client.setQueryData(access.bytesKey, new Blob(["image"]));
+    function Preview() {
+      const { url } = useFileBytes(access);
+      return <div>{url ?? "pending"}</div>;
+    }
+    const markup = renderToString(
+      <QueryClientProvider client={client}>
+        <Preview />
+      </QueryClientProvider>,
+    );
+    expect(markup).toContain("pending");
+    expect(created).toEqual([]);
+    client.clear();
   });
 
   it("reports a refusal rather than a blank preview", async () => {

@@ -8,12 +8,17 @@ an expired token, an ended impersonation, and a suspended account each close the
 door here, and the door is the same one the next frame knocks on.
 """
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from fastapi import FastAPI, WebSocket
+from starlette.types import Message, Scope
 
+from app.api import deps
 from app.core.exceptions import AuthenticationError, NotFoundError
 from app.core.security import create_access_token
 from app.services.ws_auth import authenticate_socket_token
@@ -30,6 +35,84 @@ def _user(*, is_active: bool = True) -> MagicMock:
 
 def _payload(subject: str, *, token_type: str = "access") -> dict[str, str]:
     return {"sub": subject, "type": token_type}
+
+
+async def _handshake(headers: dict[str, str]) -> list[Message]:
+    """Exercise FastAPI's cookie binding without a server or application lifespan."""
+    app = FastAPI()
+
+    @app.websocket("/ws")
+    async def socket(websocket: WebSocket, user: deps.CurrentUserWS) -> None:
+        await websocket.accept(subprotocol=websocket.state.accept_subprotocol)
+        await websocket.send_text(str(user.id))
+        await websocket.close()
+
+    scope: Scope = {
+        "type": "websocket",
+        "path": "/ws",
+        "query_string": b"",
+        "headers": [(key.encode(), value.encode()) for key, value in headers.items()],
+        "scheme": "ws",
+        "server": ("localhost", 8000),
+        "client": ("127.0.0.1", 12345),
+        "subprotocols": [],
+    }
+    sent: list[Message] = []
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    await app(scope, AsyncMock(return_value={"type": "websocket.connect"}), send)
+    return sent
+
+
+class TestSocketCookieIsolation:
+    @pytest.fixture
+    def socket_auth(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        @asynccontextmanager
+        async def db_context() -> AsyncIterator[MagicMock]:
+            yield MagicMock(refresh=AsyncMock())
+
+        authenticate = AsyncMock(return_value=_user())
+        monkeypatch.setattr(deps, "get_db_context", db_context)
+        monkeypatch.setattr(deps, "authenticate_socket_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(deps, "authenticate_socket_token", authenticate)
+        return authenticate
+
+    async def test_the_handshake_uses_only_the_agenticos_cookie(
+        self, socket_auth: AsyncMock
+    ) -> None:
+        sent = await _handshake(
+            {"cookie": "access_token=other-app; agenticos_access_token=our-access"}
+        )
+
+        assert sent[0]["type"] == "websocket.accept"
+        assert sent[1] == {"type": "websocket.send", "text": str(socket_auth.return_value.id)}
+        assert socket_auth.await_args.args[1] == "our-access"
+
+    async def test_another_apps_cookie_does_not_authenticate_a_socket(
+        self, socket_auth: AsyncMock
+    ) -> None:
+        sent = await _handshake({"cookie": "access_token=other-app"})
+
+        assert sent == [
+            {"type": "websocket.close", "code": 4001, "reason": "Missing authentication token"}
+        ]
+        socket_auth.assert_not_awaited()
+
+    async def test_the_existing_token_subprotocol_still_wins_over_cookies(
+        self, socket_auth: AsyncMock
+    ) -> None:
+        sent = await _handshake(
+            {
+                "cookie": "access_token=other-app; agenticos_access_token=our-access",
+                "sec-websocket-protocol": "access_token.protocol-access, chat",
+            }
+        )
+
+        assert sent[0] == {"type": "websocket.accept", "subprotocol": "chat", "headers": []}
+        assert sent[1] == {"type": "websocket.send", "text": str(socket_auth.return_value.id)}
+        assert socket_auth.await_args.args[1] == "protocol-access"
 
 
 class TestAuthenticateSocketToken:

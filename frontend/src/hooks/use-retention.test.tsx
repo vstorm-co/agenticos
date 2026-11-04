@@ -52,3 +52,16 @@ describe("one organization's retention policy", () => {
     expect(result.current.policy?.effective.conversations).toBe(365);
   });
 });
+
+it("exposes a failed policy read and lets the page recover", async () => {
+  const error = new Error("unavailable");
+  vi.mocked(apiClient.get).mockRejectedValueOnce(error).mockResolvedValue(READ);
+  const { result } = renderHook(() => useRetention("o-1"), { wrapper });
+  await waitFor(() => expect(result.current.error).toBe(error));
+  expect(result.current.isLoading).toBe(false);
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() => expect(result.current.policy).toEqual(READ));
+  expect(result.current.error).toBeNull();
+});

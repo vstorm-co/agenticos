@@ -11,7 +11,7 @@
 
 import { apiClient } from "./api-client";
 
-export type NotificationChannel = "in_app" | "email";
+export type NotificationChannel = "in_app" | "email" | "push";
 
 export interface NotificationPreference {
   event_type: string;

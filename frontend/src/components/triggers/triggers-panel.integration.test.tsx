@@ -48,6 +48,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
     schedule_kind: "interval",
     interval_seconds: 900,
     cron_expression: null,
+    time_zone: null,
     overlap: "skip",
     event_source: null,
     event_config: {},
@@ -85,7 +86,11 @@ async function mount({ canCreate = true } = {}) {
   await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // A new schedule is read in its maker's zone; pinned so no run reads the laptop's.
+  useAuthStore.setState({ user: { id: "me", time_zone: "Europe/Warsaw" } as never });
+});
 
 describe("TriggersPanel", () => {
   it("says the agent runs only when messaged rather than showing an empty box", async () => {
@@ -202,7 +207,8 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
-    // The schedule step opens on "daily at 09:00"; an interval is the other tab.
+    // The schedule step opens on "Daily"; any other interval is built under Custom.
+    await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     await user.click(within(dialog).getByRole("tab", { name: "Every so often" }));
     const count = within(dialog).getByLabelText("Run every");
     await user.clear(count);
@@ -233,6 +239,7 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do the thing");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     await user.click(within(dialog).getByRole("tab", { name: "Every so often" }));
     const count = within(dialog).getByLabelText<HTMLInputElement>("Run every");
 
@@ -279,6 +286,37 @@ describe("TriggersPanel", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
       event_config: { subject_contains: "overdue" },
+    });
+  });
+
+  it("keeps what the form does not show when it edits an Outlook trigger's filter", async () => {
+    // The server stores the config whole: sending only the two slots moved a
+    // trigger watching a shared mailbox's folder back to the inbox (#1984).
+    const user = userEvent.setup();
+    const row = trigger({
+      trigger_type: "event",
+      event_source: "outlook",
+      interval_seconds: null,
+      event_config: {
+        folder: "Inbox/Invoices",
+        mailbox: "ops@corp.test",
+        has_attachments: true,
+        subject_contains: "invoice",
+        sender_contains: null,
+      },
+    });
+    serve([row]);
+    vi.mocked(apiClient.patch).mockResolvedValue(row);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const subject = within(dialog).getByLabelText<HTMLInputElement>("Subject contains");
+    await user.clear(subject);
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      event_config: { folder: "Inbox/Invoices", mailbox: "ops@corp.test", has_attachments: true },
     });
   });
 
@@ -408,7 +446,7 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     // The message field is the same MarkdownEditor the agent's instructions use,
     // so it carries that field's source/preview toggle rather than a bare box.
-    expect(within(dialog).getByRole("button", { name: "Source" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Source" })).toBeNull();
     expect(within(dialog).getByRole("button", { name: "Preview" })).toBeInTheDocument();
   });
 
@@ -445,7 +483,7 @@ describe("TriggersPanel", () => {
     ]);
     await mount();
 
-    await waitFor(() => expect(screen.getByText("Every Mon, Tue at 09:00 UTC")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("Every Mon, Tue at 09:00 (UTC)")).toBeVisible());
     expect(screen.queryByText("Cron 0 9 * * 1,2 (UTC)")).toBeNull();
   });
 
@@ -471,6 +509,7 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Every couple of days");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
     await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
     await user.click(await screen.findByRole("option", { name: "Every few days" }));
@@ -508,6 +547,57 @@ describe("TriggersPanel", () => {
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
       prompt: "Reworded",
     });
+  });
+
+  it("moves a schedule saved in UTC to another zone, keeping its hour", async () => {
+    const user = userEvent.setup();
+    // A row from before schedules had zones names none: it was read in UTC and
+    // the editor says so, rather than quietly showing the editor's own zone.
+    const daily = {
+      schedule_kind: "cron" as const,
+      interval_seconds: null,
+      cron_expression: "0 9 * * *",
+    };
+    serve([trigger(daily)]);
+    vi.mocked(apiClient.patch).mockResolvedValue(trigger(daily));
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const zone = within(dialog).getByLabelText("Time zone");
+    expect(zone).toHaveValue("UTC");
+    await user.clear(zone);
+    await user.type(zone, "Europe/Warsaw");
+    expect(
+      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      schedule_kind: "cron",
+      cron_expression: "0 9 * * *",
+      time_zone: "Europe/Warsaw",
+    });
+  });
+
+  it("refuses a zone the server would not know, before anything is sent", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    const zone = within(dialog).getByLabelText("Time zone");
+    expect(zone).toHaveValue("Europe/Warsaw");
+    await user.clear(zone);
+    await user.type(zone, "Mars/Olympus");
+
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Choose a time zone/);
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it("creates a schedule that queues behind a run still going", async () => {
@@ -550,7 +640,7 @@ describe("TriggersPanel", () => {
     });
   });
 
-  it("creates a cron schedule from the set-time tab", async () => {
+  it("creates a daily 09:00 schedule without anybody writing crontab", async () => {
     const user = userEvent.setup();
     serve([]);
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
@@ -561,9 +651,14 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
-    await user.click(within(dialog).getByRole("tab", { name: "At a set time" }));
-    // The builder opens on "every day at 09:00", which composes to 0 9 * * * with
-    // nobody having to write crontab - the whole point of the redesign.
+    // The step opens on Daily at 09:00, which composes to 0 9 * * * - and says so.
+    expect(within(dialog).getByRole("radio", { name: "Daily" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(
+      within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -574,10 +669,11 @@ describe("TriggersPanel", () => {
       overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * *",
+      time_zone: "Europe/Warsaw",
     });
   });
 
-  it("creates a weekday-morning schedule from one preset pill", async () => {
+  it("creates a weekday-morning schedule from one choice", async () => {
     const user = userEvent.setup();
     serve([]);
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
@@ -588,10 +684,12 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Morning digest");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
-    const pill = within(dialog).getByRole("button", { name: "Weekdays 09:00" });
-    await user.click(pill);
-    // The pill lights, and the builder underneath now spells out what it set.
-    expect(pill).toHaveAttribute("aria-pressed", "true");
+    const choice = within(dialog).getByRole("radio", { name: "Weekdays" });
+    await user.click(choice);
+    expect(choice).toHaveAttribute("aria-checked", "true");
+    // Only what the choice needs opens under it: the time, not the days.
+    expect(within(dialog).getByLabelText("Time")).toHaveValue("09:00");
+    expect(within(dialog).queryByRole("group", { name: "On these days" })).toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
@@ -602,10 +700,43 @@ describe("TriggersPanel", () => {
       overlap: "skip",
       schedule_kind: "cron",
       cron_expression: "0 9 * * 1,2,3,4,5",
+      time_zone: "Europe/Warsaw",
     });
   });
 
-  it("creates a six-hourly schedule from one preset pill, still editable below", async () => {
+  it("starts a weekly schedule on Monday when it comes from the weekdays", async () => {
+    const user = userEvent.setup();
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(trigger());
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "New schedule" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.type(within(dialog).getByLabelText("Message"), "Weekly review");
+    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Every 15 min" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Hourly" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Weekdays" }));
+    await user.click(within(dialog).getByRole("radio", { name: "Weekly" }));
+    const days = within(dialog).getByRole("group", { name: "On these days" });
+    expect(within(days).getByRole("button", { name: "Mon" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(days).getByRole("button", { name: "Tue" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/agents/${AGENT_ID}/triggers`,
+      expect.objectContaining({ schedule_kind: "cron", cron_expression: "0 9 * * 1" }),
+    );
+  });
+
+  it("takes a choice into Custom, where the builder holds what it set", async () => {
     const user = userEvent.setup();
     serve([]);
     vi.mocked(apiClient.post).mockResolvedValue(trigger());
@@ -616,15 +747,22 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Sweep the queue");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
-    const pill = within(dialog).getByRole("button", { name: "Every 6h" });
-    await user.click(pill);
-    // A preset is a shortcut into the builder, not a mode: editing the interval
-    // underneath unlights the pill and wins.
+    await user.click(within(dialog).getByRole("radio", { name: "Every 6 hours" }));
+    expect(within(dialog).queryByLabelText("Run every")).toBeNull();
+    // Custom opens the builder on what the choice set, and stays picked while
+    // it is edited.
+    await user.click(within(dialog).getByRole("radio", { name: "Custom" }));
     const count = within(dialog).getByLabelText("Run every");
     expect(count).toHaveValue("6");
     await user.clear(count);
     await user.type(count, "8");
-    expect(pill).toHaveAttribute("aria-pressed", "false");
+    expect(within(dialog).getByRole("radio", { name: "Custom" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(
+      within(dialog).getByText("Runs every 8 hours, from when it is saved."),
+    ).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {

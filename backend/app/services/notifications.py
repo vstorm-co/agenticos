@@ -44,9 +44,10 @@ no spec can redirect it.
 
 import hashlib
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlencode
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,12 +58,18 @@ from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, ToolApproval
+from app.db.models.artifact import Artifact
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.notification import NotificationEventType
 from app.db.models.rag_document import RAGDocument
+from app.db.models.workflow import Workflow
+from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.repositories import agent as agent_repo
+from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import channel_bot as channel_bot_repo
+from app.repositories import channel_identity as channel_identity_repo
 from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -74,6 +81,15 @@ from app.services.spend import month_start, organization_spend_since
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
+
+_CHAT_PLATFORM_NAMES: dict[str, str] = {
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "discord": "Discord",
+    "whatsapp": "WhatsApp",
+}
 
 # The console page a security event's `context_url` opens, by the audited
 # entry's `target_type` - the same resource an admin would go check. A type
@@ -131,6 +147,9 @@ _PERIOD_DAYS: dict[ReportPeriod, int] = {"weekly": 7, "monthly": 30}
 BUDGET_WARNING_SHARE = Decimal("0.8")
 """How much of a department's month is spent before its lead hears about it."""
 
+ROUTINE_EXCERPT_CHARS = 200
+"""How much of a routine's answer its notification carries - enough to decide to open it."""
+
 
 class NotificationService:
     """Resolves who hears about a run, and writes the notification (#1598).
@@ -168,6 +187,10 @@ class NotificationService:
         department's is set by an administrator and is its lead's to argue for,
         so it reaches both (#2072).
         """
+        if scope is BudgetScope.RUN:
+            # A ceiling one caller set for one run - a workflow step's - is
+            # reported by that caller: the workflow run fails with it.
+            return
         if scope is BudgetScope.ORGANIZATION:
             recipients = await self._administrator_ids(run.organization_id)
         elif scope is BudgetScope.GROUP:
@@ -305,10 +328,12 @@ class NotificationService:
             f"{approval.tool_id} ({approval.account})" if approval.account else approval.tool_id
             for approval in approvals
         ]
+        asked_by, summary = await self._asked_by(run, agent)
         render_context = {
             "agent_name": agent.name,
             **agent_face(agent),
             "tools": ", ".join(tools) if tools else "a tool call",
+            "asked_by": asked_by,
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
@@ -329,12 +354,50 @@ class NotificationService:
             occurrence_id=hashlib.sha256(
                 ":".join(sorted(str(approval.id) for approval in approvals)).encode()
             ).hexdigest(),
-            summary=f"{agent.name} is waiting on your approval",
+            summary=summary,
             context_url=approvals_path,
             render_context=render_context,
             organization_id=run.organization_id,
             use_savepoint=True,
         )
+
+    async def _asked_by(self, run: AgentRun, agent: Agent) -> tuple[str, str]:
+        """The sentence naming who asked, and the in-app summary, for an approval.
+
+        A chat message from an unlinked person runs as the binding's publisher,
+        so "your approval" would be wrong for the publisher who gets this and
+        the email would otherwise never say a stranger asked. Wording only: the
+        audience is still resolved from `run.user_id`.
+        """
+        summary = f"{agent.name} is waiting on your approval"
+        if not (run.initiated_by_publisher_fallback and run.channel_identity_id is not None):
+            return "", summary
+        identity = await channel_identity_repo.get_by_id(self.db, run.channel_identity_id)
+        if identity is None:
+            return "", summary
+        platform = _CHAT_PLATFORM_NAMES.get(identity.platform, identity.platform.title())
+        name = agent_run_repo.chat_account_name(identity)
+        asked = f"asked in {platform} by {name} (unverified)"
+        bot_name = await self._chat_bot_name(run)
+        through = f", through {bot_name}" if bot_name else ""
+        return (
+            f"Asked in {platform} by {name} (unverified){through}.",
+            f"{agent.name} is waiting on an approval {asked}",
+        )
+
+    async def _chat_bot_name(self, run: AgentRun) -> str | None:
+        """The bot the run's chat reached the agent through, or none once it is unbound."""
+        if run.exposure_id is None:
+            return None
+        exposure = await agent_exposure_repo.get(
+            self.db, run.exposure_id, organization_id=run.organization_id
+        )
+        if exposure is None:
+            return None
+        bot = await channel_bot_repo.get_for_org(
+            self.db, exposure.channel_bot_id, organization_id=run.organization_id
+        )
+        return bot.name if bot else None
 
     async def run_completed(self, run: AgentRun, *, agent: Agent) -> None:
         """A run finished on a surface nobody was watching live.
@@ -377,6 +440,183 @@ class NotificationService:
                 "run_url": absolute_context_url(run_path),
             },
             organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def routine_finished(
+        self,
+        run: AgentRun,
+        *,
+        agent: Agent,
+        routine_name: str | None,
+        creator_id: UUID | None,
+        answer: str,
+    ) -> None:
+        """A routine finished, told to whoever set it up with the start of what it said (#2301).
+
+        `run_completed` names the agent and nothing else, which for a routine is
+        the one fact the person already knew: they asked for it every Monday. The
+        first lines of the answer are what makes the notification worth opening,
+        and the creator is told whether or not the routine fires as them - a
+        routine that runs as nobody still belongs to the person who made it.
+        """
+        if creator_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=run.organization_id, user_ids=[creator_id]
+        )
+        if not recipients:
+            return
+        name = routine_name or agent.name
+        excerpt = " ".join(answer.split())
+        if len(excerpt) > ROUTINE_EXCERPT_CHARS:
+            excerpt = excerpt[: ROUTINE_EXCERPT_CHARS - 1].rstrip() + "…"
+        path = self._link("/routines", run.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.RUN_COMPLETED,
+            occurrence_id=str(run.id),
+            summary=f"{name}: {excerpt}" if excerpt else f"{name} finished.",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                "routine_name": name,
+                "excerpt": excerpt,
+                **agent_face(agent),
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
+    async def capability_requested(
+        self,
+        *,
+        agent: Agent,
+        capability_name: str,
+        capability_id: str,
+        reason: str,
+        requester_id: UUID,
+        requester_name: str,
+    ) -> None:
+        """Somebody asked for a capability one of the owner's agents lacks (#2301).
+
+        To the agent's owner, who decides; one occurrence per agent, capability
+        and asker, so asking twice tells the owner once. The link opens the
+        agent's Toolbox, where switching it on is one click.
+        """
+        if agent.owner_user_id is None or agent.owner_user_id == requester_id:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=agent.organization_id, user_ids=[agent.owner_user_id]
+        )
+        if not recipients:
+            return
+        path = self._link(f"/agents/{agent.id}?highlight=agent-capabilities", agent.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.CAPABILITY_REQUESTED,
+            occurrence_id=f"{agent.id}:{capability_id}:{requester_id}",
+            summary=f"{requester_name} asked for {capability_name} in {agent.name}: {reason}",
+            context_url=path,
+            render_context={
+                "agent_name": agent.name,
+                **agent_face(agent),
+                "capability_name": capability_name,
+                "reason": reason,
+                "requester_name": requester_name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=agent.organization_id,
+            actor_user_id=requester_id,
+            use_savepoint=True,
+        )
+
+    async def suggestions_ready(
+        self, *, organization_id: UUID, user_id: UUID, count: int, now: datetime
+    ) -> None:
+        """The night's look at somebody's week found things worth proposing (#2301).
+
+        One row however many there are, and one a day at most: the occurrence is
+        the person and the date, so a second sweep the same morning adds nothing.
+        The link opens the starter agent's empty chat, where the cards wait.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        path = self._link("/chat?agent=agenticos", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SUGGESTION,
+            occurrence_id=f"{user_id}:{now.date().isoformat()}",
+            summary=(
+                "AgenticOS has a new suggestion for you."
+                if count == 1
+                else f"AgenticOS has {count} new suggestions for you."
+            ),
+            context_url=path,
+            render_context={
+                "count": count,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def finding(
+        self, *, organization_id: UUID, user_id: UUID, finding_id: UUID, title: str
+    ) -> None:
+        """A watch found something its person asked to hear about at once (#2301).
+
+        One row per finding - the finding's own id is the occurrence - so a
+        second look that finds it again, already recorded, sends nothing. The
+        rest of what a watch finds waits for the morning briefing.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        path = self._link("/inbox", organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.FINDING,
+            occurrence_id=str(finding_id),
+            summary=title,
+            context_url=path,
+            organization_id=organization_id,
+            use_savepoint=True,
+        )
+
+    async def briefing(
+        self, *, organization_id: UUID, user_id: UUID, count: int, now: datetime
+    ) -> None:
+        """A person's morning briefing of what their watches found (#2301).
+
+        The same event as an urgent finding - one switch for everything watches
+        say - and one row a day: the occurrence is the person and the date.
+        """
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=organization_id, user_ids=[user_id]
+        )
+        if not recipients:
+            return
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.FINDING,
+            occurrence_id=f"briefing:{user_id}:{now.date().isoformat()}",
+            summary=(
+                "Your watches found 1 new thing."
+                if count == 1
+                else f"Your watches found {count} new things."
+            ),
+            context_url=self._link("/inbox", organization_id),
+            organization_id=organization_id,
             use_savepoint=True,
         )
 
@@ -751,8 +991,9 @@ class NotificationService:
         notify about, and never after it. `record_audit` holds a
         transaction-scoped lock on the organization's audit chain, and the
         notification write that follows reaches for a key-share lock on every
-        recipient's `users` row - while `UserService.admin_delete` takes those
-        rows exclusively *first* and the chain lock second. Two transactions,
+        recipient's `users` row - while `UserService.admin_update` takes those
+        rows exclusively *first* and the chain lock second (and
+        `UserService.admin_delete` the deleted account's own row). Two transactions,
         the same two locks, opposite orders: Postgres aborts one, and the side
         that loses can lose its mandatory security notification inside the
         per-recipient savepoint while the audit entry commits regardless
@@ -769,7 +1010,7 @@ class NotificationService:
 
     async def hold_configuration_audience(self) -> list[UUID]:
         """The same, for `configuration_changed`, whose audience is always the
-        deployment's app admins - which is exactly the set `admin_delete` locks
+        deployment's app admins - which is exactly the set `admin_update` locks
         exclusively, so this is the half of #1763 with the shortest cycle."""
         audience = sorted(await member_repo.list_app_admin_ids(self.db))
         await user_repo.hold_key_share(self.db, audience)
@@ -956,7 +1197,9 @@ class NotificationService:
         total = await organization_spend_since(self.db, organization_id, since, until=window_start)
         organization = await organization_repo.get_by_id(self.db, organization_id)
         organization_name = organization.name if organization else "your organization"
-        dashboard_path = self._link("/agents", organization_id)
+        last_day = (window_start - timedelta(microseconds=1)).date()
+        report_period = f"{since.date().isoformat()}..{last_day.isoformat()}"
+        dashboard_path = self._link(f"/dashboard?view=org&period={report_period}", organization_id)
         render_context = {
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
@@ -1058,6 +1301,155 @@ class NotificationService:
             use_savepoint=True,
         )
         return bool(written)
+
+    async def artifact_owner_changed(
+        self,
+        artifact: Artifact,
+        *,
+        previous_owner_id: UUID | None,
+        new_owner_id: UUID,
+        by_user_id: UUID,
+        by_name: str,
+        new_owner_name: str,
+    ) -> None:
+        """A page changed hands: the old owner is told they gave it up, the new one that it
+        is theirs and its data waits for their confirmation.
+
+        Each says which page and who switched it, never what the page shows. A page
+        with no owner left has no one to tell of giving it up, and whoever made the
+        switch (`by_user_id`) is never told of their own act.
+        """
+        path = self._link(f"/apps/{artifact.id}", artifact.organization_id)
+        title = artifact.title or artifact.name
+        # A page can change hands again, and the same pair twice: the instant makes each
+        # switch its own fact for the dedup key.
+        occurrence = f"{artifact.id}:{datetime.now(UTC).isoformat()}"
+        render_context = {
+            "artifact_id": str(artifact.id),
+            "app_name": settings.PROJECT_NAME,
+            "page_url": absolute_context_url(path),
+            # Lets the old owner read this row after the switch took their access.
+            "previous_owner_id": str(previous_owner_id) if previous_owner_id else None,
+        }
+        told: list[tuple[UUID, str]] = [
+            (
+                new_owner_id,
+                f"{by_name} made you the owner of {title}. Its data stays hidden from "
+                "others until you confirm it.",
+            )
+        ]
+        if previous_owner_id is not None:
+            told.append(
+                (previous_owner_id, f"{by_name} made {new_owner_name} the owner of {title}.")
+            )
+        for user_id, summary in told:
+            if user_id == by_user_id:
+                continue
+            await self._center.write(
+                recipients=[user_id],
+                event_type=NotificationEventType.ARTIFACT_OWNER_CHANGED,
+                occurrence_id=occurrence,
+                summary=summary,
+                context_url=path,
+                render_context=render_context,
+                organization_id=artifact.organization_id,
+            )
+
+    async def artifact_share_requested(
+        self,
+        artifact: Artifact,
+        *,
+        request_id: UUID,
+        kind: str,
+        requester_name: str,
+        recipients: Sequence[UUID],
+    ) -> None:
+        """Somebody asked for a page to be shared, or for a version of it to be confirmed.
+
+        Told to those who decide it (see :func:`app.services.artifact_requests.deciders`).
+        Names the page, the requester and what they asked, never what the page reads.
+        """
+        # `requests=open` opens the page's Requests section, in the console and from an email.
+        path = self._link(f"/apps/{artifact.id}?requests=open", artifact.organization_id)
+        title = artifact.title or artifact.name
+        summary = {
+            "audience": f"{requester_name} asked to share {title} with more people.",
+            "access": f"{requester_name} asked for access to {title}.",
+            "version": (
+                f"{requester_name} changed the data {title} shows. Others see the earlier "
+                "version until you approve it."
+            ),
+        }[kind]
+        render_context = {
+            "artifact_id": str(artifact.id),
+            "request_id": str(request_id),
+            "kind": kind,
+            "app_name": settings.PROJECT_NAME,
+            "page_url": absolute_context_url(path),
+        }
+        for user_id in recipients:
+            await self._center.write(
+                recipients=[user_id],
+                event_type=NotificationEventType.ARTIFACT_SHARE_REQUESTED,
+                occurrence_id=str(request_id),
+                summary=summary,
+                context_url=path,
+                render_context=render_context,
+                organization_id=artifact.organization_id,
+            )
+
+    async def workflow_log_alert(
+        self,
+        rule: WorkflowLogAlertRule,
+        workflow: Workflow,
+        *,
+        firing_id: UUID,
+        count: int,
+    ) -> None:
+        """A workflow's log crossed a rule's threshold: told to the rule's audience.
+
+        Names the workflow, the rule and how many lines matched, never the lines - the
+        Logs page the link opens shows them, to whoever may still view the workflow.
+        The audience resolves as an agent alert's does (`admins`, `owner`, `chosen`):
+        the owner and the chosen members only while they still belong.
+        """
+        recipients = await self._audience_ids(
+            AlertSpec(
+                to=[AlertAudience(audience) for audience in rule.audience],
+                user_ids=list(rule.user_ids),
+            ),
+            organization_id=workflow.organization_id,
+            owner_user_id=workflow.owner_user_id,
+            initiator_user_id=None,
+        )
+        if not recipients:
+            return
+        query: list[tuple[str, str]] = []
+        if rule.node_instance_id is not None:
+            query.append(("step", str(rule.node_instance_id)))
+        query.extend(("outcome", outcome) for outcome in rule.outcomes)
+        path = self._link(
+            f"/workflows/{workflow.id}/logs?{urlencode(query)}", workflow.organization_id
+        )
+        minutes = rule.window_minutes
+        window = f"{minutes // 60} hours" if minutes >= 120 else f"{minutes} minutes"
+        await self._center.write(
+            recipients=sorted(recipients),
+            event_type=NotificationEventType.WORKFLOW_LOG_ALERT,
+            occurrence_id=str(firing_id),
+            summary=(
+                f"{rule.name}: {count} {'occurrence' if count == 1 else 'occurrences'} in the log "
+                f"of {workflow.name} in the last {window}."
+            ),
+            context_url=path,
+            render_context={
+                "workflow_id": str(workflow.id),
+                "rule_id": str(rule.id),
+                "app_name": settings.PROJECT_NAME,
+                "page_url": absolute_context_url(path),
+            },
+            organization_id=workflow.organization_id,
+        )
 
     def _link(self, path: str, organization_id: UUID) -> str:
         """A console path that says which organization it is about.

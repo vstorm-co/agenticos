@@ -85,7 +85,7 @@ whatever its instructions say.
 | **Answer from what your company knows** — your documents, your written procedures, whatever was attached to this conversation, and the services you mount as folders, such as a Drive or a repository | Knowledge search · Skills · Context · Virtual terminal |
 | **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory · Memory (mem0) · Past conversations |
 | **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Read web pages · Web browser |
-| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Calculations · Sandbox · Charts · Image generation |
+| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image, read a text aloud or make a short clip | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Long conversations |
 | **Stay inside the lines** — redact or block what must not pass, cap what one tool may return, know what today's date is | Guardrails · Tool output limits · Date and time |
 
@@ -161,12 +161,12 @@ Publish once. The same runner answers on all of these:
 - **A hosted page** you can send somebody a link to
 - **An embeddable widget** for your own site
 - **The HTTP API**, and a raw WebSocket for streaming
-- **Slack**, **Telegram** and **Mattermost**, where an `@mention` runs as the
+- **Slack**, **Telegram**, **Mattermost** and **Discord**, where an `@mention` runs as the
   person who sent it — not as the bot
 
 Speech to text runs on the organization's own provider on these too: dictation
 in web chat, on a hosted page and in the widget, and voice notes transcribed
-in Slack, Telegram and Mattermost.
+in Slack, Telegram, Mattermost and Discord.
 
 **Voice calls** let a person talk to a published agent and interrupt it, in web
 chat, on a hosted page or in the widget. The agent keeps its tools, knowledge,
@@ -222,6 +222,20 @@ tests in this repository are the ones that check a *refusal*: a cross-tenant
 read, an ungranted scope, a budget breach, a second decision on a decided
 approval.
 
+## Workflows, when a job is more than one step
+
+Some work is a sequence, not a single answer: read a record, call an agent,
+branch on what it says, loop over a list. You build that on a canvas — drag the
+steps in, wire one step's output into the next, and publish it as an immutable
+version, the same draft-then-publish shape an agent has.
+
+Each step's inputs are a value you type or a value read from an earlier step, and
+the editor only offers a source that is actually reachable and carries the right
+type. The draft saves itself as you edit, and publishing re-checks the whole
+graph before it freezes a version.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
+
 ## Triggers, so an agent runs without you
 
 Schedule a run, or fire one on an event. The same spec, the same budget, the same
@@ -229,12 +243,24 @@ audit trail — just nobody typing.
 
 [Triggers →](triggers.md)
 
-## Self-hosted, and quiet
+## Self-hosted, and clear about what leaves { #self-hosted-and-quiet }
 
 Docker Compose, your Postgres, your Redis, your hardware.
 
-Nothing phones home. Model prices come from a snapshot bundled with the release,
-and the only outbound requests are the ones your agents make.
+Your prompts, conversations and documents stay in your own deployment, in its
+database and storage. They go nowhere unless you add something that names a
+destination: a model profile, an embedding or parsing provider for a collection,
+an MCP server or a channel. Model prices come from a snapshot bundled with the
+release.
+
+One report is on by default: [deployment diagnostics](configuration.md#diagnostics).
+Once an hour the worker sends the version, database and worker health, coarse
+usage counts and counts of failed runs, jobs and ingestions by closed category.
+Signed-in browsers and the desktop and mobile apps send a pseudonymous activity
+signal straight to the collector. No prompts, conversations, file names, account
+names, email addresses, provider keys or exception messages are sent. Set
+`DIAGNOSTICS_ENABLED=false` to turn it off, or point `DIAGNOSTICS_COLLECTOR_URL`
+at a collector you run.
 
 ## Open source
 

@@ -57,16 +57,36 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        // The workflow editor's client-side validation mirror (#1787): pure TS
+        // over the in-memory graph, held to the gate the way the agents
+        // components above are.
+        "src/components/workflows/validation/**/*.{ts,tsx}",
+        // The workflow editor's canvas (#1787): the `@xyflow/react` shell, its
+        // node/edge components, the graph<->flow adapter and the keyboard
+        // shortcuts, held to the gate as a unit.
+        "src/components/workflows/canvas/**/*.{ts,tsx}",
+        // The workflow editor's node palette (#1787): the library, drag/click
+        // add, scope filtering and its store/drag seams, held to the gate.
+        "src/components/workflows/palette/**/*.{ts,tsx}",
         // The sandbox cards only, not the whole widget directory: the twenty-seven
         // cards #149 added are outside the gate, and pulling them in with a
         // directory glob would make this branch responsible for covering them.
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/background-tasks.tsx",
+        // What the nightly look proposed (#2301).
+        "src/components/dashboard/widgets/suggestions.tsx",
         "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
+        // The tables card (#1783).
+        "src/components/dashboard/widgets/tables-widget.tsx",
+        // The approval outcomes card.
+        "src/components/dashboard/widgets/approval-outcomes.tsx",
+        // The workflow logs card.
+        "src/components/dashboard/widgets/workflow-logs.tsx",
         // The colour pass (2026-10-13): a person's four figures, and the cards
         // that gained faces and readable names.
         "src/components/dashboard/widgets/my-summary.tsx",
@@ -83,6 +103,7 @@ export default defineConfig({
         "src/components/groups/department-budget.tsx",
         // The dashboard's start checklist (#2072).
         "src/components/dashboard/start-checklist.tsx",
+        "src/components/dashboard/me-opening.tsx",
         // What the platform can do that is easy to miss, and a quiet group said once.
         "src/components/dashboard/discover-tips.tsx",
         "src/components/dashboard/quiet-group.tsx",
@@ -105,6 +126,8 @@ export default defineConfig({
         "src/components/live-updates/**/*.tsx",
         // The AI Architect in the corner of every page, and its settings (#2063).
         "src/components/assistant/**/*.tsx",
+        // Watches over a person's own connections, managed under Routines (#2301).
+        "src/components/watches/**/*.tsx",
         "src/components/browser/**/*.tsx",
         "src/components/orgs/**/*.tsx",
         "src/components/public-config/**/*.tsx",
@@ -115,11 +138,15 @@ export default defineConfig({
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
         "src/components/layout/navigation-progress.tsx",
+        // The offline strip in the apps (#2097).
+        "src/components/layout/offline-banner.tsx",
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
         "src/components/chat/chat-room-bar.tsx",
         "src/components/chat/typing-indicator.tsx",
         "src/components/chat/reply-quote.tsx",
+        // A thread's picture from the copy on the device, offline (#2097).
+        "src/components/chat/kept-image.tsx",
         "src/components/chat/person-face.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under
@@ -137,20 +164,52 @@ export default defineConfig({
         // with what applies that preference app-wide (#1797).
         "src/components/ui/voice-glow.tsx",
         "src/components/layout/account-preferences.tsx",
+        "src/components/layout/account-locale.tsx",
+        "src/components/layout/account-time-zone.tsx",
         "src/components/settings/appearance-settings.tsx",
+        // The desktop app's pages and the console's half of it (#2305): blobby,
+        // quick ask, the desktop settings tabs, the notification bridge - and
+        // the looks, with what applies them before the first paint.
+        "src/components/desktop/**/*.tsx",
+        "src/components/mobile/**/*.tsx",
+        "src/components/settings/look-picker.tsx",
+        "src/components/theme/appearance-script.tsx",
+        "src/components/theme/theme-provider.tsx",
+        "src/components/settings/agent-context-settings.tsx",
+        "src/components/settings/working-hours-field.tsx",
+        "src/components/chat/suggestion-cards.tsx",
+        "src/components/chat/suggestion-actions.tsx",
+        "src/components/teams/org-proactivity.tsx",
+        "src/components/inbox/inbox-page.tsx",
+        "src/components/inbox/suggestion-rows.tsx",
+        "src/components/chat/turn-extras.tsx",
+        "src/components/chat/turn-files.tsx",
+        "src/components/chat/turn-shortcuts.tsx",
+        "src/components/chat/setup-proposals.tsx",
+        "src/components/chat/skill-shortcut.tsx",
+        "src/components/chat/next-steps.tsx",
+        "src/components/chat/chat-empty-state.tsx",
         "src/components/settings/choice-group.tsx",
         "src/components/theme/motion-provider.tsx",
         "src/components/theme/motion-script.tsx",
         // The cue a sideways-scrolling strip gives that there is more of it.
         "src/components/ui/scroll-fade.ts",
         "src/components/ui/more-options.tsx",
+        // A row a finger swipes to decide (#2097).
+        "src/components/ui/swipe-to-decide.tsx",
+        // A list's filters behind one button on a phone (#2097).
+        "src/components/ui/phone-filters.tsx",
         "src/components/chat/usage-strip.tsx",
         "src/components/chat/attachment-card.tsx",
         "src/components/chat/browser-card.tsx",
+        "src/components/chat/browser-visit.tsx",
         "src/components/chat/browser-comment.tsx",
         "src/components/chat/browser-panel.tsx",
+        "src/components/chat/browser-panel-frame.tsx",
         "src/components/chat/browser-view.tsx",
         "src/components/chat/browser-window.tsx",
+        "src/components/chat/browser-navigation.tsx",
+        "src/components/chat/native-browser.tsx",
         "src/components/chat/live-viewport.tsx",
         "src/components/chat/tool-results/**/*.tsx",
         "src/components/chat/chart-message.tsx",
@@ -188,6 +247,7 @@ export default defineConfig({
         "src/components/chat/shared-visuals.tsx",
         "src/components/chat/visual-actions.ts",
         "src/components/chat/visual-frame.tsx",
+        "src/components/chat/viewport-visual-frame.tsx",
         "src/components/chat/visual-panel.tsx",
         "src/components/chat/visual-save-dialog.tsx",
         "src/components/chat/work-fold.tsx",
@@ -221,6 +281,41 @@ export default defineConfig({
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",
+        "src/components/tables/**/*.{ts,tsx}",
+        // The workflows visual editor's undo/redo history leaf (#1787).
+        "src/components/workflows/history.ts",
+        // The workflows visual editor's copy/paste clipboard leaf (#1787).
+        "src/components/workflows/clipboard.ts",
+        // The workflow resource pickers (#1787), gated as a unit.
+        "src/components/workflows/pickers/**/*.{ts,tsx}",
+        // The workflows property panel (#1787): the form renderer, `BindingField`
+        // and the validation display, gated as a unit like the pickers above.
+        "src/components/workflows/property-panel/**/*.{ts,tsx}",
+        // The workflow editor's autosave, conflict banner, publish dialog and
+        // version history (#1787), including the autosave hook, held to the gate
+        // as a unit.
+        "src/components/workflows/editor/**/*.{ts,tsx}",
+        // The workflows list-page create dialog (#1787).
+        "src/components/workflows/workflow-create-dialog.tsx",
+        "src/components/workflows/workflow-template-dialog.tsx",
+        // The catalog card, the node look every editor surface shares, and the
+        // run views (#1790).
+        "src/components/workflows/workflow-card.tsx",
+        "src/components/workflows/node-visuals.ts",
+        "src/components/workflows/apps.ts",
+        "src/components/workflows/use-app-connections.ts",
+        "src/components/workflows/node-tile.tsx",
+        "src/components/workflows/runs/**/*.{ts,tsx}",
+        // A workflow's Logs page and a run's per-step lines.
+        "src/components/workflows/logs/**/*.{ts,tsx}",
+        // The editor's Trigger sheet: the live trigger, a webhook's address and
+        // secret, a schedule's next tick (#1792).
+        "src/components/workflows/triggers/**/*.{ts,tsx}",
+        // A step's dialog - its settings between its Input and Output, the step
+        // test and its evals - and the step picker, each held to the gate as a unit.
+        "src/components/workflows/node-editor/**/*.{ts,tsx}",
+        "src/components/workflows/picker/**/*.{ts,tsx}",
+        "src/hooks/use-inline-agent-resources.ts",
         // The organization's Voice card (#1797). The rest of `teams/` predates
         // the gate; this file is new, so it starts inside.
         "src/components/teams/org-voice-settings.tsx",
@@ -256,24 +351,28 @@ export default defineConfig({
       // Each is a narrowing, not a behaviour, and faking one would mean testing
       // the type checker. What is *left* to widen is the `include` list, not
       // these numbers - see `docs/plans/frontend-coverage.md`.
-      thresholds: {
-        statements: 100,
-        // 97.5, down from 98, and the code did not get worse - the ruler
-        // changed. coverage-v8 4 counts the untaken side of `??` and `||`,
-        // which version 2 did not, and this codebase reaches for that idiom
-        // everywhere: `activeOrgId ?? ""`, `error.message || "Failed to …"`,
-        // `path.split(".").pop()?.toLowerCase() ?? ""`. Eighty-eight of them
-        // across forty-seven files went from uncounted to uncovered on the
-        // upgrade, with no test and no line of source changing.
-        //
-        // Writing eighty-eight tests that assert a fallback string appears
-        // would buy the number back and nothing else. Statements, functions
-        // and lines stay at 100, which is where a real gap shows up; this one
-        // is set just under the measured 97.51 so it still ratchets.
-        branches: 97.5,
-        functions: 100,
-        lines: 100,
-      },
+      // Shards defer the same thresholds to the complete merged report.
+      thresholds:
+        process.env.VITEST_SHARD === "true"
+          ? undefined
+          : {
+              statements: 100,
+              // 97.5, down from 98, and the code did not get worse - the ruler
+              // changed. coverage-v8 4 counts the untaken side of `??` and `||`,
+              // which version 2 did not, and this codebase reaches for that idiom
+              // everywhere: `activeOrgId ?? ""`, `error.message || "Failed to …"`,
+              // `path.split(".").pop()?.toLowerCase() ?? ""`. Eighty-eight of them
+              // across forty-seven files went from uncounted to uncovered on the
+              // upgrade, with no test and no line of source changing.
+              //
+              // Writing eighty-eight tests that assert a fallback string appears
+              // would buy the number back and nothing else. Statements, functions
+              // and lines stay at 100, which is where a real gap shows up; this one
+              // is set just under the measured 97.51 so it still ratchets.
+              branches: 97.5,
+              functions: 100,
+              lines: 100,
+            },
     },
   },
   resolve: {

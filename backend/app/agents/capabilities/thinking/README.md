@@ -34,7 +34,7 @@ ours around it would be a second place for the same value to be written.
 
 | Field | Default | What it is |
 |---|---|---|
-| `effort` | unset | `minimal`, `low`, `medium`, `high` or `xhigh` |
+| `effort` | unset | `minimal`, `low`, `medium`, `high`, `xhigh` or `max` |
 
 Unset means the provider's own default effort, which is what `Thinking(effort=True)`
 asks for. A level a provider does not implement maps to its nearest one -

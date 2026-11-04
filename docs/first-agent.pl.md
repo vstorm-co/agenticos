@@ -1,5 +1,5 @@
 ---
-source_sha: "aec1756f1b79"
+source_sha: "d30c628ff803"
 ---
 
 # Twój pierwszy agent { #your-first-agent }
@@ -61,7 +61,7 @@ na nowy model, nie dotykając ani jednego agenta.
 !!! tip "Albo zacznij od szablonu"
 
     **Agents → Agent templates** dostarcza dwadzieścia dziewięć gotowych agentów:
-    dwadzieścia osiem pogrupowanych według branży i **Claude Code like** w
+    dwadzieścia osiem pogrupowanych według branży i **AgenticOS** w
     kategorii *Ogólnego przeznaczenia* - agenta do każdego zadania, który pracuje
     w workspace'ie, planuje, deleguje do specjalistów i szuka w sieci. Każdy ma
     napisane instrukcje, włączone capabilities i zainstalowane obok skille,

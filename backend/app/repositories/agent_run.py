@@ -1,6 +1,6 @@
 """Agent run and approval repositories (PostgreSQL async)."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -21,20 +21,26 @@ from sqlalchemy import (
 )
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import array
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
     AgentRun,
     ApprovalDecidedVia,
     ApprovalStatus,
     RunOrder,
     RunRating,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
+from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Message
 from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
@@ -149,6 +155,11 @@ async def finish_run(
         run.logfire_trace_id = logfire_trace_id
     db.add(run)
     await db.flush()
+    # The rows already written; see `Message.guardrail_refused` for why on the row.
+    if status == RunStatus.GUARDRAIL_BLOCKED.value:
+        await db.execute(
+            sql_update(Message).where(Message.run_id == run.id).values(guardrail_refused=True)
+        )
     await db.refresh(run)
     return run
 
@@ -267,6 +278,7 @@ async def latest_run_for_conversation(
             AgentRun.conversation_id == conversation_id,
             AgentRun.organization_id == organization_id,
             AgentRun.parent_run_id.is_(None),
+            AgentRun.surface != RunSurface.FOLLOW_UPS.value,
         )
         .order_by(AgentRun.created_at.desc())
         .limit(1)
@@ -336,12 +348,15 @@ async def claim_parked_run(
 
     Resuming replays a side-effecting tool call, so two requests arriving
     together - a double-clicked Approve - must not both replay it. The second
-    waits here and then finds the run no longer parked.
+    waits here and then finds the run no longer parked. Refresh the identity
+    map too: answering a question may have already loaded the run before Stop
+    committed in another session.
     """
     result = await db.execute(
         select(AgentRun)
         .where(AgentRun.id == run_id, AgentRun.organization_id == organization_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -358,6 +373,17 @@ async def mark_running(db: AsyncSession, *, run: AgentRun) -> AgentRun:
     """
     run.status = RunStatus.RUNNING.value
     run.ended_at = None
+    # The next park starts unannounced.
+    run.chat_notice_sent_at = None
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
+async def record_chat_notice(db: AsyncSession, *, run: AgentRun, at: datetime) -> AgentRun:
+    """Remember that the run's chat was told this park could not continue."""
+    run.chat_notice_sent_at = at
     db.add(run)
     await db.flush()
     await db.refresh(run)
@@ -661,6 +687,35 @@ def _counts_for_a_department() -> list[ColumnElement[bool]]:
     gives them none - so counting them would spend a cap that never held them.
     """
     return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+
+
+async def proactive_spend_since(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, since: datetime
+) -> Decimal:
+    """What the platform spent on one person's background work here since `since` (#2301)."""
+    result = await db.execute(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.PROACTIVE.value,
+            AgentRun.started_at >= since,
+        )
+    )
+    return Decimal(result.scalar_one())
+
+
+async def last_proactive_run_at(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> datetime | None:
+    """When the platform last thought about this person here - their last background run."""
+    result = await db.execute(
+        select(func.max(AgentRun.started_at)).where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.user_id == user_id,
+            AgentRun.surface == RunSurface.PROACTIVE.value,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def sum_cost_since(
@@ -1839,6 +1894,8 @@ async def create_approval(
     agent_id: UUID,
     tool_id: str,
     tool_args: dict,
+    capability_tool_id: str | None = None,
+    context: dict[str, str] | None = None,
     account: str | None = None,
     subagent_name: str | None = None,
     subagent_agent_id: UUID | None = None,
@@ -1859,6 +1916,8 @@ async def create_approval(
         agent_id=agent_id,
         tool_id=tool_id,
         tool_args=tool_args,
+        capability_tool_id=capability_tool_id,
+        context=context,
         account=account,
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
@@ -1892,9 +1951,37 @@ async def get_approval(
         ToolApproval.organization_id == organization_id,
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class ChatAsker:
+    """The chat account behind a run that ran as the binding's publisher.
+
+    Unverified: a platform display name is whatever its owner typed, so the
+    reader is told which account asked and never given a name to trust.
+
+    Attributes:
+        platform: The chat platform the account is on.
+        name: The display name, else `@handle`, else the platform's user id.
+        bot_name: The bot the chat reached the agent through, or `None` once
+            the binding is gone.
+    """
+
+    platform: str
+    name: str
+    bot_name: str | None
+
+
+def chat_account_name(identity: ChannelIdentity) -> str:
+    """How a chat account is named to a reader: display name, handle, then id."""
+    if identity.platform_display_name:
+        return identity.platform_display_name
+    if identity.platform_username:
+        return f"@{identity.platform_username}"
+    return identity.platform_user_id
 
 
 @dataclass(frozen=True)
@@ -1921,6 +2008,9 @@ class ApprovalRow:
             as themselves - a widget's visitor is anonymous - and for a run whose
             user has since been deleted, since that column is `SET NULL`.
         triggered_by_email: That person, as something readable.
+        asked_in_chat: The chat account that asked, for a run that ran as the
+            binding's publisher. Then both `triggered_by_*` fields are null: the
+            publisher did not trigger it, and naming them is what this replaces.
         decided_by_email: Who decided, for the record view. Null while the call is
             pending, and after a decider's account is deleted - the decision
             outlives the account, which is the point of an audit trail.
@@ -1935,6 +2025,8 @@ class ApprovalRow:
     agent_name: str
     tool_id: str
     tool_args: dict[str, Any]
+    capability_tool_id: str | None
+    context: dict[str, str] | None
     account: str | None
     subagent_name: str | None
     subagent_agent_id: UUID | None
@@ -1947,6 +2039,12 @@ class ApprovalRow:
     decided_via: str
     note: str | None
     created_at: datetime | None
+    parked_in_chat: bool = False
+    """The run is on a chat platform with its chat recorded: the run half of
+    `handback.continues_in_chat`, as SQL sees it."""
+    continues_in_chat: bool = False
+    """Set by the service, which knows who is asking."""
+    asked_in_chat: ChatAsker | None = None
 
 
 @dataclass(frozen=True)
@@ -1959,7 +2057,8 @@ class ApprovalFilters:
             different view of the same rows and deliberately has no buttons.
         triggered_by_user_id: Whose runs. Read off `agent_runs`, not off the
             approval, because an approval belongs to a run and a run belongs to a
-            person.
+            person. A chat stranger's run is left out: it ran under the
+            publisher's user id, but the publisher did not trigger it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
     """
@@ -2001,6 +2100,13 @@ async def list_approvals(
     narrowing = filters or ApprovalFilters()
     triggered_by = aliased(User)
     decided_by = aliased(User)
+    chat_identity = aliased(ChannelIdentity)
+    chat_exposure = aliased(AgentExposure)
+    chat_bot = aliased(ChannelBot)
+    # A chat account asked, and the run stood in under the binding's publisher.
+    asked_by_stranger = AgentRun.initiated_by_publisher_fallback & (
+        AgentRun.channel_identity_id.is_not(None)
+    )
     clauses: list[ColumnElement[bool]] = [ToolApproval.organization_id == organization_id]
     clauses.append(
         ToolApproval.status.in_(list(narrowing.statuses))
@@ -2009,6 +2115,7 @@ async def list_approvals(
     )
     if narrowing.triggered_by_user_id is not None:
         clauses.append(AgentRun.user_id == narrowing.triggered_by_user_id)
+        clauses.append(~asked_by_stranger)
     if narrowing.created_from is not None:
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:
@@ -2022,6 +2129,15 @@ async def list_approvals(
             AgentRun.user_id,
             triggered_by.email,
             decided_by.email,
+            AgentRun.surface.in_([surface.value for surface in CHANNEL_SURFACES])
+            # A destination that lacks a required key reads as absent, as
+            # `handback.chat_destination` reads it (it logs and returns None).
+            & AgentRun.paused_state["channel_destination"].has_all(
+                array(["bot_id", "platform_chat_id", "private_chat"])
+            ),
+            asked_by_stranger,
+            chat_identity,
+            chat_bot.name,
         )
         # Inner for the agent and the run, outer for the two people. Both those
         # foreign keys are `ON DELETE CASCADE`, so an approval cannot outlive
@@ -2033,6 +2149,12 @@ async def list_approvals(
         .join(AgentRun, AgentRun.id == ToolApproval.run_id)
         .outerjoin(triggered_by, triggered_by.id == AgentRun.user_id)
         .outerjoin(decided_by, decided_by.id == ToolApproval.decided_by_user_id)
+        # Each of these reaches at most one row: an identity by its key, a
+        # binding by its key, and a bot by the binding's, so none multiplies
+        # the page or the count.
+        .outerjoin(chat_identity, chat_identity.id == AgentRun.channel_identity_id)
+        .outerjoin(chat_exposure, chat_exposure.id == AgentRun.exposure_id)
+        .outerjoin(chat_bot, chat_bot.id == chat_exposure.channel_bot_id)
         .where(*clauses)
         .order_by(ordering, ToolApproval.id)
         .offset(skip)
@@ -2046,20 +2168,42 @@ async def list_approvals(
             agent_name=agent_name,
             tool_id=approval.tool_id,
             tool_args=approval.tool_args,
+            capability_tool_id=approval.capability_tool_id,
+            context=approval.context,
             account=approval.account,
             subagent_name=approval.subagent_name,
             subagent_agent_id=approval.subagent_agent_id,
             status=approval.status,
-            triggered_by_user_id=run_user_id,
-            triggered_by_email=triggered_email,
+            triggered_by_user_id=None if stranger else run_user_id,
+            triggered_by_email=None if stranger else triggered_email,
             decided_by_user_id=approval.decided_by_user_id,
             decided_by_email=decided_email,
             decided_at=approval.decided_at,
             decided_via=approval.decided_via,
             note=approval.note,
             created_at=approval.created_at,
+            parked_in_chat=bool(parked_in_chat),
+            asked_in_chat=(
+                ChatAsker(
+                    platform=identity.platform,
+                    name=chat_account_name(identity),
+                    bot_name=bot_name,
+                )
+                if stranger and identity is not None
+                else None
+            ),
         )
-        for approval, agent_name, run_user_id, triggered_email, decided_email in rows.all()
+        for (
+            approval,
+            agent_name,
+            run_user_id,
+            triggered_email,
+            decided_email,
+            parked_in_chat,
+            stranger,
+            identity,
+            bot_name,
+        ) in rows.all()
     ]
     count_query = (
         select(func.count(ToolApproval.id))
@@ -2142,10 +2286,62 @@ async def list_stale_approvals(
     return list(result.scalars().all())
 
 
+async def list_stranded_runs(
+    db: AsyncSession,
+    *,
+    decided_before: datetime,
+    surfaces: Collection[str],
+    limit: int = 500,
+) -> list[tuple[AgentRun, datetime]]:
+    """Runs waiting on approval whose every call was decided before `decided_before`.
+
+    With nothing pending, nobody can decide such a run again, so only a
+    continuation can move it; one that never came leaves it parked for ever. Each
+    run comes back with the time of its last decision. Voice runs are the call's
+    and are left out, as in :func:`list_stale_approvals`.
+
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the sweep, which ends each run in its own organization.
+    Do not copy this shape into anything a route can reach. Oldest run first.
+    """
+    last_decided = func.max(ToolApproval.decided_at)
+    result = await db.execute(
+        select(AgentRun, last_decided)
+        .join(ToolApproval, ToolApproval.run_id == AgentRun.id)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_APPROVAL.value,
+            AgentRun.surface.in_(surfaces),
+            AgentRun.modality != "voice",
+        )
+        .group_by(AgentRun.id)
+        .having(
+            func.count().filter(ToolApproval.status == ApprovalStatus.PENDING.value) == 0,
+            last_decided < decided_before,
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
+    )
+    # The HAVING clause drops a run with no decision, so the filter keeps every row.
+    return [(run, decided_at) for run, decided_at in result.all() if decided_at is not None]
+
+
+async def beat_run(db: AsyncSession, *, run_id: UUID, at: datetime) -> None:
+    """Say a run is still being executed, while it is `running`.
+
+    `updated_at` is set to itself so the column's `onupdate` does not fire: it
+    is the run's last *transition*, which a sign of life is not.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(heartbeat_at=at, updated_at=AgentRun.updated_at)
+    )
+
+
 async def fail_stale_runs(
     db: AsyncSession, *, older_than: datetime, ended_at: datetime, error: str
-) -> list[UUID]:
-    """End every run still `running` from before `older_than`, and name which.
+) -> list[AgentRun]:
+    """End every run still `running` with no sign of life since `older_than`, and return them.
 
     A run's row is committed `running` before its model is called (#12), so a
     process that dies mid-run - SIGKILL, OOM, a deploy that does not drain -
@@ -2161,27 +2357,36 @@ async def fail_stale_runs(
     later and wins. `awaiting_approval` is deliberately not here: a parked row
     has a resolver, and the approvals sweep is its ceiling.
 
-    A run's age is its **last transition**, not its `started_at`. A resume
-    keeps the row's original start - the run's span covers both segments - and
-    flips it back to `running` with `mark_running`, whose UPDATE stamps
-    `updated_at`. Aged on `started_at` alone, a run approved more than the
-    ceiling after it first parked would be reaped the moment its replay began,
-    and a scheduled trigger could observe that false terminal status and fire
-    on top of the approved call still executing. `updated_at` is null until a
-    row's first UPDATE, so a never-touched orphan ages from its start.
+    A run's age is its **last sign of life**: the latest of its heartbeat, its
+    last transition and its start. The heartbeat is what makes a short ceiling
+    safe - a live run is stamped every few seconds however long its model
+    takes (`app.services.run_heartbeat`). The transition still counts because
+    a resume keeps the row's original start and flips it back to `running`
+    with `mark_running`, whose UPDATE stamps `updated_at`: aged on its start or
+    a heartbeat from before the park, a replay would be reaped the moment it
+    began, and a scheduled trigger could fire on top of the approved call still
+    executing. `GREATEST` skips nulls, so a never-touched orphan ages from its
+    start, and one with none of the three from when its row was written.
+
+    **A voice run is not this sweep's**: its call is heartbeated and hung up by
+    the voice reaper, which closes the run with it (`close_voice_run`).
     """
-    last_transition = func.coalesce(AgentRun.updated_at, AgentRun.started_at)
+    last_sign_of_life = func.coalesce(
+        func.greatest(AgentRun.heartbeat_at, AgentRun.updated_at, AgentRun.started_at),
+        AgentRun.created_at,
+    )
     result = await db.execute(
         sql_update(AgentRun)
         .where(
             AgentRun.status == RunStatus.RUNNING.value,
-            last_transition < older_than,
+            AgentRun.modality != "voice",
+            last_sign_of_life < older_than,
         )
         .values(status=RunStatus.FAILED.value, ended_at=ended_at, error=error)
-        .returning(AgentRun.id)
+        .returning(AgentRun)
     )
     await db.flush()
-    return [row[0] for row in result.all()]
+    return list(result.scalars().all())
 
 
 async def close_voice_run(
@@ -2260,3 +2465,22 @@ async def decide_approval(
     await db.flush()
     await db.refresh(approval)
     return approval
+
+
+async def associate_auxiliary_conversation(
+    db: AsyncSession, run: AgentRun, conversation_id: UUID
+) -> None:
+    """Keep an auxiliary run under its source conversation's read permissions.
+
+    The runner deliberately assembled it without conversation resources: linking
+    the row afterwards grants no tools and changes no conversation state.
+    """
+    run.conversation_id = conversation_id
+    await db.flush()
+
+
+async def record_attachment_lookup(db: AsyncSession, run: AgentRun) -> None:
+    """Record a real earlier-attachment lookup, so workspace-less turns close nothing."""
+    run.earlier_attachments_checked = True
+    db.add(run)
+    await db.flush()

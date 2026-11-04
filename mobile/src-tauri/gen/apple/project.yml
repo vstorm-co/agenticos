@@ -1,0 +1,195 @@
+name: agenticos-mobile
+options:
+  bundleIdPrefix: co.vstorm.agenticos
+  deploymentTarget:
+    iOS: 16.0
+fileGroups: [../../src]
+configs:
+  debug: debug
+  release: release
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: "0.1.0"
+settingGroups:
+  app:
+    base:
+      PRODUCT_NAME: AgenticOS
+      PRODUCT_BUNDLE_IDENTIFIER: co.vstorm.agenticos
+targetTemplates:
+  app:
+    type: application
+    sources:
+      - path: Sources
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      groups: [app]
+targets:
+  agenticos-mobile_iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+      # Exclude built static libs: regenerating with xcodegen after a build
+      # otherwise turns the per-configuration libapp.a copies into colliding
+      # resources ("Multiple commands produce …/libapp.a"). They are linked
+      # via LIBRARY_SEARCH_PATHS, never bundled as resources.
+      - path: Externals
+        excludes: ["**/*.a"]
+      - path: agenticos-mobile_iOS
+      - path: assets
+        buildPhase: resources
+        type: folder
+      - path: LaunchScreen.storyboard
+      # What the app, its widgets and its share extension agree on (#2097).
+      - path: ../../ios/Sources/AgenticOSNative/Shared/Shared.swift
+    info:
+      path: agenticos-mobile_iOS/Info.plist
+      properties:
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: LaunchScreen
+        UIRequiredDeviceCapabilities: [arm64, metal]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: "0.1.0"
+        CFBundleDisplayName: AgenticOS
+        # The pairing scanner and the camera in the attach sheet; the offer
+        # of a photo just taken; the lock (texts in InfoPlist.xcstrings).
+        NSCameraUsageDescription: To scan the pairing code your console shows, and to take a photo for a message.
+        NSPhotoLibraryUsageDescription: To offer the photo you just took when you open a chat.
+        NSFaceIDUsageDescription: To unlock AgenticOS.
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLName: co.vstorm.agenticos
+            CFBundleURLSchemes: [agenticos]
+        # The app icon's long-press menu, as Android's launcher shortcuts;
+        # the pinned agents follow them (`PinShortcutPlugin`).
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: agenticos://activity/start?mode=call
+            UIApplicationShortcutItemTitle: Call an agent
+            UIApplicationShortcutItemIconSymbolName: phone.fill
+          - UIApplicationShortcutItemType: agenticos://activity/start?mode=dictate
+            UIApplicationShortcutItemTitle: Dictate
+            UIApplicationShortcutItemIconSymbolName: mic.fill
+          - UIApplicationShortcutItemType: agenticos://activity/open?path=%2Fchat
+            UIApplicationShortcutItemTitle: New chat
+            UIApplicationShortcutItemIconSymbolName: square.and.pencil
+          - UIApplicationShortcutItemType: agenticos://activity/open?path=%2Fruns%3Ftab%3Dapprovals
+            UIApplicationShortcutItemTitle: Approvals
+            UIApplicationShortcutItemIconSymbolName: hand.raised.fill
+    entitlements:
+      path: agenticos-mobile_iOS/agenticos-mobile_iOS.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.vstorm.agenticos]
+        # Push with the organization's own APNs key; `production` in a
+        # build signed for the App Store or an MDM.
+        aps-environment: development
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      base:
+        ENABLE_BITCODE: false
+        ARCHS: [arm64]
+        VALID_ARCHS: arm64
+        LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
+        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+      groups: [app]
+    dependencies:
+      - target: AgenticOSWidgets
+      - target: AgenticOSShare
+      - framework: libapp.a
+        embed: false
+      - sdk: CoreGraphics.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: QuartzCore.framework
+      - sdk: Security.framework
+      - sdk: UIKit.framework
+      - sdk: WebKit.framework
+    preBuildScripts:
+      - script: |
+          bun tauri ios xcode-script -v --platform "${PLATFORM_DISPLAY_NAME:?}" --sdk-root "${SDKROOT:?}" --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration "${CONFIGURATION:?}" ${FORCE_COLOR} ${ARCHS:?}
+        name: Build Rust Code
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
+          - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  # The widgets, the live activities and the Control Center buttons (#2097).
+  AgenticOSWidgets:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.1"
+    sources:
+      - path: Widgets
+      - path: ../../ios/Sources/AgenticOSNative/Shared/Shared.swift
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: AgenticOS
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: "0.1.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widgets/Widgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.vstorm.agenticos]
+    settings:
+      base:
+        PRODUCT_NAME: AgenticOSWidgets
+        PRODUCT_BUNDLE_IDENTIFIER: co.vstorm.agenticos.widgets
+        SKIP_INSTALL: true
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: ActivityKit.framework
+
+  # "Share -> AgenticOS" (#2097).
+  AgenticOSShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Share
+      - path: ../../ios/Sources/AgenticOSNative/Shared/Shared.swift
+    info:
+      path: Share/Info.plist
+      properties:
+        CFBundleDisplayName: AgenticOS
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: "0.1.0"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+              NSExtensionActivationSupportsMovieWithMaxCount: 10
+              NSExtensionActivationSupportsFileWithMaxCount: 10
+    entitlements:
+      path: Share/Share.entitlements
+      properties:
+        com.apple.security.application-groups: [group.co.vstorm.agenticos]
+    settings:
+      base:
+        PRODUCT_NAME: AgenticOSShare
+        PRODUCT_BUNDLE_IDENTIFIER: co.vstorm.agenticos.share
+        SKIP_INSTALL: true

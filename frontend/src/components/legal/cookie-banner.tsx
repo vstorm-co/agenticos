@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useShell } from "@/hooks/use-shell";
 import { useAuthStore } from "@/stores";
 import Link from "next/link";
 import { Cookie, X } from "lucide-react";
@@ -50,6 +51,9 @@ export function CookieBanner() {
   // continuity key, which is what brings a bookmarked link back to its thread - so
   // the prompt's only effect was to sit over the composer and cover Send (#644).
   const surface = isPublicSurface(usePathname());
+  // Native apps use essential session storage only. This visitor banner
+  // covered the phone's sign-in button and the desktop's companion windows.
+  const inShell = useShell() !== null;
   const [show, setShow] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [analytics, setAnalytics] = useState(true);
@@ -58,7 +62,7 @@ export function CookieBanner() {
   useEffect(() => {
     const decide = () => {
       const consent = readConsent();
-      setShow(!consent && !isAuthenticated && !surface);
+      setShow(!consent && !isAuthenticated && !surface && !inShell);
     };
     decide();
     window.addEventListener("storage", decide);
@@ -67,7 +71,7 @@ export function CookieBanner() {
       window.removeEventListener("storage", decide);
       window.removeEventListener("cookie-consent-change", decide);
     };
-  }, [isAuthenticated, surface]);
+  }, [isAuthenticated, surface, inShell]);
 
   const close = () => setShow(false);
 

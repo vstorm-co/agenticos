@@ -1,5 +1,5 @@
 ---
-source_sha: "e32baf02f7e8"
+source_sha: "2f33faf1a39b"
 ---
 
 # Archivos de contexto { #context-files }
@@ -19,6 +19,8 @@ conoce la respuesta.
 Es la respuesta a un problema con el que toda empresa se topa en su tercer agent
 — los mismos tres párrafos pegados en tres juegos de instrucciones, y luego
 editados en uno solo de ellos.
+
+En Agent Builder, **Context → New context file** crea un archivo directamente en el panel de capacidades, lo vincula al borrador actual y activa Context. Después puedes elegir cómo lo usa ese agente. La publicación sigue siendo un paso separado. La creación requiere permisos para editar el agente y los archivos de contexto.
 
 ## Dónde queda, entre los skills y el conocimiento { #where-it-sits-between-skills-and-knowledge }
 
@@ -40,8 +42,7 @@ el cuerpo entero.
 
 ## Dos modos, y la diferencia es el coste { #two-modes-and-the-difference-is-cost }
 
-Todo archivo de contexto lleva un modo, y ese modo decide cómo llega el archivo
-al modelo.
+Cada archivo adjunto tiene un modo en los ajustes de **Context** del agent. El mismo archivo compartido puede inyectarse en un agent, enlazarse en otro y desactivarse en un tercero.
 
 === "`inject` — siempre presente"
 
@@ -86,7 +87,9 @@ Esa es toda la idea, y también aquello con lo que hay que tener cuidado: un
 cambio en un archivo inyectado es un cambio en cada agent que lo lleva. Trátalo
 como el texto compartido y portante que es.
 
-La capability tiene un ajuste que vale la pena conocer. **Desactivar** la herramienta de
+En el Builder, cada archivo seleccionado tiene un interruptor **Usar en este agent** y un selector de modo. Estos ajustes pertenecen al borrador del agent y se aplican al publicarlo. El editor de la biblioteca cambia solo el contenido compartido y la descripción; el formato se deduce del nombre del archivo. Las versiones existentes sin ajustes individuales conservan su modo y disponibilidad anteriores.
+
+La capability también controla la herramienta de lectura. **Desactivar** la herramienta de
 lectura significa que solo los archivos inyectados llegan al modelo y que no se
 lee nada bajo demanda — una elección razonable cuando quieres que las entradas de
 un agent sean del todo predecibles.

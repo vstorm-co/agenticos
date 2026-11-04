@@ -175,7 +175,15 @@ class TestTheRunnersFacts:
         from app.db.models.agent_run import RunSurface
         from app.services.agent_runner import AgentRunnerService
 
-        person = MagicMock(full_name=None, email="ada@example.com")
+        person = MagicMock(
+            full_name=None,
+            email="ada@example.com",
+            locale=None,
+            time_zone=None,
+            job_title=None,
+            about=None,
+            working_hours=None,
+        )
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
         with (
             patch(
@@ -187,7 +195,7 @@ class TestTheRunnersFacts:
                 new=AsyncMock(return_value=["Finance", "Sales"]),
             ),
         ):
-            render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
                 ctx,
                 organization_name="Acme",
                 surface=RunSurface.WEB,
@@ -195,11 +203,61 @@ class TestTheRunnersFacts:
                 person_time_zone="Europe/Warsaw",
             )
 
-        spec = render_for_run(
-            _spec("{{user_name}} {{user_email}} {{channel}} {{groups}}", time_zone="user")
+        template = _spec("{{user_name}} {{user_email}} {{channel}} {{groups}}", time_zone="user")
+        assert rendering.for_the_run(template).instructions == (
+            "ada@example.com ada@example.com the AgenticOS console Finance, Sales\n\n"
+            "# The person you are talking to\n\n"
+            "- Their time zone is Europe/Warsaw; read and state times in it."
         )
-        assert spec.instructions == (
+        # A delegate reads the same variables and is not told it talks to the person.
+        assert rendering.variables(template).instructions == (
             "ada@example.com ada@example.com the AgenticOS console Finance, Sales"
+        )
+
+    async def test_a_person_is_described_from_their_account(self) -> None:
+        """Language, role and work from the account, and its zone when the surface sent none (#2301)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from app.db.models.agent_run import RunSurface
+        from app.services.agent_runner import AgentRunnerService
+
+        person = MagicMock(
+            full_name="Ada",
+            email="ada@example.com",
+            locale="pl",
+            time_zone="America/New_York",
+            job_title="Head of sales",
+            about="Nordic deals",
+            working_hours={"days": [1, 2, 3, 4, 5], "start": "08:00", "end": "16:00"},
+        )
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        with (
+            patch(
+                "app.services.agent_runner.user_repo.get_by_id",
+                new=AsyncMock(return_value=person),
+            ),
+            patch(
+                "app.services.agent_runner.group_repo.names_for_member",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
+                ctx,
+                organization_name=None,
+                surface=RunSurface.SCHEDULE,
+                user_name=None,
+                person_time_zone=None,
+            )
+
+        spec = rendering.for_the_run(_spec("Help."))
+        assert spec.instructions == (
+            "Help.\n\n# The person you are talking to\n\n"
+            "- Their console is in Polish: answer in Polish unless they write in another language.\n"
+            "- Their time zone is America/New_York; read and state times in it.\n"
+            "- Their role: Head of sales.\n"
+            "- What they work on: Nordic deals\n"
+            "- They work Monday to Friday, 08:00-16:00 their time; plan around it, "
+            "and nothing waits on it."
         )
 
     @pytest.mark.security
@@ -217,7 +275,7 @@ class TestTheRunnersFacts:
         )
         lookup = AsyncMock()
         with patch("app.services.agent_runner.user_repo.get_by_id", new=lookup):
-            render_for_run = await AgentRunnerService(MagicMock())._variable_renderer(
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
                 ctx,
                 organization_name=None,
                 surface=RunSurface.EMBED,
@@ -225,7 +283,7 @@ class TestTheRunnersFacts:
                 person_time_zone=None,
             )
 
-        spec = render_for_run(_spec("{{user_name}}|{{user_email}}|{{groups}}"))
+        spec = rendering.for_the_run(_spec("{{user_name}}|{{user_email}}|{{groups}}"))
         assert spec.instructions == "a visitor||"
         lookup.assert_not_awaited()
 

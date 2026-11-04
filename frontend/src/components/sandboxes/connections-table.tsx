@@ -18,7 +18,9 @@ interface ConnectionsTableProps {
 /** What kind of host this is, in words rather than the stored string. The mark
  * beside them is `ConnectionKindIcon`, which the dialog and the Builder draw too. */
 function kindLabel(kind: string, t: (key: string) => string): string {
-  return kind === "daytona" ? t("daytonaCloud") : t("containerService");
+  if (kind === "daytona") return t("daytonaCloud");
+  if (kind === "e2b") return t("e2bCloud");
+  return t("containerService");
 }
 
 /**
@@ -28,7 +30,7 @@ function kindLabel(kind: string, t: (key: string) => string): string {
  * misconfiguration rather than as the answer.
  */
 function addressLabel(connection: SandboxConnectionRecord): string {
-  if (connection.kind === "daytona") return "their API";
+  if (connection.kind !== "docker") return "their API";
   return connection.base_url ?? "—";
 }
 
@@ -66,7 +68,7 @@ export function ConnectionsTable({
         sortValue: (connection) => connection.name,
         cell: (connection) => (
           <div className="flex min-w-0 items-center gap-2">
-            {connection.kind === "daytona" ? (
+            {connection.kind !== "docker" ? (
               <Cloud className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
             ) : (
               <Box className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
@@ -142,7 +144,7 @@ export function ConnectionsTable({
         align: "right",
         cell: (connection) => (
           <div className="flex justify-end gap-1">
-            {connection.kind !== "daytona" && (
+            {connection.kind === "docker" && (
               <Button
                 variant="ghost"
                 size="sm"

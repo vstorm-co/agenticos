@@ -56,7 +56,8 @@ from app.services import chat_room
 from app.services.access import AGENT, PROJECT, resolve_access, visible_resource_ids
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
-from app.services.message_history import HistoryMessage, build_message_history
+from app.services.generated_media import GeneratedMediaService
+from app.services.message_history import REFUSED_TURN, HistoryMessage, build_message_history
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,9 @@ def _as_history(
     A prompt that carried files is replayed with what they added for the model,
     so a follow-up about the file reaches a model that knows it is there. A
     person's turn reads as `spoken` says where it says anything - who said it
-    and what it answers - see `ConversationService._spoken`.
+    and what it answers - see `ConversationService._spoken`. A prompt of a turn
+    a guardrail stopped reads as `REFUSED_TURN`, with nothing its files added
+    (#2578).
     """
     spoken = spoken or {}
     history: list[HistoryMessage] = []
@@ -108,19 +111,31 @@ def _as_history(
         # What the person added while the answer was being written, as they added
         # it: before the answer it changed. Stored only as parts of the answer,
         # it was in the conversation on screen and missing from the next turn.
+        # Not for a turn a guardrail stopped, whose words are withheld whole.
         history.extend(
             {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
             for part in row.parts or []
-            if part.get("type") == "steer" and isinstance(part.get("text"), str)
+            if part.get("type") == "steer"
+            and isinstance(part.get("text"), str)
+            and not row.guardrail_refused
         )
         history.append(
             {
                 "role": row.role,
-                "content": spoken.get(row.id, row.content) + (row.attachment_context or ""),
+                "content": (
+                    REFUSED_TURN
+                    if row.role == "user" and row.guardrail_refused
+                    else spoken.get(row.id, row.content) + (row.attachment_context or "")
+                ),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
                 # characters - see `agent.build_message_history`.
                 "context_used_tokens": row.context_used_tokens,
+                **(
+                    {"channel_identity_id": row.channel_identity_id}
+                    if row.channel_identity_id is not None
+                    else {}
+                ),
             }
         )
     return history
@@ -149,7 +164,9 @@ class ConversationService:
         before the run so a refusal cannot lose it, so it is a row by the time
         this reads - and left in, the model is asked the same question twice.
         """
-        conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        conversation = await conversation_repo.get_conversation_by_id(
+            self.db, conversation_id, include_summary=True
+        )
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
             return await self._from_transcript(
@@ -262,7 +279,7 @@ class ConversationService:
             )
             if answered is not None:
                 text = (
-                    f'(In reply to {_whose(answered, people)}: "{_excerpt(answered.content)}")'
+                    f'(In reply to {_whose(answered, people)}: "{_excerpt(_said(answered))}")'
                     f"\n\n{text}"
                 )
             author = people.get(row.author_user_id) if in_project and row.author_user_id else None
@@ -448,6 +465,9 @@ class ConversationService:
         lost the project kept reading the chats they had started in it, and
         through them its files; the project as it stands decides, for everyone.
         """
+        if conversation.origin == "workflow":
+            return False
+
         if getattr(conversation, "project_id", None) is not None:
             return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
         owner = getattr(conversation, "user_id", None)
@@ -597,6 +617,9 @@ class ConversationService:
         archiving or deleting it stays its starter's while the project is still
         theirs to see.
         """
+        if conversation.origin == "workflow":
+            return False
+
         owner = getattr(conversation, "user_id", None)
         if getattr(conversation, "project_id", None) is not None:
             if turn:
@@ -782,6 +805,7 @@ class ConversationService:
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
         hide_api: bool = False,
+        hide_channels: bool = False,
         project_id: UUID | None = None,
         reader: AuthContext | None = None,
     ) -> tuple[list[Conversation], int]:
@@ -795,12 +819,15 @@ class ConversationService:
         participation set is vetted here - against the platform's current
         membership, through `channels.membership` - before the repository sees
         it, so the query never widens on who merely spoke (#641).
+
+        `hide_channels` leaves every thread a bot answers in out of the list, so
+        the participation set it would widen by is not asked of the platform.
         """
         participant_ids: set[UUID] = (
             await channel_membership.confirmed_participant_threads(
                 self.db, user_id=user_id, organization_id=organization_id
             )
-            if user_id is not None
+            if user_id is not None and not hide_channels
             else set()
         )
         project_ids = (
@@ -835,6 +862,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
             hide_api=hide_api,
+            hide_channels=hide_channels,
             project_id=project_id,
         )
         total = await conversation_repo.count_conversations(
@@ -848,6 +876,7 @@ class ConversationService:
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
             hide_api=hide_api,
+            hide_channels=hide_channels,
             project_id=project_id,
         )
         await self._attach_agents(items)
@@ -926,7 +955,11 @@ class ConversationService:
         by_conversation = await conversation_repo.agents_in_conversations(
             self.db, [conversation.id for conversation in conversations]
         )
+        coding = await conversation_repo.coding_agents_in_conversations(
+            self.db, [conversation.id for conversation in conversations]
+        )
         for conversation in conversations:
+            conversation.coding_agents = coding.get(conversation.id, [])  # ty: ignore[unresolved-attribute]
             conversation.agents = [  # ty: ignore[unresolved-attribute]
                 ConversationAgent(
                     id=agent.id,
@@ -1025,6 +1058,9 @@ class ConversationService:
         by_conversation = await conversation_repo.agents_in_conversations(
             self.db, [conv.id for conv, _count, _email in rows]
         )
+        coding = await conversation_repo.coding_agents_in_conversations(
+            self.db, [conv.id for conv, _count, _email in rows]
+        )
         items = [
             AdminConversationRead(
                 id=conv.id,
@@ -1033,6 +1069,7 @@ class ConversationService:
                 is_archived=conv.is_archived,
                 message_count=msg_count,
                 user_email=email,
+                coding_agents=coding.get(conv.id, []),
                 agents=[
                     ConversationAgent(
                         id=agent.id,
@@ -1191,6 +1228,9 @@ class ConversationService:
     ) -> None:
         """Delete, once the transaction commits, what these threads keep outside the database.
 
+        Their attachments, the media their agents generated, and what the
+        `media` capability offloaded out of their compacted history.
+
         Called before the threads are deleted: the attachments' paths are read
         from rows that cascade away with them - see :meth:`delete_conversation`.
         """
@@ -1199,6 +1239,11 @@ class ConversationService:
             for conversation_id in conversation_ids
             for path in await personal_data_repo.attachment_paths_in(self.db, conversation_id)
         ]
+        # And the images, speech and video its agents generated (#2310). Their
+        # rows go now, in this transaction, with a job queued beside them for
+        # the bytes - the rows are their only record, so the unlink must not be
+        # lost to a restart the way a spawned task can be.
+        await GeneratedMediaService(self.db).forget_conversations(organization_id, conversation_ids)
         if attachments:
             spawn_after_commit(
                 self.db,
@@ -1231,6 +1276,8 @@ class ConversationService:
         *,
         skip: int = 0,
         limit: int = 100,
+        latest: bool = False,
+        before: UUID | None = None,
         organization_id: UUID,
         include_tool_calls: bool = False,
         user_id: UUID | None = None,
@@ -1268,6 +1315,8 @@ class ConversationService:
             skip=skip,
             limit=limit,
             include_tool_calls=include_tool_calls,
+            latest=latest,
+            before=before,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
         await self._attach_senders(items, conversation)
@@ -1371,26 +1420,31 @@ class ConversationService:
             # be a fabricated answer everybody else trusts. The runs write those,
             # with no person behind the call.
             raise refused_field("role", "In a project's chat, write your own turns only")
+        if (
+            run_id is None
+            and data.parts
+            and any(part.file_source is not None for part in data.parts)
+        ):
+            raise refused_field("parts.file_source", "File origins are recorded by the runner")
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
                 raise refused_field(
                     "reply_to_message_id", "Reply to a message in this conversation"
                 )
-        return await conversation_repo.create_message(
+        message = await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
             role=data.role,
             content=data.content,
+            client_message_id=data.client_message_id,
             thinking=data.thinking,
-            # Dumped without its empty fields, so a text part is `{"type": "text",
-            # "text": ...}` rather than that plus a null `tool_call_id`. What comes
-            # back validates the same either way; this is what a person reading the
-            # column sees.
+            # JSONB needs JSON-compatible values, including file origin UUIDs.
+            # Keep empty fields omitted so stored parts retain their compact shape.
             parts=(
                 None
                 if data.parts is None
-                else [part.model_dump(exclude_none=True) for part in data.parts]
+                else [part.model_dump(mode="json", exclude_none=True) for part in data.parts]
             ),
             model_name=data.model_name,
             tokens_used=data.tokens_used,
@@ -1415,6 +1469,14 @@ class ConversationService:
             author_user_id=user_id if data.role == "user" else None,
             reply_to_message_id=data.reply_to_message_id,
         )
+
+        if data.role == "assistant" and run_id is not None and data.content.strip():
+            # Only IDs cross the commit boundary; a failed transcript write must
+            # not start a paid suggestion request for an answer nobody can read.
+            from app.services.follow_ups import queue_next_steps
+
+            queue_next_steps(self.db, message.id, organization_id)
+        return message
 
     async def delete_message(self, message_id: UUID) -> bool:
         deleted = await conversation_repo.delete_message(self.db, message_id)
@@ -1589,6 +1651,14 @@ def _excerpt(text: str) -> str:
     """A message as one short line: its whitespace folded, its tail cut."""
     flat = " ".join(text.split())
     return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
+
+
+def _said(message: Message) -> str:
+    """What a quoted message says, as the model may be told it: a quote is the
+    other way a refused prompt's words would reach it (#2578)."""
+    if message.role == "user" and message.guardrail_refused:
+        return REFUSED_TURN
+    return message.content
 
 
 def _whose(message: Message, people: dict[UUID, User]) -> str:

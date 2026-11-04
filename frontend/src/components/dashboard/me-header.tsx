@@ -59,6 +59,8 @@ export function MeHeader({
 
   return (
     <PageHeader
+      className="mb-4"
+      descriptionMode="summary"
       title={
         <span className="flex flex-col">
           <span className="text-muted-foreground text-sm font-normal" suppressHydrationWarning>

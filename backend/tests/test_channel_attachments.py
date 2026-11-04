@@ -42,6 +42,7 @@ from app.services.channels.mentions import AnsweredTurn, UnaddressedMessage
 from app.services.channels.router import ChannelMessageRouter
 from app.services.file_storage import LocalFileStorage
 from app.services.file_upload import FileUploadService
+from app.services.workflow_execution.exceptions import WorkflowAdmissionQuotaError
 from tests.workspaces import document_workspace
 
 pytestmark = pytest.mark.anyio
@@ -160,6 +161,11 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
     router = "app.services.channels.router"
     with (
         patch(f"{router}.channel_bot_repo.get_for_inbound", AsyncMock(return_value=bot)),
+        # No workflow listens to this bot: its messages are the agent's.
+        patch(
+            f"{router}.WorkflowExposureService.receive_channel_message",
+            AsyncMock(return_value=False),
+        ),
         patch(
             f"{router}.channel_identity_repo.get_by_platform_user",
             AsyncMock(return_value=identity),
@@ -737,6 +743,11 @@ async def _route_one_file(text: str) -> tuple[MagicMock, MagicMock, AsyncMock]:
         patch(f"{router}.get_adapter", return_value=adapter),
         patch(f"{router}.unseal_bot_token", return_value="tok"),
         patch(f"{router}.channel_bot_repo.get_for_inbound", AsyncMock(return_value=bot)),
+        # No workflow listens to this bot: its messages are the agent's.
+        patch(
+            f"{router}.WorkflowExposureService.receive_channel_message",
+            AsyncMock(return_value=False),
+        ),
         patch(
             f"{router}.channel_identity_repo.get_by_platform_user",
             AsyncMock(return_value=identity),
@@ -781,12 +792,16 @@ class TestOneMessageOneStoredFile:
         assert adapter.download_attachment.await_count == 1
         assert upload.await_count == 1
         assert agents.answer_default.await_args.kwargs["attachments"] == [upload.return_value]
+        author = agents.answer_default.await_args.kwargs["incoming"]
+        assert author.platform_user_id == "U1" and author.message_id == "m1"
 
     async def test_a_mention_still_gets_the_file_it_came_with(self):
         adapter, agents, upload = await _route_one_file("@support what is in this")
 
         assert adapter.download_attachment.await_count == 1
         assert agents.answer.await_args.kwargs["attachments"] == [upload.return_value]
+        author = agents.answer.await_args.kwargs["incoming"]
+        assert author.platform_user_id == "U1" and author.message_id == "m1"
         agents.answer_default.assert_not_awaited()
 
 
@@ -1056,3 +1071,235 @@ class TestATypedAnswerIsNotATurn:
         router._receive_files.assert_not_awaited()
         router._answer_mention.assert_not_awaited()
         assert rows == []
+
+
+class TestAWorkflowListeningToTheBot:
+    """A workflow whose Channel message trigger listens to the bot takes the
+    message in the agent's place; what it leaves, the agent answers as before."""
+
+    async def test_a_message_the_workflow_takes_runs_no_agent_and_keeps_no_file(self):
+        router, replies, rows = _router()
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        agents = _agent_router()
+        listener = AsyncMock(return_value=True)
+
+        with (
+            _channel(agents, rows),
+            patch(
+                "app.services.channels.router.WorkflowExposureService.receive_channel_message",
+                listener,
+            ),
+        ):
+            await router._route_inner(_incoming("refund order 42"), MagicMock())
+
+        agents.return_value.answer_default.assert_not_awaited()
+        assert listener.await_args.kwargs["sender_user_id"] is not None
+        assert rows == []
+        replies.assert_not_awaited()
+
+    async def test_a_run_it_cannot_admit_is_said_in_the_chat(self):
+        router, replies, rows = _router()
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        agents = _agent_router()
+        refused = WorkflowAdmissionQuotaError(
+            scope="organization", limit=1, outstanding=1, requested=1
+        )
+
+        with (
+            _channel(agents, rows),
+            patch(
+                "app.services.channels.router.WorkflowExposureService.receive_channel_message",
+                AsyncMock(side_effect=refused),
+            ),
+        ):
+            await router._route_inner(_incoming("refund order 42"), MagicMock())
+
+        agents.return_value.answer_default.assert_not_awaited()
+        assert "Too much workflow work" in replies.await_args.args[2]
+        assert rows == []
+
+
+class TestExplicitFileDelivery:
+    async def test_only_requested_file_is_queued_including_an_existing_file(self):
+        from app.services.channels.attachments import queue_channel_file
+
+        workspace = document_workspace()
+        await workspace.write_bytes("/main.py", b'print("Hello, world!")')
+        await workspace.write_bytes("/notes.txt", b"private working notes")
+        outbound = []
+        result = await queue_channel_file(workspace, outbound, "/main.py")
+        assert "Queued" in result and "pending" in result
+        assert [item.filename for item in outbound] == ["main.py"]
+        assert outbound[0].content == b'print("Hello, world!")'
+
+    @pytest.mark.parametrize(
+        "path", ["../secret", "/etc/passwd", "uploads/a.txt", "skills/a.txt", "missing.txt"]
+    )
+    async def test_refused_paths_are_not_attached(self, path):
+        from app.services.channels.attachments import queue_channel_file
+
+        outbound = []
+        result = await queue_channel_file(document_workspace(), outbound, path)
+        assert "refused" in result
+        assert outbound == []
+
+    async def test_oversized_files_and_too_many_files_are_refused(self):
+        from app.services.channels.attachments import queue_channel_file
+
+        workspace = document_workspace()
+        await workspace.write_bytes("/big.txt", b"x" * (MAX_OUTBOUND_BYTES + 1))
+        outbound = []
+        assert "too large" in await queue_channel_file(workspace, outbound, "big.txt")
+        assert outbound == []
+        outbound = [MagicMock()] * MAX_OUTBOUND_FILES
+        assert "at most" in await queue_channel_file(workspace, outbound, "big.txt")
+
+    async def test_workspace_failure_is_reported_without_provider_details(self):
+        from app.services.channels.attachments import queue_channel_file
+
+        workspace = document_workspace()
+        await workspace.write_bytes("/main.py", b"ok")
+        with patch.object(
+            workspace, "read_bytes", AsyncMock(side_effect=RuntimeError("secret endpoint"))
+        ):
+            outbound = []
+            result = await queue_channel_file(workspace, outbound, "main.py")
+        assert "failed" in result and "secret" not in result
+        assert outbound == []
+
+
+async def test_send_action_reports_confirmation_and_provider_failure():
+    from app.services.channels.attachments import channel_file_sender
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/main.py", b"hello")
+    directory = MagicMock()
+    directory.send_file = AsyncMock(return_value="Submitted")
+    send = channel_file_sender(workspace, directory)
+    assert "Submitted" in await send("main.py")
+    directory.send_file.assert_awaited_once_with(
+        filename="main.py", content=b"hello", mime_type="text/x-python"
+    )
+    directory.send_file.side_effect = RuntimeError("secret endpoint")
+    result = await send("main.py")
+    assert "failed" in result and "secret" not in result
+    assert "refused" in await send("missing.py")
+    assert "limit" in await send("main.py")
+    assert "no workspace" in await channel_file_sender(None, directory)("main.py")
+
+
+async def test_unlinked_thread_files_are_detected_without_download_and_remain_retryable():
+    incoming = _incoming("what do you see")
+    incoming.platform_chat_id = "C1:T1"
+    incoming.message_id = "P2"
+    bot = MagicMock()
+    identity = MagicMock(user_id=None)
+    adapter = _adapter()
+    adapter.thread_attachments = AsyncMock(
+        return_value=[_attachment(filename="screen.png", mime_type="image/png")]
+    )
+    with (
+        patch("app.services.channels.router.get_adapter", return_value=adapter),
+        patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        patch("app.services.channels.router.ChannelAttachmentService") as service,
+    ):
+        files, notices, complete = await ChannelMessageRouter()._thread_files(
+            MagicMock(), bot, incoming, identity
+        )
+    assert files == [] and complete is False
+    assert "direct message" in notices[0] and "without a slash" in notices[0]
+    service.assert_not_called()
+    adapter.download_attachment.assert_not_awaited()
+
+
+async def test_a_thread_file_from_somebody_the_policy_excludes_is_not_fetched():
+    incoming = _incoming("what do you see")
+    incoming.platform_chat_id = "C1:T1"
+    incoming.message_id = "P2"
+    bot = MagicMock(access_policy={"mode": "whitelist", "whitelist": ["allowed"]})
+    identity = MagicMock(user_id=uuid.uuid4())
+    adapter = _adapter()
+    adapter.thread_attachments = AsyncMock(
+        return_value=[
+            _attachment(filename="theirs.pdf", author_id="denied"),
+            _attachment(filename="ours.pdf", author_id="allowed"),
+            _attachment(filename="platform.pdf"),
+        ]
+    )
+    with (
+        patch("app.services.channels.router.get_adapter", return_value=adapter),
+        patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        patch("app.services.channels.router.ChannelAttachmentService") as service,
+    ):
+        service.return_value.receive = AsyncMock(return_value=([], []))
+        await ChannelMessageRouter()._thread_files(MagicMock(), bot, incoming, identity)
+
+    fetched = service.return_value.receive.await_args.args[2]
+    assert [item.filename for item in fetched] == ["ours.pdf", "platform.pdf"]
+
+
+@pytest.mark.parametrize(
+    "path", [".env", "sub/.env", "credentials.txt", "deploy/id_rsa.pem", "x/.ssh/config"]
+)
+async def test_sending_a_protected_file_is_refused_before_reading_bytes(path):
+    from app.services.channels.attachments import queue_channel_file
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/" + path, b"protected")
+    with patch.object(workspace, "read_bytes", AsyncMock()) as read:
+        pending = []
+        answer = await queue_channel_file(workspace, pending, path)
+    assert "permissions protect" in answer
+    read.assert_not_awaited()
+    assert pending == []
+
+
+async def test_file_size_is_checked_before_download_and_after_a_changed_file():
+    from app.services.channels.attachments import queue_channel_file
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/large.txt", b"x" * (MAX_OUTBOUND_BYTES + 1))
+    with patch.object(workspace, "read_bytes", AsyncMock()) as read:
+        assert "too large" in await queue_channel_file(workspace, [], "large.txt")
+        read.assert_not_awaited()
+    with patch.object(workspace, "stat", AsyncMock(return_value=MagicMock(size=None))):
+        assert "could not be verified" in await queue_channel_file(workspace, [], "large.txt")
+    with patch.object(workspace, "stat", AsyncMock(return_value=MagicMock(size=1))):
+        assert "size limit" in await queue_channel_file(workspace, [], "large.txt")
+
+
+@pytest.mark.security
+async def test_attachment_attempt_budget_survives_sender_reassembly():
+    from app.services.channels.attachments import ChannelFileBudget, channel_file_sender
+
+    workspace = document_workspace()
+    await workspace.write_bytes("/main.py", b"hello")
+    directory = MagicMock(send_file=AsyncMock(return_value="Submitted"))
+    budget = ChannelFileBudget()
+    for _ in range(3):
+        assert await channel_file_sender(workspace, directory, budget)("main.py") == "Submitted"
+        budget = ChannelFileBudget(budget.attempts)
+    assert "limit" in await channel_file_sender(workspace, directory, budget)("main.py")
+    assert directory.send_file.await_count == 3
+
+
+@pytest.mark.parametrize("text", ["@support improve the map", "improve the map"])
+async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(text: str) -> None:
+    from pydantic_ai.messages import ModelRequest, UserPromptPart
+
+    earlier = ModelRequest(parts=[UserPromptPart(content="Alice asked for the town-hall app.")])
+    backfill = ModelRequest(parts=[UserPromptPart(content="Earlier channel discussion.")])
+    with (
+        patch.object(
+            ChannelMessageRouter, "_load_history", new=AsyncMock(return_value=[earlier])
+        ) as load,
+        patch.object(
+            ChannelMessageRouter,
+            "_thread_context",
+            new=AsyncMock(return_value=([backfill], [], [])),
+        ),
+    ):
+        _, agents, _ = await _route_one_file(text)
+    answer = agents.answer if text.startswith("@") else agents.answer_default
+    assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
+    load.assert_awaited_once()

@@ -26,6 +26,7 @@ import { useDictation } from "@/hooks/use-dictation";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { useVoiceSession } from "@/hooks/use-voice-session";
 import { dictateOnPage, type DictationSend } from "@/lib/dictation-api";
+import { MediaSurfaceContext, type MediaSurface } from "@/lib/generated-media";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/types";
 import type { HostedPageConfig } from "@/types/hosted";
@@ -368,6 +369,10 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // backend's to know, and it already decided them.
   const logoSrc =
     config.logo_url === null ? null : `/api/embed/${encodeURIComponent(config.public_key)}/logo`;
+  const mediaSurface = useMemo<MediaSurface>(
+    () => ({ kind: "hosted", publicKey: config.public_key }),
+    [config.public_key],
+  );
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -764,9 +769,13 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
               <MarkdownContent content={config.welcome} />
             </div>
           )}
-          {turns.map((turn, index) => (
-            <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />
-          ))}
+          {/* A generated image or clip is read through this page's key with the link
+              the socket handed out - the console's address needs a session (#2309). */}
+          <MediaSurfaceContext.Provider value={mediaSurface}>
+            {turns.map((turn, index) => (
+              <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />
+            ))}
+          </MediaSurfaceContext.Provider>
           {/* The call as it happens: live captions in the turns being spoken, the
               agent's work, and the summary when it ends. No approval controls -
               a visitor cannot approve, and the server leaves tools that need one

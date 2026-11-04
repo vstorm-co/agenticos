@@ -19,9 +19,9 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from mirage import Workspace
-from mirage.agents.pydantic_ai.backend import MirageWorkspaceBackend
 from mirage.policy import CommandsBlock, PathsBlock, SessionProfile
-from pydantic_ai import RunContext
+from mirage.vfs.ram import RAMVFS
+from pydantic_ai import DeferredToolRequests, RunContext
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.capabilities import AbstractCapability, WrapRunHandler
 from pydantic_ai.toolsets import AbstractToolset, WrapperToolset
@@ -29,6 +29,7 @@ from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai.workspaces import Workspace as RunWorkspace
 from pydantic_ai_backends import create_console_toolset
 
+from app.agents.capabilities.mirage._backend import BoundedBackend
 from app.agents.capabilities.mirage._policy import (
     WriteApproval,
     approve,
@@ -37,6 +38,7 @@ from app.agents.capabilities.mirage._policy import (
     needs_approval,
 )
 from app.agents.capabilities.mirage._resolved import PREFIX, ResolvedMount
+from app.agents.capabilities.mirage._scratch import ScratchFolder, ScratchState, keep, restore
 from app.agents.deps import AgentDeps
 
 _PROFILE = "agent"
@@ -64,7 +66,7 @@ class _Pinned(WrapperToolset[AgentDeps]):
             if refused is not None:
                 return refused
             approved = True
-        pinned = replace(ctx, workspace=RunWorkspace(MirageWorkspaceBackend(workspace)))
+        pinned = replace(ctx, workspace=RunWorkspace(BoundedBackend(workspace)))
         with approved_writes(approved):
             return await super().call_tool(name, tool_args, pinned, tool)
 
@@ -80,10 +82,15 @@ class Mirage(AbstractCapability[AgentDeps]):
 
     _workspace: Workspace | None = field(default=None, init=False, repr=False, compare=False)
 
+    _ram: dict[str, RAMVFS] = field(default_factory=dict, init=False, repr=False)
+    _scratch: ScratchState = field(default_factory=ScratchState, init=False, repr=False)
+
     async def for_run(self, ctx: RunContext[AgentDeps]) -> Mirage:
         # A fresh instance per run, so one run's open connections and history are
         # never another's.
-        return replace(self)
+        instance = replace(self)
+        instance._scratch = restore(ctx.messages)
+        return instance
 
     @property
     def gated(self) -> frozenset[str]:
@@ -96,8 +103,17 @@ class Mirage(AbstractCapability[AgentDeps]):
         """The terminal, built on the first tool call of the run."""
         if self._workspace is None:
             gated = self.gated
+            mounts = {mount.path: mount.build() for mount in self.mounts}
+            for path, mount in mounts.items():
+                if isinstance(mount.vfs, RAMVFS):
+                    saved = self._scratch.folders.get(path)
+                    if saved is not None:
+                        mount.vfs.load_state(saved.model_dump())
+                    self._ram[path] = mount.vfs
             self._workspace = Workspace(
-                {mount.path: mount.build() for mount in self.mounts},
+                dict(mounts),
+                cache_limit="16MB",
+                max_memory="16MB",
                 policies=[WriteApproval(gated)] if gated else [],
                 on_ask=ask,
                 profiles={_PROFILE: _profile(self.allowed_commands, self.hidden_paths)},
@@ -109,7 +125,16 @@ class Mirage(AbstractCapability[AgentDeps]):
         self, ctx: RunContext[AgentDeps], *, handler: WrapRunHandler
     ) -> AgentRunResult[Any]:
         try:
-            return await handler()
+            result = await handler()
+            if isinstance(result.output, DeferredToolRequests) and self._ram:
+                state = ScratchState(
+                    folders={
+                        path: ScratchFolder.model_validate(vfs.get_state())
+                        for path, vfs in self._ram.items()
+                    }
+                )
+                keep(result.all_messages(), state)
+            return result
         finally:
             if self._workspace is not None:
                 await self._workspace.close()

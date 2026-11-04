@@ -1,7 +1,8 @@
 # Planning
 
-A checklist the agent keeps for itself while it works: `write_plan` to lay it out,
-`read_plan` to see the step ids, and granular tools to move steps between statuses.
+A checklist the agent keeps for itself while it works. `write_plan` lays it out
+and immediately returns the assigned step IDs. `read_plan` can inspect them later;
+granular tools move those same steps between statuses.
 Under `enable_subtasks` it also gets dependency-aware planning — `add_subtask`,
 `set_dependency`, `get_available_tasks`, and a `blocked` status a step sits in until
 its prerequisites resolve.
@@ -13,12 +14,13 @@ leaves to its caller.
 
 ## Why the plan is a reminder, not the system prompt
 
-For multi-step work a model does better when it writes the steps down first and keeps
-them in front of itself. So the current plan is surfaced back every turn — but as an
-*ephemeral tail reminder* appended after a cache breakpoint, never in the system
-prompt. The stable prompt prefix stays byte-identical across turns, so a provider's
-prompt cache is not invalidated by a plan that changes every step; only the mutable
-reminder is re-read. `cache_ttl` is how long that prefix may cache.
+The plan-changing tools return the current plan in a `<plan_reminder>` frame,
+with metadata the harness uses to find it. If the latest visible plan differs from
+the store, such as after compaction or at the start of a run, the harness records
+it as user-channel content in the run history. It never becomes a system prompt.
+Model settings control prompt caching; the legacy `cache_ttl` remains accepted
+for existing specs but has no effect. For a one-hour cache, set `cache: "1h"`
+in the agent's or model profile's model settings.
 
 ## Why the store is the runner's
 
@@ -40,7 +42,7 @@ keeps its own fresh in-memory plan, which is the honest behaviour for a build wi
 no run to park.
 
 A finished checklist is kept rather than cleared: that is what the run which
-finished it saw too — every step ticked in the tail reminder until `write_plan`
+finished it saw too — every step ticked in the visible plan until `write_plan`
 replaces the plan wholesale, which is what starting new work does.
 
 ## Why the tool text lives here
@@ -64,7 +66,7 @@ neither.
 | Field | Default | What it is |
 |---|---|---|
 | `enable_subtasks` | `false` | Adds the three subtask/dependency tools and the `blocked` status. |
-| `cache_ttl` | `5m` | How long the prompt prefix before the plan reminder may cache: `5m` or `1h`. |
+| `cache_ttl` | `5m` | Legacy, accepted but ignored; configure `cache` in model settings. |
 
 ## What this deliberately does not do
 

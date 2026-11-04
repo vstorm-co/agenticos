@@ -66,5 +66,8 @@ class ApiKey(Base, TimestampMixin):
         index=True,
     )
 
+    # Provenance only: permissions still come from the issuing member and scopes.
+    source_agent_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+
     def __repr__(self) -> str:
         return f"<ApiKey(prefix={self.prefix}, org={self.organization_id})>"

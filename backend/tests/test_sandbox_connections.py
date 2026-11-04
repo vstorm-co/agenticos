@@ -115,6 +115,7 @@ def _service(monkeypatch, *, secret: Any = None) -> SandboxConnectionService:
     resolved = {} if secret is None else {secret[0]: secret[1]}
     service.secrets = MagicMock()
     service.secrets.resolve_for_bindings = AsyncMock(return_value=resolved)
+    monkeypatch.setattr(project_repo, "active_moves_for_connection", AsyncMock(return_value=False))
     monkeypatch.setattr(sandbox_connection_repo, "clear_default", AsyncMock())
     # This file is about the connection and the audit entry `record_audit`
     # writes for real (#1598), not the `security_event` notification that now

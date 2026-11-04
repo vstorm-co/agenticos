@@ -14,6 +14,9 @@ import {
 import { RAGSearchResults, parseRAGResults } from "./rag";
 import { WebSearchResults, parseWebSearch } from "./web-search";
 import { GeneratedImageResult, parseGeneratedImage } from "./generated-image";
+import { GeneratedSpeechResult, parseGeneratedSpeech } from "./generated-speech";
+import { GeneratedVideoResult, parseGeneratedVideo } from "./generated-video";
+import { DesktopScreenshotResult, parseDesktopScreenshot } from "./desktop-screenshot";
 import { ContextListResult, SkillListResult, parseContextList, parseSkillList } from "./catalogs";
 import { PlanToolResult } from "./plan";
 import type { ToolCall } from "@/types";
@@ -71,6 +74,40 @@ describe("the knowledge search", () => {
       chunk: undefined,
       collection: undefined,
     });
+  });
+
+  it("reads a passage cited by its section rather than a page (#2489)", () => {
+    // The backend names the heading a Markdown chunk opens with; a parser that
+    // only knew `page` dropped every such passage from the card and Sources.
+    const result = [
+      '[1] Source: guide.md, section "Install", chunk 2 [docs] (score: 0.900)',
+      "# Install",
+      "Run make dev.",
+      "[2] Source: handbook.pdf, page 4 (score: 0.800)",
+      "Refunds.",
+    ].join("\n");
+
+    const items = parseRAGResults(result);
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      source: "guide.md",
+      section: "Install",
+      page: undefined,
+      chunk: "2",
+      collection: "docs",
+      content: "# Install\nRun make dev.",
+    });
+    expect(items[1]).toMatchObject({ page: "4", section: undefined });
+  });
+
+  it("reads a passage given with its surrounding text", () => {
+    const result =
+      "[1] Source: guide.md, chunk 2 [docs], with surrounding text (score: 0.900)\nBefore. Match.";
+
+    expect(parseRAGResults(result)).toEqual([
+      expect.objectContaining({ source: "guide.md", chunk: "2", collection: "docs" }),
+    ]);
   });
 
   it("finds nothing in text that is not a result list", () => {
@@ -865,4 +902,216 @@ describe("what a planning call shows", () => {
     expect(screen.getByText(said)).toBeInTheDocument();
     expect(screen.queryByText("Running…")).toBeNull();
   });
+});
+
+describe("the generated speech", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_speech",
+    filename: "abc123_speech.mp3",
+    url: "/api/v1/generated/abc123_speech.mp3",
+    media_type: "audio/mpeg",
+    voice: "marin",
+    characters: 12,
+  });
+
+  it("addresses the clip through the same-origin proxy, not the backend URL", () => {
+    expect(parseGeneratedSpeech(PAYLOAD)).toEqual({
+      voice: "marin",
+      url: "/api/generated/abc123_speech.mp3",
+    });
+  });
+
+  it("has no URL when the clip was made but not stored", () => {
+    const parsed = parseGeneratedSpeech(
+      JSON.stringify({ kind: "generated_speech", filename: null }),
+    );
+
+    expect(parsed).toEqual({ voice: "", url: null });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedSpeech("Not spoken: no key")).toBeNull();
+    expect(parseGeneratedSpeech(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseGeneratedSpeech("null")).toBeNull();
+  });
+
+  it("plays the clip where an image would be shown, naming the voice", () => {
+    const { container } = render(<GeneratedSpeechResult data={parseGeneratedSpeech(PAYLOAD)!} />);
+
+    expect(container.querySelector("audio")).toHaveAttribute(
+      "src",
+      "/api/generated/abc123_speech.mp3",
+    );
+    expect(screen.getByText("Voice: marin")).toBeInTheDocument();
+  });
+
+  it("names no voice when none was recorded", () => {
+    const { container } = render(
+      <GeneratedSpeechResult data={{ voice: "", url: "/api/generated/x_speech.mp3" }} />,
+    );
+
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says the clip was not kept when there is nothing to play", () => {
+    render(<GeneratedSpeechResult data={{ voice: "marin", url: null }} />);
+
+    expect(screen.getByText("The speech was recorded but not saved.")).toBeInTheDocument();
+  });
+});
+
+describe("the generated video", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "generated_video",
+    filename: "abc123_video.mp4",
+    url: "/api/v1/generated/abc123_video.mp4",
+    media_type: "video/mp4",
+    prompt: "a red bicycle in the rain",
+    seconds: 5,
+  });
+
+  it("addresses the clip through the same-origin proxy, not the backend URL", () => {
+    expect(parseGeneratedVideo(PAYLOAD)).toEqual({
+      prompt: "a red bicycle in the rain",
+      url: "/api/generated/abc123_video.mp4",
+    });
+  });
+
+  it("addresses every kind through the page's link on a hosted page (#2309)", () => {
+    const hosted = { kind: "hosted", publicKey: "pk_abc" } as const;
+    const token = `1792689903.${"c".repeat(64)}`;
+    const signed = (kind: string, filename: string) =>
+      JSON.stringify({ kind, filename, token, prompt: "x", voice: "marin" });
+
+    expect(parseGeneratedVideo(signed("generated_video", "a_video.mp4"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_video.mp4?token=${token}`,
+    );
+    expect(parseGeneratedSpeech(signed("generated_speech", "a_speech.mp3"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_speech.mp3?token=${token}`,
+    );
+    expect(parseGeneratedImage(signed("generated_image", "a_image.png"), hosted)?.url).toBe(
+      `/api/embed/pk_abc/generated/a_image.png?token=${token}`,
+    );
+  });
+
+  it("has no URL when the clip was made but not stored", () => {
+    expect(
+      parseGeneratedVideo(JSON.stringify({ kind: "generated_video", filename: null })),
+    ).toEqual({
+      prompt: "",
+      url: null,
+    });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseGeneratedVideo("Not made: no key")).toBeNull();
+    expect(parseGeneratedVideo(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseGeneratedVideo("null")).toBeNull();
+  });
+
+  it("plays the clip where an image would be shown, captioned by its prompt", () => {
+    const { container } = render(<GeneratedVideoResult data={parseGeneratedVideo(PAYLOAD)!} />);
+
+    expect(container.querySelector("video")).toHaveAttribute(
+      "src",
+      "/api/generated/abc123_video.mp4",
+    );
+    expect(screen.getByText("a red bicycle in the rain")).toBeInTheDocument();
+  });
+
+  it("has no caption when the prompt is empty", () => {
+    const { container } = render(
+      <GeneratedVideoResult data={{ prompt: "", url: "/api/generated/x_video.mp4" }} />,
+    );
+
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says the clip was not kept when there is nothing to play", () => {
+    render(<GeneratedVideoResult data={{ prompt: "x", url: null }} />);
+
+    expect(screen.getByText("The video was made but not saved.")).toBeInTheDocument();
+  });
+});
+
+describe("a desktop screenshot the agent kept", () => {
+  const PAYLOAD = JSON.stringify({
+    kind: "desktop_screenshot",
+    filename: "abc123_image.png",
+    url: "/api/v1/generated/abc123_image.png",
+    caption: "The page after the click",
+    width: 2560,
+    height: 1600,
+    workspace_path: null,
+  });
+
+  it("is read through the same-origin proxy, captioned as the agent wrote it", () => {
+    expect(parseDesktopScreenshot(PAYLOAD)).toEqual({
+      caption: "The page after the click",
+      url: "/api/generated/abc123_image.png",
+    });
+  });
+
+  it("has no URL and no caption where none were given", () => {
+    const parsed = parseDesktopScreenshot(
+      JSON.stringify({ kind: "desktop_screenshot", filename: null }),
+    );
+
+    expect(parsed).toEqual({ caption: "", url: null });
+  });
+
+  it("refuses anything that is not that payload", () => {
+    expect(parseDesktopScreenshot("The desktop did not return a screenshot.")).toBeNull();
+    expect(parseDesktopScreenshot(JSON.stringify({ kind: "generated_image" }))).toBeNull();
+    expect(parseDesktopScreenshot("null")).toBeNull();
+  });
+
+  it("shows the screenshot, opening it at full size in a tab of its own", () => {
+    render(<DesktopScreenshotResult data={parseDesktopScreenshot(PAYLOAD)!} />);
+
+    const image = screen.getByRole("img", { name: "The page after the click" });
+    expect(image).toHaveAttribute("src", "/api/generated/abc123_image.png");
+    expect(image.closest("a")).toHaveAttribute("href", "/api/generated/abc123_image.png");
+    expect(image.closest("a")).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("The page after the click")).toBeInTheDocument();
+  });
+
+  it("draws no caption it was not given", () => {
+    const { container } = render(
+      <DesktopScreenshotResult data={{ caption: "", url: "/api/generated/x.png" }} />,
+    );
+
+    expect(container.querySelector("img")).toHaveAttribute("src", "/api/generated/x.png");
+    expect(container.querySelector("figcaption")).toBeNull();
+  });
+
+  it("says so when there is nothing to show", () => {
+    render(<DesktopScreenshotResult data={{ caption: "", url: null }} />);
+
+    expect(screen.getByText("The screenshot was taken but not stored.")).toBeInTheDocument();
+  });
+});
+
+it("renders Keenable search output as source cards", () => {
+  const data = parseWebSearch(
+    JSON.stringify({
+      kind: "web_search",
+      provider: "keenable",
+      query: "AgenticOS",
+      results: [
+        {
+          title: "AgenticOS source",
+          url: "https://github.com/vstorm-co/agenticos",
+          content: "An open-source agent platform.",
+        },
+      ],
+    }),
+  );
+  if (data === null) throw new Error("Expected a structured Keenable search result");
+  render(<WebSearchResults data={data} />);
+  expect(screen.getByRole("link", { name: /AgenticOS source/ })).toHaveAttribute(
+    "href",
+    "https://github.com/vstorm-co/agenticos",
+  );
+  expect(screen.getByText("An open-source agent platform.")).toBeInTheDocument();
 });

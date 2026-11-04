@@ -35,7 +35,7 @@ from app.db.session import get_db_context
 from app.repositories import organization_repo
 from app.schemas.channel_bot import AccessPolicy, ChannelBotCreate
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
-from app.services.channels import get_adapter, inbound_webhook_url
+from app.services.channels import INBOUND_PATHS, get_adapter, inbound_webhook_url
 from app.services.channels.base import OutgoingMessage
 
 
@@ -131,11 +131,17 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
 @click.option(
     "--platform",
     required=True,
-    type=click.Choice(["telegram", "slack", "mattermost"]),
+    type=click.Choice(["telegram", "slack", "mattermost", "teams", "discord"]),
     help="Platform name",
 )
 @click.option("--name", "-n", required=True, help="Bot display name")
 @click.option("--token", "-t", required=True, help="Bot token (e.g. from BotFather)")
+@click.option(
+    "--discord-guild",
+    "discord_guild_ids",
+    multiple=True,
+    help="An explicitly approved Discord server ID. Repeat for several; empty permits DMs only.",
+)
 @click.option(
     "--mode",
     default="open",
@@ -155,15 +161,28 @@ def channel_list_bots(platform: str | None, org_id: str | None) -> None:
         "shows it when the integration is created; Telegram needs none here."
     ),
 )
+@click.option(
+    "--teams-app-id",
+    default=None,
+    help="The Azure Bot's Microsoft App ID. Teams only; --token is its client secret.",
+)
+@click.option(
+    "--teams-tenant-id",
+    default=None,
+    help="The Entra tenant the single-tenant Azure Bot is registered in. Teams only.",
+)
 @_org_option
 def channel_add_bot(
     platform: str,
     name: str,
     token: str,
+    discord_guild_ids: tuple[str, ...],
     mode: Literal["open", "whitelist", "jwt_linked", "group_only"],
     org_id: str | None,
     api_base_url: str | None,
     webhook_secret: str | None,
+    teams_app_id: str | None,
+    teams_tenant_id: str | None,
 ) -> None:
     """Encrypt the bot token and register the bot in the database.
 
@@ -176,12 +195,14 @@ def channel_add_bot(
             platform=platform,
             name=name,
             token=token,
-            access_policy=AccessPolicy(mode=mode),
+            access_policy=AccessPolicy(mode=mode, discord_guild_ids=list(discord_guild_ids)),
             api_base_url=api_base_url,
             webhook_secret=webhook_secret,
             # A pasted secret is only ever for an inbound webhook, so saying so
             # here saves an operator a second command to switch the mode on.
             webhook_mode=webhook_secret is not None,
+            teams_app_id=teams_app_id,
+            teams_tenant_id=teams_tenant_id,
         )
         async with _channel_service(org_id) as svc:
             bot = await svc.create(data)
@@ -192,7 +213,7 @@ def channel_add_bot(
         info(f"  Mode     : {mode}")
         if api_base_url:
             info(f"  Server   : {api_base_url}")
-        if webhook_secret:
+        if webhook_secret or platform == "teams":
             info(f"  Webhook  : {inbound_webhook_url(platform, bot.id)}")
 
     asyncio.run(_run())
@@ -219,6 +240,9 @@ def channel_webhook_register(bot_id: str, org_id: str | None) -> None:
                 return
             token = svc.get_decrypted_token(bot)
 
+        if bot.platform not in INBOUND_PATHS:
+            error(f"A {bot.platform} bot has no webhook to register.")
+            return
         adapter = get_adapter(bot.platform)
         webhook_url = inbound_webhook_url(bot.platform, bot.id)
 

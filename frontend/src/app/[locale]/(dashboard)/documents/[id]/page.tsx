@@ -29,7 +29,7 @@ export default async function DocumentFolderPage({ params }: { params: Promise<{
     // page, and a child at 100% of the content box plus that padding overflows it
     // by exactly the padding - a scrollbar on every page that would otherwise
     // have none.
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {/* No bottom margin of its own: the column's gap is the spacing here, and
           the two added up to a band of nothing above the explorer. */}
       <PageHeader

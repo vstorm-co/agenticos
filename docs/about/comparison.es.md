@@ -1,5 +1,5 @@
 ---
-source_sha: "5a104286b211"
+source_sha: "f8d7b221b146"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS, capa soberana de agents de IA open source, con Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n y agents de código."
@@ -10,6 +10,8 @@ description: "Compara AgenticOS, capa soberana de agents de IA open source, con 
 La mayoría de los productos de este ámbito son una de cinco cosas: una app de asistente, un builder de agents, un servicio de compañero de equipo, una plataforma empresarial entregada o un agent de programación. AgenticOS es una capa soberana para los agents de una empresa que operas tú mismo. Estas guías muestran dónde encaja cada opción y qué añade AgenticOS.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026, y las de OpenAI Frontier el 14 de octubre. Versión de referencia de AgenticOS: v1.10.0. Revisar antes del 21 de noviembre de 2026, o antes si un proveedor cambia la oferta que describe una guía. Cada guía indica sus fuentes. Para estas guías no se ha utilizado ninguna cuenta de un competidor.
+
+Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## Elige la guía para tu decisión { #pick-the-guide-for-your-decision }
 
@@ -57,7 +59,7 @@ Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el
 
 | Producto | Dónde se ejecuta | Qué modelos puedes usar | Qué te permite la licencia | Inicio de sesión, auditoría y control del gasto |
 | --- | --- | --- | --- | --- |
-| **AgenticOS** | Tu infraestructura; una instalación nueva no envía nada a ninguna parte | Cualquiera de los 28 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros; el parser de PDF por defecto es AGPL-3.0, así que una imagen modificada que sirvas a otros les debe su código fuente ([detalles](../licenses.md#the-agpl-component)) | Inicio de sesión: SSO OIDC, LDAP y Kerberos · Auditoría: registro con detección de manipulaciones · Gasto: budgets por agent y por organización · todo en cada despliegue |
+| **AgenticOS** | Tu infraestructura; una instalación nueva no envía prompts ni documentos a ninguna parte, y el diagnóstico está activado por defecto y se puede desactivar | Cualquiera de los 28 providers, o solo modelos locales | Apache-2.0: leerlo, modificarlo, ponerle tu marca y operarlo para otros; el parser de PDF por defecto es AGPL-3.0, así que una imagen modificada que sirvas a otros les debe su código fuente ([detalles](../licenses.md#the-agpl-component)) | Inicio de sesión: SSO OIDC, LDAP y Kerberos · Auditoría: registro con detección de manipulaciones · Gasto: budgets por agent y por organización · todo en cada despliegue |
 | Claude Team / Enterprise | La nube de Anthropic | Solo Claude | Propietaria | Inicio de sesión: SSO en Team y Enterprise · Auditoría: Enterprise, 180 días de eventos · Gasto: límites por organización y por usuario |
 | ChatGPT Business / Enterprise | La nube de OpenAI; en Enterprise, residencia del almacenamiento en diez regiones | Solo OpenAI | Propietaria | Inicio de sesión: SSO SAML en Business; SCIM y control de acceso basado en roles en Enterprise · Auditoría: Compliance API en Enterprise y Edu · Gasto: bolsas de créditos y límites de exceso |
 | Copilot Studio | La nube de Microsoft, en entornos de Power Platform | Modelos GPT por defecto, modelos Claude, modelos de Azure Foundry facturados aparte | Propietaria | Inicio de sesión: Entra ID · Auditoría: Purview · Gasto: límites mensuales por agent |
@@ -67,7 +69,7 @@ Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el
 | Viktor | La nube de Viktor, alojada en EE. UU. por defecto | Modelos de OpenAI, Anthropic, Google y xAI, o tu propia clave de OpenRouter | Propietaria | Inicio de sesión: SSO SAML · Auditoría: registros de auditoría en Enterprise · Gasto: bolsa de créditos con un tope mensual de recargas, límites por usuario en Enterprise |
 | Sauna | La nube de Sauna; infraestructura en EE. UU. para clientes de EE. UU. | Su propio modelo Lite, o todos los modelos desde el plan Basic | Propietaria | Inicio de sesión: correo electrónico o Google · Auditoría: no indicada · Gasto: créditos por plan |
 | OpenAI dots | La nube de OpenAI; el plan Pro no se ofreció al lanzamiento en el EEE, Suiza ni Reino Unido | Solo OpenAI | Propietaria | Inicio de sesión: cuentas de ChatGPT · Auditoría: no indicada para dots · Gasto: incluido en el plan |
-| Grok Bot | La nube de xAI | Solo Grok | Propietaria | Inicio de sesión: cuentas de xAI o Cursor · Auditoría: anunciada · Gasto: precio del plan, sin tope indicado |
+| Grok Bot | Nube de xAI | Servicio Grok Bot | Propietario | Enterprise: logs, exportación OpenTelemetry, lista permitida MCP y SCIM; [alcance actual](grok-bot.md) |
 | OpenAI Frontier | En local, tu nube o la de OpenAI | OpenAI | Propietaria | Inicio de sesión, auditoría y gasto: no indicados públicamente; anunciados permisos por agent y paneles |
 | Microsoft Agent 365 | La nube de Microsoft | A través de los agents que gobierna | Propietaria | Inicio de sesión: Entra ID · Auditoría: Purview · Gasto: licencias de Microsoft 365 |
 | Claude Managed Agents | La nube de Anthropic | Solo Claude | Propietaria | Inicio de sesión: claves de API de Anthropic · Auditoría: no indicada · Gasto: tokens más una tarifa por hora de sesión, límites de la organización |
@@ -82,7 +84,7 @@ Operar AgenticOS tú mismo no hace locales todos los modelos, parsers y herramie
 
 Estos puntos recorren todas las guías, así que se exponen una sola vez aquí.
 
-- **El despliegue es tuyo.** Se ejecuta en tu hardware con tu propio Postgres y tu propio almacenamiento, y una instalación nueva no envía nada a ninguna parte. Es posible una configuración totalmente local, con modelos de chat locales, embeddings locales y procesamiento local de documentos. Consulta [nada sale por defecto](../data-protection.md#nothing-leaves-by-default).
+- **El despliegue es tuyo.** Se ejecuta en tu hardware con tu propio Postgres y tu propio almacenamiento, y una instalación nueva no envía prompts ni documentos a ninguna parte; el diagnóstico del deployment está activado por defecto y se puede desactivar. Es posible una configuración totalmente local, con modelos de chat locales, embeddings locales y procesamiento local de documentos. Consulta [qué sale por defecto](../data-protection.md#nothing-leaves-by-default).
 - **Cualquier modelo, cambiado en un solo lugar.** [28 providers](../models.md#providers) se sitúan detrás de un [perfil de modelo](../models.md#a-model-profile) con [fallbacks](../models.md#fallbacks). Cambia el perfil y todos los agents que lo usan se mueven, sin volver a publicar.
 - **Un agent es un documento versionado.** Publicar congela una [versión](../concepts.md#version), los [entornos](../environments.md#what-an-environment-is) apuntan a versiones, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) a tu propio repositorio git.
 - **La gobernanza está en el producto de código abierto.** Los [budgets](../governance.md#enforcement-is-before-the-request) se comprueban antes de cada petición al modelo. Las [aprobaciones](../governance.md#approvals) detienen un run hasta que alguien decide. El [registro de auditoría](../governance.md#audit) detecta manipulaciones. Nada de esto espera a un plan empresarial.
@@ -100,7 +102,7 @@ Una comparación que oculta sus propias carencias es un anuncio. Contrasta estos
 - El inicio de sesión todavía no tiene SAML ni SCIM; SAML funciona a través de un broker de identidad como Keycloak. Consulta [lo que el inicio de sesión con directorio todavía no hace](../directory.md#what-this-does-not-do-yet).
 - No hay un entorno de evaluación ni un panel de trazas. Existen las valoraciones y el historial de runs. Consulta [dónde no está terminado](index.md#where-this-one-is-not-finished).
 - No hay canal de conversación para Microsoft Teams, WhatsApp, teléfono ni correo electrónico. Las [conversaciones de voz](../voice.md) funcionan en el chat web, el widget y la página alojada, no por una línea telefónica.
-- No hay un lienzo visual de workflows. El trabajo de varios pasos usa delegación, planificación y disparadores.
+- AgenticOS incluye un editor visual de workflows con pasos tipados. El trabajo de varios pasos usa delegación, planificación y disparadores.
 - Una vinculación MCP configurada en `writes` confía en las marcas de solo lectura del propio servidor, así que una herramienta que marca mal como de solo lectura se ejecuta sin preguntar; `all` retiene cada llamada. Consulta [lo que MCP no te da](../mcp.md#what-mcp-does-not-get-you).
 - El despliegue es Docker Compose, y un único host es el camino que se entrega. Un Postgres externo y más hosts de API y workers están [documentados](../scaling.md), pero no hay manifiestos de Kubernetes.
 - Lo operas tú, o acuerdas la operación con Vstorm u otro partner.
@@ -140,3 +142,7 @@ Empieza por el tipo de producto que estás valorando: una app de asistente, un b
 Una biblioteca como [Pydantic AI](https://ai.pydantic.dev/) encaja con un agent integrado en tu propia aplicación; AgenticOS se ejecuta sobre ella y añade la aplicación para configurar y operar agents. [OpenClaw](https://github.com/openclaw/openclaw) documenta despliegues personales y de equipos compartidos. [Lindy](https://www.lindy.ai/) ofrece un servicio de compañero de equipo. Son candidatos adicionales, no productos descartados aquí.
 
 Empieza con la [tarea documental](../howto/first-document-agent.md) y después revisa [operación e implementación](../rollout.md). Los maintainers de AgenticOS son los responsables de estas guías.
+
+[Muse](muse.md) · [Claude Duet](claude-duet.md) — Fuentes revisadas el 2 de noviembre de 2026; AgenticOS v1.35.0.
+
+[AgenticOS vs OpenBot](openbot.md)

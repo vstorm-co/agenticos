@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LiveBrowsesProvider, TurnBrowses } from "./browser-card";
+import { BrowserPanelAutoOpen, LiveBrowsesProvider, TurnBrowses } from "./browser-card";
 import type { ToolCall } from "@/types";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
@@ -94,7 +94,9 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
 
   it("sets several side by side, each its own browser", () => {
     const { container } = render(
-      <BrowserCards browses={[browse(), browse({ callId: "c2", title: "Docs" })]} />,
+      <BrowserCards
+        browses={[browse({ tabId: "one" }), browse({ callId: "c2", tabId: "two", title: "Docs" })]}
+      />,
     );
 
     expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
@@ -102,20 +104,23 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     expect(container.querySelector(".md\\:grid-cols-2")).not.toBeNull();
   });
 
-  it("opens full screen, and lets its socket go while it is shown there", async () => {
+  it("opens beside the chat, and lets its inline socket go", async () => {
     render(<BrowserCards browses={[browse()]} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
+    await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Open beside the chat" }));
 
     expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
     expect(live.calls.at(-1)).toEqual(["run-1", "c1", false]);
-    await userEvent.click(screen.getByRole("button", { name: /example.test is open full screen/ }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /example.test is open in the browser panel/ }),
+    );
     expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
   });
 
-  it("keeps a finished browse's last view, without a live socket", () => {
+  it("fetches a finished browse's cached last view", () => {
     render(<BrowserCards browses={[browse({ outcome: "done" })]} />);
-    expect(live.calls.at(-1)).toEqual(["run-1", "c1", false]);
+    expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
     expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
   });
 
@@ -145,7 +150,7 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     };
     render(<BrowserCards browses={[]} calls={[opened]} />);
 
-    expect(screen.getByText("Browsed www.bing.com")).toBeVisible();
+    expect(screen.getByText("Browsed bing.com")).toBeVisible();
   });
 
   it("says the agent browsed the web when the call named no page", () => {
@@ -154,4 +159,187 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     expect(screen.getByText("Browsed the web")).toBeVisible();
     expect(screen.queryByRole("link")).toBeNull();
   });
+
+  it("says once that the agent used a computer, however many runs did", () => {
+    const desktop = (id: string, name: string): ToolCall => ({
+      id,
+      name,
+      args: {},
+      status: "completed",
+    });
+    render(
+      <BrowserCards
+        browses={[]}
+        calls={[desktop("look", "computer_screenshot"), desktop("act", "computer_act")]}
+      />,
+    );
+
+    expect(screen.getAllByText("Used a computer")).toHaveLength(1);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("draws a desktop's window and no line beside it", () => {
+    const calls: ToolCall[] = [
+      { id: "look", name: "computer_screenshot", args: {}, status: "completed" },
+      { id: "act", name: "computer_act", args: {}, status: "completed" },
+    ];
+    render(<BrowserCards browses={[browse({ callId: "act", url: null })]} calls={calls} />);
+
+    expect(screen.queryByText("Used a computer")).toBeNull();
+  });
+});
+
+it("opens the native tab panel rather than presenting an empty screenshot", async () => {
+  const user = userEvent.setup();
+  render(<BrowserCards browses={[browse({ nativeId: "native-browser-test", outcome: "done" })]} />);
+  await user.click(screen.getByRole("button", { name: "Pricing" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+});
+
+it("opens a new native browse automatically in the desktop console", () => {
+  window.__AGENTICOS_SHELL__ = {
+    platform: "macos",
+    version: "0.2.0",
+    window: "main",
+    vibrancy: true,
+  };
+  try {
+    render(<BrowserPanelAutoOpen browses={[browse({ nativeId: "native-browser-test" })]} />);
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  } finally {
+    delete window.__AGENTICOS_SHELL__;
+  }
+});
+
+it("automatically opens a remote browser without rendering a second preview", () => {
+  const { container } = render(<BrowserPanelAutoOpen browses={[browse({ navigable: true })]} />);
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  expect(container).toBeEmptyDOMElement();
+});
+
+it("respects closing throughout a run and opens again for a new run", () => {
+  const { rerender } = render(<BrowserPanelAutoOpen browses={[browse({ navigable: true })]} />);
+  act(() => useBrowserPanelStore.getState().close());
+  rerender(<BrowserPanelAutoOpen browses={[browse({ callId: "next", navigable: true })]} />);
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+  rerender(
+    <BrowserPanelAutoOpen browses={[browse({ callId: "new", runId: "run-2", navigable: true })]} />,
+  );
+  expect(useBrowserPanelStore.getState().openCallId).toBe("new");
+});
+
+it("does not change the selected page when another browser session starts", () => {
+  useBrowserPanelStore.getState().open("reading");
+  render(<BrowserPanelAutoOpen browses={[browse({ navigable: true })]} />);
+  expect(useBrowserPanelStore.getState().openCallId).toBe("reading");
+});
+
+it("does not automatically reopen a completed browser", () => {
+  render(<BrowserPanelAutoOpen browses={[browse({ navigable: true, outcome: "done" })]} />);
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+});
+
+it("does not automatically open a native browser outside the desktop shell", () => {
+  render(<BrowserPanelAutoOpen browses={[browse({ nativeId: "native" })]} />);
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+});
+
+it("ignores an empty conversation and opens browser entries without run ids", () => {
+  const { container, rerender } = render(<BrowserPanelAutoOpen browses={[]} />);
+  expect(container).toBeEmptyDOMElement();
+  rerender(<BrowserPanelAutoOpen browses={[browse({ runId: undefined, navigable: true })]} />);
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+});
+
+it("keeps legacy previews without a run or host readable in the panel", () => {
+  const entry = browse({ runId: null, url: null, title: null });
+  const { rerender } = render(<BrowserCards browses={[entry]} />);
+  expect(live.calls.at(-1)).toEqual(["", "c1", false]);
+  act(() => useBrowserPanelStore.getState().open("c1"));
+  rerender(<BrowserCards browses={[entry]} />);
+  expect(
+    screen.getByRole("button", { name: "Browser is open in the browser panel" }),
+  ).toBeInTheDocument();
+});
+
+it("labels browser links with their host or the browser name when no title is available", () => {
+  render(
+    <BrowserCards
+      browses={[
+        browse({ navigable: true, tabId: "one", title: null }),
+        browse({ callId: "c2", tabId: "two", navigable: true, title: null, url: null }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Browsed example.test" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Browsed the web" })).toBeInTheDocument();
+});
+
+it("recovers a visited article's identity from its stored result when its arguments contain no URL", () => {
+  render(
+    <BrowserCards
+      browses={[]}
+      calls={[
+        {
+          ...call("article"),
+          name: "browser_click",
+          args: { element: 12 },
+          result:
+            "Done: clicked element 12.\n\nPAGE: Article about Poland - https://www.onet.pl/news/poland\nSCROLL: more below",
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText("Article about Poland")).toBeVisible();
+  expect(screen.getByText("onet.pl")).toBeVisible();
+  expect(screen.getByRole("link", { name: /Visit site/ })).toHaveAttribute(
+    "href",
+    "https://www.onet.pl/news/poland",
+  );
+  expect(screen.queryByText("Browsed the web")).toBeNull();
+});
+
+it("updates one card as the same tab clicks, reads, scrolls and goes back", () => {
+  const page = (id: string, name: string, title: string, url: string): ToolCall => ({
+    id,
+    name,
+    args: {},
+    status: "completed",
+    result: `PAGE: ${title} - ${url}\nSCROLL: more below`,
+  });
+  render(
+    <BrowserCards
+      browses={[]}
+      calls={[
+        page("open", "browser_open", "Onet", "https://onet.pl/"),
+        page("click", "browser_click", "Article", "https://onet.pl/article"),
+        page("read", "browser_read", "Article", "https://onet.pl/article"),
+        page("scroll", "browser_scroll", "Article", "https://onet.pl/article"),
+        page("back", "browser_back", "Onet", "https://onet.pl/"),
+      ]}
+    />,
+  );
+  expect(screen.getAllByRole("link", { name: /Visit site/ })).toHaveLength(1);
+  expect(screen.getByRole("link", { name: /Visit site/ })).toHaveAttribute(
+    "href",
+    "https://onet.pl/",
+  );
+});
+
+it("does not add a historical card beside a live view when the same tab is read again", () => {
+  render(
+    <BrowserCards
+      browses={[browse({ callId: "open", navigable: true, tabId: "main" })]}
+      calls={[
+        { ...call("open"), name: "browser_open" },
+        {
+          ...call("read"),
+          name: "browser_read",
+          result: "PAGE: Pricing - https://example.test/pricing",
+        },
+      ]}
+    />,
+  );
+  expect(screen.getAllByRole("button", { name: "Pricing" })).toHaveLength(1);
+  expect(screen.queryByRole("link", { name: /Visit site/ })).toBeNull();
 });

@@ -11,12 +11,14 @@ from sqlalchemy import (
     Computed,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Identity,
     Index,
     Integer,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
@@ -41,6 +43,28 @@ class Conversation(Base, TimestampMixin):
     """
 
     __tablename__ = "conversations"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_conversation_org_id"),
+        ForeignKeyConstraint(
+            ["organization_id", "workflow_id"],
+            ["workflows.organization_id", "workflows.id"],
+            ondelete="CASCADE",
+            name="fk_conversation_workflow",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "source_conversation_id"],
+            ["conversations.organization_id", "conversations.id"],
+            ondelete="CASCADE",
+            name="fk_conversation_source",
+        ),
+    )
+
+    workflow_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -204,6 +228,12 @@ class Message(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
+    client_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    """The submitting tab's correlation id, scoped by conversation and author.
+
+    Lets a transcript reconcile a prompt even when its persistence frame was lost.
+    It grants no authority and is not an idempotency key.
+    """
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     thinking: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -378,6 +408,17 @@ class Message(Base, TimestampMixin):
     file reaches a model that still knows the file is there.
 
     Null on every message that carried no attachment."""
+
+    guardrail_refused: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    """This row belongs to a turn a guardrail stopped, so no later history replays it (#2578).
+
+    Kept on the row rather than read off `run_id`: run retention deletes a
+    `guardrail_blocked` run like any other, `run_id` is `SET NULL`, and a refusal
+    read through the run would end with it - the prompt the input edge stopped
+    then reached the model on the next turn. Set on every row of the run when it
+    ends `guardrail_blocked`, and on a row written for such a run afterwards."""
 
     conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
     tool_calls: Mapped[list[ToolCall]] = relationship(

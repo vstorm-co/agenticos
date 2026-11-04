@@ -10,11 +10,20 @@ import Link from "next/link";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
+import { MailboxInterval } from "@/components/triggers/mailbox-interval";
 import { PortalTriggerDialog } from "@/components/triggers/portal-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   Badge,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  FormField,
+  Input,
   Button,
   Card,
   CardContent,
@@ -33,11 +42,8 @@ import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
 import type { PortalCatalogEntry } from "@/types/portals";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
-import {
-  startGithubOrgOAuth,
-  startMcpOAuth,
-  startPolledPortalOAuth,
-} from "@/lib/mcp-connections-api";
+import { connectGithubApp } from "@/lib/mcp-connections-api";
+import { portalConnectUrl } from "@/lib/portal-connect";
 import { getErrorMessage } from "@/lib/api-error";
 
 /**
@@ -112,6 +118,8 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   const { items, isLoading, error } = usePortals();
 
   const [category, setCategory] = useState("all");
+  const [installing, setInstalling] = useState<PortalWithState | null>(null);
+  const [installationId, setInstallationId] = useState("");
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [dialog, setDialog] = useState<PortalWithState | null>(null);
   const [advanced, setAdvanced] = useState(false);
@@ -143,22 +151,14 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
   });
 
   async function connect(item: PortalWithState) {
+    if (item.portal.delivery === "app_webhook") {
+      setInstallationId("");
+      setInstalling(item);
+      return;
+    }
     setBusyKey(item.portal.key);
     try {
-      // Three flows, because three kinds of provider. GitHub cannot be discovered
-      // like a generic MCP server, so its consent URL is built from the
-      // organization's own OAuth App secret keyed by the portal. A *polled* portal
-      // registers nothing and only needs a refreshable token, on the deployment's
-      // own client. Everything else follows discovery-and-registration.
-      const { authorization_url } =
-        item.portal.delivery === "polling"
-          ? await startPolledPortalOAuth(item.portal.key)
-          : item.portal.event_source === "github"
-            ? await startGithubOrgOAuth(item.portal.key)
-            : await startMcpOAuth(
-                { name: item.serverName ?? item.portal.name, url: item.serverUrl ?? "" },
-                "organization",
-              );
+      const authorization_url = await portalConnectUrl(item);
       window.location.assign(authorization_url);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors, t("couldNotConnect")));
@@ -176,6 +176,47 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
 
   return (
     <>
+      <Dialog
+        open={installing !== null}
+        onOpenChange={(open) => {
+          if (!open) setInstalling(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("githubAppInstallTitle")}</DialogTitle>
+            <DialogDescription>{t("githubAppInstallHelp")}</DialogDescription>
+          </DialogHeader>
+          <FormField label={t("installationIdLabel")} htmlFor="github-installation-id">
+            <Input
+              id="github-installation-id"
+              inputMode="numeric"
+              value={installationId}
+              onChange={(event) => setInstallationId(event.target.value)}
+            />
+          </FormField>
+          <DialogFooter>
+            <Button
+              disabled={!/^\d+$/.test(installationId) || busyKey !== null}
+              onClick={async () => {
+                if (!installing) return;
+                setBusyKey(installing.portal.key);
+                try {
+                  await connectGithubApp(installationId);
+                  await queryClient.invalidateQueries({ queryKey: qk.portals.catalog() });
+                  setInstalling(null);
+                } catch (error) {
+                  toast.error(getErrorMessage(error, tErrors, t("couldNotConnect")));
+                } finally {
+                  setBusyKey(null);
+                }
+              }}
+            >
+              {t("connectAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ListCard
         title={t("title")}
         counted={t("portalCount", { count: items.length })}
@@ -268,6 +309,10 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                 </div>
 
                 <div className="mt-auto">
+                  {/* How often a connected mailbox is checked - the mailbox's own
+                      setting, shared by every trigger on it. Renders nothing for
+                      any other portal. */}
+                  <MailboxInterval portal={item.portal} canManage={canManageConnections} />
                   {/* The prerequisite, said before the click rather than as a red
                       toast after it - and answerable *here*, which is the half
                       that was missing. GitHub's consent URL is built from the
@@ -279,6 +324,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                   {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
                       {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
+                        portal: item.portal.name,
                         credential: credentialName(item.portal.oauth_app_kind),
                       })}
                     </p>

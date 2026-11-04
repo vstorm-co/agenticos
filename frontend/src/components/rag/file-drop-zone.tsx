@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -53,6 +53,29 @@ export function FileDropZone({
   const t = useTranslations("pages.kb");
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
+  const reset = () => {
+    dragCounter.current = 0;
+    setIsDragging(false);
+  };
+  useEffect(() => {
+    const clear = () => {
+      dragCounter.current = 0;
+      setIsDragging(false);
+    };
+    const dropped = (event: DragEvent) => {
+      // A missed drop must not replace the console with the dragged file.
+      if (event.dataTransfer?.types.includes(DRAGGED_FILES)) event.preventDefault();
+      clear();
+    };
+    window.addEventListener("dragend", clear);
+    window.addEventListener("drop", dropped);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("dragend", clear);
+      window.removeEventListener("drop", dropped);
+      window.removeEventListener("blur", clear);
+    };
+  }, []);
 
   return (
     <div
@@ -63,36 +86,49 @@ export function FileDropZone({
           setIsDragging(true);
         }
       }}
-      onDragLeave={() => {
+      onDragLeave={(event) => {
         dragCounter.current = Math.max(0, dragCounter.current - 1);
-        if (dragCounter.current === 0) setIsDragging(false);
+        if (event.relatedTarget instanceof Node) {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          reset();
+        } else {
+          // WebKit can omit relatedTarget while crossing a child boundary.
+          const rect = event.currentTarget.getBoundingClientRect();
+          if (
+            event.clientX >= rect.left &&
+            event.clientX < rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY < rect.bottom
+          )
+            return;
+          if (dragCounter.current === 0) setIsDragging(false);
+        }
       }}
       onDragOver={(e) => {
-        if (mayCarryFiles(e.dataTransfer)) e.preventDefault();
+        if (mayCarryFiles(e.dataTransfer)) {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        }
       }}
+      onDropCapture={reset}
       onDrop={(e) => {
+        if (!mayCarryFiles(e.dataTransfer)) return;
         e.preventDefault();
-        dragCounter.current = 0;
-        setIsDragging(false);
         const files = e.dataTransfer?.files;
         if (files && files.length > 0) onFiles(files);
       }}
     >
       {isDragging && (
-        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-          <div className="border-foreground/30 bg-card flex flex-col items-center gap-4 rounded-xl border-2 border-dashed px-12 py-16">
-            <span className="bg-muted text-foreground inline-flex h-14 w-14 items-center justify-center rounded-xl">
-              <Upload className="h-6 w-6" />
+        <div
+          aria-hidden="true"
+          data-testid="project-file-drop-overlay"
+          className="border-foreground/30 bg-foreground/[0.025] pointer-events-none absolute inset-0 z-20 rounded-xl border-2 border-dashed"
+        >
+          <div className="bg-popover text-foreground animate-in fade-in-0 absolute bottom-3 left-3 flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-lg border px-3 py-2 shadow-sm">
+            <Upload className="size-4 shrink-0" />
+            <span className="min-w-0 truncate text-xs font-medium">
+              {t("dropUpload")} · {collectionName}
             </span>
-            <div className="text-center">
-              <p className="text-foreground text-lg font-semibold">{t("dropUpload")}</p>
-              <p className="text-muted-foreground mt-1 text-sm">
-                {t.rich("filesWillBeAddedTo", {
-                  name: collectionName,
-                  strong: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
-                })}
-              </p>
-            </div>
           </div>
         </div>
       )}

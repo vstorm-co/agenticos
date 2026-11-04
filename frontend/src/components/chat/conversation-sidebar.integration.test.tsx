@@ -16,13 +16,16 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import * as invalidation from "@/lib/coalesced-invalidation";
 import {
   useAgentSelectionStore,
   useChatBandsStore,
   useConversationStore,
   useWorkingStore,
+  useOrgStore,
 } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
@@ -58,7 +61,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
 }));
 
-function conversation(id: string, title: string, favourite = false) {
+function conversation(id: string, title: string, favourite = false): Conversation {
   return {
     id,
     title,
@@ -74,6 +77,7 @@ function conversation(id: string, title: string, favourite = false) {
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/messages")) return { items: [], total: 0 };
+    if (path === "/orgs") return { items: [{ id: "fallback", is_personal: true }], total: 1 };
     // The trigger-menu gate sweeps /agents itself for a runnable one.
     if (path === "/agents") return { items: mockAgents, total: mockAgents.length };
     return { items, total };
@@ -85,7 +89,7 @@ function listRequests(): string[] {
   return vi
     .mocked(apiClient.get)
     .mock.calls.map(([path]) => path as string)
-    .filter((path) => !path.includes("/messages") && path !== "/agents");
+    .filter((path) => !path.includes("/messages") && path !== "/agents" && path !== "/orgs");
 }
 
 function mount() {
@@ -132,6 +136,87 @@ describe("the list the URL asks for", () => {
     mount();
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("sort_by=updated_at"));
+  });
+});
+
+describe("a sidebar that leaves while refreshing", () => {
+  it("opens a deep link when the initial organization resolves during invalidation", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-initial");
+    useOrgStore.setState({ activeOrgId: null });
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+    try {
+      mount();
+      await waitFor(() => expect(invalidate).toHaveBeenCalled());
+      await act(async () => useOrgStore.getState().setActiveOrgId("fallback"));
+      await act(async () => {
+        finish();
+        await pending;
+      });
+      await waitFor(() =>
+        expect(useConversationStore.getState().currentConversationId).toBe("c-initial"),
+      );
+    } finally {
+      invalidate.mockRestore();
+    }
+  });
+
+  it("loads the transcript again after leaving during its first request", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-reopen");
+    const serveNormally = vi.mocked(apiClient.get).getMockImplementation();
+    let refuseFirst: (reason: unknown) => void = () => {};
+    let messagesRead = 0;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/conversations/c-reopen/messages?latest=true&limit=101") {
+        messagesRead += 1;
+        if (messagesRead === 1)
+          return new Promise((_, reject) => {
+            refuseFirst = reject;
+          });
+        return {
+          items: [{ id: "m-restored", role: "assistant", content: "Already answered" }],
+          total: 1,
+        };
+      }
+      return serveNormally?.(path, options);
+    });
+    const first = mount();
+    await waitFor(() => expect(messagesRead).toBe(1));
+    first.unmount();
+    mount();
+    await waitFor(() => expect(messagesRead).toBe(2));
+    await act(async () => refuseFirst(new DOMException("cancelled", "AbortError")));
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentMessages[0]?.id).toBe("m-restored"),
+    );
+    expect(useConversationStore.getState().currentConversationId).toBe("c-reopen");
+  });
+
+  it("does not open a linked thread after unmount during invalidation", async () => {
+    window.history.replaceState({}, "", "/chat?id=c-late");
+    let finish = () => {};
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
+    try {
+      const { unmount } = mount();
+      await waitFor(() => expect(invalidate).toHaveBeenCalled());
+      unmount();
+      await act(async () => {
+        finish();
+        await pending;
+      });
+      expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
+        "/conversations/c-late/messages?latest=true&limit=101",
+      );
+      expect(useConversationStore.getState().currentConversationId).toBeNull();
+    } finally {
+      invalidate.mockRestore();
+    }
   });
 });
 
@@ -266,6 +351,7 @@ describe("what the sidebar says about the list", () => {
   it("files the threads started in a project under it, above the days", async () => {
     vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
       if (path.includes("/messages")) return { items: [], total: 0 };
+      if (path === "/orgs") return { items: [{ id: "fallback", is_personal: true }], total: 1 };
       if (path === "/agents") return { items: [], total: 0 };
       if (path.startsWith("/projects"))
         return { items: [{ id: "p-1", name: "Q3 launch" }], total: 1 };
@@ -724,4 +810,27 @@ describe("who a row is with", () => {
     const faces = within(list()).getAllByTestId("row-agents");
     expect(faces.map((face) => face.textContent)).toEqual(["Analyst"]);
   });
+});
+
+it("lets the chat header drag the desktop window while keeping its actions accessible", async () => {
+  mount();
+  await screen.findAllByText("Quarterly numbers");
+  const header = within(list()).getByRole("heading", { name: "Chats" }).parentElement;
+  expect(header).toHaveAttribute("data-tauri-drag-region", "deep");
+  await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
+  expect(await screen.findByRole("dialog", { name: "Search conversations" })).toBeVisible();
+});
+
+it("shows the coding harness kept by the list API after reopening the sidebar", async () => {
+  const saved: Conversation = {
+    ...conversation("coding-history", "Landing page"),
+    agents: [{ id: "assistant", slug: "assistant", name: "AgenticOS", has_avatar: false }],
+    coding_agents: ["claude_code"],
+  };
+  serve([saved]);
+  const view = mount();
+  expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
+  view.unmount();
+  mount();
+  expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
 });

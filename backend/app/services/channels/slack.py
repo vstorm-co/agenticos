@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import logging
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -40,6 +41,8 @@ from app.services.channels.base import (
     OutgoingMessage,
     PromptMessage,
     StepDisplay,
+    broadcast_mentioned,
+    mentionable_text,
     split_thread,
     supervise_stream,
     thread_key,
@@ -132,7 +135,12 @@ class SlackAdapter(ChannelAdapter):
         self._app_tokens[bot_id] = app_token
 
     def prepare_connection(
-        self, bot_id: str, *, api_base_url: str | None, app_token: str | None
+        self,
+        bot_id: str,
+        *,
+        api_base_url: str | None,
+        app_token: str | None,
+        approved_guild_ids: tuple[str, ...] = (),
     ) -> None:
         if app_token:
             self.remember_app_token(bot_id, app_token)
@@ -257,6 +265,33 @@ class SlackAdapter(ChannelAdapter):
         channel, _thread_ts = split_thread(msg.platform_chat_id)
         await self._web(bot_token).chat_update(channel=channel, ts=handle, text=msg.text)
 
+    async def welcome(
+        self,
+        bot_token: str,
+        email: str,
+        text: str,
+        *,
+        api_base_url: str | None,
+        places: Sequence[str] = (),
+    ) -> bool:
+        """Find the person by address and greet them in a direct message.
+
+        Needs `users:read.email`, which the manifest asks for; a workspace whose
+        app predates that answers `missing_scope`, read here as not found.
+        """
+        from slack_sdk.errors import SlackApiError
+
+        client = self._web(bot_token)
+        try:
+            found = await client.users_lookupByEmail(email=email)
+        except SlackApiError as exc:
+            if exc.response.get("error") in ("users_not_found", "missing_scope"):
+                return False
+            raise
+        opened = await client.conversations_open(users=found["user"]["id"])
+        await client.chat_postMessage(channel=opened["channel"]["id"], text=text)
+        return True
+
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Slack via the Web API."""
         client = self._web(bot_token)
@@ -373,35 +408,16 @@ class SlackAdapter(ChannelAdapter):
     async def channel_members(
         self, bot_token: str, channel_id: str, *, api_base_url: str | None, limit: int
     ) -> list[ChannelMember]:
-        """`conversations.members`, then one `users.info` per id, concurrently.
+        """Visible Slack IDs, rendered by Slack as native user mentions.
 
-        Slack has no bulk lookup by id - `users.list` answers with the whole
-        workspace - so the ids are resolved one at a time. Concurrently and
-        bounded by `limit`, because this runs inside a tool call somebody is
-        waiting on, and serially it is the length of the channel in round trips.
+        Do not fan out to users.info on every channel turn: the context snapshot
+        needs membership, not fifty profile requests sharing a rate limit.
         """
-        client = self._web(bot_token)
-        response = await client.conversations_members(channel=channel_id, limit=limit)
-        user_ids = [str(user_id) for user_id in (response.get("members") or [])][:limit]
-        if not user_ids:
-            return []
-
-        found = await asyncio.gather(*(client.users_info(user=user_id) for user_id in user_ids))
-        members: list[ChannelMember] = []
-        for user_id, entry in zip(user_ids, found, strict=True):
-            user: dict[str, Any] = entry.get("user") or {}
-            profile: dict[str, Any] = user.get("profile") or {}
-            members.append(
-                ChannelMember(
-                    user_id=user_id,
-                    username=str(user.get("name") or "") or None,
-                    display_name=str(profile.get("display_name") or profile.get("real_name") or "")
-                    or None,
-                    is_bot=bool(user.get("is_bot")),
-                    role="admin" if user.get("is_admin") else "member",
-                )
-            )
-        return members
+        response = await self._web(bot_token).conversations_members(channel=channel_id, limit=limit)
+        return [
+            ChannelMember(user_id=str(user_id), display_name=f"<@{user_id}>")
+            for user_id in (response.get("members") or [])[:limit]
+        ]
 
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
@@ -711,6 +727,9 @@ class SlackAdapter(ChannelAdapter):
             return None
 
         addressed = self._addressed(raw_payload, event)
+        broadcast = broadcast_mentioned(self.platform, text)
+        if broadcast and addressed is None:
+            addressed = False
         # After `_addressed`, which is what the token is for. The model is the
         # addressee, so being told its own id is noise: `<@U09MQFTBHTV> try again`
         # is a question about a Slack id as far as it can tell, and an answer
@@ -749,6 +768,7 @@ class SlackAdapter(ChannelAdapter):
             message_id=message_ts,
             attachments=attachments,
             addressed=addressed,
+            broadcast_mention=broadcast,
             # Beside the event under the Events API, on it over the socket.
             platform_team_id=raw_payload.get("team_id") or event.get("team"),
         )
@@ -826,7 +846,7 @@ class SlackAdapter(ChannelAdapter):
         own = self._own_user_id(raw_payload)
         if own is None:
             return None
-        return f"<@{own}>" in (event.get("text") or "")
+        return f"<@{own}>" in mentionable_text(event.get("text") or "")
 
     @staticmethod
     def _attachments(event: dict[str, Any]) -> list[IncomingAttachment]:

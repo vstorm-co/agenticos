@@ -1,6 +1,9 @@
 """Token schemas."""
 
 from typing import Literal
+from uuid import UUID
+
+from pydantic import Field
 
 from app.schemas.base import BaseSchema
 
@@ -43,3 +46,30 @@ class OAuthExchangeRequest(BaseSchema):
     """Request body swapping a single-use OAuth code for its token pair."""
 
     code: str
+    code_verifier: str | None = Field(
+        default=None, min_length=43, max_length=128, pattern=r"^[A-Za-z0-9._~-]+$"
+    )
+
+
+class PairingCodeRead(BaseSchema):
+    """A single-use code that signs one phone in as the caller (#2097).
+
+    The console draws it as a QR; it expires after `expires_in` seconds.
+    """
+
+    code: str
+    expires_in: int
+
+
+class PairingRedeem(BaseSchema):
+    """The code a phone scanned, redeemed for a session of its own."""
+
+    code: str
+
+
+class PairingIdentityRead(BaseSchema):
+    """Identity shown before a device explicitly accepts a scanned sign-in."""
+
+    id: UUID
+    email: str
+    full_name: str | None

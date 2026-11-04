@@ -1,5 +1,5 @@
 ---
-source_sha: "de9050ec21ee"
+source_sha: "f07d2421b563"
 ---
 
 # Funktionen { #features }
@@ -96,7 +96,7 @@ sagen.
 | **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe, was auch immer an diese Unterhaltung angehängt wurde, und die als Ordner eingebundenen Dienste, etwa ein Drive oder ein Repository | Knowledge search · Skills · Context · Virtual terminal |
 | **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Memory (mem0) · Past conversations |
 | **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
-| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Calculations · Sandbox · Charts · Image generation |
+| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen, einen Text vorlesen oder einen kurzen Clip machen | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |
 | **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Long conversations |
 | **Innerhalb der Linien bleiben** — schwärzen oder blockieren, was nicht durch darf, begrenzen, was ein Tool zurückgeben darf, wissen, welches Datum heute ist | Guardrails · Tool output limits · Date and time |
 
@@ -178,12 +178,12 @@ Einmal veröffentlichen. Derselbe Runner antwortet auf all diesen:
 - **Eine gehostete Seite**, auf die Sie jemandem einen Link schicken können
 - **Ein einbettbares Widget** für Ihre eigene Website
 - **Die HTTP-API** und ein rohes WebSocket für Streaming
-- **Slack**, **Telegram** und **Mattermost**, wo eine `@mention` als die Person
+- **Slack**, **Telegram**, **Mattermost** und **Discord**, wo eine `@mention` als die Person
   läuft, die sie geschickt hat — nicht als der Bot
 
 Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
 Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
-transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
+transkribierte Sprachnachrichten in Slack, Telegram, Mattermost und Discord.
 
 **Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
 ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der
@@ -246,6 +246,22 @@ eine *Ablehnung* prüfen: ein mandantenübergreifender Lesezugriff, ein nicht
 gewährter Scope, eine Budgetüberschreitung, eine zweite Entscheidung über eine
 entschiedene Approval.
 
+## Workflows, wenn eine Aufgabe mehr als ein Schritt ist { #workflows-when-a-job-is-more-than-one-step }
+
+Manche Arbeit ist eine Abfolge, keine einzelne Antwort: einen Datensatz lesen,
+einen Agent aufrufen, auf das Gesagte verzweigen, über eine Liste iterieren. Das
+bauen Sie auf einer Zeichenfläche — ziehen Sie die Schritte hinein, verdrahten Sie
+die Ausgabe eines Schritts in den nächsten und veröffentlichen Sie es als
+unveränderliche Version, dieselbe Draft-dann-Publish-Form, die ein Agent hat.
+
+Die Inputs jedes Schritts sind ein Wert, den Sie tippen, oder ein Wert, der aus
+einem früheren Schritt gelesen wird, und der Editor bietet nur eine Quelle an, die
+tatsächlich erreichbar ist und den richtigen Typ trägt. Der Draft speichert sich
+selbst, während Sie bearbeiten, und das Veröffentlichen prüft den ganzen Graphen
+erneut, bevor es eine Version einfriert.
+
+[Workflows →](workflows.md) · [Virtual Tables →](virtual-tables.md)
+
 ## Trigger, damit ein Agent ohne Sie läuft { #triggers-so-an-agent-runs-without-you }
 
 Planen Sie einen Run oder lösen Sie einen bei einem Ereignis aus. Derselbe Spec,
@@ -253,13 +269,25 @@ dasselbe Budget, dieselbe Audit-Spur — nur tippt niemand.
 
 [Trigger →](triggers.md)
 
-## Selbst gehostet, und still { #self-hosted-and-quiet }
+## Selbst gehostet, und klar darüber, was hinausgeht { #self-hosted-and-quiet }
 
 Docker Compose, Ihr Postgres, Ihr Redis, Ihre Hardware.
 
-Nichts telefoniert nach Hause. Modellpreise stammen aus einem Snapshot, der dem
-Release beiliegt, und die einzigen ausgehenden Anfragen sind die, die Ihre Agents
-stellen.
+Ihre Prompts, Konversationen und Dokumente bleiben in Ihrem eigenen Deployment, in
+dessen Datenbank und Speicher. Sie gehen nirgendwohin, solange Sie nichts
+hinzufügen, das ein Ziel benennt: ein Model-Profil, einen Embedding- oder
+Parsing-Provider für eine Collection, einen MCP-Server oder einen Kanal.
+Modellpreise stammen aus einem Snapshot, der dem Release beiliegt.
+
+Ein Bericht ist standardmäßig aktiv: die [Deployment-Diagnose](configuration.md#diagnostics).
+Einmal pro Stunde sendet der Worker die Version, den Zustand von Datenbank und
+Worker, grobe Nutzungszähler und Zähler fehlgeschlagener Runs, Jobs und
+Ingestionen nach geschlossenen Kategorien. Angemeldete Browser sowie die Desktop-
+und die Mobile-App senden ein pseudonymes Aktivitätssignal direkt an den Kollektor.
+Gesendet werden keine Prompts, Konversationen, Dateinamen, Kontonamen,
+E-Mail-Adressen, Provider-Schlüssel oder Ausnahmemeldungen. Mit
+`DIAGNOSTICS_ENABLED=false` schalten Sie sie ab, oder richten Sie
+`DIAGNOSTICS_COLLECTOR_URL` auf einen Kollektor, den Sie betreiben.
 
 ## Open Source { #open-source }
 

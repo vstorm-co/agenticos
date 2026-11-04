@@ -444,3 +444,9 @@ describe("withVisuals", () => {
     expect(updated.capabilities.find((binding) => binding.id === "skills")?.enabled).toBe(true);
   });
 });
+
+it("starts newly enabled computer use on an explicit sandbox without rewriting existing routing", () => {
+  expect(withCapability([], "computer_use", true)[0]?.config).toEqual({ desktop: "sandbox" });
+  const legacy = { ...binding("computer_use"), config: { desktop: "auto" } };
+  expect(withCapability([legacy], "computer_use", true)).toEqual([legacy]);
+});

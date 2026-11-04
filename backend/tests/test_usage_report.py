@@ -244,7 +244,7 @@ class TestAssemblingIt:
         listed.assert_not_called()
 
     async def test_a_stored_workspace_is_measured_from_its_row(self, monkeypatch, mock_db_session):
-        row = MagicMock(backend="state", bytes_total=2048)
+        row = MagicMock(recovery_of_id=None, backend="state", bytes_total=2048)
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[row])
         )
@@ -286,7 +286,9 @@ class TestAssemblingIt:
     async def test_a_container_is_sampled_one_session_at_a_time(self, monkeypatch, mock_db_session):
         """Asking for the whole listing would cost a round trip per sandbox the
         organization has open, to find the one this turn used."""
-        row = MagicMock(backend="service", connection_id=uuid.uuid4(), session_id="xc-1")
+        row = MagicMock(
+            recovery_of_id=None, backend="service", connection_id=uuid.uuid4(), session_id="xc-1"
+        )
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[row])
         )
@@ -307,7 +309,9 @@ class TestAssemblingIt:
     ):
         """The sandbox is demonstrably there - the turn just used it - and a
         number nobody could read is not worth losing an answer over."""
-        row = MagicMock(backend="service", connection_id=uuid.uuid4(), session_id="xc-1")
+        row = MagicMock(
+            recovery_of_id=None, backend="service", connection_id=uuid.uuid4(), session_id="xc-1"
+        )
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[row])
         )
@@ -325,7 +329,9 @@ class TestAssemblingIt:
     async def test_a_workspace_whose_host_was_forgotten_is_not_asked_about(
         self, monkeypatch, mock_db_session
     ):
-        row = MagicMock(backend="service", connection_id=None, session_id="xc-1")
+        row = MagicMock(
+            recovery_of_id=None, backend="service", connection_id=None, session_id="xc-1"
+        )
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[row])
         )

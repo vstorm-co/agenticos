@@ -7,7 +7,8 @@ import { apiClient } from "@/lib/api-client";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import { mergeServers, type McpServerRow } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
-import type { McpCatalog, PlatformMcpToolList } from "@/types/mcp";
+import { DASHBOARD_FRESHNESS } from "@/lib/query-freshness";
+import type { McpCatalog, McpServerStateFilter, PlatformMcpToolList } from "@/types/mcp";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 
@@ -24,6 +25,31 @@ export function useMcpCatalog() {
     staleTime: Infinity,
   });
   return { servers: data?.items ?? [], isLoading, error };
+}
+
+/**
+ * One server by its key: curated, mirrored or a saved custom server. Entries
+ * outside the curated catalog use bounded lookups. Null while looking and
+ * when a bookmarked key no longer names an accessible server.
+ */
+export function useMcpServerEntry(key: string | null) {
+  const { servers, isLoading: catalogLoading } = useMcpCatalog();
+  const curated = key === null ? null : (servers.find((server) => server.key === key) ?? null);
+  const mirrored = useQuery({
+    queryKey: qk.mcpServers.entry(key ?? ""),
+    queryFn: async () => {
+      const path = `/agents/mcp-servers?q=${encodeURIComponent(key ?? "")}&limit=10`;
+      const listed = await apiClient.get<McpCatalog>(path);
+      if (listed.items.some((server) => server.key === key)) return listed;
+      // Saved accounts stay manageable even when a failed audit hides their
+      // registry entry from browsing. Do not turn a bookmark into a dead end.
+      return apiClient.get<McpCatalog>(`${path}&state=connected`);
+    },
+    enabled: key !== null && !catalogLoading && curated === null,
+    ...DASHBOARD_FRESHNESS,
+  });
+  const entry = curated ?? mirrored.data?.items.find((server) => server.key === key) ?? null;
+  return { entry, isLoading: entry === null && (catalogLoading || mirrored.isLoading) };
 }
 
 /**
@@ -45,7 +71,7 @@ export function usePlatformMcpTools({ enabled = true }: { enabled?: boolean } = 
 export const MCP_PAGE_SIZE = 50;
 
 /**
- * One page of the MCP list: the curated catalog, then the mirrored registry.
+ * One page of the MCP list, filtered before paging with accessible saved accounts.
  *
  * A request rather than a filter, which is the opposite of what this page used
  * to do. The curated hundred could be held and filtered in the browser; the
@@ -56,21 +82,27 @@ export const MCP_PAGE_SIZE = 50;
  * `registryTotal` is what the mirror holds, which the count line needs to say
  * what the list reaches - zero until `agenticos cmd mcp-registry-sync` has run.
  */
-export function useMcpCatalogPage(query: string, category: string, auth: string, page: number) {
+export function useMcpCatalogPage(
+  query: string,
+  category: string,
+  auth: string,
+  page: number,
+  enabled = true,
+  state: McpServerStateFilter = "all",
+) {
   const needle = query.trim();
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: qk.mcpServers.listPage(needle, category, auth, page),
+  const { data, isLoading, isFetching, isPlaceholderData } = useQuery({
+    queryKey: qk.mcpServers.listPage(needle, category, auth, page, state),
+    enabled,
     queryFn: () =>
       apiClient.get<McpCatalog>(
         `/agents/mcp-servers?q=${encodeURIComponent(needle)}` +
           `&category=${encodeURIComponent(category)}` +
           `&auth=${encodeURIComponent(auth)}` +
+          `&state=${state}` +
           `&skip=${page * MCP_PAGE_SIZE}&limit=${MCP_PAGE_SIZE}`,
       ),
-    // A page already fetched is worth keeping while the next one loads, so
-    // paging does not blank the grid on every click.
-    placeholderData: (previous) => previous,
-    staleTime: Infinity,
+    ...DASHBOARD_FRESHNESS,
   });
   return {
     servers: data?.items ?? [],
@@ -78,6 +110,7 @@ export function useMcpCatalogPage(query: string, category: string, auth: string,
     registryTotal: data?.registry_total ?? 0,
     isLoading,
     isFetching,
+    isPlaceholderData,
   };
 }
 

@@ -14,7 +14,7 @@ the model can act on rather than a failed run: Telegram has no channel search
 and gives a bot no way to read history, and pretending otherwise would mean an
 agent retrying something that can never work.
 
-Everything here is a **read**, through the bot's own token, in the one channel
+Every action uses the bot's own token, in the one channel
 the message arrived in. The bot's membership is the permission boundary and the
 only one - an agent sees exactly what the bot sees, and there is no call in this
 module that widens that.
@@ -22,7 +22,10 @@ module that widens that.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
 
 CHANNEL_TOOLS_CAPABILITY_ID = "channel_tools"
 """The registry id, held here rather than imported from `__init__`.
@@ -41,6 +44,15 @@ surface that is not a channel - the web chat, the API, a schedule - and the
 capability then contributes nothing at all, which is the honest answer for an
 agent that is not standing in a channel.
 """
+
+
+class ChannelDestination(BaseModel):
+    """The server-bound destination a parked channel run may return to; no credentials."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    bot_id: UUID
+    platform_chat_id: str
+    private_chat: bool
 
 
 class ChannelDirectoryUnsupported(Exception):
@@ -137,6 +149,15 @@ class ChannelDirectory(Protocol):
     contents - finding that `#billing` exists is not reading it.
     """
 
+    @property
+    def destination(self) -> ChannelDestination | None:
+        """The original channel and bot, where this directory can be restored."""
+        ...
+
+    async def send_file(self, *, filename: str, content: bytes, mime_type: str) -> str:
+        """Submit a file to this conversation through the platform adapter."""
+        ...
+
     async def details(self) -> ChannelDetails:
         """Name, purpose, topic and size of the channel this run is in."""
         ...
@@ -149,6 +170,8 @@ class ChannelDirectory(Protocol):
         """Channels whose name or purpose matches `query`, within the bot's reach."""
         ...
 
-    async def history(self, *, limit: int) -> list[ChannelPost]:
-        """The last `limit` messages, newest last."""
+    async def history(
+        self, *, limit: int, scope: Literal["thread", "channel"] = "thread"
+    ) -> list[ChannelPost]:
+        """Recent messages in the bound thread or its channel, newest last."""
         ...

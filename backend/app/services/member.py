@@ -15,6 +15,7 @@ from app.repositories import (
     member_repo,
     oauth_repo,
     organization_repo,
+    resource_grant_repo,
     user_repo,
 )
 from app.services.organization import OrganizationService
@@ -39,6 +40,11 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
         db, organization_id=organization_id, user_id=user_id, at=at
     )
     await member_repo.delete(db, membership)
+    # The editor keeps what they could always do on the leaver's pages; only the owner's
+    # standing consent to their republishes goes with the owner.
+    await resource_grant_repo.lower_edit_data(
+        db, organization_id=organization_id, owner_user_id=user_id
+    )
 
 
 class MemberService:

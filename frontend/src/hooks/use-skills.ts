@@ -149,7 +149,6 @@ export function useSkills({
 export interface SkillEdit {
   description: string;
   content: string;
-  enabled: boolean;
   /** Null clears the category; the listing then shows the skill unshelved. */
   category: string | null;
 }
@@ -161,7 +160,7 @@ export interface SkillEdit {
  * needs a body, and the editor cannot work without one. The editable set is
  * narrower than `NewSkill` in one direction and wider in the other: the API
  * refuses to rename a skill, because the name is the handle agents and the
- * model both use, and `enabled` only means something once it exists.
+ * model both use.
  */
 export function useSkill(skillId: string | null) {
   const tErrors = useTranslations("errors");

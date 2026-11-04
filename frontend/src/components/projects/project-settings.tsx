@@ -9,7 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   ConfirmDialog,
@@ -22,6 +21,8 @@ import {
 import { useProject } from "@/hooks/use-projects";
 import { ROUTES } from "@/lib/constants";
 import type { Project } from "@/types/projects";
+import { ContextHelp } from "@/components/ui/context-help";
+import { ProjectSandboxSummary } from "./project-sandbox-choice";
 import { DefaultAgentSelect } from "./default-agent-select";
 
 /**
@@ -43,7 +44,8 @@ export function ProjectSettings({ project }: { project: Project }) {
   const [agentId, setAgentId] = useState(project.default_agent_id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [mode, setMode] = useState<MarkdownMode>(project.can_edit ? "source" : "preview");
-  const editable = project.can_edit;
+  const editable =
+    project.can_edit && !["queued", "running"].includes(project.workspace_move?.status ?? "");
   const changed =
     name !== project.name ||
     description !== (project.description ?? "") ||
@@ -51,19 +53,21 @@ export function ProjectSettings({ project }: { project: Project }) {
     agentId !== project.default_agent_id;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card>
-        <CardHeader className="flex-row items-start gap-3 space-y-0">
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <CardTitle>{t("instructions")}</CardTitle>
-            <CardDescription>{t("instructionsHint")}</CardDescription>
-          </div>
-          <MarkdownModeToggle mode={mode} onChange={setMode} />
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-5">
           <MarkdownEditor
             id="project-instructions"
             label={t("instructions")}
+            toolbar={
+              <>
+                <div className="flex min-w-0 flex-1 items-center gap-1">
+                  <CardTitle className="min-w-0 truncate text-sm">{t("instructions")}</CardTitle>
+                  <ContextHelp>{t("instructionsHint")}</ContextHelp>
+                </div>
+                <MarkdownModeToggle mode={mode} onChange={setMode} />
+              </>
+            }
             value={instructions}
             onChange={(next) => setInstructions(next)}
             placeholder={t("instructionsPlaceholder")}
@@ -75,6 +79,7 @@ export function ProjectSettings({ project }: { project: Project }) {
         </CardContent>
       </Card>
 
+      <ProjectSandboxSummary project={project} />
       <Card>
         <CardHeader>
           <CardTitle>{t("details")}</CardTitle>
@@ -108,30 +113,30 @@ export function ProjectSettings({ project }: { project: Project }) {
               disabled={!editable}
             />
           </FormField>
+          {/* One save for both cards: they are one record, written in one request. */}
+          {editable && (
+            <div className="flex justify-end">
+              <Button
+                loading={update.isPending}
+                disabled={!changed || !name.trim()}
+                onClick={() =>
+                  update.mutate({
+                    name: name.trim(),
+                    description: description.trim() || null,
+                    instructions,
+                    // Only when it was changed: a default agent this reader may
+                    // not see reaches them as none, and saving the instructions
+                    // must not clear it.
+                    ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
+                  })
+                }
+              >
+                {t("save")}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* One save for both cards: they are one record, written in one request. */}
-      {editable && (
-        <div className="flex justify-end">
-          <Button
-            disabled={!changed || !name.trim() || update.isPending}
-            onClick={() =>
-              update.mutate({
-                name: name.trim(),
-                description: description.trim() || null,
-                instructions,
-                // Only when it was changed: a default agent this reader may
-                // not see reaches them as none, and saving the instructions
-                // must not clear it.
-                ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
-              })
-            }
-          >
-            {t("save")}
-          </Button>
-        </div>
-      )}
 
       {editable && (
         <Card>

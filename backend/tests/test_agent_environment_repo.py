@@ -103,10 +103,14 @@ class TestReading:
         assert set(_filters(session).values()) >= {agent_id, "dev"}
 
 
+def _takes_the_profile_lock(session: _RecordingSession) -> bool:
+    return any("pg_advisory_xact_lock_shared" in str(statement) for statement in session.statements)
+
+
 class TestWriting:
     async def test_a_new_environment_carries_everything_the_row_needs(self):
         organization_id, agent_id, version_id, author = (uuid.uuid4() for _ in range(4))
-        session = _RecordingSession()
+        session = _RecordingSession(MagicMock())
 
         environment = await agent_environment_repo.create(
             session,
@@ -127,11 +131,16 @@ class TestWriting:
             environment.is_default,
             environment.created_by_user_id,
         ) == (organization_id, agent_id, "dev", version_id, True, author)
+        # Pinning a version names its model profiles, so it waits for a delete of
+        # one in flight (#2478).
+        assert _takes_the_profile_lock(session)
 
     async def test_promotion_changes_only_the_pointer(self):
-        environment = AgentEnvironment(name="production", is_default=True)
+        environment = AgentEnvironment(
+            name="production", is_default=True, organization_id=uuid.uuid4()
+        )
         new_version = uuid.uuid4()
-        session = _RecordingSession()
+        session = _RecordingSession(MagicMock())
 
         updated = await agent_environment_repo.update(
             session, environment=environment, update_data={"version_id": new_version}
@@ -139,6 +148,17 @@ class TestWriting:
 
         assert updated.version_id == new_version
         assert (updated.name, updated.is_default) == ("production", True)
+        assert _takes_the_profile_lock(session)
+
+    async def test_a_change_that_pins_nothing_takes_no_lock(self):
+        environment = AgentEnvironment(name="production", organization_id=uuid.uuid4())
+        session = _RecordingSession()
+
+        await agent_environment_repo.update(
+            session, environment=environment, update_data={"service_name": "api"}
+        )
+
+        assert session.statements == []
 
     async def test_removing_an_environment_deletes_the_row(self):
         environment = AgentEnvironment(name="dev")

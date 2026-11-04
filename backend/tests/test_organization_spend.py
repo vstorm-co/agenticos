@@ -22,6 +22,15 @@ from app.services.spend import (
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def direct_workflow_fees():
+    with patch(
+        "app.services.spend.workflow_run_repo.node_spend_since",
+        new=AsyncMock(return_value=Decimal("0")),
+    ):
+        yield
+
+
 def _org(monthly_budget_usd: Decimal | None) -> MagicMock:
     return MagicMock(monthly_budget_usd=monthly_budget_usd)
 
