@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Show the same Architect avatar in the assistant widget and agent list after its stored picture is cleared, including its selected colour.
+
 ## [1.47.2] - 2026-11-04
 
 ### Security
