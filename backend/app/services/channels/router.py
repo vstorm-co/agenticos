@@ -18,7 +18,11 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+)
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
@@ -53,6 +57,8 @@ from app.services.channels.base import (
 )
 from app.services.channels.dedupe import claim_delivery, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
+from app.services.channels.discord_roles import PLATFORM as DISCORD_PLATFORM
+from app.services.channels.discord_roles import DiscordRoleSync
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
 from app.services.channels.live_reply import (
@@ -514,6 +520,15 @@ class ChannelMessageRouter:
             identity = await self._resolve_identity(incoming, bot, db)
         except AuthorizationError as exc:
             return exc.message
+        if incoming.platform == DISCORD_PLATFORM:
+            # The turn's own sync runs only after this has posted the text, so
+            # the membership checked here has to be brought up to date first:
+            # a role taken away a moment ago must not have its holder's words
+            # posted as the bot, and one just given must not be told to link.
+            try:
+                await self._sync_discord_roles(bot, identity, incoming, db)
+            except BadRequestError as exc:
+                return exc.message
         if not self._admits_unlinked(incoming, bot) and not await self._sender_is_active_member(
             db, bot, identity
         ):
@@ -578,6 +593,16 @@ class ChannelMessageRouter:
         except AuthorizationError as exc:
             await self._refuse_if_named(bot, incoming, exc.message)
             return
+
+        if incoming.platform == DISCORD_PLATFORM:
+            # Before the membership check below, so a member given a mapped
+            # role a moment ago is answered with it, and one who lost the role
+            # that admitted them is refused (#2569).
+            try:
+                await self._sync_discord_roles(bot, identity, incoming, db)
+            except BadRequestError as exc:
+                await self._refuse_if_named(bot, incoming, exc.message)
+                return
 
         admit_unlinked = self._admits_unlinked(incoming, bot)
 
@@ -1763,9 +1788,12 @@ class ChannelMessageRouter:
             admitted, _issuer = await _admission()
             if not admitted:
                 return await self._invite_to_link(incoming, db)
+            previous = identity.user_id
             await channel_identity_repo.update(
                 db, db_identity=identity, update_data={"user_id": None}
             )
+            if incoming.platform == DISCORD_PLATFORM and previous is not None:
+                await DiscordRoleSync(db).release(previous)
             return "Your account has been unlinked."
 
         return None
@@ -1861,7 +1889,37 @@ class ChannelMessageRouter:
         # drift quietly against the messages people actually sent.
         return await channel_session_repo.touch(db, session)
 
-    async def _check_rate_limit(self, bot: ChannelBot, identity_id: str) -> None:
+    async def _sync_discord_roles(
+        self,
+        bot: ChannelBot,
+        identity: ChannelIdentity,
+        incoming: IncomingMessage,
+        db: AsyncSession,
+    ) -> None:
+        """Bring a linked Discord sender's memberships up to date with their roles (#2569).
+
+        Counted on an allowance of its own before Discord is asked, at the
+        bot's per-sender rate: it runs ahead of the commands, and `/help` and
+        the rest return before a turn's allowance is spent, so without it every
+        message could have the bot call Discord once per mapped server while
+        holding a database connection. An unlinked sender is asked about
+        nothing and is not counted.
+
+        Raises:
+            BadRequestError: The sender has used up the allowance.
+        """
+        if identity.user_id is None:
+            return
+        checked_for = (str(bot.id), str(identity.user_id), str(identity.id))
+        if incoming.discord_roles_checked_for == checked_for:
+            return
+        await self._check_rate_limit(bot, f"user:{identity.user_id}", surface="discord-roles")
+        await DiscordRoleSync(db).on_turn(bot, identity, incoming.raw)
+        incoming.discord_roles_checked_for = checked_for
+
+    async def _check_rate_limit(
+        self, bot: ChannelBot, identity_id: str, *, surface: str = "channel"
+    ) -> None:
         """Count this message against the chat account's allowance on this bot.
 
         Ten a minute unless `bot.access_policy.rate_limit_rpm` says otherwise.
@@ -1878,17 +1936,20 @@ class ChannelMessageRouter:
         lasts. Fail-open here would remove a production control for the length
         of a cache blip.
 
+        `surface` keeps a second allowance apart from the turn's, counted at the
+        same rate: the Discord role sync's.
+
         Raises:
             BadRequestError: If the rate limit is exceeded.
         """
         policy: dict[str, Any] = self._parse_policy(bot)
         limit = Limit(attempts=int(policy.get("rate_limit_rpm", _DEFAULT_RPM)))
         caller = f"bot:{bot.id}:identity:{identity_id}"
-        decision = await rate_limit.consume(surface="channel", caller=caller, limit=limit)
+        decision = await rate_limit.consume(surface=surface, caller=caller, limit=limit)
         allowed = decision.allowed
         if not decision.metered:
             allowed = _fallback_windows.consume(
-                caller, attempts=limit.attempts, window_seconds=limit.window_seconds
+                f"{surface}:{caller}", attempts=limit.attempts, window_seconds=limit.window_seconds
             )
         if not allowed:
             raise BadRequestError(message="Rate limit exceeded. Please slow down.")

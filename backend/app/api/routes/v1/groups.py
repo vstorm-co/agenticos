@@ -179,7 +179,7 @@ async def update_group(
 )
 async def delete_group(org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> None:
     """Delete a group, the grants made to it and the mappings naming it. Requires `members:manage`."""
-    await service.delete(org_id, group_id, ctx.subject_id)
+    await service.delete(ctx, group_id)
 
 
 @router.get("/{org_id}/groups/{group_id}/resources", response_model=GroupResourceList)

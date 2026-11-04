@@ -32,6 +32,7 @@ from app.repositories import (
     artifact_repo,
     context_repo,
     directory_mapping_repo,
+    discord_role_mapping_repo,
     group_repo,
     knowledge_base_repo,
     mcp_connection_repo,
@@ -123,8 +124,12 @@ class GroupService:
                 message="Only an administrator or the group's lead can change who is in it"
             )
 
-    async def _group(self, organization_id: UUID, group_id: UUID) -> Group:
-        group = await group_repo.get(self.db, organization_id=organization_id, group_id=group_id)
+    async def _group(
+        self, organization_id: UUID, group_id: UUID, *, for_update: bool = False
+    ) -> Group:
+        group = await group_repo.get(
+            self.db, organization_id=organization_id, group_id=group_id, for_update=for_update
+        )
         if group is None:
             raise NotFoundError(message="Group not found", details={"group_id": str(group_id)})
         return group
@@ -237,20 +242,27 @@ class GroupService:
         )
         return updated, await group_repo.count_members(self.db, updated.id)
 
-    async def delete(self, organization_id: UUID, group_id: UUID, requester_id: UUID) -> None:
+    async def delete(self, ctx: AuthContext, group_id: UUID) -> None:
         """Delete a group, and with it every grant made to it and every mapping naming it.
 
         Raises:
-            AuthorizationError: A directory mapping naming the group maps to a
-                role the requester's does not outrank. The mapping cascades with
-                the group, and deleting it demotes everybody it placed - which
-                `DirectoryMappingService.delete` refuses this requester, so
-                deleting the group must not do it by the back door.
+            AuthorizationError: A directory or Discord role mapping naming the
+                group maps to a role the requester's does not outrank. The
+                mapping cascades with the group, and deleting it demotes
+                everybody it placed - which `DirectoryMappingService.delete` and
+                `DiscordRoleMappingService.delete` refuse this requester, so
+                deleting the group must not do it by the back door. A Discord
+                mapping that names a role also takes `roles:manage` in the
+                caller's effective permissions, as deleting it directly does,
+                so an API key scoped below that is refused too.
         """
+        organization_id, requester_id = ctx.organization_id, ctx.subject_id
         membership = await self._membership(organization_id, requester_id)
         if not role_has(membership.role, Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot manage groups in this organization")
-        group = await self._group(organization_id, group_id)
+        # Locked before its mappings are read: they cascade with the group, and
+        # one committed between this check and the delete would go unchecked.
+        group = await self._group(organization_id, group_id, for_update=True)
         ceiling = assignable_roles(membership.role)
         for mapping in await directory_mapping_repo.list_for_group(self.db, group_id=group.id):
             if mapping.role not in ceiling:
@@ -260,6 +272,24 @@ class GroupService:
                         "in this group; it has to be removed by someone who outranks it first"
                     ),
                     details={"role": mapping.role},
+                )
+        for discord_mapping in await discord_role_mapping_repo.list_for_group(
+            self.db, group_id=group.id
+        ):
+            if not ctx.has(Perm.CHANNELS_MANAGE):
+                raise AuthorizationError(
+                    message="Remove this group's Discord mappings with channel management permission first",
+                    details={"group_id": str(group_id)},
+                )
+            if discord_mapping.role is not None and (
+                not ctx.has(Perm.ROLES_MANAGE) or discord_mapping.role not in ceiling
+            ):
+                raise AuthorizationError(
+                    message=(
+                        "A Discord role mapping to a role your own does not outrank places "
+                        "people in this group; it has to be removed by someone who outranks it first"
+                    ),
+                    details={"role": discord_mapping.role},
                 )
         name = group.name
         await group_repo.delete_group(self.db, group)

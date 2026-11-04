@@ -35,6 +35,7 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
 import { DirectoryBadge } from "@/components/orgs/directory-badge";
+import { DiscordBadge } from "@/components/orgs/discord-badge";
 import {
   Badge,
   Button,
@@ -95,6 +96,7 @@ export default function OrgMembersPage({ params }: PageProps) {
   const tc = useTranslations("common");
   const tGroups = useTranslations("groups");
   const tDirectory = useTranslations("directory");
+  const tDiscord = useTranslations("discordRoles");
   const locale = useLocale();
   const { id } = use(params);
   const { user } = useAuth();
@@ -251,11 +253,13 @@ export default function OrgMembersPage({ params }: PageProps) {
           // the role the member holds now, which is what stops a peer Admin getting a
           // selector whose only result is a 403 toast (#700).
           //
-          // A membership the directory sync made says so beside the role, since
-          // changing that role here is also what takes the row off the sync.
+          // A membership the directory or Discord sync made says so beside the
+          // role, since changing that role here is also what takes the row off the sync.
           const synced =
             m.source === "directory" ? (
               <DirectoryBadge explanation={tDirectory("memberHint")} />
+            ) : m.source === "discord" ? (
+              <DiscordBadge explanation={tDiscord("memberHint")} />
             ) : null;
           if (canManage && !isOwner && !isSelf && m.can_change_role && assignable.length > 0) {
             return (

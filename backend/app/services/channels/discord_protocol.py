@@ -9,6 +9,7 @@ that says whether somebody can see a channel. Kept apart from
 import re
 from collections import OrderedDict
 from collections.abc import Collection
+from dataclasses import dataclass
 from typing import Any
 
 from app.services.channels.base import CHANNEL_COMMANDS, ChannelChoice
@@ -364,6 +365,53 @@ def can_view(
         permissions = (permissions & ~int(own.get("deny", 0))) | int(own.get("allow", 0))
     required = VIEW_CHANNEL | READ_MESSAGE_HISTORY
     return permissions & required == required
+
+
+@dataclass(frozen=True)
+class ServerRole:
+    """A role of a Discord server, as a mapping offers it."""
+
+    id: str
+    name: str
+
+
+@dataclass(frozen=True)
+class Server:
+    """A Discord server the bot is in, with the roles a mapping can name (#2569)."""
+
+    id: str
+    name: str
+    roles: tuple[ServerRole, ...]
+
+
+def mappable_roles(guild_id: str, roles: list[dict[str, Any]]) -> tuple[ServerRole, ...]:
+    """The roles of one server a mapping may name, highest first as Discord lists them.
+
+    `@everyone` (whose id is the server's) is left out: it is everybody in the
+    server, and a mapping to it would admit whoever accepts an invitation link.
+    So is a managed role - a bot's own, an integration's - which Discord gives
+    to an account, not a person.
+    """
+    offered = [
+        role for role in roles if str(role.get("id")) != guild_id and not role.get("managed")
+    ]
+    offered.sort(key=lambda role: int(role.get("position") or 0), reverse=True)
+    return tuple(
+        ServerRole(id=str(role["id"]), name=str(role.get("name") or "")) for role in offered
+    )
+
+
+def payload_roles(raw: dict[str, Any]) -> tuple[str, frozenset[str]] | None:
+    """The server and role ids a guild message or interaction reports for its sender.
+
+    `None` for a direct message, which carries no member: the roles are read
+    over REST instead.
+    """
+    guild_id = raw.get("guild_id")
+    member = raw.get("member")
+    if not guild_id or not isinstance(member, dict):
+        return None
+    return str(guild_id), frozenset(str(role) for role in member.get("roles") or [])
 
 
 class Recent[V]:

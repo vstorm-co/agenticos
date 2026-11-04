@@ -11,8 +11,10 @@ export type OrgRole = "owner" | "admin" | "builder" | "operator" | "member" | "v
  * sync keeps that row in step with the directory, changing and removing it.
  * `manual` is everything else, which the sync never touches. Changing a
  * directory member's role by hand takes the membership over: it becomes `manual`.
+ * `discord` is the Discord role sync (#2569): a Discord role mapping placed a
+ * linked member, and the sync removes the row when they lose the role.
  */
-export type MembershipSource = "manual" | "directory";
+export type MembershipSource = "manual" | "directory" | "discord";
 
 /**
  * How a hosted page's or a widget's microphone turns speech into text.

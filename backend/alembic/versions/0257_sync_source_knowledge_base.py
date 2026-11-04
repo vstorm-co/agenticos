@@ -33,8 +33,8 @@ foreign key is a backstop behind that, and a sync refuses a source with none.
 The downgrade drops the column; it does not reactivate the sources the upgrade
 deactivated, because nothing records which they were but the log.
 
-Revision ID: 0256_sync_source_knowledge_base
-Revises: 0255_run_chat_notice_sent_at
+Revision ID: 0257_sync_source_knowledge_base
+Revises: 0256_discord_role_mappings
 Create Date: 2026-11-03
 """
 
@@ -46,8 +46,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0256_sync_source_knowledge_base"
-down_revision: str | None = "0255_run_chat_notice_sent_at"
+revision: str = "0257_sync_source_knowledge_base"
+down_revision: str | None = "0256_discord_role_mappings"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

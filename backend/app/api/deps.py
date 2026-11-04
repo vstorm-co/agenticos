@@ -709,6 +709,18 @@ def get_org_channel_bot_service(db: DBSession, org: ActiveOrg) -> ChannelBotServ
 
 OrgChannelBotSvc = Annotated[ChannelBotService, Depends(get_org_channel_bot_service)]
 
+from app.services.discord_role_mapping import DiscordRoleMappingService
+
+
+def get_discord_role_mapping_service(db: DBSession) -> DiscordRoleMappingService:
+    """Create DiscordRoleMappingService instance with database session."""
+    return DiscordRoleMappingService(db)
+
+
+DiscordRoleMappingSvc = Annotated[
+    DiscordRoleMappingService, Depends(get_discord_role_mapping_service)
+]
+
 from app.services.model_profile import ModelProfileService
 
 
