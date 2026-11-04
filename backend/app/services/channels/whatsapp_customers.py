@@ -19,7 +19,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
+from app.db.models.whatsapp_customer import WhatsAppCustomer
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.whatsapp_templates import LateTemplate, stored_template
 from app.services.channels.whatsapp_window import (
@@ -44,6 +44,8 @@ class Held:
     """The row's `hold_version` when it was claimed: a settlement is valid only while it still is."""
     prompts_owed: bool = False
     """Set by the delivery: the run still waits on prompts to offer again."""
+    claimed_at: datetime | None = None
+    """The claim this delivery holds; a settlement is valid only while the row still carries it."""
 
 
 class WindowStore:
@@ -215,7 +217,12 @@ class WindowStore:
             )
 
     async def claim_held(self, bot_id: str, chat_id: str, *, now: datetime) -> list[Held]:
-        """Take the customer's unclaimed held runs, oldest first; a claim past its lease can be taken again."""
+        """Take the customer's unclaimed held runs, oldest first; a claim past its lease can be taken again.
+
+        A holder whose lease lapsed may already have sent what the row owes. The
+        claim fence keeps the newer holder's row from being settled by the older
+        one; it cannot unsend.
+        """
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
@@ -240,6 +247,7 @@ class WindowStore:
                     files=row.held_files,
                     message_id=row.message_id,
                     version=row.hold_version,
+                    claimed_at=row.claimed_at,
                 )
                 for row in rows
             ]
@@ -251,13 +259,13 @@ class WindowStore:
         offered again; otherwise it is deleted. A row held again since the claim
         (`hold_version` moved) is left as it is with its claim given back, and its
         reason stays: something said the answer did not arrive, and the next
-        delivery sends it again.
+        delivery sends it again. A claim since taken over settles nothing.
         """
         from app.repositories import agent_run_repo, whatsapp_customer_repo
 
         async with self._sessions() as db:
             row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
-            if row is None:
+            if row is None or row.claimed_at != held.claimed_at:
                 return
             if row.hold_version != held.version:
                 await whatsapp_customer_repo.update_held(
@@ -277,12 +285,15 @@ class WindowStore:
                 )
 
     async def done(self, held: Held) -> None:
-        """The row's remaining duty is over: drop it, unless the run was held again since the claim."""
+        """The row's remaining duty is over: drop it, unless the run was held again since the claim.
+
+        A claim since taken over settles nothing.
+        """
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
             row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
-            if row is None:
+            if row is None or row.claimed_at != held.claimed_at:
                 return
             if row.hold_version != held.version:
                 await whatsapp_customer_repo.update_held(
@@ -292,12 +303,15 @@ class WindowStore:
                 await whatsapp_customer_repo.delete_held(db, held_id=row.id)
 
     async def release(self, held: Held) -> None:
-        """Give the claim back so the next delivery can take the row; flags and reason are untouched."""
+        """Give the claim back so the next delivery can take the row; flags and reason are untouched.
+
+        Only the holder of the row's current claim gives it back.
+        """
         from app.repositories import whatsapp_customer_repo
 
         async with self._sessions() as db:
-            row = await db.get(WhatsAppHeldRun, held.id)
-            if row is not None:
+            row = await whatsapp_customer_repo.lock_held(db, held_id=held.id)
+            if row is not None and row.claimed_at == held.claimed_at:
                 await whatsapp_customer_repo.update_held(
                     db, held=row, update_data={"claimed_at": None}
                 )

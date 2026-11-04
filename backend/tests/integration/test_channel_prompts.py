@@ -2,13 +2,16 @@
 
 import asyncio
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.ask_user import QuestionItem
 from app.db.models.agent import Agent
 from app.db.models.agent_run import RunStatus
 from app.db.models.channel_bot import ChannelBot
@@ -16,6 +19,8 @@ from app.db.models.channel_prompt import APPROVAL, FOLLOW_UP, QUESTION, ChannelP
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import agent_run_repo, channel_prompt_repo
+from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.services.channels.prompts import ChannelPrompts
 
 pytestmark = pytest.mark.anyio
 
@@ -500,3 +505,66 @@ async def test_settling_a_run_with_nothing_open_settles_nothing(db: AsyncSession
     _, _, run_id = await _estate(db)
 
     assert await channel_prompt_repo.settle_open(db, run_id=run_id, by="expired") == 0
+
+
+@pytest.mark.security
+async def test_an_approval_row_sent_before_a_failed_question_survives_the_commit(
+    engine: AsyncEngine,
+) -> None:
+    """`offer` never raises, so the session around it commits: the approval's buttons stay valid."""
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    @asynccontextmanager
+    async def sessions():
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except BaseException:
+                await session.rollback()
+                raise
+
+    async with sessions() as db:
+        org, bot, run_id = await _estate(db)
+        run = await agent_run_repo.get_run(db, run_id, organization_id=org.id)
+        assert run is not None
+        agent_id = run.agent_id
+        approval_id = uuid.uuid4()
+        await agent_run_repo.create_approval(
+            db,
+            approval_id=approval_id,
+            organization_id=org.id,
+            run_id=run_id,
+            agent_id=agent_id,
+            tool_id="gmail_send_email",
+            tool_args={},
+        )
+    approval = ParkedCall(
+        id=approval_id, tool_call_id="c1", tool_name="gmail_send_email", tool_args={}
+    )
+    asked = ParkedQuestion(
+        tool_call_id="ask-1", questions=[QuestionItem(question="One?", options=[])]
+    )
+    adapter = MagicMock(send_prompt=AsyncMock(side_effect=[None, RuntimeError("slack down")]))
+    module = "app.services.channels.prompts"
+
+    async with sessions() as db:
+        service = ChannelPrompts(db)
+        with (
+            patch(f"{module}.get_adapter", return_value=adapter),
+            patch(f"{module}.unseal_bot_token", return_value="tok"),
+            patch.object(service.runner, "parked_calls", new=AsyncMock(return_value=[approval])),
+            patch.object(service.runner, "parked_questions", new=AsyncMock(return_value=[asked])),
+        ):
+            offered = await service.offer(
+                bot, platform="slack", platform_chat_id="C1", run_id=run_id
+            )
+
+    assert offered is False
+    async with sessions() as db:
+        kinds = (
+            (await db.execute(select(ChannelPrompt.kind).where(ChannelPrompt.run_id == run_id)))
+            .scalars()
+            .all()
+        )
+    assert kinds == [APPROVAL]

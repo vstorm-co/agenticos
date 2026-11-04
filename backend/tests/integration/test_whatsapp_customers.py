@@ -381,6 +381,73 @@ class TestTheStore:
         later = T3 + CLAIM_LEASE + timedelta(seconds=1)
         assert len(await store.claim_held(str(bot.id), BSUID, now=later)) == 1
 
+    async def _taken_over(self, sessions, estate) -> tuple[Held, Held]:
+        """A claim at T3 that lapsed, and the second holder that took the row over."""
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=T3
+        )
+        [first] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        later = T3 + CLAIM_LEASE + timedelta(seconds=1)
+        [second] = await store.claim_held(str(bot.id), BSUID, now=later)
+        assert (first.claimed_at, second.claimed_at) == (T3, later)
+        return first, second
+
+    @pytest.mark.parametrize("settle", ["release", "done", "answer_sent"])
+    async def test_a_holder_whose_claim_was_taken_over_cannot_settle_the_newer_claim(
+        self, sessions, estate, settle: str
+    ) -> None:
+        store = WindowStore(sessions)
+        first, second = await self._taken_over(sessions, estate)
+        if settle == "answer_sent":
+            await store.answer_sent(first, prompts_owed=False)
+        else:
+            await getattr(store, settle)(first)
+
+        row = await self._held_row(sessions)
+        assert (row.claimed_at, row.held_answer) == (second.claimed_at, True)
+        await store.done(second)
+        async with sessions() as db:
+            assert (await db.execute(select(WhatsAppHeldRun))).first() is None
+
+    async def test_a_fenced_answer_sent_leaves_the_runs_reason(self, sessions, estate) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.record_undelivered(str(bot.id), str(runs[0]), "window_no_template")
+        first, _ = await self._taken_over(sessions, estate)
+        await store.answer_sent(first, prompts_owed=False)
+
+        assert await self._reason(sessions, runs[0]) == "window_no_template"
+
+    async def test_the_fence_decides_before_a_hold_that_moved_the_version(
+        self, sessions, estate
+    ) -> None:
+        first, second = await self._taken_over(sessions, estate)
+        await self._rehold(sessions, estate, first.run_id, answer=True, files=True)
+        store = WindowStore(sessions)
+        await store.done(first)
+        await store.answer_sent(first, prompts_owed=False)
+
+        row = await self._held_row(sessions)
+        assert (row.claimed_at, row.held_files) == (second.claimed_at, True)
+
+    async def test_a_claim_given_back_and_taken_again_refuses_the_old_holder(
+        self, sessions, estate
+    ) -> None:
+        _, bot, runs = estate
+        store = WindowStore(sessions)
+        await store.hold_unless_open(
+            str(bot.id), BSUID, run_id=str(runs[0]), answer=True, files=False, now=T3
+        )
+        [first] = await store.claim_held(str(bot.id), BSUID, now=T3)
+        await store.release(first)
+        again = T3 + timedelta(minutes=5)
+        [second] = await store.claim_held(str(bot.id), BSUID, now=again)
+        await store.done(first)
+
+        assert (await self._held_row(sessions)).claimed_at == second.claimed_at == again
+
     async def test_the_reason_is_cleared_only_when_the_answer_was_sent(
         self, sessions, estate
     ) -> None:
@@ -393,8 +460,8 @@ class TestTheStore:
         [held] = await store.claim_held(str(bot.id), BSUID, now=T3)
         await store.release(held)
         assert await self._reason(sessions, runs[0]) == "window_no_template"
-        assert len(await store.claim_held(str(bot.id), BSUID, now=T3)) == 1
-        await store.answer_sent(held, prompts_owed=False)
+        [second] = await store.claim_held(str(bot.id), BSUID, now=T3 + timedelta(minutes=1))
+        await store.answer_sent(second, prompts_owed=False)
         assert await self._reason(sessions, runs[0]) is None
         assert not await store.has_held(str(bot.id), BSUID, now=T3)
 
@@ -548,9 +615,10 @@ class TestTheStore:
     async def test_hold_new_is_true_once_per_run(self, sessions, estate) -> None:
         _, bot, runs = estate
         store = WindowStore(sessions)
-        assert await store.hold_new(str(bot.id), BSUID, run_id=str(runs[0]))
-        assert not await store.hold_new(str(bot.id), BSUID, run_id=str(runs[0]))
-        assert await store.hold_new(str(bot.id), BSUID, run_id=str(runs[1]))
+        first = await store.hold_new(str(bot.id), BSUID, run_id=str(runs[0]))
+        again = await store.hold_new(str(bot.id), BSUID, run_id=str(runs[0]))
+        other = await store.hold_new(str(bot.id), BSUID, run_id=str(runs[1]))
+        assert (first, again, other) == (True, False, True)
 
     async def test_hold_holds_whatever_the_record_says(self, sessions, estate) -> None:
         org, bot, runs = estate
@@ -567,11 +635,13 @@ class TestTheStore:
         org, bot, _ = estate
         store = WindowStore(sessions)
         await self._record(sessions, org, bot, T1)
-        assert await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=1))
-        assert not await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=2))
+        first = await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=1))
+        second = await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=2))
+        assert (first, second) == (True, False)
         assert await store.window(str(bot.id), BSUID, now=T1 + timedelta(minutes=3)) is False
         await self._record(sessions, org, bot, T2)
-        assert not await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=30))
+        stale = await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=30))
+        assert not stale
         assert await store.window(str(bot.id), BSUID, now=T2 + timedelta(minutes=1)) is True
 
     async def test_a_message_in_the_second_of_a_closure_reopens_the_window(

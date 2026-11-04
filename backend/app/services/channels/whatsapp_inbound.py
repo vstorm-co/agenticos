@@ -369,24 +369,42 @@ async def _offer_again(
 ) -> None:
     """Offer again what each run still waits on, then settle its row.
 
-    `ChannelPrompts.offer` never raises: a prompt it could not send leaves the run
-    where the console reaches it.
+    `ChannelPrompts.offer` never raises and says whether everything was offered. A
+    row is dropped when it was, or when nothing is left to offer (the bot is off, or
+    the run is gone or no longer parked); otherwise the claim is given back so the
+    next delivery tries again. A re-offer that keeps failing is released every time,
+    so each customer message re-sends the prompts that did arrive (`resend=True`)
+    until the run moves on.
     """
     for row in held:
-        async with get_db_context() as db:
-            bot = await channel_bot_repo.get_for_org(
-                db, UUID(bot_id), organization_id=organization_id
-            )
-            run = await agent_run_repo.get_run(db, row.run_id, organization_id=organization_id)
-            if bot is not None and bot.is_active and run is not None and run.status in _PARKED:
-                await ChannelPrompts(db).offer(
-                    bot,
-                    platform="whatsapp",
-                    platform_chat_id=chat_id,
-                    run_id=run.id,
-                    resend=True,
+        offered = True
+        try:
+            async with get_db_context() as db:
+                bot = await channel_bot_repo.get_for_org(
+                    db, UUID(bot_id), organization_id=organization_id
                 )
-        await store.done(row)
+                run = await agent_run_repo.get_run(db, row.run_id, organization_id=organization_id)
+                if bot is not None and bot.is_active and run is not None and run.status in _PARKED:
+                    offered = await ChannelPrompts(db).offer(
+                        bot,
+                        platform="whatsapp",
+                        platform_chat_id=chat_id,
+                        run_id=run.id,
+                        resend=True,
+                    )
+        except Exception as failure:
+            offered = False
+            error = type(failure).__name__
+        else:
+            error = None
+        if offered:
+            await store.done(row)
+            continue
+        logger.warning(
+            "whatsapp_offer_failed",
+            extra={"bot_id": bot_id, "run_id": str(row.run_id), "error": error},
+        )
+        await store.release(row)
 
 
 async def reclaim_after_refusal(

@@ -314,8 +314,12 @@ class World:
         self.routed: list[list[IncomingMessage | IncomingPress]] = []
         self.sent: list[OutgoingMessage] = []
         self.offered: list[uuid.UUID] = []
+        self.unoffered: set[uuid.UUID] = set()
+        """Runs whose prompts `offer` reports it could not put in front of the chat."""
         self.verdict: str = "admitted"
         self.sender_gone = False
+        self.session_errors: list[str] = []
+        """The type of what each session's body raised; a clean exit adds nothing."""
         self.session: MagicMock | None = None
         self.sessions = 0
 
@@ -361,7 +365,11 @@ def world() -> Iterator[World]:
     @asynccontextmanager
     async def sessions() -> AsyncGenerator[MagicMock]:
         world.sessions += 1
-        yield MagicMock()
+        try:
+            yield MagicMock()
+        except BaseException as failure:
+            world.session_errors.append(type(failure).__name__)
+            raise
 
     async def get_run(
         db: Any, run_id: uuid.UUID, *, organization_id: uuid.UUID
@@ -390,10 +398,11 @@ def world() -> Iterator[World]:
 
     async def offer(
         bot: Any, *, platform: str, platform_chat_id: str, run_id: uuid.UUID, resend: bool = False
-    ) -> None:
+    ) -> bool:
         world.order.append("offer")
         world.offered.append(run_id)
         world.offer_kwargs.append({"platform": platform, "resend": resend})
+        return run_id not in world.unoffered
 
     async def incoming_for_run(
         db: Any, run: Any, *, bot_id: uuid.UUID, platform_chat_id: str
@@ -559,9 +568,9 @@ class TestHeldAnswers:
         async def route(events: list[Any]) -> None:
             await probe("route")
 
-        async def offer(bot: Any, **kwargs: Any) -> None:
+        async def offer(bot: Any, **kwargs: Any) -> bool:
             await probe("offer")
-            await offers(bot, **kwargs)
+            return await offers(bot, **kwargs)
 
         world.adapter.send_message.side_effect = send
         world.offer.side_effect = offer
@@ -808,20 +817,78 @@ class TestHeldAnswers:
         run = world.run(status=PARKED)
         row = world.held(run)
         store = world.store([row])
-        world.offer.side_effect = RuntimeError("no")
+        world.unoffered.add(run.id)
 
         with caplog.at_level(logging.WARNING):
             await _handle(world, store)
         assert store.settled_ids("release") == [row.id]
-        assert [r.error for r in caplog.records if r.message == "whatsapp_offer_failed"] == [
-            "RuntimeError"
-        ]
+        assert store.settled_ids("done") == []
+        (record,) = [r for r in caplog.records if r.message == "whatsapp_offer_failed"]
+        assert (record.bot_id, record.run_id, record.error) == (BOT, str(run.id), None)
+        assert world.session_errors == []
         assert [(r.answer, r.files) for r in store.rows] == [(False, False)]
 
-        world.offer.side_effect = AsyncMock()
+        world.unoffered.clear()
         await _handle(world, store)
 
         assert len(world.sent) == 1
+        assert store.settled_ids("done") == [row.id]
+
+    async def test_a_reoffer_that_failed_for_one_run_does_not_stop_the_next(self, world):
+        first, second = world.run(status=PARKED), world.run(status=PARKED)
+        rows = [world.held(first, answer=False), world.held(second, answer=False)]
+        store = world.store(rows)
+        world.unoffered.add(first.id)
+
+        await _handle(world, store)
+
+        assert world.offered == [first.id, second.id]
+        assert store.settled_ids("release") == [rows[0].id]
+        assert store.settled_ids("done") == [rows[1].id]
+
+    async def test_a_reoffer_whose_commit_fails_gives_the_claim_back(self, world, caplog):
+        first, second = world.run(status=PARKED), world.run(status=PARKED)
+        rows = [world.held(first, answer=False), world.held(second, answer=False)]
+        store = world.store(rows)
+
+        @asynccontextmanager
+        async def failing_commit() -> AsyncGenerator[MagicMock]:
+            yield MagicMock()
+            if world.offered:
+                raise RuntimeError("commit failed")
+
+        with (
+            patch(f"{MODULE}.get_db_context", failing_commit),
+            caplog.at_level(logging.WARNING),
+        ):
+            await _handle(world, store)
+
+        assert world.offered == [first.id, second.id]
+        assert store.settled_ids("release") == [rows[0].id, rows[1].id]
+        assert store.settled_ids("done") == []
+        records = [r for r in caplog.records if r.message == "whatsapp_offer_failed"]
+        assert [(r.bot_id, r.run_id, r.error) for r in records] == [
+            (BOT, str(first.id), "RuntimeError"),
+            (BOT, str(second.id), "RuntimeError"),
+        ]
+
+    async def test_a_failing_settlement_releases_every_owing_row(self, world, caplog):
+        first, second = world.run(status=PARKED), world.run(status=PARKED)
+        rows = [world.held(first, answer=False), world.held(second, answer=False)]
+        store = world.store(rows)
+
+        async def broken_done(held: Held) -> None:
+            raise RuntimeError("db down")
+
+        store.done = broken_done  # type: ignore[method-assign]
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store)
+
+        assert store.settled_ids("release") == [rows[0].id, rows[1].id]
+        (record,) = [r for r in caplog.records if r.message == "whatsapp_offer_failed"]
+        assert (record.bot_id, record.error) == (BOT, "RuntimeError")
+        assert not hasattr(record, "run_id")
 
     async def test_a_question_is_not_offered_again_when_the_bot_is_gone(self, world):
         run = world.run(status=PARKED)
@@ -1136,8 +1203,9 @@ class TestReclaim:
         claim.runs[RUN].status = PARKED
         offered_at: list[datetime] = []
 
-        async def offer(bot: Any, **kwargs: Any) -> None:
+        async def offer(bot: Any, **kwargs: Any) -> bool:
             offered_at.append(datetime.now(UTC))
+            return True
 
         claim.offer.side_effect = offer
         claimable: list[Any] = []

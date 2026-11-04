@@ -386,11 +386,58 @@ class TestOffering:
                     service.runner, "parked_questions", new=AsyncMock(return_value=[asked])
                 ),
             ):
-                await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=RUN)
+                offered = await service.offer(
+                    bot, platform="slack", platform_chat_id="C1", run_id=RUN
+                )
             second = env.adapter.send_prompt.await_args_list[1].args[1]
 
+        assert offered is False
         delete.assert_awaited_once_with(service.db, rows)
         assert [choice.label for choice in second.choices] == ["B", "Done", SKIP]
+
+    @pytest.mark.security
+    async def test_an_approval_sent_before_a_later_failure_keeps_its_row_and_the_session(self):
+        """`offer` never raises, so the caller's session commits: the buttons already sent stay valid."""
+        bot = _bot()
+        approval = ParkedCall(
+            id=APPROVAL_ID, tool_call_id="c1", tool_name="gmail_send_email", tool_args={}
+        )
+        asked = ParkedQuestion(
+            tool_call_id="ask-1", questions=[QuestionItem(question="One?", options=[])]
+        )
+        service = ChannelPrompts(_session())
+        rows: list[MagicMock] = []
+
+        async def create(db: Any, **fields: Any) -> MagicMock:
+            rows.append(MagicMock(id=uuid.uuid4(), **fields))
+            return rows[-1]
+
+        with _Patched(bot=bot, prompt=None, role="member") as env:
+            env.adapter.send_prompt = AsyncMock(side_effect=[None, RuntimeError("slack down")])
+            with (
+                patch(
+                    f"{_MODULE}.agent_run_repo.get_run",
+                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                ),
+                patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=[])),
+                patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
+                patch(f"{_MODULE}.channel_prompt_repo.delete", new=AsyncMock()) as delete,
+                patch.object(
+                    service.runner, "parked_calls", new=AsyncMock(return_value=[approval])
+                ),
+                patch.object(
+                    service.runner, "parked_questions", new=AsyncMock(return_value=[asked])
+                ),
+            ):
+                offered = await service.offer(
+                    bot, platform="slack", platform_chat_id="C1", run_id=RUN
+                )
+
+        assert offered is False
+        [approval_row, question_row] = rows
+        delete.assert_awaited_once_with(service.db, [question_row])
+        service.db.rollback.assert_not_called()
+        assert approval_row.kind == APPROVAL
 
     async def _offer_with_rows(self, rows: list[MagicMock], *, resend: bool):
         """Offer an approval and a two-question call the chat already has `rows` for."""
@@ -505,13 +552,16 @@ class TestOffering:
         service = ChannelPrompts(_session())
         with _Patched(bot=bot, prompt=None, role="member") as env:
             with patch(f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=None)):
-                await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=RUN)
+                gone = await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=RUN)
             with patch(
                 f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(side_effect=RuntimeError)
             ):
-                await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=RUN)
+                failed = await service.offer(
+                    bot, platform="slack", platform_chat_id="C1", run_id=RUN
+                )
 
             env.adapter.send_prompt.assert_not_awaited()
+        assert (gone, failed) == (True, False)
 
     async def test_a_long_argument_list_is_cut_short(self):
         bot = _bot()

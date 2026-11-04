@@ -191,7 +191,7 @@ class ChannelPrompts:
         platform_chat_id: str,
         run_id: UUID,
         resend: bool = False,
-    ) -> None:
+    ) -> bool:
         """Put what the run is waiting on in front of the chat, one message each.
 
         Idempotent: what the run waits on has at most one row each, so offering it
@@ -199,9 +199,9 @@ class ChannelPrompts:
         caller that knows the first message never arrived (a platform that held it);
         otherwise it is left as it is.
 
-        Never raises: the answer the turn produced is already posted, and a
-        prompt that could not be sent leaves the run where the console and the
-        approvals queue still reach it.
+        Never raises; `False` when something could not be offered. The answer the
+        turn produced is already posted, and a prompt that could not be sent leaves
+        the run where the console and the approvals queue still reach it.
         """
         try:
             await self._offer(
@@ -213,6 +213,8 @@ class ChannelPrompts:
             )
         except Exception:
             logger.exception("Could not offer run %s's prompts on %s", run_id, platform)
+            return False
+        return True
 
     async def _offer(
         self, bot: ChannelBot, *, platform: str, platform_chat_id: str, run_id: UUID, resend: bool
