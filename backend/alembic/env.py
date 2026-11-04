@@ -84,6 +84,8 @@ def run_migrations_online() -> None:
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        # A statement's values can be personal data: keep them out of error logs.
+        hide_parameters=True,
     )
 
     with connectable.connect() as connection:

@@ -160,7 +160,8 @@ async def _ingestion_service(
     the job's way out.
     """
     rag_settings = settings.rag
-    engine = create_async_engine(settings.DATABASE_URL)
+    # Chunk text is bound as statement values: hide them from errors, and so from logs.
+    engine = create_async_engine(settings.DATABASE_URL, hide_parameters=True)
     try:
         yield IngestionService(
             processor=processor,

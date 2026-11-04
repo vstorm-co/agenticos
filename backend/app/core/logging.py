@@ -189,6 +189,25 @@ class PiiRedactionFilter(logging.Filter):
             "[SECRET_REDACTED]",
         ),
         (re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]{10,}"), "Bearer [TOKEN_REDACTED]"),
+        # A database error's DETAIL line names the offending row's values
+        # (`Key (platform_user_id)=(US.1) already exists.`).
+        (re.compile(r"^(DETAIL:  ).*$", re.MULTILINE), r"\1[REDACTED]"),
+        # asyncpg quotes the value it could not encode for a bound argument.
+        (re.compile(r"(invalid input for query argument \$\d+[^:]*: ).*"), r"\1[REDACTED]"),
+        # asyncpg's uuid codec, which the line above is raised from, repeats the value.
+        # Python's repr switches quotes when the value holds one, so redact to the line end.
+        (re.compile(r"(invalid UUID ).*"), r"\1[REDACTED]"),
+        (re.compile(r"(a bytes or str object expected, got ).*"), r"\1[REDACTED]"),
+        # Postgres quotes the value it could not parse as a type or an enum (a schema-
+        # qualified name has a dot), or found out of range for a type. The value may
+        # hold a quote of its own, so each redacts to the last quote on the line.
+        (
+            re.compile(r'(invalid input (?:syntax for type [\w. ]+|value for enum [\w.]+): )".*"'),
+            r'\1"[REDACTED]"',
+        ),
+        (re.compile(r'"[^\n]*"(?= is out of range for type)'), '"[REDACTED]"'),
+        (re.compile(r"(date/time field value out of range: ).*"), r"\1[REDACTED]"),
+        (re.compile(r"(malformed array literal: ).*"), r"\1[REDACTED]"),
         # A Discord interaction's token is the last segment of the URL that
         # answers it, and a failed call's error carries that URL. Whoever holds
         # the token may post and edit as the bot there for fifteen minutes.

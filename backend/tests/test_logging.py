@@ -21,7 +21,9 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from asyncpg.exceptions import DataError, UniqueViolationError
 from fastapi import FastAPI
+from sqlalchemy.exc import DBAPIError
 from starlette.datastructures import URL
 from uvicorn.config import LOGGING_CONFIG
 from uvicorn.logging import DefaultFormatter
@@ -679,3 +681,136 @@ def test_a_graph_media_id_is_redacted_but_a_send_path_is_not(root_stream: io.Str
     assert redact_secret_paths("https://graph.facebook.com/v26.0/987654321") == (
         "https://graph.facebook.com/v26.0/[REDACTED]"
     )
+
+
+def _logged_chain(exc: BaseException) -> str:
+    """The text the filter leaves on a record that `logger.exception` logged `exc` for."""
+    logger = logging.getLogger("app.test_value_text")
+    record = logger.makeRecord(
+        logger.name,
+        logging.ERROR,
+        __file__,
+        0,
+        "DB session error, rolling back",
+        (),
+        (type(exc), exc, exc.__traceback__),
+    )
+    PiiRedactionFilter().filter(record)
+    assert record.exc_text is not None
+    return record.exc_text
+
+
+@pytest.mark.security
+def test_a_constraint_detail_value_is_redacted_from_the_exception_chain():
+    """The statement's own error hides its parameters, but it is raised from the
+    driver's, whose text carries a `DETAIL:` line naming the offending row."""
+    orig = UniqueViolationError.new(
+        {
+            "C": "23505",
+            "M": "duplicate key value violates unique constraint",
+            "D": "Key (platform_user_id)=(US.4815162342) already exists.",
+        }
+    )
+    wrapped = DBAPIError.instance(
+        "INSERT INTO channel_identities (platform_user_id) VALUES ($1)",
+        ("US.4815162342",),
+        orig,
+        Exception,
+        hide_parameters=True,
+    )
+    wrapped.__cause__ = orig
+    text = _logged_chain(wrapped)
+    assert "DETAIL:  [REDACTED]" in text
+    assert "US.4815162342" not in text
+    # The rest of the chain stays readable.
+    assert "[SQL: INSERT INTO channel_identities" in text
+    assert "UniqueViolationError" in text
+
+
+@pytest.mark.security
+def test_an_invalid_query_argument_value_is_redacted():
+    """asyncpg raises the `DataError` from the codec's own error, which repeats the value."""
+    codec = ValueError(
+        "invalid UUID 'US.4815162342': length must be between 32..36 characters, got 13"
+    )
+    exc = DataError("invalid input for query argument $2: 'US.4815162342' (expected str)")
+    exc.__cause__ = codec
+    text = _logged_chain(exc)
+    assert "invalid input for query argument $2: [REDACTED]" in text
+    assert "invalid UUID [REDACTED]" in text
+    assert "US.4815162342" not in text
+
+
+@pytest.mark.security
+def test_a_codec_type_error_value_is_redacted():
+    exc = DataError("invalid input for query argument $1: 4815162342 (expected str)")
+    exc.__cause__ = TypeError("a bytes or str object expected, got 4815162342")
+    text = _logged_chain(exc)
+    assert "a bytes or str object expected, got [REDACTED]" in text
+    assert "4815162342" not in text
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("message", "kept"),
+    [
+        ('invalid input syntax for type uuid: "US.4815162342"', "invalid input syntax for type"),
+        ('invalid input syntax for type json: "a"b US.4815162342"', "for type json"),
+        (
+            'invalid input value for enum public.run_status: "US.4815162342"',
+            "invalid input value for enum public.run_status",
+        ),
+        ('invalid input syntax for type timestamp with time zone: "US.4815162342"', "time zone"),
+    ],
+)
+def test_an_invalid_input_value_is_redacted(message: str, kept: str):
+    text = _logged_chain(DataError(message))
+    assert kept in text
+    assert '"[REDACTED]"' in text
+    assert "US.4815162342" not in text
+
+
+@pytest.mark.security
+def test_a_uuid_value_with_an_apostrophe_is_redacted():
+    """Python's repr uses double quotes for such a value, so the codec's text has none to match."""
+    exc = DataError('invalid input for query argument $2: "O\'Brien" (expected str)')
+    exc.__cause__ = ValueError(
+        'invalid UUID "O\'Brien US.4815162342": length must be between 32..36 characters, got 21'
+    )
+    text = _logged_chain(exc)
+    assert "invalid UUID [REDACTED]" in text
+    assert "ValueError" in text
+    assert "US.4815162342" not in text
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("message", "kept"),
+    [
+        (
+            'value "US.4815162342" is out of range for type integer',
+            "is out of range for type integer",
+        ),
+        ('"US.4815162342e400" is out of range for type double precision', "double precision"),
+    ],
+)
+def test_an_out_of_range_value_is_redacted_and_the_type_kept(message: str, kept: str):
+    text = _logged_chain(DataError(message))
+    assert '"[REDACTED]" is out of range for type' in text
+    assert kept in text
+    assert "US.4815162342" not in text
+
+
+@pytest.mark.security
+def test_a_date_time_value_is_redacted():
+    text = _logged_chain(DataError('date/time field value out of range: "US.4815162342"'))
+    assert "date/time field value out of range: [REDACTED]" in text
+    assert "US.4815162342" not in text
+
+
+@pytest.mark.security
+def test_a_malformed_array_literal_with_an_inner_quote_is_redacted():
+    text = _logged_chain(DataError('malformed array literal: "{"US.4815162342"'))
+    assert "malformed array literal: [REDACTED]" in text
+    assert "DataError" in text
+    assert "US.4815162342" not in text
