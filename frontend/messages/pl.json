@@ -9662,6 +9662,7 @@
     }
   },
   "notifications": {
+    "needsAttention": "Wymaga uwagi",
     "markAllRead": "Oznacz wszystkie jako przeczytane",
     "loadMore": "Wczytaj więcej",
     "failedLoad": "Nie udało się wczytać powiadomień",

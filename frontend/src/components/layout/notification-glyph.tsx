@@ -1,83 +1,68 @@
+"use client";
+
+import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import {
   AlertCircle,
   BarChart3,
   Bell,
-  CheckCircle2,
-  Database,
+  Check,
   KeyRound,
   Lightbulb,
   Megaphone,
-  PauseCircle,
   Plug,
-  PlugZap,
+  Unplug,
   Radar,
   Settings2,
   Share2,
   ShieldCheck,
-  Sparkles,
+  Wrench,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { AppIcon as PanelsTopLeft } from "@/components/icons/product-icons";
+import {
+  AppIcon as PanelsTopLeft,
+  BackgroundIcon,
+  KnowledgeIcon,
+} from "@/components/icons/product-icons";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import type { Notification } from "@/lib/notifications-api";
 import { cn } from "@/lib/utils";
 
-/** The neutral tile; a kind only takes a colour when the colour is the news. */
-const NEUTRAL = "bg-muted text-foreground";
-const GOOD = "bg-success/10 text-success";
-const BAD = "bg-destructive/10 text-destructive";
-const HELD = "bg-warning/10 text-warning";
-
-/** What each kind of event looks like: its icon, and the tint that says how it went. */
-const KINDS: Record<string, { icon: LucideIcon; tone: string }> = {
-  run_completed: { icon: CheckCircle2, tone: GOOD },
-  run_failed: { icon: AlertCircle, tone: BAD },
-  approval_requested: { icon: ShieldCheck, tone: HELD },
-  budget_warning: { icon: Wallet, tone: HELD },
-  budget_exceeded: { icon: Wallet, tone: BAD },
-  ingestion_completed: { icon: Database, tone: NEUTRAL },
-  ingestion_failed: { icon: Database, tone: BAD },
-  usage_report: { icon: BarChart3, tone: NEUTRAL },
-  agent_usage_report: { icon: BarChart3, tone: NEUTRAL },
-  // Neutral: most of these are a secret created or a key issued, and painting
-  // every one red teaches the reader to stop looking at the red ones.
-  security_event: { icon: KeyRound, tone: NEUTRAL },
-  configuration_changed: { icon: Settings2, tone: NEUTRAL },
-  announcement: { icon: Megaphone, tone: NEUTRAL },
-  artifact_version_published: { icon: PanelsTopLeft, tone: NEUTRAL },
-  resource_shared: { icon: Share2, tone: NEUTRAL },
-  mcp_server_down: { icon: PlugZap, tone: BAD },
-  mcp_server_recovered: { icon: Plug, tone: GOOD },
-  background_task_paused: { icon: PauseCircle, tone: BAD },
-  // Somebody asked for a capability one of your agents lacks (#2301).
-  capability_requested: { icon: Sparkles, tone: HELD },
-  // What the night's look at your week proposes (#2301).
-  suggestion: { icon: Lightbulb, tone: NEUTRAL },
-  // Something a watch over your connections was asked to say at once (#2301).
-  finding: { icon: Radar, tone: HELD },
+/** Event identity stays neutral; attention is shown beside the timestamp. */
+const KINDS: Record<string, { icon: LucideIcon; attention?: "error" | "warning" }> = {
+  run_completed: { icon: Check },
+  run_failed: { icon: AlertCircle, attention: "error" },
+  approval_requested: { icon: ShieldCheck, attention: "warning" },
+  budget_warning: { icon: Wallet, attention: "warning" },
+  budget_exceeded: { icon: Wallet, attention: "error" },
+  ingestion_completed: { icon: KnowledgeIcon },
+  ingestion_failed: { icon: KnowledgeIcon, attention: "error" },
+  usage_report: { icon: BarChart3 },
+  agent_usage_report: { icon: BarChart3 },
+  security_event: { icon: KeyRound },
+  configuration_changed: { icon: Settings2 },
+  announcement: { icon: Megaphone },
+  artifact_version_published: { icon: PanelsTopLeft },
+  resource_shared: { icon: Share2 },
+  mcp_server_down: { icon: Unplug, attention: "error" },
+  mcp_server_recovered: { icon: Plug },
+  background_task_paused: { icon: BackgroundIcon, attention: "error" },
+  capability_requested: { icon: Wrench, attention: "warning" },
+  suggestion: { icon: Lightbulb },
+  finding: { icon: Radar, attention: "warning" },
 };
+const UNKNOWN = { icon: Bell };
 
-/** A kind this console has not met yet: a bell, rather than nothing. */
-const UNKNOWN = { icon: Bell, tone: NEUTRAL };
-
-/**
- * What a notification is about, at a glance: the agent's face with the event
- * as a badge on it when the row is about an agent, and the event's own icon
- * otherwise.
- *
- * A face first because "Support's run finished" and "Billing's run failed" are
- * told apart by whose they are before what happened to them - the same way a
- * chat list is read by its avatars.
- */
+/** The agent's identity, or a full-size event icon when there is no agent. */
 export function NotificationGlyph({ item }: { item: Notification }) {
   const kind = KINDS[item.event_type] ?? UNKNOWN;
   const Icon = kind.icon;
 
   if (item.agent) {
     return (
-      <span aria-hidden className="relative h-8 w-8 shrink-0">
+      <span aria-hidden className="size-8 shrink-0">
         <AgentAvatar
           agentId={item.agent.id}
           slug={item.agent.slug}
@@ -86,13 +71,6 @@ export function NotificationGlyph({ item }: { item: Notification }) {
           size="sm"
           className="h-8 w-8"
         />
-        {/* A solid disc under the tint: the tints are translucent, and over a
-            face they would let it show through the icon. */}
-        <span className="bg-popover ring-popover absolute -right-1 -bottom-1 rounded-full ring-2">
-          <span className={cn("grid h-4 w-4 place-items-center rounded-full", kind.tone)}>
-            <Icon className="h-2.5 w-2.5" />
-          </span>
-        </span>
       </span>
     );
   }
@@ -100,9 +78,35 @@ export function NotificationGlyph({ item }: { item: Notification }) {
   return (
     <span
       aria-hidden
-      className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", kind.tone)}
+      className="bg-foreground/[0.06] text-foreground/75 grid size-8 shrink-0 place-items-center rounded-lg"
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="size-[18px]" strokeWidth={1.75} />
+    </span>
+  );
+}
+
+/** A quiet timestamp; only events requiring a response get an extra signal. */
+export function NotificationMeta({ item, children }: { item: Notification; children: ReactNode }) {
+  const t = useTranslations("notifications");
+  const attention = KINDS[item.event_type]?.attention;
+  return (
+    <span className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {attention && (
+        <span className="text-foreground/80 inline-flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className={cn(
+              "size-1.5 rounded-full",
+              attention === "error" ? "bg-destructive" : "bg-warning",
+            )}
+          />
+          {t("needsAttention")}
+          <span aria-hidden className="text-muted-foreground">
+            ·
+          </span>
+        </span>
+      )}
+      {children}
     </span>
   );
 }

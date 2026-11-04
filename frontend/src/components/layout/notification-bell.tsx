@@ -18,7 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui";
 import { OutcomeActions } from "@/components/chat/outcome-cards";
-import { NotificationGlyph } from "@/components/layout/notification-glyph";
+import { NotificationGlyph, NotificationMeta } from "@/components/layout/notification-glyph";
 import { useNotificationInbox, useUnreadNotificationCount } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import type { Notification } from "@/lib/notifications-api";
@@ -330,9 +330,7 @@ function NotificationRow({
         >
           {item.summary}
         </span>
-        <span className="text-muted-foreground block text-xs">
-          {timeAgo(item.created_at, tTime, locale)}
-        </span>
+        <NotificationMeta item={item}>{timeAgo(item.created_at, tTime, locale)}</NotificationMeta>
       </span>
       <span
         aria-hidden

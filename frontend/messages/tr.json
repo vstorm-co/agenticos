@@ -390,6 +390,7 @@
     "clearSearch": "Aramayı temizle"
   },
   "notifications": {
+    "needsAttention": "İlgilenilmesi gerekiyor",
     "markAllRead": "Tümünü okundu işaretle",
     "loadMore": "Daha fazla yükle",
     "failedLoad": "Bildirimler yüklenemedi",

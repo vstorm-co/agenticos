@@ -8951,6 +8951,7 @@
     }
   },
   "notifications": {
+    "needsAttention": "Needs attention",
     "markAllRead": "Mark all read",
     "loadMore": "Load more",
     "failedLoad": "Failed to load notifications",

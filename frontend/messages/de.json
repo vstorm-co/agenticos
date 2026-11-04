@@ -8830,6 +8830,7 @@
     }
   },
   "notifications": {
+    "needsAttention": "Aufmerksamkeit erforderlich",
     "markAllRead": "Alle als gelesen markieren",
     "loadMore": "Mehr laden",
     "failedLoad": "Benachrichtigungen konnten nicht geladen werden",
