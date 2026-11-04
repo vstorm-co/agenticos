@@ -27,6 +27,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - A workflow's **knowledge.search** step no longer gives a Markdown, text, HTML or Word source a page number, so the **agent.run** step after it no longer cites one as "page 1". A PDF or a presentation keeps its page. Agent chat already cited this way. (#2482)
 
+## [1.47.2] - 2026-11-04
+
 ### Security
 
 - An uploaded document's parse copy under `MEDIA_DIR/_rag_tmp` is now removed: by its ingest job when it ends (indexed, refused, its document gone, or failed on its last attempt - kept while a retry is still to come), after the commit that deletes the document, and by a new hourly `sweep-rag-scratch` job once its document is gone or no longer processing. Until now every copy stayed on the media volume for good, so the content of a deleted document, knowledge base or account was still on disk. **Operators:** nothing to run - the first sweep after the upgrade removes the copies earlier releases left, except those of documents still processing and any written in the last hour. A job queued for a document that is gone now ends at once instead of failing into a retry, and **Retry** on a dead document ingest in Background jobs is refused: retry the document from its knowledge base instead, which parses its stored file again. (#2681)
@@ -19985,7 +19987,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...HEAD
+[1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
