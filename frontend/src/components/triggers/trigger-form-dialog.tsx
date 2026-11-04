@@ -1,6 +1,8 @@
 "use client";
 
 import { ZoneField, isTimeZone } from "./zone-field";
+import { RoutineDialogFrame } from "./routine-dialog-frame";
+
 import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
@@ -36,7 +38,6 @@ import {
   TabsList,
   TabsTrigger,
   WizardNav,
-  WizardSteps,
   type WizardStep,
 } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -92,7 +93,7 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
-import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_FRAMED, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -983,173 +984,157 @@ export function TriggerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      {/* Each step takes the space it needs; only the body scrolls when the
-          available height is exceeded, keeping navigation reachable. */}
-      {/* `gap-0`: the three bands pad themselves, and the dialog's own grid gap
-          on top of the body's padding left a band of nothing over the first field. */}
-      <DialogContent
-        className={cn(DIALOG_FRAMED, DIALOG_FORM, "gap-0 sm:gap-0 sm:p-0")}
-        style={{ backgroundColor: "var(--color-card)" }}
+      <RoutineDialogFrame
+        title={type === "event" ? t("newEvent") : t("newSchedule")}
+        description={t("createDescription")}
+        progress={{ steps, current: step }}
+        disabled={preparedLocal !== null || pending}
+        bodyKey={step}
+        footer={
+          <WizardNav
+            backIsStep={!onFirstStep}
+            backLabel={onFirstStep ? t("cancel") : t("back")}
+            onBack={onFirstStep ? () => changeOpen(false) : handleBack}
+            nextLabel={isLastStep ? t("create") : t("continue")}
+            onNext={handleNext}
+            nextDisabled={!canAdvance}
+            isLast={isLastStep}
+            busy={pending}
+            busyLabel={t("creating")}
+          />
+        }
       >
-        <DialogHeader className="border-foreground/10 border-b px-6 pt-4 pb-3">
-          <DialogTitle className="text-base font-semibold">
-            {type === "event" ? t("newEvent") : t("newSchedule")}
-          </DialogTitle>
-          <DialogDescription>{t("createDescription")}</DialogDescription>
-          <WizardSteps steps={steps} current={step} />
-        </DialogHeader>
+        {step === "event" && (
+          <EventFields
+            eventSource={eventSource}
+            onEventSource={setEventSource}
+            secret={secret}
+            onSecret={setSecret}
+            filterA={filterA}
+            onFilterA={setFilterA}
+            filterB={filterB}
+            onFilterB={setFilterB}
+          />
+        )}
 
-        {/* Keyed on the step, so each one slides in rather than swapping in place -
-            the eye follows the wizard forward instead of re-reading the frame. */}
-        <fieldset
-          disabled={preparedLocal !== null || pending}
-          key={step}
-          className="wizard-step-in min-h-0 scrollbar-thin overflow-y-auto px-6 py-4"
-        >
-          {step === "event" && (
-            <EventFields
-              eventSource={eventSource}
-              onEventSource={setEventSource}
-              secret={secret}
-              onSecret={setSecret}
-              filterA={filterA}
-              onFilterA={setFilterA}
-              filterB={filterB}
-              onFilterB={setFilterB}
-            />
-          )}
+        {step === "configure" && (
+          // One column: the dialog is a form's width, and the agent above its
+          // name reads in the order they are chosen.
+          <div className="space-y-4">
+            {agentId === null && (
+              <FormField label={t("agent")} htmlFor="trigger-agent">
+                <Select
+                  value={effectiveAgentId ?? ""}
+                  onValueChange={(next) => {
+                    setPickedAgentId(next);
+                    // A named environment belongs to one agent; carrying the
+                    // previous agent's choice across would be refused on create.
+                    changeEnvironment(DEFAULT_ENV);
+                  }}
+                >
+                  <SelectTrigger id="trigger-agent">
+                    <SelectValue placeholder={t("chooseAgent")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {runnable.map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        <span className="flex items-center gap-2">
+                          <AgentAvatar
+                            agentId={agent.id}
+                            slug={agent.slug}
+                            hasAvatar={agent.has_avatar}
+                            colorSlot={agent.avatar_color}
+                            size="sm"
+                          />
+                          {agent.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            )}
 
-          {step === "configure" && (
-            // One column: the dialog is a form's width, and the agent above its
-            // name reads in the order they are chosen.
-            <div className="space-y-4">
-              {agentId === null && (
-                <FormField label={t("agent")} htmlFor="trigger-agent">
-                  <Select
-                    value={effectiveAgentId ?? ""}
-                    onValueChange={(next) => {
-                      setPickedAgentId(next);
-                      // A named environment belongs to one agent; carrying the
-                      // previous agent's choice across would be refused on create.
-                      changeEnvironment(DEFAULT_ENV);
-                    }}
-                  >
-                    <SelectTrigger id="trigger-agent">
-                      <SelectValue placeholder={t("chooseAgent")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {runnable.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                          <span className="flex items-center gap-2">
-                            <AgentAvatar
-                              agentId={agent.id}
-                              slug={agent.slug}
-                              hasAvatar={agent.has_avatar}
-                              colorSlot={agent.avatar_color}
-                              size="sm"
-                            />
-                            {agent.name}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormField>
+            <NameField value={name} onChange={setName} />
+
+            <ResultModeField value={resultMode} onChange={setResultMode} />
+            <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
+              {namedEnvironments.length > 0 && (
+                <EnvironmentField
+                  value={environmentId}
+                  onChange={changeEnvironment}
+                  environments={namedEnvironments}
+                  defaultEnvironment={defaultEnvironment}
+                />
               )}
 
-              <NameField value={name} onChange={setName} />
-
-              <ResultModeField value={resultMode} onChange={setResultMode} />
-              <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
-                {namedEnvironments.length > 0 && (
-                  <EnvironmentField
-                    value={environmentId}
-                    onChange={changeEnvironment}
-                    environments={namedEnvironments}
-                    defaultEnvironment={defaultEnvironment}
-                  />
-                )}
-
-                {environmentId === DEFAULT_ENV && effectiveAgentId && (
-                  <VersionField
-                    key={effectiveAgentId}
-                    agentId={effectiveAgentId}
-                    value={pinnedVersion}
-                    onChange={setPinnedVersion}
-                    onValidChange={setVersionValid}
-                  />
-                )}
-
-                {resultMode === "report" && (
-                  <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-                )}
-
-                {resultMode === "report" && (
-                  <AnswerToField
-                    value={answerTo}
-                    onChange={setAnswerTo}
-                    hasConversation={hasConversation}
-                  />
-                )}
-                <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
-                <NotificationChannelsField
-                  value={notificationChannels}
-                  onChange={setNotificationChannels}
+              {environmentId === DEFAULT_ENV && effectiveAgentId && (
+                <VersionField
+                  key={effectiveAgentId}
+                  agentId={effectiveAgentId}
+                  value={pinnedVersion}
+                  onChange={setPinnedVersion}
+                  onValidChange={setVersionValid}
                 />
+              )}
 
-                <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+              {resultMode === "report" && (
+                <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+              )}
 
-                <BudgetField value={budget} onChange={setBudget} />
-
-                <RunAsCreatorField
-                  checked={runsAsCreator}
-                  onChange={setRunsAsCreator}
-                  type={type}
-                  isCreator={isCreator}
+              {resultMode === "report" && (
+                <AnswerToField
+                  value={answerTo}
+                  onChange={setAnswerTo}
+                  hasConversation={hasConversation}
                 />
-                <LocalTargetField
-                  value={localTarget}
-                  onChange={(target) => {
-                    setLocalTarget(target);
-                    setApprovedLocal(null);
-                  }}
-                  visible={runsAsCreator && isCreator}
-                />
-              </RoutineOptions>
-            </div>
-          )}
-
-          {step === "message" && (
-            <div className="space-y-4">
-              <TriggerTemplateSelector
-                triggerType={type}
-                eventSource={type === "event" ? eventSource : undefined}
-                selectedKey={templateKey}
-                onPick={applyTemplate}
-                onScratch={scratchTemplate}
+              )}
+              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+              <NotificationChannelsField
+                value={notificationChannels}
+                onChange={setNotificationChannels}
               />
 
-              {/* The step is the message's own, so the editor gets the room a
+              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+
+              <BudgetField value={budget} onChange={setBudget} />
+
+              <RunAsCreatorField
+                checked={runsAsCreator}
+                onChange={setRunsAsCreator}
+                type={type}
+                isCreator={isCreator}
+              />
+              <LocalTargetField
+                value={localTarget}
+                onChange={(target) => {
+                  setLocalTarget(target);
+                  setApprovedLocal(null);
+                }}
+                visible={runsAsCreator && isCreator}
+              />
+            </RoutineOptions>
+          </div>
+        )}
+
+        {step === "message" && (
+          <div className="space-y-4">
+            <TriggerTemplateSelector
+              triggerType={type}
+              eventSource={type === "event" ? eventSource : undefined}
+              selectedKey={templateKey}
+              onPick={applyTemplate}
+              onScratch={scratchTemplate}
+            />
+
+            {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-              <PromptField value={prompt} onChange={setPrompt} rows={8} />
-            </div>
-          )}
+            <PromptField value={prompt} onChange={setPrompt} rows={8} />
+          </div>
+        )}
 
-          {step === "schedule" && scheduleFields}
-        </fieldset>
-
-        <WizardNav
-          backIsStep={!onFirstStep}
-          backLabel={onFirstStep ? t("cancel") : t("back")}
-          onBack={onFirstStep ? () => changeOpen(false) : handleBack}
-          nextLabel={isLastStep ? t("create") : t("continue")}
-          onNext={handleNext}
-          nextDisabled={!canAdvance}
-          isLast={isLastStep}
-          busy={pending}
-          busyLabel={t("creating")}
-        />
-      </DialogContent>
+        {step === "schedule" && scheduleFields}
+      </RoutineDialogFrame>
     </Dialog>
   );
 }

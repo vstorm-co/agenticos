@@ -322,9 +322,10 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     // Only the templates written for the source picked on step one - a prompt
     // about an email makes no sense against a signed POST from your own code, and
     // neither does one about a GitHub issue.
-    expect(dialog.queryByRole("button", { name: /Draft a reply/ })).toBeNull();
-    expect(dialog.queryByRole("button", { name: /Triage the new issue/ })).toBeNull();
-    await user.click(dialog.getByRole("button", { name: /Act on the payload/ }));
+    await user.click(dialog.getByRole("button", { name: "Start from a template" }));
+    expect(screen.queryByRole("button", { name: /Draft a reply/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Triage the new issue/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Act on the payload/ }));
     expect(dialog.getByLabelText<HTMLTextAreaElement>("Message").value).toBe(
       "Act on this payload.",
     );

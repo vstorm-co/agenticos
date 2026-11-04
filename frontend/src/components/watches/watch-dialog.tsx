@@ -11,13 +11,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
-  Button,
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   Input,
   Label,
   Select,
@@ -27,19 +21,21 @@ import {
   SelectValue,
   Switch,
   Textarea,
+  MarkdownEditor,
+  WizardNav,
 } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { endInput, endInstant, EndsAtField } from "@/components/triggers/ends-at-field";
-import { useMcpConnections, useOrganizations } from "@/hooks";
+import { useAgentEnvironments, useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatchPresets, useWatches } from "@/hooks/use-watches";
 import { submitFailure } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { DIALOG_BODY, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { RoutineDialogFrame } from "@/components/triggers/routine-dialog-frame";
 import { cn } from "@/lib/utils";
 import { allowedIntervals, cadenceLabel } from "@/lib/watch-cadence";
 import type { Watch } from "@/lib/watches-api";
 import { WatchAccount, useAccountName } from "./watch-account";
-import { WatchAgentFields } from "./watch-agent-fields";
+import { WatchAgentFields, WatchExecutionFields } from "./watch-agent-fields";
 
 const CUSTOM = "custom";
 const FIELDS = [
@@ -108,6 +104,8 @@ export function WatchDialog({
   initialTask?: { title: string; instructions: string };
 }) {
   const t = useTranslations("watches");
+  const tt = useTranslations("triggers");
+  const [step, setStep] = useState<"configure" | "message" | "schedule">("configure");
   const tCadence = useTranslations("watches.cadence");
   const tErrors = useTranslations("errors");
   const { connections } = useMcpConnections();
@@ -136,6 +134,7 @@ export function WatchDialog({
   const [reviewSources, setReviewSources] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const { error: environmentsError } = useAgentEnvironments(draft.agentId || null);
 
   const connection = connections.find((each) => each.id === draft.connectionId);
   const offered = presets.filter((preset) => preset.server === connection?.catalog_key);
@@ -231,6 +230,20 @@ export function WatchDialog({
     } catch (failure) {
       const problem = submitFailure(failure, { fields: FIELDS }, tErrors);
       setErrors(problem.fields);
+      if (!watch) {
+        if (
+          problem.fields.agent_id ||
+          problem.fields.connection_id ||
+          problem.fields.title ||
+          problem.fields.preset_key
+        ) {
+          setStep("configure");
+        } else if (problem.fields.instructions) {
+          setStep("message");
+        } else {
+          setStep("schedule");
+        }
+      }
       if (problem.toast) toast.error(problem.toast);
     } finally {
       setSaving(false);
@@ -246,29 +259,57 @@ export function WatchDialog({
     draft.instructions.trim() !== "";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_COLUMN}>
-        <DialogHeader>
-          <DialogTitle>{watch ? t("editTitle") : t("newTitle")}</DialogTitle>
-          <DialogDescription>{t("dialogDescription")}</DialogDescription>
-        </DialogHeader>
-        <div className={cn(DIALOG_BODY, "space-y-4")}>
+      <RoutineDialogFrame
+        title={watch ? t("editTitle") : t("newTitle")}
+        description={t("dialogDescription")}
+        progress={
+          watch
+            ? undefined
+            : {
+                steps: [
+                  { id: "configure", label: tt("stepConfigure") },
+                  { id: "message", label: tt("stepMessage") },
+                  { id: "schedule", label: tt("stepSchedule") },
+                ],
+                current: step,
+              }
+        }
+        disabled={saving}
+        footer={
+          <WizardNav
+            backIsStep={!watch && step !== "configure"}
+            backLabel={!watch && step !== "configure" ? tt("back") : t("cancel")}
+            onBack={() => {
+              if (watch || step === "configure") onOpenChange(false);
+              else setStep(step === "schedule" ? "message" : "configure");
+            }}
+            nextLabel={watch ? t("save") : step === "schedule" ? t("create") : tt("continue")}
+            onNext={() => {
+              if (watch || step === "schedule") void save();
+              else setStep(step === "configure" ? "message" : "schedule");
+            }}
+            nextDisabled={
+              watch || step === "schedule"
+                ? !ready
+                : step === "configure"
+                  ? !draft.agentId || !draft.connectionId || !draft.title.trim()
+                  : !draft.instructions.trim()
+            }
+            isLast={Boolean(watch) || step === "schedule"}
+            busy={saving}
+            busyLabel={watch ? t("save") : tt("creating")}
+          />
+        }
+      >
+        <div hidden={!watch && step !== "configure"} className="space-y-4">
           <WatchAgentFields
             agentId={draft.agentId}
-            environmentId={draft.environmentId}
-            pinnedVersionId={draft.pinnedVersionId}
             disabled={saving}
-            error={errors.agent_id ?? errors.environment_id ?? errors.pinned_version_id}
+            error={errors.agent_id}
             onAgent={(id) => {
               edit({ agentId: id, environmentId: null, pinnedVersionId: null });
               setVersionValid(true);
             }}
-            onEnvironment={(id) => {
-              edit({ environmentId: id, pinnedVersionId: null });
-              setVersionValid(true);
-            }}
-            onVersion={(id) => edit({ pinnedVersionId: id })}
-            versionValid={versionValid}
-            onVersionValid={setVersionValid}
           />
           <FormField
             label={t("connection")}
@@ -299,28 +340,21 @@ export function WatchDialog({
               </SelectContent>
             </Select>
           </FormField>
-          {!watch && offered.length > 0 && (
+          {!watch && (
             <FormField label={t("preset")} htmlFor="watch-preset" error={errors.preset_key ?? null}>
-              <div id="watch-preset" role="radiogroup" className="grid gap-2 sm:grid-cols-2">
-                {[...offered.map((preset) => preset.key), CUSTOM].map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    role="radio"
-                    aria-checked={draft.presetKey === key}
-                    disabled={saving}
-                    onClick={() => pick(key)}
-                    className={cn(
-                      "rounded-xl border px-3 py-2 text-left text-sm transition-colors",
-                      draft.presetKey === key
-                        ? "border-foreground bg-muted"
-                        : "border-input hover:border-foreground/40",
-                    )}
-                  >
-                    {key === CUSTOM ? t("custom") : t(`presets.${key}.title`)}
-                  </button>
-                ))}
-              </div>
+              <Select value={draft.presetKey} onValueChange={pick} disabled={saving}>
+                <SelectTrigger id="watch-preset">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={CUSTOM}>{t("custom")}</SelectItem>
+                  {offered.map((preset) => (
+                    <SelectItem key={preset.key} value={preset.key}>
+                      {t(`presets.${preset.key}.title`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
           )}
           <FormField label={t("name")} htmlFor="watch-title" error={errors.title ?? null}>
@@ -332,22 +366,26 @@ export function WatchDialog({
               onChange={(event) => edit({ title: event.target.value })}
             />
           </FormField>
-          <FormField
+        </div>
+        <div hidden={!watch && step !== "message"} className={cn("space-y-1.5", watch && "mt-5")}>
+          <MarkdownEditor
+            id="watch-instructions"
+            toolbar={<Label htmlFor="watch-instructions">{t("instructions")}</Label>}
             label={t("instructions")}
-            htmlFor="watch-instructions"
-            description={t("instructionsHint")}
-            error={errors.instructions ?? null}
-          >
-            <Textarea
-              id="watch-instructions"
-              rows={3}
-              maxLength={2000}
-              value={draft.instructions}
-              disabled={saving}
-              placeholder={t("instructionsPlaceholder")}
-              onChange={(event) => edit({ instructions: event.target.value })}
-            />
-          </FormField>
+            value={draft.instructions}
+            disabled={saving}
+            invalid={Boolean(errors.instructions)}
+            onChange={(instructions) => edit({ instructions })}
+            placeholder={t("instructionsPlaceholder")}
+            rows={8}
+            maxLength={2000}
+            describedBy="watch-instructions-hint"
+          />
+          <p id="watch-instructions-hint" className="text-muted-foreground text-xs leading-relaxed">
+            {errors.instructions || t("instructionsHint")}
+          </p>
+        </div>
+        <div hidden={!watch && step !== "schedule"} className={cn("space-y-4", watch && "mt-5")}>
           <FormField
             label={t("howOften")}
             htmlFor="watch-interval"
@@ -370,7 +408,27 @@ export function WatchDialog({
               </SelectContent>
             </Select>
           </FormField>
-          <RoutineOptions invalid={invalidEnd}>
+          <RoutineOptions
+            invalid={
+              invalidEnd ||
+              !versionValid ||
+              Boolean(errors.environment_id) ||
+              Boolean(errors.pinned_version_id) ||
+              Boolean(environmentsError)
+            }
+          >
+            <WatchExecutionFields
+              error={errors.environment_id ?? errors.pinned_version_id}
+              agentId={draft.agentId}
+              environmentId={draft.environmentId}
+              pinnedVersionId={draft.pinnedVersionId}
+              onEnvironment={(id) => {
+                edit({ environmentId: id, pinnedVersionId: null });
+                setVersionValid(true);
+              }}
+              onVersion={(id) => edit({ pinnedVersionId: id })}
+              onVersionValid={setVersionValid}
+            />
             {watch && draft.agentId === watch.agent_id && (
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
@@ -452,15 +510,7 @@ export function WatchDialog({
             )}
           </RoutineOptions>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            {t("cancel")}
-          </Button>
-          <Button onClick={save} loading={saving} disabled={!ready}>
-            {watch ? t("save") : t("create")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </RoutineDialogFrame>
     </Dialog>
   );
 }

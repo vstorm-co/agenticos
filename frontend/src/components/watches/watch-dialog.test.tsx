@@ -153,12 +153,15 @@ describe("WatchDialog", () => {
   });
   it("requires an explicit agent in the global creation flow", async () => {
     render(<WatchDialog open onOpenChange={vi.fn()} connectionId="c-gh" />);
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
     await userEvent.click(
-      screen.getByRole("radio", { name: "Pull requests waiting on my review" }),
+      await screen.findByRole("option", { name: "Pull requests waiting on my review" }),
     );
-    expect(screen.getByRole("button", { name: "Create routine" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
     await userEvent.click(await screen.findByRole("option", { name: "Monitor" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
     expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: "a-monitor" }));
   });
@@ -180,10 +183,13 @@ describe("WatchDialog", () => {
 
     // Only the presets for this connection's server, and one's own words.
     expect(screen.queryByRole("radio", { name: "Issues assigned to me" })).toBeNull();
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
     await userEvent.click(
-      screen.getByRole("radio", { name: "Failing checks on my pull requests" }),
+      await screen.findByRole("option", { name: "Failing checks on my pull requests" }),
     );
     expect(screen.getByLabelText("Name")).toHaveValue("Failing checks on my pull requests");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("switch", { name: "Tell me at once when it is urgent" })).toBeChecked();
     expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 3 hours");
     await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
@@ -218,7 +224,9 @@ describe("WatchDialog", () => {
     expect(await screen.findByRole("option", { name: "GitHub" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("option", { name: "Our wiki" }));
     await userEvent.type(screen.getByLabelText("Name"), "Wiki");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.type(screen.getByLabelText("Look for"), "Pricing");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
@@ -228,17 +236,20 @@ describe("WatchDialog", () => {
   it("takes the person's own words for a server with no presets", async () => {
     state.floor = null;
     render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} />);
-    const start = screen.getByRole("button", { name: "Create routine" });
+    const start = screen.getByRole("button", { name: "Continue" });
     expect(start).toBeDisabled();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Account" }));
     await userEvent.click(await screen.findByRole("option", { name: "Our wiki" }));
     expect(screen.queryByRole("radio", { name: "Something else" })).toBeNull();
     await userEvent.type(screen.getByLabelText("Name"), "  Wiki edits ");
+    await userEvent.click(start);
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Look for"), "Pages about pricing");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(screen.getByRole("combobox", { name: "How often" }));
     await userEvent.click(await screen.findByRole("option", { name: "Every 15 minutes" }));
-    await userEvent.click(start);
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     expect(state.create).toHaveBeenCalledWith({
       agent_id: "a-monitor",
@@ -256,13 +267,14 @@ describe("WatchDialog", () => {
 
   it("goes back to one's own words from a preset", async () => {
     render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} connectionId="c-gh" />);
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
     await userEvent.click(
-      screen.getByRole("radio", { name: "Pull requests waiting on my review" }),
+      await screen.findByRole("option", { name: "Pull requests waiting on my review" }),
     );
-    await userEvent.click(screen.getByRole("radio", { name: "Something else" }));
-    expect(screen.getByRole("radio", { name: "Something else" })).toHaveAttribute(
-      "aria-checked",
-      "true",
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Something else" }));
+    expect(screen.getByRole("combobox", { name: "What to look for" })).toHaveTextContent(
+      "Something else",
     );
     // What the preset wrote stays, to edit from.
     expect(screen.getByLabelText("Name")).toHaveValue("Pull requests waiting on my review");
@@ -314,6 +326,41 @@ describe("WatchDialog", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it("keeps the draft when moving back and exposes just one advanced panel", async () => {
+    render(<WatchDialog open agentId="a-monitor" connectionId="c-gh" onOpenChange={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "My review queue");
+    expect(screen.queryByRole("textbox", { name: "Look for" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.type(screen.getByLabelText("Look for"), "Find reviews waiting on me");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getAllByText("Advanced options")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByLabelText("Look for")).toHaveValue("Find reviews waiting on me");
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("My review queue");
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it("returns a create refusal to the step containing the rejected field", async () => {
+    refusal.value = { fields: { title: "Taken" }, toast: null };
+    state.create.mockRejectedValue(new Error("400"));
+    render(
+      <WatchDialog
+        open
+        agentId="a-monitor"
+        connectionId="c-gh"
+        onOpenChange={vi.fn()}
+        initialTask={{ title: "My reviews", instructions: "Find reviews" }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+    expect(await screen.findByText("Taken")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("My reviews");
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
   it("closes on Cancel", async () => {
     const onOpenChange = vi.fn();
     render(<WatchDialog agentId="a-monitor" open onOpenChange={onOpenChange} watch={watch()} />);
@@ -333,6 +380,8 @@ it("starts a proposed watch with a visible cadence that respects a nonstandard f
       initialTask={{ title: "My reviews", instructions: "Find review requests" }}
     />,
   );
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 90 minutes");
   await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
   expect(state.create).toHaveBeenCalledWith(

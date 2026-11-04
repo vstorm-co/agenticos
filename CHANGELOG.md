@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Unify scheduled, event and monitoring routine dialogs with one form frame, shared navigation and message editor. Creating a watch now uses three steps, preserves the draft when going back and groups advanced settings in one panel. Agent pickers display their avatars.
+
 - Keep chart axes, legends and tooltip text readable in both themes across dashboard charts, sparklines and charts made by agents.
 - Simplify the Builder's default sections, distinguish voice modes, align catalog search and filters, and refine table, list and kanban surfaces.
 

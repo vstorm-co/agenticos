@@ -38,19 +38,7 @@ vi.mock("@/components/agents/agent-avatar", () => ({
 
 function Picker() {
   const [agentId, setAgentId] = useState("");
-  return (
-    <WatchAgentFields
-      agentId={agentId}
-      onAgent={setAgentId}
-      environmentId={null}
-      pinnedVersionId={null}
-      onEnvironment={vi.fn()}
-      onVersion={vi.fn()}
-      onVersionValid={vi.fn()}
-      versionValid
-      disabled={false}
-    />
-  );
+  return <WatchAgentFields agentId={agentId} onAgent={setAgentId} disabled={false} />;
 }
 
 describe("watch agent identity", () => {

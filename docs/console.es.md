@@ -1,5 +1,5 @@
 ---
-source_sha: "f8b0db6b7677"
+source_sha: "c6eb01702f50"
 ---
 
 # La consola { #the-console }
@@ -162,6 +162,8 @@ horario o evento con sus herramientas; las ejecuciones aparecen en Activity.
 **Mis seguimientos** solo consulta cuentas personales conectadas y envía hallazgos
 a la bandeja privada. Cada pestaña tiene sus acciones de creación.
 `/routines?tab=watches` abre los seguimientos.
+
+Las rutinas programadas, por eventos y de seguimiento usan el mismo marco de diálogo, con encabezado y navegación fijos y un formulario desplazable. Crear un seguimiento recorre Configuración, Mensaje y Frecuencia; Atrás conserva el borrador. El selector de agentes muestra los mismos avatares que el chat. Las opciones de ejecución y entrega del seguimiento están reunidas en un solo panel de opciones avanzadas.
 
 Discover comienza con capacidades ilustradas en el dashboard. Al pasar el puntero
 por una curva de _Your period_ aparecen el intervalo y el valor; los costes se

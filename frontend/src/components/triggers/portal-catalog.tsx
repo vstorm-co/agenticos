@@ -40,6 +40,7 @@ import {
 } from "@/components/ui";
 import { usePortals, useSecrets, type PortalWithState } from "@/hooks";
 import type { PortalCatalogEntry } from "@/types/portals";
+import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { connectGithubApp } from "@/lib/mcp-connections-api";
@@ -57,6 +58,7 @@ function categoryLabel(category: string): string {
 }
 
 interface PortalCatalogProps {
+  compact?: boolean;
   /** Whether the caller may run agents - the floor for creating any trigger. */
   canRun: boolean;
   /** Whether the caller may connect the organization's accounts. */
@@ -112,7 +114,11 @@ function blocked(item: PortalWithState): boolean {
   return item.portal.connect_blocked_by !== null;
 }
 
-export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogProps) {
+export function PortalCatalog({
+  canRun,
+  canManageConnections,
+  compact = false,
+}: PortalCatalogProps) {
   const t = useTranslations("portals");
   const tErrors = useTranslations("errors");
   const { items, isLoading, error } = usePortals();
@@ -265,7 +271,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
             description={t("noMatchesDescription")}
           />
         )}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={cn("grid gap-3 sm:grid-cols-2", !compact && "lg:grid-cols-3")}>
           {list.visible.map((item) => (
             <Card
               key={item.portal.key}
