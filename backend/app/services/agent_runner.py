@@ -219,7 +219,6 @@ from app.agents.subagent_runtime import (
 )
 from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.core.audit import current_impersonator, record_audit
-from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -308,7 +307,8 @@ from app.services.channels.formatting import (
     house_style,
     runtime_context,
 )
-from app.services.channels.handback import STOPPED_NOTICE, chat_destination, post_notice
+from app.services.channels.handback import STOPPED_NOTICE, ChatNotice, chat_destination
+from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
 from app.services.context import ContextService
@@ -5904,6 +5904,7 @@ class AgentRunnerService:
         *,
         answers: Mapping[str, object] | None = None,
         run_limit_usd: Decimal | None = None,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Continue a parked run now that its tool calls have been decided.
 
@@ -6142,6 +6143,7 @@ class AgentRunnerService:
                 said=None,
                 message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
                 deferred_tool_results=plan.results,
+                on_segment=on_segment,
             )
         except Exception as exc:
             # The continuation raised. `_run` has recorded the run terminal and
@@ -6230,15 +6232,8 @@ class AgentRunnerService:
             await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="stopped")
         result = await self._stop_parked(run, actor_user_id=ctx.subject_id)
         if destination is not None and not told:
-            spawn_after_commit(
-                self.db,
-                post_notice(
-                    organization_id=run.organization_id,
-                    run_id=run.id,
-                    destination=destination,
-                    text=STOPPED_NOTICE,
-                ),
-                name=f"channel-stop-notice:{run.id}",
+            await queue_notices(
+                self.db, [ChatNotice(run.organization_id, run.id, destination, STOPPED_NOTICE)]
             )
         return result
 
@@ -6394,7 +6389,12 @@ class AgentRunnerService:
             )
 
     async def answer(
-        self, ctx: AuthContext, run_id: UUID, responses: Mapping[str, list[Any]]
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        responses: Mapping[str, list[Any]],
+        *,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Answer the questions a run parked on, and continue it (#2064).
 
@@ -6449,7 +6449,7 @@ class AgentRunnerService:
             else DECLINED
             for tool_call_id in state.questions
         }
-        return await self.resume(ctx, run_id, answers=results)
+        return await self.resume(ctx, run_id, answers=results, on_segment=on_segment)
 
     async def parked_questions(self, ctx: AuthContext, run: AgentRun) -> list[ParkedQuestion]:
         """The questions this run is waiting on the caller to answer, right now.
@@ -6628,6 +6628,7 @@ class AgentRunnerService:
         deferred_tool_results: DeferredToolResults | None,
         stream: RunStream | None = None,
         on_run_open: Callable[[AgentRun], Awaitable[None]] | None = None,
+        on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
     ) -> RunSegment:
         """Execute the agent and account for it, however it ends.
 
@@ -6861,6 +6862,19 @@ class AgentRunnerService:
                             prepared.built.reminder_state.snapshot(),
                         )
                     await self.keep_plan(prepared, status=status)
+                # Persist required handback in the same transaction as this segment,
+                # including failures and cancellations. Delivery never replays tools.
+                if on_segment is not None:
+                    await on_segment(
+                        RunSegment(
+                            output=output or error or "",
+                            run=prepared.run,
+                            tool_calls=called,
+                            settled=settled,
+                            structured=structured,
+                            generated_files=frozenset(prepared.built.deps.generated_files),
+                        )
+                    )
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:

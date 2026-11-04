@@ -137,7 +137,8 @@ class _Patched:
             patch(f"{_MODULE}.ChannelMessageRouter", return_value=router),
             patch(f"{_MODULE}.AgentRunnerService", return_value=runner),
             patch(f"{_MODULE}.ChannelPrompts", new=prompts_class),
-            patch(f"{_MODULE}.post_notice", new=self.post_notice),
+            patch(f"{_MODULE}.queue_notices", new=self.post_notice),
+            patch(f"{_MODULE}.queue_segment", return_value=AsyncMock()),
         ]
         self.original_claim = claim
 
@@ -169,9 +170,9 @@ class TestContinuing:
             p.settle_open.side_effect = lambda *a, **k: order.append("settle")
             real_resume = p.resume
 
-            async def resume(ctx: AuthContext, run_id: uuid.UUID) -> Any:
+            async def resume(ctx: AuthContext, run_id: uuid.UUID, **kwargs: Any) -> Any:
                 order.append("resume")
-                return await real_resume(ctx, run_id)
+                return await real_resume(ctx, run_id, **kwargs)
 
             with patch(f"{_MODULE}.AgentRunnerService") as runner_class:
                 runner_class.return_value.resume = resume
@@ -179,8 +180,8 @@ class TestContinuing:
 
         real_resume.assert_awaited_once()
         assert real_resume.await_args.args[0].user_id == DECIDER
-        p.deliver.assert_awaited_once()
-        assert p.deliver.await_args.kwargs["platform_chat_id"] == DESTINATION.platform_chat_id
+        p.deliver.assert_not_awaited()
+        assert callable(p.resume.await_args.kwargs["on_segment"])
         assert p.settle_open.await_args.kwargs["by"] == "continued"
         assert order == ["settle", "resume"]
         p.db.begin_nested.assert_awaited_once()
@@ -195,7 +196,8 @@ class TestContinuing:
             p.decider_context.return_value = admin
             await _continue()
         assert p.resume.await_args.args[0] is admin
-        p.deliver.assert_awaited_once()
+        p.deliver.assert_not_awaited()
+        assert callable(p.resume.await_args.kwargs["on_segment"])
 
     async def test_a_membership_check_the_platform_cannot_answer_lets_the_continuation_proceed(
         self, caplog: pytest.LogCaptureFixture
@@ -204,7 +206,8 @@ class TestContinuing:
             p.admission.return_value = Admission("unconfirmed", "membership_unconfirmed")
             await _continue()
         p.resume.assert_awaited_once()
-        p.deliver.assert_awaited_once()
+        p.deliver.assert_not_awaited()
+        assert callable(p.resume.await_args.kwargs["on_segment"])
         assert any(
             "membership_unconfirmed" in r.getMessage() and str(RUN) in r.getMessage()
             for r in caplog.records
@@ -340,7 +343,7 @@ class TestRefusing:
             p.decider_context.return_value = decider
             await _continue()
         p.post_notice.assert_awaited_once()
-        assert p.post_notice.await_args.kwargs["text"] == REFUSED_NOTICE
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
         p.record_chat_notice.assert_awaited_once()
         p.resume.assert_not_awaited()
 
@@ -352,7 +355,7 @@ class TestRefusing:
             await _continue()
         p.resume.assert_not_awaited()
         p.deliver.assert_not_awaited()
-        assert p.post_notice.await_args.kwargs["text"] == REFUSED_NOTICE
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
         p.record_chat_notice.assert_awaited_once()
 
     async def test_a_chat_that_started_over_is_told_the_run_could_not_continue(self) -> None:
@@ -361,7 +364,7 @@ class TestRefusing:
             await _continue()
         p.admission.assert_not_awaited()
         p.resume.assert_not_awaited()
-        assert p.post_notice.await_args.kwargs["text"] == REFUSED_NOTICE
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
 
     async def test_a_refusal_already_told_is_not_told_again(self) -> None:
         run = _run()
@@ -387,7 +390,7 @@ class TestRefusing:
             await _continue()
         p.savepoint.rollback.assert_awaited_once()
         p.post_notice.assert_awaited_once()
-        assert p.post_notice.await_args.kwargs["text"] == REFUSED_NOTICE
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
         p.record_chat_notice.assert_awaited_once()
         p.deliver.assert_not_awaited()
 
@@ -397,14 +400,15 @@ class TestRefusing:
             p.resume.side_effect = BadRequestError(message="gone")
             await _continue()
         p.savepoint.rollback.assert_not_awaited()
-        assert p.post_notice.await_args.kwargs["text"] == REFUSED_NOTICE
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
 
     async def test_a_savepoint_the_resume_already_closed_is_not_committed_again(self) -> None:
         with _Patched() as p:
             p.savepoint.is_active = False
             await _continue()
         p.savepoint.commit.assert_not_awaited()
-        p.deliver.assert_awaited_once()
+        p.deliver.assert_not_awaited()
+        assert callable(p.resume.await_args.kwargs["on_segment"])
 
     async def test_a_continuation_that_failed_while_running_says_why_as_a_press_would(
         self,
@@ -412,8 +416,8 @@ class TestRefusing:
         with _Patched() as p:
             p.resume.side_effect = RunExecutionError(message="The run failed: x")
             await _continue()
-        p.post_notice.assert_awaited_once()
-        assert p.post_notice.await_args.kwargs["text"] == "The run failed: x"
+        p.post_notice.assert_not_awaited()
+        assert callable(p.resume.await_args.kwargs["on_segment"])
         p.record_chat_notice.assert_not_awaited()
         p.savepoint.rollback.assert_not_awaited()
         p.deliver.assert_not_awaited()
@@ -422,7 +426,7 @@ class TestRefusing:
 class TestNeverRaising:
     async def test_nothing_it_meets_is_raised(self, caplog: pytest.LogCaptureFixture) -> None:
         with _Patched() as p, caplog.at_level(logging.ERROR):
-            p.deliver.side_effect = RuntimeError("boom")
+            p.resume.side_effect = RuntimeError("boom")
             await _continue()
         assert any(str(RUN) in r.getMessage() for r in caplog.records)
 
@@ -491,11 +495,11 @@ class TestDeliveringAManualContinuation:
             await self._deliver()
         p.deliver.assert_not_awaited()
 
-    async def test_a_manual_delivery_never_raises(self, caplog: pytest.LogCaptureFixture) -> None:
-        with _Patched() as p, caplog.at_level(logging.ERROR):
+    async def test_a_manual_delivery_raises_for_durable_retry(self) -> None:
+        with _Patched() as p:
             p.deliver.side_effect = RuntimeError("boom")
-            await self._deliver()
-        assert any(str(RUN) in r.getMessage() for r in caplog.records)
+            with pytest.raises(RuntimeError, match="boom"):
+                await self._deliver()
 
 
 class TestWhatIsHandedOver:

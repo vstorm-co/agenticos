@@ -1658,6 +1658,15 @@ A run parked before 1.29.0 has no chat recorded, so the console continues it as
 it always did. If nobody resumes it within about an hour of its last decision,
 the safety net ends it, without a message.
 
+The worker sends required replies and ending notices from durable jobs saved in
+the same transaction as the result or ending. A restart or transient send failure
+retries delivery up to three times without repeating the agent or approved tools.
+The bot, chat session and access policy are checked again before sending. A
+revoked destination receives nothing. Platforms without send idempotency can
+show a duplicate if a send succeeded but its acknowledgement was lost; this is
+at-least-once delivery, not a promise of exactly-once messages. Exhausted attempts
+are visible in **Admin → Background jobs** (`deliver-channel-handback`).
+
 ### Next steps as buttons { #next-steps-as-buttons }
 
 An answer from an agent with [Follow-ups](reference/capabilities.md#follow-ups)

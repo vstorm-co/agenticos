@@ -7413,20 +7413,19 @@ class TestCancelParkedRun:
             patch(
                 "app.services.agent_runner.channel_prompt_repo.settle_open", side_effect=settle
             ) as settled,
-            patch("app.services.agent_runner.post_notice", new_callable=MagicMock) as post,
-            patch("app.services.agent_runner.spawn_after_commit") as spawn,
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
         ):
             await service.cancel_parked(ctx, run.id)
         settled.assert_called_once_with(db, run_id=run.id, by="stopped")
         # Settled before the audit lock, which comes last.
         assert order.index("settle") < order.index("audit")
-        post.assert_called_once()
-        assert post.call_args.kwargs["text"] == STOPPED_NOTICE
-        assert post.call_args.kwargs["organization_id"] == run.organization_id
-        assert post.call_args.kwargs["run_id"] == run.id
-        # Read before `finish_run` cleared the state it lives in.
-        assert post.call_args.kwargs["destination"].platform_chat_id == "C1"
-        spawn.assert_called_once_with(db, post.return_value, name=f"channel-stop-notice:{run.id}")
+        post.assert_awaited_once()
+        assert post.call_args.args[0] is db
+        (notice,) = post.call_args.args[1]
+        assert notice.text == STOPPED_NOTICE
+        assert notice.organization_id == run.organization_id
+        assert notice.run_id == run.id
+        assert notice.destination.platform_chat_id == "C1"
 
     async def test_stopping_a_run_whose_chat_was_already_told_posts_nothing_more(self):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
@@ -7443,6 +7442,7 @@ class TestCancelParkedRun:
         )
         service = AgentRunnerService(_db())
         with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 AsyncMock(return_value=run),
@@ -7454,17 +7454,17 @@ class TestCancelParkedRun:
             patch(
                 "app.services.agent_runner.channel_prompt_repo.settle_open", AsyncMock()
             ) as settled,
-            patch("app.services.agent_runner.spawn_after_commit") as spawn,
         ):
             await service.cancel_parked(ctx, run.id)
         settled.assert_awaited_once()
-        spawn.assert_not_called()
+        post.assert_not_awaited()
 
     async def test_stopping_a_run_outside_any_chat_posts_nothing(self):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
         run = _parked_run(user_id=ctx.user_id)
         service = AgentRunnerService(_db())
         with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 AsyncMock(return_value=run),
@@ -7474,11 +7474,10 @@ class TestCancelParkedRun:
             patch.object(service.transcript, "record", AsyncMock()),
             patch("app.services.agent_runner.record_audit", AsyncMock()),
             patch("app.services.agent_runner.channel_prompt_repo.settle_open") as settled,
-            patch("app.services.agent_runner.spawn_after_commit") as spawn,
         ):
             await service.cancel_parked(ctx, run.id)
         settled.assert_not_called()
-        spawn.assert_not_called()
+        post.assert_not_awaited()
 
     async def test_a_second_stop_posts_nothing(self):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
@@ -7489,14 +7488,14 @@ class TestCancelParkedRun:
             paused_state=None,
         )
         with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 AsyncMock(return_value=run),
             ),
-            patch("app.services.agent_runner.spawn_after_commit") as spawn,
         ):
             assert await AgentRunnerService(_db()).cancel_parked(ctx, run.id) is None
-        spawn.assert_not_called()
+        post.assert_not_awaited()
 
     async def test_a_workflow_ending_stops_its_runs_without_a_notice(self):
         destination = {
@@ -7514,6 +7513,7 @@ class TestCancelParkedRun:
         )
         service = AgentRunnerService(_db())
         with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
             patch(
                 "app.services.agent_runner.agent_run_repo.claim_parked_run",
                 AsyncMock(return_value=run),
@@ -7521,13 +7521,12 @@ class TestCancelParkedRun:
             patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
             patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
             patch.object(service.transcript, "record", AsyncMock()),
-            patch("app.services.agent_runner.spawn_after_commit") as spawn,
         ):
             stops = await service.stop_parked_for_workflow(
                 [run.id], organization_id=run.organization_id
             )
         assert len(stops) == 1
-        spawn.assert_not_called()
+        post.assert_not_awaited()
 
     async def test_a_foreign_or_missing_run_is_not_found(self):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
@@ -8204,3 +8203,58 @@ async def test_a_background_tasks_budget_stop_retains_its_own_outcome() -> None:
         )
         assert segment.output == ""
         assert finish.call_args.kwargs["status"] == RunStatus.BUDGET_EXCEEDED.value
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("ending", ["answer", "failure", "cancel"])
+async def test_required_segment_handback_is_persisted_before_the_terminal_commit(
+    ending: str,
+) -> None:
+    db = _db()
+    service = AgentRunnerService(db)
+    prepared = _prepared()
+    if ending == "answer":
+        prepared.built.agent.run = AsyncMock(
+            return_value=MagicMock(output="Saved", new_messages=list)
+        )
+    else:
+        prepared.built.agent.run = AsyncMock(
+            side_effect=RuntimeError("provider secret")
+            if ending == "failure"
+            else asyncio.CancelledError()
+        )
+    seen: list[RunSegment] = []
+
+    async def persist(segment: RunSegment) -> None:
+        assert db.commit.await_count == 1  # only the opening commit, never the terminal one
+        record.assert_awaited_once()
+        seen.append(segment)
+
+    with (
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        patch.object(service.transcript, "record", new=AsyncMock()) as record,
+    ):
+        if ending == "answer":
+            await service._run(
+                prepared,
+                user_prompt=None,
+                said=None,
+                message_history=None,
+                deferred_tool_results=None,
+                on_segment=persist,
+            )
+        else:
+            with pytest.raises(RuntimeError if ending == "failure" else asyncio.CancelledError):
+                await service._run(
+                    prepared,
+                    user_prompt=None,
+                    said=None,
+                    message_history=None,
+                    deferred_tool_results=None,
+                    on_segment=persist,
+                )
+    assert len(seen) == 1
+    assert db.commit.await_count == 2
+    assert "provider secret" not in seen[0].output
+    if ending == "answer":
+        assert seen[0].output == "Saved"

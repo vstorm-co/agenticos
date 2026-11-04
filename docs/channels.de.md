@@ -1,5 +1,5 @@
 ---
-source_sha: "65ffc0791626"
+source_sha: "2fa7dfb57e50"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1832,6 +1832,16 @@ nicht beantworten kann, hält eine Fortsetzung nicht auf.
 Ein vor 1.29.0 geparkter Run hat keinen gespeicherten Chat, daher setzt die Konsole
 ihn fort wie bisher. Setzt ihn niemand etwa eine Stunde nach der letzten Entscheidung
 fort, beendet ihn das Sicherheitsnetz ohne Nachricht.
+
+Der Worker sendet erforderliche Antworten und Abschlussmeldungen aus dauerhaften
+Jobs, die in derselben Transaktion wie das Ergebnis oder der Abschluss gespeichert
+werden. Nach einem Neustart oder vorübergehenden Sendefehler wird nur die Zustellung
+bis zu dreimal versucht; Agent und freigegebene Werkzeuge werden nicht erneut
+ausgeführt. Bot, Chat-Sitzung und Zugriffsrichtlinie werden vor dem Senden erneut
+geprüft. Ein Ziel mit widerrufenem Zugriff erhält nichts. Plattformen ohne
+idempotentes Senden können ein Duplikat anzeigen, wenn die Nachricht ankam, aber
+ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
+**Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
 

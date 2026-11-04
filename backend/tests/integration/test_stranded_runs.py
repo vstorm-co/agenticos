@@ -13,7 +13,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -133,14 +133,11 @@ async def _stranded(
 def _spawns() -> Generator[MagicMock]:
     """Patch the sweep's after-commit spawn and its notice task, recording both."""
 
-    async def nothing() -> None:
-        return None
-
     with (
         patch("app.services.approvals.spawn_after_commit") as spawn,
         patch(
-            "app.services.approvals.post_notices",
-            new=MagicMock(side_effect=lambda _notices: nothing()),
+            "app.services.approvals.queue_notices",
+            new=AsyncMock(),
         ) as post,
     ):
         spawn.posted = post
@@ -153,7 +150,7 @@ def _names(spawn: MagicMock) -> list[str]:
     for call in spawn.call_args_list:
         call.args[1].close()
     for call in spawn.posted.call_args_list:
-        told.extend(str(notice.run_id) for notice in call.args[0])
+        told.extend(str(notice.run_id) for notice in call.args[1])
     assert len(spawn.call_args_list) <= 1
     return told
 
@@ -365,3 +362,37 @@ async def test_a_newly_decided_park_keeps_its_full_grace_period_after_an_old_lis
             current.paused_state is not None
             and str(fresh.id) in current.paused_state["tool_call_ids"]
         )
+
+
+async def test_stranded_ending_and_required_notice_share_one_transaction(db: AsyncSession) -> None:
+    from app.db.models.background_job import BackgroundJob
+    from app.worker.jobs import DELIVER_CHANNEL_HANDBACK
+
+    run, _ = await _stranded(db)
+    savepoint = await db.begin_nested()
+    assert await ApprovalService(db).end_stranded() == 1
+    queued = (
+        (
+            await db.execute(
+                select(BackgroundJob).where(BackgroundJob.kind == DELIVER_CHANNEL_HANDBACK.kind)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(queued) == 1
+    assert queued[0].payload["run_id"] == str(run.id)
+    assert queued[0].max_attempts == 3
+    assert run.status == RunStatus.CANCELLED.value
+    await savepoint.rollback()
+    await db.refresh(run)
+    assert run.status == RunStatus.AWAITING_APPROVAL.value
+    assert (
+        not (
+            await db.execute(
+                select(BackgroundJob).where(BackgroundJob.kind == DELIVER_CHANNEL_HANDBACK.kind)
+            )
+        )
+        .scalars()
+        .all()
+    )

@@ -329,7 +329,7 @@ async def test_a_continuation_that_finds_the_browser_already_resumed_says_nothin
             patch(f"{module}.incoming_for_run", new=AsyncMock(return_value=MagicMock())),
             patch(f"{module}.ChannelMessageRouter", return_value=router),
             patch(f"{module}.AgentRunnerService", return_value=MagicMock(resume=resume)),
-            patch(f"{module}.post_notice", new=notice),
+            patch(f"{module}.queue_notices", new=notice),
         ):
             task = asyncio.create_task(
                 continue_in_chat(
@@ -397,7 +397,7 @@ async def test_a_continuation_that_finds_the_run_re_parked_on_a_question_says_no
             patch(f"{module}.incoming_for_run", new=AsyncMock(return_value=MagicMock())),
             patch(f"{module}.ChannelMessageRouter", return_value=router),
             patch(f"{module}.AgentRunnerService", return_value=MagicMock(resume=resume)),
-            patch(f"{module}.post_notice", new=notice),
+            patch(f"{module}.queue_notices", new=notice),
         ):
             task = asyncio.create_task(
                 continue_in_chat(

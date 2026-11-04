@@ -42,8 +42,8 @@ from app.services.channels.handback import (
     ChatNotice,
     chat_destination,
     decided_by_a_person,
-    post_notices,
 )
+from app.services.channels.handback_jobs import queue_notices
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 
@@ -365,7 +365,7 @@ class ApprovalService:
                 approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
             )
 
-        self._tell_chats(notices, name="channel-expiry-notices")
+        await self._tell_chats(notices)
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)
         return len(stale)
 
@@ -419,7 +419,7 @@ class ApprovalService:
             if destination is not None:
                 notices.append(_notice(run, destination, EXPIRED_NOTICE))
             ended += 1
-        self._tell_chats(notices, name="channel-expiry-notices")
+        await self._tell_chats(notices)
         if ended:
             logger.info("Question sweep: ended %d unanswered run(s)", ended)
         return ended
@@ -518,15 +518,13 @@ class ApprovalService:
                 target_id=str(run.id),
                 details={"previous_status": RunStatus.AWAITING_APPROVAL.value, "by": "stranded"},
             )
-        self._tell_chats(notices, name="channel-stranded-notices")
+        await self._tell_chats(notices)
         if ended:
             logger.info("Stranded sweep: ended %d decided run(s) nothing continued", len(ended))
         return len(ended)
 
-    def _tell_chats(self, notices: list[ChatNotice], *, name: str) -> None:
-        """Post a sweep's notices, in turn, in one task once this transaction commits."""
-        if notices:
-            spawn_after_commit(self.db, post_notices(notices), name=name)
+    async def _tell_chats(self, notices: list[ChatNotice]) -> None:
+        await queue_notices(self.db, notices)
 
     async def _settle_expired_run(
         self, run_id: UUID, *, organization_id: UUID, at: datetime, notices: list[ChatNotice]

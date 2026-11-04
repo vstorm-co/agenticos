@@ -1,5 +1,5 @@
 ---
-source_sha: "65ffc0791626"
+source_sha: "2fa7dfb57e50"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1704,6 +1704,14 @@ na które platforma nie umie odpowiedzieć, nie zatrzymuje kontynuacji.
 Run zaparkowany przed 1.29.0 nie ma zapisanego czatu, więc konsola kontynuuje go
 tak jak dawniej. Jeśli nikt go nie wznowi w ciągu około godziny od ostatniej
 decyzji, siatka bezpieczeństwa kończy go bez wiadomości.
+
+Worker wysyła wymagane odpowiedzi i powiadomienia o zakończeniu z trwałych zadań
+zapisanych w tej samej transakcji co wynik lub zakończenie. Restart lub przejściowa
+awaria wysyłki ponawia samą dostawę do trzech razy, bez powtarzania agenta ani
+zatwierdzonych narzędzi. Przed wysyłką ponownie sprawdzane są bot, sesja i dostęp
+do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysyłki
+może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
+Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 

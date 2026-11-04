@@ -20,16 +20,16 @@ from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import current_impersonator
-from app.core.background import spawn, spawn_after_commit
-from app.core.exceptions import RunExecutionError
+from app.core.background import spawn_after_commit
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import CHANNEL_SURFACES, AgentRun, ApprovalStatus, ToolApproval
 from app.repositories import agent_run_repo, channel_prompt_repo
 from app.repositories.channel_prompt import SettledBy
 from app.services.agent_runner import AgentRunnerService, RunSegment
 from app.services.approvals import ApprovalService
-from app.services.channels.continuation import ChatDelivery, continue_in_chat, deliver_in_chat
-from app.services.channels.handback import chat_destination, continues_in_chat, post_notice
+from app.services.channels.continuation import continue_in_chat
+from app.services.channels.handback import chat_destination, continues_in_chat
+from app.services.channels.handback_jobs import queue_segment
 from app.services.channels.prompts import ChannelPrompts
 
 
@@ -119,7 +119,10 @@ class ParkedRunService:
     async def resume(self, ctx: AuthContext, run_id: UUID) -> Continued:
         """Continue a run whose calls were decided, inline; post to its chat when it has one."""
         return await self._continue(
-            ctx, run_id, by="continued", step=lambda: self.runner.resume(ctx, run_id)
+            ctx,
+            run_id,
+            by="continued",
+            step=lambda callback: self.runner.resume(ctx, run_id, on_segment=callback),
         )
 
     async def answer(
@@ -127,7 +130,10 @@ class ParkedRunService:
     ) -> Continued:
         """Answer a parked run's questions, inline; post to its chat when it has one."""
         return await self._continue(
-            ctx, run_id, by="answered", step=lambda: self.runner.answer(ctx, run_id, responses)
+            ctx,
+            run_id,
+            by="answered",
+            step=lambda callback: self.runner.answer(ctx, run_id, responses, on_segment=callback),
         )
 
     async def _continue(
@@ -136,36 +142,13 @@ class ParkedRunService:
         run_id: UUID,
         *,
         by: SettledBy,
-        step: Callable[[], Awaitable[RunSegment]],
+        step: Callable[[Callable[[RunSegment], Awaitable[None]] | None], Awaitable[RunSegment]],
     ) -> Continued:
         run = await self.runner.get_run(ctx, run_id)
         destination = chat_destination(run) if continues_in_chat(run, ctx) else None
         if destination is None:
-            return Continued(await step(), False)
+            return Continued(await step(None), False)
         inherited = ChannelPrompts.inherited_calls(run)
         await channel_prompt_repo.settle_open(self.db, run_id=run_id, by=by)
-        try:
-            segment = await step()
-        except RunExecutionError as exc:
-            # The run is terminal and committed; the chat hears why, and the caller gets its 5xx.
-            spawn(
-                post_notice(
-                    organization_id=ctx.organization_id,
-                    run_id=run_id,
-                    destination=destination,
-                    text=exc.message,
-                ),
-                name=f"channel-notice:{run_id}",
-            )
-            raise
-        spawn_after_commit(
-            self.db,
-            deliver_in_chat(
-                organization_id=ctx.organization_id,
-                run_id=run_id,
-                destination=destination,
-                said=ChatDelivery.of(ChannelPrompts.with_inherited(segment, inherited)),
-            ),
-            name=f"channel-delivery:{run_id}",
-        )
+        segment = await step(queue_segment(self.db, destination, inherited))
         return Continued(segment, True)

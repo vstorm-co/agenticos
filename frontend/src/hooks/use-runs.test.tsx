@@ -655,6 +655,56 @@ describe("useResumeRun", () => {
   });
 });
 
+describe("resuming a chat run that parked again", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each(["awaiting_approval", "awaiting_answer"])(
+    "refreshes a %s run after a lost resume race",
+    async (status) => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(400, "Waiting", {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Waiting",
+            details: status === "awaiting_approval" ? { pending: ["new-approval"] } : { status },
+          },
+        }),
+      );
+      vi.mocked(apiClient.get).mockResolvedValue({ id: "r", status, continues_in_chat: true });
+      const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+      await expect(result.current.mutateAsync("r")).rejects.toBeInstanceOf(ApiError);
+      expect(apiClient.get).toHaveBeenCalledWith("/runs/r");
+      expect(toast.info).toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["failed", "cancelled", "refresh-failed", "not-chat"])(
+    "keeps the error visible when the latest run is %s",
+    async (state) => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.post).mockRejectedValue(
+        new ApiError(400, "Waiting", {
+          error: { code: "BAD_REQUEST", message: "Waiting", details: { pending: ["a"] } },
+        }),
+      );
+      if (state === "refresh-failed")
+        vi.mocked(apiClient.get).mockRejectedValue(new Error("offline"));
+      else
+        vi.mocked(apiClient.get).mockResolvedValue({
+          id: "r",
+          status: state === "not-chat" ? "awaiting_approval" : state,
+          continues_in_chat: state !== "not-chat",
+        });
+      const { result } = renderHook(() => useResumeRun({ continuesInChat: true }), { wrapper });
+      await expect(result.current.mutateAsync("r")).rejects.toBeInstanceOf(ApiError);
+      expect(toast.error).toHaveBeenCalled();
+      expect(toast.info).not.toHaveBeenCalled();
+    },
+  );
+});
+
 describe("useSpend", () => {
   beforeEach(() => vi.clearAllMocks());
 

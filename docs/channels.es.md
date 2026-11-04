@@ -1,5 +1,5 @@
 ---
-source_sha: "65ffc0791626"
+source_sha: "2fa7dfb57e50"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1741,6 +1741,16 @@ continuación.
 Un run aparcado antes de 1.29.0 no tiene chat registrado, así que la consola lo
 continúa como siempre. Si nadie lo reanuda en aproximadamente una hora desde la
 última decisión, la red de seguridad lo termina sin mensaje.
+
+El worker envía las respuestas y los avisos de finalización necesarios mediante
+trabajos duraderos guardados en la misma transacción que el resultado o el cierre.
+Tras un reinicio o un fallo temporal de envío, reintenta únicamente la entrega
+hasta tres veces, sin repetir el agente ni las herramientas aprobadas. Antes de
+enviar, vuelve a comprobar el bot, la sesión y la política de acceso al chat.
+Un destino cuyo acceso se haya revocado no recibe nada. Las plataformas sin envío
+idempotente pueden mostrar un duplicado si aceptaron el mensaje pero se perdió
+la confirmación. Los intentos agotados aparecen en **Admin → Background jobs**
+(`deliver-channel-handback`).
 
 ### Pasos siguientes como botones { #next-steps-as-buttons }
 

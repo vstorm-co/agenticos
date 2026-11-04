@@ -17,11 +17,8 @@ from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.exceptions import BadRequestError, NotFoundError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import ApprovalStatus
-from app.services.agent_runner import RunSegment
 from app.services.approvals import ApprovalService
-from app.services.channels.continuation import ChatDelivery
 from app.services.parked_runs import Continued, DecidedApproval, ParkedRunService
-from app.services.transcript import RecordedToolCall
 
 pytestmark = pytest.mark.anyio
 
@@ -72,7 +69,6 @@ class _Patched:
         self.run = run if run is not None else _run()
         self.pending: list[Any] = []
         self.spawned: list[tuple[str, Any]] = []
-        self.spawned_now: list[tuple[str, Any]] = []
         self.db = MagicMock()
         self.runner = MagicMock()
         self.runner.get_run = AsyncMock(return_value=self.run)
@@ -104,10 +100,6 @@ class _Patched:
             self.spawned.append((name, coro))
             _close(coro)
 
-        def spawn(coro: Any, *, name: str) -> None:
-            self.spawned_now.append((name, coro))
-            _close(coro)
-
         self.patches = [
             patch(f"{_MODULE}.agent_run_repo.get_approval", new=self.get_approval),
             patch(f"{_MODULE}.agent_run_repo.get_run", new=self.get_run),
@@ -118,7 +110,6 @@ class _Patched:
             ),
             patch(f"{_MODULE}.channel_prompt_repo.settle_open", new=self.settle_open),
             patch(f"{_MODULE}.spawn_after_commit", new=spawn_after_commit),
-            patch(f"{_MODULE}.spawn", new=spawn),
         ]
         self.service = ParkedRunService(self.db, runner=self.runner, approvals=self.approvals)
 
@@ -283,29 +274,16 @@ class TestDeciding:
 
 
 class TestResuming:
-    async def test_a_manual_resume_of_a_chat_run_posts_its_answer_after_commit(self) -> None:
-        call = RecordedToolCall(tool_call_id="t1", tool_name="send_email", args={})
-        segment = RunSegment(output="Sent.", run=MagicMock(), tool_calls=[], settled={"t1": "ok"})
-        delivered: list[dict[str, Any]] = []
-
-        def deliver(**kwargs: Any) -> Any:
-            delivered.append(kwargs)
-            return AsyncMock()()
-
-        with (
-            _Patched() as p,
-            patch(f"{_MODULE}.ChannelPrompts.inherited_calls", return_value=[call]),
-            patch(f"{_MODULE}.deliver_in_chat", new=deliver),
-        ):
-            p.runner.resume.return_value = segment
+    async def test_a_manual_resume_queues_handback_in_the_segment_transaction(self) -> None:
+        callback = AsyncMock()
+        with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback) as queue:
             result = await p.service.resume(_person(), RUN)
-        assert p.names() == [f"channel-delivery:{RUN}"]
         assert result.continues_in_chat is True
-        assert result.segment is segment
-        said = delivered[0]["said"]
-        assert isinstance(said, ChatDelivery)
-        assert [(c.tool_call_id, c.result) for c in said.tool_calls] == [("t1", "ok")]
-        assert delivered[0]["destination"] == DESTINATION
+        assert result.segment is p.runner.resume.return_value
+        p.runner.resume.assert_awaited_once_with(_person(), RUN, on_segment=callback)
+        queue.assert_called_once()
+        assert queue.call_args.args[:2] == (p.db, DESTINATION)
+        assert p.spawned == []
         assert p.settle_open.await_args.kwargs["by"] == "continued"
 
     @pytest.mark.parametrize("surface", ["web", "api"])
@@ -315,7 +293,7 @@ class TestResuming:
         assert p.spawned == []
         p.settle_open.assert_not_awaited()
         assert result.continues_in_chat is False
-        p.runner.resume.assert_awaited_once_with(_person(), RUN)
+        p.runner.resume.assert_awaited_once_with(_person(), RUN, on_segment=None)
 
     async def test_a_key_resumes_a_run_a_key_started_as_before(self) -> None:
         key = _key()
@@ -324,7 +302,7 @@ class TestResuming:
         assert p.spawned == []
         p.settle_open.assert_not_awaited()
         assert result.continues_in_chat is False
-        p.runner.resume.assert_awaited_once_with(key, RUN)
+        p.runner.resume.assert_awaited_once_with(key, RUN, on_segment=None)
 
     async def test_a_refused_resume_raises_as_before_and_posts_nothing(self) -> None:
         with _Patched() as p:
@@ -334,41 +312,28 @@ class TestResuming:
             with pytest.raises(BadRequestError):
                 await p.service.resume(_person(), RUN)
         assert p.spawned == []
-        assert p.spawned_now == []
 
-    async def test_a_resume_that_failed_while_running_tells_the_chat_and_still_raises(self) -> None:
-        with _Patched() as p, patch(f"{_MODULE}.post_notice") as notice:
-            notice.side_effect = lambda **kw: AsyncMock()()
+    async def test_a_resume_failure_keeps_the_transactional_handback_callback(self) -> None:
+        callback = AsyncMock()
+        with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback):
             p.runner.resume.side_effect = RunExecutionError(message="The run failed: x")
             with pytest.raises(RunExecutionError):
                 await p.service.resume(_person(), RUN)
-        assert [name for name, _ in p.spawned_now] == [f"channel-notice:{RUN}"]
-        assert notice.call_args.kwargs["text"] == "The run failed: x"
-        assert notice.call_args.kwargs["destination"] == DESTINATION
+        assert p.runner.resume.await_args.kwargs["on_segment"] is callback
         assert p.spawned == []
 
 
 class TestAnswering:
-    async def test_an_answer_from_the_console_settles_the_chats_question_buttons_and_posts_the_answer(
-        self,
-    ) -> None:
-        with _Patched() as p, patch(f"{_MODULE}.deliver_in_chat") as deliver:
-            deliver.side_effect = lambda **kw: AsyncMock()()
-            await_order: list[str] = []
-            p.settle_open.side_effect = lambda *a, **k: await_order.append("settle")
-
-            async def answer(*a: Any, **k: Any) -> Any:
-                await_order.append("answer")
-                return MagicMock(settled={}, tool_calls=[], output="x", generated_files=frozenset())
-
-            p.runner.answer.side_effect = answer
-            result = await p.service.answer(_person(), RUN, {"q": [["a"]]})
-        assert await_order == ["settle", "answer"]
+    async def test_an_answer_settles_buttons_and_installs_transactional_handback(self) -> None:
+        callback = AsyncMock()
+        with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback):
+            result = await p.service.answer(_person(), RUN, {"q": [{"value": "a"}]})
         assert p.settle_open.await_args.kwargs["by"] == "answered"
-        assert p.names() == [f"channel-delivery:{RUN}"]
         assert result.continues_in_chat is True
-        p.runner.answer.assert_awaited_once()
-        assert p.runner.answer.await_args.args == (_person(), RUN, {"q": [["a"]]})
+        p.runner.answer.assert_awaited_once_with(
+            _person(), RUN, {"q": [{"value": "a"}]}, on_segment=callback
+        )
+        assert p.spawned == []
 
     async def test_an_answer_on_a_web_run_is_todays(self) -> None:
         with _Patched(_run("web")) as p:
@@ -378,12 +343,11 @@ class TestAnswering:
         assert result.continues_in_chat is False
         assert isinstance(result, Continued)
 
-    async def test_an_answer_that_failed_while_running_tells_the_chat_and_still_raises(
-        self,
-    ) -> None:
-        with _Patched() as p, patch(f"{_MODULE}.post_notice") as notice:
-            notice.side_effect = lambda **kw: AsyncMock()()
+    async def test_an_answer_failure_keeps_the_transactional_handback_callback(self) -> None:
+        callback = AsyncMock()
+        with _Patched() as p, patch(f"{_MODULE}.queue_segment", return_value=callback):
             p.runner.answer.side_effect = RunExecutionError(message="The run failed: y")
             with pytest.raises(RunExecutionError):
                 await p.service.answer(_person(), RUN, {})
-        assert notice.call_args.kwargs["text"] == "The run failed: y"
+        assert p.runner.answer.await_args.kwargs["on_segment"] is callback
+        assert p.spawned == []

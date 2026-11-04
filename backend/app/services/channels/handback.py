@@ -12,7 +12,6 @@ who was refused or why.
 """
 
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 from uuid import UUID
@@ -23,6 +22,7 @@ from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import CHANNEL_SURFACES, AgentRun
 from app.db.session import get_db_context
+from app.repositories import agent_run_repo
 from app.repositories import channel_bot as channel_bot_repo
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter, register_adapter
@@ -86,64 +86,39 @@ class ChatNotice:
     text: str
 
 
-async def post_notices(notices: Sequence[ChatNotice]) -> None:
-    """Post each notice in turn, so a backlog never opens more than one connection.
+async def send_notice(notice: ChatNotice) -> None:
+    """Send with fresh credentials; transport failures escape for durable retries."""
+    from app.services.channels.next_steps import incoming_for_run
+    from app.services.channels.router import ChannelMessageRouter
 
-    A sweep that ends many runs queues one of these rather than one task per run:
-    spawned tasks all start at once, and each would hold a pooled database
-    connection while its platform answers. It never raises, and a chat that cannot
-    be told does not stop the next one.
-    """
-    for notice in notices:
-        await _post_one(notice)
-
-
-async def post_notice(
-    *, organization_id: UUID, run_id: UUID, destination: ChannelDestination, text: str
-) -> None:
-    """Post one fixed sentence to the chat, with the bot's current credential.
-
-    Opens its own session, so it is safe to spawn after commit. It never raises:
-    a chat that cannot be told is logged by run and bot id, never by chat id or
-    text.
-    """
-    await post_notices(
-        [
-            ChatNotice(
-                organization_id=organization_id, run_id=run_id, destination=destination, text=text
-            )
-        ]
-    )
-
-
-async def _post_one(notice: ChatNotice) -> None:
     bot_id = notice.destination.bot_id
-    try:
-        # The session ends before the platform is called: a slow platform must never
-        # hold a database connection.
-        async with get_db_context() as db:
-            bot = await channel_bot_repo.get_for_org(
-                db, bot_id, organization_id=notice.organization_id
-            )
-            if bot is None or not bot.is_active:
-                return
-            adapter = get_adapter(bot.platform)
-            token = unseal_bot_token(bot)
-            message = OutgoingMessage(
-                platform_chat_id=notice.destination.platform_chat_id,
-                text=notice.text,
-                api_base_url=bot.api_base_url,
-            )
-        await adapter.send_message(token, message)
-    except KeyError:
-        logger.warning("chat_notice_no_adapter run_id=%s bot_id=%s", notice.run_id, bot_id)
-    except Exception as exc:
-        logger.warning(
-            "chat_notice_failed run_id=%s bot_id=%s error=%s",
-            notice.run_id,
-            bot_id,
-            type(exc).__name__,
+    # The session ends before the platform is called: a slow platform must never
+    # hold a database connection.
+    async with get_db_context() as db:
+        bot = await channel_bot_repo.get_for_org(db, bot_id, organization_id=notice.organization_id)
+        if bot is None or not bot.is_active:
+            return
+        run = await agent_run_repo.get_run(
+            db, notice.run_id, organization_id=notice.organization_id
         )
+        if run is None:
+            return
+        incoming = await incoming_for_run(
+            db, run, bot_id=bot_id, platform_chat_id=notice.destination.platform_chat_id
+        )
+        if incoming is None:
+            return
+        admission = await ChannelMessageRouter().admission(db, run, incoming)
+        if admission.verdict == "refused":
+            return
+        adapter = get_adapter(bot.platform)
+        token = unseal_bot_token(bot)
+        message = OutgoingMessage(
+            platform_chat_id=notice.destination.platform_chat_id,
+            text=notice.text,
+            api_base_url=bot.api_base_url,
+        )
+    await adapter.send_message(token, message)
 
 
 def ensure_channel_adapters() -> None:

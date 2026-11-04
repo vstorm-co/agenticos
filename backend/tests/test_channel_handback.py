@@ -23,13 +23,31 @@ from app.services.channels.handback import (
     continues_in_chat,
     decided_by_a_person,
     ensure_channel_adapters,
-    post_notice,
-    post_notices,
+    send_notice,
 )
 
 pytestmark = pytest.mark.anyio
 
 _ORG = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def admitted_notice():
+    with (
+        patch(
+            "app.services.channels.handback.agent_run_repo.get_run",
+            new=AsyncMock(return_value=MagicMock()),
+        ),
+        patch(
+            "app.services.channels.next_steps.incoming_for_run",
+            new=AsyncMock(return_value=MagicMock()),
+        ),
+        patch(
+            "app.services.channels.router.ChannelMessageRouter.admission",
+            new=AsyncMock(return_value=SimpleNamespace(verdict="admitted")),
+        ),
+    ):
+        yield
 
 
 def _person() -> AuthContext:
@@ -138,7 +156,7 @@ async def _post(bot: object, adapter: object, *, text: str = EXPIRED_NOTICE) -> 
         patch.object(handback, "get_adapter", adapter),
         patch.object(handback, "unseal_bot_token", return_value="tok"),
     ):
-        await post_notice(organization_id=_ORG, run_id=run_id, destination=_DESTINATION, text=text)
+        await send_notice(ChatNotice(_ORG, run_id, _DESTINATION, text))
     return run_id
 
 
@@ -167,29 +185,15 @@ async def test_a_notice_for_a_missing_or_switched_off_bot_is_not_sent(bot: objec
     get.assert_not_called()
 
 
-async def test_a_failed_notice_is_logged_with_ids_only_and_never_raises(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    bot = _bot()
-    adapter = MagicMock(send_message=AsyncMock(side_effect=httpx.HTTPError("boom C1:1.0")))
-
-    with caplog.at_level(logging.WARNING):
-        run_id = await _post(bot, MagicMock(return_value=adapter))
-
-    assert str(run_id) in caplog.text and str(_DESTINATION.bot_id) in caplog.text
-    assert "C1:1.0" not in caplog.text
-    assert EXPIRED_NOTICE not in caplog.text
+async def test_a_transport_failure_escapes_for_the_workers_bounded_retry() -> None:
+    adapter = MagicMock(send_message=AsyncMock(side_effect=httpx.HTTPError("offline")))
+    with pytest.raises(httpx.HTTPError, match="offline"):
+        await _post(_bot(), MagicMock(return_value=adapter))
 
 
-async def test_a_notice_with_no_adapter_registered_is_logged_not_raised(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    bot = _bot()
-
-    with caplog.at_level(logging.WARNING):
-        run_id = await _post(bot, MagicMock(side_effect=KeyError("slack")))
-
-    assert str(run_id) in caplog.text
+async def test_an_unregistered_adapter_fails_the_job_instead_of_losing_the_notice() -> None:
+    with pytest.raises(KeyError):
+        await _post(_bot(), MagicMock(side_effect=KeyError("slack")))
 
 
 def _notices(count: int) -> list[ChatNotice]:
@@ -226,31 +230,10 @@ async def test_no_session_is_open_while_the_adapter_sends() -> None:
         patch.object(handback, "get_adapter", MagicMock(return_value=adapter)),
         patch.object(handback, "unseal_bot_token", return_value="tok"),
     ):
-        await post_notices(_notices(2))
+        for notice in _notices(2):
+            await send_notice(notice)
 
     assert seen == [0, 0]
-
-
-async def test_one_chat_that_cannot_be_told_does_not_stop_the_next() -> None:
-    sent: list[str] = []
-
-    async def send(_token: str, message: OutgoingMessage) -> None:
-        sent.append(message.text)
-        if len(sent) == 1:
-            raise httpx.HTTPError("down")
-
-    context = MagicMock()
-    context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-    context.return_value.__aexit__ = AsyncMock(return_value=False)
-    with (
-        patch.object(handback, "get_db_context", context),
-        patch.object(handback.channel_bot_repo, "get_for_org", AsyncMock(return_value=_bot())),
-        patch.object(handback, "get_adapter", MagicMock(return_value=MagicMock(send_message=send))),
-        patch.object(handback, "unseal_bot_token", return_value="tok"),
-    ):
-        await post_notices(_notices(3))
-
-    assert len(sent) == 3
 
 
 async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing() -> None:
@@ -286,3 +269,29 @@ async def test_ensuring_adapters_registers_each_platform_once_and_starts_nothing
 
     assert all(first[p] is second[p] for p in platforms)
     assert all(m.await_count == 0 for m in mocks)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("revoked", ["run", "session", "admission"])
+async def test_notices_recheck_admission_immediately_before_posting(revoked: str) -> None:
+    adapter = MagicMock(send_message=AsyncMock())
+    with (
+        patch(
+            "app.services.channels.handback.agent_run_repo.get_run",
+            new=AsyncMock(return_value=None if revoked == "run" else MagicMock()),
+        ),
+        patch(
+            "app.services.channels.next_steps.incoming_for_run",
+            new=AsyncMock(return_value=None if revoked == "session" else MagicMock()),
+        ),
+        patch(
+            "app.services.channels.router.ChannelMessageRouter.admission",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    verdict="refused" if revoked == "admission" else "allowed"
+                )
+            ),
+        ),
+    ):
+        await _post(_bot(), MagicMock(return_value=adapter))
+    adapter.send_message.assert_not_awaited()

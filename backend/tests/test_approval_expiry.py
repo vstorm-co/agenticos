@@ -157,8 +157,8 @@ class _Sweep:
         )
         self.settle = self._settle.start()
         self._post = patch(
-            "app.services.approvals.post_notices",
-            new=MagicMock(side_effect=lambda _notices: _nothing()),
+            "app.services.approvals.queue_notices",
+            new=AsyncMock(),
         )
         self.post = self._post.start()
         # The transcript write is the service's own, so it is stubbed at the same
@@ -270,11 +270,11 @@ class TestTheRunBehindIt:
         async with _Sweep([_approval()], run=run) as sweep:
             pass
 
-        assert "channel-expiry-notices" in _spawned_names(sweep.spawned)
+        sweep.post.assert_awaited_once()
         sweep.settle.assert_awaited_once_with(
             sweep.settle.await_args.args[0], run_id=run.id, by="expired"
         )
-        (notice,) = sweep.post.call_args.args[0]
+        (notice,) = sweep.post.call_args.args[1]
         assert notice.text == EXPIRED_NOTICE
         assert notice.run_id == run.id
         assert notice.organization_id == run.organization_id
@@ -538,8 +538,8 @@ class TestUnansweredQuestions:
             ),
             "spawn": patch("app.services.approvals.spawn_after_commit"),
             "post": patch(
-                "app.services.approvals.post_notices",
-                new=MagicMock(side_effect=lambda _notices: _nothing()),
+                "app.services.approvals.queue_notices",
+                new=AsyncMock(),
             ),
         }
 
@@ -600,9 +600,9 @@ class TestUnansweredQuestions:
         assert ended == 1
         started["settle"].assert_awaited_once()
         assert started["settle"].await_args.kwargs == {"run_id": run.id, "by": "expired"}
-        (notice,) = started["post"].call_args.args[0]
+        (notice,) = started["post"].call_args.args[1]
         assert notice.text == EXPIRED_NOTICE
-        assert started["spawn"].call_args.kwargs["name"] == "channel-expiry-notices"
+        started["post"].assert_awaited_once()
 
     async def test_an_expired_question_outside_a_chat_posts_nothing(self):
         run = _parked_run(status=RunStatus.AWAITING_ANSWER.value)
@@ -651,13 +651,12 @@ class TestStrandedRuns:
             patch("app.services.approvals.record_audit", side_effect=record) as audit,
             patch("app.services.approvals.spawn_after_commit") as spawn,
             patch(
-                "app.services.approvals.post_notices",
-                new=MagicMock(side_effect=lambda _notices: _nothing()),
+                "app.services.approvals.queue_notices",
+                new=AsyncMock(),
             ) as post,
         ):
             transcript.return_value.record = AsyncMock()
             ended = await ApprovalService(_db()).end_stranded()
-            spawn.call_args.args[1].close()
 
         assert ended == 2
         # The mixed park's approval step and its question step are both closed.
@@ -673,9 +672,9 @@ class TestStrandedRuns:
         }
         assert audit.call_args.kwargs["actor_user_id"] is None
         # One task for the whole sweep, posting both notices in turn.
-        spawn.assert_called_once()
-        assert spawn.call_args.kwargs["name"] == "channel-stranded-notices"
-        notices = post.call_args.args[0]
+        spawn.assert_not_called()
+        post.assert_awaited_once()
+        notices = post.call_args.args[1]
         assert [n.run_id for n in notices] == [run.id for run in runs]
         assert {n.text for n in notices} == {STRANDED_NOTICE}
 
@@ -685,8 +684,8 @@ class TestStrandedRuns:
         ) as sweep:
             pass
 
-        assert _spawned_names(sweep.spawned).count("channel-expiry-notices") == 1
-        assert len(sweep.post.call_args.args[0]) == 3
+        sweep.post.assert_awaited_once()
+        assert len(sweep.post.call_args.args[1]) == 3
 
     async def test_a_run_that_is_no_longer_stranded_when_claimed_is_left_alone(self):
         run = _chat_run()
@@ -887,8 +886,8 @@ async def test_a_sweep_never_uses_a_stale_decision_time_from_its_listing(recent_
         patch("app.services.approvals.TranscriptService") as transcript,
         patch("app.services.approvals.record_audit", new=AsyncMock()),
         patch(
-            "app.services.approvals.post_notices",
-            new=MagicMock(side_effect=lambda _notices: _nothing()),
+            "app.services.approvals.queue_notices",
+            new=AsyncMock(),
         ),
         patch("app.services.approvals.spawn_after_commit") as spawn,
     ):

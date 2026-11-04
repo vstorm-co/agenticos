@@ -48,6 +48,7 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        channel_tasks,
         conversation_tasks,
         diagnostics_tasks,
         generated_media_tasks,
@@ -68,6 +69,7 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),

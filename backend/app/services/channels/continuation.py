@@ -6,8 +6,8 @@ chat or the session API, the server continues the run as that person and posts
 the answer to the chat it was asked in; the browser does not resume it as well.
 
 Both entry points are background work: they take ids and frozen values, open a
-session of their own, and never raise. The chat's lock comes first, before any
-row lock, so nothing here waits for a chat while holding a row.
+session of their own, and persist required delivery as a job. The chat's lock
+comes first, before any row lock, so nothing here waits for a chat while holding a row.
 """
 
 import logging
@@ -27,7 +27,8 @@ from app.db.session import get_db_context
 from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_repo
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
-from app.services.channels.handback import REFUSED_NOTICE, chat_destination, post_notice
+from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
+from app.services.channels.handback_jobs import queue_notices, queue_segment
 from app.services.channels.next_steps import incoming_for_run
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter, chat_lock
@@ -90,23 +91,16 @@ async def continue_in_chat(
     try:
         # `spawn` clears the impersonator, so the continuation names it again.
         set_impersonator(impersonator_id)
-        async with chat_lock(str(bot_id), destination.platform_chat_id):
-            async with get_db_context() as db:
-                text = await _attempt(
-                    db,
-                    organization_id=organization_id,
-                    run_id=run_id,
-                    decider_user_id=decider_user_id,
-                    destination=destination,
-                    approval_id=approval_id,
-                )
-            if text is not None:
-                await post_notice(
-                    organization_id=organization_id,
-                    run_id=run_id,
-                    destination=destination,
-                    text=text,
-                )
+        async with chat_lock(str(bot_id), destination.platform_chat_id), get_db_context() as db:
+            await _attempt(
+                db,
+                organization_id=organization_id,
+                run_id=run_id,
+                decider_user_id=decider_user_id,
+                destination=destination,
+                approval_id=approval_id,
+            )
+
     except Exception:
         logger.exception("channel_continuation_failed run_id=%s bot_id=%s", run_id, bot_id)
 
@@ -119,8 +113,8 @@ async def _attempt(
     decider_user_id: UUID,
     destination: ChannelDestination,
     approval_id: UUID,
-) -> str | None:
-    """Do the continuation; the sentence to post once it has committed, or None."""
+) -> None:
+    """Continue once and persist the result or refusal for delivery after commit."""
     bot_id = destination.bot_id
     bot = await channel_bot_repo.get_for_org(db, bot_id, organization_id=organization_id)
     if bot is None or not bot.is_active:
@@ -143,27 +137,23 @@ async def _attempt(
     if any(approval.status == ApprovalStatus.PENDING.value for approval in pending):
         return None
     if refusal is not None or decider is None:
-        return await _refuse(db, claimed, bot_id, refusal or "decider_unavailable")
+        return await _refuse(db, claimed, destination, refusal or "decider_unavailable")
     inherited = ChannelPrompts.inherited_calls(claimed)
     savepoint = await db.begin_nested()
     try:
         await channel_prompt_repo.settle_open(db, run_id=run_id, by="continued")
-        segment = await AgentRunnerService(db).resume(decider, run_id)
-    except RunExecutionError as exc:
-        # The run is already terminal and committed, as a press finds it.
-        return exc.message
+        await AgentRunnerService(db).resume(
+            decider, run_id, on_segment=queue_segment(db, destination, inherited)
+        )
+    except RunExecutionError:
+        # The terminal transaction already queued the failure delivery.
+        return None
     except AppException as exc:
         if savepoint.is_active:
             await savepoint.rollback()
-        return await _refuse(db, claimed, bot_id, type(exc).__name__)
+        return await _refuse(db, claimed, destination, type(exc).__name__)
     if savepoint.is_active:
         await savepoint.commit()
-    await ChannelPrompts(db).deliver(
-        bot,
-        platform=claimed.surface,
-        platform_chat_id=destination.platform_chat_id,
-        segment=ChannelPrompts.with_inherited(segment, inherited),
-    )
     return None
 
 
@@ -197,15 +187,19 @@ async def _refusal(
     return None
 
 
-async def _refuse(db: AsyncSession, run: AgentRun, bot_id: UUID, reason: str) -> str | None:
-    """Stamp the run and return the one notice, unless this park was already told."""
+async def _refuse(
+    db: AsyncSession, run: AgentRun, destination: ChannelDestination, reason: str
+) -> None:
+    """Stamp the run and queue its notice, unless this park was already told."""
+    bot_id = destination.bot_id
     logger.info(
         "channel_continuation_refused run_id=%s bot_id=%s reason=%s", run.id, bot_id, reason
     )
     if run.chat_notice_sent_at is not None:
-        return None
+        return
     await agent_run_repo.record_chat_notice(db, run=run, at=datetime.now(UTC))
-    return REFUSED_NOTICE
+    await queue_notices(db, [ChatNotice(run.organization_id, run.id, destination, REFUSED_NOTICE)])
+    return
 
 
 async def deliver_in_chat(
@@ -218,20 +212,17 @@ async def deliver_in_chat(
     """Post a continuation somebody ran by hand (Resume, an answer) to its chat.
 
     The run already ran and committed, so a room that definitely no longer admits
-    the asker, or a chat that started over, gets nothing. Never raises.
+    the asker, or a chat that started over, gets nothing. Transport failures are retried by the worker.
     """
     bot_id = destination.bot_id
-    try:
-        async with chat_lock(str(bot_id), destination.platform_chat_id), get_db_context() as db:
-            await _post_if_admitted(
-                db,
-                organization_id=organization_id,
-                run_id=run_id,
-                destination=destination,
-                said=said,
-            )
-    except Exception:
-        logger.exception("channel_delivery_failed run_id=%s bot_id=%s", run_id, bot_id)
+    async with chat_lock(str(bot_id), destination.platform_chat_id), get_db_context() as db:
+        await _post_if_admitted(
+            db,
+            organization_id=organization_id,
+            run_id=run_id,
+            destination=destination,
+            said=said,
+        )
 
 
 async def _post_if_admitted(

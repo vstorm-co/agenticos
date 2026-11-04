@@ -488,10 +488,36 @@ export function useResumeRun(options?: { ignoreStillParked?: boolean; continuesI
       await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
       toast.success(t(options?.continuesInChat ? "runResumedInChat" : "runResumed"));
     },
-    onError: (error) => {
-      if (options?.continuesInChat && alreadyContinuing(error)) {
-        toast.info(t("alreadyContinuing"));
-        return;
+    onError: async (error, runId) => {
+      if (options?.continuesInChat) {
+        if (alreadyContinuing(error)) {
+          await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+          toast.info(t("alreadyContinuing"));
+          return;
+        }
+        if (
+          stillAwaitingDecision(error) ||
+          (error instanceof ApiError &&
+            error.status === 400 &&
+            error.details?.status === "awaiting_answer")
+        ) {
+          try {
+            const current = await apiClient.get<AgentRun>(`/runs/${runId}`);
+            queryClient.setQueryData(qk.runs.detail(runId), current);
+            await queryClient.invalidateQueries({ queryKey: qk.runs.all() });
+            if (
+              current.continues_in_chat &&
+              ["running", "completed", "awaiting_approval", "awaiting_answer"].includes(
+                current.status,
+              )
+            ) {
+              toast.info(t("alreadyContinuing"));
+              return;
+            }
+          } catch {
+            // A failed refresh must not hide the original resume failure.
+          }
+        }
       }
       if (options?.ignoreStillParked && stillAwaitingDecision(error)) return;
       toast.error(getErrorMessage(error, tErrors, t("resumeFailed")));
