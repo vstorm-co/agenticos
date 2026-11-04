@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.47.3] - 2026-11-04
+
 ### Fixed
 
 - Show the same Architect avatar in the assistant widget and agent list after its stored picture is cleared, including its selected colour.
@@ -19983,7 +19985,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...HEAD
+[1.47.3]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...v1.47.3
 [1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
