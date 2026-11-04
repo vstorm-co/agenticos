@@ -1577,3 +1577,22 @@ def test_coding_environment_uses_icon_choice_cards() -> None:
     field = CodingAgentConfig.model_json_schema()["properties"]["runs_on"]
     assert field["x-widget"] == "coding-environment"
     assert field["enum"] == ["sandbox", "this_computer"]
+
+
+@pytest.mark.parametrize("runs_on", ["sandbox", "this_computer"])
+def test_personal_model_preferences_only_override_a_local_binding(runs_on: str) -> None:
+    from app.agents.capabilities.coding_agent import LOCAL_CODING_PREFERENCES, CodingPreferences
+
+    definition = get("coding_agent")
+    binding = CapabilityBinding(capability_id="coding_agent", config={"runs_on": runs_on})
+    built = definition.builder(
+        CapabilityBuildContext(
+            binding=binding,
+            config=definition.validate_config(binding.config),
+            resources={LOCAL_CODING_PREFERENCES: CodingPreferences(model="haiku", effort="low")},
+            secret=None,
+        )
+    )
+    assert isinstance(built, CodingAgent)
+    assert built.model == ("haiku" if runs_on == "this_computer" else None)
+    assert built.effort == ("low" if runs_on == "this_computer" else None)

@@ -19,6 +19,7 @@
     "allow-local-instances",
     "allow-set-up-local",
     "allow-use-local",
+    "allow-resume-local",
     "allow-open-docker-download",
     "allow-download-docker",
     "allow-open-docker"

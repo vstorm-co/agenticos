@@ -23,6 +23,26 @@ from app.worker.jobs import Pool
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def live_transport(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from contextlib import asynccontextmanager
+
+    from app.services import live_turn
+
+    events: list[str] = []
+
+    @asynccontextmanager
+    async def transport() -> AsyncGenerator[None]:
+        events.append("opened")
+        try:
+            yield
+        finally:
+            events.append("closed")
+
+    monkeypatch.setattr(live_turn, "in_worker", transport)
+    return events
+
+
 def test_pools_are_read_from_a_comma_list_and_a_wrong_name_is_refused() -> None:
     assert worker_main.pools_from(" agent , ingest ") == [Pool.AGENT, Pool.INGEST]
     with pytest.raises(ValueError, match="at least one pool"):
@@ -127,7 +147,7 @@ async def test_serve_connects_what_a_fired_run_publishes_on_and_declares_the_sch
 @pytest.mark.parametrize("pool", [Pool.AGENT, Pool.WORKFLOW, Pool.SYSTEM, Pool.INGEST])
 @pytest.mark.parametrize("fails", [False, True])
 async def test_worker_keeps_its_platform_mcp_alive_until_agent_jobs_drain(
-    monkeypatch: pytest.MonkeyPatch, pool: Pool, fails: bool
+    monkeypatch: pytest.MonkeyPatch, pool: Pool, fails: bool, live_transport: list[str]
 ) -> None:
     from contextlib import asynccontextmanager
 
@@ -155,6 +175,7 @@ async def test_worker_keeps_its_platform_mcp_alive_until_agent_jobs_drain(
 
     async def run(_stop: asyncio.Event) -> None:
         assert app.state.platform_mcp is (None if pool is Pool.INGEST else marker)
+        assert live_transport == ([] if pool is Pool.INGEST else ["opened"])
         order.append("jobs drained")
         if fails:
             raise RuntimeError("worker failed")
@@ -182,6 +203,7 @@ async def test_worker_keeps_its_platform_mcp_alive_until_agent_jobs_drain(
         else:
             await worker_main.serve([pool])
     assert app.state.platform_mcp is None
+    assert live_transport == ([] if pool is Pool.INGEST else ["opened", "closed"])
     assert order == (
         ["jobs drained", "db closed"]
         if pool is Pool.INGEST

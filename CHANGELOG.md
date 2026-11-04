@@ -19,6 +19,61 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.41.0] - 2026-11-04
+
+### Added
+
+- Connect Stav models with a vault API key and an EU (default), EEA or global region. Region restrictions remain enforced when request settings include custom headers; existing profiles retain their settings. Model catalogs choose Chat Completions or Responses from the model’s advertised surfaces. Custom Stav catalogs use the selected visible vault key, with credential-isolated caching.
+
+## [1.40.0] - 2026-11-03
+
+### Added
+
+- Delegate explicit work to durable background topics in the same project, keep talking in the source conversation, inspect or stop each task, and receive one source-bound result turn. Tasks retain pinned agent versions, ordinary budgets and approvals, the selected main model and exact local device; interrupted external actions are not automatically replayed.
+- Choose a local Claude Code/Codex model and reasoning level per conversation from the installed harness's reported choices, including resumed coding sessions. Reference recent accessible conversations in the `@` menu through the existing Past conversations capability.
+
+## [1.39.2] - 2026-11-03
+
+### Fixed
+
+- Deleting an account no longer deadlocks with an ingest that is recording the embedding spend of a document in that account's personal knowledge base. The deletion now locks the personal organization before it deletes the documents under it. An ingest whose organization is deleted while it runs no longer fails when it records its spend. In the rare case that a knowledge collection is created during the deletion and is busy, the deletion now returns 409 and deletes nothing, so it can be retried.
+
+## [1.39.1] - 2026-11-03
+
+### Changed
+
+- Deleting a document, reading its chunks and expanding a search hit to its neighbouring chunks no longer scan the collection. Each knowledge-base collection table now has an index on the document id: new collections get it when they are created, and migration `0252_index_rag_parent_doc_id` adds it to existing ones. On a 300k-chunk collection these operations went from 40–100 ms to under 1 ms.
+
+  **Upgrade action (optional, large deployments):** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
+
+  ```sql
+  SELECT format('CREATE INDEX CONCURRENTLY IF NOT EXISTS %I ON %I (parent_doc_id)',
+                table_name || '_parent_idx', table_name)
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND column_name = 'metadata'
+    AND data_type = 'jsonb' AND table_name LIKE 'rag\_%' ESCAPE '\'
+  \gexec
+  ```
+
+  The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
+
+
+## [1.39.0] - 2026-11-03
+
+### Added
+
+- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
+- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
+
+### Fixed
+
+- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
+- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
+
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
+
+## [1.38.4] - 2026-11-03
+
 ### Fixed
 
 - Support manual Podman deployments through Docker Compose, add a sandbox override for socket and SELinux workspace access, and direct quickstart users to that path. Document the reproduced migration dependency failure in podman-compose 1.6.0.
@@ -19833,7 +19888,13 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...HEAD
+[1.41.0]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...v1.41.0
+[1.40.0]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...v1.40.0
+[1.39.2]: https://github.com/vstorm-co/agenticos/compare/v1.39.1...v1.39.2
+[1.39.1]: https://github.com/vstorm-co/agenticos/compare/v1.39.0...v1.39.1
+[1.39.0]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...v1.39.0
+[1.38.4]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...v1.38.4
 [1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1

@@ -11,6 +11,13 @@ import type { CodingHarness } from "@/types/chat";
 
 export type { LocalTarget };
 
+export interface CodingPreferences {
+  model: string | null;
+  effort: string | null;
+}
+
+const DEFAULT_CODING_PREFERENCES: CodingPreferences = { model: null, effort: null };
+
 /**
  * Where each conversation's runs work: the agent's cloud sandbox, or a folder on
  * this computer (#2305).
@@ -33,6 +40,10 @@ interface WorkOnState {
   draftCoding: CodingHarness | null;
   codingFor: (conversationId: string | null) => CodingHarness | null;
   setCoding: (conversationId: string | null, harness: CodingHarness | null) => void;
+  codingPreferencesByConversation: Record<string, CodingPreferences>;
+  draftCodingPreferences: CodingPreferences;
+  codingPreferencesFor: (conversationId: string | null) => CodingPreferences;
+  setCodingPreferences: (conversationId: string | null, preferences: CodingPreferences) => void;
   computerByConversation: Record<string, boolean>;
   draftComputer: boolean | undefined;
   computerFor: (conversationId: string | null) => boolean;
@@ -74,11 +85,30 @@ export const useWorkOnStore = create<WorkOnState>()(
       fileRootFor: (id) => get().fileRoots[browserKey(`file:${id}`)],
       codingByConversation: {},
       draftCoding: null,
+      codingPreferencesByConversation: {},
+      draftCodingPreferences: DEFAULT_CODING_PREFERENCES,
+      codingPreferencesFor: (conversationId) =>
+        conversationId === null
+          ? get().draftCodingPreferences
+          : (get().codingPreferencesByConversation[browserKey(conversationId)] ??
+            DEFAULT_CODING_PREFERENCES),
+      setCodingPreferences: (conversationId, preferences) => {
+        if (conversationId === null) set({ draftCodingPreferences: preferences });
+        else
+          set({
+            codingPreferencesByConversation: {
+              ...get().codingPreferencesByConversation,
+              [browserKey(conversationId)]: preferences,
+            },
+          });
+      },
       codingFor: (conversationId) =>
         conversationId === null
           ? get().draftCoding
           : (get().codingByConversation[browserKey(conversationId)] ?? null),
       setCoding: (conversationId, harness) => {
+        if (get().codingFor(conversationId) !== harness)
+          get().setCodingPreferences(conversationId, DEFAULT_CODING_PREFERENCES);
         if (conversationId === null) set({ draftCoding: harness });
         else
           set({
@@ -160,6 +190,7 @@ export const useWorkOnStore = create<WorkOnState>()(
           draftComputer: undefined,
           draftSkills: NO_SKILLS,
           draftCoding: null,
+          draftCodingPreferences: DEFAULT_CODING_PREFERENCES,
         }),
       targetFor: (conversationId) => {
         if (conversationId === null)
@@ -197,7 +228,11 @@ export const useWorkOnStore = create<WorkOnState>()(
           codingByConversation: Object.hasOwn(state.codingByConversation, key)
             ? state.codingByConversation
             : { ...state.codingByConversation, [key]: state.codingFor(null) },
+          codingPreferencesByConversation: Object.hasOwn(state.codingPreferencesByConversation, key)
+            ? state.codingPreferencesByConversation
+            : { ...state.codingPreferencesByConversation, [key]: state.codingPreferencesFor(null) },
           draftCoding: null,
+          draftCodingPreferences: DEFAULT_CODING_PREFERENCES,
           browserByConversation: Object.hasOwn(state.browserByConversation, key)
             ? state.browserByConversation
             : { ...state.browserByConversation, [key]: state.browserFor(null) },
@@ -218,10 +253,12 @@ export const useWorkOnStore = create<WorkOnState>()(
         computerByConversation,
         skillsByConversation,
         codingByConversation,
+        codingPreferencesByConversation,
       }) => ({
         fileRoots,
         skillsByConversation,
         codingByConversation,
+        codingPreferencesByConversation,
         byConversation,
         browserByConversation,
         computerByConversation,

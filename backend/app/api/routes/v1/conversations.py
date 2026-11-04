@@ -8,6 +8,7 @@ from app.api.deps import (
     Auth,
     ConversationShareSvc,
     ConversationSvc,
+    ConversationTaskSvc,
     CurrentUser,
     MessageRatingSvc,
     ProjectSvc,
@@ -35,6 +36,7 @@ from app.schemas.conversation_share import (
     ConversationShareRead,
     SharedConversationRead,
 )
+from app.schemas.conversation_task import ConversationTaskRead
 from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
@@ -48,6 +50,20 @@ from app.schemas.workspace import (
 from app.services.sandbox_workspace import owner_label, stored_ceiling
 
 router = APIRouter()
+
+
+@router.get("/background-tasks", response_model=list[ConversationTaskRead])
+async def list_background_tasks(
+    service: ConversationTaskSvc, ctx: Auth, conversation_id: UUID | None = None
+) -> Any:
+    """The current member's delegated topics, optionally from one source conversation."""
+    return await service.list_for_member(ctx, conversation_id=conversation_id)
+
+
+@router.post("/background-tasks/{task_id}/stop", response_model=ConversationTaskRead)
+async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx: Auth) -> Any:
+    """Stop the member's task, retaining its transcript and any work already done."""
+    return await service.stop(ctx, task_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)
