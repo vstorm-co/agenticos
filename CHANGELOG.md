@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Search the web through Keenable without an account, or select an optional vault key for account-backed requests. The Builder and vault show the official logo; query-relevant snippets are normalized into the existing cited search results.
+
 ## [1.41.0] - 2026-11-04
 
 ### Added

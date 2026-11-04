@@ -31,8 +31,8 @@
     "label": "Keenable",
     "category": "search",
     "kind": "api_key",
-    "help_url": "https://keenable.ai",
-    "description": "Web search that works without a key; a key lifts the rate limit.",
+    "help_url": "https://docs.keenable.ai/authentication",
+    "description": "Web search without an account; an optional key uses your organization's allowance.",
     "icon": "keenable"
   },
   {

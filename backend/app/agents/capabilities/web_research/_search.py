@@ -17,7 +17,7 @@ Which one to use is a real decision, not a preference:
 - **Exa** searches by meaning rather than keywords; better for "find companies
   doing X", worse for "what does Y cost".
 - **Keenable** needs no key either: a keyless public endpoint, with an optional
-  key for the keyed endpoint and higher rate limits.
+  key for account-backed requests.
 
 Provider-native search - the model provider doing the searching itself - is not
 here. It is not an HTTP call we make; it is a capability the model runs with, so
@@ -262,12 +262,19 @@ async def _exa(query: str, max_results: int, api_key: str) -> list[WebSearchResu
     ]
 
 
-async def _keenable(query: str, max_results: int, api_key: str | None) -> list[WebSearchResult]:
-    """Keenable, keyless by default; a key switches to the keyed endpoint.
+class _KeenableHit(BaseModel):
+    title: str | None = None
+    url: str | None = None
+    snippet: str | None = None
+    description: str | None = None
 
-    The snippet is the result's `description` when it has one, else its page
-    `snippet` (which `_hit` trims). A result without a URL is dropped.
-    """
+
+class _KeenableResponse(BaseModel):
+    results: list[_KeenableHit]
+
+
+async def _keenable(query: str, max_results: int, api_key: str | None) -> list[WebSearchResult]:
+    """Use query-relevant snippets, with the deprecated description as a fallback."""
     headers = {"Content-Type": "application/json", "X-Keenable-Title": "AgenticOS"}
     url = "https://api.keenable.ai/v1/search/public"
     if api_key:
@@ -276,20 +283,20 @@ async def _keenable(query: str, max_results: int, api_key: str | None) -> list[W
     try:
         response = await _http().post(
             url,
-            json={"query": query, "max_results": max_results},
+            json={"query": query, "max_results": max_results, "snippet_max_length": _SNIPPET_CHARS},
             headers=headers,
             timeout=_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        payload = response.json()
-    except Exception as exc:
+        payload = _KeenableResponse.model_validate(response.json())
+    except (httpx.HTTPError, ValueError) as exc:
         logger.exception("Keenable search failed")
         raise SearchUnavailable(_unavailable("Keenable", exc)) from exc
 
     return [
-        _hit(row.get("title"), row["url"], row.get("description") or row.get("snippet"))
-        for row in payload.get("results", [])[:max_results]
-        if row.get("url")
+        _hit(row.title, row.url, row.snippet or row.description)
+        for row in payload.results[:max_results]
+        if row.url
     ]
 
 

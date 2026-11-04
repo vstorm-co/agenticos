@@ -16,3 +16,7 @@ The contract:
 - **Compiled-in marks win.** A name the bundled icon sets already carry
   (Simple Icons for MCP/connectors, lobehub for providers) is drawn from the
   bundle; the file here is the fallback for brands they do not know.
+
+## Bundled sources
+
+- `keenable.svg`: the official [Keenable documentation favicon](https://docs.keenable.ai/favicon.svg), preserved with its original paths and transforms. The mark belongs to Keenable; the console renders it through the same theme-aware mask as other catalog icons.
