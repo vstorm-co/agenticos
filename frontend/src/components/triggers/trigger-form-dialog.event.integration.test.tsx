@@ -340,3 +340,43 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     expect(option.querySelector("svg")).not.toBeNull();
   });
 });
+
+it("refuses an invalid budget without removing the saved spending cap", async () => {
+  serve();
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger({ monthly_budget_usd: null }));
+  render(
+    <TriggerFormDialog
+      agentId={AGENT_ID}
+      open
+      onOpenChange={vi.fn()}
+      trigger={trigger({ monthly_budget_usd: "10" })}
+    />,
+    { wrapper },
+  );
+  const dialog = within(await screen.findByRole("dialog"));
+  const budget = dialog.getByLabelText("Monthly budget (USD, optional)");
+  fireEvent.change(budget, { target: { value: "-2" } });
+  expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(
+    dialog.getByText("Enter a positive amount, or leave blank to remove this limit."),
+  ).toBeVisible();
+  expect(apiClient.patch).not.toHaveBeenCalled();
+  fireEvent.change(budget, { target: { value: "" } });
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(apiClient.patch).toHaveBeenCalled());
+  expect(vi.mocked(apiClient.patch).mock.calls.at(-1)?.[1]).toHaveProperty(
+    "monthly_budget_usd",
+    null,
+  );
+});
+
+it("keeps a new schedule on configuration until its budget is valid", async () => {
+  serve();
+  render(<TriggerFormDialog agentId={AGENT_ID} open onOpenChange={vi.fn()} />, { wrapper });
+  const dialog = within(await screen.findByRole("dialog"));
+  fireEvent.change(dialog.getByLabelText("Monthly budget (USD, optional)"), {
+    target: { value: "not a number" },
+  });
+  expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});

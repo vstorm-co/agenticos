@@ -1669,20 +1669,19 @@ class AgentTriggerService:
         # open and fires, and a duplicate answers the same nothing-to-do `None` an
         # unmatched delivery does, so it stays unprobeable. A transaction that
         # then rolls back queued nothing and gives the claim back (`_claim`).
-        # Counted only once the signature holds - nobody without the secret can
-        # spend it - and before the claim, so a provider's later retry can still
-        # fire the delivery refused here.
+        if not await self._polled_source_current(trigger):
+            return None
+        delivery = trigger_events.delivery_id(source, headers, payload)
+        if delivery is not None and not await self._claim(trigger.id, delivery):
+            return None
+        # Only a newly admitted delivery spends the allowance. A refusal raises
+        # past the transaction boundary, which releases its claim on rollback.
         allowance = await rate_limit.trigger_delivery_allowed(trigger.id)
         if not allowance.allowed:
             raise RateLimitError(
                 message="This trigger has fired too often this minute",
                 details={"retry_after_seconds": allowance.retry_after_seconds},
             )
-        delivery = trigger_events.delivery_id(source, headers, payload)
-        if delivery is not None and not await self._claim(trigger.id, delivery):
-            return None
-        if not await self._polled_source_current(trigger):
-            return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(
             trigger_id=trigger.id,
@@ -1770,15 +1769,23 @@ class AgentTriggerService:
                 config=trigger.event_config,
             ):
                 continue
-            # One App delivery may fire several triggers: one past its allowance is
-            # left out, logged, rather than refusing the delivery for the others.
+            delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers, payload)
+            if delivery is not None and not await self._claim(trigger.id, delivery):
+                continue
+            # One App delivery may fire several triggers. A throttled trigger is
+            # skipped while the others commit, so return its claim on commit too.
             if not (await rate_limit.trigger_delivery_allowed(trigger.id)).allowed:
+                if delivery is not None:
+                    spawn_after_commit(
+                        self.db,
+                        trigger_dedupe.release_event_delivery(
+                            trigger_id=trigger.id, delivery_id=delivery
+                        ),
+                        name="release a throttled trigger delivery claim",
+                    )
                 logger.warning(
                     "trigger_delivery_rate_limited", extra={"trigger_id": str(trigger.id)}
                 )
-                continue
-            delivery = trigger_events.delivery_id(EventSource.GITHUB.value, headers, payload)
-            if delivery is not None and not await self._claim(trigger.id, delivery):
                 continue
             decisions.append(
                 EventFireDecision(

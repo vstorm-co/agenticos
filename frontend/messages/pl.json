@@ -7648,7 +7648,8 @@
       "accept": "Zatwierdź te źródła"
     },
     "advancedOptions": "Opcje zaawansowane",
-    "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień."
+    "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
+    "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit."
   },
   "portals": {
     "mailboxInterval": {

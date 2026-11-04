@@ -26,6 +26,7 @@ from pydantic import SecretStr
 
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.secret_kinds import GithubAppSecret
+from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services import impersonation as impersonation_service
 from app.services.agent_trigger import AgentTriggerService
 from app.services.impersonation import ActiveImpersonation
@@ -120,6 +121,14 @@ def _trigger(
         portal_key=portal_key,
         provider_target=target,
         event_config={"actions": list(actions)},
+        approved_sources=RoutineSourcePolicy(
+            id=uuid.uuid4(),
+            consented_by=uuid.uuid4(),
+            reviewed_at=datetime.now(UTC),
+            version_id=uuid.uuid4(),
+            scope_hash="a" * 64,
+            spec_hash="b" * 64,
+        ).model_dump(mode="json"),
     )
 
 
@@ -146,10 +155,33 @@ def _scope(organization_id: uuid.UUID):
     return VaultScope.organization(organization_id)
 
 
+_deferred_sessions: list[MagicMock] = []
+
+
+@pytest.fixture(autouse=True)
+def close_deferred_test_work():
+    from app.core.background import _ON_ROLLBACK_KEY, _take, discard_deferred
+
+    yield
+    for session in _deferred_sessions:
+        discard_deferred(session)
+        # Mock transactions do not execute their rollback callbacks; close them
+        # here rather than starting background work after an async test's loop ends.
+        for deferred in _take(session, _ON_ROLLBACK_KEY):
+            deferred.coro.close()
+    _deferred_sessions.clear()
+
+
 def _service() -> AgentTriggerService:
     db = MagicMock()
     db.execute = AsyncMock()
-    return AgentTriggerService(db)
+    db.info = {}
+    _deferred_sessions.append(db)
+    service = AgentTriggerService(db)
+    # Portal routing is independent of source-consent admission, covered by the
+    # source-policy trigger tests. These lightweight rows carry routing fields only.
+    service._polled_source_current = AsyncMock(return_value=True)
+    return service
 
 
 def _wired(*, grants=(), triggers=(), secret=None, claims=True):
@@ -206,6 +238,45 @@ class TestATriggerPastItsAllowance:
             decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
 
         assert [decision.trigger_id for decision in decisions] == [calm.id]
+
+
+class TestDuplicateAppDeliveries:
+    async def test_a_duplicate_spends_no_trigger_allowance(self) -> None:
+        body = _body()
+        allowance = AsyncMock()
+        with (
+            _wired(grants=[_grant()], triggers=[_trigger()], claims=False),
+            patch(f"{SERVICE}.rate_limit.trigger_delivery_allowed", allowance),
+        ):
+            decisions = await _service().prepare_app_fires(body=body, headers=_headers(body))
+        assert decisions == []
+        allowance.assert_not_awaited()
+
+    async def test_throttled_claim_is_released_after_the_other_fires_commit(self) -> None:
+        from app.core.background import discard_deferred, drain, start_deferred
+        from app.services.rate_limit import Decision
+
+        body = _body()
+        trigger = _trigger()
+        service = _service()
+        service.db.info = {}
+        release = AsyncMock()
+        with (
+            _wired(grants=[_grant()], triggers=[trigger]),
+            patch(
+                f"{SERVICE}.rate_limit.trigger_delivery_allowed",
+                AsyncMock(return_value=Decision(allowed=False, retry_after_seconds=30)),
+            ),
+            patch(f"{SERVICE}.trigger_dedupe.release_event_delivery", release),
+        ):
+            decisions = await service.prepare_app_fires(body=body, headers=_headers(body))
+            assert decisions == []
+            release.assert_not_awaited()
+            start_deferred(service.db)
+            await drain()
+            discard_deferred(service.db)
+        release.assert_awaited_once()
+        assert release.await_args.kwargs["trigger_id"] == trigger.id
 
 
 class TestWhoseDeliveryItIs:

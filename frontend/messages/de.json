@@ -8696,7 +8696,8 @@
       "accept": "Diese Quellen genehmigen"
     },
     "advancedOptions": "Erweiterte Optionen",
-    "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen."
+    "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
+    "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen."
   },
   "portals": {
     "mailboxInterval": {

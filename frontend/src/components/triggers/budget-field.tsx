@@ -25,14 +25,12 @@ export function BudgetField({
       label={t("budgetLabel")}
       htmlFor="trigger-budget"
       description={t("budgetHint")}
-      error={error}
+      error={error ?? (parseBudget(value) === undefined ? t("budgetInvalid") : undefined)}
     >
       <Input
         id="trigger-budget"
-        type="number"
+        type="text"
         inputMode="decimal"
-        min="0"
-        step="0.01"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={t("budgetPlaceholder")}
@@ -41,8 +39,12 @@ export function BudgetField({
   );
 }
 
-/** The limit as the API takes it: a positive number, or null for none. */
-export function parseBudget(value: string): number | null {
-  const parsed = Number(value);
-  return value.trim() !== "" && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+/** Blank explicitly clears a cap; malformed or nonpositive input is refused. */
+export function parseBudget(value: string): number | null | undefined {
+  const text = value.trim();
+  if (text === "") return null;
+  const parsed = Number(text);
+  return /^(?:\d+\.?\d*|\.\d+)$/.test(text) && Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : undefined;
 }

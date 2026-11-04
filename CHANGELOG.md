@@ -144,6 +144,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reject malformed or nonpositive routine budgets instead of silently removing their spending limit.
+
+- Deduplicate signed webhook retries before charging routine run allowances, and return throttled delivery claims so provider retries can be admitted later.
+
 - Show an explicit access/organization error and retry action when the agent Builder cannot load, instead of leaving its loading skeleton indefinitely.
 
 - Document native-memory and routine-continuity upgrade/rollback steps. Correct the mem0 retirement guidance: removing agent bindings does not delete encrypted vault credentials or import/erase memories at the old provider.

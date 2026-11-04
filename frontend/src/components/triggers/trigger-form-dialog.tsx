@@ -261,6 +261,7 @@ export function TriggerFormDialog({
   const [budget, setBudget] = useState(
     trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
   );
+  const budgetLimit = parseBudget(budget);
   const [maxFailures, setMaxFailures] = useState<number | null>(
     trigger?.max_failures === undefined ? 3 : trigger.max_failures,
   );
@@ -508,7 +509,9 @@ export function TriggerFormDialog({
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       // Only when it is not the server's default, so a plain create says nothing new.
       ...(answerTo !== "primary" ? { answer_to: answerTo } : {}),
-      ...(parseBudget(budget) !== null ? { monthly_budget_usd: parseBudget(budget) } : {}),
+      ...(budgetLimit !== null && budgetLimit !== undefined
+        ? { monthly_budget_usd: budgetLimit }
+        : {}),
     };
     if (type === "schedule") {
       return { ...base, ...scheduleCadence(), overlap };
@@ -555,7 +558,7 @@ export function TriggerFormDialog({
       setInvalidEnd(true);
       return;
     }
-    if (saving.current) return;
+    if (saving.current || budgetLimit === undefined) return;
     saving.current = true;
     setSavingLocal(true);
     const org = useOrgStore.getState().activeOrgId;
@@ -617,7 +620,7 @@ export function TriggerFormDialog({
         const limit = parseBudget(budget);
         const stored =
           trigger.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null;
-        if (limit !== stored) patch.monthly_budget_usd = limit;
+        if (limit !== undefined && limit !== stored) patch.monthly_budget_usd = limit;
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -694,7 +697,11 @@ export function TriggerFormDialog({
     (cronFreq === "everyNDays" || isTimeZone(timeZone));
   const scheduleValid = scheduleKind === "cron" ? cronValid : intervalCountValid(intervalCount);
   const taskValid =
-    prompt.trim().length > 0 && effectiveAgentId !== null && versionValid && !invalidEnd;
+    prompt.trim().length > 0 &&
+    effectiveAgentId !== null &&
+    versionValid &&
+    !invalidEnd &&
+    budgetLimit !== undefined;
   // Editing a schedule can change its cadence, so the cadence is guarded then
   // too; an event edit has no cadence and only its prompt/name to check.
   const canSubmit =
@@ -721,7 +728,7 @@ export function TriggerFormDialog({
   // final Create would refuse.
   const canAdvance =
     step === "configure"
-      ? effectiveAgentId !== null
+      ? effectiveAgentId !== null && versionValid && !invalidEnd && budgetLimit !== undefined
       : step === "message"
         ? prompt.trim().length > 0
         : step === "schedule"
@@ -880,7 +887,7 @@ export function TriggerFormDialog({
                 <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
               )}
 
-            <RoutineOptions invalid={invalidEnd || !versionValid}>
+            <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
               {namedEnvironments.length > 0 && (
                 <EnvironmentField
                   value={environmentId}
@@ -1031,7 +1038,7 @@ export function TriggerFormDialog({
 
               <NameField value={name} onChange={setName} />
 
-              <RoutineOptions invalid={invalidEnd || !versionValid}>
+              <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
                   <EnvironmentField
                     value={environmentId}

@@ -2117,9 +2117,11 @@ class TestPreparingAnEventFire:
                 await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
 
     @pytest.mark.security
-    async def test_a_verified_delivery_past_the_triggers_allowance_is_a_429_unclaimed(self):
+    async def test_a_verified_delivery_past_the_triggers_allowance_is_a_429_released_on_rollback(
+        self,
+    ):
         """A leaked secret or a relay in a loop fires runs until the budget is gone;
-        the allowance stops it. Refused before the claim, so a later retry fires."""
+        the allowance stops it. Its transaction releases the claim so a later retry fires."""
         from app.core.exceptions import RateLimitError
         from app.services.rate_limit import Decision
 
@@ -2142,7 +2144,28 @@ class TestPreparingAnEventFire:
             with pytest.raises(RateLimitError) as refused:
                 await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
         assert refused.value.details == {"retry_after_seconds": 17}
-        claim.assert_not_awaited()
+        claim.assert_awaited_once()
+
+    async def test_duplicate_deliveries_do_not_spend_the_run_allowance(self):
+        service = _service()
+        trigger = _event_trigger()
+        allowance = AsyncMock()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.unseal", return_value="secret"),
+            patch("app.services.agent_trigger.trigger_events") as events,
+            patch("app.services.agent_trigger.rate_limit.trigger_delivery_allowed", allowance),
+            patch.object(type(service), "_claim", AsyncMock(return_value=False)),
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            events.verify_signature.return_value = True
+            events.event_matches.return_value = True
+            events.delivery_id.return_value = "already-accepted"
+            assert (
+                await service.prepare_event_fire("github", trigger.id, body=b"{}", headers={})
+                is None
+            )
+        allowance.assert_not_awaited()
 
     async def test_a_forged_delivery_spends_none_of_the_allowance(self):
         """Counted only after the signature holds: nobody without the secret can

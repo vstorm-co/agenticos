@@ -27,3 +27,18 @@ describe("progressive disclosure of routine settings", () => {
     expect(container.querySelector("details")).toHaveAttribute("open");
   });
 });
+
+it("keeps the options open while a validation error is being corrected", () => {
+  const { container, rerender } = render(
+    <RoutineOptions invalid>
+      <input aria-label="Test budget" />
+    </RoutineOptions>,
+  );
+  expect(container.querySelector("details")).toHaveAttribute("open");
+  rerender(
+    <RoutineOptions invalid={false}>
+      <input aria-label="Test budget" />
+    </RoutineOptions>,
+  );
+  expect(container.querySelector("details")).toHaveAttribute("open");
+});

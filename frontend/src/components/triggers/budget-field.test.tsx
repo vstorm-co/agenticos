@@ -10,9 +10,12 @@ describe("parseBudget", () => {
     ["5", 5],
     [" 2.5 ", 2.5],
     ["", null],
-    ["0", null],
-    ["-3", null],
-    ["abc", null],
+    ["0", undefined],
+    ["-3", undefined],
+    ["abc", undefined],
+    ["Infinity", undefined],
+    ["0x10", undefined],
+    ["1e3", undefined],
   ])("reads %j as %j", (input, expected) => {
     expect(parseBudget(input)).toBe(expected);
   });

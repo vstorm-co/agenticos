@@ -8817,7 +8817,8 @@
       "accept": "Approve these sources"
     },
     "advancedOptions": "Advanced options",
-    "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences."
+    "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
+    "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit."
   },
   "portals": {
     "mailboxInterval": {
