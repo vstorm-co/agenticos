@@ -155,3 +155,37 @@ async def test_long_account_identities_and_pending_rows_stay_outside_mcp(db: Asy
         )
         is None
     )
+
+
+@pytest.mark.parametrize("scope", ["user", "org"])
+async def test_account_identity_is_unique_per_owner(db: AsyncSession, scope: str) -> None:
+    from sqlalchemy.exc import IntegrityError
+
+    user, other = await _person(db), await _person(db)
+    organization = await _organization(db, user)
+    other_organization = await _organization(db, other)
+
+    def account(owner: uuid.UUID) -> McpConnection:
+        return McpConnection(
+            user_id=owner if scope == "user" else None,
+            organization_id=owner if scope == "org" else None,
+            created_by_user_id=user.id if scope == "org" else None,
+            scope=scope,
+            name=f"google-account-{uuid.uuid4().hex}",
+            url="https://www.googleapis.com",
+            purpose="account",
+            catalog_key="google",
+            account_email="same@example.com",
+            auth_type="oauth",
+            secret_key_version=1,
+            oauth_payload="sealed",
+        )
+
+    owner = user.id if scope == "user" else organization.id
+    other_owner = other.id if scope == "user" else other_organization.id
+    db.add_all([account(owner), account(other_owner)])
+    await db.flush()
+    with pytest.raises(IntegrityError):
+        async with db.begin_nested():
+            db.add(account(owner))
+            await db.flush()

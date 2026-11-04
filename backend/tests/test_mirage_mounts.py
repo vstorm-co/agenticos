@@ -396,7 +396,10 @@ async def test_langfuses_cloud_default_also_requires_permission(ctx, vault, acco
         }
     )
     refused = await _resolve(ctx, config)
-    assert not refused.mounts and "cloud.langfuse.com" in refused.notes[0]
+    assert not refused.mounts
+    assert refused.notes == (
+        "/traces/ is not mounted: its host names a host this deployment does not allow (cloud.langfuse.com).",
+    )
     monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["cloud.langfuse.com"])
     allowed = await _resolve(ctx, config)
     assert len(allowed.mounts) == 1 and not allowed.notes

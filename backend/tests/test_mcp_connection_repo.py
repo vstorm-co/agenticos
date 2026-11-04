@@ -770,3 +770,35 @@ class TestPortalGrants:
         sql = _sql(session)
         assert "is_enabled" in sql
         assert "oauth_payload IS NOT NULL" in sql
+
+
+@pytest.mark.parametrize("scope", ["user", "org"])
+async def test_account_owner_lock_names_are_scoped(
+    monkeypatch: pytest.MonkeyPatch, scope: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.db.locks import LockScope
+
+    hold = AsyncMock()
+    monkeypatch.setattr("app.repositories.mcp_connection.hold_name", hold)
+    owner = uuid.uuid4()
+    db = AsyncMock()
+    await mcp_connection_repo.lock_account_owner(
+        db,
+        user_id=owner if scope == "user" else None,
+        organization_id=owner if scope == "org" else None,
+    )
+    hold.assert_awaited_once_with(db, LockScope.CONNECTED_ACCOUNTS, f"{scope}:{owner}")
+
+
+@pytest.mark.parametrize("both", [False, True])
+async def test_account_lock_requires_exactly_one_owner(both: bool) -> None:
+    from unittest.mock import AsyncMock
+
+    with pytest.raises(ValueError, match="exactly one owner"):
+        await mcp_connection_repo.lock_account_owner(
+            AsyncMock(),
+            user_id=uuid.uuid4() if both else None,
+            organization_id=uuid.uuid4() if both else None,
+        )

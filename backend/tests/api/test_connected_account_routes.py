@@ -159,3 +159,42 @@ async def test_an_accounts_consent_returns_by_its_address_with_nothing_to_add_to
         "scope": None,
         "error": None,
     }
+
+
+async def test_callback_passes_the_authenticated_actor_and_browser_nonce(owner, service) -> None:
+    from app.db.models.user import User
+
+    user = User(id=uuid.uuid4(), email="ana@acme.com", hashed_password="x", is_active=True)
+    app.dependency_overrides[deps.get_optional_current_user] = lambda: user
+    async with owner() as client:
+        response = await client.post(
+            _url("/me/mcp-connections/oauth/callback"),
+            json={"state": "s", "code": "c", "browser_nonce": "n" * 43},
+        )
+    assert response.status_code == 200 and response.json()["ok"]
+    service.oauth_callback.assert_awaited_once_with(
+        state="s", code="c", browser_nonce="n" * 43, acting_user_id=user.id
+    )
+
+
+async def test_optional_oauth_identity_keeps_normal_authentication_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.requests import Request
+
+    from app.core.exceptions import AuthenticationError
+    from app.services.api_key import ApiKeyService
+    from app.services.impersonation import ImpersonationService
+    from app.services.session import SessionService
+    from app.services.user import UserService
+
+    db = AsyncMock()
+    request = Request({"type": "http"})
+    services = (UserService(db), ImpersonationService(db), SessionService(db), ApiKeyService(db))
+    authenticate = AsyncMock(side_effect=AuthenticationError("expired session"))
+    monkeypatch.setattr(deps, "get_current_user", authenticate)
+    assert await deps.get_optional_current_user(request, None, *services) is None
+    authenticate.assert_not_awaited()
+    with pytest.raises(AuthenticationError, match="expired session"):
+        await deps.get_optional_current_user(request, "expired", *services)
+    authenticate.assert_awaited_once_with(request, "expired", *services)
