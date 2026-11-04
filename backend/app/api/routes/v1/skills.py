@@ -201,8 +201,21 @@ async def update_skill(skill_id: UUID, data: SkillUpdate, service: SkillSvc, ctx
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
 )
-async def delete_skill(skill_id: UUID, service: SkillSvc, ctx: Auth) -> None:
-    await service.delete(ctx, skill_id)
+async def delete_skill(
+    skill_id: UUID,
+    service: SkillSvc,
+    ctx: Auth,
+    remove_from_agents: bool = Query(
+        False,
+        description=(
+            "Take the skill out of every agent that uses it first, publishing a version "
+            "without it where an environment that follows publishes serves it; all or "
+            "nothing. Without it, a skill in use is refused with 409"
+        ),
+    ),
+) -> None:
+    """Delete a skill, with every version and fork it has."""
+    await service.delete(ctx, skill_id, remove_from_agents=remove_from_agents)
 
 
 @router.post(

@@ -16,7 +16,7 @@ import json
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.spec import AgentSpec, SkillBindingSpec
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, InUseError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_environment import AgentEnvironment
@@ -51,7 +51,11 @@ from app.schemas.skill_version import (
     VersionRef,
 )
 from app.services.access import AGENT, accessible_ids
-from app.services.agent_registry import AgentRegistryService, delegation_binding
+from app.services.agent_registry import (
+    DELEGATION_CAPABILITY_ID,
+    AgentRegistryService,
+    delegation_binding,
+)
 from app.services.skill_versions import SkillVersionService, changes_since
 
 
@@ -556,6 +560,199 @@ class SkillAgentService:
         uses = [use for use in await self._uses(skill) if use.agent.id == agent_id]
         rows = await self._rows(ctx, skill, uses)
         return next((row for row in rows if row.via_specialist is None), None)
+
+    async def remove_skill(self, ctx: AuthContext, skill: Skill, using: Sequence[Agent]) -> None:
+        """Take the skill out of every agent that uses it, so that it can be deleted.
+
+        Each agent loses the skill from its draft, itself and in every inline
+        specialist. When an environment that follows publishes serves a version
+        using it, the newest published version without the skill is published as
+        the agent's next version, which moves those environments, as Change version
+        does; otherwise only the draft changes. All or nothing: the agents are
+        checked before any of them changes, and a refusal leaves every one as it was.
+
+        Raises:
+            InUseError: An agent is hidden from the caller, or one the caller may not
+                change: no `agents:edit`, no `agents:publish` where a version has to
+                be published, or a spec that no longer reads. Or an environment
+                that waits for promotion serves a version using the skill: only a
+                promotion moves it, and that is its owner's decision. `details`
+                names each, beside the agents and hidden count a plain refusal gives.
+        """
+        visible = await accessible_ids(self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT)
+        editable = await accessible_ids(self.db, ctx, using, Perm.AGENTS_EDIT, resource_type=AGENT)
+        named = [agent for agent in using if agent.id in visible]
+        hidden = len(using) - len(named)
+        blocked = [agent for agent in named if agent.id not in editable]
+        if hidden or blocked:
+            raise _cannot_remove(skill, named, hidden, blocked, [])
+        publishable = await accessible_ids(
+            self.db, ctx, named, Perm.AGENTS_PUBLISH, resource_type=AGENT
+        )
+        removals: list[_Removal] = []
+        waiting: list[tuple[Agent, list[str]]] = []
+        for agent in sorted(named, key=lambda agent: agent.id):
+            removal = await self._removal(ctx, skill, agent.id)
+            if removal is None or (
+                removal.publish_from is not None and agent.id not in publishable
+            ):
+                blocked.append(agent)
+            elif removal.waiting:
+                waiting.append((agent, removal.waiting))
+            else:
+                removals.append(removal)
+        if blocked or waiting:
+            raise _cannot_remove(skill, named, 0, blocked, waiting)
+        for removal in removals:
+            if removal.publish_from is not None:
+                await self.registry.publish_spec(
+                    ctx,
+                    removal.agent.id,
+                    without_skill(removal.publish_from, skill.id),
+                    draft=removal.draft,
+                    note=f"Removed {skill.name} before it was deleted",
+                )
+            else:
+                await self.registry.save_draft(ctx, removal.agent.id, removal.draft)
+
+    async def _removal(self, ctx: AuthContext, skill: Skill, agent_id: UUID) -> _Removal | None:
+        """What taking the skill out of one agent writes, or `None` when a spec it would
+        change no longer reads. The agent is locked, as every change to it is."""
+        agent = await self.registry.get(ctx, agent_id, perm=Perm.AGENTS_EDIT, for_update=True)
+        draft = _parsed(agent.draft_spec)
+        if draft is None:
+            return None
+        environments = await agent_environment_repo.list_for_agent(
+            self.db, agent_id=agent.id, organization_id=ctx.organization_id
+        )
+        versions = await agent_repo.get_versions_by_ids(
+            self.db,
+            [environment.version_id for environment in environments],
+            organization_id=ctx.organization_id,
+        )
+        serving: list[AgentEnvironment] = []
+        for environment in environments:
+            served = versions[environment.version_id].spec
+            if _parsed(served) is None:
+                return None
+            if lines_of(served, skill.id):
+                serving.append(environment)
+        publish_from: AgentSpec | None = None
+        if any(environment.tracks_latest for environment in serving):
+            newest = await agent_repo.newest_version(
+                self.db, agent_id=agent.id, organization_id=ctx.organization_id
+            )
+            assert newest is not None, "an environment serves one of the agent's versions"
+            publish_from = _parsed(newest.spec)
+            if publish_from is None:
+                return None
+        return _Removal(
+            agent=agent,
+            draft=without_skill(draft, skill.id),
+            publish_from=publish_from,
+            waiting=[env.name for env in serving if not env.tracks_latest],
+        )
+
+
+@dataclass(frozen=True)
+class _Removal:
+    """What taking a skill out of one agent writes."""
+
+    agent: Agent
+    draft: AgentSpec
+    publish_from: AgentSpec | None
+    """The newest published spec, published again without the skill; `None` when no
+    environment that follows publishes serves a version using it."""
+    waiting: list[str]
+    """Environments that wait for promotion and serve a version using the skill."""
+
+
+def _parsed(spec: dict[str, Any]) -> AgentSpec | None:
+    try:
+        return AgentSpec.model_validate(spec)
+    except ValidationError:
+        return None
+
+
+def _cannot_remove(
+    skill: Skill,
+    named: Sequence[Agent],
+    hidden: int,
+    blocked: Sequence[Agent],
+    waiting: Sequence[tuple[Agent, list[str]]],
+) -> InUseError:
+    reasons: list[str] = []
+    if hidden:
+        reasons.append(
+            f"{hidden} agent{'' if hidden == 1 else 's'} using it {'is' if hidden == 1 else 'are'} "
+            "hidden from you"
+        )
+    if blocked:
+        names = ", ".join(f"'{agent.name}'" for agent in blocked)
+        reasons.append(f"you cannot change {names}")
+    for agent, environments in waiting:
+        reasons.append(
+            f"'{agent.name}' serves it in {', '.join(environments)}, which only a promotion moves"
+        )
+    return InUseError(
+        message=(
+            f"'{skill.name}' was not removed from any agent: {'; '.join(reasons)}. "
+            "Ask their owners to remove it, then delete it."
+        ),
+        details={
+            "agents": [{"id": agent.id, "name": agent.name} for agent in named],
+            "hidden": hidden,
+            "not_editable": [{"id": agent.id, "name": agent.name} for agent in blocked],
+            "waiting": [
+                {"id": agent.id, "name": agent.name, "environments": environments}
+                for agent, environments in waiting
+            ],
+        },
+    )
+
+
+def without_skill(spec: AgentSpec, skill_id: UUID) -> AgentSpec:
+    """The spec with the skill and its binding gone, from the agent and every inline
+    specialist; the delegation's config is otherwise kept as it was stored."""
+    capabilities = [
+        binding.model_copy(update={"config": _config_without(binding.config, skill_id)})
+        if binding.id == DELEGATION_CAPABILITY_ID
+        else binding
+        for binding in spec.capabilities
+    ]
+    return spec.model_copy(
+        update={
+            "skill_ids": [found for found in spec.skill_ids if found != skill_id],
+            "skill_bindings": [
+                binding for binding in spec.skill_bindings if binding.skill_id != skill_id
+            ],
+            "capabilities": capabilities,
+        }
+    )
+
+
+def _config_without(config: dict[str, Any], skill_id: UUID) -> dict[str, Any]:
+    try:
+        inline = SubagentsConfig.model_validate(config).inline
+    except ValidationError:
+        return config
+    if not inline:
+        return config
+    kept = [
+        specialist.model_copy(
+            update={
+                "skill_ids": [found for found in specialist.skill_ids if found != skill_id],
+                "skill_bindings": [
+                    binding for binding in specialist.skill_bindings if binding.skill_id != skill_id
+                ],
+            }
+        )
+        for specialist in inline
+    ]
+    return {
+        **config,
+        "inline": [specialist.model_dump(mode="json", exclude_unset=True) for specialist in kept],
+    }
 
 
 def _by_reader(lines: Sequence[Line], via_specialist: str | None) -> Line | None:

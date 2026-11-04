@@ -1433,14 +1433,22 @@ class SkillService:
             }
         )
 
-    async def delete(self, ctx: AuthContext, skill_id: UUID) -> None:
+    async def delete(
+        self, ctx: AuthContext, skill_id: UUID, *, remove_from_agents: bool = False
+    ) -> None:
         """Delete a skill nobody uses, with every version and fork it has.
+
+        With `remove_from_agents`, the skill is first taken out of every agent that
+        uses it, as :meth:`SkillAgentService.remove_skill` says, in the same
+        transaction: either every agent loses it and it is deleted, or nothing
+        changes.
 
         Raises:
             InUseError: A live agent's draft or a version an environment serves
                 binds it. Those agents name the versions they run, which must not
                 disappear from under them; the caller is told which agents, and
-                how many more they may not see.
+                how many more they may not see. With `remove_from_agents`, also
+                which agents it could not be removed from, and why.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
         # Locked before the in-use check: an agent binding the skill holds it shared
@@ -1449,6 +1457,14 @@ class SkillService:
         using = await agents_using_skill(
             self.db, organization_id=ctx.organization_id, skill_id=skill.id
         )
+        if using and remove_from_agents:
+            # Imported here: the agent registry reads skills through this service.
+            from app.services.skill_agents import SkillAgentService
+
+            await SkillAgentService(self.db).remove_skill(ctx, skill, using)
+            using = await agents_using_skill(
+                self.db, organization_id=ctx.organization_id, skill_id=skill.id
+            )
         if using:
             visible = await accessible_ids(
                 self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
