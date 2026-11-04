@@ -224,12 +224,13 @@ class PhoneCallService:
             )
         from app.services.change_feed import announce_conversation
 
-        announce_conversation(
-            self.db,
-            organization_id=ctx.organization_id,
-            conversation_id=conversation.id,
-            actor_user_id=ctx.user_id,
-        )
+        if row.conversation_id is not None:
+            announce_conversation(
+                self.db,
+                organization_id=ctx.organization_id,
+                conversation_id=row.conversation_id,
+                actor_user_id=ctx.user_id,
+            )
         if data.source_conversation_id is not None:
             announce_conversation(
                 self.db,

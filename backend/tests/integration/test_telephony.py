@@ -738,3 +738,51 @@ async def test_signed_completion_reconciles_cost_after_local_teardown_without_re
     await PhoneWebhookService(db).status(row.id, urlencode(params).encode(), signature)
     await db.refresh(row)
     assert row.status == "completed" and row.estimated_cost_usd == Decimal("0.1")
+
+
+async def test_interactive_outbound_call_queues_without_a_report_conversation(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.agents.spec import AgentSpec, VoiceSpec
+    from app.db.models.credential import ModelProfile
+    from app.db.models.organization import Organization
+    from app.services import realtime_models
+    from app.services.agent_registry import AgentRegistryService
+    from tests.integration.test_workflow_agent_node import _profile
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    org = await db.get(Organization, ctx.organization_id)
+    assert org is not None
+    await db.commit()
+    model_id = await _profile(db.bind, org)
+    profile = await db.get(ModelProfile, model_id)
+    available = realtime_models.by_provider("openai")
+    assert profile is not None and available is not None
+    registry = AgentRegistryService(db)
+    agent = await registry.create(
+        ctx,
+        AgentSpec(
+            name="Outbound voice agent",
+            model_profile_id=model_id,
+            voice=VoiceSpec(
+                provider="openai", model=available.models[0].id, secret_id=profile.secret_id
+            ),
+        ),
+    )
+    await registry.publish(ctx, agent.id)
+    receipt = await PhoneCallService(db).create(
+        ctx,
+        PhoneCallCreate(request_key=uuid4(), endpoint_id=endpoint.id, agent_id=agent.id),
+    )
+    row = await repo.call(db, receipt.id)
+    assert row is not None and row.mode == "conversation" and row.conversation_id is None
+    assert row.status == "queued"
+    jobs = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.organization_id == ctx.organization_id,
+                BackgroundJob.kind == "dial-phone",
+            )
+        )
+    )
+    assert len(jobs) == 1 and jobs[0].payload["call_id"] == str(row.id)
