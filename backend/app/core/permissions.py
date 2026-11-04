@@ -485,7 +485,7 @@ class AuthContext:
     """
 
     subject_is_publisher_fallback: bool = False
-    """Whether `user_id` is the publisher standing in for an unidentified asker.
+    """Whether `user_id` is a stand-in for an unidentified asker, or absent for an agent run.
 
     On a hosted or embedded surface there is no signed-in person, so
     `publisher_context` runs the turn as the agent's publisher: `user_id` is the
@@ -495,15 +495,17 @@ class AuthContext:
     exists so a person store can refuse to attribute a stranger's note to the
     owner rather than leak it into the owner's store (#788).
 
-    Invariant: set in exactly two places. `publisher_context` sets it `True` -
-    the sole constructor that runs a turn as someone other than the asker - and
+    Invariant: set in exactly three places. `publisher_context` sets it `True` -
+    the constructor that runs a turn as someone other than the asker, a member -
     `AgentTriggerService._creator_context` sets it for a fire, where `user_id` is
     the trigger's creator as an authority rather than a person at the keyboard,
-    unless the creator let the trigger act as them (`fired_as_creator`). Any
-    future stand-in constructor must set it too, or a person-store write silently
-    lands in the owner's store as if it were the visitor's.
-    `test_publisher_standing.py` pins both assignment sites by grep, the way
-    `AuthContext.anonymous` is the one subject-less constructor.
+    unless the creator let the trigger act as them (`fired_as_creator`), and
+    `agent_context` sets it `True` for a run that is the agent itself, where
+    there is no `user_id` at all. Any future stand-in constructor must set it
+    too, or a person-store write silently lands in the owner's store as if it
+    were the visitor's. `test_publisher_standing.py` pins the assignment sites
+    by grep, the way `AuthContext.anonymous` is the base of every subject-less
+    context.
     """
 
     fired_as_creator: Literal["schedule", "event"] | None = None
@@ -534,17 +536,44 @@ class AuthContext:
     A grant on a single row widens a role, never a key - see :meth:`key_allows`.
     """
 
+    principal_agent_id: UUID | None = None
+    """The agent this context *is*, when a run acts as the agent and as no member.
+
+    Only :func:`app.services.access.agent_context` sets it. With it the context
+    has no `user_id` and no role, so it holds no permission of its own: what it
+    may reach is `agent_grants`, read through `resolve_access` and nowhere else.
+    """
+
+    agent_grants: frozenset[tuple[str, UUID, str]] = frozenset()
+    """What an agent principal may reach: `(resource type key, resource id, grant level)`.
+
+    Strings rather than the resource-type and grant-level objects, so `core` does
+    not import the models. Set only by :func:`app.services.access.agent_context`,
+    and honoured only while `principal_agent_id` is set; on any other context it
+    is inert. Permission comes from it solely through `resolve_access`.
+    """
+
     @classmethod
     def anonymous(cls, organization_id: UUID) -> AuthContext:
         """A context for a visitor nobody can name.
 
-        The single constructor for one, so "where can a subject-less context
-        come from" is a grep rather than an audit. It holds no permission and
+        The base of every subject-less context, so "where can one come from" is
+        a grep rather than an audit: `agent_context` starts from this one and
+        only adds the agent's grants. It holds no permission and
         reaches no row; whatever such a run is allowed to do comes from the
         exposure that admitted it, which was created by somebody who *did* have
         a role.
         """
         return cls(user_id=None, organization_id=organization_id, role=_NO_ROLE)
+
+    @property
+    def acts_as_agent(self) -> bool:
+        """Whether this run is the agent itself rather than a member or a visitor.
+
+        True only for a context built by :func:`app.services.access.agent_context`.
+        It grants nothing by itself: reach comes from `agent_grants`.
+        """
+        return self.principal_agent_id is not None
 
     @property
     def is_anonymous(self) -> bool:

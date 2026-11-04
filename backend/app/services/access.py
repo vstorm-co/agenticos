@@ -11,7 +11,7 @@ Builder's org-wide view is not taken away by the absence of a grant.
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 from uuid import UUID
 
@@ -130,6 +130,29 @@ def _scope_allows(scope: Scope, resource: OwnedResource, user_id: UUID) -> bool:
     return False
 
 
+def _agent_allows(
+    ctx: AuthContext, resource: OwnedResource, perm: Perm, resource_type: ResourceType
+) -> bool:
+    """Whether an agent principal's grants reach this row at the level `perm` needs.
+
+    Everything else with no subject is refused: only a context built by
+    :func:`agent_context` carries `principal_agent_id`, and its grants are matched
+    on the resource type as well as the id, so a grant on one kind of row never
+    reaches another kind that happens to share the id. A role is never consulted.
+    """
+    if ctx.principal_agent_id is None or resource.organization_id != ctx.organization_id:
+        return False
+    required = _PERM_MIN_GRANT.get(perm)
+    if required is None:
+        return False
+    return any(
+        kind == resource_type.key
+        and resource_id == resource.id
+        and GRANT_ORDER[GrantLevel(level)] >= GRANT_ORDER[required]
+        for kind, resource_id, level in ctx.agent_grants
+    )
+
+
 async def resolve_access(
     db: AsyncSession,
     ctx: AuthContext,
@@ -146,7 +169,9 @@ async def resolve_access(
     a resource from another tenant is refused before either check runs.
 
     A context with no subject reaches nothing at all, and is refused before the
-    grant table is consulted. Both halves matter. Scopes and grants are answers
+    grant table is consulted - except an agent principal, which reaches the rows in
+    its own grants (:func:`_agent_allows`) and still never touches the table.
+    Both halves matter. Scopes and grants are answers
     to "what may *this person* do", and there is no person here - an anonymous
     visitor's access comes from the exposure that admitted them, not from this
     function. And a lookup keyed on a `NULL` subject asks the database a
@@ -155,7 +180,7 @@ async def resolve_access(
     """
     subject = ctx.user_id
     if subject is None:
-        return False
+        return _agent_allows(ctx, resource, perm, resource_type)
 
     if resource.organization_id != ctx.organization_id:
         return False
@@ -199,7 +224,8 @@ async def accessible_ids(
     lookup answers `None` and no query is issued at all.
 
     A context with no subject reaches nothing, the same as `resolve_access`, and
-    is answered with the empty set before any lookup. An empty `resources` is
+    is answered with the empty set before any lookup - except an agent principal,
+    answered row by row from its own grants. An empty `resources` is
     answered the same way, because there is nothing to admit and no reason to pay
     for a grant query to prove it.
 
@@ -209,9 +235,13 @@ async def accessible_ids(
     the input can never be returned.
     """
     subject = ctx.user_id
-    if subject is None:
-        return set()
     resources = list(resources)
+    if subject is None:
+        return {
+            resource.id
+            for resource in resources
+            if _agent_allows(ctx, resource, perm, resource_type)
+        }
     if not resources:
         return set()
 
@@ -381,4 +411,37 @@ async def publisher_context(
         # `user_id` is the publisher standing in for an asker nobody signed in as, so
         # per-user memory must refuse rather than attribute their note to the owner (#788).
         subject_is_publisher_fallback=True,
+    )
+
+
+def agent_context(
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    channel_identity_id: UUID | None = None,
+    grants: Iterable[tuple[ResourceType, UUID, GrantLevel]] = (),
+) -> AuthContext:
+    """A context for a run that is the agent itself, acting as no member.
+
+    It has no subject and no role, so it holds no permission: it reaches exactly
+    the rows in `grants`, plus `use` on its own agent so the agent can be run. A
+    run that answers somebody with no account of their own takes this rather than
+    a member's standing, so the person's turn never borrows a role the publisher
+    holds.
+
+    Synchronous and reads nothing: the caller names the grants, typically the
+    tables the agent's spec lists. `channel_identity_id` is passed through to
+    record who asked and decides nothing, as in :func:`publisher_context`.
+    """
+    held = {(AGENT.key, agent_id, GrantLevel.USE.value)}
+    held.update(
+        (resource_type.key, resource_id, level.value)
+        for resource_type, resource_id, level in grants
+    )
+    return replace(
+        AuthContext.anonymous(organization_id),
+        channel_identity_id=channel_identity_id,
+        subject_is_publisher_fallback=True,
+        principal_agent_id=agent_id,
+        agent_grants=frozenset(held),
     )

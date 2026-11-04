@@ -156,3 +156,16 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
         "services/access.py": ["True"],
         "services/agent_trigger.py": ["not trigger.runs_as_creator"],
     }, setters
+
+
+def test_only_agent_context_names_an_agent_principal() -> None:
+    """An agent principal reaches rows through its grants alone, so the one place
+    that sets the principal or its grants stays greppable: a second writer would
+    mint a subject-less context that passes `resolve_access`."""
+    app_root = Path(__file__).resolve().parents[2] / "app"
+    setters = sorted(
+        path.relative_to(app_root).as_posix()
+        for path in app_root.rglob("*.py")
+        if re.search(r"\b(principal_agent_id|agent_grants)=", path.read_text(encoding="utf-8"))
+    )
+    assert setters == ["services/access.py"], setters
