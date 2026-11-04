@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.47.1] - 2026-11-04
+
+### Fixed
+
+- Deleting an account no longer fails with 500 when the person writes in their personal organization at the same moment, for example creates a knowledge base, or when a failed ingest of their document is being recorded. While the account's rows stay busy the deletion keeps trying for about 10 seconds, then returns 409 and deletes nothing. (#2682)
+
 ## [1.47.0] - 2026-11-04
 
 ### Added
@@ -38,10 +44,6 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
-
-### Fixed
-
-- Deleting an account no longer fails with 500 when the person writes in their personal organization at the same moment, for example creates a knowledge base, or when a failed ingest of their document is being recorded. While the account's rows stay busy the deletion keeps trying for about 10 seconds, then returns 409 and deletes nothing. (#2682)
 
 ## [1.45.1] - 2026-11-04
 
@@ -19971,7 +19973,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...HEAD
+[1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
