@@ -14,8 +14,8 @@ export interface View {
 
 const HOME: View = { x: 0, y: 0, scale: 1 };
 
-/** What a press starts by itself rather than a drag of the canvas. */
-const CONTROLS = "button, a, input, select, textarea, label, [role='button']";
+/** How far a press moves before it is a drag rather than a click, in screen pixels. */
+const DRAG_THRESHOLD = 4;
 
 /**
  * Pan and zoom over a diagram drawn in its own coordinates: one transform on the
@@ -34,7 +34,14 @@ export function usePanZoom(home: View = HOME) {
   useLayoutEffect(() => {
     viewRef.current = view;
   }, [view]);
-  const drag = useRef<{ pointerId: number; startX: number; startY: number } | null>(null);
+  const drag = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    startX: number;
+    startY: number;
+    moving: boolean;
+  } | null>(null);
 
   /** Zoom keeping the given viewport point still - the cursor, or the centre. */
   const zoomAt = useCallback((point: { x: number; y: number }, factor: number) => {
@@ -80,19 +87,26 @@ export function usePanZoom(home: View = HOME) {
 
   const panHandlers = {
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
-      // Capturing the pointer retargets its release to the canvas, so the click a
-      // control under it was pressed for would never reach that control.
-      if ((event.target as Element).closest(CONTROLS)) return;
       drag.current = {
         pointerId: event.pointerId,
+        originX: event.clientX,
+        originY: event.clientY,
         startX: event.clientX - view.x,
         startY: event.clientY - view.y,
+        moving: false,
       };
-      event.currentTarget.setPointerCapture(event.pointerId);
     },
     onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => {
       const active = drag.current;
       if (!active || active.pointerId !== event.pointerId) return;
+      // The pointer is captured only once the press moves, so a press that stays put
+      // is still a click on the node or control under it, and a drag from one pans.
+      if (!active.moving) {
+        const moved = Math.hypot(event.clientX - active.originX, event.clientY - active.originY);
+        if (moved < DRAG_THRESHOLD) return;
+        active.moving = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
       setView((current) => ({
         ...current,
         x: event.clientX - active.startX,

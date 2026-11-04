@@ -63,7 +63,7 @@ describe("VersionTree", () => {
     expect(canvas().style.transform).toBe("translate(-712px, 0px) scale(1)");
   });
 
-  it("compares a version pressed on the canvas, and still pans from the canvas itself", async () => {
+  it("compares a version pressed on the canvas, and pans when the press drags it", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 3 });
     const { container } = render(
       <VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />,
@@ -73,15 +73,23 @@ describe("VersionTree", () => {
     const capture = vi.fn();
     viewport.setPointerCapture = capture;
     const compare = screen.getByRole("button", { name: "Compare v2" });
+    const before = canvas.style.transform;
 
-    // A real press: down, up and the click, all landing on the button under the canvas.
+    // A real press that stays put: down, up and the click, on the button under the canvas.
     await userEvent.pointer([{ keys: "[MouseLeft]", target: compare }]);
     expect(capture).not.toHaveBeenCalled();
     expect(compare).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("region", { name: "v2" })).toBeInTheDocument();
 
-    fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 10, clientY: 10 });
-    expect(capture).toHaveBeenCalledWith(1);
+    const press = (type: string, x: number) => {
+      const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 10 });
+      Object.defineProperty(event, "pointerId", { value: 7 });
+      fireEvent(compare, event);
+    };
+    press("pointerdown", 10);
+    press("pointermove", 60);
+    expect(capture).toHaveBeenCalledWith(7);
+    expect(canvas.style.transform).not.toBe(before);
   });
 
   it("names every agent in the box of the version it reads", () => {
