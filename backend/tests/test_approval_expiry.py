@@ -40,6 +40,9 @@ def _approval(
         run_id=run_id or uuid.uuid4(),
         organization_id=organization_id or uuid.uuid4(),
         status=status,
+        decided_at=None
+        if status == ApprovalStatus.PENDING.value
+        else datetime.now(UTC) - timedelta(hours=2),
         tool_id="send_email",
         tool_args={"to": "customer@example.com"},
     )
@@ -859,3 +862,39 @@ async def test_the_sweep_locks_runs_first_and_rechecks_approvals_before_expiring
     assert events[:2] == [("run", uuid.UUID(int=1)), ("run", uuid.UUID(int=2))]
     assert all(kind == "approval" for kind, _ in events[2:])
     decide.assert_not_awaited()
+
+
+@pytest.mark.parametrize("recent_decision", [True, False])
+async def test_a_sweep_never_uses_a_stale_decision_time_from_its_listing(recent_decision: bool):
+    run = _chat_run()
+    approval = _approval(status=ApprovalStatus.APPROVED.value)
+    approval.decided_at = datetime.now(UTC) if recent_decision else None
+    with (
+        patch(
+            "app.services.approvals.agent_run_repo.list_stranded_runs",
+            new=AsyncMock(return_value=[(run, datetime.now(UTC) - timedelta(hours=2))]),
+        ),
+        patch(
+            "app.services.approvals.agent_run_repo.claim_parked_run",
+            new=AsyncMock(return_value=run),
+        ),
+        patch(
+            "app.services.approvals.agent_run_repo.list_approvals_for_run",
+            new=AsyncMock(return_value=[approval]),
+        ),
+        patch("app.services.approvals.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+        patch("app.services.approvals.channel_prompt_repo.settle_open", new=AsyncMock()),
+        patch("app.services.approvals.TranscriptService") as transcript,
+        patch("app.services.approvals.record_audit", new=AsyncMock()),
+        patch(
+            "app.services.approvals.post_notices",
+            new=MagicMock(side_effect=lambda _notices: _nothing()),
+        ),
+        patch("app.services.approvals.spawn_after_commit") as spawn,
+    ):
+        transcript.return_value.record = AsyncMock()
+        ended = await ApprovalService(_db()).end_stranded()
+        for call in spawn.call_args_list:
+            call.args[1].close()
+    assert ended == 0
+    finish.assert_not_awaited()

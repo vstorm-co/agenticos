@@ -7,8 +7,9 @@ by that `WHERE` and by the run row's lock.
 """
 
 import asyncio
+import contextlib
 import uuid
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -129,7 +130,7 @@ async def _stranded(
 
 
 @contextmanager
-def _spawns() -> Iterator[MagicMock]:
+def _spawns() -> Generator[MagicMock]:
     """Patch the sweep's after-commit spawn and its notice task, recording both."""
 
     async def nothing() -> None:
@@ -297,3 +298,70 @@ async def test_a_continuation_that_claimed_the_run_first_wins_against_the_sweep(
         row = (await check.execute(select(AgentRun).where(AgentRun.id == run_id))).scalar_one()
     assert row.status == RunStatus.RUNNING.value
     assert row.paused_state is not None
+
+
+async def test_a_newly_decided_park_keeps_its_full_grace_period_after_an_old_listing(
+    db: AsyncSession, engine: AsyncEngine
+) -> None:
+    run, _ = await _stranded(db)
+    run_id, organization_id, agent_id, user_id = (
+        run.id,
+        run.organization_id,
+        run.agent_id,
+        run.user_id,
+    )
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    selected = asyncio.Event()
+    claim = agent_run_repo.claim_parked_run
+
+    async def claim_after_listing(
+        session: AsyncSession, run_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> AgentRun | None:
+        selected.set()
+        return await claim(session, run_id, organization_id=organization_id)
+
+    async with factory() as continuation, factory() as sweep_session:
+        current = await claim(continuation, run_id, organization_id=organization_id)
+        assert current is not None
+        with (
+            patch.object(agent_run_repo, "claim_parked_run", new=claim_after_listing),
+            _spawns() as spawn,
+        ):
+            sweep = asyncio.create_task(ApprovalService(sweep_session).end_stranded())
+            try:
+                await asyncio.wait_for(selected.wait(), 5)
+                fresh = ToolApproval(
+                    organization_id=organization_id,
+                    run_id=run_id,
+                    agent_id=agent_id,
+                    tool_id="send_email",
+                    tool_args={},
+                    status=ApprovalStatus.APPROVED.value,
+                    decided_by_user_id=user_id,
+                    decided_at=datetime.now(UTC),
+                )
+                continuation.add(fresh)
+                await continuation.flush()
+                current.paused_state = {
+                    **(current.paused_state or {}),
+                    "tool_call_ids": {str(fresh.id): "fresh-call"},
+                }
+                await continuation.commit()
+                assert await asyncio.wait_for(sweep, 5) == 0
+                assert _names(spawn) == []
+            finally:
+                for call in spawn.call_args_list:
+                    call.args[1].close()
+                if not sweep.done():
+                    sweep.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await sweep
+            await sweep_session.rollback()
+    async with factory() as check:
+        current = await check.get(AgentRun, run_id)
+        assert current is not None and current.status == RunStatus.AWAITING_APPROVAL.value
+        assert (
+            current.paused_state is not None
+            and str(fresh.id) in current.paused_state["tool_call_ids"]
+        )

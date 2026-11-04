@@ -447,7 +447,6 @@ class ApprovalService:
             decided_before=now - STRANDED_AFTER,
             surfaces=[surface.value for surface in CHANNEL_SURFACES],
         )
-        last_decided = {run.id: decided_at for run, decided_at in listed}
         claimed = [
             await agent_run_repo.claim_parked_run(self.db, run_id, organization_id=organization_id)
             for run_id, organization_id in sorted(
@@ -465,9 +464,16 @@ class ApprovalService:
             )
             if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
                 continue
+            last_decided = max(
+                (approval.decided_at for approval in approvals if approval.decided_at is not None),
+                default=None,
+            )
+            # The run may have resumed and parked again since the candidate listing.
+            if last_decided is None or last_decided >= now - STRANDED_AFTER:
+                continue
             destination = chat_destination(run)
             already_told = run.chat_notice_sent_at is not None
-            recent = now - last_decided[run_id] < STRANDED_NOTICE_WITHIN
+            recent = now - last_decided < STRANDED_NOTICE_WITHIN
             if destination is not None:
                 await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="ended")
             await TranscriptService(self.db).record(
