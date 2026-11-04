@@ -349,6 +349,9 @@ class NotificationDeliveryService:
         event_type = NotificationEventType(notification.event_type)
         context = dict(notification.render_context or {})
         if event_type is NotificationEventType.APPROVAL_REQUESTED:
+            # Rows stored before the asker line existed have no such key, and a
+            # missing one would print as a literal placeholder.
+            context.setdefault("asked_by", "")
             decides = recipient.is_app_admin or role in _DECIDING_ROLES
             if decides:
                 return EmailKey.APPROVAL_REQUESTED, context

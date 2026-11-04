@@ -20,6 +20,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_prompt import FOLLOW_UP
 from app.repositories import channel_bot_repo, channel_prompt_repo
@@ -213,6 +214,34 @@ async def offer_after_answer(
         await ChannelNextSteps(delivery_db).offer(bot, incoming, run_id=run_id, steps=steps)
 
 
+async def incoming_for_run(
+    db: AsyncSession, run: AgentRun, *, bot_id: UUID, platform_chat_id: str
+) -> IncomingMessage | None:
+    """The sender of a run's chat turn, rebuilt from the run and the chat's session.
+
+    The approver may be somebody else, so neither their identity nor a live
+    request's session stands in for the original channel participant. `None` when
+    the run has no chat account, when the account or the chat's session is gone,
+    or when the chat has moved on to another conversation.
+    """
+    from app.repositories import channel_identity_repo, channel_session_repo
+
+    if run.channel_identity_id is None:
+        return None
+    identity = await channel_identity_repo.get_by_id(db, run.channel_identity_id)
+    session = await channel_session_repo.get_by_bot_and_chat(db, bot_id, platform_chat_id)
+    if identity is None or session is None or session.conversation_id != run.conversation_id:
+        return None
+    return IncomingMessage(
+        platform=identity.platform,
+        bot_id=str(bot_id),
+        platform_user_id=identity.platform_user_id,
+        platform_chat_id=platform_chat_id,
+        chat_type=session.chat_type,
+        text="",
+    )
+
+
 async def offer_after_resume(
     organization_id: UUID, run_id: UUID, bot_id: UUID, platform_chat_id: str
 ) -> None:
@@ -222,22 +251,13 @@ async def offer_after_resume(
     request's live session may stand in for the original channel participant.
     """
     from app.db.session import get_db_context
-    from app.repositories import agent_run_repo, channel_identity_repo, channel_session_repo
+    from app.repositories import agent_run_repo
 
     async with get_db_context() as db:
         run = await agent_run_repo.get_run(db, run_id, organization_id=organization_id)
-        if run is None or run.channel_identity_id is None:
+        if run is None:
             return
-        identity = await channel_identity_repo.get_by_id(db, run.channel_identity_id)
-        session = await channel_session_repo.get_by_bot_and_chat(db, bot_id, platform_chat_id)
-        if identity is None or session is None or session.conversation_id != run.conversation_id:
+        incoming = await incoming_for_run(db, run, bot_id=bot_id, platform_chat_id=platform_chat_id)
+        if incoming is None:
             return
-        incoming = IncomingMessage(
-            platform=identity.platform,
-            bot_id=str(bot_id),
-            platform_user_id=identity.platform_user_id,
-            platform_chat_id=platform_chat_id,
-            chat_type=session.chat_type,
-            text="",
-        )
     await offer_after_answer(organization_id, run_id, incoming)

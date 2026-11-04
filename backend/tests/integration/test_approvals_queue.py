@@ -23,11 +23,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
+from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import agent_run_repo
-from app.repositories.agent_run import ApprovalFilters
+from app.repositories.agent_run import ApprovalFilters, ChatAsker
 from app.services.agent_runner import AgentRunnerService
 from app.services.approvals import ApprovalService
 
@@ -115,7 +118,135 @@ def _ctx(org: Organization, user: User) -> AuthContext:
     return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
 
 
+async def _chat_run(
+    db,
+    org: Organization,
+    agent: Agent,
+    *,
+    publisher: User,
+    fallback: bool = True,
+    display_name: str | None = "Ana",
+    username: str | None = None,
+    with_bot: bool = True,
+) -> AgentRun:
+    """A run a chat account started, standing in under the binding's publisher."""
+    identity = ChannelIdentity(
+        id=uuid.uuid4(),
+        platform="slack",
+        platform_user_id=f"U{uuid.uuid4().hex[:8]}",
+        platform_username=username,
+        platform_display_name=display_name,
+    )
+    db.add(identity)
+    await db.flush()
+    exposure_id = None
+    if with_bot:
+        bot = ChannelBot(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            platform="slack",
+            name="Support",
+            token_encrypted="sealed",
+        )
+        db.add(bot)
+        await db.flush()
+        exposure = AgentExposure(
+            id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=agent.id,
+            surface="slack",
+            channel_bot_id=bot.id,
+        )
+        db.add(exposure)
+        await db.flush()
+        exposure_id = exposure.id
+    run = await _run(db, org, agent, started_by=publisher)
+    run.surface = "slack"
+    run.initiated_by_publisher_fallback = fallback
+    run.channel_identity_id = identity.id
+    run.exposure_id = exposure_id
+    await db.flush()
+    return run
+
+
 class TestWhatTheQueueSays:
+    async def test_a_chat_strangers_call_names_their_chat_account_not_the_publisher(
+        self, db
+    ) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db, email="publisher@example.com")
+        await _approval(db, org, await _chat_run(db, org, agent, publisher=publisher))
+
+        rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+
+        assert rows[0].triggered_by_email is None
+        assert rows[0].triggered_by_user_id is None
+        assert rows[0].asked_in_chat == ChatAsker("slack", "Ana", "Support")
+
+    async def test_a_stranger_without_a_display_name_falls_back_to_the_handle(self, db) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db)
+        run = await _chat_run(
+            db, org, agent, publisher=publisher, display_name=None, username="ana", with_bot=False
+        )
+        await _approval(db, org, run)
+
+        rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+
+        assert rows[0].asked_in_chat == ChatAsker("slack", "@ana", None)
+
+    async def test_a_stranger_with_neither_name_nor_handle_is_named_by_platform_id(
+        self, db
+    ) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db)
+        run = await _chat_run(db, org, agent, publisher=publisher, display_name=None)
+        await _approval(db, org, run)
+        identity = await db.get(ChannelIdentity, run.channel_identity_id)
+
+        rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+
+        assert identity is not None
+        assert rows[0].asked_in_chat == ChatAsker("slack", identity.platform_user_id, "Support")
+
+    async def test_a_linked_members_call_still_names_them(self, db) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        member = await _user(db, email="member@example.com")
+        await _approval(db, org, await _chat_run(db, org, agent, publisher=member, fallback=False))
+
+        rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+
+        assert rows[0].triggered_by_email == "member@example.com"
+        assert rows[0].asked_in_chat is None
+
+    async def test_a_widget_visitors_call_is_unchanged(self, db) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db, email="publisher@example.com")
+        run = await _run(db, org, agent, started_by=publisher)
+        run.initiated_by_publisher_fallback = True
+        await db.flush()
+        await _approval(db, org, run)
+
+        rows, _ = await ApprovalService(db).list_approvals(_ctx(org, owner))
+
+        assert rows[0].triggered_by_email == "publisher@example.com"
+        assert rows[0].asked_in_chat is None
+
+    async def test_the_bubbles_count_still_counts_a_strangers_call(self, db) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db)
+        await _approval(db, org, await _chat_run(db, org, agent, publisher=publisher))
+
+        rows, total = await agent_run_repo.list_approvals(db, organization_id=org.id, limit=1)
+
+        assert (len(rows), total) == (1, 1)
+
     async def test_the_agent_and_the_person_who_triggered_it_are_named(self, db) -> None:
         """`agent_id` and a run id name nothing to an approver. The two columns a
         person reads before deciding both live in other tables."""
@@ -167,6 +298,40 @@ class TestWhatTheQueueSays:
         rows, total = await ApprovalService(db).list_approvals(_ctx(mine, me))
 
         assert ([row.id for row in rows], total) == ([ours.id], 1)
+
+    async def test_the_queue_and_the_run_agree_on_which_runs_continue_in_chat(self, db) -> None:
+        from app.services.channels.handback import continues_in_chat
+
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        destination = {"bot_id": str(uuid.uuid4()), "platform_chat_id": "C1", "private_chat": True}
+        runs = []
+        for surface, paused_state in (
+            ("slack", {"channel_destination": destination}),
+            ("slack", {"channel_destination": None}),
+            ("slack", {}),
+            ("web", {"channel_destination": destination}),
+            ("slack", {"channel_destination": {"bot_id": str(uuid.uuid4())}}),
+        ):
+            run = await _run(db, org, agent, started_by=owner)
+            run.surface = surface
+            run.paused_state = paused_state
+            await db.flush()
+            await _approval(db, org, run)
+            runs.append(run)
+        person = _ctx(org, owner)
+        key = AuthContext(
+            user_id=owner.id,
+            organization_id=org.id,
+            role=OrgRoleName.OWNER,
+            api_key_id=uuid.uuid4(),
+        )
+
+        for ctx, expected in ((person, [True, False, False, False, False]), (key, [False] * 5)):
+            rows, _ = await ApprovalService(db).list_approvals(ctx)
+            by_run = {row.run_id: row.continues_in_chat for row in rows}
+            assert [by_run[run.id] for run in runs] == expected
+            assert all(by_run[run.id] == continues_in_chat(run, ctx) for run in runs)
 
 
 class TestTheQueueAndTheRecordAreTheSameRows:
@@ -241,6 +406,21 @@ class TestNarrowingTheQueue:
         )
 
         assert ([row.id for row in rows], total) == ([theirs.id], 1)
+
+    async def test_asking_for_the_publishers_runs_leaves_out_the_strangers_they_stood_in_for(
+        self, db
+    ) -> None:
+        org, owner = await _org(db)
+        agent = await _agent(db, org)
+        publisher = await _user(db)
+        own = await _approval(db, org, await _run(db, org, agent, started_by=publisher))
+        await _approval(db, org, await _chat_run(db, org, agent, publisher=publisher))
+
+        rows, total = await ApprovalService(db).list_approvals(
+            _ctx(org, owner), filters=ApprovalFilters(triggered_by_user_id=publisher.id)
+        )
+
+        assert ([row.id for row in rows], total) == ([own.id], 1)
 
     async def test_a_window_over_when_the_call_was_parked(self, db) -> None:
         org, owner = await _org(db)

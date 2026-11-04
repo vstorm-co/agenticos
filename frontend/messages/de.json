@@ -2271,6 +2271,9 @@
       "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf.",
       "chosen": "{agent} · {folder}"
     },
+    "continuesInTheChat": "Entschieden. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde, und antwortet dort.",
+    "continuedInTheChat": "Im Chat fortgesetzt, in dem gefragt wurde",
+    "answerAlsoInTheChat": "Die Antwort geht auch an den Chat, in dem gefragt wurde.",
     "reasoning": {
       "levels": {
         "default": "Standard",
@@ -2456,7 +2459,8 @@
         "waiting": "wartet {ago}",
         "description": "Runs, die bei einem Tool-Aufruf angehalten haben und auf eine Entscheidung warten.",
         "someAgent": "Ein Agent",
-        "forPerson": "für {email} · wartet {ago}"
+        "forPerson": "für {email} · wartet {ago}",
+        "forChatAccount": "für {name} (nicht verifiziert) · wartet {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -5994,6 +5998,8 @@
       "toolState": "{status, select, completed {Fertig} error {Fehlgeschlagen} running {Läuft} pending {Läuft} unfinished {Nicht beendet} awaiting_approval {Wartet auf Freigabe} awaiting_answer {Wartet auf Antwort} other {Unbekannt}}",
       "wantsTo": "<strong>{actor}</strong> möchte: <strong>{tool}</strong>",
       "askedFor": "Für {email}",
+      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert)",
+      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert), über {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
       "decidedByWhom": "von {email}",
@@ -6039,7 +6045,11 @@
       "stepApprovalEdited": "Bearbeitet",
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
-      "standaloneResponse": "Modellantwort"
+      "standaloneResponse": "Modellantwort",
+      "decisionApprovedInChat": "Freigegeben. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde.",
+      "decisionRejectedInChat": "Abgelehnt. Sobald nichts anderes mehr wartet, antwortet der Agent in dem Chat, in dem gefragt wurde.",
+      "runResumedInChat": "Run fortgesetzt – die Antwort geht auch in den Chat, in dem gefragt wurde.",
+      "alreadyContinuing": "Dieser Run läuft in seinem Chat bereits weiter."
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

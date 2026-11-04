@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e02e3af94a"
+source_sha: "2fa7dfb57e50"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1675,7 +1675,7 @@ petición empieza por esa línea y pliega lo demás tras **Details**.
 
 Una pulsación actúa como la persona que pulsó, mediante su cuenta enlazada:
 decidir requiere `approvals:decide`, y solo la persona a quien se preguntó puede
-responder. A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
+responder. Una decisión tomada en otro sitio actúa como la persona que la tomó, incluido un app admin ([más abajo](#decided-outside-the-chat)). A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
 respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
 `APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
 pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
@@ -1695,6 +1695,62 @@ sesión o un captcha, el paso cambia a *Needs you* y dice para qué, y nombra qu
 el navegador mientras una persona lo maneja. El enlace abre la consola, así que tomar
 el control necesita una cuenta en ella: la persona para la que actúa el run, o quien
 puede editar el agente.
+
+### Decidido fuera del chat { #decided-outside-the-chat }
+
+Una petición hecha en un chat también se puede decidir en **Approvals** de la
+consola, en el chat web o por la API HTTP. Cuando una persona lo hace y con ello
+queda resuelto lo último que el run esperaba, el servidor continúa el run como ella
+y publica la respuesta en el chat donde se preguntó. La consola lo dice en vez de
+reanudar el run por su cuenta, así que el run se continúa una sola vez. Una
+pregunta funciona igual cuando la persona a quien se hizo la responde en la consola.
+
+Una decisión tomada con una clave de API se registra y no continúa el run: un run
+que inició una persona solo lo continúa una persona. Por la API, `continues_in_chat`
+le dice a un cliente en qué caso está (véase [Ejecutar un agent](api.md#running-an-agent)).
+
+Tres finales que ocurren fuera del chat publican allí un mensaje fijo cada uno, para
+que nadie espere botones que ya no hacen nada. Los botones abiertos del chat se
+cierran a la vez.
+
+| Final | El chat recibe |
+|---|---|
+| El run caduca, tras `APPROVAL_EXPIRY_HOURS` para una decisión o `QUESTION_EXPIRY_HOURS` para una pregunta | "This request expired without a decision." |
+| Alguien pulsa **Stop** en la consola | "This run was stopped from the console." |
+| Un run se decidió y nada lo continuó en aproximadamente una hora | "A decision was recorded, but the run could not continue." |
+
+El último es una red de seguridad. Se queda callado en dos casos: cuando la decisión
+tiene más de 7 días y cuando el chat ya supo que el run no pudo continuar. Un chat
+recibe como máximo un aviso cada vez que un run se aparca.
+
+Un botón pulsado después de que la petición se respondiera en otro sitio responde
+"That has already been answered." y no cambia nada.
+
+Una continuación puede ser rechazada, por ejemplo si el chat empezó de nuevo desde
+la pregunta, su política de acceso ahora rechaza a quien preguntó, quien decidió ya
+no puede decidir aprobaciones, el bot se quitó del agente o el agente ya no se puede
+construir. El chat lo sabe una vez: "That was decided outside the chat, but the run
+could not continue."
+
+**Resume** en la página del run sigue funcionando, hasta
+aproximadamente una hora después de la última decisión. Se ejecuta como antes, sin la comprobación de la
+sala, y publica la respuesta solo en un chat que aún admita a quien preguntó. Una
+comprobación de pertenencia que la plataforma no puede responder no detiene una
+continuación.
+
+Un run aparcado antes de 1.29.0 no tiene chat registrado, así que la consola lo
+continúa como siempre. Si nadie lo reanuda en aproximadamente una hora desde la
+última decisión, la red de seguridad lo termina sin mensaje.
+
+El worker envía las respuestas y los avisos de finalización necesarios mediante
+trabajos duraderos guardados en la misma transacción que el resultado o el cierre.
+Tras un reinicio o un fallo temporal de envío, reintenta únicamente la entrega
+hasta tres veces, sin repetir el agente ni las herramientas aprobadas. Antes de
+enviar, vuelve a comprobar el bot, la sesión y la política de acceso al chat.
+Un destino cuyo acceso se haya revocado no recibe nada. Las plataformas sin envío
+idempotente pueden mostrar un duplicado si aceptaron el mensaje pero se perdió
+la confirmación. Los intentos agotados aparecen en **Admin → Background jobs**
+(`deliver-channel-handback`).
 
 ### Pasos siguientes como botones { #next-steps-as-buttons }
 

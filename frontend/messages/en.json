@@ -2271,6 +2271,9 @@
       "needsFullAccess": "{agent} runs as you, so the folder needs full access. Change it under Chat controls → Work on.",
       "chosen": "{agent} · {folder}"
     },
+    "continuesInTheChat": "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
+    "continuedInTheChat": "Continued in the chat this was asked in",
+    "answerAlsoInTheChat": "The answer is also sent to the chat this was asked in.",
     "reasoning": {
       "levels": {
         "default": "Default",
@@ -2456,7 +2459,8 @@
         "waiting": "waiting {ago}",
         "description": "Runs paused on a tool call, waiting for a decision.",
         "someAgent": "An agent",
-        "forPerson": "for {email} · waiting {ago}"
+        "forPerson": "for {email} · waiting {ago}",
+        "forChatAccount": "for {name} (unverified) · waiting {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -6693,6 +6697,8 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
+      "askedInChat": "Asked in {platform} by {name} (unverified)",
+      "askedInChatThrough": "Asked in {platform} by {name} (unverified), through {bot}",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",
@@ -6738,7 +6744,11 @@
       "stepApprovalEdited": "Edited",
       "surfaceProactive": "Proactive",
       "standaloneRequest": "Model request",
-      "standaloneResponse": "Model response"
+      "standaloneResponse": "Model response",
+      "decisionApprovedInChat": "Approved. Once nothing else is waiting, the agent goes on in the chat it was asked in.",
+      "decisionRejectedInChat": "Rejected. Once nothing else is waiting, the agent answers in the chat it was asked in.",
+      "runResumedInChat": "Run resumed. Its answer is also sent to the chat it was asked in.",
+      "alreadyContinuing": "This run is already continuing in its chat."
     },
     "sandboxes": {
       "addConnection": "Add connection",

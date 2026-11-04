@@ -564,6 +564,18 @@ class DiscordAdapter(ChannelAdapter):
         response.raise_for_status()
         return response.content
 
+    async def channel_server(self, bot_token: str, channel_id: str) -> str | None:
+        """The server a channel or thread is in, as Discord says now; `None` when it has none.
+
+        A thread carries its server's id as a channel does. A channel the bot
+        cannot see (403, 404) has no answer; any other failure raises.
+        """
+        found = await self._call("GET", f"/channels/{channel_id}", bot_token)
+        if found.status_code in (403, 404):
+            return None
+        found.raise_for_status()
+        return str(found.json().get("guild_id") or "") or None
+
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
     ) -> bool:

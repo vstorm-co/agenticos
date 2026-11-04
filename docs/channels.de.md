@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e02e3af94a"
+source_sha: "2fa7dfb57e50"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1766,7 +1766,7 @@ Anfrage mit dieser einen Zeile beginnt und den Rest hinter **Details** faltet.
 
 Ein Druck handelt als die Person, die gedrückt hat, über ihr verknüpftes Konto:
 Entscheiden braucht `approvals:decide`, und nur die gefragte Person kann eine
-Frage beantworten. Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
+Frage beantworten. Eine anderswo getroffene Entscheidung handelt als die Person, die sie getroffen hat, auch wenn es ein App-Admin ist ([unten](#decided-outside-the-chat)). Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
 wartet `QUESTION_EXPIRY_HOURS` auf eine Antwort und `APPROVAL_EXPIRY_HOURS` auf
 eine Entscheidung, wie überall. Slack signiert seine Drucke; Mattermost signiert
 nichts, daher trägt jede Schaltfläche die eigene Signatur dieser Bereitstellung
@@ -1785,6 +1785,63 @@ Mattermost gleichermaßen. Braucht die Seite jemanden, eine Anmeldung oder ein C
 wechselt der Schritt zu *Needs you* und sagt, wofür, und nennt, wer den Browser hat,
 solange ein Mensch ihn hält. Der Link öffnet die Konsole, Übernehmen braucht also ein
 Konsolenkonto: die Person, für die der Run handelt, oder wer den Agent bearbeiten darf.
+
+### Außerhalb des Chats entschieden { #decided-outside-the-chat }
+
+Eine im Chat gestellte Anfrage lässt sich auch in den **Approvals** der Konsole,
+im Web-Chat oder über die HTTP-API entscheiden. Tut das eine Person und ist damit
+das Letzte erledigt, worauf der Run wartet, setzt der Server den Run als sie fort
+und postet die Antwort in den Chat, in dem gefragt wurde. Die Konsole sagt das,
+statt den Run selbst fortzusetzen, daher wird der Run einmal fortgesetzt. Eine
+Frage funktioniert genauso, wenn die gefragte Person sie in der Konsole beantwortet.
+
+Eine Entscheidung mit einem API-Schlüssel wird festgehalten und setzt den Run nicht
+fort: Einen Run, den eine Person gestartet hat, setzt nur eine Person fort. Über die
+API sagt `continues_in_chat` einem Client, welcher Fall vorliegt (siehe
+[Einen Agent ausführen](api.md#running-an-agent)).
+
+Drei Enden, die außerhalb des Chats passieren, posten dort je eine feste
+Nachricht, damit niemand auf Schaltflächen wartet, die nichts mehr bewirken. Die
+offenen Schaltflächen des Chats werden im selben Moment abgeschlossen.
+
+| Ende | Der Chat erfährt |
+|---|---|
+| Der Run läuft ab, nach `APPROVAL_EXPIRY_HOURS` bei einer Entscheidung oder `QUESTION_EXPIRY_HOURS` bei einer Frage | „This request expired without a decision." |
+| Jemand drückt in der Konsole **Stop** | „This run was stopped from the console." |
+| Ein Run wurde entschieden und nichts hat ihn etwa eine Stunde lang fortgesetzt | „A decision was recorded, but the run could not continue." |
+
+Das Letzte ist ein Sicherheitsnetz. Es bleibt in zwei Fällen still: wenn die
+Entscheidung mehr als 7 Tage alt ist und wenn der Chat bereits erfahren hat, dass
+der Run nicht fortgesetzt werden konnte. Ein Chat erhält höchstens eine Mitteilung
+je Parken eines Runs.
+
+Eine Schaltfläche, die gedrückt wird, nachdem die Anfrage anderswo beantwortet
+wurde, antwortet „That has already been answered." und ändert nichts.
+
+Eine Fortsetzung kann abgelehnt werden, etwa wenn der Chat seit der Frage neu
+begonnen hat, seine Zugriffsrichtlinie der fragenden Person jetzt den Zugang
+verweigert, die entscheidende Person Freigaben nicht mehr entscheiden darf, der Bot
+vom Agenten entfernt wurde oder der Agent nicht mehr gebaut werden kann. Der Chat
+erfährt es einmal: „That was decided outside the chat, but the run could not
+continue." **Resume** auf der Seite des Runs funktioniert weiterhin, bis etwa eine
+Stunde nach der letzten Entscheidung. Es läuft
+wie bisher, ohne die Raumprüfung, und postet die Antwort nur in einen Chat, der
+die fragende Person noch zulässt. Eine Mitgliedschaftsprüfung, die die Plattform
+nicht beantworten kann, hält eine Fortsetzung nicht auf.
+
+Ein vor 1.29.0 geparkter Run hat keinen gespeicherten Chat, daher setzt die Konsole
+ihn fort wie bisher. Setzt ihn niemand etwa eine Stunde nach der letzten Entscheidung
+fort, beendet ihn das Sicherheitsnetz ohne Nachricht.
+
+Der Worker sendet erforderliche Antworten und Abschlussmeldungen aus dauerhaften
+Jobs, die in derselben Transaktion wie das Ergebnis oder der Abschluss gespeichert
+werden. Nach einem Neustart oder vorübergehenden Sendefehler wird nur die Zustellung
+bis zu dreimal versucht; Agent und freigegebene Werkzeuge werden nicht erneut
+ausgeführt. Bot, Chat-Sitzung und Zugriffsrichtlinie werden vor dem Senden erneut
+geprüft. Ein Ziel mit widerrufenem Zugriff erhält nichts. Plattformen ohne
+idempotentes Senden können ein Duplikat anzeigen, wenn die Nachricht ankam, aber
+ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
+**Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
 

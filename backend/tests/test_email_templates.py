@@ -245,3 +245,20 @@ def _fake_template(
     (compiled / f"{key}.txt").write_text(text, encoding="utf-8")
     monkeypatch.setattr(templates, "_SEARCH_ORIGIN", tmp_path / "pkg" / "templates.py")
     return compiled
+
+
+class TestApprovalMailNamesWhoAsked:
+    """The asker line is in all four approval parts, and costs no blank line when empty (#2656)."""
+
+    @pytest.mark.parametrize("key", [EmailKey.APPROVAL_REQUESTED, EmailKey.APPROVAL_PENDING])
+    def test_the_asker_is_named_in_both_parts(self, key: EmailKey) -> None:
+        context = {"agent_name": "Bot", "tools": "send_email", "asked_by": "Asked by Eve"}
+        _, html, text = render_email(key.value, context)
+        assert "Asked by Eve" in html
+        assert "Asked by Eve" in text
+
+    @pytest.mark.parametrize("key", [EmailKey.APPROVAL_REQUESTED, EmailKey.APPROVAL_PENDING])
+    def test_an_empty_asker_leaves_no_extra_blank_line_in_the_text(self, key: EmailKey) -> None:
+        context = {"agent_name": "Bot", "tools": "send_email", "asked_by": ""}
+        _, _, text = render_email(key.value, context)
+        assert "\n\n\n" not in text
