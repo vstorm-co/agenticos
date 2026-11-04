@@ -496,3 +496,54 @@ async def test_a_secret_whose_shape_changed_cannot_be_used_as_a_token(ctx, vault
     )
     assert terminal.mounts == ()
     assert terminal.notes == ("/code/ is not mounted: its token secret is no longer in the vault.",)
+
+
+@pytest.mark.parametrize(
+    "error_type", [mirage_mounts.BadRequestError, mirage_mounts.ConfigurationError]
+)
+async def test_an_unreadable_secret_keeps_healthy_folders_and_redacts_the_failure(
+    ctx, vault, accounts, monkeypatch, error_type
+):
+    monkeypatch.setattr(
+        mirage_mounts.OrganizationSecretService,
+        "resolve_for_bindings",
+        AsyncMock(side_effect=error_type(message="do-not-render-secret-details")),
+    )
+    terminal = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/code/",
+                "backend": "github",
+                "secrets": {"token": str(TOKEN)},
+                "options": {"owner": "o", "repo": "r"},
+            },
+            {"path": "/scratch/", "backend": "ram"},
+        ),
+    )
+    assert [mount.path for mount in terminal.mounts] == ["/scratch/"]
+    assert terminal.notes == (
+        "/code/ is not mounted: its vault secrets cannot be read; replace or reconnect them.",
+    )
+
+
+async def test_an_unexpected_vault_bug_is_not_disguised_as_an_unavailable_folder(
+    ctx, vault, accounts, monkeypatch
+):
+    monkeypatch.setattr(
+        mirage_mounts.OrganizationSecretService,
+        "resolve_for_bindings",
+        AsyncMock(side_effect=RuntimeError("unexpected vault failure")),
+    )
+    with pytest.raises(RuntimeError, match="unexpected vault failure"):
+        await _resolve(
+            ctx,
+            _config(
+                {
+                    "path": "/code/",
+                    "backend": "github",
+                    "secrets": {"token": str(TOKEN)},
+                    "options": {"owner": "o", "repo": "r"},
+                }
+            ),
+        )

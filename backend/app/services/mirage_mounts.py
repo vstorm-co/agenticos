@@ -37,8 +37,9 @@ from app.agents.capabilities.mirage import (
     backend,
 )
 from app.core.config import settings
+from app.core.exceptions import BadRequestError, ConfigurationError
 from app.core.permissions import AuthContext
-from app.core.secret_kinds import ApiKeySecret, EntraAppSecret, StorableSecret
+from app.core.secret_kinds import ApiKeySecret, EntraAppSecret
 from app.db.models.mcp_connection import McpConnection
 from app.repositories import mcp_connection_repo, organization_secret_repo
 from app.services.mcp_connection import AccountGrant, McpConnectionService
@@ -93,7 +94,6 @@ class MirageMountService:
             else {}
         )
         purposes = {secret_id: row.purpose for secret_id, row in rows.items()}
-        unsealed = await self.secrets.resolve_for_bindings(ctx, list(rows)) if rows else {}
         mounts: list[ResolvedMount] = []
         notes: list[str] = []
         for mount in config.mounts:
@@ -104,9 +104,7 @@ class MirageMountService:
                 )
                 continue
             try:
-                mounts.extend(
-                    await self._build(ctx, mount, info, unsealed, purposes, person_id, notes)
-                )
+                mounts.extend(await self._build(ctx, mount, info, purposes, person_id, notes))
             except _Unmountable as exc:
                 notes.append(f"{mount.path} is not mounted: {exc}")
         return ResolvedTerminal(mounts=tuple(mounts), notes=tuple(notes))
@@ -116,7 +114,6 @@ class MirageMountService:
         ctx: AuthContext,
         mount: MirageMount,
         info: BackendInfo,
-        unsealed: Mapping[UUID, StorableSecret],
         purposes: Mapping[UUID, str],
         person_id: UUID | None,
         notes: list[str],
@@ -130,6 +127,17 @@ class MirageMountService:
                 raise _Unmountable(f"its {field} secret is no longer in the vault.")
             if purpose not in (*info.secret_purposes, "custom"):
                 raise _Unmountable(f"its {field} secret belongs to another service.")
+        try:
+            unsealed = (
+                await self.secrets.resolve_for_bindings(ctx, list(mount.secrets.values()))
+                if mount.secrets
+                else {}
+            )
+        except (BadRequestError, ConfigurationError) as exc:
+            logger.warning("Mirage vault unavailable for %s (%s)", mount.path, type(exc).__name__)
+            raise _Unmountable(
+                "its vault secrets cannot be read; replace or reconnect them."
+            ) from exc
         if info.credential == "google":
             return await self._google(ctx, mount, info, options, person_id, notes)
         if info.credential == "microsoft":
