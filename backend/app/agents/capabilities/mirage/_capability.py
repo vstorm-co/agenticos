@@ -20,6 +20,7 @@ from typing import Any
 
 from mirage import Workspace
 from mirage.policy import CommandsBlock, PathsBlock, SessionProfile
+from mirage.policy.types import CommandRule
 from mirage.vfs.ram import RAMVFS
 from pydantic_ai import DeferredToolRequests, RunContext
 from pydantic_ai.agent import AgentRunResult
@@ -163,11 +164,21 @@ class Mirage(AbstractCapability[AgentDeps]):
 def _profile(allowed_commands: Sequence[str], hidden_paths: Sequence[str]) -> SessionProfile:
     """The author's policy as Mirage's own, enforced by the shell that parses the line.
 
-    No allowed commands means every command, which is Mirage's reading of an
-    unstated `allow`.
+    An unstated allowlist admits virtual commands; raw HTTP clients cannot bypass
+    the platform's web capabilities or the deployment's mount allowlist.
     """
     return SessionProfile(
-        commands=CommandsBlock(allow=tuple(allowed_commands) or None),
+        commands=CommandsBlock(
+            allow=tuple(allowed_commands) or None,
+            deny=tuple(
+                CommandRule(
+                    reason="Use a mounted service or a web capability for network access",
+                    commands=(command,),
+                )
+                for command in ("curl", "wget")
+                if not allowed_commands or command in allowed_commands
+            ),
+        ),
         paths=PathsBlock(hide=tuple(hidden_paths)),
     )
 

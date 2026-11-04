@@ -215,7 +215,7 @@ class MirageConfig(BaseModel):
         default_factory=list,
         max_length=64,
         title="Allowed commands",
-        description="Only these commands run, e.g. ls, cat, grep. Empty allows every command.",
+        description="Only these commands run, e.g. ls, cat, grep. Empty allows virtual commands; direct curl/wget are disabled.",
     )
     hidden_paths: list[str] = Field(
         default_factory=list,

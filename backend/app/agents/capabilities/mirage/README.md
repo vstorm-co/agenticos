@@ -74,7 +74,9 @@ remote credentials and caches never enter this snapshot. A continuation consumes
 its snapshot so a later conversation turn cannot resurrect old scratch files.
 Each workspace has a 16 MiB cache and 16 MiB working-memory budget. Shell streams
 are collected up to 64 KiB each, with a visible incomplete-result refusal at the
-bound, and the command deadline covers collection as well as execution.
+bound, and the command deadline covers collection as well as execution. Direct
+`curl` and `wget` calls are disabled even when the author lists them explicitly;
+network work belongs to mounted services or the platform’s web capabilities.
 
 ## The evaluation (2026-11-04, `mirage-ai` 0.0.8)
 

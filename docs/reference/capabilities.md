@@ -1190,7 +1190,7 @@ sandbox.
 | Config | Default | Values |
 |---|---|---|
 | `mounts` | required | One to ten folders, each described below |
-| `allowed_commands` | every command | Command names the shell may run, such as `ls`, `cat`, `grep` |
+| `allowed_commands` | all virtual commands except `curl`/`wget` | Command names the shell may run, such as `ls`, `cat`, `grep` |
 | `hidden_paths` | none | Absolute paths the agent cannot see at all, such as `/drive/HR/` |
 
 **A folder is a path, a service and how it signs in.** The path is one lowercase

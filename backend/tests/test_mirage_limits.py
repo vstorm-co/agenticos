@@ -90,3 +90,45 @@ def test_a_paused_run_cannot_retain_unbounded_scratch(monkeypatch: pytest.Monkey
 def test_a_postgres_query_cannot_override_the_allowlisted_host(parameter: str) -> None:
     assert hosts_of(f"postgresql://user:password@allowed.example/db?{parameter}") == ()
     assert hosts_of("postgresql://u:p@[invalid/db") == ()
+
+
+@pytest.mark.parametrize("command", ["curl", "wget"])
+@pytest.mark.parametrize("explicit_allow", [False, True])
+async def test_shell_http_cannot_reach_even_an_allowlisted_server(
+    command: str, explicit_allow: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.agents.capabilities.mirage import ResolvedMount
+    from app.agents.capabilities.mirage._capability import Mirage
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["127.0.0.1"])
+    connected = asyncio.Event()
+
+    async def answer(_reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        connected.set()
+        try:
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    server = await asyncio.start_server(answer, "127.0.0.1", 0)
+    terminal = Mirage(
+        mounts=(ResolvedMount("/scratch/", "ram", "write", False, {}, "Scratch"),),
+        allowed_commands=(command,) if explicit_allow else (),
+    )
+    try:
+        assert server.sockets
+        port = server.sockets[0].getsockname()[1]
+        workspace = await terminal.workspace()
+        result = await _backend.BoundedBackend(workspace).run(
+            [command, f"http://127.0.0.1:{port}/"], timeout=2
+        )
+        assert result.exit_code != 0
+        assert not connected.is_set()
+    finally:
+        if terminal._workspace is not None:
+            await terminal._workspace.close()
+        server.close()
+        await server.wait_closed()

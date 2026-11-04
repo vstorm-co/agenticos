@@ -1,5 +1,5 @@
 ---
-source_sha: "52203346b3f4"
+source_sha: "409f6dd66fd3"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1249,7 +1249,7 @@ terminala, a `execute` nadal trafia do sandboksa.
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `mounts` | wymagane | Od jednego do dziesięciu folderów, każdy opisany niżej |
-| `allowed_commands` | każde polecenie | Nazwy poleceń, które powłoka może uruchomić, np. `ls`, `cat`, `grep` |
+| `allowed_commands` | polecenia wirtualne poza `curl`/`wget` | Nazwy poleceń, które powłoka może uruchomić, np. `ls`, `cat`, `grep` |
 | `hidden_paths` | brak | Ścieżki bezwzględne, których agent w ogóle nie widzi, np. `/drive/HR/` |
 
 **Folder to ścieżka, usługa i sposób logowania.** Ścieżka to jedna nazwa małymi

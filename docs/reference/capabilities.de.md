@@ -1,5 +1,5 @@
 ---
-source_sha: "52203346b3f4"
+source_sha: "409f6dd66fd3"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1328,7 +1328,7 @@ und `execute` erreicht weiterhin die Sandbox.
 | Konfiguration | Standard | Werte |
 |---|---|---|
 | `mounts` | erforderlich | Ein bis zehn Ordner, jeder wie unten beschrieben |
-| `allowed_commands` | jeder Befehl | Befehlsnamen, die die Shell ausführen darf, etwa `ls`, `cat`, `grep` |
+| `allowed_commands` | virtuelle Befehle außer `curl`/`wget` | Befehlsnamen, die die Shell ausführen darf, etwa `ls`, `cat`, `grep` |
 | `hidden_paths` | keine | Absolute Pfade, die der Agent überhaupt nicht sieht, etwa `/drive/HR/` |
 
 **Ein Ordner ist ein Pfad, ein Dienst und eine Anmeldung.** Der Pfad ist ein

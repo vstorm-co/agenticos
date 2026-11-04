@@ -1,5 +1,5 @@
 ---
-source_sha: "52203346b3f4"
+source_sha: "409f6dd66fd3"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1273,7 +1273,7 @@ terminal, y `execute` sigue llegando a la sandbox.
 | Configuración | Por defecto | Valores |
 |---|---|---|
 | `mounts` | obligatorio | De una a diez carpetas, cada una descrita abajo |
-| `allowed_commands` | cualquier comando | Nombres de comandos que la shell puede ejecutar, como `ls`, `cat`, `grep` |
+| `allowed_commands` | comandos virtuales salvo `curl`/`wget` | Nombres de comandos que la shell puede ejecutar, como `ls`, `cat`, `grep` |
 | `hidden_paths` | ninguno | Rutas absolutas que el agent no ve en absoluto, como `/drive/HR/` |
 
 **Una carpeta es una ruta, un servicio y una forma de iniciar sesión.** La ruta es
