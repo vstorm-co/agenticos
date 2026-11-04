@@ -159,7 +159,7 @@ export default function SkillsPage() {
   // something the server has not said yet.
   if (!isBusy && !can(Perm.skillsView)) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
         <EmptyState
           icon={Lock}
@@ -174,9 +174,9 @@ export default function SkillsPage() {
   // that draws a different shape from what follows is a layout jump on load.
   if (isBusy) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
-        <ListCard layout="grid" namedByPage title={t("skills")} counted={null}>
+        <ListCard fill namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -287,7 +287,7 @@ export default function SkillsPage() {
     ) : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col space-y-4">
       {header}
 
       {/* Above the list, because it is a decision somebody has to make and the
@@ -295,7 +295,7 @@ export default function SkillsPage() {
       <ProposedChanges canEdit={canCreate} />
 
       <ListCard
-        layout="grid"
+        fill
         data-tour="skills-list"
         namedByPage
         title={t("skills")}

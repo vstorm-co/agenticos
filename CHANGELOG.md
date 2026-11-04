@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Wrap Skills and Context cards in the shared full-height resource-list panel, keeping search, filters, loading and empty states inside the same frame as other console pages.
+
 - Restore contrast between dialog surfaces, gallery and template cards, audience choices and file editors. Skill and context editors now separate the file tree, toolbar and document from the surrounding form. Skill descriptions use single-line inputs in create and edit forms.
 
 - Unify scheduled, event and monitoring routine dialogs with one form frame, shared navigation and message editor. Creating a watch now uses three steps, preserves the draft when going back and groups advanced settings in one panel. Agent pickers display their avatars.
