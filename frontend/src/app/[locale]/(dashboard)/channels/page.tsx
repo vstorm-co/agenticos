@@ -7,6 +7,7 @@ import { MessagesSquare, Plus } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
+import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
@@ -62,6 +63,7 @@ export default function ChannelsPage() {
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
   const [editing, setEditing] = useState<ChannelBot | null>(null);
+  const [mapping, setMapping] = useState<ChannelBot | null>(null);
 
   if (!canManage) {
     return (
@@ -142,6 +144,7 @@ export default function ChannelsPage() {
             onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={(bot) => remove.mutate(bot.id)}
+            onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
           />
         )}
       </BotsCard>
@@ -159,6 +162,8 @@ export default function ChannelsPage() {
         onSubmit={(botId, data) => update.mutateAsync({ botId, data })}
         isPending={update.isPending}
       />
+
+      {mapping && <DiscordRoleMappingsDialog bot={mapping} onClose={() => setMapping(null)} />}
     </div>
   );
 }

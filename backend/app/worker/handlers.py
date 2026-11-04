@@ -48,6 +48,7 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        channel_tasks,
         conversation_tasks,
         diagnostics_tasks,
         generated_media_tasks,
@@ -68,6 +69,7 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
@@ -94,6 +96,7 @@ def production() -> Handlers:
                 jobs.SWEEP_SANDBOX_OPERATIONS, _each_tick(trigger_tasks.sweep_sandbox_operations)
             ),
             Handler(jobs.SWEEP_MCP_CONNECTIONS, _each_tick(mcp_tasks.sweep_mcp_connections)),
+            Handler(jobs.SYNC_DISCORD_ROLES, _each_tick(channel_tasks.sync_discord_roles)),
             Handler(jobs.EXPIRE_APPROVALS, _each_tick(approval_tasks.expire_approvals)),
             Handler(jobs.EXPIRE_INVITATIONS, _each_tick(invitation_tasks.expire_invitations)),
             Handler(jobs.REAP_STALE_RUNS, _each_tick(run_tasks.reap_stale_runs)),

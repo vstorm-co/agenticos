@@ -239,15 +239,21 @@ async def list_platform_mcp_tools() -> Any:
 )
 async def list_mcp_servers(
     db: DBSession,
-    q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
+    ctx: Auth,
+    q: str = Query(
+        "", max_length=255, description="Filter by key, name, description, host or category"
+    ),
     category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
     auth: Literal["", "none", "token", "oauth"] = Query(
         "", description="What the server asks for, or blank for any"
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    state: Literal["all", "connected", "not-connected"] = Query(
+        "all", description="Whether an accessible saved account exists, regardless of its health"
+    ),
 ) -> Any:
-    """One paged list: the curated catalog, then the mirrored public registry.
+    """One paged list: curated servers, the local registry mirror and custom servers.
 
     The console used to hold the curated hundred and filter it in the browser,
     which is right for a list the client holds - and this one stopped being that
@@ -256,13 +262,20 @@ async def list_mcp_servers(
     the list needs, so the join happens in `mcp_listing.page` and the client
     renders rows.
 
+    Connection state, search, category and sign-in filters apply before counting
+    and pagination. Connected includes every accessible saved account, including
+    disabled accounts and servers that need authorization or failed a check.
+    Personal accounts belong to the caller; organization accounts obey the same
+    permission and audience checks as their management endpoint.
+
     A registry row carries `reviewed: false`: nobody here wrote it, the description
     is the publisher's, and there is no token hint because the registry has no such
-    field. `verified` and `check` say what the last catalog check found, for either
-    kind; a registry listing it found dead or duplicated is not on the list.
+    field. `verified` and `check` say what the last catalog check found. Browsing
+    hides dead or duplicated registry listings; Connected keeps their saved
+    accounts manageable.
     """
     found = await mcp_listing.page(
-        db, query=q, category=category, auth=auth, skip=skip, limit=limit
+        db, ctx=ctx, query=q, category=category, auth=auth, state=state, skip=skip, limit=limit
     )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],

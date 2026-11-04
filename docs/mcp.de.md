@@ -1,5 +1,5 @@
 ---
-source_sha: "ab427a229108"
+source_sha: "0c286820f30e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -740,6 +740,30 @@ und keine Auflistung:
   Seitengröße von 50 — also lebt die Arithmetik in `mcp_listing.page`, mit einem
   Test auf der Grenze, denn ein Off-by-one dort überspringt einen Server oder zeigt
   ihn zweimal, in einer Liste, in der niemand merken würde, welches von beidem.
+
+  **Verbunden (Connected)** umfasst jeden zugänglichen Dienst mit einem
+  gespeicherten Organisationskonto oder persönlichen Konto, auch eigene Server
+  und Katalog- oder Registry-Einträge auf anderen Seiten. Mehrere Konten teilen
+  sich eine Serverkarte. Deaktivierte Konten und Konten mit Handlungsbedarf
+  bleiben zur Verwaltung sichtbar. Die Filter für Suche, Kategorie, Anmeldung
+  und Verbindungszustand greifen, bevor die Ergebnisse gezählt und seitenweise
+  ausgegeben werden.
+
+  Gespeicherte Serverlinks öffnen den Kontodialog auch dann wieder, wenn eine
+  fehlgeschlagene Registry-Prüfung oder ein Duplikat den Server unter **Alle (All)**
+  ausblendet. Beim URL-Abgleich bleibt die Groß- und Kleinschreibung von Pfaden und
+  Abfragewerten erhalten, sodass verschiedene Endpunkte getrennt bleiben. Eine
+  erneute Autorisierung verwendet die gespeicherte URL des jeweiligen Kontos.
+
+  In Connected und im Register haben exakte Serverschlüssel Vorrang vor verwandten
+  Suchtreffern. Gespeicherte Links werden dadurch auch dann aufgelöst, wenn andere
+  Beschreibungen denselben Schlüssel nennen. Registereinträge mit identischen Namen behalten
+  eine stabile Reihenfolge über Seiten hinweg.
+
+  Wird ein Registereintrag bei der Synchronisierung entfernt, öffnet sein gespeicherter
+  Katalogschlüssel weiterhin die bestehenden Konten. Die Rückkehr von der Anmeldung im Popup
+  aktualisiert sowohl Serverseiten als auch gespeicherte Kontolinks.
+
 - **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
   Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen
   und seiner Beschreibung, gezählt an den Wörtern, an denen man jede Kategorie

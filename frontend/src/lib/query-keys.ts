@@ -178,6 +178,10 @@ export const qk = {
     detail: (botId: string) => ["channel-bots", botId] as const,
     /** The Teams channels and group chats a trigger can post into (#1985). */
     teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
+    // Outside the list's prefix on purpose: the servers are read from Discord on
+    // every fetch, and renaming a bot is no reason to ask Discord again (#2569).
+    discordRoleMappings: (botId: string) => ["discord-role-mappings", botId] as const,
+    discordServers: (botId: string) => ["discord-servers", botId] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -686,9 +690,11 @@ export const qk = {
     platformTools: () => ["mcp-servers", "platform-tools"] as const,
     // Keyed on the query and the page: the list is a request now, so each page
     // of each query is its own resource rather than a filter over one blob.
-    listPage: (query: string, category: string, auth: string, page: number) =>
-      ["mcp-servers", "list", query, category, auth, page] as const,
+    lists: () => ["mcp-servers", "list"] as const,
+    listPage: (query: string, category: string, auth: string, page: number, state = "all") =>
+      ["mcp-servers", "list", query, category, auth, page, state] as const,
     // One server by its key, curated or mirrored - what a chat's connection card shows.
+    entries: () => ["mcp-servers", "entry"] as const,
     entry: (key: string) => ["mcp-servers", "entry", key] as const,
   },
   sessions: {

@@ -2271,6 +2271,9 @@
       "needsFullAccess": "{agent} läuft als du, deshalb braucht der Ordner Vollzugriff. Ändere das unter Chat-Steuerung → Arbeiten auf.",
       "chosen": "{agent} · {folder}"
     },
+    "continuesInTheChat": "Entschieden. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde, und antwortet dort.",
+    "continuedInTheChat": "Im Chat fortgesetzt, in dem gefragt wurde",
+    "answerAlsoInTheChat": "Die Antwort geht auch an den Chat, in dem gefragt wurde.",
     "reasoning": {
       "levels": {
         "default": "Standard",
@@ -2456,7 +2459,8 @@
         "waiting": "wartet {ago}",
         "description": "Runs, die bei einem Tool-Aufruf angehalten haben und auf eine Entscheidung warten.",
         "someAgent": "Ein Agent",
-        "forPerson": "für {email} · wartet {ago}"
+        "forPerson": "für {email} · wartet {ago}",
+        "forChatAccount": "für {name} (nicht verifiziert) · wartet {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -4284,6 +4288,10 @@
         "title": "Verbundene Kanäle",
         "body": "Die Plattformen, auf denen diese Organisation erreichbar ist. Ein Kanal gehört der Organisation, nicht einem Agent, derselbe Bot kann also jedem daran gebundenen Agent dienen."
       },
+      "channels-discord-roles": {
+        "title": "Discord-Rollen",
+        "body": "Ordne eine Rolle auf einem Discord-Server einer Gruppe hier zu. Verknüpfte Mitglieder mit der Rolle treten der Gruppe bei und verlassen sie, wenn ihnen die Rolle entzogen wird."
+      },
       "channels-new": {
         "title": "Agents dort erreichen, wo die Menschen sind",
         "body": "Registrieren Sie eine Chat-Plattform - Slack, Telegram, Mattermost - und jeder Agent kann gebunden werden, um dort zu antworten. Das Token des Bots wird im Vault versiegelt. Fügen Sie hier eine hinzu."
@@ -5451,6 +5459,7 @@
       "credentialStored": "Gespeichert. Leer lassen, um es zu behalten.",
       "credentialUnset": "Nicht gesetzt.",
       "editBot": "{bot} bearbeiten",
+      "mapDiscordRoles": "Discord-Rollen für {bot}",
       "editChannel": "Kanal bearbeiten",
       "editChannelDescription": "Ändern Sie, wie dieser Bot heißt, oder ersetzen Sie eines seiner Credentials. Ein Credential wird nie zurückgelesen, ein leer gelassenes Feld behält also den bereits gespeicherten Wert.",
       "mattermostServerUrl": "Server-URL",
@@ -5994,6 +6003,8 @@
       "toolState": "{status, select, completed {Fertig} error {Fehlgeschlagen} running {Läuft} pending {Läuft} unfinished {Nicht beendet} awaiting_approval {Wartet auf Freigabe} awaiting_answer {Wartet auf Antwort} other {Unbekannt}}",
       "wantsTo": "<strong>{actor}</strong> möchte: <strong>{tool}</strong>",
       "askedFor": "Für {email}",
+      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert)",
+      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert), über {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
       "decidedByWhom": "von {email}",
@@ -6039,7 +6050,11 @@
       "stepApprovalEdited": "Bearbeitet",
       "surfaceProactive": "Proaktiv",
       "standaloneRequest": "Modellanfrage",
-      "standaloneResponse": "Modellantwort"
+      "standaloneResponse": "Modellantwort",
+      "decisionApprovedInChat": "Freigegeben. Sobald nichts anderes mehr wartet, macht der Agent in dem Chat weiter, in dem gefragt wurde.",
+      "decisionRejectedInChat": "Abgelehnt. Sobald nichts anderes mehr wartet, antwortet der Agent in dem Chat, in dem gefragt wurde.",
+      "runResumedInChat": "Run fortgesetzt – die Antwort geht auch in den Chat, in dem gefragt wurde.",
+      "alreadyContinuing": "Dieser Run läuft in seinem Chat bereits weiter."
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -10077,6 +10092,7 @@
     "membersBody": "Wen diese Gruppe erreicht. Als Verzeichnis markierte Personen hat die Synchronisierung der Verzeichnisanmeldung aufgenommen, und sie entfernt sie wieder, wenn das Verzeichnis sie nicht mehr führt.",
     "nobodyYet": "In dieser Gruppe ist noch niemand.",
     "directoryMemberHint": "Von der Synchronisierung der Verzeichnisanmeldung aufgenommen, die diese Person entfernt, wenn das Verzeichnis sie nicht mehr führt. Ein Entfernen hier gilt bis zur nächsten Anmeldung.",
+    "discordMemberHint": "Von der Discord-Rollensynchronisierung hinzugefügt, die die Person entfernt, wenn sie die Discord-Rolle verliert. Ein Entfernen hier gilt bis zu ihrer nächsten Nachricht an einen Bot.",
     "addMember": "Mitglied hinzufügen",
     "chooseMember": "Mitglied auswählen",
     "everyoneIsIn": "Alle sind bereits in dieser Gruppe",
@@ -10233,6 +10249,34 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "discordRoles": {
+    "badge": "Discord",
+    "memberHint": "Wird von der Discord-Rollensynchronisierung gepflegt, die diese Mitgliedschaft entfernt, sobald die Person die Discord-Rolle verliert, über die sie aufgenommen wurde. Wer die Rolle hier ändert, übernimmt die Mitgliedschaft, und die Synchronisierung lässt sie ab dann in Ruhe.",
+    "title": "Discord-Rollen für {bot}",
+    "howItWorks": "Ein verknüpftes Mitglied mit einer zugeordneten Rolle auf einem Server dieses Bots kommt vor jeder Nachricht an den Bot und bei einer Synchronisierung alle 15 Minuten in die Gruppe. Wird ihm die Rolle entzogen, verlässt es die Gruppe. Von Hand hinzugefügte Gruppenmitgliedschaften werden nie entfernt. Discord-Nutzer ohne verknüpftes Konto erhalten nichts.",
+    "empty": "Noch keine Rollen zugeordnet.",
+    "row": "{server} · @{role} → {group}",
+    "deleteNamed": "Zuordnung für @{role} löschen",
+    "addMapping": "Rolle zuordnen",
+    "deleteTitle": "Diese Zuordnung löschen?",
+    "deleteBody": "Wer über @{role} aufgenommen wurde, verlässt die Gruppe, und die Organisation, falls die Rolle die Person aufgenommen hat, bei der nächsten Nachricht an einen Bot oder der nächsten Synchronisierung.",
+    "delete": "Löschen",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "mappingAdded": "Rolle zugeordnet. Wer sie hat, kommt bei der nächsten Nachricht an den Bot in die Gruppe.",
+    "mappingDeleted": "Zuordnung gelöscht",
+    "server": "Server",
+    "discordRole": "Discord-Rolle",
+    "group": "Gruppe",
+    "orgRole": "Aufnehmen als",
+    "pickServer": "Server auswählen",
+    "loadingServers": "Discord wird gefragt…",
+    "pickRole": "Rolle auswählen",
+    "pickGroup": "Gruppe auswählen",
+    "membersOnly": "Nur bestehende Mitglieder",
+    "membersOnlyHint": "Nur Personen, die bereits Mitglied dieser Organisation sind, kommen in die Gruppe.",
+    "admitsHint": "Eine verknüpfte Person mit der Rolle, die noch kein Mitglied ist, tritt dieser Organisation mit der obigen Rolle bei und verlässt sie, wenn ihr die Discord-Rolle entzogen wird."
   },
   "apiKeys": {
     "title": "API-Schlüssel",

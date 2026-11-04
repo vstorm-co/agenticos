@@ -1,5 +1,5 @@
 ---
-source_sha: "f5e02e3af94a"
+source_sha: "59cdf11dca18"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1606,10 +1606,70 @@ los archivos que publicó el propio bot se dejan fuera. Hace falta **Read Messag
 History**, y `read_channel_history` lee un hilo o un canal igual donde la
 vinculación lo permite.
 
+### Los roles de un servidor como grupos { #discord-roles }
+
+Un administrador puede asignar un rol de uno de los servidores del bot a un grupo de
+la organización (#2569). Abre **Canales** y luego la acción **Roles de Discord** en
+la fila del bot. El servidor y el rol se eligen entre lo que el propio bot lee de
+Discord, así que no se ofrecen `@everyone` ni los roles que Discord gestiona para un
+bot. Crear una asignación requiere `members:manage`, y las rutas requieren además
+`channels:manage`.
+
+Un miembro vinculado que tiene el rol entra en el grupo antes de cada mensaje que
+envía a cualquiera de los bots de Discord de la organización, y de nuevo con el
+trabajo `sync-discord-roles` cada 15 minutos. Sale del grupo cuando se le quita el
+rol, y el trabajo es lo que lo detecta en alguien que ha dejado de escribir al bot.
+El bot pregunta a Discord por los roles de un miembro cada vez, así que no necesita
+ningún intent privilegiado, y una asignación nueva coloca a las personas en su
+siguiente mensaje y no de inmediato.
+
+Esas comprobaciones antes de un mensaje cuentan contra el `rate_limit_rpm` del
+remitente en un cupo propio, incluidos comandos como `/help`. A quien lo supera se
+le pide que vaya más despacio, y no se vuelve a preguntar a Discord hasta que pase
+el minuto.
+
+Una asignación también puede nombrar un rol de la organización. Una persona
+vinculada con el rol que todavía no es miembro entra entonces en la organización con
+ese rol, lo que ahorra invitar uno a uno a todos los de un servidor de comunidad.
+Nombrar un rol requiere `roles:manage`, y solo un rol que el propio rol de quien
+llama supera estrictamente. El orden entre varios roles que coinciden y las reglas
+sobre lo que la sincronización nunca toca son las de la
+[sincronización del directorio](directory.md#what-the-sync-never-touches):
+
+- Solo cuenta una cuenta vinculada. Un usuario de Discord que nunca ejecutó `/link`
+  no se coloca en ningún sitio, tenga los roles que tenga.
+- Un rol coincide solo en el servidor que nombra la asignación, leído por el bot al
+  que pertenece la asignación. El mismo ID de rol en el servidor de otro bot no
+  coincide con nada.
+- La sincronización cambia solo las filas que ella misma creó, marcadas **Discord**
+  en la página de miembros y en un grupo. Una pertenencia a un grupo añadida a mano
+  se queda cuando se quita el rol, una pertenencia que creó un administrador
+  conserva su rol, y a un propietario nunca se le degrada ni se le quita. Quien
+  entró en la organización por la sincronización sale de todos sus grupos cuando
+  la sincronización lo quita, como quien se quita a mano.
+- Si un servidor no se puede leer, sus grupos asignados se conservan. Los posibles roles de organización solo conservan autoridad ya existente; una asignación `viewer` sin leer no conserva `admin`. Las concesiones confirmadas siguen aplicándose.
+
+Cada reconciliación comparte un presupuesto de red de diez segundos. Las consultas REST comparten el `rate_limit_rpm` del bot por usuario entre todas sus cuentas vinculadas, separado del límite de comprobaciones por mensaje. Borrar un grupo asignado también requiere `channels:manage`.
+
+El descubrimiento permite una solicitud simultánea por organización. La paginación y las consultas de roles comparten diez segundos, con un máximo de ocho servidores en paralelo. Superar los 2500 servidores admitidos o recibir una respuesta incompleta produce un error explícito.
+
+Desvincular la cuenta de Discord retira lo que dieron sus roles, salvo que otra
+cuenta de Discord vinculada lo siga ganando. Borrar una asignación retira lo que dio
+en el siguiente mensaje de cada persona o en la siguiente ejecución del trabajo.
+Borrar el bot o un grupo asignado, o darle al bot un token nuevo, retira lo mismo,
+y por eso pide lo que pide borrar cada una de esas asignaciones. Cada cambio queda en el registro de auditoría como `discord.member_added`,
+`discord.role_changed`, `discord.member_removed`, `discord.group_joined` o
+`discord.group_left`, y crear o borrar una asignación como
+`discord.mapping_created` o `discord.mapping_deleted`.
+
 Todavía no: una conexión sirve a un bot en como mucho 2500 servidores, por encima
 de los cuales Discord exige sharding y el bot se detiene con ese motivo. Las
 herramientas de miembros del canal, detalles y búsqueda de canales no se ofrecen en
-Discord, y los roles de un servidor no se asignan a grupos de la organización.
+Discord.
+
+Cuando ambas fuentes conceden pertenencia, el directorio tiene prioridad al iniciar
+sesión. Al terminar su acceso, un rol vigente de Discord asume la misma pertenencia
+sin revocar claves. Véase [el traspaso de pertenencia](directory.md#what-the-sync-never-touches).
 
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
@@ -1675,7 +1735,7 @@ petición empieza por esa línea y pliega lo demás tras **Details**.
 
 Una pulsación actúa como la persona que pulsó, mediante su cuenta enlazada:
 decidir requiere `approvals:decide`, y solo la persona a quien se preguntó puede
-responder. A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
+responder. Una decisión tomada en otro sitio actúa como la persona que la tomó, incluido un app admin ([más abajo](#decided-outside-the-chat)). A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
 respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
 `APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
 pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
@@ -1695,6 +1755,62 @@ sesión o un captcha, el paso cambia a *Needs you* y dice para qué, y nombra qu
 el navegador mientras una persona lo maneja. El enlace abre la consola, así que tomar
 el control necesita una cuenta en ella: la persona para la que actúa el run, o quien
 puede editar el agente.
+
+### Decidido fuera del chat { #decided-outside-the-chat }
+
+Una petición hecha en un chat también se puede decidir en **Approvals** de la
+consola, en el chat web o por la API HTTP. Cuando una persona lo hace y con ello
+queda resuelto lo último que el run esperaba, el servidor continúa el run como ella
+y publica la respuesta en el chat donde se preguntó. La consola lo dice en vez de
+reanudar el run por su cuenta, así que el run se continúa una sola vez. Una
+pregunta funciona igual cuando la persona a quien se hizo la responde en la consola.
+
+Una decisión tomada con una clave de API se registra y no continúa el run: un run
+que inició una persona solo lo continúa una persona. Por la API, `continues_in_chat`
+le dice a un cliente en qué caso está (véase [Ejecutar un agent](api.md#running-an-agent)).
+
+Tres finales que ocurren fuera del chat publican allí un mensaje fijo cada uno, para
+que nadie espere botones que ya no hacen nada. Los botones abiertos del chat se
+cierran a la vez.
+
+| Final | El chat recibe |
+|---|---|
+| El run caduca, tras `APPROVAL_EXPIRY_HOURS` para una decisión o `QUESTION_EXPIRY_HOURS` para una pregunta | "This request expired without a decision." |
+| Alguien pulsa **Stop** en la consola | "This run was stopped from the console." |
+| Un run se decidió y nada lo continuó en aproximadamente una hora | "A decision was recorded, but the run could not continue." |
+
+El último es una red de seguridad. Se queda callado en dos casos: cuando la decisión
+tiene más de 7 días y cuando el chat ya supo que el run no pudo continuar. Un chat
+recibe como máximo un aviso cada vez que un run se aparca.
+
+Un botón pulsado después de que la petición se respondiera en otro sitio responde
+"That has already been answered." y no cambia nada.
+
+Una continuación puede ser rechazada, por ejemplo si el chat empezó de nuevo desde
+la pregunta, su política de acceso ahora rechaza a quien preguntó, quien decidió ya
+no puede decidir aprobaciones, el bot se quitó del agente o el agente ya no se puede
+construir. El chat lo sabe una vez: "That was decided outside the chat, but the run
+could not continue."
+
+**Resume** en la página del run sigue funcionando, hasta
+aproximadamente una hora después de la última decisión. Se ejecuta como antes, sin la comprobación de la
+sala, y publica la respuesta solo en un chat que aún admita a quien preguntó. Una
+comprobación de pertenencia que la plataforma no puede responder no detiene una
+continuación.
+
+Un run aparcado antes de 1.29.0 no tiene chat registrado, así que la consola lo
+continúa como siempre. Si nadie lo reanuda en aproximadamente una hora desde la
+última decisión, la red de seguridad lo termina sin mensaje.
+
+El worker envía las respuestas y los avisos de finalización necesarios mediante
+trabajos duraderos guardados en la misma transacción que el resultado o el cierre.
+Tras un reinicio o un fallo temporal de envío, reintenta únicamente la entrega
+hasta tres veces, sin repetir el agente ni las herramientas aprobadas. Antes de
+enviar, vuelve a comprobar el bot, la sesión y la política de acceso al chat.
+Un destino cuyo acceso se haya revocado no recibe nada. Las plataformas sin envío
+idempotente pueden mostrar un duplicado si aceptaron el mensaje pero se perdió
+la confirmación. Los intentos agotados aparecen en **Admin → Background jobs**
+(`deliver-channel-handback`).
 
 ### Pasos siguientes como botones { #next-steps-as-buttons }
 

@@ -66,7 +66,10 @@ from app.db.models.rag_document import RAGDocument
 from app.db.models.workflow import Workflow
 from app.db.models.workflow_log_alert import WorkflowLogAlertRule
 from app.repositories import agent as agent_repo
+from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import channel_bot as channel_bot_repo
+from app.repositories import channel_identity as channel_identity_repo
 from app.repositories import group as group_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
@@ -78,6 +81,15 @@ from app.services.spend import month_start, organization_spend_since
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
+
+_CHAT_PLATFORM_NAMES: dict[str, str] = {
+    "slack": "Slack",
+    "telegram": "Telegram",
+    "mattermost": "Mattermost",
+    "teams": "Microsoft Teams",
+    "discord": "Discord",
+    "whatsapp": "WhatsApp",
+}
 
 # The console page a security event's `context_url` opens, by the audited
 # entry's `target_type` - the same resource an admin would go check. A type
@@ -316,10 +328,12 @@ class NotificationService:
             f"{approval.tool_id} ({approval.account})" if approval.account else approval.tool_id
             for approval in approvals
         ]
+        asked_by, summary = await self._asked_by(run, agent)
         render_context = {
             "agent_name": agent.name,
             **agent_face(agent),
             "tools": ", ".join(tools) if tools else "a tool call",
+            "asked_by": asked_by,
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
@@ -340,12 +354,50 @@ class NotificationService:
             occurrence_id=hashlib.sha256(
                 ":".join(sorted(str(approval.id) for approval in approvals)).encode()
             ).hexdigest(),
-            summary=f"{agent.name} is waiting on your approval",
+            summary=summary,
             context_url=approvals_path,
             render_context=render_context,
             organization_id=run.organization_id,
             use_savepoint=True,
         )
+
+    async def _asked_by(self, run: AgentRun, agent: Agent) -> tuple[str, str]:
+        """The sentence naming who asked, and the in-app summary, for an approval.
+
+        A chat message from an unlinked person runs as the binding's publisher,
+        so "your approval" would be wrong for the publisher who gets this and
+        the email would otherwise never say a stranger asked. Wording only: the
+        audience is still resolved from `run.user_id`.
+        """
+        summary = f"{agent.name} is waiting on your approval"
+        if not (run.initiated_by_publisher_fallback and run.channel_identity_id is not None):
+            return "", summary
+        identity = await channel_identity_repo.get_by_id(self.db, run.channel_identity_id)
+        if identity is None:
+            return "", summary
+        platform = _CHAT_PLATFORM_NAMES.get(identity.platform, identity.platform.title())
+        name = agent_run_repo.chat_account_name(identity)
+        asked = f"asked in {platform} by {name} (unverified)"
+        bot_name = await self._chat_bot_name(run)
+        through = f", through {bot_name}" if bot_name else ""
+        return (
+            f"Asked in {platform} by {name} (unverified){through}.",
+            f"{agent.name} is waiting on an approval {asked}",
+        )
+
+    async def _chat_bot_name(self, run: AgentRun) -> str | None:
+        """The bot the run's chat reached the agent through, or none once it is unbound."""
+        if run.exposure_id is None:
+            return None
+        exposure = await agent_exposure_repo.get(
+            self.db, run.exposure_id, organization_id=run.organization_id
+        )
+        if exposure is None:
+            return None
+        bot = await channel_bot_repo.get_for_org(
+            self.db, exposure.channel_bot_id, organization_id=run.organization_id
+        )
+        return bot.name if bot else None
 
     async def run_completed(self, run: AgentRun, *, agent: Agent) -> None:
         """A run finished on a surface nobody was watching live.

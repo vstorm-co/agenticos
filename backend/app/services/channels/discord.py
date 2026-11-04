@@ -70,6 +70,7 @@ from app.services.channels.discord_protocol import (
     PUBLIC_BOT,
     THREAD_TYPES,
     Recent,
+    Server,
     attachment_type,
     can_view,
     chunks,
@@ -79,6 +80,7 @@ from app.services.channels.discord_protocol import (
     components,
     identify,
     interaction_user,
+    mappable_roles,
     pressed_value,
     read_comment,
     resume,
@@ -100,6 +102,10 @@ _HTTP_TIMEOUT = 20.0
 _RATE_LIMIT_RETRIES = 2
 _RATE_LIMIT_CEILING = 10.0
 _CACHE_SIZE = 10_000
+_GUILD_PAGE = 200
+_MAX_ROLE_GUILDS = 2_500
+_ROLE_LOOKUP_CONCURRENCY = 8
+"""The most servers `GET /users/@me/guilds` answers with at once; past it, `after` pages on."""
 # A close code of our own: 1000 and 1001 end the session for good, anything else
 # leaves it resumable, which is what a reconnect we start wants.
 _RESUMABLE_CLOSE = 4000
@@ -564,6 +570,18 @@ class DiscordAdapter(ChannelAdapter):
         response.raise_for_status()
         return response.content
 
+    async def channel_server(self, bot_token: str, channel_id: str) -> str | None:
+        """The server a channel or thread is in, as Discord says now; `None` when it has none.
+
+        A thread carries its server's id as a channel does. A channel the bot
+        cannot see (403, 404) has no answer; any other failure raises.
+        """
+        found = await self._call("GET", f"/channels/{channel_id}", bot_token)
+        if found.status_code in (403, 404):
+            return None
+        found.raise_for_status()
+        return str(found.json().get("guild_id") or "") or None
+
     async def is_channel_member(
         self, bot_token: str, channel_id: str, platform_user_id: str, *, api_base_url: str | None
     ) -> bool:
@@ -615,6 +633,79 @@ class DiscordAdapter(ChannelAdapter):
             member_roles=[str(role) for role in member.json().get("roles") or []],
             overwrites=channel.get("permission_overwrites") or [],
         )
+
+    async def member_roles(
+        self, bot_token: str, guild_id: str, platform_user_id: str
+    ) -> frozenset[str] | None:
+        """The role ids one account holds in one server, or `None` when it is not in it (#2569).
+
+        `None` too when the bot cannot see the server any more - removed from it,
+        or the server gone - because then nothing vouches for the roles and a
+        mapping must not go on admitting by them. Anything else Discord answers,
+        a revoked token or an outage, raises: that is not knowing, and the
+        caller must not read it as the role being taken away.
+        """
+        found = await self._call("GET", f"/guilds/{guild_id}/members/{platform_user_id}", bot_token)
+        if found.status_code in (403, 404):
+            return None
+        found.raise_for_status()
+        return frozenset(str(role) for role in found.json().get("roles") or [])
+
+    async def servers(self, bot_token: str) -> list[Server]:
+        """Every server the bot is in, with the roles a mapping can name, for the bot's page.
+
+        Paged by `after`, the last server id read: Discord answers 200 at most,
+        and a server past the first page could otherwise be neither offered nor
+        mapped, since creating a mapping checks against this same list.
+        """
+        guilds: list[dict[str, Any]] = []
+        after: str | None = None
+        while True:
+            query = f"?limit={_GUILD_PAGE}" + (f"&after={after}" if after else "")
+            found = await self._call("GET", f"/users/@me/guilds{query}", bot_token)
+            found.raise_for_status()
+            page = found.json()
+            if len(guilds) + len(page) > _MAX_ROLE_GUILDS:
+                raise httpx.ProtocolError("Discord role discovery supports at most 2,500 servers")
+            guilds.extend(page)
+            if len(page) < _GUILD_PAGE:
+                break
+            after = str(page[-1]["id"])
+        servers: list[Server] = []
+        for offset in range(0, len(guilds), _ROLE_LOOKUP_CONCURRENCY):
+            try:
+                async with asyncio.TaskGroup() as group:
+                    tasks = [
+                        group.create_task(
+                            self._with_roles(
+                                bot_token, str(guild["id"]), str(guild.get("name") or "")
+                            )
+                        )
+                        for guild in guilds[offset : offset + _ROLE_LOOKUP_CONCURRENCY]
+                    ]
+            except* httpx.HTTPError as failures:
+                # Keep the adapter's HTTP error contract after sibling cleanup.
+                raise failures.exceptions[0] from None
+            servers.extend(task.result() for task in tasks)
+        return servers
+
+    async def server(self, bot_token: str, guild_id: str) -> Server | None:
+        """One server the bot is in, with the roles a mapping can name; `None` if it is not in it.
+
+        Two calls whatever the bot's server count, for creating a mapping, which
+        names one server: reading every server's roles to check one is a call
+        per server inside the request.
+        """
+        found = await self._call("GET", f"/guilds/{guild_id}", bot_token)
+        if found.status_code in (403, 404):
+            return None
+        found.raise_for_status()
+        return await self._with_roles(bot_token, guild_id, str(found.json().get("name") or ""))
+
+    async def _with_roles(self, bot_token: str, guild_id: str, name: str) -> Server:
+        roles = await self._call("GET", f"/guilds/{guild_id}/roles", bot_token)
+        roles.raise_for_status()
+        return Server(id=guild_id, name=name, roles=mappable_roles(guild_id, roles.json()))
 
     async def _messages(self, bot_token: str, channel_id: str, limit: int) -> list[dict[str, Any]]:
         """The last `limit` messages of one channel or thread, oldest first, without system ones.
@@ -1171,6 +1262,7 @@ class DiscordAdapter(ChannelAdapter):
         name = str(command.get("name") or "")
         user = interaction_user(data)
         attachments: list[IncomingAttachment] = []
+        checked_for: tuple[str, str, str] | None = None
         if command.get("type") == 3 and name == ASK_ABOUT:
             target = (
                 (command.get("resolved") or {})
@@ -1210,21 +1302,21 @@ class DiscordAdapter(ChannelAdapter):
                 )
                 return
             key, guild = self._interaction_key(data, message_id=None)
-            refusal = await refusal_before_publishing(
-                IncomingMessage(
-                    platform=self.platform,
-                    bot_id=bot_id,
-                    platform_user_id=str(user.get("id") or ""),
-                    platform_chat_id=key,
-                    chat_type="group" if guild else "private",
-                    text=question,
-                    raw=data,
-                    platform_username=user.get("username"),
-                    platform_display_name=user.get("global_name"),
-                    message_id=interaction_id,
-                    addressed=True,
-                )
+            preflight = IncomingMessage(
+                platform=self.platform,
+                bot_id=bot_id,
+                platform_user_id=str(user.get("id") or ""),
+                platform_chat_id=key,
+                chat_type="group" if guild else "private",
+                text=question,
+                raw=data,
+                platform_username=user.get("username"),
+                platform_display_name=user.get("global_name"),
+                message_id=interaction_id,
+                addressed=True,
             )
+            refusal = await refusal_before_publishing(preflight)
+            checked_for = preflight.discord_roles_checked_for
             if refusal is not None:
                 await self._complete_ask_response(app_id, token, refusal)
                 return
@@ -1275,6 +1367,7 @@ class DiscordAdapter(ChannelAdapter):
                     message_id=interaction_id,
                     addressed=True,
                     attachments=attachments,
+                    discord_roles_checked_for=checked_for,
                 )
             ),
             name=f"discord-command:{bot_id}",

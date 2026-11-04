@@ -164,7 +164,9 @@ class TestGroupRoutes:
         resp = await client.delete(f"{V1}/orgs/{ORG}/groups/{group_id}")
 
         assert resp.status_code == 204
-        assert groups.delete.await_args.args == (ORG, group_id, CALLER.id)
+        ctx, deleted = groups.delete.await_args.args
+        assert deleted == group_id
+        assert (ctx.organization_id, ctx.user_id) == (ORG, CALLER.id)
 
     async def test_members_carry_who_put_them_there(
         self, client: AsyncClient, groups: MagicMock
