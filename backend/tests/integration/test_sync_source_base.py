@@ -500,3 +500,41 @@ class TestTheUpgradesBackfill:
         assert on_personal == [(str(oldest_of_org.id), str(org_1.id), NAME)]
         assert template.knowledge_base_id is None and template.is_active
         assert already.knowledge_base_id == org_1_base.id
+
+
+class TestTheDowngrade:
+    async def test_a_source_on_a_base_its_name_does_not_resolve_to_is_stopped(
+        self, db: AsyncSession
+    ) -> None:
+        """The column is the only record of a source's base. Dropped, the earlier
+        code resolves the name to the oldest base, so a source pinned to another
+        one would sync there - into another audience - unless it is stopped."""
+        owner = _user()
+        db.add(owner)
+        await db.flush()
+        organization = await _org(db, owner)
+        # #2551's own case: a member's older personal base, the organization's newer one.
+        oldest = _base(
+            organization.id, scope=KBScope.PERSONAL, owner=owner.id, age=timedelta(days=2)
+        )
+        newer = _base(organization.id, age=timedelta(days=1))
+        db.add_all([oldest, newer])
+        await db.flush()
+        on_newer = _source(organization.id, kb=newer)
+        on_oldest = _source(organization.id, kb=oldest)
+        paused = _source(organization.id, kb=newer)
+        paused.is_active = False
+        db.add_all([on_newer, on_oldest, paused])
+        await db.flush()
+
+        migration = _migration()
+        reported = await db.run_sync(
+            lambda session: migration.deactivate_diverging(session.connection())
+        )
+        for source in (on_newer, on_oldest, paused):
+            await db.refresh(source)
+
+        assert reported == [(str(on_newer.id), str(organization.id), NAME)]
+        assert not on_newer.is_active
+        assert on_oldest.is_active
+        assert not paused.is_active

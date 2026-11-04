@@ -31,7 +31,10 @@ deactivated by the teardown so they can be reassigned (as since #2574). The
 foreign key is a backstop behind that, and a sync refuses a source with none.
 
 The downgrade drops the column; it does not reactivate the sources the upgrade
-deactivated, because nothing records which they were but the log.
+deactivated, because nothing records which they were but the log. Before it
+drops the column it deactivates, and logs, every active source recording a base
+other than the one its collection name resolves to, since the earlier code would
+sync it there instead.
 
 Revision ID: 0257_sync_source_knowledge_base
 Revises: 0256_discord_role_mappings
@@ -83,6 +86,33 @@ _DEACTIVATE_UNATTRIBUTABLE = sa.text(
 )
 
 
+# What a downgrade must not leave running: an active source recording a base
+# other than the one `choose_for_collection` picks by name. The code before this
+# revision resolves the name, so it would sync that source into another base -
+# and another audience. Only the column holds the choice, and the downgrade drops
+# it.
+_DEACTIVATE_DIVERGING = sa.text(
+    """
+    UPDATE sync_sources AS s
+    SET is_active = false
+    WHERE s.is_active
+      AND s.knowledge_base_id IS NOT NULL
+      AND s.knowledge_base_id IS DISTINCT FROM (
+          SELECT kb.id
+          FROM knowledge_bases AS kb
+          WHERE kb.collection_name = s.collection_name
+            AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
+          ORDER BY
+              CASE WHEN kb.organization_id = s.organization_id THEN 0 ELSE 1 END,
+              kb.created_at,
+              kb.id
+          LIMIT 1
+      )
+    RETURNING s.id, s.organization_id, s.collection_name
+    """
+)
+
+
 # A source the backfill filed under a member's personal base while its
 # organization also has an org-scoped base of the name: the choice the sync made
 # before, kept, but likely the misfiling #2551 describes.
@@ -127,6 +157,16 @@ def on_a_personal_base(bind: Connection) -> list[tuple[str, str, str]]:
     return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
 
 
+def deactivate_diverging(bind: Connection) -> list[tuple[str, str, str]]:
+    """Deactivate active sources the name would now resolve to another base.
+
+    Apart from `downgrade` so a test can run it while the column still exists.
+    Answers `(source id, organization id, collection name)` for each.
+    """
+    rows = bind.execute(_DEACTIVATE_DIVERGING).all()
+    return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
+
+
 def upgrade() -> None:
     op.add_column("sync_sources", sa.Column("knowledge_base_id", sa.UUID(), nullable=True))
     op.create_index(
@@ -165,6 +205,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    for source_id, organization_id, collection_name in deactivate_diverging(op.get_bind()):
+        logger.warning(
+            "Sync source %s (organization %s) records a knowledge base that collection "
+            "'%s' no longer resolves to without this revision; it was deactivated so it "
+            "cannot sync into another base. Re-point it and set is_active back to true.",
+            source_id,
+            organization_id,
+            collection_name,
+        )
     op.drop_constraint(
         op.f("sync_sources_knowledge_base_id_fkey"), "sync_sources", type_="foreignkey"
     )
