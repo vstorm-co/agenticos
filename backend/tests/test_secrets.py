@@ -32,6 +32,7 @@ from app.core.secret_kinds import (
     SecretRequirement,
     describe_kinds,
     seal_secret,
+    unseal_kind,
     unseal_secret,
 )
 from app.core.vault import VaultScope, seal
@@ -996,7 +997,7 @@ async def test_selected_listing_key_requires_resource_visibility(visible: bool) 
         patch(
             "app.services.organization_secret.resolve_access", new=AsyncMock(return_value=visible)
         ),
-        patch("app.services.organization_secret.unseal_secret", wraps=unseal_secret) as unseal,
+        patch("app.services.organization_secret.unseal_kind", wraps=unseal_kind) as unseal,
     ):
         if visible:
             assert (
@@ -1022,7 +1023,7 @@ async def test_selected_listing_key_refuses_wrong_provider_or_kind(purpose: str,
             new=AsyncMock(return_value=secret),
         ),
         patch("app.services.organization_secret.resolve_access", new=AsyncMock(return_value=True)),
-        patch("app.services.organization_secret.unseal_secret") as unseal,
+        patch("app.services.organization_secret.unseal_kind") as unseal,
         pytest.raises(BadRequestError),
     ):
         await OrganizationSecretService(_db()).listing_key(ctx, "stav", secret_id=secret.id)
@@ -1038,7 +1039,7 @@ async def test_selected_listing_key_refuses_a_missing_or_foreign_tenant_key() ->
             new=AsyncMock(return_value=None),
         ) as get,
         patch("app.services.organization_secret.resolve_access", new=AsyncMock()) as access,
-        patch("app.services.organization_secret.unseal_secret") as unseal,
+        patch("app.services.organization_secret.unseal_kind") as unseal,
         pytest.raises(BadRequestError),
     ):
         await OrganizationSecretService(_db()).listing_key(ctx, "stav", secret_id=secret_id)

@@ -381,14 +381,12 @@ class OrganizationSecretService:
                 raise BadRequestError(message="That key is not in this organization's vault")
             if secret.purpose != provider or secret.kind != SecretKind.API_KEY.value:
                 raise BadRequestError(message="Choose an API key for this provider")
-            value = unseal_secret(
+            value = unseal_kind(
                 secret.sealed_secret,
-                kind=SecretKind(secret.kind),
+                model=ApiKeySecret,
                 scope=VaultScope.organization(ctx.organization_id),
                 key_version=secret.key_version,
             )
-            if not isinstance(value, ApiKeySecret):
-                raise BadRequestError(message="Choose an API key for this provider")
             return value.api_key.get_secret_value()
         secrets = await organization_secret_repo.list_secrets(
             self.db, organization_id=ctx.organization_id, purposes=[provider]

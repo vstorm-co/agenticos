@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import httpx2
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -2262,11 +2263,11 @@ class TestStavRegion:
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("region", ["eu", "eea"])
+@pytest.mark.parametrize("region", ["eu", "eea", "global"])
 @pytest.mark.parametrize("surface", ["chat/completions", "responses"])
 @pytest.mark.parametrize("header", ["X-Stav-Runs-In", "x-stav-runs-in"])
 async def test_stav_region_cannot_be_overridden_by_request_headers(
-    region: Literal["eu", "eea"], surface: str, header: str
+    region: Literal["eu", "eea", "global"], surface: str, header: str
 ) -> None:
     from app.agents.model_resolver import _StavProvider
 
@@ -2284,3 +2285,15 @@ async def test_stav_region_cannot_be_overridden_by_request_headers(
         client = provider.client.with_options(http_client=transport)
         await client.post(surface, cast_to=object, options={"headers": {header: "global"}})
     assert received == [region]
+
+
+@pytest.mark.anyio
+async def test_stav_transport_refuses_an_unsupported_legacy_http_client() -> None:
+    from app.agents.model_resolver import _StavProvider
+
+    async with httpx.AsyncClient() as legacy:
+        with (
+            patch.object(_StavProvider, "_get_http_client", return_value=legacy),
+            pytest.raises(TypeError, match="Stav requires an httpx2 client"),
+        ):
+            _StavProvider(api_key="test", base_url="https://stav.example/v1", region="eu")
