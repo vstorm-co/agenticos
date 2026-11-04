@@ -8581,8 +8581,15 @@
         "title": "Use in the last {days} days",
         "loads": "{count, plural, =0 {Not opened} =1 {Opened once} other {Opened # times}}",
         "none": "No agent opened this skill in the last {days} days. Runs of evals and the test panel are not counted.",
-        "agent": "{loads, plural, =1 {opened once} other {opened # times}}{files, plural, =0 {} =1 { · 1 file read} other { · # files read}}{seen, select, yes { · last {last}} other {}}",
-        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
+        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}.",
+        "chart": "Loads per day, one line per agent",
+        "table": {
+          "agent": "Agent",
+          "loads": "Loads",
+          "files": "Files read",
+          "last": "Last used"
+        },
+        "never": "Not yet"
       },
       "catchUp": "Catch “{name}” up with main",
       "toMain": "Move “{name}” to main",

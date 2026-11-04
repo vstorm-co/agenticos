@@ -8341,8 +8341,15 @@
         "title": "Użycie w ostatnich {days} dniach",
         "loads": "{count, plural, =0 {Nie otwierany} one {Otwarty raz} few {Otwarty # razy} many {Otwarty # razy} other {Otwarty # razy}}",
         "none": "Żaden agent nie otworzył tego skilla w ostatnich {days} dniach. Runy ewaluacji i panelu testowego się nie liczą.",
-        "agent": "{loads, plural, one {otwarty raz} few {otwarty # razy} many {otwarty # razy} other {otwarty # razy}}{files, plural, =0 {} one { · przeczytany 1 plik} few { · przeczytane # pliki} many { · przeczytanych # plików} other { · przeczytano # pliku}}{seen, select, yes { · ostatnio {last}} other {}}",
-        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
+        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}.",
+        "chart": "Wczytania dziennie, jedna linia na agenta",
+        "table": {
+          "agent": "Agent",
+          "loads": "Wczytania",
+          "files": "Odczytane pliki",
+          "last": "Ostatnio"
+        },
+        "never": "Jeszcze nie"
       },
       "catchUp": "Dogoń main w forku „{name}”",
       "toMain": "Przenieś „{name}” do main",

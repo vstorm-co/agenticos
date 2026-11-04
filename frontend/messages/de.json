@@ -8459,8 +8459,15 @@
         "title": "Nutzung in den letzten {days} Tagen",
         "loads": "{count, plural, =0 {Nicht geöffnet} =1 {Einmal geöffnet} other {# Mal geöffnet}}",
         "none": "Kein Agent hat diesen Skill in den letzten {days} Tagen geöffnet. Runs von Evals und dem Testbereich zählen nicht.",
-        "agent": "{loads, plural, =1 {einmal geöffnet} other {# Mal geöffnet}}{files, plural, =0 {} =1 { · 1 Datei gelesen} other { · # Dateien gelesen}}{seen, select, yes { · zuletzt {last}} other {}}",
-        "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet."
+        "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet.",
+        "chart": "Ladevorgänge pro Tag, eine Linie pro Agent",
+        "table": {
+          "agent": "Agent",
+          "loads": "Ladevorgänge",
+          "files": "Gelesene Dateien",
+          "last": "Zuletzt genutzt"
+        },
+        "never": "Noch nicht"
       },
       "catchUp": "„{name}“ auf main nachziehen",
       "toMain": "„{name}“ nach main übernehmen",
