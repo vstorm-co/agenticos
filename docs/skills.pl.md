@@ -1,5 +1,5 @@
 ---
-source_sha: "f6a650da99f7"
+source_sha: "65c2fb3a274d"
 ---
 
 # Skille { #skills }
@@ -152,7 +152,8 @@ shella, glob obejmujący kilka skilli ani skrypt, który sam czyta plik, nie są
 rozpoznawane.
 
 `GET /api/v1/skills/{id}/usage?days=30` zwraca dla każdego agenta liczbę runów,
-które użyły skilla w tym oknie, z wersją, którą każdy dostał. Runy ewaluacji i
+które użyły skilla w tym oknie, z wersją, którą każdy dostał, i liczbą na każdy
+dzień okna w UTC, także zerową. Runy ewaluacji i
 panelu testowego w Builderze są pominięte. Liczby pochodzą z runów, więc wymagają
 `runs:view`; agent, którego wywołujący nie widzi, jest policzony, ale nie nazwany.
 
@@ -492,6 +493,22 @@ wersję roboczą żywego agenta albo przez wersję, którą serwuje jedno z jego
 środowisk, samego agenta albo specjalisty inline. Odmowa wymienia agentów, których
 widzisz, i liczy pozostałych. Skill, którego nikt nie używa, usuwa się razem z
 jego wersjami i forkami.
+
+Możesz też w jednym kroku usunąć go z tych agentów i skasować
+(`DELETE /api/v1/skills/{id}?remove_from_agents=true`). Każdy agent traci skill w
+swojej wersji roboczej, sam i w każdym specjaliście inline. Tam, gdzie środowisko,
+które podąża za publikacjami, serwuje wersję używającą skilla, najnowsza
+opublikowana wersja agenta jest publikowana ponownie bez niego, tak jak robi to
+Zmień wersję.
+
+Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia. Całe
+żądanie zostaje odrzucone, z nazwami agentów, gdy:
+
+- agent, który go używa, jest przed tobą ukryty;
+- nie możesz edytować któregoś z nich albo opublikować tego, którego trzeba
+  opublikować;
+- środowisko czekające na promocję serwuje wersję używającą skilla. Takie
+  środowisko przesuwa tylko promocja, a to decyzja jego właściciela.
 
 | Ścieżka | Co robi |
 |---|---|

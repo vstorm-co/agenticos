@@ -1,5 +1,5 @@
 ---
-source_sha: "f6a650da99f7"
+source_sha: "65c2fb3a274d"
 ---
 
 # Skills { #skills }
@@ -156,7 +156,8 @@ una shell, un glob sobre varios skills ni un script que lee el archivo por su
 cuenta.
 
 `GET /api/v1/skills/{id}/usage?days=30` devuelve, por agent, cuántos runs usaron
-el skill en ese intervalo, con la versión que recibió cada uno. Los runs de evals
+el skill en ese intervalo, con la versión que recibió cada uno y la cifra de cada
+día del intervalo en UTC, también cuando es cero. Los runs de evals
 y del panel de pruebas del Builder no cuentan. Las cifras salen de los runs, así
 que necesitan `runs:view`; un agent que quien llama no puede ver se cuenta, pero
 nunca se nombra.
@@ -507,6 +508,20 @@ Un skill que usa un agent no se puede borrar. Es un skill vinculado por el borra
 de un agent activo, o por una versión que sirve uno de sus entornos, del propio
 agent o de un especialista inline. El rechazo nombra los agents que puedes ver y
 cuenta los demás. Un skill que nadie usa se borra con sus versiones y sus forks.
+
+También puedes quitarlo de esos agents y borrarlo en un solo paso
+(`DELETE /api/v1/skills/{id}?remove_from_agents=true`). Cada agent pierde el skill
+en su borrador, el propio agent y cada especialista inline. Donde un entorno que
+sigue las publicaciones sirve una versión que lo usa, la versión publicada más
+reciente del agent se publica de nuevo sin él, como hace Cambiar versión.
+
+O todos los agents lo pierden y el skill se borra, o no cambia nada. Toda la
+petición se rechaza, nombrando los agents, cuando:
+
+- un agent que lo usa está oculto para ti;
+- no puedes editar alguno de ellos, o publicar uno que hay que publicar;
+- un entorno que espera una promoción sirve una versión que lo usa. Solo una
+  promoción mueve ese entorno, y eso lo decide su responsable.
 
 | Ruta | Qué hace |
 |---|---|

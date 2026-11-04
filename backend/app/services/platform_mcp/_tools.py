@@ -2179,11 +2179,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Name `fork_id` to improve that fork; without it, main. `from_run` is an
         agent's Improve session whose skill problems start it. `total_usd` is
-        what it costs up to its first stop and `per_round_usd` about one
-        attempt's proposal. Each attempt's check runs on every agent of the line,
-        billed to that agent, and is priced only when that step is taken, so a
-        spending limit for the whole session must leave room for the checks:
-        ask the person for one, and say it is not priced yet.
+        what it costs up to its first stop, `per_round_usd` about what one
+        attempt costs - its proposal and its check on every agent of the line,
+        of which `check_usd` is the check - each priced again when it is taken,
+        and `limit_usd` the spending limit for the whole session, covering the
+        start and every attempt. Tell the person all three before starting one.
         """
         target: dict[str, Any] = {
             "fork_id": str(fork_id) if fork_id is not None else None,
@@ -2191,7 +2191,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
         if from_run is not None:
             target["from_run"] = str(from_run)
-        return await api.request("POST", f"/skills/{skill_id}/improvements/estimate", json=target)
+        estimate = await api.request(
+            "POST", f"/skills/{skill_id}/improvements/estimate", json=target
+        )
+        return {**estimate, "limit_usd": _session_limit(estimate)}
 
     async def start_skill_improvement(
         skill_id: UUID,

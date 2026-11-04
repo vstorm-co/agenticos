@@ -144,7 +144,8 @@ Listing the folder is not counted. A path a shell assembles, a glob over several
 skills, or a script that reads the file itself is not recognised.
 
 `GET /api/v1/skills/{id}/usage?days=30` returns, per agent, how many runs used the
-skill in that window, with the version each was served. Runs of evals and of the
+skill in that window, with the version each was served and the count for every
+UTC day of the window, zeros included. Runs of evals and of the
 Builder's test panel are left out. The figures are read off runs, so they need
 `runs:view`; an agent the caller may not see is counted, never named.
 
@@ -474,6 +475,20 @@ A skill that an agent uses cannot be deleted. That is a skill bound by a live
 agent's draft, or by a version that one of its environments serves, the agent's own
 or an inline specialist's. The refusal names the agents you can see and counts the
 others. A skill that nobody uses is deleted with its versions and forks.
+
+You can also remove it from those agents and delete it in one step
+(`DELETE /api/v1/skills/{id}?remove_from_agents=true`). Each agent loses the skill
+from its draft, itself and in every inline specialist. Where an environment that
+follows publishes serves a version that uses it, the agent's newest published
+version is published again without it, as Change version does.
+
+Either every agent loses it and the skill is deleted, or nothing changes. The whole
+request is refused, naming the agents, when:
+
+- an agent that uses it is hidden from you;
+- you may not edit one of them, or may not publish one that has to be published;
+- an environment that waits for promotion serves a version that uses it. Only a
+  promotion moves such an environment, and that is its owner's decision.
 
 | Route | What it does |
 |---|---|
