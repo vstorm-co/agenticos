@@ -12,7 +12,14 @@ OutcomeStatusName = Literal["open", "acknowledged", "resolved", "muted"]
 OutcomeAction = Literal["acknowledge", "resolve", "mute"]
 
 
+class OutcomeSource(BaseModel):
+    item_id: str
+    revision: str
+    url: str | None = None
+
+
 class OutcomeRead(BaseSchema):
+    source: OutcomeSource | None = None
     id: UUID
     kind: str
     summary: str

@@ -5115,3 +5115,47 @@ async def test_create_can_remain_paused_until_native_routine_consent(active: boo
             _ctx(), uuid.uuid4(), _interval().model_copy(update={"is_active": active})
         )
     assert repo.create.await_args.kwargs["is_active"] is active
+
+
+@pytest.mark.parametrize(
+    "findings",
+    [[], [{"key": "thread", "revision": "mail-1", "title": "Reply", "content": "Draft"}]],
+)
+async def test_inbox_mode_only_delivers_relevant_cases_to_the_owner(findings):
+    import json
+
+    trigger = _trigger(result_mode="inbox", answer_to="primary")
+    service = _service()
+    target = uuid.uuid4()
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
+            new=AsyncMock(return_value=trigger),
+        ),
+        patch(
+            "app.services.agent_trigger.member_repo.get_active",
+            new=AsyncMock(return_value=MagicMock(role="owner")),
+        ),
+        patch("app.services.agent_trigger.RoutineFindingService") as publisher,
+        patch("app.services.agent_trigger.PrimaryConversationService") as primary,
+    ):
+        publisher.return_value.publish = AsyncMock(return_value=target)
+        delivered = await service._deliver(
+            trigger,
+            agent=_agent(),
+            run=MagicMock(routine_policy={"result_mode": "inbox"}),
+            answer=json.dumps({"findings": findings}),
+        )
+    primary.assert_not_called()
+    assert delivered.status == ("delivered" if findings else "no_answer")
+    assert delivered.conversation_id == (target if findings else None)
+    if findings:
+        assert publisher.return_value.publish.await_args.kwargs["user_id"] == _CALLER
+    else:
+        publisher.return_value.publish.assert_not_awaited()
+
+
+@pytest.mark.parametrize("mode", [None, "invalid"])
+async def test_invalid_or_null_routine_result_policy_is_refused(mode):
+    with pytest.raises(PydanticValidationError):
+        TriggerUpdate.model_validate({"result_mode": mode})

@@ -154,7 +154,7 @@ export function WatchesCard({
   );
 }
 
-function WatchRow({
+export function WatchRow({
   watch,
   lapsed,
   onEdit,

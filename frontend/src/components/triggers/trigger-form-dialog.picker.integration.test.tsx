@@ -154,3 +154,26 @@ it("delivers a routine proposed in a chat back to that exact chat", async () => 
     }),
   );
 });
+
+it("creates a quiet Inbox routine with working chats instead of a report destination", async () => {
+  const user = userEvent.setup();
+  vi.mocked(apiClient.post).mockResolvedValue({ id: "t-inbox", trigger_type: "schedule" });
+  render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
+  const dialog = await screen.findByRole("dialog");
+  await user.click(within(dialog).getByRole("combobox", { name: "When to bring results" }));
+  await user.click(
+    await screen.findByRole("option", { name: "Only when something needs attention" }),
+  );
+  expect(within(dialog).queryByRole("combobox", { name: "Where the answer goes" })).toBeNull();
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.type(
+    within(dialog).getByLabelText("Message"),
+    "Check new mail and prepare drafts without sending.",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await user.click(within(dialog).getByRole("button", { name: "Create" }));
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/agents/a1/triggers",
+    expect.objectContaining({ result_mode: "inbox" }),
+  );
+});

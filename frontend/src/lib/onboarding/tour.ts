@@ -1025,25 +1025,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "routines-list",
     page: ROUTES.ROUTINES,
     target: "routines-list",
-    activate: "routines-agents-tab",
   },
   {
     id: "routine-access",
     page: ROUTES.ROUTINES,
     target: "routine-access",
-    activate: "routines-agents-tab",
     optional: true,
-  },
-  // Watches over the reader's own connections (#2301); the card's header is always drawn.
-  {
-    id: "routines-watches",
-    page: ROUTES.ROUTINES,
-    target: "routines-watches",
-    activate: "routines-watches-tab",
   },
   {
     id: "routines-create",
-    activate: "routines-agents-tab",
     page: ROUTES.ROUTINES,
     target: "routines-create",
     permission: Perm.agentsRun,

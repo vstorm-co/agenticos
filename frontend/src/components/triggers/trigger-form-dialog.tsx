@@ -1,5 +1,6 @@
 "use client";
 
+import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { FILTER_COPY } from "./portal-trigger-dialog";
@@ -157,6 +158,7 @@ interface TriggerFormDialogProps {
   /** The trigger to edit, or null/undefined to create a new one. */
   trigger?: Trigger | null;
   /** Which concept a new trigger starts on. Ignored when editing. */
+  initialResultMode?: RoutineResultMode;
   initialType?: TriggerType;
   /** A template the new trigger starts from - an idea picked on the Routines page. */
   initialTemplate?: TriggerTemplate | null;
@@ -183,6 +185,7 @@ export function TriggerFormDialog({
   open,
   onOpenChange,
   trigger = null,
+  initialResultMode = "report",
   initialType = "schedule",
   initialTemplate = null,
   originConversationId = null,
@@ -282,6 +285,9 @@ export function TriggerFormDialog({
     const instant = endInstant(value);
     setInvalidEnd(instant === undefined || (instant !== null && Date.parse(instant) <= Date.now()));
   };
+  const [resultMode, setResultMode] = useState<RoutineResultMode>(
+    trigger?.result_mode ?? initialResultMode,
+  );
   const [answerTo, setAnswerTo] = useState<TriggerAnswerTo>(
     trigger ? (trigger.answer_to ?? "run_log") : originConversationId ? "conversation" : "primary",
   );
@@ -500,6 +506,7 @@ export function TriggerFormDialog({
     const base = {
       prompt,
       ...(maxFailures !== 3 ? { max_failures: maxFailures } : {}),
+      ...(resultMode === "inbox" ? { result_mode: resultMode } : {}),
       ...(notificationChannels !== null ? { notification_channels: notificationChannels } : {}),
       name: name.trim() || null,
       trigger_type: type,
@@ -615,6 +622,7 @@ export function TriggerFormDialog({
         }
         const post = teamsPost === NO_TEAMS_POST ? null : teamsPost;
         if (post !== (trigger.teams_conversation_id ?? null)) patch.teams_conversation_id = post;
+        if (resultMode !== (trigger.result_mode ?? "report")) patch.result_mode = resultMode;
         if (answerTo !== (trigger.answer_to ?? "run_log")) {
           patch.answer_to = answerTo;
           if (answerTo === "conversation")
@@ -897,6 +905,7 @@ export function TriggerFormDialog({
                 <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
               )}
 
+            <ResultModeField value={resultMode} onChange={setResultMode} />
             <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
               {namedEnvironments.length > 0 && (
                 <EnvironmentField
@@ -917,13 +926,17 @@ export function TriggerFormDialog({
                 />
               )}
 
-              <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+              {resultMode === "report" && (
+                <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+              )}
 
-              <AnswerToField
-                value={answerTo}
-                onChange={setAnswerTo}
-                hasConversation={hasConversation}
-              />
+              {resultMode === "report" && (
+                <AnswerToField
+                  value={answerTo}
+                  onChange={setAnswerTo}
+                  hasConversation={hasConversation}
+                />
+              )}
               <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
               <NotificationChannelsField
                 value={notificationChannels}
@@ -1052,6 +1065,7 @@ export function TriggerFormDialog({
 
               <NameField value={name} onChange={setName} />
 
+              <ResultModeField value={resultMode} onChange={setResultMode} />
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
                   <EnvironmentField
@@ -1072,13 +1086,17 @@ export function TriggerFormDialog({
                   />
                 )}
 
-                <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+                {resultMode === "report" && (
+                  <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+                )}
 
-                <AnswerToField
-                  value={answerTo}
-                  onChange={setAnswerTo}
-                  hasConversation={hasConversation}
-                />
+                {resultMode === "report" && (
+                  <AnswerToField
+                    value={answerTo}
+                    onChange={setAnswerTo}
+                    hasConversation={hasConversation}
+                  />
+                )}
                 <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
                 <NotificationChannelsField
                   value={notificationChannels}

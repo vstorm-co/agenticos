@@ -2417,10 +2417,11 @@
     },
     "routines": {
       "title": "Rutinler",
-      "description": "Agent rutinleri görevleri yerine getirir. İzleme rutinlerim bağlı hesaplarınızı kontrol eder ve bulguları özel Inbox kutunuza getirir.",
-      "newWatch": "Yeni izleme rutini",
-      "agentsTab": "Agent rutinleri",
-      "watchesTab": "İzleme rutinlerim"
+      "description": "Görevler ve izleme tek yerde. Çalışma zamanını ve ne zaman dikkat gerektiğini seçin.",
+      "newWatch": "İzle ve bildir",
+      "newRoutine": "Yeni rutin",
+      "scheduledTask": "Zamanlamaya göre çalıştır",
+      "eventTask": "Bir olay geldiğinde çalıştır"
     },
     "signIns": {
       "cancel": "İptal",
@@ -10431,7 +10432,12 @@
       "sandbox": "Agent’ın sandbox’ı",
       "pick": "Bir klasör seçin…",
       "useSandbox": "Sandbox’ı kullan"
-    }
+    },
+    "resultMode": "Sonuçlar ne zaman bildirilsin",
+    "resultReport": "Tamamlanan her çalışmadan sonra",
+    "resultInbox": "Yalnızca dikkat gerektiğinde",
+    "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
+    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir."
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -10553,12 +10559,12 @@
     "publicLiveDataConfirmWhy": "Bir sayfanın herkese açık bağlantısına sahip herkes ve sayfayı embed eden tüm siteler, oturum açmadan tablo verilerini görür. Sayfanın sahibi veya bir Owner ya da Admin onaylayana kadar hiçbir veri gösterilmez. Daha önce onaylanmış sayfalar verilerini hemen yeniden gösterir.",
     "publicLiveDataConfirm": "İzin ver",
     "proactive": {
-      "title": "Proactivity",
-      "description": "Platformun arka planda, kişiler için kendi kendine yaptığı işler. Siz açana kadar kapalıdır.",
+      "title": "Asistan önerileri ve izleme",
+      "description": "Sohbet tabanlı öneriler ve salt okunur izleme bağımsızdır. Zamanlanmış ve olay rutinleri önerilerin etkin olmasını gerektirmez.",
       "nightly": "Gece önerileri",
-      "nightlyHint": "Her kişinin haftasına göz atar: tekrarlayıp durduğu bir istek için routine, profili ve boş sohbetinde gösterilen ilk mesajlar. Kişiler kendi ayarlarından bu özelliği kapatabilir.",
+      "nightlyHint": "Son sohbetlerden ve bellekten rutin, ajan ve profil güncellemeleri önerir. Posta kutularını taramaz. Önerilen rutini oluşturmak kullanıcı onayı gerektirir.",
       "model": "Model",
-      "modelHint": "Gece incelemesi ve watch’ların kullandığı model. Küçük ve ekonomik bir model yeterlidir.",
+      "modelHint": "Yalnızca sohbetlerden iyileştirme önermek içindir. İzleme seçilen ajanın modelini kullanır.",
       "modelRequired": "Açmadan önce kullanılacak modeli seçin.",
       "label": "Kişi başına sınır (aylık USD)",
       "days": "Gün",
@@ -10578,13 +10584,13 @@
       "welcomeTextHint": "Her kişinin dilindeki yerleşik selamlamayı kullanmak için boş bırakın. '{organization}', '{bot}' ve '{url}' alanları doldurulur.",
       "welcomeTextPlaceholder": "'{organization}' organizasyonuna hoş geldiniz! Bana buradan istediğinizi sorun.",
       "welcomeSaved": "Karşılama mesajı kaydedildi",
-      "watches": "Kişilerin bağlantılarını izle",
-      "watchesHint": "Kişiler bağlı hesaplarında neyin izleneceğini seçer (kendilerini bekleyen pull request veya vadesi geçmiş fatura gibi) ve yeni olanlardan haberdar edilir. Yalnızca okur; buldukları her kişiye özeldir.",
+      "watches": "Salt okunur izleme rutinlerine izin ver",
+      "watchesHint": "Üyeler ajanı seçer ve kendi hesaplarındaki kaynakları onaylar. İlgili değişiklikler Inbox’a, istenen taslaklar çalışma sohbetine gider.",
       "watchMinutes": "En sık",
       "watchMinutesHint": "Bir watch’ın en sık ne zaman kontrol edebileceği. Daha sık kontrol daha maliyetlidir.",
       "switchOrganizationHint": "Proactivity’yi yapılandırmadan önce bu kuruluşa geçin; böylece buradaki model profilleri ve key’ler kullanılır.",
       "switchOrganization": "{name} kuruluşuna geç",
-      "runAttribution": "Arka plan kontrolleri Activity’de yayımlanmış AgenticOS başlangıç agent’ının altında görünür. Bu atama platform tarafından sabittir. Kontroller aşağıda seçilen proactivity modelini kullanır; agent’ın kendi modelinden bağımsızdır."
+      "runAttribution": "Sohbet analizi aşağıdaki modeli, izleme seçilen ajanı kullanır. İkisi kişi başına aylık arka plan bütçesini paylaşır. Gün ve saat ayrıca acil olmayan bulguların özetini belirler."
     }
   },
   "groups": {
@@ -12194,11 +12200,11 @@
     "loading": "Yükleniyor"
   },
   "watches": {
-    "title": "Watch’lar",
+    "title": "Salt okunur izleme",
     "description": "Asistan, kendi bağlı hesaplarınızı zamanlanmış aralıklarla kontrol edip yenilikleri bildirir. Yalnızca okur ve bulduklarını yalnızca siz görürsünüz.",
     "orgOff": "Kuruluşunuz watch’ları açmadı. Bir yönetici bunu kuruluş sayfasındaki Proactivity bölümünden açabilir.",
     "noConnections": "Önce MCP servers sayfasından kendi hesaplarınızdan birini bağlayın - GitHub, Linear veya posta kutunuz.",
-    "add": "Yeni watch",
+    "add": "İzle ve bildir",
     "resumed": "İzleme yeniden başladı",
     "paused": "Duraklatıldı",
     "removed": "İzleme durduruldu",
@@ -12210,8 +12216,8 @@
     "activeLabel": "{title} öğesini izle",
     "editLabel": "{title} watch’ını düzenle",
     "removeLabel": "{title} watch’ını durdur",
-    "newTitle": "Bir şeyi izle",
-    "editTitle": "Watch’ı düzenle",
+    "newTitle": "İzleme rutini",
+    "editTitle": "İzleme rutinini düzenle",
     "dialogDescription": "Hesaplarınızdan birinde ne aranacağını ve ne sıklıkta kontrol edileceğini seçin. Yalnızca okur; buldukları yalnızca size özeldir.",
     "connection": "Hesap",
     "connectionPlaceholder": "Bağlantılarınızdan birini seçin",
@@ -12228,7 +12234,7 @@
     "exclusionsHint": "Her satıra bir tane: yeniden bildirilmesini istemedikleriniz.",
     "cancel": "İptal",
     "save": "Kaydet",
-    "create": "İzlemeyi başlat",
+    "create": "Rutin oluştur",
     "saved": "Watch kaydedildi",
     "created": "İzleniyor - ilk kontrol bir dakika içinde yapılır",
     "cadence": {
@@ -12341,23 +12347,24 @@
     "accountNamed": "{server} ({account})",
     "createdWhere": "Routines altında bulunur; buldukları gelen kutunuza düşer.",
     "seeIt": "Görüntüle",
-    "manageInRoutines": "Watch’larınızı Routines’ten yönetin"
+    "manageInRoutines": "Watch’larınızı Routines’ten yönetin",
+    "watchAndInform": "İzle ve bildir"
   },
   "inbox": {
     "title": "Gelen kutusu",
-    "description": "Platformun kendiliğinden size getirdikleri: watch’larınızın buldukları ve gece incelemesinin önerdikleri.",
+    "description": "Dikkat gerektiren sonuçlar, onaylar ve sohbetlerinize dayalı öneriler.",
     "filterLabel": "Göster",
     "filter": {
       "all": "Tümü",
       "urgent": "Önemli",
-      "watches": "Watch’lardan",
+      "watches": "Rutin sonuçları",
       "suggestions": "Öneriler",
       "done": "Tamamlandı"
     },
     "empty": {
       "title": "Burada bekleyen yok",
-      "description": "Watch’larınızın buldukları ve gece incelemesinin önerileri burada görünür.",
-      "watches": "Bir watch ayarlayın"
+      "description": "İlgili rutin sonuçları ve asistan önerileri burada görünür.",
+      "watches": "Rutin oluştur"
     },
     "doneEmpty": "Henüz yanıtlanan yok",
     "waiting": "{count, plural, =0 {Bekleyen yok} =1 {1 öğe bekliyor} other {# öğe bekliyor}}",
@@ -12367,8 +12374,9 @@
       "agent": "Agent fikri",
       "profile": "Profil",
       "role_pack": "Routine paketi",
-      "finding": "Watch"
-    }
+      "finding": "Rutin"
+    },
+    "openWorkingChat": "Sohbeti aç"
   },
   "agentLimit": {
     "title": "Bu kuruluş agent sınırına ulaştı",

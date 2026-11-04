@@ -2819,10 +2819,11 @@
     },
     "routines": {
       "title": "Rutyny",
-      "description": "Rutyny agentów wykonują zadania. Moje obserwacje sprawdzają podłączone konta i przekazują wyniki do Twojej prywatnej skrzynki.",
-      "newWatch": "Nowa obserwacja",
-      "agentsTab": "Zadania agentów",
-      "watchesTab": "Moje obserwacje"
+      "description": "Zadania i monitorowanie w jednym miejscu. Wybierz, kiedy uruchamiać pracę i kiedy wyniki wymagają Twojej uwagi.",
+      "newWatch": "Monitoruj i informuj",
+      "newRoutine": "Nowa rutyna",
+      "scheduledTask": "Uruchamiaj według harmonogramu",
+      "eventTask": "Uruchamiaj po zdarzeniu"
     },
     "signIns": {
       "cancel": "Anuluj",
@@ -5528,12 +5529,12 @@
     "publicLiveDataConfirmWhy": "Każdy, kto ma publiczny link do strony, i każda witryna, która ją osadza, zobaczy jej dane tabel bez logowania. Nic nie jest pokazywane, dopóki właściciel strony albo Owner lub Admin tego nie potwierdzi. Strony potwierdzone wcześniej znów od razu pokażą swoje dane.",
     "publicLiveDataConfirm": "Zezwól",
     "proactive": {
-      "title": "Proaktywność",
-      "description": "Praca, którą platforma wykonuje dla ludzi sama, w tle. Wyłączona, dopóki jej nie włączysz.",
+      "title": "Sugestie asystenta i monitorowanie",
+      "description": "Sugestie na podstawie rozmów i monitorowanie źródeł działają niezależnie. Rutyny czasowe i zdarzeniowe nie wymagają włączenia sugestii.",
       "nightly": "Nocne propozycje",
-      "nightlyHint": "Przegląd tygodnia każdej osoby: rutyna dla prośby, którą powtarza, jej profil i pierwsze wiadomości, które proponuje jej pusty czat. Każdy może z tego zrezygnować we własnych ustawieniach.",
+      "nightlyHint": "Proponuj rutyny, agentów i zmiany profilu na podstawie ostatnich rozmów i pamięci. Nie przegląda skrzynek pocztowych. Utworzenie proponowanej rutyny wymaga potwierdzenia użytkownika.",
       "model": "Model",
-      "modelHint": "Na czym działa nocny przegląd i obserwacje. Wystarczy mały, tani model.",
+      "modelHint": "Tylko do proponowania usprawnień na podstawie rozmów. Monitorowanie używa modelu wybranego agenta.",
       "modelRequired": "Przed włączeniem wybierz model, na którym ma działać.",
       "label": "Limit na osobę (USD miesięcznie)",
       "days": "Dni",
@@ -5553,13 +5554,13 @@
       "welcomeTextHint": "Zostaw puste, by wysłać wbudowane powitanie w języku danej osoby. '{organization}', '{bot}' i '{url}' zostaną uzupełnione.",
       "welcomeTextPlaceholder": "Witaj w '{organization}'! Pytaj mnie o cokolwiek tutaj.",
       "welcomeSaved": "Wiadomość powitalna zapisana",
-      "watches": "Obserwowanie połączeń ludzi",
-      "watchesHint": "Każdy wybiera, co obserwować na swoich podłączonych kontach - pull requesty czekające na niego, zaległą fakturę - i dostaje informację, co nowego. Tylko czyta, a znaleziska są prywatne dla każdej osoby.",
+      "watches": "Zezwalaj na rutyny monitorujące w trybie odczytu",
+      "watchesHint": "Użytkownik wybiera agenta i zatwierdza źródła na własnych kontach. Istotne zmiany trafiają do Inbox; zamówione drafty otwierają się w rozmowie.",
       "watchMinutes": "Najczęściej",
       "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
-      "runAttribution": "Sprawdzenia w tle są widoczne w Activity pod opublikowanym agentem startowym AgenticOS. To przypisanie jest stałe w platformie. Korzystają z wybranego poniżej modelu proaktywności, niezależnie od modelu samego agenta."
+      "runAttribution": "Analiza rozmów używa modelu poniżej; monitorowanie — modelu wybranego agenta. Współdzielą miesięczny budżet pracy w tle na osobę. Dni i godzina określają też porę zestawienia niepilnych znalezisk."
     },
     "systemAgents": {
       "title": "Agenci systemowi",
@@ -7660,7 +7661,12 @@
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
-    "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit."
+    "budgetInvalid": "Wpisz dodatnią kwotę albo zostaw puste pole, aby usunąć ten limit.",
+    "resultMode": "Kiedy przekazywać wyniki",
+    "resultReport": "Po każdym zakończonym wykonaniu",
+    "resultInbox": "Tylko gdy coś wymaga uwagi",
+    "resultReportHint": "Po każdym wykonaniu przekaż raport do wybranej rozmowy.",
+    "resultInboxHint": "Utwórz jedną sprawę w Inbox i rozmowę na element źródłowy. Umieść tam zamówiony draft; sprawdzenia bez zmian pozostają ciche. Wysyłka nadal wymaga odpowiednich uprawnień i zgody."
   },
   "portals": {
     "mailboxInterval": {
@@ -12023,11 +12029,11 @@
     }
   },
   "watches": {
-    "title": "Obserwacje",
+    "title": "Monitorowanie w trybie odczytu",
     "description": "Asystent sprawdza twoje podłączone konta według harmonogramu i mówi, co nowego. Tylko czyta, a to, co znajdzie, widzisz tylko ty.",
     "orgOff": "Twoja organizacja nie włączyła obserwacji. Administrator może to zrobić na stronie organizacji, w sekcji Proactivity.",
     "noConnections": "Najpierw podłącz jedno ze swoich kont na stronie serwerów MCP - GitHub, Linear, skrzynkę pocztową.",
-    "add": "Nowa obserwacja",
+    "add": "Monitoruj i informuj",
     "resumed": "Znów obserwuję",
     "paused": "Wstrzymano",
     "removed": "Przestałem obserwować",
@@ -12040,8 +12046,8 @@
     "activeLabel": "Obserwuj: {title}",
     "editLabel": "Edytuj: {title}",
     "removeLabel": "Przestań obserwować: {title}",
-    "newTitle": "Obserwuj coś",
-    "editTitle": "Edytuj obserwację",
+    "newTitle": "Rutyna monitorująca",
+    "editTitle": "Edytuj rutynę monitorującą",
     "dialogDescription": "Czego szukać na jednym z twoich kont i jak często. Tylko czyta; to, co znajdzie, jest tylko dla ciebie.",
     "connection": "Konto",
     "connectionPlaceholder": "Wybierz jedno ze swoich połączeń",
@@ -12058,7 +12064,7 @@
     "exclusionsHint": "Po jednym w linii: czego nie chcesz więcej widzieć.",
     "cancel": "Anuluj",
     "save": "Zapisz",
-    "create": "Zacznij obserwować",
+    "create": "Utwórz rutynę",
     "saved": "Obserwacja zapisana",
     "created": "Obserwuję - pierwszy przegląd w ciągu minuty",
     "cadence": {
@@ -12192,7 +12198,7 @@
     "versionFollowing": "Śledzi opublikowaną wersję",
     "environmentSelected": "Wybrane środowisko",
     "nextCheck": "Następne sprawdzenie: {at}",
-    "watchAndInform": "Obserwuj i informuj",
+    "watchAndInform": "Monitoruj i informuj",
     "reviewSources": "Ponownie zatwierdź dołączone źródła",
     "reviewSourcesHint": "Ponownie zatwierdź połączone konto wraz z aktualną wiedzą i kontekstem agenta. Wymagane po ponownym połączeniu konta. Pozostaw wyłączone, aby zachować dotychczasową zgodę na źródła.",
     "reportMode": "Kiedy raportować",
@@ -12202,19 +12208,19 @@
   },
   "inbox": {
     "title": "Inbox",
-    "description": "To, co platforma przyniosła ci z własnej inicjatywy: znaleziska twoich obserwacji i propozycje nocnego przeglądu.",
+    "description": "Wyniki wymagające uwagi, zgody i sugestie na podstawie Twoich rozmów.",
     "filterLabel": "Pokaż",
     "filter": {
       "all": "Wszystko",
       "urgent": "Pilne",
-      "watches": "Z obserwacji",
+      "watches": "Wyniki rutyn",
       "suggestions": "Sugestie",
       "done": "Załatwione"
     },
     "empty": {
       "title": "Nic tu nie czeka",
-      "description": "Tu trafia to, co znajdą twoje obserwacje, i to, co zaproponuje nocny przegląd.",
-      "watches": "Ustaw obserwację"
+      "description": "Tutaj trafiają istotne wyniki rutyn i sugestie asystenta.",
+      "watches": "Utwórz rutynę"
     },
     "doneEmpty": "Na nic jeszcze nie odpowiedziałeś",
     "waiting": "{count, plural, =0 {Nic nie czeka} =1 {1 czeka} few {# czekają} many {# czeka} other {# czeka}}",
@@ -12224,8 +12230,9 @@
       "agent": "Pomysł na agenta",
       "profile": "Profil",
       "role_pack": "Pakiet rutyn",
-      "finding": "Obserwacja"
-    }
+      "finding": "Rutyna"
+    },
+    "openWorkingChat": "Otwórz rozmowę"
   },
   "agentLimit": {
     "title": "Ta organizacja osiągnęła limit agentów",

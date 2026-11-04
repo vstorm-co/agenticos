@@ -148,10 +148,10 @@ describe("WatchDialog", () => {
     await userEvent.click(
       screen.getByRole("radio", { name: "Pull requests waiting on my review" }),
     );
-    expect(screen.getByRole("button", { name: "Start watching" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create routine" })).toBeDisabled();
     await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
     await userEvent.click(await screen.findByRole("option", { name: "Monitor" }));
-    await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
     expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: "a-monitor" }));
   });
   it("preserves the exact stored end on an unrelated edit and only refreshes sources explicitly", async () => {
@@ -178,7 +178,7 @@ describe("WatchDialog", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("Failing checks on my pull requests");
     expect(screen.getByRole("switch", { name: "Tell me at once when it is urgent" })).toBeChecked();
     expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 3 hours");
-    await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     expect(state.create).toHaveBeenCalledWith({
       agent_id: "a-monitor",
@@ -211,7 +211,7 @@ describe("WatchDialog", () => {
     await userEvent.click(screen.getByRole("option", { name: "Our wiki" }));
     await userEvent.type(screen.getByLabelText("Name"), "Wiki");
     await userEvent.type(screen.getByLabelText("Look for"), "Pricing");
-    await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
     expect(toastSuccess.mock.calls[0]![1].action).toBeUndefined();
@@ -220,7 +220,7 @@ describe("WatchDialog", () => {
   it("takes the person's own words for a server with no presets", async () => {
     state.floor = null;
     render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} />);
-    const start = screen.getByRole("button", { name: "Start watching" });
+    const start = screen.getByRole("button", { name: "Create routine" });
     expect(start).toBeDisabled();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Account" }));
@@ -326,7 +326,7 @@ it("starts a proposed watch with a visible cadence that respects a nonstandard f
     />,
   );
   expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 90 minutes");
-  await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+  await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
   expect(state.create).toHaveBeenCalledWith(
     expect.objectContaining({
       title: "My reviews",

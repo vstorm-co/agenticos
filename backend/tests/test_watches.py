@@ -1205,3 +1205,23 @@ async def test_lost_agent_access_rolls_back_a_requested_report_instead_of_claimi
         assert await WatchLook(MagicMock()).look(watch.id) == 0
     success.assert_not_awaited()
     assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.ACCESS_REVOKED
+
+
+async def test_an_unavailable_draft_chat_is_a_delivery_problem_not_a_failed_source_check():
+    from app.core.exceptions import ConflictError
+
+    watch = _watch()
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch.object(
+                WatchLook,
+                "_record",
+                new=AsyncMock(side_effect=ConflictError(message="Working chat unavailable")),
+            )
+        )
+        attempted = stack.enter_context(patch.object(WatchLook, "_mark_attempt", new=AsyncMock()))
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    assert attempted.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE

@@ -569,3 +569,13 @@ async def test_resumed_native_workspace_restores_the_original_routine_owner(
         replace(authority, acts_as_creator=False).local_context(
             approver, public_origin=public_origin
         )
+
+
+async def test_changing_result_policy_requires_a_new_run(db: AsyncSession):
+    world = await _world(db)
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    world.trigger.result_mode = "inbox"
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority.check_in(db, world.agent.id)

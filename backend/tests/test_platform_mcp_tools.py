@@ -1521,3 +1521,25 @@ async def test_an_unsupported_console_language_is_refused_before_any_api_call(
     with pytest.raises(MCPValidationError):
         await server.call_tool("set_my_language", {"locale": "xx"})
     api.request.assert_not_called()
+
+
+async def test_mcp_can_find_and_settle_the_callers_working_case(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["list_inbox_cases"](conversation_id=RUN)
+    api.request.assert_awaited_with(
+        "GET", "/outcomes", params={"include_source": "true", "conversation_id": str(RUN)}
+    )
+    await tools["settle_inbox_case"](outcome_id=RUN, action="resolve")
+    api.request.assert_awaited_with(
+        "POST", f"/outcomes/{RUN}/settle", json={"action": "resolve", "via": "chat"}
+    )
+
+
+async def test_mcp_routine_result_policy_is_preserved_on_create_and_update(api):
+    tools = {tool.name: tool.function for tool in platform_tools(api)}
+    await tools["create_routine"](
+        agent_id=AGENT, prompt="Check mail and draft replies", every_minutes=60, result_mode="inbox"
+    )
+    assert api.request.await_args.kwargs["json"]["result_mode"] == "inbox"
+    await tools["update_routine"](agent_id=AGENT, routine_id=RUN, result_mode="report")
+    assert api.request.await_args.kwargs["json"] == {"result_mode": "report"}

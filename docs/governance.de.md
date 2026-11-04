@@ -1,5 +1,5 @@
 ---
-source_sha: "0047bdd0c23a"
+source_sha: "1e3e083daa0d"
 ---
 
 # Governance { #governance }
@@ -602,7 +602,7 @@ Das Modellfeld verwendet dieselbe Auswahl für Anbieter, Modell und Vault-Schlü
 wie der Agent Builder. Mit `connections:manage` kann ein Mitglied dort ein
 Modellprofil erstellen; ohne diese Berechtigung wählt es ein vorhandenes Profil.
 Ein neues Profil wird sofort gespeichert. **Speichern** übernimmt die Auswahl
-für die nächtlichen Vorschläge und das Briefing. Beobachtungen durch ausgewählte
+für die nächtlichen Vorschläge. Das Briefing listet vorhandene Funde ohne Modellaufruf. Beobachtungen durch ausgewählte
 Agenten teilen das Limit pro Person.
 
 Die Plattform kann ein wenig aus eigener Initiative tun, und tut nichts davon,
@@ -2482,3 +2482,44 @@ Routinen mit Budget verwenden einen gemeinsamen Nebenläufigkeitsschlüssel der 
 
 
 Bereitstellungsweite Meldungen über pausierte Jobs behalten den normalen Gelesen-/Verworfen-Status einer Benachrichtigung; sie werden nicht als Organisationsfälle dargestellt.
+
+### Routinen, Arbeitsgespräche und Inbox { #routines-working-conversations-and-inbox }
+
+**Routines** listet zeitgesteuerte Aufgaben, ereignisgesteuerte Aufgaben und
+Vorlagen zur lesenden Überwachung gemeinsam. Ein Trigger bestimmt, *wann* eine
+Routine läuft; die Überwachungsvorlage begrenzt, *was* sie tun darf. Für eine
+Verantwortung genügt eine Routine, statt Watch und Zeitplan für dasselbe Postfach.
+
+Wählen Sie **Nach jeder abgeschlossenen Ausführung** (`result_mode: report`, der
+bisherige Standard) für Berichte oder **Nur wenn etwas Aufmerksamkeit braucht**
+(`result_mode: inbox`) für stille Prüfungen. Der Agent liefert relevante
+Quellelemente mit stabilen Element- und Revisionskennungen, Kontext und dem
+vollständigen angeforderten Entwurf. Ein leeres Ergebnis erzeugt weder Gespräch
+noch Abschlussmeldung. Jedes Element erhält ein privates Arbeitsgespräch und
+einen Inbox-Vorgang. Wiederholte Revisionen werden dauerhaft dedupliziert, auch
+nach Erledigung. Eine neue Revision aktualisiert dasselbe Gespräch und öffnet den
+Vorgang erneut; stummgeschaltete Elemente bleiben stumm.
+
+Öffnen Sie das Gespräch aus der Inbox, um den Entwurf zu ändern oder den nächsten
+Schritt zu beauftragen. Lesen und Bearbeiten versenden nichts und erledigen den
+Vorgang nicht. Werkzeugberechtigungen und Freigaben gelten weiterhin. Über die
+Plattform-MCP-Werkzeuge `list_inbox_cases` und `settle_inbox_case` findet der Agent
+den Vorgang und erledigt ihn nach erfolgreicher beauftragter Arbeit oder einer
+ausdrücklichen Erledigungsbestätigung. Inbox und Chat teilen den Zustand; beim
+Abschluss entfallen ausstehende Benachrichtigungen. Lesende Überwachung kann
+Entwurfstext im Gespräch vorbereiten, aber nicht im Quelldienst speichern oder senden.
+
+Nächtliche Vorschläge bleiben eine optionale, unabhängige Analyse jüngster Anfragen
+und Erinnerungen, kein weiterer Postfachscan. Überwachung nutzt das Modell ihres
+gewählten Agenten und benötigt kein Vorschlagsmodell. Die Organisation bestimmt
+weiterhin Verfügbarkeit, Häufigkeit und das gemeinsame Hintergrundbudget pro
+Person. Gewöhnliche Routinen behalten Agenten-, Organisations- und optionale eigene
+Budgetgrenzen. Tage und Uhrzeit bestimmen auch die Zusammenfassung nicht dringender Funde.
+
+Die morgendliche Zusammenfassung listet bereits gespeicherte, nicht dringende
+Funde ohne weiteren Modellaufruf oder Quellenscan. Sie ist eine Benachrichtigung,
+keine zweite Routine. Die Inbox-MCP-Werkzeuge stehen angemeldeten Sitzungen und
+vertrauenswürdigen Zugangsdaten eines privaten Chats zur Verfügung; Letztere
+sind auf Vorgänge dieses Chats beschränkt. Gewöhnliche API-Schlüssel,
+Hintergrundläufe und Ersatzidentitäten des Herausgebers dürfen private
+Inbox-Vorgänge weder lesen noch erledigen.

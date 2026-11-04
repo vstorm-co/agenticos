@@ -1,5 +1,5 @@
 ---
-source_sha: "0047bdd0c23a"
+source_sha: "1e3e083daa0d"
 ---
 
 # Governance { #governance }
@@ -560,7 +560,7 @@ zostały przycięte.
 Pole modelu korzysta z tego samego wyboru dostawcy, modelu i klucza z sejfu co
 Builder agenta. Uprawnienie `connections:manage` pozwala utworzyć tam profil
 modelu; bez niego wybiera się istniejący profil. Nowy profil jest zapisywany
-od razu. **Zapisz** stosuje wybór do nocnych sugestii i briefingu. Obserwacje wybranego
+od razu. **Zapisz** stosuje wybór do nocnych sugestii. Briefing wylicza istniejące znaleziska bez wywołania modelu. Obserwacje wybranego
 agenta współdzielą limit na osobę.
 
 Platforma może zrobić trochę z własnej inicjatywy, ale nie robi nic takiego,
@@ -585,7 +585,7 @@ wydarzyło, nic nie kosztuje: zadanie woła model tylko wtedy, gdy jest co czyta
 **Obserwacje** wykonuje wybrany przez osobę opublikowany agent, tym samym
 silnikiem co czat i rutyny, z własnymi instrukcjami i modelem. Włącza się je
 osobno (`proactive_watches_enabled`); współdzielą limit wydatków proaktywności
-na osobę, ale nie model briefingu. Utwórz obserwację w **Rutynach**, obok
+na osobę, ale nie model sugestii. Utwórz obserwację w **Rutynach**, obok
 harmonogramów agenta przyciskiem **Obserwuj i informuj**, przy prywatnym koncie
 albo w prywatnej rozmowie. Wybierz agenta, własne konto, częstotliwość i opcjonalny
 koniec. Obserwacja może śledzić publikacje, wskazywać nazwane środowisko albo
@@ -2330,3 +2330,42 @@ Uruchomienia rutyny z budżetem współdzielą klucz współbieżności kolejki,
 
 
 Alerty o wstrzymanych zadaniach całego wdrożenia zachowują zwykły stan odczytu i odrzucenia powiadomienia; nie są przedstawiane jako sprawy organizacji.
+
+### Rutyny, rozmowy robocze i Inbox { #routines-working-conversations-and-inbox }
+
+**Routines** pokazuje wspólnie zadania czasowe, zdarzeniowe i gotowe warianty
+monitorowania w trybie odczytu. Trigger określa, *kiedy* uruchomić rutynę;
+wariant monitorujący ogranicza, *co* może zrobić. Jedna odpowiedzialność powinna
+mieć jedną rutynę, bez dublowania obserwacji i zadania czasowego dla tej samej poczty.
+
+Wybierz **Po każdym zakończonym wykonaniu** (`result_mode: report`, dotychczasowa
+wartość domyślna) dla raportów albo **Tylko gdy coś wymaga uwagi** (`result_mode:
+inbox`) dla cichych sprawdzeń. Agent zwraca istotne elementy źródła ze stałymi
+identyfikatorami elementu i wersji, kontekstem i pełnym zamówionym draftem.
+Pusty wynik nie tworzy rozmowy ani powiadomienia o zakończeniu. Każdy element ma
+jedną prywatną rozmowę i jedną sprawę w Inbox. Powtórne odczyty tej samej wersji
+są trwale deduplikowane, także po rozwiązaniu sprawy. Nowa wersja aktualizuje tę
+samą rozmowę i otwiera sprawę ponownie; wyciszony element pozostaje wyciszony.
+
+Z Inbox otwórz rozmowę, aby poprawić draft lub zlecić następny krok. Czytanie i
+edycja draftu nie wysyłają go i nie kończą sprawy. Nadal obowiązują uprawnienia i
+zatwierdzanie narzędzi. Narzędzia platformowego MCP `list_inbox_cases` oraz
+`settle_inbox_case` pozwalają agentowi znaleźć sprawę i rozwiązać ją po udanym
+wykonaniu zleconej pracy albo jawnym potwierdzeniu zakończenia. Inbox i czat
+współdzielą stan; zamknięcie anuluje oczekujące powiadomienia. Monitorowanie w
+trybie odczytu może przygotować tekst draftu w rozmowie, ale nie zapisze go ani
+nie wyśle przez usługę źródłową.
+
+Nocne sugestie pozostają opcjonalną, niezależną analizą ostatnich próśb i pamięci,
+a nie kolejnym skanowaniem poczty. Monitorowanie używa modelu wybranego agenta i
+nie wymaga skonfigurowania modelu sugestii. Organizacja nadal kontroluje jego
+dostępność, częstotliwość i współdzielony budżet pracy w tle na osobę. Zwykłe
+rutyny zachowują limity agenta, organizacji i opcjonalny własny limit. Dni i
+godzina określają również porę zestawienia niepilnych znalezisk.
+
+Poranne zestawienie wylicza zapisane wcześniej niepilne znaleziska bez kolejnego
+wywołania modelu i skanowania źródeł. To dostarczenie powiadomienia, a nie druga
+rutyna. Narzędzia MCP do Inbox działają w zalogowanej sesji i przez zaufane
+poświadczenia prywatnej rozmowy; te ostatnie obejmują wyłącznie sprawy tej rozmowy.
+Zwykłe klucze API, uruchomienia w tle i zastępcza tożsamość publikującego nie mogą
+czytać ani zamykać prywatnych spraw.

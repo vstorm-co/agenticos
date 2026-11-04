@@ -97,6 +97,7 @@ class RoutineAuthority:
     role: str
     acts_as_creator: bool
     routine_kind: Literal["trigger", "watch"] = "trigger"
+    result_mode: Literal["report", "inbox"] = "report"
     sources: WatchSources | None = None
     action_consents: tuple[RoutineConsent, ...] = ()
     root_version_id: UUID | None = None
@@ -173,10 +174,17 @@ class RoutineAuthority:
         mcp_sources: dict[UUID, McpSourceIdentity] | None = None
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
+        result_mode: Literal["report", "inbox"] = "report"
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
             if trigger is None:
                 raise _refused()
+            mode = (
+                trigger.result_mode
+                if run is None
+                else (run.routine_policy or {}).get("result_mode", "report")
+            )
+            result_mode = "inbox" if mode == "inbox" else "report"
             reviewed_sources = read_policy(
                 trigger.approved_sources
                 if run is None
@@ -229,6 +237,7 @@ class RoutineAuthority:
                 else not run.initiated_by_publisher_fallback
             ),
             routine_kind="watch" if kind == "watch" else "trigger",
+            result_mode=result_mode,
             sources=sources,
             action_consents=action_consents,
             mcp_sources=mcp_sources,
@@ -299,6 +308,7 @@ class RoutineAuthority:
             or not trigger.is_active
             or trigger.created_by_user_id != self.user_id
             or trigger.agent_id != self.root_agent_id
+            or (trigger.result_mode == "inbox") != (self.result_mode == "inbox")
             or (trigger.ends_at is not None and trigger.ends_at <= datetime.now(UTC))
             or (self.acts_as_creator and not trigger.runs_as_creator)
         ):

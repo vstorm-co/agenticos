@@ -1,5 +1,6 @@
 """Suggestions the platform made to a person, and what they decided (#2301)."""
 
+import hashlib
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -9,7 +10,12 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
+from app.db.models.suggestion import (
+    RoutineFindingRevision,
+    Suggestion,
+    SuggestionKind,
+    SuggestionStatus,
+)
 
 
 async def propose(
@@ -205,3 +211,41 @@ async def project_outcome_status(
         )
         .values(status=status.value, decided_at=at)
     )
+
+
+async def for_key(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, dedupe_key: str
+) -> Suggestion | None:
+    return await db.scalar(
+        select(Suggestion).where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.dedupe_key == dedupe_key,
+        )
+    )
+
+
+async def claim_finding_revision(db: AsyncSession, *, finding_id: UUID, revision: str) -> bool:
+    result = await db.execute(
+        insert(RoutineFindingRevision)
+        .values(finding_id=finding_id, revision_hash=hashlib.sha256(revision.encode()).hexdigest())
+        .on_conflict_do_nothing()
+        .returning(RoutineFindingRevision.finding_id)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def finding_sources(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, outcome_ids: list[UUID]
+) -> dict[UUID, dict[str, object]]:
+    result = await db.execute(
+        select(Suggestion.outcome_id, Suggestion.payload).where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            Suggestion.outcome_id.in_(outcome_ids),
+            Suggestion.kind == SuggestionKind.FINDING.value,
+        )
+    )
+    return {
+        identifier: dict(payload) for identifier, payload in result.all() if identifier is not None
+    }

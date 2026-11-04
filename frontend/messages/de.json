@@ -6540,10 +6540,11 @@
     },
     "routines": {
       "title": "Routinen",
-      "description": "Agentenroutinen führen Aufgaben aus. Meine Beobachtungen prüfen verbundene Konten und liefern Ergebnisse in deinen privaten Posteingang.",
-      "newWatch": "Neue Beobachtung",
-      "agentsTab": "Agentenaufgaben",
-      "watchesTab": "Meine Beobachtungen"
+      "description": "Aufgaben und Überwachung an einem Ort. Legen Sie Auslöser und relevante Ergebnisse fest.",
+      "newWatch": "Überwachen und informieren",
+      "newRoutine": "Neue Routine",
+      "scheduledTask": "Nach Zeitplan ausführen",
+      "eventTask": "Bei einem Ereignis ausführen"
     },
     "signIns": {
       "cancel": "Abbrechen",
@@ -8120,12 +8121,12 @@
     "publicLiveDataConfirmWhy": "Jeder mit dem öffentlichen Link einer Seite und jede Website, die sie einbettet, sieht ihre Tabellendaten ohne Anmeldung. Gezeigt wird erst etwas, wenn der Eigentümer der Seite oder ein Owner bzw. Admin sie bestätigt. Früher bestätigte Seiten zeigen ihre Daten sofort wieder.",
     "publicLiveDataConfirm": "Erlauben",
     "proactive": {
-      "title": "Proaktivität",
-      "description": "Arbeit, die die Plattform von sich aus im Hintergrund für Menschen erledigt. Aus, bis Sie sie einschalten.",
+      "title": "Assistentenvorschläge und Überwachung",
+      "description": "Gesprächsbasierte Vorschläge und lesende Überwachung funktionieren unabhängig. Zeit- und ereignisgesteuerte Routinen benötigen keine aktivierten Vorschläge.",
       "nightly": "Nächtliche Vorschläge",
-      "nightlyHint": "Ein Blick auf die Woche jeder Person: eine Routine für eine Anfrage, die sie wiederholt, ihr Profil und die ersten Nachrichten, die ihr leerer Chat anbietet. Jede Person kann das in ihren eigenen Einstellungen abschalten.",
+      "nightlyHint": "Aus Gesprächen und Erinnerungen Routinen, Agenten und Profiländerungen vorschlagen. Keine Postfachprüfung. Vorgeschlagene Routinen benötigen eine Bestätigung.",
       "model": "Modell",
-      "modelHint": "Worauf der nächtliche Blick und die Beobachtungen laufen. Ein kleines, günstiges Modell reicht.",
+      "modelHint": "Nur für Verbesserungsvorschläge aus Gesprächen. Überwachung verwendet das Modell des gewählten Agenten.",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
       "label": "Limit pro Person (USD im Monat)",
       "days": "Tage",
@@ -8145,13 +8146,13 @@
       "welcomeTextHint": "Leer lassen für die eingebaute Begrüßung in der Sprache der Person. '{organization}', '{bot}' und '{url}' werden ausgefüllt.",
       "welcomeTextPlaceholder": "Willkommen bei '{organization}'! Fragen Sie mich hier alles.",
       "welcomeSaved": "Willkommensnachricht gespeichert",
-      "watches": "Verbindungen der Mitglieder beobachten",
-      "watchesHint": "Jede Person wählt, was in ihren eigenen verbundenen Konten beobachtet wird - Pull Requests, die auf sie warten, eine überfällige Rechnung - und erfährt, was neu ist. Es wird nur gelesen, und Funde sind für jede Person privat.",
+      "watches": "Lesende Überwachungsroutinen erlauben",
+      "watchesHint": "Mitglieder wählen einen Agenten und genehmigen Quellen ihrer eigenen Konten. Relevante Änderungen erscheinen in der Inbox; angeforderte Entwürfe im Arbeitschat.",
       "watchMinutes": "Höchstens",
       "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
-      "runAttribution": "Hintergrundprüfungen erscheinen in Activity unter dem veröffentlichten AgenticOS-Startagenten. Diese Zuordnung ist in der Plattform festgelegt. Sie verwenden das unten gewählte Proaktivitätsmodell, unabhängig vom eigenen Modell des Agenten."
+      "runAttribution": "Die Gesprächsanalyse nutzt das Modell unten, die Überwachung den gewählten Agenten. Beide teilen das monatliche Hintergrundbudget pro Person. Tage und Uhrzeit bestimmen auch die Zusammenfassung nicht dringender Funde."
     },
     "systemAgents": {
       "title": "Systemagenten",
@@ -8712,7 +8713,12 @@
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
-    "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen."
+    "budgetInvalid": "Gib einen positiven Betrag ein oder lasse das Feld leer, um dieses Limit zu entfernen.",
+    "resultMode": "Wann Ergebnisse melden",
+    "resultReport": "Nach jeder abgeschlossenen Ausführung",
+    "resultInbox": "Nur wenn etwas Aufmerksamkeit braucht",
+    "resultReportHint": "Nach jeder Ausführung einen Bericht im gewählten Chat ablegen.",
+    "resultInboxHint": "Pro Quellelement einen Inbox-Vorgang und Arbeitschat erstellen. Angeforderte Entwürfe stehen dort; unveränderte Prüfungen bleiben still. Versand benötigt weiterhin Berechtigung und Freigabe."
   },
   "portals": {
     "mailboxInterval": {
@@ -12127,11 +12133,11 @@
     }
   },
   "watches": {
-    "title": "Beobachtungen",
+    "title": "Lesende Überwachung",
     "description": "Der Assistent prüft Ihre eigenen verbundenen Konten nach Zeitplan und sagt Ihnen, was neu ist. Er liest nur, und was er findet, sehen nur Sie.",
     "orgOff": "Ihre Organisation hat Beobachtungen nicht eingeschaltet. Ein Admin kann das auf der Seite der Organisation unter Proactivity tun.",
     "noConnections": "Verbinden Sie zuerst eines Ihrer eigenen Konten auf der Seite der MCP-Server - GitHub, Linear, Ihr Postfach.",
-    "add": "Neue Beobachtung",
+    "add": "Überwachen und informieren",
     "resumed": "Wird wieder beobachtet",
     "paused": "Pausiert",
     "removed": "Beobachtung beendet",
@@ -12144,8 +12150,8 @@
     "activeLabel": "{title} beobachten",
     "editLabel": "{title} bearbeiten",
     "removeLabel": "{title} nicht mehr beobachten",
-    "newTitle": "Etwas beobachten",
-    "editTitle": "Beobachtung bearbeiten",
+    "newTitle": "Überwachungsroutine",
+    "editTitle": "Überwachungsroutine bearbeiten",
     "dialogDescription": "Wonach in einem Ihrer Konten gesucht wird und wie oft. Es wird nur gelesen; was gefunden wird, ist nur für Sie.",
     "connection": "Konto",
     "connectionPlaceholder": "Eine Ihrer Verbindungen wählen",
@@ -12162,7 +12168,7 @@
     "exclusionsHint": "Eine Zeile pro Eintrag: was nicht mehr gemeldet werden soll.",
     "cancel": "Abbrechen",
     "save": "Speichern",
-    "create": "Beobachtung starten",
+    "create": "Routine erstellen",
     "saved": "Beobachtung gespeichert",
     "created": "Wird beobachtet - der erste Blick folgt innerhalb einer Minute",
     "cadence": {
@@ -12296,7 +12302,7 @@
     "versionFollowing": "Folgt der veröffentlichten Version",
     "environmentSelected": "Ausgewählte Umgebung",
     "nextCheck": "Nächste Prüfung: {at}",
-    "watchAndInform": "Beobachten und informieren",
+    "watchAndInform": "Überwachen und informieren",
     "reviewSources": "Angehängte Quellen erneut freigeben",
     "reviewSourcesHint": "Das verbundene Konto mit aktuellem Wissen und Kontext des Agenten erneut freigeben. Nach erneutem Verbinden des Kontos erforderlich. Deaktiviert lassen, um die bestehende Quellenfreigabe zu behalten.",
     "reportMode": "Wann berichten",
@@ -12306,19 +12312,19 @@
   },
   "inbox": {
     "title": "Posteingang",
-    "description": "Was die Plattform Ihnen aus eigener Initiative gebracht hat: Funde Ihrer Beobachtungen und Vorschläge des nächtlichen Blicks.",
+    "description": "Ergebnisse mit Handlungsbedarf, Freigaben und Vorschläge aus Ihren Gesprächen.",
     "filterLabel": "Anzeigen",
     "filter": {
       "all": "Alle",
       "urgent": "Dringend",
-      "watches": "Aus Beobachtungen",
+      "watches": "Routinenergebnisse",
       "suggestions": "Vorschläge",
       "done": "Erledigt"
     },
     "empty": {
       "title": "Hier wartet nichts",
-      "description": "Hier landet, was Ihre Beobachtungen finden und was der nächtliche Blick vorschlägt.",
-      "watches": "Beobachtung einrichten"
+      "description": "Relevante Routinenergebnisse und Assistentenvorschläge erscheinen hier.",
+      "watches": "Routine einrichten"
     },
     "doneEmpty": "Noch nichts beantwortet",
     "waiting": "{count, plural, =0 {Nichts wartet} =1 {1 wartet} other {# warten}}",
@@ -12328,8 +12334,9 @@
       "agent": "Agent-Idee",
       "profile": "Profil",
       "role_pack": "Routinenpaket",
-      "finding": "Beobachtung"
-    }
+      "finding": "Routine"
+    },
+    "openWorkingChat": "Gespräch öffnen"
   },
   "agentLimit": {
     "title": "Diese Organisation hat ihr Agenten-Limit erreicht",

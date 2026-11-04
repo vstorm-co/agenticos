@@ -22,8 +22,8 @@ from app.core.permissions import AuthContext
 from app.db.models.notification import Notification
 from app.db.models.outcome import Outcome, OutcomeStatus
 from app.db.models.suggestion import Suggestion, SuggestionKind, SuggestionStatus
-from app.repositories import outcome_repo, suggestion_repo
-from app.schemas.outcome import OutcomeAction
+from app.repositories import conversation_repo, outcome_repo, suggestion_repo
+from app.schemas.outcome import OutcomeAction, OutcomeSource
 
 _OBSERVED_AT = TypeAdapter(AwareDatetime)
 
@@ -69,8 +69,19 @@ def routine_failure_cause(
 
 def _caller(ctx: AuthContext) -> UUID:
     """An outcome is addressed to a person; a key that is nobody has none."""
-    if ctx.user_id is None:
-        raise AuthorizationError(message="Outcomes require a signed-in caller")
+    if (
+        ctx.user_id is None
+        or ctx.subject_is_publisher_fallback
+        or ctx.routine_id is not None
+        or ctx.fired_as_creator is not None
+        or (
+            (ctx.api_key_id is not None or ctx.key_scopes is not None)
+            and ctx.source_conversation_id is None
+        )
+    ):
+        raise AuthorizationError(
+            message="Inbox cases require a signed-in person in their private chat or console"
+        )
     return ctx.user_id
 
 
@@ -101,7 +112,9 @@ class OutcomeService:
         finding: Suggestion | None = None
         if notification.event_type == "finding":
             try:
-                identifier = UUID(notification.occurrence_id)
+                identifier = UUID(
+                    str((context or {}).get("finding_id", notification.occurrence_id))
+                )
             except ValueError:
                 identifier = None
             if identifier is not None:
@@ -178,9 +191,34 @@ class OutcomeService:
             notification.read_at = notification.dismissed_at = cleared_at
         return outcome
 
+    async def _require_private_chat(self, ctx: AuthContext) -> None:
+        if ctx.api_key_id is None and ctx.key_scopes is None:
+            return
+        _caller(ctx)
+        if ctx.source_conversation_id is None:
+            raise AuthorizationError(message="Inbox cases require a private conversation")
+        conversation = await conversation_repo.get_conversation_by_id(
+            self.db, ctx.source_conversation_id, fresh=True
+        )
+        if (
+            conversation is None
+            or conversation.organization_id != ctx.organization_id
+            or conversation.user_id != ctx.user_id
+            or conversation.is_archived
+        ):
+            raise AuthorizationError(
+                message="Inbox cases require the person's own private conversation"
+            )
+
     async def list_mine(
         self, ctx: AuthContext, *, open_only: bool, conversation_id: UUID | None, limit: int = 50
     ) -> list[Outcome]:
+        _caller(ctx)
+        await self._require_private_chat(ctx)
+        if ctx.api_key_id is not None or ctx.key_scopes is not None:
+            if conversation_id is not None and conversation_id != ctx.source_conversation_id:
+                raise NotFoundError(message="Conversation not found")
+            conversation_id = ctx.source_conversation_id
         statuses = (
             [OutcomeStatus.OPEN.value, OutcomeStatus.ACKNOWLEDGED.value]
             if open_only
@@ -195,6 +233,30 @@ class OutcomeService:
             limit=limit,
         )
 
+    async def finding_sources(
+        self, ctx: AuthContext, outcomes: list[Outcome]
+    ) -> dict[UUID, OutcomeSource]:
+        """Source addresses needed to continue a draft, without reopening another transcript."""
+        await self._require_private_chat(ctx)
+        payloads = await suggestion_repo.finding_sources(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=_caller(ctx),
+            outcome_ids=[outcome.id for outcome in outcomes],
+        )
+        sources: dict[UUID, OutcomeSource] = {}
+        for identifier, payload in payloads.items():
+            key, revision, url = (
+                payload.get("source_item_id"),
+                payload.get("revision"),
+                payload.get("url"),
+            )
+            if isinstance(key, str) and isinstance(revision, str):
+                sources[identifier] = OutcomeSource(
+                    item_id=key, revision=revision, url=url if isinstance(url, str) else None
+                )
+        return sources
+
     async def settle(
         self, ctx: AuthContext, outcome_id: UUID, action: OutcomeAction, *, via: str
     ) -> Outcome:
@@ -204,13 +266,17 @@ class OutcomeService:
             NotFoundError: It is not theirs, or does not exist - the two look alike.
             ConflictError: It is already closed, and `action` would change how.
         """
+        await self._require_private_chat(ctx)
         outcome = await outcome_repo.get_own_for_update(
             self.db,
             organization_id=ctx.organization_id,
             user_id=_caller(ctx),
             outcome_id=outcome_id,
         )
-        if outcome is None:
+        if outcome is None or (
+            (ctx.api_key_id is not None or ctx.key_scopes is not None)
+            and outcome.source_conversation_id != ctx.source_conversation_id
+        ):
             raise NotFoundError(message="Outcome not found")
         target = _TARGET[action]
         if outcome.status == target.value:

@@ -648,3 +648,98 @@ async def test_watch_chat_tools_preserve_private_consent_and_source_conversation
     assert saved is not None
     assert saved.agent_id == agent.id and saved.source_conversation_id == conversation.id
     assert saved.approved_sources["connection_id"] == str(connection.id)
+
+
+async def test_private_chat_mcp_lists_and_resolves_only_its_own_inbox_cases(
+    db: AsyncSession, served: None
+):
+    from app.core.permissions import AuthContext
+    from app.db.models.agent import Agent
+    from app.db.models.conversation import Conversation
+    from app.db.models.outcome import Outcome
+    from app.db.models.suggestion import Suggestion
+    from app.services.api_key import ApiKeyService
+
+    ordinary_key, organization = await _owner_key(db, Perm.AGENTS_RUN)
+    owner = organization.created_by_user_id
+    agent = Agent(
+        organization_id=organization.id,
+        owner_user_id=owner,
+        name="Assistant",
+        slug=f"assistant-{uuid.uuid4()}",
+    )
+    chats = [Conversation(organization_id=organization.id, user_id=owner) for _ in range(2)]
+    db.add_all([agent, *chats])
+    await db.flush()
+    cases = [
+        Outcome(
+            organization_id=organization.id,
+            user_id=owner,
+            kind="finding",
+            dedupe_key=f"draft-{uuid.uuid4()}",
+            summary="Draft awaiting review",
+            source_conversation_id=chat.id,
+        )
+        for chat in chats
+    ]
+    db.add_all(cases)
+    await db.flush()
+    finding = Suggestion(
+        organization_id=organization.id,
+        user_id=owner,
+        kind="finding",
+        title="Draft",
+        dedupe_key=f"source-{uuid.uuid4()}",
+        outcome_id=cases[0].id,
+        payload={
+            "source_item_id": "mail-thread",
+            "revision": "mail-1",
+            "url": "https://mail.example/thread",
+        },
+    )
+    db.add(finding)
+    await db.flush()
+    ctx = AuthContext(user_id=owner, organization_id=organization.id, role="owner")
+    private_key = await ApiKeyService(db).issue_for_run(
+        ctx, agent_id=agent.id, conversation_id=chats[0].id
+    )
+    assert private_key is not None
+    group = Conversation(organization_id=organization.id, user_id=None)
+    db.add(group)
+    await db.flush()
+    group_key = await ApiKeyService(db).issue_for_run(
+        ctx, agent_id=agent.id, conversation_id=group.id
+    )
+    assert group_key is not None
+    await db.commit()
+    async with _connected(group_key) as session:
+        refused = await session.call_tool("list_inbox_cases", {})
+        assert refused.is_error
+    async with _connected(ordinary_key) as session:
+        refused = await session.call_tool("list_inbox_cases", {})
+        assert refused.is_error
+    async with _connected(private_key) as session:
+        listed = await session.call_tool("list_inbox_cases", {})
+        assert not listed.is_error
+        assert [item["id"] for item in _content(listed)["items"]] == [str(cases[0].id)]
+        assert _content(listed)["items"][0]["source"] == {
+            "item_id": "mail-thread",
+            "revision": "mail-1",
+            "url": "https://mail.example/thread",
+        }
+        other_chat = await session.call_tool(
+            "list_inbox_cases", {"conversation_id": str(chats[1].id)}
+        )
+        assert other_chat.is_error
+        other_case = await session.call_tool(
+            "settle_inbox_case", {"outcome_id": str(cases[1].id), "action": "resolve"}
+        )
+        assert other_case.is_error
+        settled = await session.call_tool(
+            "settle_inbox_case", {"outcome_id": str(cases[0].id), "action": "resolve"}
+        )
+        assert not settled.is_error and _content(settled)["status"] == "resolved"
+    await db.refresh(cases[0])
+    await db.refresh(cases[1])
+    assert cases[0].settled_via == "chat"
+    assert cases[1].status == "open"

@@ -1,10 +1,24 @@
 """Queue a resumed answer with its terminal write, never another model call."""
 
+import hashlib
+from datetime import UTC, datetime
+from typing import Literal
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.db.models.agent_run import AgentRun, RunStatus
+from app.db.models.outcome import OutcomeStatus
+from app.db.models.suggestion import SuggestionKind, SuggestionStatus
+from app.repositories import conversation_repo, outcome_repo, suggestion_repo
 from app.repositories import routine_delivery as delivery_repo
+from app.repositories import telephony as phone_repo
+from app.schemas.routine_notifications import RoutineFinding
 from app.services.background_jobs import enqueue
+from app.services.change_feed import announce_conversation
+from app.services.notifications import NotificationService
+from app.services.outcome import OutcomeService
 from app.worker.jobs import DELIVER_ROUTINE_ANSWER, DeliverRoutineAnswer
 
 
@@ -36,3 +50,140 @@ class RoutineDeliveryService:
             organization_id=run.organization_id,
             dedupe_key=f"routine-answer:{run.id}",
         )
+
+
+class RoutineFindingService:
+    """Publish one source item as a private working chat and one shared Inbox case."""
+
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def publish(
+        self,
+        *,
+        run: AgentRun,
+        user_id: UUID,
+        origin_id: UUID,
+        origin_kind: Literal["trigger", "watch"],
+        item: RoutineFinding,
+        notify: bool = True,
+        urgent: bool = False,
+    ) -> UUID | None:
+        """Return the working chat for a new revision, or None for unchanged/muted work.
+
+        The caller checks the live routine authority before publishing. The source
+        identity, scoped to its routine and owner, survives decisions and worker retries.
+        A changed revision reopens the same case and appends to the same owned chat.
+        """
+        identity = (
+            "finding:" + hashlib.sha256(f"{origin_id}\x1f{item.key}".encode()).hexdigest()[:48]
+            if origin_kind == "watch"
+            else hashlib.sha256(f"{origin_kind}:{origin_id}:{item.key}".encode()).hexdigest()
+        )
+        finding = await suggestion_repo.propose(
+            self.db,
+            organization_id=run.organization_id,
+            user_id=user_id,
+            kind=SuggestionKind.FINDING.value,
+            title=item.title,
+            detail=item.detail,
+            payload={"revision": item.revision},
+            dedupe_key=identity,
+            watch_id=origin_id if origin_kind == "watch" else None,
+            urgent=urgent,
+        )
+        created = finding is not None
+        if finding is None:
+            finding = await suggestion_repo.for_key(
+                self.db, organization_id=run.organization_id, user_id=user_id, dedupe_key=identity
+            )
+        if finding is None:
+            raise RuntimeError("The routine finding disappeared after its identity was claimed")
+        outcomes = OutcomeService(self.db)
+        outcome = await outcomes.track_finding(finding)
+        if outcome.status == OutcomeStatus.MUTED.value:
+            return None
+        if not await suggestion_repo.claim_finding_revision(
+            self.db, finding_id=finding.id, revision=item.revision
+        ):
+            return None
+        conversation = None
+        if outcome.source_conversation_id is not None:
+            conversation = await conversation_repo.get_conversation_by_id(
+                self.db, outcome.source_conversation_id, fresh=True
+            )
+            if (
+                conversation is None
+                or conversation.organization_id != run.organization_id
+                or conversation.user_id != user_id
+                or conversation.is_archived
+            ):
+                raise ConflictError(message="The finding's working conversation is unavailable")
+        if conversation is None:
+            conversation = await conversation_repo.create_conversation(
+                self.db, organization_id=run.organization_id, user_id=user_id, title=item.title
+            )
+        await outcome_repo.refresh_context(
+            self.db,
+            outcome,
+            summary=item.title,
+            context_url=f"/chat/{conversation.id}",
+            source_run_id=run.id,
+            source_conversation_id=conversation.id,
+        )
+        if not created:
+            await outcome_repo.settle_notifications(
+                self.db, outcome_id=outcome.id, at=datetime.now(UTC), dismiss=True
+            )
+            await outcome_repo.skip_unsent_deliveries(
+                self.db, outcome_id=outcome.id, reason="new source revision"
+            )
+            await phone_repo.cancel_case_calls(self.db, outcome.id, at=datetime.now(UTC))
+            await outcome_repo.set_status(
+                self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
+            )
+        finding.urgent = urgent
+        finding.briefed_at = datetime.now(UTC) if notify else None
+        finding.title = item.title
+        finding.detail = item.detail
+        finding.status = SuggestionStatus.OPEN.value
+        finding.decided_at = None
+        finding.payload = {
+            "source_item_id": item.key,
+            "revision": item.revision,
+            "conversation_id": str(conversation.id),
+            "url": str(item.url) if item.url is not None else None,
+            "routine_id": str(origin_id),
+            "routine_kind": origin_kind,
+        }
+        await conversation_repo.create_message(
+            self.db,
+            conversation_id=conversation.id,
+            role="assistant",
+            content=f"**{item.title}**\n\n{item.content}"
+            + (f"\n\n{item.url}" if item.url is not None else ""),
+            agent_id=run.agent_id,
+            agent_version_id=run.agent_version_id,
+            model_name=run.model_label,
+            run_id=run.id,
+        )
+        await self.db.flush()
+        announce_conversation(
+            self.db,
+            organization_id=run.organization_id,
+            conversation_id=conversation.id,
+            actor_user_id=user_id,
+        )
+        if notify:
+            await NotificationService(self.db).finding(
+                organization_id=run.organization_id,
+                user_id=user_id,
+                finding_id=finding.id,
+                title=finding.title,
+                conversation_id=conversation.id,
+                run_id=run.id,
+                routine_id=origin_id,
+                routine_kind=origin_kind,
+                revision=item.revision,
+            )
+        return conversation.id

@@ -115,7 +115,7 @@ class OrganizationUpdate(BaseSchema):
         default=None,
         description=(
             "Whether people may have the platform watch their own MCP connections and "
-            "report what is new. Runs on the proactive model and limit. Needs "
+            "report what is new. Uses the selected agent model and the per-person proactive limit; no nightly suggestions model is required. Needs "
             "'budgets:manage'."
         ),
     )

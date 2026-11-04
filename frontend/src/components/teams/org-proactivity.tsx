@@ -70,9 +70,9 @@ function stored(org: Organization): Proactivity {
  * it does it at all: off until an organization turns it on.
  *
  * Two settings with two owners. The nightly look and the watches over people's
- * connections spend money nobody asked for in the moment, so they are
- * `budgets:manage`'s, on one model chosen rather than defaulted and one limit per
- * person. The welcome message in the chat apps spends nothing and is the
+ * connections share a per-person background budget managed by `budgets:manage`.
+ * Only conversation suggestions require the organization model; monitoring
+ * uses its selected agent. The welcome message spends nothing and is the
  * organization's settings.
  */
 export function OrgProactivity({ org }: { org: Organization }) {
@@ -135,7 +135,7 @@ function NightlyForm({ org }: { org: Organization }) {
       setErrors({ [LIMIT_FIELD]: t("invalid") });
       return;
     }
-    if ((form.enabled || form.watches) && form.modelId === null) {
+    if (form.enabled && form.modelId === null) {
       setErrors({ [MODEL_FIELD]: t("modelRequired") });
       return;
     }
@@ -189,39 +189,41 @@ function NightlyForm({ org }: { org: Organization }) {
       </div>
       {(form.enabled || form.watches) && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <fieldset
-            id="org-proactive-model"
-            className="min-w-0 space-y-2 sm:col-span-2"
-            disabled={saving}
-            aria-invalid={!!errors[MODEL_FIELD]}
-            aria-describedby={
-              errors[MODEL_FIELD] ? "org-proactive-model-error" : "org-proactive-model-hint"
-            }
-          >
-            <legend className="text-sm font-medium" data-tour="org-proactivity-model">
-              {t("model")}
-            </legend>
-            <ModelProfilePicker
-              profiles={profiles}
-              profilesStatus={profilesStatus}
-              value={form.modelId}
-              onChange={(modelId) => edit({ modelId })}
-              onCreationPendingChange={(pending) =>
-                setPendingCreations((count) => count + (pending ? 1 : -1))
-              }
-              allowAdd={can(Perm.connectionsManage)}
+          {form.enabled && (
+            <fieldset
+              id="org-proactive-model"
+              className="min-w-0 space-y-2 sm:col-span-2"
               disabled={saving}
-            />
-            {errors[MODEL_FIELD] ? (
-              <p id="org-proactive-model-error" className="text-destructive text-xs">
-                {errors[MODEL_FIELD]}
-              </p>
-            ) : (
-              <p id="org-proactive-model-hint" className="text-muted-foreground text-xs">
-                {t("modelHint")}
-              </p>
-            )}
-          </fieldset>
+              aria-invalid={!!errors[MODEL_FIELD]}
+              aria-describedby={
+                errors[MODEL_FIELD] ? "org-proactive-model-error" : "org-proactive-model-hint"
+              }
+            >
+              <legend className="text-sm font-medium" data-tour="org-proactivity-model">
+                {t("model")}
+              </legend>
+              <ModelProfilePicker
+                profiles={profiles}
+                profilesStatus={profilesStatus}
+                value={form.modelId}
+                onChange={(modelId) => edit({ modelId })}
+                onCreationPendingChange={(pending) =>
+                  setPendingCreations((count) => count + (pending ? 1 : -1))
+                }
+                allowAdd={can(Perm.connectionsManage)}
+                disabled={saving}
+              />
+              {errors[MODEL_FIELD] ? (
+                <p id="org-proactive-model-error" className="text-destructive text-xs">
+                  {errors[MODEL_FIELD]}
+                </p>
+              ) : (
+                <p id="org-proactive-model-hint" className="text-muted-foreground text-xs">
+                  {t("modelHint")}
+                </p>
+              )}
+            </fieldset>
+          )}
           <FormField
             label={t("label")}
             htmlFor="org-proactive-limit"
@@ -239,7 +241,7 @@ function NightlyForm({ org }: { org: Organization }) {
           </FormField>
         </div>
       )}
-      {form.enabled && (
+      {(form.enabled || form.watches) && (
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label={t("days")} htmlFor="org-proactive-days" className="sm:col-span-2">
             <div

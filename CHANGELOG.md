@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Manage scheduled tasks, event tasks and read-only monitoring in one Routines list. Choose reports on every run or quiet Inbox cases with full drafts in private working chats; deduplicate source revisions, reopen the same case on new replies, and settle it from chat through AgenticOS MCP. Monitoring no longer requires a nightly-suggestions model.
+
 - Choose icons and short titles for an agent's first-message suggestions in the Builder, persist them in published specs and YAML, and display equal-height suggestion cards in chat.
 
 - Equip shipped and new console agents with command monitors, background work, bounded conversation search, portable BM25 tool discovery and dynamic specialists. Pin Architect on AgenticOS, add optional access-checked delegation discovery, and include approved-desktop coding/computer capabilities on AgenticOS.

@@ -119,3 +119,17 @@ class Suggestion(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<Suggestion(kind={self.kind}, status={self.status}, user={self.user_id})>"
+
+
+class RoutineFindingRevision(Base):
+    """A source revision already delivered, retained after an Inbox decision."""
+
+    __tablename__ = "routine_finding_revisions"
+
+    finding_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("suggestions.id", ondelete="CASCADE"), primary_key=True
+    )
+    revision_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+    def __repr__(self) -> str:
+        return f"<RoutineFindingRevision(finding_id={self.finding_id})>"

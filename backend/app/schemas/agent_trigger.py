@@ -486,6 +486,10 @@ class TriggerCreate(BaseSchema):
             "Narrows the agent's and the organization's limits; never lifts them (#2575)"
         ),
     )
+    result_mode: Literal["report", "inbox"] = Field(
+        default="report",
+        description="Report every completed run, or create deduplicated Inbox cases with a private chat per source item only when attention is needed.",
+    )
     answer_to: Literal["run_log", "primary", "conversation"] = Field(
         default="primary",
         description=(
@@ -658,7 +662,14 @@ class TriggerCreate(BaseSchema):
             raise ValueError("cron_expression is not valid for an event trigger")
 
 
-_UPDATE_NOT_NULLABLE = ("prompt", "is_active", "runs_as_creator", "overlap", "answer_to")
+_UPDATE_NOT_NULLABLE = (
+    "prompt",
+    "is_active",
+    "runs_as_creator",
+    "overlap",
+    "answer_to",
+    "result_mode",
+)
 
 
 class TriggerUpdate(BaseSchema):
@@ -733,6 +744,7 @@ class TriggerUpdate(BaseSchema):
         gt=0,
         description="This routine's own monthly limit; null removes it",
     )
+    result_mode: Literal["report", "inbox"] | None = None
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
     )
@@ -827,6 +839,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
         "A version and a named environment cannot both be selected.",
     )
     teams_conversation_id: UUID | None = None
+    result_mode: Literal["report", "inbox"] = "report"
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     notification_channels: list[ExternalNotificationChannel] | None = Field(
         default=None, max_length=9

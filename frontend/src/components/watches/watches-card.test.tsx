@@ -123,7 +123,7 @@ describe("WatchesCard", () => {
     render(<WatchesCard watchId="removed-id" />);
     expect(screen.getByText("This watch is no longer available.")).toBeVisible();
     expect(screen.queryByText("Reviews")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "New watch" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Monitor and inform" })).not.toBeInTheDocument();
   });
   it.each([
     ["source_unavailable", "Source unavailable — no successful check."],
@@ -186,7 +186,7 @@ describe("WatchesCard", () => {
     state.connections = [{ id: "c-gh", authorized: true }];
     render(<WatchesCard onNew={onNew} />);
     expect(screen.getByText("No watches yet", { selector: "p" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "New watch" }));
+    await userEvent.click(screen.getByRole("button", { name: "Monitor and inform" }));
     expect(onNew).toHaveBeenCalled();
   });
 

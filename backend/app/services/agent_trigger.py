@@ -54,6 +54,7 @@ from app.core.exceptions import (
     AppException,
     AuthorizationError,
     BadRequestError,
+    ConflictError,
     NotFoundError,
     RateLimitError,
     ValidationError,
@@ -104,6 +105,7 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS, RoutineReading
 from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
     change_feed,
@@ -127,6 +129,7 @@ from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.project import ProjectService
 from app.services.routine_actions import RoutineActionService, activation_intent
+from app.services.routine_delivery import RoutineFindingService
 from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
@@ -364,6 +367,7 @@ _WHAT_IT_DOES = (
     "event_config",
     "teams_conversation_id",
     "answer_to",
+    "result_mode",
     "delivery_conversation_id",
 )
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
@@ -921,6 +925,7 @@ class AgentTriggerService:
             ),
             overlap=data.overlap or TriggerOverlap.SKIP.value,
             teams_conversation_id=data.teams_conversation_id,
+            result_mode=data.result_mode,
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
@@ -2649,6 +2654,8 @@ class AgentTriggerService:
         message = (
             trigger.prompt if event_context is None else _with_event(trigger.prompt, event_context)
         )
+        if trigger.result_mode == "inbox":
+            message += "\n\n" + ROUTINE_RESULT_INSTRUCTIONS
         # This trigger's tail before the fire opens a run of its own. Every fire ends
         # by stamping `last_run_id` against the run it created, so the run named here
         # is exactly the newest row in the trigger's run-log conversation. It is how
@@ -2672,6 +2679,9 @@ class AgentTriggerService:
                 trigger.agent_id,
                 message,
                 surface=RunSurface.SCHEDULE,
+                output_schema=RoutineReading.model_json_schema()
+                if trigger.result_mode == "inbox"
+                else None,
                 conversation_id=conversation_id,
                 environment_id=trigger.environment_id,
                 version_id=trigger.pinned_version_id,
@@ -2798,6 +2808,7 @@ class AgentTriggerService:
 
         if (
             trigger.teams_conversation_id is not None
+            and trigger.result_mode != "inbox"
             and delivery_allowed
             and run.status == RunStatus.COMPLETED.value
             and answer
@@ -2855,7 +2866,7 @@ class AgentTriggerService:
         # runs it made, because only `claim_and_advance` used to set it.
         trigger.last_fired_at = datetime.now(UTC)
         await self.db.flush()
-        if run.status == RunStatus.COMPLETED.value:
+        if run.status == RunStatus.COMPLETED.value and trigger.result_mode != "inbox":
             await NotificationService(self.db).routine_finished(
                 run,
                 agent=agent,
@@ -2991,14 +3002,15 @@ class AgentTriggerService:
                 reason="delivery",
                 recovered_at=observation,
             )
-        await NotificationService(self.db).routine_finished(
-            run,
-            agent=agent,
-            routine_name=trigger.name,
-            creator_id=trigger.created_by_user_id,
-            answer=receipt.answer,
-            source_conversation_id=delivered.conversation_id,
-        )
+        if trigger.result_mode != "inbox":
+            await NotificationService(self.db).routine_finished(
+                run,
+                agent=agent,
+                routine_name=trigger.name,
+                creator_id=trigger.created_by_user_id,
+                answer=receipt.answer,
+                source_conversation_id=delivered.conversation_id,
+            )
 
     async def _creator_context(self, trigger: AgentTrigger) -> AuthContext | None:
         """The creator's current authorization context, or None if they are gone.
@@ -3270,7 +3282,7 @@ class AgentTriggerService:
         access loss and database delivery failures are isolated in a savepoint so
         recording the completed fire remains possible.
         """
-        if trigger.answer_to == "run_log":
+        if trigger.answer_to == "run_log" and trigger.result_mode != "inbox":
             return AnswerDelivery(TriggerDeliveryStatus.RUN_LOG)
         if trigger.created_by_user_id is None:
             return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
@@ -3284,6 +3296,9 @@ class AgentTriggerService:
                     or not current.is_active
                     or (current.ends_at is not None and current.ends_at <= datetime.now(UTC))
                 ):
+                    return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+                admitted_mode = (run.routine_policy or {}).get("result_mode", "report")
+                if (trigger.result_mode == "inbox") != (admitted_mode == "inbox"):
                     return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
                 membership = await member_repo.get_active(
                     self.db,
@@ -3300,6 +3315,26 @@ class AgentTriggerService:
                 accessible_agent = await self.agents.get(ctx, agent.id, perm=Perm.AGENTS_RUN)
                 if accessible_agent.status == AgentStatus.ARCHIVED.value:
                     return AnswerDelivery(TriggerDeliveryStatus.UNAVAILABLE)
+                if trigger.result_mode == "inbox":
+                    reading = RoutineReading.model_validate_json(answer)
+                    target = None
+                    for item in reading.findings:
+                        target = (
+                            await RoutineFindingService(self.db).publish(
+                                run=run,
+                                user_id=trigger.created_by_user_id,
+                                origin_id=trigger.id,
+                                origin_kind="trigger",
+                                item=item,
+                            )
+                            or target
+                        )
+                    return AnswerDelivery(
+                        TriggerDeliveryStatus.DELIVERED
+                        if target is not None
+                        else TriggerDeliveryStatus.NO_ANSWER,
+                        target,
+                    )
                 target = trigger.delivery_conversation_id
                 if trigger.answer_to == "primary":
                     target = await PrimaryConversationService(self.db).ensure(
@@ -3348,7 +3383,7 @@ class AgentTriggerService:
                     conversation_id=target,
                 )
                 return AnswerDelivery(TriggerDeliveryStatus.DELIVERED, target)
-        except NotFoundError, AuthorizationError:
+        except NotFoundError, AuthorizationError, ConflictError:
             logger.info("trigger_delivery_access_lost", extra={"trigger_id": str(trigger.id)})
         except SQLAlchemyError as error:
             if retry_database_errors or not opened or not self.db.is_active:

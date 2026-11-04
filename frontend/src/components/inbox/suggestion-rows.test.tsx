@@ -109,7 +109,7 @@ describe("SuggestionRows", () => {
     expect(rows[1]).toHaveTextContent("Routine idea · just now");
     expect(screen.getByText("You asked for it four times")).toHaveClass("line-clamp-2");
     // A watch on a server the catalog does not know is still a watch.
-    expect(rows[2]).toHaveTextContent("Watch · just now");
+    expect(rows[2]).toHaveTextContent("Routine · just now");
     expect(within(rows[2]!).queryByRole("link")).toBeNull();
   });
 
@@ -151,4 +151,29 @@ it("opens an internal web service over HTTP as well", () => {
     "href",
     "http://intranet.example/task/1",
   );
+});
+
+it("opens the working chat without marking its draft as completed", async () => {
+  const chat = "00000000-0000-4000-8000-000000000123";
+  render(
+    <SuggestionRows
+      items={[item("draft", { kind: "finding", payload: { conversation_id: chat } })]}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "Open conversation" })).toHaveAttribute(
+    "href",
+    `/chat/${chat}`,
+  );
+  expect(state.accept).not.toHaveBeenCalled();
+});
+
+it("does not turn a malformed working chat reference into a navigation link", () => {
+  render(
+    <SuggestionRows
+      items={[
+        item("bad", { kind: "finding", payload: { conversation_id: "https://evil.example" } }),
+      ]}
+    />,
+  );
+  expect(screen.queryByRole("link", { name: "Open conversation" })).toBeNull();
 });

@@ -522,7 +522,7 @@ The model field uses the same provider, model and vault-key picker as the Agent
 Builder. With `connections:manage`, a member can create a model profile there;
 without it, they choose an existing profile. Creating a profile stores it
 immediately. **Save** applies the selection to the organization's nightly
-suggestions and briefing. Selected-agent watches share the per-person limit.
+suggestions. The briefing lists existing findings without a model call. Selected-agent watches share the per-person limit.
 
 The platform can do a little on its own initiative, and does nothing of the kind
 until an organization turns it on: the **Proactivity** card on its members page
@@ -546,7 +546,7 @@ only calls the model when there is something to read.
 **Watches** run through the published agent the person selects, using the same
 runner as chat and routines and the agent's own instructions and model. Enable
 watches separately (`proactive_watches_enabled`); they share the organization's
-per-person proactivity spending limit, not its briefing model. Create one under
+per-person proactivity spending limit, not its suggestions model. Create one under
 **Routines**, beside an agent's schedules with **Watch and inform**, beside a
 personal account, or by asking in a private chat. Select the agent, personal
 account, cadence and optional end time. Follow publications, select a named
@@ -2203,3 +2203,43 @@ Budgeted routine fires share a queue concurrency key, so simultaneous events can
 
 
 Deployment-wide paused-job alerts retain ordinary notification read/dismiss state; they do not claim to be organization outcomes.
+
+### Routines, working conversations and Inbox
+
+**Routines** lists scheduled tasks, event-triggered tasks and read-only monitoring
+presets together. A trigger decides *when* a routine runs; a monitoring preset
+restricts *what* it can do. Use one routine for a responsibility, rather than
+creating a watch and a scheduled agent for the same mailbox.
+
+Choose **After every completed run** (`result_mode: report`, the existing default)
+for regular reports, or **Only when something needs attention** (`result_mode:
+inbox`) for checks that should stay quiet. In Inbox mode, the agent returns relevant
+source items with stable item and revision identifiers, context and any requested
+full draft. An empty result creates no working conversation or completion notice.
+Each item gets one private working conversation and one Inbox case. Repeated source
+revisions are deduplicated durably, including after a case is resolved. A new revision
+updates the same conversation and reopens its case; a muted item stays muted.
+
+Open the conversation from Inbox to edit the draft or request the next action.
+Reading or editing a draft does not send it or complete the case. Normal tool
+permissions and approval still apply. The platform MCP tools `list_inbox_cases`
+and `settle_inbox_case` let an agent find the current case and resolve it after
+successful requested work or an explicit confirmation that it is done. Inbox and
+chat share its state and cancel pending notifications on settlement. Read-only
+monitoring can prepare draft text in a working conversation but cannot save or
+send a draft through the connected service.
+
+Conversation-based nightly suggestions remain optional and independent: they
+propose improvements from recent requests and memory, not another mailbox scan.
+Monitoring uses its selected agent's model and does not require a suggestions
+model to be configured. The organization still controls monitoring availability,
+cadence and its shared per-person background budget. Ordinary routines retain
+their own agent, organization and optional routine budget limits. Days and time
+also control the digest of nonurgent monitoring findings.
+
+The morning digest lists previously recorded nonurgent findings without another
+model call or source scan. It is notification delivery, not a second routine.
+The Inbox MCP tools are for signed-in sessions and trusted private-chat run
+credentials; the latter are restricted to cases belonging to that chat. Ordinary
+API keys, unattended runs and publisher fallback identities cannot read or settle
+private Inbox cases.

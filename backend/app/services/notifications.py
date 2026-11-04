@@ -1015,6 +1015,9 @@ class NotificationService:
         run_id: UUID | None = None,
         watch_id: UUID | None = None,
         external_delivery: bool = True,
+        routine_id: UUID | None = None,
+        routine_kind: Literal["trigger", "watch"] = "watch",
+        revision: str | None = None,
     ) -> None:
         """A watch found something its person asked to hear about at once (#2301).
 
@@ -1032,10 +1035,18 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.FINDING,
             channels={NotificationChannel.IN_APP} if not external_delivery else None,
-            occurrence_id=str(finding_id),
+            occurrence_id=str(finding_id)
+            if revision is None
+            else f"{finding_id}:{hashlib.sha256(revision.encode()).hexdigest()[:32]}",
             summary=title,
             context_url=path,
             render_context={
+                "finding_id": str(finding_id),
+                **(
+                    {"routine_origin_id": str(routine_id), "routine_kind": routine_kind}
+                    if routine_id is not None
+                    else {}
+                ),
                 **(
                     {"routine_origin_id": str(watch_id), "routine_kind": "watch"}
                     if watch_id is not None

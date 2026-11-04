@@ -195,8 +195,8 @@ describe("OrgProactivity", () => {
 
   it("explains fixed attribution and the separate proactivity model", () => {
     render(<OrgProactivity org={org()} />);
-    expect(screen.getByText(/This assignment is fixed by the platform/)).toBeVisible();
-    expect(screen.getByText(/independently of the agent’s own model/)).toBeVisible();
+    expect(screen.getByText(/Conversation analysis uses the model below/)).toBeVisible();
+    expect(screen.getByText(/monitoring uses its selected agent/)).toBeVisible();
   });
 
   it("starts off, and is not turned on without a model to run on", async () => {
@@ -433,21 +433,31 @@ describe("OrgProactivity", () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
   });
 
-  it("does not let watches on without the model they share with the nightly look", async () => {
+  it("enables monitoring without a conversation-suggestions model", async () => {
     render(<OrgProactivity org={org()} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Watch people's connections" }));
-    // The model and the limit appear for watches alone; the nightly schedule does not.
-    expect(screen.getByRole("radiogroup", { name: "Model" })).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
+    );
+    // Monitoring uses its own agent; the shared budget and digest timing remain editable.
+    expect(screen.queryByRole("radiogroup", { name: "Model" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Days" })).toBeVisible();
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
-    expect(screen.getByText("Choose the model it runs on before turning it on.")).toBeVisible();
-    expect(state.setProactivity).not.toHaveBeenCalled();
+    expect(state.setProactivity).toHaveBeenCalledWith(
+      "o1",
+      expect.objectContaining({
+        proactive_enabled: false,
+        proactive_watches_enabled: true,
+        proactive_model_profile_id: null,
+      }),
+    );
   });
 
   it("turns watches on with how often at most", async () => {
     render(<OrgProactivity org={org({ proactive_model_profile_id: "mp-1" })} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Watch people's connections" }));
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
+    );
     await userEvent.click(screen.getByRole("combobox", { name: "Most often" }));
     await userEvent.click(await screen.findByRole("option", { name: "Every 3 hours" }));
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);

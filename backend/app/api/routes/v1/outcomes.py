@@ -3,12 +3,14 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import Auth, OutcomeSvc
+from app.api.deps import Auth, OutcomeSvc, key_needs
+from app.api.public_api import PUBLIC
+from app.core.permissions import Perm
 from app.schemas.outcome import OutcomeList, OutcomeRead, OutcomeSettle
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
 
 
 @router.get("", response_model=OutcomeList)
@@ -17,13 +19,23 @@ async def list_outcomes(
     ctx: Auth,
     open_only: bool = Query(default=True),
     conversation_id: UUID | None = Query(default=None),
+    include_source: bool = Query(
+        default=False,
+        description="Include source item/revision addresses for continuing a routine draft.",
+    ),
 ) -> Any:
     """The caller's own outcomes, open ones by default, optionally those from one chat.
 
     No role gate: an outcome is addressed to one person and never listed to anybody else.
     """
     items = await service.list_mine(ctx, open_only=open_only, conversation_id=conversation_id)
-    return OutcomeList(items=[OutcomeRead.model_validate(item) for item in items])
+    sources = await service.finding_sources(ctx, items) if include_source else {}
+    return OutcomeList(
+        items=[
+            OutcomeRead.model_validate(item).model_copy(update={"source": sources.get(item.id)})
+            for item in items
+        ]
+    )
 
 
 @router.post("/{outcome_id}/settle", response_model=OutcomeRead)

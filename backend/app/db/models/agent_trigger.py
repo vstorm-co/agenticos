@@ -309,6 +309,10 @@ class AgentTrigger(Base, TimestampMixin):
     # The input each fire sends. A triggered run has no human turn, so the message
     # the agent answers is stored here; an event fire appends the payload's
     # rendered context to it so the agent knows which issue or email set it off.
+    result_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="report", server_default="report"
+    )
+
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
 
     # When a *schedule* is next due. The heartbeat's claim query is
@@ -440,6 +444,7 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"
         ),

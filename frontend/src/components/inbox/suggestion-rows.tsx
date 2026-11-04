@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { Check, ExternalLink, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -114,6 +115,18 @@ export function SuggestionRows({
                   dense ? "mt-0.5" : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
+                {suggestion.kind === "finding" &&
+                  typeof suggestion.payload.conversation_id === "string" &&
+                  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                    suggestion.payload.conversation_id,
+                  ) && (
+                    <Button asChild size="sm" variant="secondary" className="h-8">
+                      <Link href={`/chat/${suggestion.payload.conversation_id}`}>
+                        <MessageSquare className="size-3.5" aria-hidden />
+                        {tInbox("openWorkingChat")}
+                      </Link>
+                    </Button>
+                  )}
                 <Button
                   type="button"
                   size="sm"

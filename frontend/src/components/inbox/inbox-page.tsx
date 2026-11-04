@@ -163,7 +163,7 @@ function Nothing({ filter }: { filter: Exclude<Filter, "done"> }) {
         filter === "all" || filter === "watches"
           ? {
               label: t("empty.watches"),
-              onClick: () => router.push(`${ROUTES.ROUTINES}?tab=watches`),
+              onClick: () => router.push(ROUTES.ROUTINES),
             }
           : undefined
       }

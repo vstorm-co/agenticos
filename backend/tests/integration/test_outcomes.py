@@ -700,3 +700,179 @@ async def test_stale_approval_sweep_resolves_its_case_and_pending_deliveries(
     assert row is not None and row.status == "resolved" and row.settled_via == "expiry"
     assert approval.status == "expired" and run.status == "cancelled"
     assert all(item.status == "skipped" for item in await _deliveries(db, note))
+
+
+async def test_routine_findings_keep_one_private_chat_and_case_across_revisions(db: AsyncSession):
+    from app.db.models.conversation import Conversation, Message
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.services.routine_delivery import RoutineFindingService
+
+    org, users, contexts = await _world(db)
+    run, _ = await _run(db, org, users[0])
+    origin = uuid.uuid4()
+    service = RoutineFindingService(db)
+    first = RoutineFinding(
+        key="mail-thread-1",
+        revision="message-1",
+        title="Reply to Acme",
+        content="Draft: Friday works for us.",
+    )
+    args = {
+        "run": run,
+        "user_id": users[0].id,
+        "origin_id": origin,
+        "origin_kind": "trigger",
+        "notify": False,
+    }
+    chat_id = await service.publish(**args, item=first)
+    assert chat_id is not None
+    chat = await db.get(Conversation, chat_id)
+    assert chat.user_id == users[0].id
+    assert chat.organization_id == org.id
+    cases = await OutcomeService(db).list_mine(contexts[0], open_only=True, conversation_id=chat_id)
+    assert len(cases) == 1
+    assert cases[0].context_url == f"/chat/{chat_id}"
+    source = (await OutcomeService(db).finding_sources(contexts[0], cases))[cases[0].id]
+    assert (source.item_id, source.revision) == ("mail-thread-1", "message-1")
+    assert (
+        await OutcomeService(db).list_mine(contexts[1], open_only=True, conversation_id=chat_id)
+        == []
+    )
+    assert await service.publish(**args, item=first) is None
+    await OutcomeService(db).settle(contexts[0], cases[0].id, "resolve", via="chat")
+    second = first.model_copy(
+        update={"revision": "message-2", "content": "Updated draft: Monday works."}
+    )
+    assert await service.publish(**args, item=second) == chat_id
+    assert cases[0].status == "open"
+    assert (
+        await service.publish(**args, item=first) is None
+    )  # Old deliveries never reopen old drafts.
+    messages = list(
+        await db.scalars(
+            select(Message).where(Message.conversation_id == chat_id).order_by(Message.created_at)
+        )
+    )
+    assert len(messages) == 2
+    assert "Friday" in messages[0].content
+    assert "Monday" in messages[1].content
+    assert (
+        len(list(await db.scalars(select(Suggestion).where(Suggestion.user_id == users[0].id))))
+        == 1
+    )
+    await OutcomeService(db).settle(contexts[0], cases[0].id, "mute", via="inbox")
+    assert (
+        await service.publish(**args, item=first.model_copy(update={"revision": "message-3"}))
+        is None
+    )
+
+
+async def test_routine_findings_deliver_new_revisions_once_and_respect_shared_settlement(
+    db: AsyncSession,
+):
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.services.routine_delivery import RoutineFindingService
+
+    org, users, contexts = await _world(db)
+    run, _ = await _run(db, org, users[0])
+    service = RoutineFindingService(db)
+    origin = uuid.uuid4()
+    item = RoutineFinding(
+        key="thread", revision="mail-1", title="Check draft", content="Draft awaiting review."
+    )
+    args = {"run": run, "user_id": users[0].id, "origin_id": origin, "origin_kind": "trigger"}
+    chat_id = await service.publish(**args, item=item)
+    case = (
+        await OutcomeService(db).list_mine(contexts[0], open_only=True, conversation_id=chat_id)
+    )[0]
+    await service.publish(**args, item=item)
+    notices = list(await db.scalars(select(Notification).where(Notification.outcome_id == case.id)))
+    assert len(notices) == 1
+    await OutcomeService(db).settle(contexts[0], case.id, "resolve", via="chat")
+    await service.publish(**args, item=item.model_copy(update={"revision": "mail-2"}))
+    notices = list(
+        await db.scalars(
+            select(Notification)
+            .where(Notification.outcome_id == case.id)
+            .order_by(Notification.created_at)
+        )
+    )
+    assert len(notices) == 2
+    assert notices[0].dismissed_at is not None
+    assert notices[1].dismissed_at is None
+    assert case.status == "open"
+
+
+async def test_overlapping_routine_findings_publish_one_chat(db: AsyncSession):
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.agent_run import AgentRun
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.services.routine_delivery import RoutineFindingService
+
+    org, users, _ = await _world(db)
+    run, _ = await _run(db, org, users[0])
+    run_id, user_id, origin_id = run.id, users[0].id, uuid.uuid4()
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+    item = RoutineFinding(
+        key="same-thread", revision="same-message", title="Reply", content="Draft awaiting review."
+    )
+
+    async def publish() -> uuid.UUID | None:
+        async with sessions() as session:
+            current = await session.get(AgentRun, run_id)
+            assert current is not None
+            target = await RoutineFindingService(session).publish(
+                run=current,
+                user_id=user_id,
+                origin_id=origin_id,
+                origin_kind="trigger",
+                item=item,
+                notify=False,
+            )
+            await session.commit()
+            return target
+
+    results = await asyncio.gather(publish(), publish())
+    assert sum(target is not None for target in results) == 1
+    assert len(list(await db.scalars(select(Suggestion).where(Suggestion.user_id == user_id)))) == 1
+
+
+async def test_an_unavailable_working_chat_does_not_consume_a_new_source_revision(db: AsyncSession):
+    from app.db.models.conversation import Conversation
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.services.routine_delivery import RoutineFindingService
+
+    org, users, _ = await _world(db)
+    run, _ = await _run(db, org, users[0])
+    service = RoutineFindingService(db)
+    item = RoutineFinding(
+        key="thread",
+        revision="first",
+        title="Draft",
+        content="Proposal",
+        url="https://mail.example/thread",
+    )
+    args = {
+        "run": run,
+        "user_id": users[0].id,
+        "origin_id": uuid.uuid4(),
+        "origin_kind": "trigger",
+        "notify": False,
+    }
+    target = await service.publish(**args, item=item)
+    chat = await db.get(Conversation, target)
+    assert chat is not None
+    chat.is_archived = True
+    await db.flush()
+    next_item = item.model_copy(update={"revision": "next"})
+    with pytest.raises(ConflictError):
+        async with db.begin_nested():
+            await service.publish(**args, item=next_item)
+    await db.refresh(chat)
+    chat.is_archived = False
+    await db.flush()
+    assert await service.publish(**args, item=next_item) == target

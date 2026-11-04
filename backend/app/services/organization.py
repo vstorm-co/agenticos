@@ -596,21 +596,19 @@ class OrganizationService:
             if "proactive_model_profile_id" in named
             else org.proactive_model_profile_id
         )
-        if profile_id is not None and ("proactive_model_profile_id" in named or enabled or watches):
+        if profile_id is not None and ("proactive_model_profile_id" in named or enabled):
             profile = await credential_repo.get_profile(self.db, profile_id, organization_id=org.id)
             if profile is None:
                 raise refused_field(
                     "proactive_model_profile_id", "That model is not one of this organization's"
                 )
             outputs = model_outputs(profile.provider, profile.model, base_url=profile.base_url)
-            if not outputs.chat and (
-                enabled or watches or profile_id != org.proactive_model_profile_id
-            ):
+            if not outputs.chat and (enabled or profile_id != org.proactive_model_profile_id):
                 raise refused_field(
                     "proactive_model_profile_id",
                     not_chat_refusal(profile.label, profile.model, outputs),
                 )
-        if (enabled or watches) and profile_id is None:
+        if enabled and profile_id is None:
             raise refused_field(
                 "proactive_model_profile_id",
                 "Choose the model the proactive work runs on before turning it on",

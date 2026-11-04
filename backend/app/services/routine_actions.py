@@ -55,6 +55,8 @@ def action_intent(trigger: AgentTrigger) -> str:
             "local_target",
         )
     }
+    if trigger.result_mode == "inbox":
+        content["result_mode"] = "inbox"
     if trigger.project_id is not None:
         content["project_id"] = trigger.project_id
     return hashlib.sha256(json.dumps(content, sort_keys=True, default=str).encode()).hexdigest()

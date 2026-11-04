@@ -469,6 +469,35 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", "/providers/model-profiles")
 
+    async def list_inbox_cases(conversation_id: UUID | None = None) -> dict[str, object]:
+        """List the caller's open Inbox cases, optionally for the current working chat.
+
+        After completing requested work, resolve its case with settle_inbox_case.
+        Reading a draft does not complete it, and preparing a draft does not send it.
+        Returns at most 50 items with case ids, shared status, working chat links,
+        and source item/revision addresses for reading the original mail before sending.
+        Trusted private-chat credentials only see the current chat; ordinary API keys
+        and background/group callers cannot read personal Inbox cases.
+        """
+        params = {"include_source": "true"}
+        if conversation_id is not None:
+            params["conversation_id"] = str(conversation_id)
+        return await api.request("GET", "/outcomes", params=params)
+
+    async def settle_inbox_case(
+        outcome_id: UUID, action: Literal["acknowledge", "resolve", "mute"]
+    ) -> dict[str, object]:
+        """Update one of the caller's Inbox cases across chat and notifications.
+
+        Acknowledge means seen, resolve means completed, mute means stop reporting this
+        source item. Resolve only after the user confirms it is done or the requested
+        external action succeeds. Never resolve merely because a draft was prepared,
+        a send was proposed, or a tool failed. Returns the shared case state.
+        """
+        return await api.request(
+            "POST", f"/outcomes/{outcome_id}/settle", json={"action": action, "via": "chat"}
+        )
+
     async def list_routines(agent_id: UUID | None = None, limit: int = 50) -> dict[str, Any]:
         """Routines: agents that run themselves on a schedule or when something happens.
 
@@ -622,9 +651,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         answer_to: Literal["run_log", "primary", "conversation"] | None = None,
         monthly_budget_usd: str | None = None,
         pinned_version_id: UUID | None = None,
+        result_mode: Literal["report", "inbox"] | None = None,
     ) -> dict[str, Any]:
         """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
 
+        `result_mode="inbox"` checks for relevant source items and creates one private
+        working chat and Inbox case per item, including full drafts requested in the
+        prompt. Unchanged source revisions stay quiet; new revisions update the same
+        case. Use `report` for a report after each execution. A monitoring Watch is a
+        read-only routine preset, not another task to create alongside this routine.
         Give one cadence. `cron_expression` is a five-field crontab read in
         `time_zone`, an IANA name such as `Europe/Warsaw`; left out, it is the
         person's own zone from their account (UTC when they set none). Write the
@@ -644,6 +679,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         and its management state.
         """
         body: dict[str, Any] = {"prompt": prompt, "runs_as_creator": runs_as_me}
+        if result_mode is not None:
+            body["result_mode"] = result_mode
         if notification_channels is not None:
             body["notification_channels"] = notification_channels
         if pinned_version_id is not None:
@@ -686,6 +723,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         monthly_budget_usd: str | None = None,
         clear_budget: bool = False,
         pinned_version_id: UUID | None = None,
+        result_mode: Literal["report", "inbox"] | None = None,
         follow_latest: bool = False,
     ) -> dict[str, Any]:
         """Pause or resume a routine, or change its prompt, cadence, zone or name.
@@ -706,6 +744,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if inherit_notifications and notification_channels is not None:
             raise ValueError("Choose notification_channels or inherit_notifications, not both")
         body: dict[str, Any] = {}
+        if result_mode is not None:
+            body["result_mode"] = result_mode
         if notification_channels is not None or inherit_notifications:
             body["notification_channels"] = None if inherit_notifications else notification_channels
         if pinned_version_id is not None or follow_latest:
@@ -1288,6 +1328,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (create_watch, True),
         (update_watch, True),
         (delete_watch, True),
+        (list_inbox_cases, False),
+        (settle_inbox_case, True),
         (list_routines, False),
         (create_routine, True),
         (update_routine, True),

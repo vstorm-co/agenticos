@@ -1,5 +1,5 @@
 ---
-source_sha: "0047bdd0c23a"
+source_sha: "1e3e083daa0d"
 ---
 
 # Governance { #governance }
@@ -567,7 +567,7 @@ El campo del modelo usa el mismo selector de proveedor, modelo y clave del
 Vault que el Builder de agentes. Con `connections:manage`, una persona puede
 crear un perfil de modelo allí; sin ese permiso, elige un perfil existente.
 El perfil nuevo se guarda inmediatamente. **Guardar** aplica la selección a las
-sugerencias nocturnas y el briefing. Las vigilancias del agente elegido comparten
+sugerencias nocturnas. El briefing enumera hallazgos existentes sin llamar al modelo. Las vigilancias del agente elegido comparten
 el límite por persona.
 
 La plataforma puede hacer un poco por iniciativa propia, y no hace nada de eso
@@ -2336,3 +2336,44 @@ Las rutinas con presupuesto comparten una clave de concurrencia de la cola para 
 
 
 Las alertas de trabajos pausados de todo el despliegue conservan el estado normal de lectura y descarte de notificaciones; no se presentan como casos de una organización.
+
+### Rutinas, conversaciones de trabajo e Inbox { #routines-working-conversations-and-inbox }
+
+**Routines** reúne tareas programadas, tareas por eventos y plantillas de
+supervisión de solo lectura. Un trigger determina *cuándo* se ejecuta la rutina;
+la plantilla de supervisión limita *qué* puede hacer. Use una rutina por
+responsabilidad, sin duplicar una observación y una tarea programada para el mismo buzón.
+
+Elija **Después de cada ejecución completada** (`result_mode: report`, el valor
+predeterminado existente) para informes, o **Solo cuando algo necesita atención**
+(`result_mode: inbox`) para comprobaciones silenciosas. El agente devuelve elementos
+relevantes con identificadores estables de elemento y revisión, contexto y el
+borrador completo solicitado. Un resultado vacío no crea conversaciones ni avisos
+de finalización. Cada elemento tiene una conversación privada y un caso en Inbox.
+Las revisiones repetidas se deduplican de forma persistente, incluso tras resolver
+el caso. Una revisión nueva actualiza la misma conversación y reabre el caso;
+un elemento silenciado permanece silenciado.
+
+Abra la conversación desde Inbox para editar el borrador o solicitar el siguiente
+paso. Leer o editar no envía nada ni completa el caso. Siguen vigentes los permisos
+y las aprobaciones de herramientas. Las herramientas MCP de plataforma
+`list_inbox_cases` y `settle_inbox_case` permiten encontrar el caso y resolverlo
+tras completar correctamente el trabajo solicitado o recibir una confirmación
+explícita. Inbox y chat comparten estado; al resolver se cancelan notificaciones
+pendientes. La supervisión de solo lectura puede preparar texto en la conversación,
+pero no guardar ni enviar borradores mediante el servicio de origen.
+
+Las sugerencias nocturnas siguen siendo un análisis opcional e independiente de
+solicitudes recientes y memoria, no otro escaneo del buzón. La supervisión usa el
+modelo de su agente seleccionado y no requiere un modelo de sugerencias. La
+organización controla disponibilidad, frecuencia y presupuesto compartido por
+persona para trabajo en segundo plano. Las rutinas ordinarias conservan los límites
+del agente, de la organización y su límite propio opcional. Días y hora también
+controlan el resumen de hallazgos no urgentes.
+
+El resumen matinal enumera hallazgos no urgentes ya guardados sin otra llamada
+al modelo ni otro escaneo de fuentes. Es una notificación, no una segunda rutina.
+Las herramientas MCP de Inbox sirven a sesiones iniciadas y credenciales de
+confianza de un chat privado; estas últimas solo acceden a casos de ese chat.
+Las claves API ordinarias, ejecuciones desatendidas e identidades de respaldo del
+publicador no pueden leer ni resolver casos privados de Inbox.

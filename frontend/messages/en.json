@@ -7261,10 +7261,11 @@
     },
     "routines": {
       "title": "Routines",
-      "description": "Agent routines carry out tasks. My watches check your connected accounts and bring findings to your private Inbox.",
-      "newWatch": "New watch",
-      "agentsTab": "Agent routines",
-      "watchesTab": "My watches"
+      "description": "Tasks and monitoring in one place. Choose when to run and when results need your attention.",
+      "newWatch": "Monitor and inform",
+      "newRoutine": "New routine",
+      "scheduledTask": "Run on a schedule",
+      "eventTask": "Run when an event arrives"
     },
     "signIns": {
       "cancel": "Cancel",
@@ -8241,12 +8242,12 @@
     "publicLiveDataConfirmWhy": "Anyone with a page's public link, and every site that embeds it, will see its table data without signing in. Nothing is shown until the page's owner or an Owner or Admin confirms it. Pages confirmed earlier show their data again right away.",
     "publicLiveDataConfirm": "Allow",
     "proactive": {
-      "title": "Proactivity",
-      "description": "Work the platform does for people on its own, in the background. Off until you turn it on.",
+      "title": "Assistant suggestions and monitoring",
+      "description": "Conversation-based suggestions and read-only monitoring are independent. Scheduled and event routines do not require suggestions to be enabled.",
       "nightly": "Nightly suggestions",
-      "nightlyHint": "A look at each person's week: a routine for a request they keep repeating, their profile, and the first messages their empty chat offers. People can opt out in their own settings.",
+      "nightlyHint": "Suggest routines, agents and profile updates from recent conversations and memory. Does not scan mailboxes. Creating a suggested routine still needs the person’s confirmation.",
       "model": "Model",
-      "modelHint": "What the nightly look and the watches run on. A small, inexpensive model is enough.",
+      "modelHint": "Used only to suggest improvements from conversations. Monitoring uses each selected agent’s model.",
       "modelRequired": "Choose the model it runs on before turning it on.",
       "label": "Limit per person (USD a month)",
       "days": "Days",
@@ -8266,13 +8267,13 @@
       "welcomeTextHint": "Leave it empty for the built-in greeting in each person's language. '{organization}', '{bot}' and '{url}' are filled in.",
       "welcomeTextPlaceholder": "Welcome to '{organization}'! Ask me anything right here.",
       "welcomeSaved": "Welcome message saved",
-      "watches": "Watch people's connections",
-      "watchesHint": "People choose what to watch in their own connected accounts - pull requests waiting on them, an overdue invoice - and hear what is new. It only reads, and what it finds is private to each person.",
+      "watches": "Allow read-only monitoring routines",
+      "watchesHint": "Members explicitly choose an agent and approve sources in their own accounts. Report relevant changes to their Inbox; requested drafts open in a working chat.",
       "watchMinutes": "Most often",
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
-      "runAttribution": "Background checks appear under the published AgenticOS starter agent in Activity. This assignment is fixed by the platform. They use the proactivity model selected below, independently of the agent’s own model."
+      "runAttribution": "Conversation analysis uses the model below; monitoring uses its selected agent. Both share the monthly per-person background budget. Days and time also control the digest of non-urgent monitoring findings."
     },
     "systemAgents": {
       "title": "System agents",
@@ -8833,7 +8834,12 @@
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
-    "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit."
+    "budgetInvalid": "Enter a positive amount, or leave blank to remove this limit.",
+    "resultMode": "When to bring results",
+    "resultReport": "After every completed run",
+    "resultInbox": "Only when something needs attention",
+    "resultReportHint": "Deliver a report to the chosen conversation after each run.",
+    "resultInboxHint": "Create one Inbox case and working chat per source item. Include requested drafts there; unchanged checks stay quiet. Sending still requires the appropriate permission and approval."
   },
   "portals": {
     "mailboxInterval": {
@@ -12248,11 +12254,11 @@
     }
   },
   "watches": {
-    "title": "Watches",
+    "title": "Read-only monitoring",
     "description": "The assistant checks your own connected accounts on a schedule and tells you what is new. It only reads, and only you see what it finds.",
     "orgOff": "Your organization has not turned watches on. An admin can do it on the organization's page, under Proactivity.",
     "noConnections": "Connect one of your own accounts on the MCP servers page first - GitHub, Linear, your mailbox.",
-    "add": "New watch",
+    "add": "Monitor and inform",
     "resumed": "Watching again",
     "paused": "Paused",
     "removed": "Stopped watching",
@@ -12265,8 +12271,8 @@
     "activeLabel": "Watch {title}",
     "editLabel": "Edit {title}",
     "removeLabel": "Stop watching {title}",
-    "newTitle": "Watch something",
-    "editTitle": "Edit watch",
+    "newTitle": "Monitoring routine",
+    "editTitle": "Edit monitoring routine",
     "dialogDescription": "What to look for in one of your accounts, and how often. It only reads; what it finds is for you alone.",
     "connection": "Account",
     "connectionPlaceholder": "Choose one of your connections",
@@ -12283,7 +12289,7 @@
     "exclusionsHint": "One line each: what you do not want reported again.",
     "cancel": "Cancel",
     "save": "Save",
-    "create": "Start watching",
+    "create": "Create routine",
     "saved": "Watch saved",
     "created": "Watching - the first look is within a minute",
     "cadence": {
@@ -12417,7 +12423,7 @@
     "versionFollowing": "Follows published version",
     "environmentSelected": "Selected environment",
     "nextCheck": "Next check: {at}",
-    "watchAndInform": "Watch and inform",
+    "watchAndInform": "Monitor and inform",
     "reviewSources": "Approve attached sources again",
     "reviewSourcesHint": "Approve the connected account again, including this agent’s current knowledge and context. Required after reconnecting the account. Leave off to retain the existing source approval.",
     "reportMode": "When to report",
@@ -12427,19 +12433,19 @@
   },
   "inbox": {
     "title": "Inbox",
-    "description": "What the platform brought you on its own: what your watches found and what the nightly look proposed.",
+    "description": "Results that need attention, approvals and suggestions based on your conversations.",
     "filterLabel": "Show",
     "filter": {
       "all": "All",
       "urgent": "Urgent",
-      "watches": "From watches",
+      "watches": "Routine results",
       "suggestions": "Suggestions",
       "done": "Done"
     },
     "empty": {
       "title": "Nothing waits here",
-      "description": "What your watches find and what the nightly look proposes arrives here.",
-      "watches": "Set up a watch"
+      "description": "Relevant routine results and assistant suggestions arrive here.",
+      "watches": "Set up a routine"
     },
     "doneEmpty": "Nothing answered yet",
     "waiting": "{count, plural, =0 {Nothing waiting} =1 {1 waiting} other {# waiting}}",
@@ -12449,8 +12455,9 @@
       "agent": "Agent idea",
       "profile": "Profile",
       "role_pack": "Routine pack",
-      "finding": "Watch"
-    }
+      "finding": "Routine"
+    },
+    "openWorkingChat": "Open conversation"
   },
   "agentLimit": {
     "title": "This organization is at its agent limit",

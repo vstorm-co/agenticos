@@ -71,6 +71,7 @@ export interface Trigger {
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
+  result_mode?: "report" | "inbox";
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   /** When the routine stops by itself; null runs until stopped (#2575). */
@@ -161,6 +162,7 @@ export interface TriggerCreate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
+  result_mode?: "report" | "inbox";
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
@@ -227,6 +229,7 @@ export interface TriggerUpdate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
+  result_mode?: "report" | "inbox";
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
