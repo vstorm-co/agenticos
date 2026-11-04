@@ -15297,7 +15297,17 @@
         "skill_set": "Run na pytaniach skilla",
         "dataset_sample": "{named, select, yes {Run na próbce {name}} other {Run na próbce pytań agenta}}",
         "dataset": "{named, select, yes {Run na {name}} other {Run na pytaniach agenta}}"
-      }
+      },
+      "summary": {
+        "worse": "Gorzej: {count}",
+        "unknown": "Nieznane: {count}",
+        "same": "Bez zmian: {count}",
+        "better": "Lepiej: {count}",
+        "pending": "W trakcie: {count}"
+      },
+      "seenCount": "{seen, plural, =0 {Nie obejrzano jeszcze żadnego z {total} agentów} other {Obejrzano # z {total} agentów}}",
+      "seen": "Obejrzany",
+      "details": "Szczegóły: {name}"
     },
     "testSet": {
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",

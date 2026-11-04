@@ -15523,7 +15523,17 @@
         "skill_set": "Run on the skill's questions",
         "dataset_sample": "{named, select, yes {Run on a sample of {name}} other {Run on a sample of the agent's questions}}",
         "dataset": "{named, select, yes {Run on {name}} other {Run on the agent's questions}}"
-      }
+      },
+      "summary": {
+        "worse": "{count} worse",
+        "unknown": "{count} not known",
+        "same": "{count} no change",
+        "better": "{count} better",
+        "pending": "{count} still checking"
+      },
+      "seenCount": "{seen, plural, =0 {None of {total} agents looked at yet} other {Looked at # of {total} agents}}",
+      "seen": "Seen",
+      "details": "Details of {name}"
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
