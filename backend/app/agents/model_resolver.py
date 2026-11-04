@@ -42,10 +42,14 @@ itself, and a credential without one is refused rather than built to fail on its
 second run.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
+import httpx
+import httpx2
+from openai import AsyncOpenAI
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.providers import Provider, infer_provider_class
@@ -110,9 +114,7 @@ class ProviderSpec:
     keyless: bool = False
     model_prefix: str = ""
     native_api: ModelApi | None = None
-    # Where a profile's requests may run, for a provider that lets the caller
-    # say. The first entry is what a profile gets when it names none. Empty for
-    # every provider without the choice.
+    # The first supported region is the default.
     regions: tuple[ModelRegion, ...] = ()
 
     @property
@@ -145,23 +147,36 @@ class ProviderSpec:
         return self.regions[0] if self.regions else None
 
 
+class _StavClient(AsyncOpenAI):
+    async def _prepare_request(self, request: httpx2.Request) -> None:
+        await super()._prepare_request(request)
+        # Apply after request-level headers, which otherwise override the profile's region.
+        if region := self.default_headers.get(STAV_REGION_HEADER):
+            request.headers[STAV_REGION_HEADER] = region
+
+
 class _StavProvider(OpenAIProvider):
-    """Stav's OpenAI-compatible API, with the profile's region on every request.
-
-    The region travels as a header rather than in the body: a profile's own
-    `extra_body` in `params` would replace one set there, and a header cannot be
-    overwritten that way. Stav narrows a request to the region, never widens it,
-    so the workspace's own policy still applies on top.
-
-    The parent builds the client, so the provider owns its HTTP client and closes
-    it with the run like every other OpenAI-compatible provider; `with_options`
-    shares that client and only adds the header.
-    """
+    """Stav requests retain the profile's region and the provider-owned client lifecycle."""
 
     def __init__(self, *, api_key: str, base_url: str, region: ModelRegion) -> None:
         super().__init__(api_key=api_key, base_url=base_url)
         if region != "global":
             self._client = self._client.with_options(default_headers={STAV_REGION_HEADER: region})
+
+    def _create_openai_client(
+        self,
+        *,
+        base_url: str | None,
+        api_key: str | None,
+        http_client: httpx2.AsyncClient | httpx.AsyncClient | None,
+        default_headers: Mapping[str, str] | None = None,
+    ) -> AsyncOpenAI:
+        client = self._get_http_client(http_client)
+        if not isinstance(client, httpx2.AsyncClient):
+            raise TypeError("Stav requires an httpx2 client")
+        return _StavClient(
+            base_url=base_url, api_key=api_key, http_client=client, default_headers=default_headers
+        )
 
 
 class _EndpointOpenRouterProvider(OpenRouterProvider):

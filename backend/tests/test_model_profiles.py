@@ -10,8 +10,10 @@ agent run.
 import json
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx2
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -2181,3 +2183,28 @@ class TestStavRegion:
                 api="responses",
                 region="eu",
             )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("region", ["eu", "eea"])
+@pytest.mark.parametrize("surface", ["chat/completions", "responses"])
+@pytest.mark.parametrize("header", ["X-Stav-Runs-In", "x-stav-runs-in"])
+async def test_stav_region_cannot_be_overridden_by_request_headers(
+    region: Literal["eu", "eea"], surface: str, header: str
+) -> None:
+    from app.agents.model_resolver import _StavProvider
+
+    received: list[str] = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        received.append(request.headers["X-Stav-Runs-In"])
+        return httpx2.Response(200, json={"id": "test"})
+
+    provider = _StavProvider(api_key="test", base_url="https://stav.example/v1", region=region)
+    async with (
+        provider,
+        httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport,
+    ):
+        client = provider.client.with_options(http_client=transport)
+        await client.post(surface, cast_to=object, options={"headers": {header: "global"}})
+    assert received == [region]
