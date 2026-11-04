@@ -280,6 +280,21 @@ class TestEstimateAndStart:
         assert (quote.total_usd, quote.proposal_usd) == (_PRICE, _PRICE * 2)
         assert (quote.evidence_runs, quote.usage_unknown, quote.reason) == (1, 2, None)
 
+    async def test_an_attempt_is_priced_with_a_quick_check_of_the_line_as_it_is(
+        self, db, evidence, monkeypatch
+    ):
+        """A spending limit made from it leaves room for each attempt's check."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+
+        quote = await SkillImprovementService(db).estimate(ctx, skill.id, SkillImprovementTarget())
+
+        assert (quote.check_usd, quote.per_round_usd) == (fake.price, _PRICE + fake.price)
+        [(_, priced)] = fake.calls
+        assert (priced.candidate.content, priced.mode) == (skill.content, CheckMode.QUICK)
+        assert fake.excluded == [[run.conversation_id for run in evidence["runs"]]]
+
     async def test_a_line_holds_one_open_session_and_main_counts_as_one_line(self, db, evidence):
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)
@@ -1202,6 +1217,7 @@ class TestCheckAndResult:
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
         run = await _at_changes(db, ctx)
+        fake.excluded.clear()
         service = SkillImprovementService(db)
 
         quote = await service.estimate_continuation(
