@@ -2261,6 +2261,7 @@ class TestStavRegion:
 
 
 @pytest.mark.anyio
+@pytest.mark.security
 @pytest.mark.parametrize("region", ["eu", "eea"])
 @pytest.mark.parametrize("surface", ["chat/completions", "responses"])
 @pytest.mark.parametrize("header", ["X-Stav-Runs-In", "x-stav-runs-in"])

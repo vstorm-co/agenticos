@@ -185,6 +185,7 @@ class TestCaching:
         assert client.get.await_count == 1
 
     @pytest.mark.anyio
+    @pytest.mark.security
     async def test_authenticated_catalogs_are_isolated_without_caching_plaintext_keys(self):
         client = _responds({"data": [{"id": "gpt-5.6-sol"}]})
         with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
@@ -843,6 +844,7 @@ async def test_a_defect_while_listing_embedding_models_is_not_read_as_unconfirme
 
 
 @pytest.mark.anyio
+@pytest.mark.security
 async def test_custom_stav_catalogs_do_not_leak_between_credentials() -> None:
     received: list[str] = []
 

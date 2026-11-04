@@ -11,7 +11,7 @@ from app.core.permissions import AuthContext
 from app.services.model_catalog import CatalogModel
 from app.services.organization_secret import OrganizationSecretService
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 def context(role: str = "owner") -> AuthContext:
