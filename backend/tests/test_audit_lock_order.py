@@ -2,11 +2,12 @@
 
 `record_audit` takes a transaction-scoped lock on an organization's audit chain,
 and holds it to the end of the request. A caller that reaches for a `users` row
-*after* it closes an ABBA cycle against `UserService.admin_delete`, which locks
-every app admin's row exclusively first and takes the chain second:
+*after* it closes an ABBA cycle against `UserService.admin_update`, which locks
+every app admin's row exclusively first and takes the chain second (and against
+`UserService.admin_delete`, which does the same with the deleted account's row):
 
     A  impersonation start   chain lock ──▶ key-share on each recipient's row
-    B  an admin deleting     every admin's row ──▶ chain lock
+    B  an admin updating     every admin's row ──▶ chain lock
 
 Postgres detects it and aborts one side. Either the delete fails and is retried,
 or - inside `write()`'s per-recipient savepoint - the mandatory security-event

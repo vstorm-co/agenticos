@@ -2,10 +2,12 @@ import asyncio
 import contextlib
 import logging
 import secrets
+import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -66,6 +68,30 @@ if TYPE_CHECKING:
     from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
+
+_ACCOUNT_LOCK_SECONDS = 10.0
+"""How long an account deletion's lock phase keeps starting again before refusing."""
+
+_LOCK_NOT_AVAILABLE = "55P03"
+"""The SQLSTATE a `NOWAIT` lock raises when another transaction holds the row."""
+
+_DEADLOCK_DETECTED = "40P01"
+"""The SQLSTATE of the statement Postgres aborts to break a deadlock."""
+
+
+@dataclass(frozen=True)
+class _LockedAccount:
+    """What `UserService._lock_account` holds for the rest of a deletion.
+
+    `heirs` are the users a shared organization the account created is handed
+    to, locked with it (#1134, #1268). `app_admins` is the deployment's
+    app-admin set, locked only for `admin_delete` (#1208), and empty otherwise.
+    """
+
+    user: User
+    heirs: frozenset[UUID]
+    app_admins: tuple[UUID, ...]
+
 
 # A real bcrypt hash of a value nobody holds, computed once at import. An
 # address with no account is verified against this rather than short-circuited,
@@ -157,14 +183,21 @@ class UserService:
         `is_app_admin` is rechecked under the row lock, not just filtered by the
         list: a `create-app-admin` that promotes a listed account before this loop
         reaches it would otherwise have it deleted despite the command's promise
-        to keep admins, since `delete` does not re-read the flag (#1139).
+        to keep admins, since `delete` does not re-read the flag (#1139). The
+        row lock is the deletion's own (`_lock_account`), not one taken before
+        it: a user row held across that lock phase is one it cannot let go of
+        while it waits for the organization (#2682). The accounts already deleted
+        in this transaction stay locked to its end; nothing else writes for them.
         """
         removed = 0
         for candidate in await user_repo.list_non_admins(self.db):
-            locked = await user_repo.get_by_id_for_update(self.db, candidate.id)
-            if locked is None or locked.is_app_admin:
+            try:
+                locked = await self._lock_account(candidate.id)
+            except NotFoundError:
                 continue
-            await self.delete(candidate.id)
+            if locked.user.is_app_admin:
+                continue
+            await self._delete_locked(locked)
             removed += 1
         return removed
 
@@ -700,11 +733,17 @@ class UserService:
             BadRequestError: The user is the sole owner of a shared organization,
                 or its ownership changed while the deletion was being prepared.
             ConcurrentChangeError: A knowledge collection created during the
-                deletion is being worked on by something else. Nothing was
-                deleted; the caller retries.
+                deletion is being worked on by something else, or the account's
+                rows stayed busy through every attempt to lock them. Nothing
+                was deleted; the caller retries.
         """
-        user, locked_heirs = await self._lock_for_delete(user_id)
-        await self._release_owned_rows(user_id, locked_heirs=locked_heirs)
+        return await self._delete_locked(await self._lock_account(user_id))
+
+    async def _delete_locked(self, locked: _LockedAccount) -> User:
+        """`delete`, once `_lock_account` holds what the deletion locks."""
+        user = locked.user
+        user_id = user.id
+        await self._release_owned_rows(user_id, locked_heirs=locked.heirs)
         # Read before the row goes. `chat_files` cascades from `users`, so the
         # rows naming each upload disappear with the account and the bytes stay
         # on disk - an erasure that leaves the person's documents where they
@@ -728,8 +767,19 @@ class UserService:
             )
         return user
 
-    async def _lock_for_delete(self, user_id: UUID) -> tuple[User, frozenset[UUID]]:
+    async def _lock_user_rows(
+        self, user_id: UUID, *, app_admins: bool, nowait: bool
+    ) -> _LockedAccount:
         """Lock this user's row and every heir's, in ascending id order (#1134).
+
+        With `app_admins`, the deployment's app-admin set first, in its own id
+        order (#1208) - the rows `admin_delete` decides the last-admin rule on.
+        `FOR NO KEY UPDATE`, which serialises two deletions and a demotion as
+        `FOR UPDATE` did, but not against the `FOR KEY SHARE` every write
+        referencing an administrator takes: with `nowait` those would refuse a
+        deletion unrelated to them.
+        With `nowait`, a row another transaction holds raises (SQLSTATE `55P03`)
+        instead of waiting: see `_lock_account`.
 
         The self lock serves #1115: held before the reconcile's reads, it makes a
         private secret or personal org inserted concurrently (both take FOR KEY
@@ -760,7 +810,13 @@ class UserService:
             between the two reads could name an heir this never locked, and
             `reassign_creator` would then take that user's FK lock outside the
             ordered sequence - the cycle again, by another door (#1268).
+
+        Raises:
+            NotFoundError: No such user.
         """
+        administrators: list[UUID] = []
+        if app_admins:
+            administrators = await user_repo.app_admin_ids_for_no_key_update(self.db, nowait=nowait)
         heir_ids: set[UUID] = set()
         for org in await organization_repo.list_created_by(self.db, user_id):
             if org.is_personal:
@@ -774,12 +830,14 @@ class UserService:
         user: User | None = None
         for uid in sorted({user_id, *heir_ids}):
             if uid == user_id:
-                user = await user_repo.get_by_id_for_update(self.db, uid)
+                user = await user_repo.get_by_id_for_update(self.db, uid, nowait=nowait)
             else:
-                await user_repo.get_by_id_for_no_key_update(self.db, uid)
+                await user_repo.get_by_id_for_no_key_update(self.db, uid, nowait=nowait)
         if user is None:
             raise NotFoundError(message="User not found", details={"user_id": user_id})
-        return user, frozenset(heir_ids)
+        return _LockedAccount(
+            user=user, heirs=frozenset(heir_ids), app_admins=tuple(administrators)
+        )
 
     async def _release_owned_rows(self, user_id: UUID, *, locked_heirs: frozenset[UUID]) -> None:
         """Hand on or remove what would otherwise block the user's deletion (#9).
@@ -870,8 +928,6 @@ class UserService:
         # person's own chats outside any project still go.
         await conversation_repo.release_project_chats(self.db, user_id=user_id)
 
-        personal_orgs = [org for org in created if org.is_personal]
-        await self._lock_personal_organizations(user_id, personal_orgs)
         await self._purge_personal_collections(user_id)
 
         vector_store = self._vector_store or process_vector_store(
@@ -886,44 +942,102 @@ class UserService:
                     self.db, org=org, new_creator_id=heirs[org.id]
                 )
 
-    async def _lock_personal_organizations(
-        self, user_id: UUID, personal_orgs: list[Organization]
-    ) -> None:
-        """Lock the personal organization before anything under it is deleted (#2638).
+    async def _lock_account(self, user_id: UUID, *, app_admins: bool = False) -> _LockedAccount:
+        """Take every lock the deletion needs before it changes anything (#2638, #2682).
 
-        An ingest's spend references the organization and one of its documents,
-        and takes the two `FOR KEY SHARE` in that order - the order
-        `OrganizationService.purge` locks them in. Deleting the personal bases'
-        documents first and reaching the purge's `FOR UPDATE` afterwards inverted
-        it, and Postgres aborted one of the two. So the organization row is locked
-        here, before `_purge_personal_collections` deletes its documents, bases and
-        sources. The purge and the personal teardown take the same locks again
-        later, which Postgres grants at once to the transaction holding them.
+        In this order, inside a savepoint:
 
-        The `COLLECTION_TEARDOWN` names come first, for #1387: a claim takes the
-        name and then the organization's foreign key. The personal bases' names and
-        the personal organization's own collections are taken in one sorted pass.
-        That read has no row lock, so a base committed before the `FOR UPDATE` was
-        granted - a claim this lock waited for - is found only by a second read
-        under it. Its name is taken without waiting, as the purge does (#1389):
-        a claim holding that name may be waiting for the organization this holds.
-        No base can appear after the second read, because a new base references
-        the locked organization or, for a personal base, the locked user. One
-        creator still deadlocks rather than waits: the user being deleted. Their
-        base insert takes the organization row first, then waits for the user row
-        `_lock_for_delete` already holds, while this waits for the organization,
-        so Postgres aborts one of the two - the deletion answers 500 and a retry
-        succeeds. That ordering predates this lock.
+        1. the `COLLECTION_TEARDOWN` names of the personal bases and of the
+           personal organizations' own bases, sorted - before the organization,
+           because a claim takes the name and then the organization's foreign
+           key (#1387);
+        2. the personal organizations `FOR UPDATE`, before anything under them is
+           deleted: an ingest's spend takes the organization and then one of its
+           documents, the order `OrganizationService.purge` locks them in, and
+           deleting the documents first inverted it (#2638);
+        3. the user rows (`_lock_user_rows`), `NOWAIT`;
+        4. the names of bases created while this waited (`_hold_late_names`).
+
+        The user rows are never waited for while the organization is held, nor
+        the organization while a user row is. A write for this person takes both
+        `FOR KEY SHARE` through its foreign keys, in the order its table's
+        constraints fire, and that order differs between tables: a knowledge base
+        or a notification takes the organization first, an agent or a vault secret
+        the user first. Holding either while waiting for the other deadlocks with
+        one of the two kinds, so when a user row is busy the savepoint is rolled
+        back - which releases the names, the organization and any user row it
+        took - the user rows are waited for in a savepoint of their own, released
+        again, and the phase starts over. That wait takes the rows one after
+        another, so it can still deadlock with a writer taking two of them the
+        other way round; Postgres then aborts the wait, which is one more round,
+        not a failure. Whatever the transaction held before this call it keeps
+        throughout - nothing for a request, the earlier accounts for
+        `delete_non_admins`.
 
         Raises:
+            NotFoundError: No such user.
             ConcurrentChangeError: A base created during the deletion has a name
-                something else is working on right now. Nothing was deleted.
+                something else is working on right now, or the user rows were
+                still being taken by other writers after `_ACCOUNT_LOCK_SECONDS`.
+                Nothing was deleted.
         """
-        names = await self._teardown_names(user_id, personal_orgs)
-        for collection in sorted(names):
-            await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
-        for org in sorted(personal_orgs, key=lambda org: org.id):
-            await organization_repo.get_by_id_for_update(self.db, org.id)
+        # Created with the account (`create_personal_org`) and never afterwards,
+        # so a read before the locks is the set the locks need.
+        personal_orgs = [
+            org
+            for org in await organization_repo.list_created_by(self.db, user_id)
+            if org.is_personal
+        ]
+        deadline = time.monotonic() + _ACCOUNT_LOCK_SECONDS
+        while True:
+            try:
+                async with self.db.begin_nested():
+                    names = await self._teardown_names(user_id, personal_orgs)
+                    for collection in sorted(names):
+                        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection)
+                    for org in sorted(personal_orgs, key=lambda org: org.id):
+                        await organization_repo.get_by_id_for_update(self.db, org.id)
+                    locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
+                    await self._hold_late_names(user_id, personal_orgs, names)
+            except DBAPIError as failed:
+                if getattr(failed.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+                    raise
+            else:
+                return locked
+            if time.monotonic() >= deadline:
+                raise ConcurrentChangeError(
+                    message=(
+                        "This account is being changed by something else right now. "
+                        "Nothing was deleted; try again."
+                    ),
+                    details={"user_id": user_id},
+                )
+            # Whoever holds a user row may be waiting for the organization just
+            # let go of; it finishes, and only then does this try again.
+            try:
+                async with self.db.begin_nested() as waiting:
+                    await self._lock_user_rows(user_id, app_admins=app_admins, nowait=False)
+                    await waiting.rollback()
+            except DBAPIError as failed:
+                if getattr(failed.orig, "sqlstate", None) != _DEADLOCK_DETECTED:
+                    raise
+
+    async def _hold_late_names(
+        self, user_id: UUID, personal_orgs: list[Organization], names: set[str]
+    ) -> None:
+        """Take the names of bases the first read of `names` missed, without waiting.
+
+        That read has no row lock, so a base committed while the organization
+        lock waited - a claim that lock waited for - is found only by this second
+        read under it. Its name is taken without waiting, as the purge does
+        (#1389): a claim holding that name may be waiting for the organization
+        this holds. No base can appear after this read, because a new base
+        references the locked organization or, for a personal base, the locked
+        user.
+
+        Raises:
+            ConcurrentChangeError: Such a name is held by something else.
+        """
         late = await self._teardown_names(user_id, personal_orgs) - names
         for collection in sorted(late):
             if not await try_hold_name(self.db, LockScope.COLLECTION_TEARDOWN, collection):
@@ -967,11 +1081,11 @@ class UserService:
         storage_paths: list[str] = []
         collections_to_drop: list[str] = []
         base_purges: list[BasePurge] = []
-        # Sorted by name so this loop, `_lock_personal_organizations` and
+        # Sorted by name so this loop, `_lock_account` and
         # `OrganizationService.purge` - the paths that take several teardown locks in
         # one transaction - acquire any shared name (#913) in one order, and cannot
         # invert into a teardown-vs-teardown deadlock (#1387). On account deletion the
-        # names are already held here, taken by `_lock_personal_organizations`.
+        # names are already held here, taken by `_lock_account`.
         personal = await knowledge_base_repo.list_personal_by_owner(self.db, user_id)
         ordered = sorted(personal, key=lambda kb: kb.collection_name)
         # Acquire every name before source rows: an edit assigning a source to
@@ -1017,11 +1131,12 @@ class UserService:
             raise AuthorizationError(
                 message="You cannot suspend your own account; ask another app admin to."
             )
-        # The same set `admin_delete` locks, and first for the same reason. This
-        # route updates a `users` row and then audits; a concurrent delete locks
-        # every app-admin row and then audits. Without a shared first lock the
-        # two take the target row and the admin set in opposite orders, and the
-        # deadlock aborts a whole PATCH rather than one notification (#1763).
+        # The same set `admin_delete` locks, and first among the user rows for the
+        # same reason. This route updates a `users` row and then audits; a
+        # concurrent delete locks the app-admin set and its target and then
+        # audits. Without a shared first lock the two take the target row and the
+        # admin set in opposite orders, and the deadlock aborts a whole PATCH
+        # rather than one notification (#1763).
         #
         # `FOR UPDATE` rather than the key-share the notification audience
         # takes: this transaction goes on to *write* the target row, and taking
@@ -1047,20 +1162,23 @@ class UserService:
         *set*, taken under a lock in a fixed order: the later request waits, re-reads
         after the first commits, and is refused because it would empty the set. The
         set is locked on every admin deletion, target in it or not: taking it
-        first and always is what makes the order total, and deleting a user is an
-        administrator's action rather than a hot path.
+        first among the user rows and always is what makes the order total, and
+        deleting a user is an administrator's action rather than a hot path. It is
+        taken inside the deletion's lock phase (`_lock_account`), so that, deleting
+        an app admin, the target's row is never held while the phase waits for
+        their personal organization (#2682).
         """
         if user_id == acting_admin_id:
             raise AuthorizationError(
                 message="You cannot delete your own account; ask another app admin to."
             )
-        administrators = await user_repo.app_admin_ids_for_update(self.db)
-        if user_id in administrators and len(administrators) < 2:
+        locked = await self._lock_account(user_id, app_admins=True)
+        if user_id in locked.app_admins and len(locked.app_admins) < 2:
             raise AuthorizationError(
                 message="This is the deployment's last app admin; promote another one first.",
-                details={"app_admins": len(administrators)},
+                details={"app_admins": len(locked.app_admins)},
             )
-        return await self.delete(user_id)
+        return await self._delete_locked(locked)
 
     async def issue_password_reset_token(self, email: str) -> tuple[User, str] | None:
         """Returns None (not raises) to avoid leaking whether the email is registered."""

@@ -1,6 +1,6 @@
 """Deleting an account while an ingest records its spend finishes both (#2638).
 
-The lock order is explained on `UserService._lock_personal_organizations`.
+The lock order is explained on `UserService._lock_account`.
 Integration because the deadlock is two transactions the database arbitrates,
 which a mock cannot show.
 """

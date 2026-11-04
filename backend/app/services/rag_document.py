@@ -22,7 +22,13 @@ from app.services.rag.documents import has_indexable_text
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import CollectionInfo
 from app.services.rag.vectorstore import BaseVectorStore
-from app.repositories import collection_teardown_repo, knowledge_base_repo, rag_document_repo
+from app.repositories import (
+    collection_teardown_repo,
+    knowledge_base_repo,
+    organization_repo,
+    rag_document_repo,
+    user_repo,
+)
 from app.repositories.rag_document import CollectionScope, IngestionCounts
 from app.schemas.rag import (
     RAGCollectionInfo,
@@ -589,8 +595,18 @@ class RAGDocumentService:
         read back" rule `complete_ingestion` documents (#1598): a stale
         settlement - from an attempt a later retry already superseded - is
         ignored rather than overwriting a newer attempt's own outcome.
+
+        The document's organization and its uploader are taken `FOR KEY SHARE`
+        before the status write - what the failure notification's insert takes
+        anyway, only earlier. Taken after it, an account deletion holding them
+        could wait for this document's row (deleting it, or clearing its
+        uploader) while the notification waited for the deletion (#2682).
         """
         doc = await self.get_document(doc_id)
+        if doc.organization_id is not None:
+            await organization_repo.hold_key_share(self.db, doc.organization_id)
+        if doc.initiated_by_user_id is not None:
+            await user_repo.hold_key_share(self.db, [doc.initiated_by_user_id])
         updated = await rag_document_repo.update_status(
             self.db,
             doc.id,
