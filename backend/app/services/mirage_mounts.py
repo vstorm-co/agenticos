@@ -118,9 +118,7 @@ class MirageMountService:
         person_id: UUID | None,
         notes: list[str],
     ) -> list[ResolvedMount]:
-        options: dict[str, MountValue] = {
-            key: _option(value) for key, value in mount.options.items()
-        }
+        options: dict[str, MountValue] = dict(mount.options)
         for field, secret_id in mount.secrets.items():
             purpose = purposes.get(secret_id)
             if purpose is None:
@@ -217,15 +215,6 @@ class MirageMountService:
                 "Tell them to connect it under Vault, Connected accounts."
             )
         return accounts
-
-
-def _option(value: object) -> MountValue:
-    """An author's option as the library takes it: a JSON scalar, or a list of strings."""
-    if isinstance(value, list):
-        return [str(item) for item in value]
-    if value is None or isinstance(value, str | int | float | bool):
-        return value
-    return str(value)
 
 
 def _google_credentials(grant: AccountGrant) -> dict[str, MountValue]:

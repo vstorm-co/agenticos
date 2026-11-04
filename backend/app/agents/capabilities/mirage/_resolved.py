@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import SecretStr
+from pydantic import JsonValue, SecretStr
 from pydantic_ai_backends.toolsets.descriptions import TOOL_TEXT
 
 from app.agents.capabilities._registry import CapabilityToolInfo
@@ -45,7 +45,7 @@ gating a tool would ask about `mirage_execute ls` as much as about `rm`. A bindi
 that wants a tool gated anyway still gets it with a `tool_approval` override.
 """
 
-MountValue = str | int | float | bool | SecretStr | list[str] | None
+type MountValue = JsonValue | SecretStr
 """What a resolved mount's config holds: an author's option, or an unsealed secret."""
 
 

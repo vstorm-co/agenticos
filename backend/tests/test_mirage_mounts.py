@@ -347,12 +347,6 @@ async def test_a_backend_that_went_away_since_publish_is_said_not_built(
     assert terminal.mounts == () and "cannot reach that service" in terminal.notes[0]
 
 
-def test_options_are_passed_as_the_library_takes_them() -> None:
-    assert mirage_mounts._option(["a", 1]) == ["a", "1"]
-    assert mirage_mounts._option({"x": 1}) == "{'x': 1}"
-    assert mirage_mounts._option(None) is None and mirage_mounts._option(3) == 3
-
-
 @pytest.mark.parametrize(
     ("value", "host"),
     [
@@ -547,3 +541,28 @@ async def test_an_unexpected_vault_bug_is_not_disguised_as_an_unavailable_folder
                 }
             ),
         )
+
+
+async def test_mongodb_structured_options_reach_the_actual_backend(
+    ctx, vault, accounts, monkeypatch
+):
+    vault[DSN] = ApiKeySecret(api_key="mongodb://user:password@db.acme.internal/database")
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["db.acme.internal"])
+    fields = {"customers": ["ssn", "credit_card"]}
+    terminal = await _resolve(
+        ctx,
+        _config(
+            {
+                "path": "/db/",
+                "backend": "mongodb",
+                "secrets": {"uri": str(DSN)},
+                "options": {"elide_fields": fields},
+            }
+        ),
+    )
+    assert len(terminal.mounts) == 1
+    from mirage.vfs.mongodb import MongoDBVFS
+
+    mounted = terminal.mounts[0].build()
+    assert isinstance(mounted.vfs, MongoDBVFS)
+    assert mounted.vfs.config.elide_fields == fields
