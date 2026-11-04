@@ -19,7 +19,12 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 from app.agents.prompt_variables import channel_name
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    NoSpendingLimitError,
+)
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.channel_session import ChannelSession
@@ -55,7 +60,13 @@ from app.services.channels.base import (
 from app.services.channels.dedupe import claim_delivery, delivery_ref, release_delivery
 from app.services.channels.directory import BoundChannelDirectory
 from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
+from app.services.channels.formatting import (
+    LINK_ACCOUNT_INSTRUCTION,
+    PICTURE_DELIVERY_UNCONFIRMED,
+    PICTURE_DELIVERY_UNCONFIRMED_STRANGER,
+    STRANGER_REFUSAL,
+    WAITS_FOR_A_PERSON,
+)
 from app.services.channels.live_reply import (
     WORKING,
     AnswerSink,
@@ -249,6 +260,10 @@ def _empty_answer(answered: Any) -> str:
     page over a decision that was never raised.
     """
     if answered.awaiting_approval_run_id is not None:
+        # A customer is not given the console's address or the run's id: somebody
+        # at the company decides, and the answer arrives in this chat.
+        if answered.acts_as_agent:
+            return WAITS_FOR_A_PERSON
         return _needs_approval(answered.awaiting_approval_run_id)
     if answered.status == RunStatus.AWAITING_ANSWER:
         # The question itself follows, as its own message with buttons (#2064).
@@ -260,15 +275,18 @@ def _empty_answer(answered: Any) -> str:
     return "Sorry, I could not produce an answer to that. Please try again."
 
 
-def _kept_back(paths: list[str]) -> list[str]:
+def _kept_back(paths: list[str], *, stranger: bool = False) -> list[str]:
     """What the agent produced and the reply could not carry, as one sentence.
 
     A bare list of workspace paths under an answer reads as output. This says why
     they are there and where they still are, which is the difference between an
-    explanation and a puzzle.
+    explanation and a puzzle. A `stranger` is told only that a file did not fit:
+    the workspace's paths are not theirs to read.
     """
     if not paths:
         return []
+    if stranger:
+        return ["(Some files could not be posted here.)"]
     return [
         f"({', '.join(paths)} stayed in the workspace - too large to post here, "
         "or past the file limit for one reply.)"
@@ -814,6 +832,7 @@ class ChannelMessageRouter:
                     answered.attachments,
                     image_png=answered.image_png,
                     run_id=run_id,
+                    as_agent=answered.acts_as_agent,
                 )
                 return
             if answered.image_png is None and not answered.attachments:
@@ -847,6 +866,7 @@ class ChannelMessageRouter:
             answered.attachments,
             image_png=answered.image_png,
             run_id=run_id,
+            as_agent=answered.acts_as_agent,
         )
 
     async def _answer_mention(
@@ -959,6 +979,7 @@ class ChannelMessageRouter:
         files: list[Any],
         file_refusals: list[str],
         streamed: StreamedReply | None = None,
+        as_agent: bool = False,
     ) -> bool:
         """Run one turn's answering coroutine and answer, refuse or apologise once.
 
@@ -991,6 +1012,12 @@ class ChannelMessageRouter:
         False is the mention path's `UnaddressedMessage`: the handle named nobody
         of ours, so the message goes on to the default agent. The default path
         never raises it and ignores the result.
+
+        A turn answered `as_agent` speaks to somebody with no account here, so a
+        refusal is one fixed sentence whatever raised it - an archived agent, a
+        missing model or a scope is not theirs to read - and the exception's type
+        name is logged. The spending refusal is the exception: its own sentence
+        is written for a customer to read.
         """
         try:
             answered = await run
@@ -998,7 +1025,14 @@ class ChannelMessageRouter:
             return False
         except AppException as exc:
             await self._discard_files(db, files)
-            await self._post_failure(bot, incoming, handle(), exc.message, streamed)
+            refusal = exc.message
+            if as_agent and not isinstance(exc, NoSpendingLimitError):
+                logger.warning(
+                    "channel_turn_refused",
+                    extra={"bot_id": str(incoming.bot_id), "error": type(exc).__name__},
+                )
+                refusal = STRANGER_REFUSAL
+            await self._post_failure(bot, incoming, handle(), refusal, streamed)
             return True
         except Exception:
             logger.exception("Agent run failed for bot %s", incoming.bot_id)
@@ -1013,7 +1047,10 @@ class ChannelMessageRouter:
             return True
 
         answer = self._with_notes(
-            answered.text, file_refusals, _kept_back(answered.refused), answered.delivery_notices
+            answered.text,
+            file_refusals,
+            _kept_back(answered.refused, stranger=answered.acts_as_agent),
+            answered.delivery_notices,
         )
         await self._deliver(bot, incoming, answer, answered, handle(), streamed)
         # What the run stopped for - a decision, a question - offered here as
@@ -1030,7 +1067,7 @@ class ChannelMessageRouter:
             await ChannelNextSteps(db).offer(
                 bot, incoming, run_id=answered.run_id, steps=answered.next_steps
             )
-        elif answered.run_id is not None:
+        elif answered.run_id is not None and not answered.acts_as_agent:
             from app.core.background import spawn_after_commit
             from app.services.channels.next_steps import offer_after_answer
 
@@ -2059,6 +2096,7 @@ class ChannelMessageRouter:
         *,
         image_png: bytes | None = None,
         run_id: str | None = None,
+        as_agent: bool = False,
     ) -> None:
         """Decrypt the bot token and send a reply via the appropriate adapter.
 
@@ -2089,7 +2127,13 @@ class ChannelMessageRouter:
             if image_png is not None:
                 # Do not retry an ambiguous upload: report its unconfirmed
                 # outcome using a separate, text-only reply.
-                await self._send_reply(bot, incoming, PICTURE_DELIVERY_UNCONFIRMED)
+                await self._send_reply(
+                    bot,
+                    incoming,
+                    PICTURE_DELIVERY_UNCONFIRMED_STRANGER
+                    if as_agent
+                    else PICTURE_DELIVERY_UNCONFIRMED,
+                )
 
     async def _thread_context(
         self,

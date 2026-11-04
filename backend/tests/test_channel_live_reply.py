@@ -329,10 +329,13 @@ class TestAnEmptyAnswerTellsItsReasonsApart:
     that was never raised."""
 
     @staticmethod
-    def _answered(*, run_id: object = None, status: object) -> MagicMock:
+    def _answered(
+        *, run_id: object = None, status: object, acts_as_agent: bool = False
+    ) -> MagicMock:
         answered = MagicMock()
         answered.awaiting_approval_run_id = run_id
         answered.status = status
+        answered.acts_as_agent = acts_as_agent
         return answered
 
     def test_a_parked_run_links_to_the_decision(self):
@@ -343,6 +346,23 @@ class TestAnEmptyAnswerTellsItsReasonsApart:
 
         assert "needs approval" in message
         assert "run-9" in message
+
+    @pytest.mark.security
+    def test_a_parked_agent_run_says_a_person_decides(self, monkeypatch):
+        from app.core.config import settings
+        from app.db.models.agent_run import RunStatus
+        from app.services.channels.formatting import WAITS_FOR_A_PERSON
+        from app.services.channels.router import _empty_answer
+
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example.test")
+        message = _empty_answer(
+            self._answered(run_id="run-9", status=RunStatus.AWAITING_APPROVAL, acts_as_agent=True)
+        )
+
+        assert message == WAITS_FOR_A_PERSON
+        assert "run-9" not in message
+        assert "console.example.test" not in message
+        assert "runs?run=" not in message
 
     def test_a_budget_stop_says_the_ceiling_was_hit_not_approval(self):
         from app.db.models.agent_run import RunStatus
@@ -521,6 +541,7 @@ class TestAParkedTurnOffersItsChoices:
             parked_run_id=parked_run_id,
             run_id="run-1",
             next_steps=next_steps or [],
+            acts_as_agent=False,
         )
         offer = AsyncMock()
         offer_steps = AsyncMock()
@@ -573,3 +594,184 @@ class TestAParkedTurnOffersItsChoices:
         _, offer_steps = await self._run("run-1", ["Make it a table"])
 
         offer_steps.assert_not_awaited()
+
+
+class TestARefusalBeforeAnAgentRun:
+    """What a stranger is told when the turn is refused: one sentence, no cause."""
+
+    @staticmethod
+    async def _refused(exc: Exception, *, as_agent: bool) -> AsyncMock:
+        from app.services.channels.router import ChannelMessageRouter
+
+        router = ChannelMessageRouter()
+
+        async def turn() -> object:
+            raise exc
+
+        post = AsyncMock()
+        with (
+            patch.object(router, "_post_failure", new=post),
+            patch.object(router, "_discard_files", new=AsyncMock()),
+        ):
+            handled = await router._run_turn(
+                MagicMock(),
+                MagicMock(platform="whatsapp", platform_chat_id="US.1", bot_id="bot-7"),
+                MagicMock(),
+                run=turn(),
+                handle=lambda: None,
+                files=[],
+                file_refusals=[],
+                as_agent=as_agent,
+            )
+        assert handled is True
+        return post
+
+    @pytest.mark.security
+    async def test_a_refusal_before_an_agent_run_is_neutral(self, caplog):
+        from app.core.exceptions import BadRequestError
+        from app.services.channels.formatting import STRANGER_REFUSAL
+
+        with caplog.at_level("WARNING"):
+            post = await self._refused(BadRequestError("Agent 'X' is archived"), as_agent=True)
+
+        assert post.await_args.args[3] == STRANGER_REFUSAL
+        record = next(r for r in caplog.records if r.getMessage() == "channel_turn_refused")
+        assert record.error == "BadRequestError"
+        assert record.bot_id == "bot-7"
+        assert "archived" not in str(record.__dict__)
+
+    @pytest.mark.security
+    async def test_the_spending_refusal_keeps_its_own_message(self):
+        from app.core.exceptions import NoSpendingLimitError
+
+        post = await self._refused(NoSpendingLimitError(), as_agent=True)
+
+        assert post.await_args.args[3] == NoSpendingLimitError.message
+
+    async def test_a_member_turn_still_posts_the_refusal_message(self):
+        from app.core.exceptions import BadRequestError
+
+        post = await self._refused(BadRequestError("Agent 'X' is archived"), as_agent=False)
+
+        assert post.await_args.args[3] == "Agent 'X' is archived"
+
+
+class TestTheNextStepWriter:
+    @staticmethod
+    async def _finish(*, acts_as_agent: bool) -> MagicMock:
+        from app.services.channels.router import ChannelMessageRouter
+
+        router = ChannelMessageRouter()
+        answered = MagicMock(
+            text="done",
+            refused=[],
+            parked_run_id=None,
+            run_id="run-1",
+            next_steps=[],
+            acts_as_agent=acts_as_agent,
+        )
+
+        async def turn() -> object:
+            return answered
+
+        with (
+            patch.object(router, "_deliver", new=AsyncMock()),
+            patch("app.core.background.spawn_after_commit") as spawn,
+            patch("app.services.channels.next_steps.offer_after_answer", new=MagicMock()),
+        ):
+            await router._run_turn(
+                MagicMock(),
+                MagicMock(platform="whatsapp", platform_chat_id="US.1"),
+                MagicMock(),
+                run=turn(),
+                handle=lambda: None,
+                files=[],
+                file_refusals=[],
+            )
+        return spawn
+
+    async def test_an_agent_run_starts_no_next_step_writer(self):
+        (await self._finish(acts_as_agent=True)).assert_not_called()
+
+    async def test_a_member_run_still_starts_it(self):
+        (await self._finish(acts_as_agent=False)).assert_called_once()
+
+
+class TestWhatWasKeptBack:
+    @pytest.mark.security
+    def test_a_stranger_is_told_no_workspace_path(self):
+        from app.services.channels.router import _kept_back
+
+        [note] = _kept_back(["reports/q3.xlsx"], stranger=True)
+
+        assert "q3" not in note and "workspace" not in note
+        assert "large" not in note
+
+    def test_a_member_is_told_which_files_stayed(self):
+        from app.services.channels.router import _kept_back
+
+        [note] = _kept_back(["reports/q3.xlsx"])
+
+        assert "reports/q3.xlsx" in note
+
+    def test_nothing_kept_back_says_nothing(self):
+        from app.services.channels.router import _kept_back
+
+        assert _kept_back([], stranger=True) == []
+
+
+class TestWhatReachesTheChatOfAnAgentTurn:
+    """The stranger flag is passed where the reply is built, not only chosen there."""
+
+    @staticmethod
+    async def _posted(*, acts_as_agent: bool, streamed: bool) -> list[str]:
+        from app.services.channels.mentions import AnsweredTurn
+        from app.services.channels.router import ChannelMessageRouter
+
+        router = ChannelMessageRouter()
+        answered = AnsweredTurn(
+            text="Ready",
+            refused=["reports/q3.xlsx"],
+            image_png=b"png",
+            acts_as_agent=acts_as_agent,
+        )
+
+        async def turn() -> AnsweredTurn:
+            return answered
+
+        adapter = MagicMock(send_message=AsyncMock(side_effect=[OSError("upload failed"), None]))
+        incoming = MagicMock(platform="whatsapp", platform_chat_id="c", message_id=None)
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+            patch.object(router, "_finish_streamed", new=AsyncMock(return_value=False)),
+        ):
+            await router._run_turn(
+                MagicMock(rate_answers=False),
+                incoming,
+                MagicMock(),
+                run=turn(),
+                handle=lambda: None,
+                files=[],
+                file_refusals=[],
+                streamed=MagicMock() if streamed else None,
+            )
+        return [call.args[1].text for call in adapter.send_message.await_args_list]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("streamed", [True, False])
+    async def test_an_agent_turn_with_a_refused_file_and_a_failed_picture_names_nothing_internal(
+        self, streamed: bool
+    ):
+        texts = await self._posted(acts_as_agent=True, streamed=streamed)
+
+        joined = "\n".join(texts)
+        assert "q3" not in joined and "workspace" not in joined
+        assert "AgenticOS" not in joined
+
+    @pytest.mark.parametrize("streamed", [True, False])
+    async def test_a_member_turn_still_hears_the_files_and_the_conversation(self, streamed: bool):
+        joined = "\n".join(await self._posted(acts_as_agent=False, streamed=streamed))
+
+        assert "reports/q3.xlsx" in joined
+        assert "AgenticOS conversation" in joined

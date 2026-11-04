@@ -180,12 +180,15 @@ async def drawn_picture(
     conversation_id: UUID | None,
     notices: list[str] | None = None,
     generated_files: Set[str] = frozenset(),
+    stranger: bool = False,
 ) -> bytes | None:
     """The last picture this turn made: a generated photo, chart, or visual the deployment's browser drew.
 
     A reply carries one image, so it is the last picture this turn made. A visual with
     no browser to draw it with gives none, and records a delivery notice in
-    `notices` so the channel does not silently confirm a missing picture.
+    `notices` so the channel does not silently confirm a missing picture. For a
+    `stranger` - a customer with no account here - the notice says only that the
+    picture could not be attached, not where to look for it.
     """
     for call in reversed(called):
         if call.result is None:
@@ -217,7 +220,9 @@ async def drawn_picture(
                 return picture
             if notices is not None:
                 notices.append(
-                    "The generated image could not be attached to this reply. "
+                    "The generated image could not be attached to this reply."
+                    if stranger
+                    else "The generated image could not be attached to this reply. "
                     "It has not been delivered to this channel. Open the conversation in "
                     "AgenticOS to check the image or ask the operator to check media storage."
                 )
@@ -236,7 +241,9 @@ async def drawn_picture(
                 return picture
             if notices is not None:
                 notices.append(
-                    "The visual could not be attached to this reply. It is saved in the "
+                    "The visual could not be attached to this reply."
+                    if stranger
+                    else "The visual could not be attached to this reply. It is saved in the "
                     "conversation in AgenticOS. Ask the deployment operator to check the "
                     "visual renderer."
                 )
@@ -348,6 +355,13 @@ class AnsweredTurn:
 
     next_steps: list[str] = field(default_factory=list)
     """What the answer offered to do next, posted under it as buttons (#2301)."""
+
+    acts_as_agent: bool = False
+    """The turn ran as the agent itself, for somebody with no account here.
+
+    A reply to such a person names no console page, offers no approval buttons
+    and says nothing of what the turn cost.
+    """
 
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
@@ -549,6 +563,7 @@ class ChannelAgentRouter:
                 conversation_id=run.conversation_id,
                 notices=notices,
                 generated_files=generated_files,
+                stranger=ctx.acts_as_agent,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
@@ -557,6 +572,7 @@ class ChannelAgentRouter:
             status=run.status,
             run_id=run.id,
             next_steps=next_steps_of(called),
+            acts_as_agent=ctx.acts_as_agent,
         )
 
     async def answer_default(
@@ -674,6 +690,7 @@ class ChannelAgentRouter:
                 conversation_id=run.conversation_id,
                 notices=notices,
                 generated_files=generated_files,
+                stranger=ctx.acts_as_agent,
             ),
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
@@ -682,6 +699,7 @@ class ChannelAgentRouter:
             status=run.status,
             run_id=run.id,
             next_steps=next_steps_of(called),
+            acts_as_agent=ctx.acts_as_agent,
         )
 
     async def _with_usage(
@@ -703,6 +721,9 @@ class ChannelAgentRouter:
         caller turns it into "this needs approval" - and appending an accounting
         line to nothing would make a footer look like the reply.
 
+        A run acting as its agent is recorded the same and never spoken: the
+        person it answers is not told what the workspace spent.
+
         Never raises. This hangs off an answer somebody is waiting for; a
         workspace that cannot be measured must not turn a good turn into an error.
         """
@@ -720,7 +741,7 @@ class ChannelAgentRouter:
 
         line = format_footer(report)
         logger.info("channel_turn_usage", extra={"run_id": str(run.id), "usage": line})
-        if not answer or not should_report(usage_reporting, report, turn=turn):
+        if ctx.acts_as_agent or not answer or not should_report(usage_reporting, report, turn=turn):
             return answer
         return f"{answer}\n\n_{line}_"
 

@@ -303,12 +303,21 @@ from app.services.channels.directory import restore_directory
 from app.services.channels.formatting import (
     CHANNEL_BEHAVIOR,
     LINK_ACCOUNT_INSTRUCTION,
+    STRANGER_CHANNEL_BEHAVIOR,
     ChannelReference,
     channel_author_references,
+    for_stranger,
     house_style,
     runtime_context,
 )
-from app.services.channels.handback import STOPPED_NOTICE, ChatNotice, chat_destination
+from app.services.channels.handback import (
+    STOPPED_NOTICE,
+    ChatNotice,
+    chat_destination,
+)
+from app.services.channels.handback import (
+    for_the_run as notice_for_the_run,
+)
 from app.services.channels.handback_jobs import queue_notices
 from app.services.channels.prompt_variables import CHANNEL_CONTEXT
 from app.services.channels.prompt_variables import resolve as resolve_prompt_variables
@@ -1809,8 +1818,16 @@ async def _with_exposure_prompt(spec: AgentSpec, exposure: AgentExposure | None)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
 
-def _with_execution_environment(spec: AgentSpec, local: LocalTarget | None) -> AgentSpec:
-    """Describe the selected environment after its device and service grants resolve."""
+def _with_execution_environment(
+    spec: AgentSpec, local: LocalTarget | None, *, stranger: bool = False
+) -> AgentSpec:
+    """Describe the selected environment after its device and service grants resolve.
+
+    A `stranger` - a customer the run answers as the agent itself - is told
+    nothing of the console, Desktop or Mobile: it has no use for them.
+    """
+    if stranger:
+        return spec
     from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
 
     briefing = APP_ENVIRONMENT_GUIDANCE
@@ -2119,6 +2136,7 @@ def _with_personal_service_gaps(
     surface: RunSurface,
     *,
     sender_present: bool = False,
+    stranger: bool = False,
 ) -> AgentSpec:
     """The spec told which of its bound servers this turn cannot reach, and why.
 
@@ -2132,7 +2150,8 @@ def _with_personal_service_gaps(
     if not gaps:
         return spec
     added = "\n\n".join(
-        _binding_gap_briefing(gap, surface, sender_present=sender_present) for gap in gaps
+        _binding_gap_briefing(gap, surface, sender_present=sender_present, stranger=stranger)
+        for gap in gaps
     )
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
 
@@ -2203,7 +2222,7 @@ def _connect_on_use(
 
 
 def _binding_gap_briefing(
-    gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool
+    gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool, stranger: bool = False
 ) -> str:
     """One paragraph for a binding this turn could not honour, model-facing."""
     if isinstance(gap, UnavailablePlatformServer):
@@ -2236,7 +2255,9 @@ def _binding_gap_briefing(
         )
     if isinstance(gap, UnavailableUnreachableServer):
         return unreachable_briefing(gap.server, binding=gap.binding, held_by=gap.held_by)
-    return _personal_gap_briefing(personal_service_gap(gap), surface, sender_present=sender_present)
+    return _personal_gap_briefing(
+        personal_service_gap(gap), surface, sender_present=sender_present, stranger=stranger
+    )
 
 
 def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> str:
@@ -2254,9 +2275,17 @@ def _servers_pointer(surface: RunSurface, *, connect_key: str | None = None) -> 
 
 
 def _personal_gap_briefing(
-    gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool
+    gap: PersonalServiceGap, surface: RunSurface, *, sender_present: bool, stranger: bool = False
 ) -> str:
     bound = f"{gap.name} is bound to the account of whoever is talking to you"
+    if stranger:
+        # Somebody with no account here cannot be sent to link one or to connect a
+        # service: the tools are simply not available to them.
+        return (
+            f"{bound}, and the person writing has no account here, so the {gap.name} tools "
+            f"are not available. If asked for anything in {gap.name}, say so plainly rather "
+            "than attempting a workaround."
+        )
     if gap.gap == "nobody_to_speak_as":
         if surface in _CHANNEL_SURFACES:
             return (
@@ -2616,7 +2645,9 @@ def _delegate_builder(
 
     def build() -> PydanticAgent[Any, Any]:
         built = build_agent(
-            _with_execution_environment(delegation.render_variables(spec), None),
+            _with_execution_environment(
+                delegation.render_variables(spec), None, stranger=delegation.runs_as_agent
+            ),
             model,
             organization_id=delegation.ctx.organization_id,
             agent_id=agent_id,
@@ -3675,13 +3706,25 @@ class AgentRunnerService:
             surface.value,
             console_url=settings.FRONTEND_URL,
             linked_sender=personal_mcp_user_id is not None,
+            stranger=runs_as_agent,
         )
+        if runs_as_agent:
+            # The binding's house style, already in the instructions, carries the
+            # member guidance: prepare and resume both reach this point with the
+            # run's own flag.
+            spec = spec.model_copy(update={"instructions": for_stranger(spec.instructions)})
         if context:
-            guidance = "" if CHANNEL_BEHAVIOR in spec.instructions else "\n\n" + CHANNEL_BEHAVIOR
+            behavior = STRANGER_CHANNEL_BEHAVIOR if runs_as_agent else CHANNEL_BEHAVIOR
+            present = CHANNEL_BEHAVIOR in spec.instructions or (
+                STRANGER_CHANNEL_BEHAVIOR in spec.instructions
+            )
+            guidance = "" if present else "\n\n" + behavior
             spec = spec.model_copy(
                 update={"instructions": f"{spec.instructions}\n\n{context}{guidance}"}
             )
-        spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
+        spec = _with_personal_service_gaps(
+            spec, briefed, surface, sender_present=sender_present, stranger=runs_as_agent
+        )
         spec = _with_account_notes(spec, resolved.accounts)
 
         run = existing_run
@@ -3892,7 +3935,7 @@ class AgentRunnerService:
 
         # What a call's realtime model is told: the briefings below describe a
         # workspace and skill files only its text twin can reach.
-        spec = _with_execution_environment(spec, local)
+        spec = _with_execution_environment(spec, local, stranger=runs_as_agent)
         spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
@@ -4937,6 +4980,7 @@ class AgentRunnerService:
             resolved.unavailable,
             delegation.surface,
             sender_present=delegation.sender_present,
+            stranger=delegation.runs_as_agent,
         )
         runnable = _with_account_notes(runnable, resolved.accounts)
         secrets = await self.secrets.resolve_for_bindings(ctx, _secret_ids(runnable))
@@ -6328,7 +6372,15 @@ class AgentRunnerService:
         result = await self._stop_parked(run, actor_user_id=ctx.subject_id)
         if destination is not None and not told:
             await queue_notices(
-                self.db, [ChatNotice(run.organization_id, run.id, destination, STOPPED_NOTICE)]
+                self.db,
+                [
+                    ChatNotice(
+                        run.organization_id,
+                        run.id,
+                        destination,
+                        notice_for_the_run(run, STOPPED_NOTICE),
+                    )
+                ],
             )
         return result
 

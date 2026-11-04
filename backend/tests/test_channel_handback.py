@@ -38,7 +38,7 @@ def admitted_notice():
     with (
         patch(
             "app.services.channels.handback.agent_run_repo.get_run",
-            new=AsyncMock(return_value=MagicMock()),
+            new=AsyncMock(return_value=MagicMock(runs_as_agent=False)),
         ),
         patch(
             "app.services.channels.next_steps.incoming_for_run",
@@ -313,3 +313,52 @@ async def test_notices_recheck_admission_immediately_before_posting(revoked: str
     ):
         await _post(_bot(), MagicMock(return_value=adapter))
     adapter.send_message.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("as_agent", "text", "expected"),
+    [
+        (True, STOPPED_NOTICE, "This request was stopped."),
+        (False, STOPPED_NOTICE, STOPPED_NOTICE),
+        (True, EXPIRED_NOTICE, EXPIRED_NOTICE),
+    ],
+)
+def test_the_stop_sentence_names_no_console_for_a_run_acting_as_its_agent(
+    as_agent: bool, text: str, expected: str
+) -> None:
+    from app.services.channels.handback import for_the_run
+
+    assert for_the_run(MagicMock(runs_as_agent=as_agent), text) == expected
+
+
+@pytest.mark.security
+async def test_a_stop_notice_to_a_customer_names_no_console() -> None:
+    bot = _bot()
+    adapter = MagicMock(send_message=AsyncMock())
+    context = MagicMock()
+    context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+    context.return_value.__aexit__ = AsyncMock(return_value=False)
+    with (
+        patch.object(handback, "get_db_context", context),
+        patch.object(handback.channel_bot_repo, "get_for_org", AsyncMock(return_value=bot)),
+        patch.object(
+            handback.agent_run_repo,
+            "get_run",
+            AsyncMock(return_value=MagicMock(runs_as_agent=True)),
+        ),
+        patch.object(handback, "get_adapter", MagicMock(return_value=adapter)),
+        patch.object(handback, "unseal_bot_token", return_value="tok"),
+    ):
+        await send_notice(ChatNotice(_ORG, uuid4(), _DESTINATION, STOPPED_NOTICE))
+
+    sent = adapter.send_message.await_args.args[1]
+    assert sent.text == "This request was stopped."
+    assert sent.notice == "stopped_stranger"
+
+
+def test_every_notice_key_fits_the_held_notice_column() -> None:
+    from app.db.models.whatsapp_customer import WhatsAppHeldRun
+    from app.services.channels.handback import NOTICES
+
+    width = WhatsAppHeldRun.__table__.c.held_notice.type.length
+    assert all(len(key) <= width for key in NOTICES)

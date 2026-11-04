@@ -168,6 +168,56 @@ class TestWhatTheBotSaysAboutWhatItCost:
         assert answered.startswith("here you go")
         assert "1,200 tokens" in answered
 
+    @pytest.mark.security
+    async def test_an_agent_run_never_speaks_its_cost(self):
+        """The line is still measured and recorded; a stranger is never shown it."""
+        from app.services.access import agent_context
+
+        router = ChannelAgentRouter(MagicMock())
+        for_run = AsyncMock(
+            return_value=UsageReport(input_tokens=1000, output_tokens=200, cost_usd=Decimal("0.02"))
+        )
+        router.usage = MagicMock(for_run=for_run)
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        answered = await router._with_usage(
+            agent_context(organization_id=uuid.uuid4(), agent_id=uuid.uuid4()),
+            "here you go",
+            MagicMock(id=uuid.uuid4()),
+            usage_reporting={"mode": "always"},
+            turn=1,
+        )
+
+        assert answered == "here you go"
+        for_run.assert_awaited_once()
+
+    @pytest.mark.parametrize("fallback", [False, True])
+    async def test_a_member_run_still_hears_its_cost(self, fallback: bool):
+        """Linked, or an unlinked room sender under the publisher's standing."""
+        from dataclasses import replace
+
+        router = ChannelAgentRouter(MagicMock())
+        router.usage = MagicMock(
+            for_run=AsyncMock(
+                return_value=UsageReport(
+                    input_tokens=1000, output_tokens=200, cost_usd=Decimal("0.02")
+                )
+            )
+        )
+        router.runner = MagicMock(monthly_spend=AsyncMock(return_value=None))
+        router._budget = AsyncMock(return_value=None)
+
+        answered = await router._with_usage(
+            replace(_ctx(), subject_is_publisher_fallback=fallback),
+            "here you go",
+            MagicMock(id=uuid.uuid4()),
+            usage_reporting={"mode": "always"},
+            turn=1,
+        )
+
+        assert "1,200 tokens" in answered
+
     async def test_off_records_it_and_says_nothing(self):
         router = ChannelAgentRouter(MagicMock())
         router.usage = MagicMock(
@@ -621,6 +671,96 @@ class TestAnswer:
 
         assert execute.call_args.kwargs["parks_questions"] is True
         assert answer.parked_run_id == (run.id if parked else None)
+
+
+class TestTheTurnSaysWhoItActedAs:
+    @pytest.mark.parametrize(
+        ("who", "acts_as_agent"), [("agent", True), ("member", False), ("publisher", False)]
+    )
+    @pytest.mark.parametrize("mentioned", [True, False])
+    async def test_the_turn_says_whether_it_acted_as_the_agent(
+        self, who: str, acts_as_agent: bool, mentioned: bool
+    ):
+        """An unlinked sender in a room runs under the publisher's standing and is
+        not the agent: only a context that *is* the agent speaks plainly."""
+        from dataclasses import replace
+
+        from app.services.access import agent_context
+
+        org, agent = uuid.uuid4(), MagicMock(id=uuid.uuid4(), slug="support")
+        member = AuthContext(user_id=uuid.uuid4(), organization_id=org, role=OrgRoleName.MEMBER)
+        ctx = {
+            "agent": agent_context(organization_id=org, agent_id=agent.id),
+            "member": member,
+            "publisher": replace(member, subject_is_publisher_fallback=True),
+        }[who]
+        with (
+            patch.object(ChannelAgentRouter, "_membership_context", AsyncMock(return_value=ctx)),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = _bound()
+            exposures.list_active_for_bot = AsyncMock(return_value=[(MagicMock(), agent)])
+            runner_cls.return_value.execute = AsyncMock(
+                return_value=("ok", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED))
+            )
+            router = ChannelAgentRouter(MagicMock())
+            router._with_usage = AsyncMock(return_value="ok")
+            method = router.answer if mentioned else router.answer_default
+            answered = await method(
+                "@support hello" if mentioned else "hello",
+                platform="whatsapp",
+                organization_id=org,
+                bot_id=_BOT_ID,
+                user_id=None,
+            )
+
+        assert answered.acts_as_agent is acts_as_agent
+
+
+class TestTheDeliveryNoticesOfATurn:
+    @pytest.mark.security
+    @pytest.mark.parametrize("as_agent", [True, False])
+    @pytest.mark.parametrize("mentioned", [True, False])
+    async def test_a_failed_picture_names_the_console_only_to_a_member(
+        self, as_agent: bool, mentioned: bool
+    ):
+        from app.services.access import agent_context
+        from tests.test_channel_generated_images import receipt
+
+        org, agent = uuid.uuid4(), MagicMock(id=uuid.uuid4(), slug="support")
+        member = AuthContext(user_id=uuid.uuid4(), organization_id=org, role=OrgRoleName.MEMBER)
+        ctx = agent_context(organization_id=org, agent_id=agent.id) if as_agent else member
+
+        async def execute(*_args, tool_calls, **_kwargs):
+            tool_calls.append(receipt(None))
+            return "ok", MagicMock(id=uuid.uuid4(), status=RunStatus.COMPLETED)
+
+        with (
+            patch.object(ChannelAgentRouter, "_membership_context", AsyncMock(return_value=ctx)),
+            patch("app.services.channels.mentions.agent_repo") as agents,
+            patch("app.services.channels.mentions.agent_exposure_repo") as exposures,
+            patch("app.services.channels.mentions.AgentRunnerService") as runner_cls,
+        ):
+            agents.get_by_slug = AsyncMock(return_value=agent)
+            exposures.get_for_bot = _bound()
+            exposures.list_active_for_bot = AsyncMock(return_value=[(MagicMock(), agent)])
+            runner_cls.return_value.execute = execute
+            router = ChannelAgentRouter(MagicMock())
+            router._with_usage = AsyncMock(return_value="ok")
+            method = router.answer if mentioned else router.answer_default
+            answered = await method(
+                "@support hello" if mentioned else "hello",
+                platform="whatsapp",
+                organization_id=org,
+                bot_id=_BOT_ID,
+                user_id=None,
+            )
+
+        [notice] = answered.delivery_notices
+        assert ("AgenticOS" not in notice) is as_agent
 
 
 def _serving(*slugs: str) -> AsyncMock:

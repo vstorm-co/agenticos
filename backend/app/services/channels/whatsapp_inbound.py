@@ -39,7 +39,8 @@ from app.repositories import (
 from app.services.channel_bot import unseal_bot_token, unseal_webhook_secret
 from app.services.channels.base import OutgoingMessage
 from app.services.channels.dedupe import claim_delivery
-from app.services.channels.handback import NOTICES
+from app.services.channels.formatting import WAITS_FOR_A_PERSON
+from app.services.channels.handback import NOTICES, for_the_run
 from app.services.channels.next_steps import incoming_for_run
 from app.services.channels.prompts import ChannelPrompts
 from app.services.channels.router import ChannelMessageRouter, chat_lock
@@ -403,30 +404,42 @@ async def _read_run(
     )
 
 
-def _saved(message: Message | None) -> str:
-    """A saved answer as it was saved, or `"Done."` when there is none.
+def _saved(message: Message | None, run: AgentRun) -> str:
+    """A saved answer as it was saved, or what the run owes when there is none.
 
-    The router's notes are not saved, so they are not sent again.
+    That is `"Done."`, or for a run acting as its agent that parked again, the
+    sentence saying a person decides. The router's notes are not saved, so they
+    are not sent again.
     """
     content = message.content if message is not None else ""
-    return content if content.strip() else _NO_ANSWER
+    return content if content.strip() else _without_words(run)
+
+
+def _without_words(run: AgentRun) -> str:
+    if run.runs_as_agent and run.status == RunStatus.AWAITING_APPROVAL.value:
+        return WAITS_FOR_A_PERSON
+    return _NO_ANSWER
 
 
 async def _owed_answer(db: AsyncSession, run: AgentRun, held: Held, organization_id: UUID) -> str:
     """The exact answer the row owes, by the id of the message saved when it was held."""
     if held.message_id is None:
-        return _NO_ANSWER
+        return _without_words(run)
     return _saved(
         await conversation_repo.answer_message(
             db, held.message_id, run_id=run.id, organization_id=organization_id
-        )
+        ),
+        run,
     )
 
 
 async def _latest_answer(db: AsyncSession, run: AgentRun) -> str:
     """The run's latest saved answer, for the preview of an answer Meta has just refused."""
     return _saved(
-        await conversation_repo.last_answer_message(db, run.id, organization_id=run.organization_id)
+        await conversation_repo.last_answer_message(
+            db, run.id, organization_id=run.organization_id
+        ),
+        run,
     )
 
 
@@ -510,6 +523,8 @@ async def _deliver_answers(
                 continue
             prompts_owed = owed.admitted and owed.parked and last_of_run[held.run_id] == held.id
             sentence = NOTICES.get(held.notice) if held.notice is not None else None
+            if sentence is not None and run is not None:
+                sentence = for_the_run(run, sentence)
             if held.notice is not None and sentence is None:
                 logger.warning(
                     "whatsapp_held_notice_unknown",

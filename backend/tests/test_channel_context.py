@@ -136,6 +136,28 @@ def test_runtime_facts_identify_the_surface_deployment_and_sender(platform, expe
     assert "without a slash" in CHANNEL_BEHAVIOR
 
 
+def test_a_stranger_is_not_given_the_console_address_or_told_of_linking():
+    context = runtime_context(
+        "whatsapp", console_url="https://console.example/", linked_sender=False, stranger=True
+    )
+
+    assert "WhatsApp" in context
+    assert "console.example" not in context
+    assert "link" not in context.lower()
+
+
+def test_the_strangers_guidance_keeps_the_rest_of_the_channel_guidance():
+    from app.services.channels.formatting import MCP_APPROVAL_GUIDANCE, STRANGER_CHANNEL_BEHAVIOR
+
+    assert STRANGER_CHANNEL_BEHAVIOR.startswith("Channel conversation guidance:")
+    assert "Answer the current sender's request" in STRANGER_CHANNEL_BEHAVIOR
+    assert "send_channel_file" in STRANGER_CHANNEL_BEHAVIOR
+    assert "link" not in STRANGER_CHANNEL_BEHAVIOR.lower()
+    assert MCP_APPROVAL_GUIDANCE not in STRANGER_CHANNEL_BEHAVIOR
+    assert "Personal services" not in STRANGER_CHANNEL_BEHAVIOR
+    assert len(STRANGER_CHANNEL_BEHAVIOR) < len(CHANNEL_BEHAVIOR)
+
+
 def test_other_surfaces_receive_no_channel_claims():
     assert runtime_context("web", console_url="https://console.example", linked_sender=True) == ""
 

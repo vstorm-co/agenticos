@@ -18,6 +18,7 @@ import json
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
+from typing import Final
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -42,9 +43,22 @@ LINK_ACCOUNT_INSTRUCTION = (
 )
 
 
+WAITS_FOR_A_PERSON: Final = (
+    "A person at the company needs to decide this. The answer will come back here."
+)
+"""Said to a customer whose turn stopped on a decision: who decides, nothing of where."""
+
+STRANGER_REFUSAL: Final = "Sorry, I could not answer that. Please try again later."
+"""Said to a customer whose turn was refused, whatever the cause: the cause is not theirs to read."""
+
+
 PICTURE_DELIVERY_UNCONFIRMED = (
     "I could not confirm delivery of the image to this channel. "
     "It may be available in the AgenticOS conversation. Please check before requesting another generation."
+)
+
+PICTURE_DELIVERY_UNCONFIRMED_STRANGER: Final = (
+    "I could not confirm delivery of the image to this chat."
 )
 
 
@@ -77,8 +91,32 @@ CHANNEL_BEHAVIOR = f"""Channel conversation guidance:
 - Prefer balanced diagrams with readable labels over long horizontal chains."""
 
 
-def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> str:
-    """Facts the deployment knows, independent of an editable binding prompt."""
+_STRANGER_LEAVES_OUT: Final = (
+    "- Organization MCP connections may work",
+    "- If identity linking is needed",
+    "- Published Apps persist",
+    "- Report the visibility and public status",
+)
+
+STRANGER_CHANNEL_BEHAVIOR: Final = "\n".join(
+    line for line in CHANNEL_BEHAVIOR.split("\n") if not line.startswith(_STRANGER_LEAVES_OUT)
+)
+"""The guidance for a customer with no account here.
+
+Without what only a member can act on - personal services, approvals of MCP
+calls, linking an account, a published page's link - so the model has nothing
+of that kind to say to them.
+"""
+
+
+def runtime_context(
+    surface: str, *, console_url: str, linked_sender: bool, stranger: bool = False
+) -> str:
+    """Facts the deployment knows, independent of an editable binding prompt.
+
+    A `stranger` is a customer the run answers as the agent itself: it is told
+    where it is speaking and nothing about the deployment's console.
+    """
     names = {
         "discord": "Discord",
         "mattermost": "Mattermost",
@@ -90,6 +128,12 @@ def runtime_context(surface: str, *, console_url: str, linked_sender: bool) -> s
     platform = names.get(surface)
     if platform is None:
         return ""
+    if stranger:
+        return (
+            f"You are answering through {platform}. "
+            "Your tools run in a managed workspace. Files on the person's own device are available only when attached. "
+            "The person writing has no account here, so personal services are unavailable."
+        )
     identity = (
         "A linked sender identity is available to this run. Personal services still need their own connection."
         if linked_sender
@@ -155,7 +199,15 @@ You are answering in Microsoft Teams, which renders a subset of Markdown.
 - Keep paragraphs short. A chat pane is narrow, and a wall of text is skimmed.
 """
 
-_WHATSAPP = """
+_WHATSAPP_APPROVALS: Final = (
+    "Approvals and\n  questions are drawn as buttons or a list the member taps."
+)
+_WHATSAPP_APPROVALS_STRANGER: Final = (
+    "An action that needs\n  approval waits for a person at the company."
+)
+
+_WHATSAPP = (
+    """
 You are answering in WhatsApp. Write ordinary Markdown: it is converted to what
 WhatsApp renders before it is sent.
 
@@ -166,9 +218,11 @@ WhatsApp renders before it is sent.
   bold line, a link is shown as its text and address, and a table as a plain block, so
   prefer a bold line, a bare address and a short list.
 - Keep answers short. A long answer is split into several messages.
-- Files and charts you produce are sent as WhatsApp attachments. Approvals and
-  questions are drawn as buttons or a list the member taps.
+- Files and charts you produce are sent as WhatsApp attachments. """
+    + _WHATSAPP_APPROVALS
+    + """
 """
+)
 
 _DISCORD = """
 You are answering in Discord, which renders Markdown.
@@ -199,6 +253,18 @@ surface with no entry - the dashboard, the API, an embedded widget - adds
 nothing: those render what the Builder previews, which is what the agent was
 written against.
 """
+
+
+def for_stranger(instructions: str) -> str:
+    """The instructions of a run acting as its agent, with member-only guidance swapped out.
+
+    The binding's house style is appended before the run is assembled and carries
+    the full channel guidance; a customer with no account here gets the variant
+    without linking, personal services or buttons a member taps.
+    """
+    return instructions.replace(CHANNEL_BEHAVIOR, STRANGER_CHANNEL_BEHAVIOR).replace(
+        _WHATSAPP_APPROVALS, _WHATSAPP_APPROVALS_STRANGER
+    )
 
 
 def house_style(surface: str) -> str:

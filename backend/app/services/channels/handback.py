@@ -32,12 +32,14 @@ logger = logging.getLogger(__name__)
 
 EXPIRED_NOTICE: Final = "This request expired without a decision."
 STOPPED_NOTICE: Final = "This run was stopped from the console."
+STOPPED_STRANGER_NOTICE: Final = "This request was stopped."
 STRANDED_NOTICE: Final = "A decision was recorded, but the run could not continue."
 REFUSED_NOTICE: Final = "That was decided outside the chat, but the run could not continue."
 
 NOTICES: Final[dict[str, str]] = {
     "expired": EXPIRED_NOTICE,
     "stopped": STOPPED_NOTICE,
+    "stopped_stranger": STOPPED_STRANGER_NOTICE,
     "stranded": STRANDED_NOTICE,
     "refused": REFUSED_NOTICE,
 }
@@ -49,6 +51,16 @@ def notice_key(text: str) -> str | None:
         if text == sentence:
             return key
     return None
+
+
+def for_the_run(run: AgentRun, text: str) -> str:
+    """`text`, with the stop sentence that names the console swapped for a run acting as its agent.
+
+    Its customer has no console to be told about.
+    """
+    if run.runs_as_agent and text == STOPPED_NOTICE:
+        return STOPPED_STRANGER_NOTICE
+    return text
 
 
 _SURFACE_VALUES = frozenset(surface.value for surface in CHANNEL_SURFACES)
@@ -129,12 +141,13 @@ async def send_notice(notice: ChatNotice) -> None:
             return
         adapter = get_adapter(bot.platform)
         token = unseal_bot_token(bot)
+        text = for_the_run(run, notice.text)
         message = OutgoingMessage(
             platform_chat_id=notice.destination.platform_chat_id,
-            text=notice.text,
+            text=text,
             api_base_url=bot.api_base_url,
             run_id=str(notice.run_id),
-            notice=notice_key(notice.text),
+            notice=notice_key(text),
         )
     await adapter.send_message(token, message)
 

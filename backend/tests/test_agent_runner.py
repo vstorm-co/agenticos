@@ -85,6 +85,7 @@ from app.core.exceptions import (
     RunFailedError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
@@ -225,6 +226,7 @@ def _parked_run(**overrides):
         id=uuid.uuid4(),
         agent_id=uuid.uuid4(),
         agent_version_id=uuid.uuid4(),
+        runs_as_agent=False,
         conversation_id=None,
         # No binding by default: most resume tests are about the approval
         # machinery, and a run that arrived through an exposure is its own case
@@ -6660,6 +6662,29 @@ class TestThePersonBehindTheRun:
         assert AgentDeps().clone_for_subagent().run_person is None
 
 
+def _assert_no_member_guidance(instructions: str) -> None:
+    """Nothing in what the model is told sends a customer to link, or to tap an approval."""
+    for wording in (
+        "send plain `link`",
+        "linked AgenticOS identity",
+        "link an account",
+        "connect your account",
+        "member taps",
+    ):
+        assert wording not in instructions
+
+
+def _whatsapp_binding() -> AgentExposure:
+    return AgentExposure(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        environment_id=None,
+        surface="whatsapp",
+        prompt=None,
+        tools=[],
+    )
+
+
 _TABLE_WRITES = frozenset(
     {"create_record", "upsert_record", "update_record", "delete_record", "create_table"}
 )
@@ -6691,7 +6716,11 @@ class TestARunActingAsItsAgent:
 
     @staticmethod
     async def _prepare(
-        ctx: AuthContext, *, spec: AgentSpec | None = None, **kwargs: Any
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec | None = None,
+        unavailable: list[Any] | None = None,
+        **kwargs: Any,
     ) -> tuple[PreparedRun, dict[str, Any], dict[str, Any]]:
         """Prepare a run under an organization cap; return it, the factory's and `create_run`'s arguments."""
         service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
@@ -6714,7 +6743,7 @@ class TestARunActingAsItsAgent:
             ) as create_run,
             patch(
                 "app.services.agent_runner.build_toolsets_for_agent",
-                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], unavailable or [])),
             ),
             patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
@@ -6785,6 +6814,147 @@ class TestARunActingAsItsAgent:
 
         assert seen["user_id"] is None
         assert seen["runs_as_agent"] is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_strangers_instructions_never_mention_linking(self, monkeypatch):
+        from app.core.config import settings
+        from app.services.channels.formatting import (
+            CHANNEL_BEHAVIOR,
+            LINK_ACCOUNT_INSTRUCTION,
+            MCP_APPROVAL_GUIDANCE,
+            STRANGER_CHANNEL_BEHAVIOR,
+        )
+
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example.test")
+        _prepared, built_with, _opened = await self._prepare(
+            self._agent_ctx(),
+            surface=RunSurface.WHATSAPP,
+            unavailable=[UnavailablePersonalService("notion", "nobody_to_speak_as")],
+        )
+
+        instructions = built_with["spec"].instructions
+        assert STRANGER_CHANNEL_BEHAVIOR in instructions
+        assert CHANNEL_BEHAVIOR not in instructions
+        _assert_no_member_guidance(instructions)
+        assert LINK_ACCOUNT_INSTRUCTION not in instructions
+        assert MCP_APPROVAL_GUIDANCE not in instructions
+        assert "console.example.test" not in instructions
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("path", ["prepare", "resume"])
+    @pytest.mark.parametrize("as_agent", [True, False])
+    async def test_the_environment_guidance_is_for_members(self, path: str, as_agent: bool):
+        from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
+
+        if path == "prepare":
+            ctx = self._agent_ctx() if as_agent else _ctx()
+            _prepared, built_with, _opened = await self._prepare(ctx, surface=RunSurface.WHATSAPP)
+            instructions = built_with["spec"].instructions
+        else:
+            build = await self._resume_built(AgentSpec(name="Clerk"), restored_as_agent=as_agent)
+            instructions = build.call_args.args[0].instructions
+
+        assert (APP_ENVIRONMENT_GUIDANCE in instructions) is (not as_agent)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("fallback", [False, True])
+    async def test_a_member_run_still_gets_the_channel_behavior(self, fallback: bool, monkeypatch):
+        """Linked or an unlinked room sender under the publisher's standing: not the agent."""
+        from dataclasses import replace
+
+        from app.core.config import settings
+        from app.services.channels.formatting import (
+            CHANNEL_BEHAVIOR,
+            LINK_ACCOUNT_INSTRUCTION,
+            STRANGER_CHANNEL_BEHAVIOR,
+        )
+
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example.test")
+        _prepared, built_with, _opened = await self._prepare(
+            replace(_ctx(), subject_is_publisher_fallback=fallback),
+            surface=RunSurface.WHATSAPP,
+            unavailable=[UnavailablePersonalService("notion", "nobody_to_speak_as")],
+        )
+
+        instructions = built_with["spec"].instructions
+        assert CHANNEL_BEHAVIOR in instructions
+        assert STRANGER_CHANNEL_BEHAVIOR not in instructions
+        assert LINK_ACCOUNT_INSTRUCTION in instructions
+        assert "console.example.test" in instructions
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("path", ["prepare", "resume"])
+    async def test_a_strangers_binding_guidance_is_the_stranger_variant(self, path: str):
+        """A real binding already puts the full guidance in the instructions: it is swapped."""
+        from app.services.channels.formatting import (
+            CHANNEL_BEHAVIOR,
+            MCP_APPROVAL_GUIDANCE,
+            STRANGER_CHANNEL_BEHAVIOR,
+        )
+
+        binding = _whatsapp_binding()
+        if path == "prepare":
+            _prepared, built_with, _opened = await self._prepare(
+                self._agent_ctx(), surface=RunSurface.WHATSAPP, exposure=binding
+            )
+            instructions = built_with["spec"].instructions
+        else:
+            build = await self._resume_built(AgentSpec(name="Clerk"), exposure=binding)
+            instructions = build.call_args.args[0].instructions
+
+        assert STRANGER_CHANNEL_BEHAVIOR in instructions
+        assert CHANNEL_BEHAVIOR not in instructions
+        assert MCP_APPROVAL_GUIDANCE not in instructions
+        _assert_no_member_guidance(instructions)
+        assert "a link is shown as its text and address" in instructions
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("fallback", [False, True])
+    async def test_a_member_runs_binding_guidance_stays_whole(self, fallback: bool):
+        from dataclasses import replace
+
+        from app.services.channels.formatting import CHANNEL_BEHAVIOR, STRANGER_CHANNEL_BEHAVIOR
+
+        _prepared, built_with, _opened = await self._prepare(
+            replace(_ctx(), subject_is_publisher_fallback=fallback),
+            surface=RunSurface.WHATSAPP,
+            exposure=_whatsapp_binding(),
+        )
+
+        instructions = built_with["spec"].instructions
+        assert CHANNEL_BEHAVIOR in instructions
+        assert STRANGER_CHANNEL_BEHAVIOR not in instructions
+        assert "member taps" in instructions
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_stranger_is_not_told_to_link_for_a_personal_service(self):
+        text = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="Be brief."),
+            [UnavailablePersonalService("notion", "nobody_to_speak_as")],
+            RunSurface.WHATSAPP,
+            stranger=True,
+        ).instructions
+
+        assert "Notion" in text
+        assert "link" not in text.lower()
+        assert "not available" in text
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_strangers_run_is_not_given_the_console_address(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://console.example.test")
+        _prepared, built_with, _opened = await self._prepare(
+            self._agent_ctx(), surface=RunSurface.WHATSAPP
+        )
+
+        assert "console.example.test" not in built_with["spec"].instructions
+        assert "WhatsApp" in built_with["spec"].instructions
 
     @pytest.mark.security
     @pytest.mark.anyio
@@ -6913,7 +7083,9 @@ class TestARunActingAsItsAgent:
         )
 
     @staticmethod
-    async def _resume_built(spec: AgentSpec) -> MagicMock:
+    async def _resume_built(
+        spec: AgentSpec, *, exposure: AgentExposure | None = None, restored_as_agent: bool = True
+    ) -> MagicMock:
         """Resume a parked agent run for a decider, all the way to `build_agent`; return that mock."""
         service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
         decider = _ctx()
@@ -6925,12 +7097,13 @@ class TestARunActingAsItsAgent:
             decided_by_user_id=decider.user_id,
         )
         run = _parked_run(
-            paused_state=TestARunActingAsItsAgent._terms(),
+            paused_state=TestARunActingAsItsAgent._terms(runs_as_agent=restored_as_agent),
             user_id=None,
             initiated_by_publisher_fallback=True,
             surface=RunSurface.WHATSAPP.value,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
+        run.exposure_id = None if exposure is None else exposure.id
         version = MagicMock()
         version.spec = spec.model_dump(mode="json")
         built = MagicMock()
@@ -6952,6 +7125,11 @@ class TestARunActingAsItsAgent:
             ),
             patch("app.services.agent_runner.build_agent", return_value=built) as build,
             patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch(
+                "app.services.agent_runner.agent_exposure_repo.get",
+                new=AsyncMock(return_value=exposure),
+            ),
+            patch("app.services.agent_runner.restore_directory", new=AsyncMock(return_value=None)),
             patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
@@ -7067,6 +7245,71 @@ class TestARunActingAsItsAgent:
 
         required = approval_required_tools(builder.call_args.kwargs["spec"])
         assert required == (_TABLE_WRITES if as_agent else frozenset())
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("as_agent", [True, False])
+    async def test_a_delegates_personal_gap_is_briefed_without_linking_in_an_agent_run(
+        self, as_agent: bool
+    ):
+        from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION
+
+        service = AgentRunnerService(_db())
+        delegate_id = uuid.uuid4()
+        delegation = MagicMock(
+            ctx=_ctx(),
+            runs_as_agent=as_agent,
+            surface=RunSurface.WHATSAPP,
+            sender_present=False,
+            run=MagicMock(user_id=None, agent_id=uuid.uuid4()),
+            personal_mcp_user_id=None,
+        )
+        version = MagicMock(agent_id=delegate_id)
+        version.spec = AgentSpec(name="Helper").model_dump(mode="json")
+        gap = UnavailablePersonalService("notion", "nobody_to_speak_as")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_repo.get",
+                new=AsyncMock(return_value=MagicMock(status="active", slug="helper")),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch.object(
+                service.registry,
+                "with_assistant_guidance",
+                new=AsyncMock(side_effect=lambda _agent, spec: spec),
+            ),
+            patch.object(
+                service,
+                "_delegate_resources",
+                new=AsyncMock(return_value={"kb_collection_names": [], "kb_vector_scopes": {}}),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [gap])),
+            ),
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+            patch("app.services.agent_runner._delegate_builder") as builder,
+        ):
+            await service._resolve_delegate(
+                delegation,
+                ref=MagicMock(agent_id=delegate_id, agent_version_id=uuid.uuid4()),
+                shared=[],
+                resources={},
+                depth_remaining=0,
+                depth=1,
+                ancestors=frozenset(),
+            )
+
+        instructions = builder.call_args.kwargs["spec"].instructions
+        assert "Notion" in instructions
+        assert (LINK_ACCOUNT_INSTRUCTION in instructions) is (not as_agent)
 
     @staticmethod
     def _built_spec(built_with: dict[str, Any]) -> AgentSpec:
@@ -8166,8 +8409,11 @@ class TestCancelParkedRun:
         expire.assert_awaited_once()
         assert audit.await_args.kwargs["actor_user_id"] == ctx.user_id
 
+    @pytest.mark.parametrize("as_agent", [False, True])
     @pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
-    async def test_stopping_a_chat_run_from_the_console_tells_its_chat_after_commit(self, status):
+    async def test_stopping_a_chat_run_from_the_console_tells_its_chat_after_commit(
+        self, status, as_agent
+    ):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
         destination = {
             "bot_id": str(uuid.uuid4()),
@@ -8176,6 +8422,7 @@ class TestCancelParkedRun:
         }
         run = _parked_run(
             user_id=ctx.user_id,
+            runs_as_agent=as_agent,
             status=status.value,
             surface="slack",
             paused_state={
@@ -8219,7 +8466,7 @@ class TestCancelParkedRun:
         post.assert_awaited_once()
         assert post.call_args.args[0] is db
         (notice,) = post.call_args.args[1]
-        assert notice.text == STOPPED_NOTICE
+        assert notice.text == ("This request was stopped." if as_agent else STOPPED_NOTICE)
         assert notice.organization_id == run.organization_id
         assert notice.run_id == run.id
         assert notice.destination.platform_chat_id == "C1"

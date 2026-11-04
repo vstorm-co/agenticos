@@ -52,8 +52,13 @@ from app.services.channels.base import (
     press_value,
     read_press,
 )
-from app.services.channels.formatting import LINK_ACCOUNT_INSTRUCTION, PICTURE_DELIVERY_UNCONFIRMED
-from app.services.channels.handback import notice_key
+from app.services.channels.formatting import (
+    LINK_ACCOUNT_INSTRUCTION,
+    PICTURE_DELIVERY_UNCONFIRMED,
+    PICTURE_DELIVERY_UNCONFIRMED_STRANGER,
+    WAITS_FOR_A_PERSON,
+)
+from app.services.channels.handback import for_the_run, notice_key
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
 from app.services.transcript import RecordedToolCall
@@ -240,7 +245,10 @@ class ChannelPrompts:
         questions = {
             (row.tool_call_id, row.question_index): row for row in existing if row.kind == QUESTION
         }
-        for call in await self.runner.parked_calls(reader, run):
+        # A run acting as its agent is decided by a person at the company, in the
+        # console: the customer is offered no choice and no description of the call.
+        calls = [] if run.runs_as_agent else await self.runner.parked_calls(reader, run)
+        for call in calls:
             prompt = approvals.get(call.id)
             if prompt is None:
                 prompt = await channel_prompt_repo.create(
@@ -479,6 +487,7 @@ class ChannelPrompts:
             conversation_id=segment.run.conversation_id,
             notices=notices,
             generated_files=segment.generated_files,
+            stranger=segment.run.runs_as_agent,
         )
         adapter = get_adapter(platform)
         token = unseal_bot_token(bot)
@@ -487,13 +496,14 @@ class ChannelPrompts:
         is_stop_notice = (
             segment.run.status == RunStatus.CANCELLED.value and picture is None and not notices
         )
+        said = for_the_run(segment.run, segment.output)
         message = OutgoingMessage(
             platform_chat_id=platform_chat_id,
-            text="\n\n".join([segment.output or "Done.", *notices]),
+            text="\n\n".join([said or self._empty_segment(segment.run), *notices]),
             image_png=picture,
             api_base_url=bot.api_base_url,
             run_id=str(segment.run.id),  # kept by the `replace` below
-            notice=notice_key(segment.output or "") if is_stop_notice else None,
+            notice=notice_key(said) if is_stop_notice else None,
         )
         try:
             await adapter.send_message(token, message)
@@ -502,12 +512,32 @@ class ChannelPrompts:
                 raise
             logger.exception("Could not confirm resumed channel picture delivery: bot=%s", bot.id)
             await adapter.send_message(
-                token, replace(message, text=PICTURE_DELIVERY_UNCONFIRMED, image_png=None)
+                token,
+                replace(
+                    message,
+                    text=(
+                        PICTURE_DELIVERY_UNCONFIRMED_STRANGER
+                        if segment.run.runs_as_agent
+                        else PICTURE_DELIVERY_UNCONFIRMED
+                    ),
+                    image_png=None,
+                ),
             )
+
+    @staticmethod
+    def _empty_segment(run: AgentRun) -> str:
+        """What a continuation with no words says: a customer's run that parked again says who decides."""
+        if run.runs_as_agent and run.status == RunStatus.AWAITING_APPROVAL.value:
+            return WAITS_FOR_A_PERSON
+        return "Done."
 
     def _follow_ups(self, bot: ChannelBot, segment: RunSegment, platform_chat_id: str) -> None:
         run = segment.run
-        if run.status != RunStatus.COMPLETED.value or run.channel_identity_id is None:
+        if (
+            run.status != RunStatus.COMPLETED.value
+            or run.channel_identity_id is None
+            or run.runs_as_agent
+        ):
             return
         spawn_after_commit(
             self.db,

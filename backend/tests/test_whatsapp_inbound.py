@@ -371,7 +371,11 @@ class World:
 
     def run(self, *, status: str = "completed", answer: str | None = "the answer") -> MagicMock:
         run = MagicMock(
-            id=uuid.uuid4(), status=status, surface="whatsapp", conversation_id=uuid.uuid4()
+            id=uuid.uuid4(),
+            status=status,
+            surface="whatsapp",
+            conversation_id=uuid.uuid4(),
+            runs_as_agent=False,
         )
         self.runs[run.id] = run
         self.answers[run.id] = answer
@@ -704,6 +708,40 @@ class TestHeldAnswers:
             str(run.id),
         )
         assert store.settled == [("done", row.id)]
+
+    @pytest.mark.parametrize("as_agent", [True, False])
+    async def test_a_held_stop_notice_names_the_console_only_to_a_member(self, world, as_agent):
+        run = world.run(status="cancelled", answer=None)
+        run.runs_as_agent = as_agent
+        store = world.store([world.held(run, answer=False, notice="stopped")])
+
+        await _handle(world, store)
+
+        [message] = world.sent
+        assert message.text == ("This request was stopped." if as_agent else STOPPED_NOTICE)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        ("as_agent", "status", "expected"),
+        [
+            (
+                True,
+                "awaiting_approval",
+                "A person at the company needs to decide this. The answer will come back here.",
+            ),
+            (True, "completed", "Done."),
+            (False, "awaiting_approval", "Done."),
+        ],
+    )
+    async def test_a_held_answer_with_no_saved_words(self, world, as_agent, status, expected):
+        run = world.run(status=status, answer=None)
+        run.runs_as_agent = as_agent
+        row = world.held(run)
+        store = world.store([row])
+
+        await _deliver_answers(BOT, ORG, CHAT, store)
+
+        assert [m.text for m in world.sent] == [expected]
 
     async def test_a_held_answer_and_a_held_notice_go_out_oldest_first(self, world):
         noticed, answered = world.run(status="cancelled"), world.run(answer="Report ready.")
@@ -1356,6 +1394,53 @@ class TestHeldAnswers:
         created.assert_called_once_with()
 
 
+class TestAHeldAgentRun:
+    @pytest.mark.security
+    async def test_a_held_agent_run_is_re_offered_nothing(self):
+        """The customer is not asked to decide: no button row, no prompt message."""
+        from app.schemas.agent import ParkedCall
+        from app.services.agent_runner import AgentRunnerService
+
+        run = MagicMock(
+            id=uuid.uuid4(),
+            user_id=None,
+            status="awaiting_approval",
+            runs_as_agent=True,
+        )
+        row = MagicMock(run_id=run.id)
+        store = MagicMock(holds=AsyncMock(return_value=True), done=AsyncMock(), release=AsyncMock())
+        bot = MagicMock(id=uuid.UUID(BOT), organization_id=ORG, is_active=True)
+        adapter = MagicMock(send_prompt=AsyncMock(), send_message=AsyncMock())
+        create = AsyncMock()
+        prompts = "app.services.channels.prompts"
+        call = ParkedCall(
+            id=uuid.uuid4(), tool_call_id="c1", tool_name="upsert_record", tool_args={}
+        )
+
+        @asynccontextmanager
+        async def sessions() -> AsyncGenerator[MagicMock]:
+            yield MagicMock()
+
+        with (
+            patch(f"{MODULE}.get_db_context", sessions),
+            patch(f"{MODULE}.channel_bot_repo.get_for_org", AsyncMock(return_value=bot)),
+            patch(f"{MODULE}.agent_run_repo.get_run", AsyncMock(return_value=run)),
+            patch(f"{prompts}.agent_run_repo.get_run", AsyncMock(return_value=run)),
+            patch(f"{prompts}.channel_prompt_repo.for_run", AsyncMock(return_value=[])),
+            patch(f"{prompts}.channel_prompt_repo.create", create),
+            patch(f"{prompts}.get_adapter", return_value=adapter),
+            patch(f"{prompts}.unseal_bot_token", return_value="tok"),
+            patch.object(AgentRunnerService, "parked_calls", AsyncMock(return_value=[call])),
+            patch.object(AgentRunnerService, "parked_questions", AsyncMock(return_value=[])),
+        ):
+            await _offer_again(BOT, ORG, CHAT, [row], store)
+
+        create.assert_not_awaited()
+        adapter.send_prompt.assert_not_awaited()
+        store.done.assert_awaited_once_with(row)
+        store.release.assert_not_awaited()
+
+
 RUN = uuid.UUID("5b1f3c6e-2f0a-4c55-9a43-0d1f6f0c1a11")
 CLOSED_AT = datetime.fromtimestamp(1790000000, UTC)
 
@@ -1469,7 +1554,11 @@ class TestReclaim:
     def claim(self, world: World) -> Iterator[World]:
         world.chat_session = MagicMock(conversation_id=None)
         world.runs[RUN] = run = MagicMock(
-            id=RUN, status="completed", surface="whatsapp", conversation_id=uuid.uuid4()
+            id=RUN,
+            status="completed",
+            surface="whatsapp",
+            conversation_id=uuid.uuid4(),
+            runs_as_agent=False,
         )
         world.answers[RUN] = "the saved answer"
         world.chat_session.conversation_id = run.conversation_id

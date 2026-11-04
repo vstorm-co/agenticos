@@ -59,9 +59,10 @@ async def test_each_notice_is_queued_in_the_callers_transaction_with_independent
     db.commit.assert_not_called()
 
 
+@pytest.mark.parametrize("as_agent", [True, False])
 @pytest.mark.parametrize("cancelled", [True, False])
 async def test_segment_snapshot_includes_inherited_results_and_never_commits_itself(
-    cancelled: bool,
+    cancelled: bool, as_agent: bool
 ) -> None:
     db = MagicMock()
     job = _job()
@@ -72,6 +73,7 @@ async def test_segment_snapshot_includes_inherited_results_and_never_commits_its
         id=job.run_id,
         organization_id=job.organization_id,
         status="cancelled" if cancelled else "completed",
+        runs_as_agent=as_agent,
     )
     segment = RunSegment(
         output="" if cancelled else "Sent",
@@ -87,7 +89,8 @@ async def test_segment_snapshot_includes_inherited_results_and_never_commits_its
         await persist(segment)
     saved = enqueue.await_args.args[2]
     assert DELIVER_CHANNEL_HANDBACK.load(DELIVER_CHANNEL_HANDBACK.dump(saved)) == saved
-    assert saved.output == ("This run was stopped from the console." if cancelled else "Sent")
+    stopped = "This request was stopped." if as_agent else "This run was stopped from the console."
+    assert saved.output == (stopped if cancelled else "Sent")
     assert saved.tool_calls[0].result == "OK"
     assert saved.generated_files == job.generated_files
     db.commit.assert_not_called()

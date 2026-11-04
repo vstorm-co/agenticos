@@ -134,6 +134,7 @@ class _Patched:
                     return_value=MagicMock(
                         id=RUN,
                         user_id=USER,
+                        runs_as_agent=False,
                         status=RunStatus.AWAITING_ANSWER.value,
                         paused_state={"messages": [], "tool_call_ids": {}, "questions": ["ask-1"]},
                     )
@@ -246,7 +247,7 @@ class TestAPlatformWithNoButtons:
 class TestOffering:
     async def test_each_approval_and_each_question_is_its_own_message(self):
         bot = _bot()
-        run = MagicMock(id=RUN, user_id=USER)
+        run = MagicMock(id=RUN, user_id=USER, runs_as_agent=False)
         approval = ParkedCall(
             id=uuid.uuid4(),
             tool_call_id="c1",
@@ -322,7 +323,7 @@ class TestOffering:
             id=uuid.uuid4(), tool_call_id="c1", tool_name="gmail_send_email", tool_args={}
         )
         service = ChannelPrompts(_session())
-        run = MagicMock(id=RUN, user_id=USER)
+        run = MagicMock(id=RUN, user_id=USER, runs_as_agent=False)
 
         async def create(db: Any, **fields: Any) -> MagicMock:
             return MagicMock(id=uuid.uuid4(), **{"multi_select": False, **fields})
@@ -371,6 +372,7 @@ class TestOffering:
         segment = MagicMock(output=output, tool_calls=[], generated_files=frozenset())
         segment.run.id = RUN
         segment.run.status = status
+        segment.run.runs_as_agent = False
         with (
             patch(f"{_MODULE}.get_adapter", return_value=adapter),
             patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
@@ -391,6 +393,7 @@ class TestOffering:
         )
         segment.run.id = RUN
         segment.run.status = RunStatus.CANCELLED.value
+        segment.run.runs_as_agent = False
 
         async def draw(*args: Any, notices: list[str], **kwargs: Any) -> bytes | None:
             notices.extend(drawn_notes)
@@ -465,7 +468,9 @@ class TestOffering:
             with (
                 patch(
                     f"{_MODULE}.agent_run_repo.get_run",
-                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                    new=AsyncMock(
+                        return_value=MagicMock(id=RUN, user_id=USER, runs_as_agent=False)
+                    ),
                 ),
                 patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=[])),
                 patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
@@ -511,7 +516,9 @@ class TestOffering:
             with (
                 patch(
                     f"{_MODULE}.agent_run_repo.get_run",
-                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                    new=AsyncMock(
+                        return_value=MagicMock(id=RUN, user_id=USER, runs_as_agent=False)
+                    ),
                 ),
                 patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=rows)),
                 patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
@@ -580,7 +587,9 @@ class TestOffering:
             with (
                 patch(
                     f"{_MODULE}.agent_run_repo.get_run",
-                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                    new=AsyncMock(
+                        return_value=MagicMock(id=RUN, user_id=USER, runs_as_agent=False)
+                    ),
                 ),
                 patch(f"{_MODULE}.channel_prompt_repo.for_run", new=AsyncMock(return_value=[row])),
                 patch(f"{_MODULE}.channel_prompt_repo.delete", new=AsyncMock()) as delete,
@@ -621,7 +630,9 @@ class TestOffering:
             with (
                 patch(
                     f"{_MODULE}.agent_run_repo.get_run",
-                    new=AsyncMock(return_value=MagicMock(id=RUN, user_id=None)),
+                    new=AsyncMock(
+                        return_value=MagicMock(id=RUN, user_id=None, runs_as_agent=False)
+                    ),
                 ),
                 patch(
                     f"{_MODULE}.channel_prompt_repo.create",
@@ -1219,7 +1230,9 @@ class TestAPressThatLostTheRace:
             patch(
                 f"{_MODULE}.agent_run_repo.get_run",
                 new=AsyncMock(
-                    return_value=MagicMock(id=RUN, user_id=USER, status=RunStatus.RUNNING.value)
+                    return_value=MagicMock(
+                        id=RUN, user_id=USER, status=RunStatus.RUNNING.value, runs_as_agent=False
+                    )
                 ),
             ),
             patch.object(service, "_answer", new=AsyncMock(side_effect=gone)),
@@ -1243,7 +1256,9 @@ class TestAPressThatLostTheRace:
             patch(
                 f"{_MODULE}.agent_run_repo.get_run",
                 new=AsyncMock(
-                    return_value=MagicMock(id=RUN, user_id=USER, status=RunStatus.RUNNING.value)
+                    return_value=MagicMock(
+                        id=RUN, user_id=USER, status=RunStatus.RUNNING.value, runs_as_agent=False
+                    )
                 ),
             ),
             patch.object(service, "_answer", new=AsyncMock(side_effect=gone)),
@@ -1384,6 +1399,7 @@ async def test_a_completed_channel_continuation_defers_buttons_after_posting_its
             id=RUN,
             status="completed",
             channel_identity_id=uuid.uuid4(),
+            runs_as_agent=False,
         ),
     )
     jobs = []
@@ -1411,9 +1427,163 @@ async def test_a_continuation_without_a_channel_identity_never_schedules_buttons
 
     queue = MagicMock()
     monkeypatch.setattr(module, "spawn_after_commit", queue)
-    run = SimpleNamespace(id=RUN, status="completed", channel_identity_id=None)
+    run = SimpleNamespace(id=RUN, status="completed", channel_identity_id=None, runs_as_agent=False)
     ChannelPrompts(_session())._follow_ups(_bot(), SimpleNamespace(run=run), "C1")
     queue.assert_not_called()
+
+
+class TestARunActingAsItsAgent:
+    """A run with no member behind it posts no buttons and names no console page."""
+
+    @staticmethod
+    async def _offered(*, runs_as_agent: bool) -> tuple[Any, list[dict[str, Any]], bool]:
+        bot = _bot()
+        run = MagicMock(
+            id=RUN, user_id=None if runs_as_agent else USER, runs_as_agent=runs_as_agent
+        )
+        approval = ParkedCall(
+            id=uuid.uuid4(), tool_call_id="c1", tool_name="upsert_record", tool_args={"x": 1}
+        )
+        service = ChannelPrompts(_session())
+        created: list[dict[str, Any]] = []
+
+        async def create(db: Any, **fields: Any) -> MagicMock:
+            created.append(fields)
+            return MagicMock(id=uuid.uuid4(), **{"multi_select": False, **fields})
+
+        with _Patched(bot=bot, prompt=None, role="member") as env:
+            with (
+                patch(f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=run)),
+                patch(f"{_MODULE}.channel_prompt_repo.create", new=create),
+                patch.object(
+                    service.runner, "parked_calls", new=AsyncMock(return_value=[approval])
+                ),
+                patch.object(service.runner, "parked_questions", new=AsyncMock(return_value=[])),
+            ):
+                offered = await service.offer(
+                    bot, platform="whatsapp", platform_chat_id="US.1", run_id=RUN
+                )
+            return env.adapter.send_prompt, created, offered
+
+    @pytest.mark.security
+    async def test_an_agent_run_is_offered_no_approval_buttons(self):
+        send_prompt, created, offered = await self._offered(runs_as_agent=True)
+
+        assert created == []
+        send_prompt.assert_not_awaited()
+        assert offered is True
+
+    @pytest.mark.security
+    async def test_a_member_runs_approval_is_still_offered(self):
+        send_prompt, created, offered = await self._offered(runs_as_agent=False)
+
+        assert [fields["kind"] for fields in created] == [APPROVAL]
+        send_prompt.assert_awaited_once()
+        assert offered is True
+
+    @staticmethod
+    async def _segment_text(*, runs_as_agent: bool, status: RunStatus, output: str) -> str:
+        adapter = MagicMock(send_message=AsyncMock())
+        segment = MagicMock(output=output, tool_calls=[], generated_files=frozenset())
+        segment.run.id = RUN
+        segment.run.status = status.value
+        segment.run.runs_as_agent = runs_as_agent
+        with (
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
+            patch(f"{_MODULE}.drawn_picture", new=AsyncMock(return_value=None)),
+        ):
+            await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
+        return adapter.send_message.await_args.args[1].text
+
+    @pytest.mark.security
+    async def test_a_continuation_that_parks_again_says_a_person_decides(self):
+        from app.services.channels.formatting import WAITS_FOR_A_PERSON
+
+        text = await self._segment_text(
+            runs_as_agent=True, status=RunStatus.AWAITING_APPROVAL, output=""
+        )
+
+        assert text == WAITS_FOR_A_PERSON
+
+    @pytest.mark.parametrize("status", [RunStatus.COMPLETED, RunStatus.BUDGET_EXCEEDED])
+    async def test_only_a_parked_agent_run_says_a_person_decides(self, status: RunStatus):
+        text = await self._segment_text(runs_as_agent=True, status=status, output="")
+
+        assert text == "Done."
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("as_agent", [True, False])
+    async def test_a_stop_sentence_names_the_console_only_to_a_member(self, as_agent: bool):
+        from app.services.channels.handback import STOPPED_NOTICE
+
+        text = await self._segment_text(
+            runs_as_agent=as_agent, status=RunStatus.CANCELLED, output=STOPPED_NOTICE
+        )
+
+        assert text == ("This request was stopped." if as_agent else STOPPED_NOTICE)
+
+    async def test_an_agent_runs_own_words_are_kept_when_it_parks_again(self):
+        text = await self._segment_text(
+            runs_as_agent=True, status=RunStatus.AWAITING_APPROVAL, output="One moment."
+        )
+
+        assert text == "One moment."
+
+    async def test_a_member_run_that_parks_again_keeps_its_plain_reply(self):
+        text = await self._segment_text(
+            runs_as_agent=False, status=RunStatus.AWAITING_APPROVAL, output=""
+        )
+
+        assert text == "Done."
+
+    @pytest.mark.parametrize("as_agent", [True, False])
+    async def test_the_stranger_flag_reaches_the_picture_notices(self, as_agent: bool):
+        adapter = MagicMock(send_message=AsyncMock())
+        segment = MagicMock(output="Ready", tool_calls=[], generated_files=frozenset())
+        segment.run.id = RUN
+        segment.run.status = RunStatus.COMPLETED.value
+        segment.run.runs_as_agent = as_agent
+        draw = AsyncMock(return_value=None)
+        with (
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
+            patch(f"{_MODULE}.drawn_picture", new=draw),
+        ):
+            await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
+
+        assert draw.await_args.kwargs["stranger"] is as_agent
+
+    async def test_the_stop_key_follows_the_text_that_is_sent(self):
+        from app.services.channels.handback import STOPPED_NOTICE
+
+        adapter = MagicMock(send_message=AsyncMock())
+        segment = MagicMock(output=STOPPED_NOTICE, tool_calls=[], generated_files=frozenset())
+        segment.run.id = RUN
+        segment.run.status = RunStatus.CANCELLED.value
+        segment.run.runs_as_agent = True
+        with (
+            patch(f"{_MODULE}.get_adapter", return_value=adapter),
+            patch(f"{_MODULE}.unseal_bot_token", return_value="tok"),
+            patch(f"{_MODULE}.drawn_picture", new=AsyncMock(return_value=None)),
+        ):
+            await ChannelPrompts(_session())._send_segment(_bot(), "whatsapp", "US.1", segment)
+
+        sent = adapter.send_message.await_args.args[1]
+        assert (sent.text, sent.notice) == ("This request was stopped.", "stopped_stranger")
+
+    async def test_no_writer_after_an_agent_runs_continuation(self, monkeypatch):
+        import app.services.channels.prompts as module
+
+        queue = MagicMock()
+        monkeypatch.setattr(module, "spawn_after_commit", queue)
+        run = SimpleNamespace(
+            id=RUN, status="completed", channel_identity_id=uuid.uuid4(), runs_as_agent=True
+        )
+
+        ChannelPrompts(_session())._follow_ups(_bot(), SimpleNamespace(run=run), "US.1")
+
+        queue.assert_not_called()
 
 
 class TestDelivering:

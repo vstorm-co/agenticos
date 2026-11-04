@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.db.models.agent_run import RunStatus
 from app.services.background_jobs import enqueue
-from app.services.channels.handback import STOPPED_NOTICE, ChatNotice
+from app.services.channels.handback import STOPPED_NOTICE, ChatNotice, for_the_run
 from app.services.transcript import RecordedToolCall
 from app.worker.jobs import DELIVER_CHANNEL_HANDBACK, ChannelHandback, ChannelHandbackCall
 
@@ -55,7 +55,11 @@ def queue_segment(
                 run_id=segment.run.id,
                 **destination.model_dump(),
                 output=said.output
-                or (STOPPED_NOTICE if segment.run.status == RunStatus.CANCELLED.value else ""),
+                or (
+                    for_the_run(segment.run, STOPPED_NOTICE)
+                    if segment.run.status == RunStatus.CANCELLED.value
+                    else ""
+                ),
                 tool_calls=[
                     ChannelHandbackCall.model_validate(call, from_attributes=True)
                     for call in said.tool_calls
