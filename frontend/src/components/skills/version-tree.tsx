@@ -1,12 +1,14 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
-import { Columns2, GitBranch } from "lucide-react";
+import { useCallback, useLayoutEffect, useState } from "react";
+import { Columns2, GitBranch, GitCommitHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { MapZoomControls } from "@/components/agents/map-zoom-controls";
 import { ErrorState } from "@/components/states";
 import { ListCard } from "@/components/ui";
+import { usePanZoom } from "@/hooks/use-pan-zoom";
 import { getErrorMessage } from "@/lib/api-error";
 import { NODE_WIDTH, versionDiagram, type DiagramBox } from "@/lib/skill-version-diagram";
 import { versionTree } from "@/lib/skill-version-tree";
@@ -14,6 +16,9 @@ import { cn } from "@/lib/utils";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { eachAgentOnce } from "./skill-lines";
 import { VersionCompare, type Compared } from "./version-compare";
+
+/** Room around the diagram inside its canvas. */
+const PAD = 24;
 
 /**
  * The skill's versions as a diagram: main runs left to right to its newest, each
@@ -95,61 +100,83 @@ function Diagram({
   onCompare: (item: Compared) => void;
 }) {
   const t = useTranslations("skills.page.tree");
-  const scroller = useRef<HTMLDivElement>(null);
-  // The newest version is what a reader came for, and it is drawn at the right end.
-  useLayoutEffect(() => {
-    const element = scroller.current!;
-    element.scrollLeft = element.scrollWidth;
-  }, []);
+  const { viewport, view, setView, zoomFromCentre, panHandlers } = usePanZoom();
+  // The newest version is what a reader came for, and main ends on it at the right.
+  const newest = useCallback(() => {
+    const width = viewport.current!.getBoundingClientRect().width;
+    setView({ x: Math.min(0, width - diagram.width - 2 * PAD), y: 0, scale: 1 });
+  }, [viewport, setView, diagram.width]);
+  useLayoutEffect(newest, [newest]);
   return (
-    <div ref={scroller} className="overflow-x-auto p-6">
-      <div className="relative" style={{ width: diagram.width, height: diagram.height }}>
-        <svg
-          className="pointer-events-none absolute inset-0"
-          width={diagram.width}
-          height={diagram.height}
-          aria-hidden
+    <div className="relative">
+      <MapZoomControls
+        onZoomIn={() => zoomFromCentre(1.25)}
+        onZoomOut={() => zoomFromCentre(1 / 1.25)}
+        onReset={newest}
+      />
+      <div
+        ref={viewport}
+        className="h-[28rem] cursor-grab touch-none overflow-hidden rounded-lg select-none active:cursor-grabbing"
+        {...panHandlers}
+      >
+        <div
+          className="relative origin-top-left"
+          style={{
+            width: diagram.width + 2 * PAD,
+            height: diagram.height + 2 * PAD,
+            padding: PAD,
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          }}
         >
-          {diagram.edges.map(({ key, path }) => (
-            <path
-              key={key}
-              d={path}
-              fill="none"
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-              className="map-flow stroke-brand/50"
-            />
-          ))}
-        </svg>
-        {diagram.labels.map(({ fork, x, y }) => (
-          <p
-            key={fork.id}
-            className="absolute flex items-center gap-1.5 text-xs whitespace-nowrap"
-            style={{ left: x, top: y }}
-          >
-            <GitBranch className="text-primary size-3.5" aria-hidden />
-            <span className="font-medium">{t("fork", { name: fork.name })}</span>
-            <span className="text-muted-foreground">
-              {t("forkFacts", { changes: fork.changes, behind: fork.behind_main })}
-            </span>
-          </p>
-        ))}
-        <ol>
-          {diagram.boxes.map(({ box, x, y, height }) => (
-            <li
-              key={box.key}
-              className="absolute"
-              style={{ left: x, top: y, width: NODE_WIDTH, height }}
+          <div className="relative" style={{ width: diagram.width, height: diagram.height }}>
+            <svg
+              className="pointer-events-none absolute inset-0"
+              width={diagram.width}
+              height={diagram.height}
+              aria-hidden
             >
-              <Box
-                box={box}
-                inComparison={compared.some((item) => item.key === box.key)}
-                onUnfold={onUnfold}
-                onCompare={onCompare}
-              />
-            </li>
-          ))}
-        </ol>
+              {diagram.edges.map(({ key, path }) => (
+                <path
+                  key={key}
+                  d={path}
+                  fill="none"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  className="map-flow stroke-brand/50"
+                />
+              ))}
+            </svg>
+            {diagram.labels.map(({ fork, x, y }) => (
+              <p
+                key={fork.id}
+                className="absolute flex items-center gap-1.5 text-xs whitespace-nowrap"
+                style={{ left: x, top: y }}
+              >
+                <GitBranch className="text-primary size-3.5" aria-hidden />
+                <span className="font-medium">{t("fork", { name: fork.name })}</span>
+                <span className="text-muted-foreground">
+                  {t("forkFacts", { changes: fork.changes, behind: fork.behind_main })}
+                </span>
+              </p>
+            ))}
+            <ol>
+              {diagram.boxes.map(({ box, x, y, height }) => (
+                <li
+                  key={box.key}
+                  className="absolute"
+                  style={{ left: x, top: y, width: NODE_WIDTH, height }}
+                >
+                  <Box
+                    box={box}
+                    inComparison={compared.some((item) => item.key === box.key)}
+                    onUnfold={onUnfold}
+                    onCompare={onCompare}
+                  />
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -171,8 +198,11 @@ function Box({
     return (
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground hover:border-foreground/30 flex h-full w-full items-center justify-center rounded-xl border border-dashed text-xs"
-        onClick={() => onUnfold(box.line, box.from, box.to)}
+        className="bg-card text-muted-foreground hover:text-foreground flex h-full w-full items-center justify-center rounded-xl border border-dashed text-xs"
+        onClick={(event) => {
+          event.stopPropagation();
+          onUnfold(box.line, box.from, box.to);
+        }}
       >
         {t("folded", { count: box.count, from: box.from, to: box.to })}
       </button>
@@ -187,12 +217,14 @@ function Box({
   return (
     <div
       className={cn(
-        "bg-card h-full rounded-xl border shadow-sm",
-        box.kind === "version" && box.latest && "border-brand/50 border-2",
-        inComparison && "ring-primary ring-2",
+        "bg-card h-full rounded-xl border",
+        box.kind === "empty-fork" && "border-dashed",
+        box.kind === "version" && box.latest && "border-brand/40 border-2",
+        inComparison && "ring-brand ring-2",
       )}
     >
-      <div className="flex h-11 items-center gap-2 px-3">
+      <div className="flex h-11 items-center gap-1.5 px-3.5">
+        <GitCommitHorizontal className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
         <span
           className={cn(
             "min-w-0 truncate text-sm",
@@ -215,15 +247,16 @@ function Box({
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:text-foreground",
             )}
-            onClick={() =>
+            onClick={(event) => {
+              event.stopPropagation();
               onCompare({
                 key: box.key,
                 fork: box.fork?.id ?? null,
                 number: box.number,
                 newest: box.newest,
                 name,
-              })
-            }
+              });
+            }}
           >
             <Columns2 className="size-3.5" aria-hidden />
             {inComparison ? t("comparing") : t("compareShort")}
@@ -239,15 +272,20 @@ function Agents({ agents }: { agents: SkillAgentUsage[] }) {
   const shown = eachAgentOnce(agents);
   if (shown.length === 0) return null;
   return (
-    <ul className="space-y-0.5 border-t px-3 pt-1.5 pb-1">
-      {shown.map((usage) => (
-        <li key={usage.agent.id} className="flex h-7 items-center gap-1.5 text-xs">
+    <ul className="space-y-1 px-3.5 pb-2">
+      {shown.map((usage, index) => (
+        <li
+          key={usage.agent.id}
+          className="map-tile bg-muted/50 border-border/60 flex h-[26px] items-center gap-1.5 rounded-lg border px-1.5 text-xs"
+          style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}
+        >
           <AgentAvatar
             agentId={usage.agent.id}
             slug={usage.agent.slug}
             hasAvatar={usage.agent.has_avatar}
             colorSlot={usage.agent.avatar_color}
             size="sm"
+            className="size-5"
           />
           <span className="truncate">{usage.agent.name}</span>
         </li>

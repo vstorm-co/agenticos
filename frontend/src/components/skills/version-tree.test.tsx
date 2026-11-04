@@ -50,6 +50,18 @@ describe("VersionTree", () => {
     expect(screen.getByText("v12")).toBeInTheDocument();
   });
 
+  it("opens on main's newest version at the right, zooms, and goes back there on reset", async () => {
+    const { container } = render(
+      <VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />,
+    );
+    const canvas = () => container.querySelector<HTMLElement>("[style*='transform']")!;
+    // Three boxes and the room around them, drawn in a viewport jsdom gives no width.
+    expect(canvas().style.transform).toBe("translate(-712px, 0px) scale(1)");
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset view" }));
+    expect(canvas().style.transform).toBe("translate(-712px, 0px) scale(1)");
+  });
+
   it("names every agent in the box of the version it reads", () => {
     render(
       <VersionTree
