@@ -1,6 +1,7 @@
 "use client";
 
 import { RoutineOptions } from "@/components/triggers/routine-options";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 
 import { ErrorState } from "@/components/states/error-state";
 import { useTranslations } from "next-intl";
@@ -71,8 +72,17 @@ export function WatchAgentFields({
               </SelectItem>
             )}
             {runnable.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                {agent.name}
+              <SelectItem key={agent.id} value={agent.id} textValue={agent.name}>
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <AgentAvatar
+                    agentId={agent.id}
+                    slug={agent.slug}
+                    hasAvatar={agent.has_avatar}
+                    colorSlot={agent.avatar_color}
+                    size="sm"
+                  />
+                  <span className="truncate">{agent.name}</span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

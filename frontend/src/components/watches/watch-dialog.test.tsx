@@ -27,7 +27,15 @@ const refusal = vi.hoisted(() => ({
 
 vi.mock("@/hooks", () => ({
   useAgents: () => ({
-    agents: [{ id: "a-monitor", name: "Monitor", can_run: true, current_version_id: "v1" }],
+    agents: [
+      {
+        id: "a-monitor",
+        name: "Monitor",
+        slug: "monitor",
+        can_run: true,
+        current_version_id: "v1",
+      },
+    ],
     isLoading: false,
   }),
   useAgentEnvironments: () => ({ environments: [] }),
