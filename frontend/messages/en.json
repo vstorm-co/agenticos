@@ -8597,7 +8597,10 @@
         "back": "Back",
         "locked": "{count, plural, =1 {You may not change {names}, so it cannot be taken off here. Ask its owner, or remove it there in the Builder.} other {You may not change {names}, so it cannot be taken off here. Ask their owners, or remove it there in the Builder.}}",
         "hiddenBlocks": "Some of them you cannot see, so it cannot be taken off all of them here. Ask an admin to remove it.",
-        "button": "Delete"
+        "button": "Delete",
+        "agentsChanged": "An agent started using the skill while it was being removed, so nothing changed. Try again.",
+        "waiting": "{name} still serves it in {environments}, which {count, plural, =1 {waits} other {wait}} for promotion. Promote a version without the skill there first.",
+        "unpublishable": "{name}'s newest spec does not publish without the skill, so nothing changed. <link>Fix it in the Builder</link>, then try again."
       },
       "usage": {
         "title": "Use in the last {days} days",

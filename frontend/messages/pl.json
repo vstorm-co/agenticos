@@ -8357,7 +8357,10 @@
         "back": "Wstecz",
         "locked": "{count, plural, one {Nie możesz zmieniać agenta {names}, więc nie da się go tu odpiąć. Poproś właściciela albo odepnij go w Builderze.} other {Nie możesz zmieniać agentów {names}, więc nie da się go tu odpiąć. Poproś ich właścicieli albo odepnij go w Builderze.}}",
         "hiddenBlocks": "Części z nich nie widzisz, więc nie da się go tu odpiąć od wszystkich. Poproś admina o usunięcie.",
-        "button": "Usuń"
+        "button": "Usuń",
+        "agentsChanged": "W trakcie odpinania jakiś agent zaczął używać skilla, więc nic się nie zmieniło. Spróbuj ponownie.",
+        "waiting": "{name} nadal go serwuje w {environments}, {count, plural, one {które czeka} other {które czekają}} na promocję. Najpierw wypromuj tam wersję bez skilla.",
+        "unpublishable": "Najnowszy spec agenta {name} nie publikuje się bez skilla, więc nic się nie zmieniło. <link>Popraw go w Builderze</link> i spróbuj ponownie."
       },
       "usage": {
         "title": "Użycie w ostatnich {days} dniach",

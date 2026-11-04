@@ -8475,7 +8475,10 @@
         "back": "Zurück",
         "locked": "{count, plural, =1 {Du darfst {names} nicht ändern, daher kann er hier nicht entfernt werden. Frag den Owner oder entferne ihn dort im Builder.} other {Du darfst {names} nicht ändern, daher kann er hier nicht entfernt werden. Frag ihre Owner oder entferne ihn dort im Builder.}}",
         "hiddenBlocks": "Einige davon siehst du nicht, daher kann er hier nicht von allen entfernt werden. Bitte einen Admin, ihn zu entfernen.",
-        "button": "Löschen"
+        "button": "Löschen",
+        "agentsChanged": "Ein Agent hat den Skill während des Entfernens übernommen, daher hat sich nichts geändert. Versuche es erneut.",
+        "waiting": "{name} liefert ihn noch in {environments} aus, {count, plural, =1 {das auf Promotion wartet} other {die auf Promotion warten}}. Promote dort zuerst eine Version ohne den Skill.",
+        "unpublishable": "Die neueste Spec von {name} lässt sich ohne den Skill nicht veröffentlichen, daher hat sich nichts geändert. <link>Behebe das im Builder</link> und versuche es erneut."
       },
       "usage": {
         "title": "Nutzung in den letzten {days} Tagen",

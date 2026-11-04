@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -13,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
 import type { Skill } from "@/types/providers";
 import type { SkillAgentList } from "@/types/skill-versions";
@@ -26,6 +28,8 @@ interface Users {
   names: string[];
   hidden: number;
   locked: string[];
+  /** Agents an environment waiting for promotion still serves the skill to, by environment. */
+  waiting: { name: string; environments: string[] }[];
 }
 
 const namesIn = (value: unknown): string[] =>
@@ -42,7 +46,21 @@ function refusedBy(failure: unknown): Users | null {
     names: namesIn(failure.details?.agents),
     hidden: Number(failure.details?.hidden ?? 0),
     locked: namesIn(failure.details?.not_editable),
+    waiting: (Array.isArray(failure.details?.waiting) ? failure.details.waiting : []).map(
+      (agent: { name: string; environments: string[] }) => ({
+        name: agent.name,
+        environments: agent.environments,
+      }),
+    ),
   };
+}
+
+/** The agent whose newest spec does not publish without the skill, when that refused it. */
+function unpublishable(failure: unknown): { id: string; name: string } | null {
+  if (!(failure instanceof ApiError) || typeof failure.details?.agent_name !== "string") {
+    return null;
+  }
+  return { id: String(failure.details.agent_id), name: failure.details.agent_name };
 }
 
 /**
@@ -77,6 +95,7 @@ export function DeleteSkillDialog({
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const [refused, setRefused] = useState<Users | null>(null);
+  const [stuck, setStuck] = useState<{ id: string; name: string } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rows = eachAgentOnce(agents?.items ?? []);
@@ -84,11 +103,13 @@ export function DeleteSkillDialog({
     names: rows.map((usage) => usage.agent.name),
     hidden: agents?.hidden ?? 0,
     locked: rows.filter((usage) => !usage.can_change).map((usage) => usage.agent.name),
+    waiting: [],
   };
   const users = refused ?? known;
   const count = users.names.length + users.hidden;
   const used = count > 0;
-  const removable = used && users.hidden === 0 && users.locked.length === 0;
+  const removable =
+    used && users.hidden === 0 && users.locked.length === 0 && users.waiting.length === 0;
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
   const checking = agents === undefined && !agentsError && refused === null;
 
@@ -97,10 +118,16 @@ export function DeleteSkillDialog({
     try {
       await onDelete(removeFromAgents);
     } catch (failure) {
-      const by = refusedBy(failure);
       setConfirming(false);
+      setStuck(unpublishable(failure));
+      // An agent took the skill up while it was being removed: the same delete may pass now.
+      if (failure instanceof ApiError && failure.details?.reason === "agents_changed") {
+        setError(t("agentsChanged"));
+        return;
+      }
+      const by = refusedBy(failure);
       if (by) setRefused(by);
-      else setError(getErrorMessage(failure, tErrors));
+      else if (!unpublishable(failure)) setError(getErrorMessage(failure, tErrors));
     }
   }
 
@@ -130,11 +157,33 @@ export function DeleteSkillDialog({
             })}
           </p>
         )}
-        {used && !confirming && !removable && (
+        {used && !confirming && users.locked.length > 0 && (
           <p className="text-muted-foreground text-sm">
-            {users.locked.length > 0
-              ? t("locked", { names: list.format(users.locked), count: users.locked.length })
-              : t("hiddenBlocks")}
+            {t("locked", { names: list.format(users.locked), count: users.locked.length })}
+          </p>
+        )}
+        {used && !confirming && users.hidden > 0 && (
+          <p className="text-muted-foreground text-sm">{t("hiddenBlocks")}</p>
+        )}
+        {users.waiting.map((agent) => (
+          <p key={agent.name} className="text-muted-foreground text-sm">
+            {t("waiting", {
+              name: agent.name,
+              environments: list.format(agent.environments),
+              count: agent.environments.length,
+            })}
+          </p>
+        ))}
+        {stuck !== null && (
+          <p role="alert" className="text-destructive text-sm">
+            {t.rich("unpublishable", {
+              name: stuck.name,
+              link: (chunks) => (
+                <Link className="underline underline-offset-4" href={ROUTES.AGENT_DETAIL(stuck.id)}>
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         )}
         {checking && (

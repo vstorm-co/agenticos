@@ -174,4 +174,67 @@ describe("DeleteSkillDialog", () => {
     expect(await screen.findByText(/You may not change Desk/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /and delete/ })).toBeNull();
   });
+
+  it("names the environments still waiting for promotion with the skill", async () => {
+    const onDelete = vi.fn().mockRejectedValue(
+      new ApiError(409, "In use", {
+        error: {
+          code: "IN_USE",
+          message: "In use",
+          details: {
+            agents: [{ id: "a1", name: "Desk" }],
+            hidden: 0,
+            not_editable: [],
+            waiting: [{ id: "a1", name: "Desk", environments: ["staging", "prod"] }],
+          },
+        },
+      }),
+    );
+    open(list([row("Desk")]), onDelete);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove from 1 agent and delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove and delete" }));
+
+    expect(
+      await screen.findByText(/Desk still serves it in staging and prod, which wait for promotion/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /and delete/ })).toBeNull();
+  });
+
+  it("asks to try again when an agent took the skill up meanwhile", async () => {
+    const onDelete = vi.fn().mockRejectedValue(
+      new ApiError(409, "Changed", {
+        error: { code: "IN_USE", message: "Changed", details: { reason: "agents_changed" } },
+      }),
+    );
+    open(list([row("Desk")]), onDelete);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove from 1 agent and delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove and delete" }));
+
+    expect(await screen.findByText(/started using the skill.*Try again/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove from 1 agent and delete" })).toBeVisible();
+  });
+
+  it("sends the person to the agent whose spec does not publish without the skill", async () => {
+    const onDelete = vi.fn().mockRejectedValue(
+      new ApiError(400, "Invalid", {
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid",
+          details: { agent_id: "a1", agent_name: "Desk", problems: ["model removed"] },
+        },
+      }),
+    );
+    open(list([row("Desk")]), onDelete);
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove from 1 agent and delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove and delete" }));
+
+    expect(await screen.findByRole("link", { name: "Fix it in the Builder" })).toHaveAttribute(
+      "href",
+      "/agents/a1",
+    );
+    expect(screen.getByText(/Desk's newest spec does not publish/)).toBeInTheDocument();
+  });
 });
