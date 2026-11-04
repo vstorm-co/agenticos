@@ -542,14 +542,18 @@ class TestTheDowngrade:
         paused = _source(organization.id, kb=newer)
         paused.is_active = False
         on_a_tie = _source(organization.id, kb=tied_a, name="tied")
-        db.add_all([on_newer, on_oldest, paused, on_a_tie])
+        # Its base went without the teardown: the foreign key set it to NULL.
+        unpinned = _source(organization.id, kb=None)
+        template = _source(organization.id, kb=None)
+        template.collection_name = None
+        db.add_all([on_newer, on_oldest, paused, on_a_tie, unpinned, template])
         await db.flush()
 
         migration = _migration()
         reported = await db.run_sync(
             lambda session: migration.deactivate_diverging(session.connection())
         )
-        for source in (on_newer, on_oldest, paused, on_a_tie):
+        for source in (on_newer, on_oldest, paused, on_a_tie, unpinned, template):
             await db.refresh(source)
 
         assert sorted(reported) == sorted(
@@ -557,9 +561,12 @@ class TestTheDowngrade:
                 (str(on_newer.id), str(organization.id), NAME),
                 # No single base the earlier code would pick: stopped as well.
                 (str(on_a_tie.id), str(organization.id), "tied"),
+                # This revision never syncs it; the earlier code would, by name.
+                (str(unpinned.id), str(organization.id), NAME),
             ]
         )
-        assert not on_a_tie.is_active
+        assert not on_a_tie.is_active and not unpinned.is_active
+        assert template.is_active
         assert not on_newer.is_active
         assert on_oldest.is_active
         assert not paused.is_active

@@ -99,9 +99,10 @@ _DEACTIVATE_UNATTRIBUTABLE = sa.text(
 )
 
 
-# What a downgrade must not leave running: an active source recording a base
-# other than the one the name resolves to - or any base, when the name has no
-# single answer. The code before this revision resolves the name, so it would
+# What a downgrade must not leave running: an active source naming a collection
+# that records no base (the foreign key's `SET NULL` fired: this revision never
+# syncs it, the earlier code would), or a base other than the one the name
+# resolves to - or any base, when the name has no single answer. The code before this revision resolves the name, so it would
 # sync that source into another base, and another audience. Only the column
 # holds the choice, and the downgrade drops it.
 _DEACTIVATE_DIVERGING = sa.text(
@@ -109,8 +110,11 @@ _DEACTIVATE_DIVERGING = sa.text(
     UPDATE sync_sources AS s
     SET is_active = false
     WHERE s.is_active
-      AND s.knowledge_base_id IS NOT NULL
-      AND s.knowledge_base_id IS DISTINCT FROM {_LEGACY_CHOICE}
+      AND s.collection_name IS NOT NULL
+      AND (
+          s.knowledge_base_id IS NULL
+          OR s.knowledge_base_id IS DISTINCT FROM {_LEGACY_CHOICE}
+      )
     RETURNING s.id, s.organization_id, s.collection_name
     """
 )
