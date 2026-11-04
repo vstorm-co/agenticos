@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, statu
 from app.api.deps import (
     ActiveOrg,
     Auth,
+    CodingTaskChangeSvc,
     ConversationShareSvc,
     ConversationSvc,
     ConversationTaskSvc,
@@ -20,6 +21,7 @@ from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
+from app.schemas.coding_change import CodingTaskChangeRead
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -64,6 +66,17 @@ async def list_background_tasks(
 async def stop_background_task(task_id: UUID, service: ConversationTaskSvc, ctx: Auth) -> Any:
     """Stop the member's task, retaining its transcript and any work already done."""
     return await service.stop(ctx, task_id)
+
+
+@router.get("/coding-changes/{change_id}", response_model=CodingTaskChangeRead)
+async def get_coding_task_change(change_id: UUID, service: CodingTaskChangeSvc, ctx: Auth) -> Any:
+    """What one coding-agent task changed: its files, then each file's part of the patch.
+
+    `change_id` is the `changes_id` a `run_coding_agent` result names. Readable by
+    whoever may read the conversation the task ran in - the transcript's own
+    check - and missing (404) for anybody else, in this organization or another.
+    """
+    return await service.get(ctx, change_id)
 
 
 @router.get("/shared-with-me", response_model=ConversationList)

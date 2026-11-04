@@ -1,0 +1,134 @@
+"""A coding task's change set is read with its conversation's access, and goes with it (#2480).
+
+Against a real `ConversationService` and a real database, because the guarantee
+is the conversation's own reader check and the cascade - neither of which a mock
+can show.
+"""
+
+import uuid
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundError
+from app.core.permissions import AuthContext
+from app.db.models.coding_task_change import CodingTaskChange
+from app.db.models.conversation import Conversation
+from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.user import User
+from app.schemas.coding_change import ChangedFile, ChangeSet
+from app.services.coding_task_changes import CodingTaskChangeService
+
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
+
+
+async def _person(db: AsyncSession) -> User:
+    user = User(
+        id=uuid.uuid4(),
+        email=f"{uuid.uuid4().hex}@example.com",
+        hashed_password="x",
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    return user
+
+
+async def _organization(db: AsyncSession, *members: User) -> Organization:
+    founder = await _person(db)
+    organization = Organization(
+        id=uuid.uuid4(),
+        name="Acme",
+        slug=f"acme-{uuid.uuid4().hex[:8]}",
+        created_by_user_id=founder.id,
+    )
+    db.add(organization)
+    await db.flush()
+    for member in members:
+        db.add(
+            OrganizationMember(id=uuid.uuid4(), organization_id=organization.id, user_id=member.id)
+        )
+    await db.flush()
+    return organization
+
+
+def _as(user: User, organization: Organization) -> AuthContext:
+    return AuthContext(user_id=user.id, organization_id=organization.id, role="member")
+
+
+async def _recorded(db: AsyncSession, organization: Organization, owner: User) -> CodingTaskChange:
+    conversation = Conversation(
+        id=uuid.uuid4(), user_id=owner.id, organization_id=organization.id, title="Fix it"
+    )
+    db.add(conversation)
+    await db.flush()
+    changes = ChangeSet(
+        files=[
+            ChangedFile(
+                path="src/app.py",
+                status="modified",
+                additions=1,
+                deletions=1,
+                patch="diff --git a/src/app.py b/src/app.py\n-a - b\n+a + b\n",
+            ),
+            ChangedFile(path="README.md", status="added", additions=1, patch="+# Demo\n"),
+        ]
+    )
+    return await CodingTaskChangeService(db).record(
+        changes,
+        organization_id=organization.id,
+        conversation_id=conversation.id,
+        tool_call_id="call-1",
+        harness="claude_code",
+    )
+
+
+async def test_the_conversations_owner_reads_exactly_the_files_recorded(db: AsyncSession) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    recorded = await _recorded(db, organization, owner)
+
+    change = await CodingTaskChangeService(db).get(_as(owner, organization), recorded.id)
+
+    assert [entry["path"] for entry in change.files] == ["src/app.py", "README.md"]
+    assert change.files[0]["patch"].endswith("+a + b\n")
+    assert repr(change).startswith("<CodingTaskChange(id=")
+
+
+async def test_a_colleague_who_may_not_read_the_conversation_reads_none(
+    db: AsyncSession,
+) -> None:
+    owner, colleague = await _person(db), await _person(db)
+    organization = await _organization(db, owner, colleague)
+    recorded = await _recorded(db, organization, owner)
+
+    with pytest.raises(NotFoundError):
+        await CodingTaskChangeService(db).get(_as(colleague, organization), recorded.id)
+
+
+async def test_somebody_in_another_organization_reads_none(db: AsyncSession) -> None:
+    owner, stranger = await _person(db), await _person(db)
+    organization = await _organization(db, owner)
+    elsewhere = await _organization(db, stranger)
+    recorded = await _recorded(db, organization, owner)
+
+    with pytest.raises(NotFoundError):
+        await CodingTaskChangeService(db).get(_as(stranger, elsewhere), recorded.id)
+    # Not even by naming the organization it is in.
+    with pytest.raises(NotFoundError):
+        await CodingTaskChangeService(db).get(_as(stranger, organization), recorded.id)
+
+
+async def test_deleting_the_conversation_deletes_its_change_sets(db: AsyncSession) -> None:
+    owner = await _person(db)
+    organization = await _organization(db, owner)
+    recorded = await _recorded(db, organization, owner)
+    conversation = await db.get(Conversation, recorded.conversation_id)
+
+    await db.delete(conversation)
+    await db.flush()
+    db.expunge_all()
+
+    remaining = await db.execute(select(CodingTaskChange).where(CodingTaskChange.id == recorded.id))
+    assert remaining.scalar_one_or_none() is None
