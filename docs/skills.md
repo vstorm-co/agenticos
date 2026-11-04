@@ -675,6 +675,12 @@ the newest on its own line, and the agents following that line get it at once. A
 fork numbers its versions from 1 like main, so they carry its name - "Returns v2" -
 and main's history marks the version each fork starts from.
 
+Under the versions, a reader who may view runs sees the line's **Improve
+sessions**: when each ran and who started it, how it ended - applied as a version,
+a fork, discarded, expired - and what it cost. **Continue** opens a session still
+waiting on you; **Open** reads a finished one. A version a session applied links
+back to it.
+
 **Version tree** draws main as a line of boxes from left to right, ending at its
 newest version. Each fork branches off the version it started from on a lane of its
 own, and every agent sits in the box of the version it uses. On a line of eight

@@ -1,5 +1,5 @@
 ---
-source_sha: "c1fdc0a563d6"
+source_sha: "41521755e403"
 ---
 
 # Skills { #skills }
@@ -755,6 +755,12 @@ frühere Version als neueste auf ihre eigene Linie zurück, und die Agents, die 
 Linie folgen, bekommen sie sofort. Ein Fork nummeriert seine Versionen ab 1 wie
 main, deshalb tragen sie seinen Namen - „Returns v2“ -, und der Verlauf von main
 markiert die Version, bei der jeder Fork beginnt.
+
+Unter den Versionen sieht, wer Runs ansehen darf, die **Improve-Sitzungen** der
+Linie: wann jede lief und wer sie begann, wie sie endete - als Version übernommen,
+ein Fork, verworfen, abgelaufen - und was sie kostete. **Fortsetzen** öffnet eine
+Sitzung, die noch auf Sie wartet; **Öffnen** zeigt eine beendete. Eine Version, die
+eine Sitzung übernommen hat, verweist auf sie.
 
 **Versionsbaum** zeichnet main als Reihe von Feldern von links nach rechts, die bei
 der neuesten Version endet. Jeder Fork zweigt auf einer eigenen Spur von der Version

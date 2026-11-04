@@ -1,5 +1,5 @@
 ---
-source_sha: "c1fdc0a563d6"
+source_sha: "41521755e403"
 ---
 
 # Skille { #skills }
@@ -693,6 +693,12 @@ usunięte albo zmienione. **Przywróć** sprowadza wcześniejszą wersję jako n
 na jej własnej linii, a agenci podążający za tą linią dostają ją od razu. Fork
 numeruje wersje od 1 tak jak main, więc noszą jego nazwę - „Returns v2” - a
 historia main zaznacza wersję, od której startuje każdy fork.
+
+Pod wersjami osoba, która może przeglądać runy, widzi **sesje Improve** tej linii:
+kiedy każda trwała i kto ją zaczął, jak się skończyła - zastosowana jako wersja,
+fork, odrzucona, wygasła - i ile kosztowała. **Kontynuuj** otwiera sesję, która
+wciąż na Ciebie czeka; **Otwórz** pokazuje zakończoną. Wersja, którą sesja
+zastosowała, linkuje do niej.
 
 **Drzewo wersji** rysuje main jako linię pól od lewej do prawej, kończącą się na
 najnowszej wersji. Każdy fork odchodzi na własnym torze od wersji, od której
