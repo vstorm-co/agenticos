@@ -450,12 +450,16 @@ class TestTheUpgradesBackfill:
         owner = _user()
         db.add(owner)
         await db.flush()
-        org_1, org_2, org_3 = [await _org(db, owner) for _ in range(3)]
+        org_1, org_2, org_3, org_4 = [await _org(db, owner) for _ in range(4)]
         personal = _base(org_1.id, scope=KBScope.PERSONAL, owner=owner.id, age=timedelta(days=3))
         org_1_base = _base(org_1.id, age=timedelta(days=1))
         app_base = _base(None, scope=KBScope.APP, age=timedelta(days=5))
         elsewhere = _base(org_1.id, name="manuals")
-        db.add_all([personal, org_1_base, app_base, elsewhere])
+        # Two of org 4's bases share `created_at`, as a single transaction makes them.
+        tied_a = _base(org_4.id, name="tied")
+        tied_b = _base(org_4.id, name="tied")
+        tied_b.created_at = tied_a.created_at
+        db.add_all([personal, org_1_base, app_base, elsewhere, tied_a, tied_b])
         await db.flush()
         oldest_of_org = _source(org_1.id, kb=None)
         app_fallback = _source(org_2.id, kb=None)
@@ -466,7 +470,8 @@ class TestTheUpgradesBackfill:
         template = _source(org_1.id, kb=None)
         template.collection_name = None
         already = _source(org_1.id, kb=org_1_base)
-        db.add_all([oldest_of_org, app_fallback, unattributable, paused, template, already])
+        tie = _source(org_4.id, kb=None, name="tied")
+        db.add_all([oldest_of_org, app_fallback, unattributable, paused, template, already, tie])
         await db.flush()
         expected = {}
         for source in (oldest_of_org, app_fallback, unattributable):
@@ -482,7 +487,7 @@ class TestTheUpgradesBackfill:
         on_personal = await db.run_sync(
             lambda session: migration.on_a_personal_base(session.connection())
         )
-        for source in (oldest_of_org, app_fallback, unattributable, paused, template, already):
+        for source in (oldest_of_org, app_fallback, unattributable, paused, template, already, tie):
             await db.refresh(source)
 
         assert expected == {
@@ -494,7 +499,14 @@ class TestTheUpgradesBackfill:
             assert source.knowledge_base_id == expected[source.id]
         assert oldest_of_org.is_active and app_fallback.is_active
         assert not unattributable.is_active and unattributable.collection_name == "manuals"
-        assert reported == [(str(unattributable.id), str(org_3.id), "manuals")]
+        assert sorted(reported) == sorted(
+            [
+                (str(unattributable.id), str(org_3.id), "manuals", False),
+                # The earlier code ordered by `created_at` alone: no defined winner.
+                (str(tie.id), str(org_4.id), "tied", True),
+            ]
+        )
+        assert tie.knowledge_base_id is None and not tie.is_active
         assert paused.knowledge_base_id is None and not paused.is_active
         # Kept where it synced, and reported: org 1 also has an org base of the name.
         assert on_personal == [(str(oldest_of_org.id), str(org_1.id), NAME)]
@@ -520,21 +532,34 @@ class TestTheDowngrade:
         newer = _base(organization.id, age=timedelta(days=1))
         db.add_all([oldest, newer])
         await db.flush()
+        tied_a = _base(organization.id, name="tied")
+        tied_b = _base(organization.id, name="tied")
+        tied_b.created_at = tied_a.created_at
+        db.add_all([tied_a, tied_b])
+        await db.flush()
         on_newer = _source(organization.id, kb=newer)
         on_oldest = _source(organization.id, kb=oldest)
         paused = _source(organization.id, kb=newer)
         paused.is_active = False
-        db.add_all([on_newer, on_oldest, paused])
+        on_a_tie = _source(organization.id, kb=tied_a, name="tied")
+        db.add_all([on_newer, on_oldest, paused, on_a_tie])
         await db.flush()
 
         migration = _migration()
         reported = await db.run_sync(
             lambda session: migration.deactivate_diverging(session.connection())
         )
-        for source in (on_newer, on_oldest, paused):
+        for source in (on_newer, on_oldest, paused, on_a_tie):
             await db.refresh(source)
 
-        assert reported == [(str(on_newer.id), str(organization.id), NAME)]
+        assert sorted(reported) == sorted(
+            [
+                (str(on_newer.id), str(organization.id), NAME),
+                # No single base the earlier code would pick: stopped as well.
+                (str(on_a_tie.id), str(organization.id), "tied"),
+            ]
+        )
+        assert not on_a_tie.is_active
         assert not on_newer.is_active
         assert on_oldest.is_active
         assert not paused.is_active

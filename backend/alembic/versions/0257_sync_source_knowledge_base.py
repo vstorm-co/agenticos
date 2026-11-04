@@ -56,58 +56,61 @@ depends_on: str | Sequence[str] | None = None
 
 logger = logging.getLogger("alembic.runtime.migration")
 
-# `choose_for_collection` in SQL: the source's own organization's bases first,
-# then app-scoped ones, each oldest first. `id` breaks a tie on `created_at`.
+# `choose_for_collection` in SQL, for the source `s`: its own organization's
+# bases first, then app-scoped ones, each oldest first - or NULL when two bases
+# tie for first. The code before this revision orders only by `created_at`, so a
+# tie (two bases inserted in one transaction share `now()`) had no defined
+# winner; a source is not pinned to a guess at it.
+_LEGACY_CHOICE = """(
+        SELECT CASE WHEN count(*) = 1 THEN (array_agg(ranked.id))[1] END
+        FROM (
+            SELECT kb.id, rank() OVER (
+                ORDER BY
+                    CASE WHEN kb.organization_id = s.organization_id THEN 0 ELSE 1 END,
+                    kb.created_at
+            ) AS place
+            FROM knowledge_bases AS kb
+            WHERE kb.collection_name = s.collection_name
+              AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
+        ) AS ranked
+        WHERE ranked.place = 1
+    )"""
+
 _BACKFILL = sa.text(
-    """
+    f"""
     UPDATE sync_sources AS s
-    SET knowledge_base_id = (
-        SELECT kb.id
-        FROM knowledge_bases AS kb
-        WHERE kb.collection_name = s.collection_name
-          AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
-        ORDER BY
-            CASE WHEN kb.organization_id = s.organization_id THEN 0 ELSE 1 END,
-            kb.created_at,
-            kb.id
-        LIMIT 1
-    )
+    SET knowledge_base_id = {_LEGACY_CHOICE}
     WHERE s.collection_name IS NOT NULL AND s.knowledge_base_id IS NULL
     """
 )
 
+# `ambiguous`: some base holds the name, but two tie for first.
 _DEACTIVATE_UNATTRIBUTABLE = sa.text(
     """
-    UPDATE sync_sources
+    UPDATE sync_sources AS s
     SET is_active = false
-    WHERE collection_name IS NOT NULL AND knowledge_base_id IS NULL AND is_active
-    RETURNING id, organization_id, collection_name
+    WHERE s.collection_name IS NOT NULL AND s.knowledge_base_id IS NULL AND s.is_active
+    RETURNING s.id, s.organization_id, s.collection_name, EXISTS (
+        SELECT 1 FROM knowledge_bases AS kb
+        WHERE kb.collection_name = s.collection_name
+          AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
+    ) AS ambiguous
     """
 )
 
 
 # What a downgrade must not leave running: an active source recording a base
-# other than the one `choose_for_collection` picks by name. The code before this
-# revision resolves the name, so it would sync that source into another base -
-# and another audience. Only the column holds the choice, and the downgrade drops
-# it.
+# other than the one the name resolves to - or any base, when the name has no
+# single answer. The code before this revision resolves the name, so it would
+# sync that source into another base, and another audience. Only the column
+# holds the choice, and the downgrade drops it.
 _DEACTIVATE_DIVERGING = sa.text(
-    """
+    f"""
     UPDATE sync_sources AS s
     SET is_active = false
     WHERE s.is_active
       AND s.knowledge_base_id IS NOT NULL
-      AND s.knowledge_base_id IS DISTINCT FROM (
-          SELECT kb.id
-          FROM knowledge_bases AS kb
-          WHERE kb.collection_name = s.collection_name
-            AND (kb.organization_id = s.organization_id OR kb.scope = 'app')
-          ORDER BY
-              CASE WHEN kb.organization_id = s.organization_id THEN 0 ELSE 1 END,
-              kb.created_at,
-              kb.id
-          LIMIT 1
-      )
+      AND s.knowledge_base_id IS DISTINCT FROM {_LEGACY_CHOICE}
     RETURNING s.id, s.organization_id, s.collection_name
     """
 )
@@ -133,17 +136,20 @@ _ON_A_PERSONAL_BASE = sa.text(
 )
 
 
-def backfill(bind: Connection) -> list[tuple[str, str, str]]:
+def backfill(bind: Connection) -> list[tuple[str, str, str, bool]]:
     """Attribute every source naming a collection; deactivate and answer the rest.
 
     Apart from `upgrade` so a test can run it on rows in a schema that already
-    has the column. Answers `(source id, organization id, collection name)` for
-    each active source that could not be attributed and was deactivated; one
-    already inactive stays so, unreported.
+    has the column. Answers `(source id, organization id, collection name,
+    ambiguous)` for each active source that could not be attributed and was
+    deactivated - `ambiguous` when bases hold the name but two tie for first;
+    one already inactive stays so, unreported.
     """
     bind.execute(_BACKFILL)
     rows = bind.execute(_DEACTIVATE_UNATTRIBUTABLE).all()
-    return [(str(row.id), str(row.organization_id), row.collection_name) for row in rows]
+    return [
+        (str(row.id), str(row.organization_id), row.collection_name, row.ambiguous) for row in rows
+    ]
 
 
 def on_a_personal_base(bind: Connection) -> list[tuple[str, str, str]]:
@@ -184,14 +190,17 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
     bind = op.get_bind()
-    for source_id, organization_id, collection_name in backfill(bind):
+    for source_id, organization_id, collection_name, ambiguous in backfill(bind):
         logger.warning(
-            "Sync source %s (organization %s) names collection '%s', which no knowledge "
-            "base of its organization or of the deployment holds; it was deactivated. "
-            "Point it at a knowledge base and set is_active back to true to sync it again.",
+            "Sync source %s (organization %s) names collection '%s', which %s; it was "
+            "deactivated. Point it at a knowledge base and set is_active back to true "
+            "to sync it again.",
             source_id,
             organization_id,
             collection_name,
+            "two knowledge bases created at the same moment hold equally"
+            if ambiguous
+            else "no knowledge base of its organization or of the deployment holds",
         )
     for source_id, organization_id, collection_name in on_a_personal_base(bind):
         logger.warning(
