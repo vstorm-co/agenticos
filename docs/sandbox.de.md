@@ -1,5 +1,5 @@
 ---
-source_sha: "bbf935c0ed43"
+source_sha: "a0dffce17e83"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -20,6 +20,10 @@ von einer anderen isoliert, und wie lange davon etwas überlebt.
 
 [Konfiguration](configuration.md#the-services-own-settings) ist die Referenz
 Variable für Variable.
+
+Podman-Installationen verwenden den [manuellen Docker-Compose-Weg](deploy.md#podman-support)
+mit zusätzlichem Override für Sandbox-Socket und Workspace-Berechtigungen. Der
+Quickstart unterstützt Docker; `podman-compose` 1.6.0 wird nicht unterstützt.
 
 ## Was wo läuft { #what-runs-where }
 

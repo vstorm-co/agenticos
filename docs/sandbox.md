@@ -17,6 +17,10 @@ organization from another, and how long any of it survives.
 [Configuration](configuration.md#the-services-own-settings) is the
 variable-by-variable reference.
 
+Podman deployments use the [manual Docker Compose provider path](deploy.md#podman-support),
+with an additional override for sandbox socket and workspace permissions. The
+quickstart supports Docker; `podman-compose` 1.6.0 is unsupported.
+
 ## What runs where
 
 Three processes, and the arrangement is the security model:
