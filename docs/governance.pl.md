@@ -1,5 +1,5 @@
 ---
-source_sha: "6d1e23fb68bd"
+source_sha: "3e65608f88b3"
 ---
 
 # Governance { #governance }
@@ -2300,3 +2300,12 @@ Każda aktywacja ma jeden trwały zapis stanu. Ponowienia nie zwiększają liczn
 Istniejąca sprawa właściciela zapisuje wstrzymanie, a powiadomienie korzysta ze wspólnych preferencji i wybranych tras. Niepotwierdzona sprawa otrzymuje jedno zawiadomienie o wstrzymaniu, zastępujące wcześniejszy wpis w Inboxie. Wznowienie lub zmiana polityki unieważnia oczekujące zawiadomienia o wstrzymaniu. Potwierdzenie sprawy nie zeruje stanu wykonania ani nie wznawia rutyny. Po naprawieniu problemu jawnie wznów rutynę, aby rozpocząć nowe liczenie. Zmiana limitu błędów również rozpoczyna nowe liczenie.
 
 Lista pokazuje automatyczne wstrzymanie i liczbę błędów. Metadane zachowują najwyżej 50 obserwacji na rutynę, bez treści źródeł i błędów dostawców. Trafiają do ograniczonego rozmiarem eksportu danych właściciela i są usuwane kaskadowo z właścicielem lub rutyną. Migracja `0275_routine_health.py` włącza domyślny limit także dla istniejących rutyn: aktualizuj API i workery razem. Wycofanie migracji usuwa metadane i politykę, zachowując wstrzymanie rutyny.
+
+
+## Zatwierdzone źródła rutyn { #routine-sources }
+
+Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretne konta MCP, generacje zgody na uwierzytelnienie i znane nazwy narzędzi. Przegląd obejmuje przypiętych delegatów, kolekcje wiedzy, umiejętności, kontekst i konfigurację możliwości; zdalne rejestracje A2A zachowują powiązanie endpointu, karty i poświadczenia. Sama zmiana instrukcji lub ustawień modelu może podążać za publikacją. Dodanie źródła, zmiana konta lub ponowne udzielenie zgody na konto wymaga przeglądu panelu źródeł w oknie zgód rutyny przez jej właściciela. Ten przegląd nie znosi zatwierdzeń działań ani nie przyznaje dostępu do zasobów. Nadal obowiązują aktualne uprawnienia.
+
+Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zachowują identyfikator pierwotnego przeglądu. Późniejszy przegląd nie rozszerza uprawnień starej pracy. Polling skrzynki sprawdza konto wejściowe przed odczytem, a zdarzenia zachowują zgodę obowiązującą przed nim. Wywołania MCP używają zatwierdzonych aliasów i wykluczają niezatwierdzone narzędzia; niedostępne źródła powodują jawną odmowę. Konieczność przeglądu przed wykonaniem pojawia się w istniejącej sprawie właściciela i nie jest błędem modelu.
+
+Migracja `0276_routine_sources.py` nie nadaje zgód istniejącym rutynom. Opróżnij starą kolejkę workerów, zaktualizuj API i workery razem, a przed uruchomieniem jawnie przejrzyj stare rutyny. Zgodę może zastąpić tylko właściciel w konsoli; nie mogą tego zrobić klucze API, podszywanie się ani agenci działający bez nadzoru.

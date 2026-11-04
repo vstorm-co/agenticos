@@ -104,6 +104,7 @@ from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.services import (
     change_feed,
     device_hub,
@@ -132,6 +133,7 @@ from app.services.routine_devices import (
     local_scope,
 )
 from app.services.routine_devices import ready as local_device_ready
+from app.services.routine_sources import RoutineSourceService, RoutineSourcesRequired, read_policy
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, FireTrigger
 
@@ -216,6 +218,7 @@ class EventFireDecision:
     """
 
     trigger_id: UUID
+    source_policy_id: UUID
     event_context: str
     organization_id: UUID
     """The trigger's own organization, which the queued job carries: a job without
@@ -485,6 +488,7 @@ class AgentTriggerService:
         self.db = db
         self.agents = AgentRegistryService(db)
         self.connections = McpConnectionService(db)
+        self.sources = RoutineSourceService(db)
 
     async def list_for_agent(self, ctx: AuthContext, agent_id: UUID) -> list[TriggerRead]:
         """Every schedule on this agent, each flagged whether this caller manages it.
@@ -918,6 +922,9 @@ class AgentTriggerService:
             notification_channels=data.notification_channels,
             monthly_budget_usd=data.monthly_budget_usd,
         )
+        policy = await self.sources.initial(ctx, trigger)
+        trigger.approved_sources = policy.model_dump(mode="json")
+        await self.db.flush()
         # Open the run-log conversation now, not on the first fire, so a new
         # trigger is a clickable item in the sidebar the moment it exists - empty
         # until a fire appends to it. `_run_log` stays the idempotent fallback for
@@ -1315,6 +1322,16 @@ class AgentTriggerService:
         if not acting and trigger.local_target is not None:
             changes["local_target"] = None
 
+    async def source_options(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
+    ) -> RoutineSourceReview:
+        return await self.sources.options(ctx, await self._owned(ctx, agent_id, trigger_id))
+
+    async def set_source_consents(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineSourceConsent
+    ) -> RoutineSourceReview:
+        return await self.sources.replace(ctx, await self._owned(ctx, agent_id, trigger_id), data)
+
     async def action_options(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
     ) -> RoutineActionOptions:
@@ -1575,6 +1592,9 @@ class AgentTriggerService:
         fire appends to the trigger's run-log conversation as it goes.
         """
         trigger = await self._owned(ctx, agent_id, trigger_id)
+        if not await self._polled_source_current(trigger):
+            raise RoutineSourcesRequired()
+        admitted_policy = read_policy(trigger.approved_sources).id
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1584,7 +1604,9 @@ class AgentTriggerService:
             target_id=str(agent_id),
             details={"trigger_id": str(trigger.id)},
         )
-        await self.queue_fire(trigger.id, organization_id=trigger.organization_id)
+        await self.queue_fire(
+            trigger.id, organization_id=trigger.organization_id, source_policy_id=admitted_policy
+        )
         # `_owned` let this caller through, so they manage it - say so on the read.
         setattr(trigger, "can_manage", True)  # noqa: B010
         return trigger
@@ -1653,9 +1675,14 @@ class AgentTriggerService:
         delivery = trigger_events.delivery_id(source, headers, payload)
         if delivery is not None and not await self._claim(trigger.id, delivery):
             return None
+        if not await self._polled_source_current(trigger):
+            return None
         context = trigger_events.render_context(source, payload=payload)
         return EventFireDecision(
-            trigger_id=trigger.id, event_context=context, organization_id=trigger.organization_id
+            trigger_id=trigger.id,
+            source_policy_id=read_policy(trigger.approved_sources).id,
+            event_context=context,
+            organization_id=trigger.organization_id,
         )
 
     async def prepare_app_fires(
@@ -1724,6 +1751,8 @@ class AgentTriggerService:
         )
         decisions: list[EventFireDecision] = []
         for trigger in triggers:
+            if not await self._polled_source_current(trigger):
+                continue
             if trigger.portal_key != GitHubAppPortalAdapter.portal_key:
                 continue
             if trigger.provider_target != full_name:
@@ -1748,6 +1777,7 @@ class AgentTriggerService:
             decisions.append(
                 EventFireDecision(
                     trigger_id=trigger.id,
+                    source_policy_id=read_policy(trigger.approved_sources).id,
                     event_context=trigger_events.render_context(
                         EventSource.GITHUB.value, payload=payload
                     ),
@@ -1802,6 +1832,33 @@ class AgentTriggerService:
                 return organization_id
         return None
 
+    async def _polled_source_current(
+        self, trigger: AgentTrigger, connection: McpConnection | None = None
+    ) -> bool:
+        ctx = await self._creator_context(trigger)
+        if ctx is None:
+            return False
+        try:
+            policy = read_policy(trigger.approved_sources)
+            if connection is not None and policy.input_connection_id != connection.id:
+                return False
+            await self.sources.require_current(ctx, trigger, expected_id=policy.id)
+        except AuthorizationError, NotFoundError, BadRequestError:
+            return False
+        return True
+
+    async def polled_source_admissions(
+        self, *, organization_id: UUID, event_source: str, connection: McpConnection
+    ) -> dict[UUID, UUID]:
+        triggers = await agent_trigger_repo.list_active_for_event_source(
+            self.db, organization_id=organization_id, event_source=event_source
+        )
+        admitted: dict[UUID, UUID] = {}
+        for trigger in triggers:
+            if await self._polled_source_current(trigger, connection):
+                admitted[trigger.id] = read_policy(trigger.approved_sources).id
+        return admitted
+
     async def prepare_polled_fires(
         self,
         *,
@@ -1809,6 +1866,7 @@ class AgentTriggerService:
         event_source: str,
         events: Sequence[portals.PolledEvent],
         announced: dict[str, str] | None = None,
+        source_admissions: Mapping[UUID, UUID] | None = None,
     ) -> list[EventFireDecision]:
         """Which triggers one poll's events should fire, in the order they arrived.
 
@@ -1835,8 +1893,15 @@ class AgentTriggerService:
         if not triggers:
             return []
         decisions: list[EventFireDecision] = []
+        triggers = [trigger for trigger in triggers if await self._polled_source_current(trigger)]
         for event in events:
             for trigger in triggers:
+                if (
+                    source_admissions is not None
+                    and source_admissions.get(trigger.id)
+                    != read_policy(trigger.approved_sources).id
+                ):
+                    continue
                 if not trigger_events.event_matches(
                     event_source, headers={}, payload=event.payload, config=trigger.event_config
                 ):
@@ -1866,6 +1931,7 @@ class AgentTriggerService:
                 decisions.append(
                     EventFireDecision(
                         trigger_id=trigger.id,
+                        source_policy_id=read_policy(trigger.approved_sources).id,
                         event_context=trigger_events.render_context(
                             event_source, payload=event.payload
                         ),
@@ -1875,7 +1941,11 @@ class AgentTriggerService:
         return decisions
 
     async def polled_places(
-        self, *, organization_id: UUID, event_source: str
+        self,
+        *,
+        organization_id: UUID,
+        event_source: str,
+        source_admissions: Mapping[UUID, UUID] | None = None,
     ) -> dict[str, datetime]:
         """The places the organization's live triggers on a polled source read.
 
@@ -1893,6 +1963,10 @@ class AgentTriggerService:
         )
         places: dict[str, datetime] = {}
         for trigger in triggers:
+            if source_admissions is not None and trigger.id not in source_admissions:
+                continue
+            if not await self._polled_source_current(trigger):
+                continue
             place = trigger_events.polled_place(event_source, trigger.event_config)
             if place is not None:
                 since = trigger.updated_at or trigger.created_at
@@ -2047,6 +2121,7 @@ class AgentTriggerService:
         event_context: str | None = None,
         claimed_at: datetime | None = None,
         activation_id: UUID | None = None,
+        source_policy_id: UUID | None = None,
     ) -> UUID | None:
         """Queue one fired run of `trigger_id`, in this unit of work's transaction.
 
@@ -2061,6 +2136,31 @@ class AgentTriggerService:
         trigger = await agent_trigger_repo.get_by_id(
             self.db, trigger_id, fresh=True, for_update=True
         )
+        try:
+            if trigger is None:
+                return None
+            source_policy = read_policy(trigger.approved_sources)
+        except RoutineSourcesRequired:
+            if trigger is not None and trigger.is_active:
+                await NotificationService(self.db).routine_blocked(
+                    organization_id=trigger.organization_id,
+                    owner_user_id=trigger.created_by_user_id,
+                    routine_id=trigger.id,
+                    routine_kind="trigger",
+                    reason="run",
+                    name=trigger.name or "Routine",
+                    detail="Review this routine's sources in its settings before running it again.",
+                    observed_at=datetime.now(UTC),
+                )
+            if claimed_at is not None:
+                await agent_trigger_repo.clear_fire_marker(
+                    self.db, trigger_id=trigger_id, claimed_at=claimed_at
+                )
+            return None
+        if organization_id is not None and trigger.organization_id != organization_id:
+            raise AuthorizationError(message="The routine belongs to another organization")
+        if source_policy_id is not None and source_policy_id != source_policy.id:
+            return None
         native: LocalTarget | None = None
         if trigger is not None and trigger.local_target is not None:
             try:
@@ -2108,6 +2208,7 @@ class AgentTriggerService:
             FIRE_TRIGGER,
             FireTrigger(
                 trigger_id=trigger_id,
+                source_policy_id=source_policy.id,
                 activation_id=activation_id,
                 event_context=event_context,
                 claimed_at=claimed_at,
@@ -2138,6 +2239,7 @@ class AgentTriggerService:
             decision.trigger_id,
             organization_id=decision.organization_id,
             event_context=decision.event_context,
+            source_policy_id=decision.source_policy_id,
         )
         return True
 
@@ -2149,6 +2251,7 @@ class AgentTriggerService:
                 decision.trigger_id,
                 organization_id=decision.organization_id,
                 event_context=decision.event_context,
+                source_policy_id=decision.source_policy_id,
             )
         return len(decisions)
 
@@ -2209,6 +2312,33 @@ class AgentTriggerService:
             )
         return [trigger for trigger, _ticket in fired]
 
+    async def fire_job(self, payload: FireTrigger) -> None:
+        trigger = await agent_trigger_repo.get_by_id(self.db, payload.trigger_id, fresh=True)
+        try:
+            current_id = None if trigger is None else read_policy(trigger.approved_sources).id
+        except RoutineSourcesRequired:
+            current_id = None
+        if current_id is None or current_id != payload.source_policy_id:
+            if payload.claimed_at is not None:
+                await agent_trigger_repo.clear_fire_marker(
+                    self.db, trigger_id=payload.trigger_id, claimed_at=payload.claimed_at
+                )
+            if payload.activation_id is not None:
+                await device_wait_repo.settle(
+                    self.db,
+                    activation_id=payload.activation_id,
+                    status="cancelled",
+                    reason="routine_changed",
+                )
+            return
+        await self.fire(
+            payload.trigger_id,
+            event_context=payload.event_context,
+            claimed_at=payload.claimed_at,
+            activation_id=payload.activation_id,
+            source_policy_id=payload.source_policy_id,
+        )
+
     async def fire(
         self,
         trigger_id: UUID,
@@ -2216,6 +2346,7 @@ class AgentTriggerService:
         event_context: str | None = None,
         claimed_at: datetime | None = None,
         activation_id: UUID | None = None,
+        source_policy_id: UUID | None = None,
     ) -> None:
         """Run the agent this trigger fires, as the member who created it.
 
@@ -2285,9 +2416,17 @@ class AgentTriggerService:
         if trigger is None:
             logger.info("trigger_fire_skipped", extra={"trigger_id": str(trigger_id)})
             return
+        try:
+            admitted = read_policy(trigger.approved_sources).id
+        except RoutineSourcesRequired:
+            admitted = None
+        expected_source_policy = source_policy_id or admitted
         if claimed_at is None:
             await self._fire_loaded(
-                trigger, event_context=event_context, activation_id=activation_id or uuid4()
+                trigger,
+                event_context=event_context,
+                activation_id=activation_id or uuid4(),
+                source_policy_id=expected_source_policy,
             )
             return
         # The ticket the marker currently holds, renewed in place while the run
@@ -2299,7 +2438,10 @@ class AgentTriggerService:
         renewer = asyncio.create_task(self._keep_lease_alive(trigger_id, ticket))
         try:
             await self._fire_loaded(
-                trigger, event_context=event_context, activation_id=activation_id or uuid4()
+                trigger,
+                event_context=event_context,
+                activation_id=activation_id or uuid4(),
+                source_policy_id=expected_source_policy,
             )
         finally:
             renewer.cancel()
@@ -2364,7 +2506,12 @@ class AgentTriggerService:
         )
 
     async def _fire_loaded(
-        self, trigger: AgentTrigger, *, activation_id: UUID, event_context: str | None = None
+        self,
+        trigger: AgentTrigger,
+        *,
+        activation_id: UUID,
+        event_context: str | None = None,
+        source_policy_id: UUID | None = None,
     ) -> None:
         """The fire itself, once the row is loaded - split out so `fire` can clear the
         scheduled path's in-flight marker in a `finally` around every path through it."""
@@ -2388,6 +2535,21 @@ class AgentTriggerService:
             await self._disable(trigger, reason="creator_not_active")
             return
 
+        ctx = replace(ctx, routine_source_policy_id=source_policy_id)
+        try:
+            await self.sources.require_current(ctx, trigger, expected_id=source_policy_id)
+        except AuthorizationError, NotFoundError, BadRequestError:
+            await NotificationService(self.db).routine_blocked(
+                organization_id=trigger.organization_id,
+                owner_user_id=trigger.created_by_user_id,
+                routine_id=trigger.id,
+                routine_kind="trigger",
+                reason="run",
+                name=trigger.name or "Routine",
+                detail="Review this routine's sources in its settings before running it again.",
+                observed_at=datetime.now(UTC),
+            )
+            return
         try:
             agent = await self.agents.get(ctx, trigger.agent_id, perm=Perm.AGENTS_RUN)
         except NotFoundError, AuthorizationError:
@@ -2534,6 +2696,18 @@ class AgentTriggerService:
                 activation_id=activation_id,
                 intent=intent,
                 name=local_trigger_name,
+            )
+            return
+        except RoutineSourcesRequired:
+            await NotificationService(self.db).routine_blocked(
+                organization_id=trigger.organization_id,
+                owner_user_id=trigger.created_by_user_id,
+                routine_id=local_trigger_id,
+                routine_kind="trigger",
+                reason="run",
+                name=local_trigger_name,
+                detail="A reviewed source is unavailable or changed. Inspect its connection and the routine's sources.",
+                observed_at=datetime.now(UTC),
             )
             return
         except NotFoundError, AuthorizationError:

@@ -913,6 +913,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "routines-list",
     activate: "routines-agents-tab",
   },
+  {
+    id: "routine-access",
+    page: ROUTES.ROUTINES,
+    target: "routine-access",
+    activate: "routines-agents-tab",
+    optional: true,
+  },
   // Watches over the reader's own connections (#2301); the card's header is always drawn.
   {
     id: "routines-watches",

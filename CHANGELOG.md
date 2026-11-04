@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+- Bind routine execution, parked runs and queued events to reviewed source and account ceilings. Add owner-only source review in the console. **Upgrade:** apply `0276_routine_sources.py`, update API/workers together and explicitly review existing routines; migration grants no legacy consent.
+
 ### Changed
 
 - **Breaking:** routines and watches now pause after three consecutive unsuccessful executions by default. Owners can choose 1–20 or disable this limit; waiting and delivery errors do not count. Acknowledgement does not reset health. Resume after correcting the issue to start a fresh window. Migration `0275_routine_health.py` requires API/workers to be updated together.

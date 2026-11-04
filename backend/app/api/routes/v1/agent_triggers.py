@@ -40,6 +40,7 @@ from app.schemas.portal import (
     PortalTargetRead,
 )
 from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
 from app.services import trigger_templates
 
@@ -246,3 +247,23 @@ async def replace_routine_action_consents(
     Agent- and connection-required approvals remain required.
     """
     return await service.set_action_consents(ctx, agent_id, trigger_id, data)
+
+
+@router.get("/{agent_id}/triggers/{trigger_id}/sources", response_model=RoutineSourceReview)
+async def routine_source_options(
+    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
+) -> Any:
+    """Review the exact published sources and physical accounts of a routine."""
+    return await service.source_options(ctx, agent_id, trigger_id)
+
+
+@router.put("/{agent_id}/triggers/{trigger_id}/sources", response_model=RoutineSourceReview)
+async def replace_routine_sources(
+    agent_id: UUID,
+    trigger_id: UUID,
+    data: RoutineSourceConsent,
+    ctx: Auth,
+    service: AgentTriggerSvc,
+) -> Any:
+    """Accept a freshly reviewed source ceiling. Only the console owner may consent."""
+    return await service.set_source_consents(ctx, agent_id, trigger_id, data)

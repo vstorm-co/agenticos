@@ -39,6 +39,7 @@ from app.schemas.personal_data import (
     RoutineAnswerExport,
     RoutineDeviceWaitExport,
     RoutineHealthExport,
+    RoutineSourceExport,
 )
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,10 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            routine_sources=[
+                RoutineSourceExport.model_validate(row)
+                for row in await personal_data_repo.routine_sources_of(self.db, user_id)
+            ],
             routine_health=[
                 RoutineHealthExport.model_validate(row)
                 for row in await personal_data_repo.routine_health_of(self.db, user_id)
@@ -316,6 +321,7 @@ class PersonalDataService:
         size += await personal_data_repo.routine_answer_export_size(self.db, user_id)
         size += await personal_data_repo.routine_device_wait_export_size(self.db, user_id)
         size += await personal_data_repo.routine_health_export_size(self.db, user_id)
+        size += await personal_data_repo.routine_source_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(
@@ -357,6 +363,7 @@ class PersonalDataService:
         # commit. A memory write for the same person takes it too, so the two
         # cannot interleave into a note that survives the account it is about.
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
+        await personal_data_repo.purge_routine_authority(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
         identities = await personal_data_repo.purge_identities_of(self.db, user_id)
         workspaces = await personal_data_repo.purge_workspaces_of(

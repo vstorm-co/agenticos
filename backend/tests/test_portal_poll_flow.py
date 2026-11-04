@@ -82,8 +82,11 @@ def _service(
     connections.store_poll_cursor = store_cursor
 
     triggers = MagicMock()
+    triggers.polled_source_admissions = AsyncMock(return_value={uuid.uuid4(): uuid.uuid4()})
 
-    async def prepare(*, organization_id, event_source, events, announced=None):
+    async def prepare(
+        *, organization_id, event_source, events, announced=None, source_admissions=None
+    ):
         recorder.steps.append(f"match:{event_source}:{len(events)}")
         return decisions
 
@@ -105,6 +108,7 @@ def _workflows(
 ) -> MagicMock:
     """The workflows listening to the mailbox: every message admitted, or not."""
     workflows = MagicMock()
+    workflows.has_polled_email = AsyncMock(return_value=True)
 
     async def receive(*, organization_id, source, events):
         recorder.steps.append(f"workflows:{source}:{len(events)}")
@@ -123,7 +127,9 @@ def _workflows(
 def _queueing(triggers: MagicMock, recorder: _Recorder, dispatch=None) -> None:
     """Record each fire the trigger service queues, as the poll asks for it."""
 
-    async def queue_fire(trigger_id, *, organization_id, event_context=None, claimed_at=None):
+    async def queue_fire(
+        trigger_id, *, organization_id, event_context=None, claimed_at=None, source_policy_id=None
+    ):
         recorder.steps.append(f"fire:{trigger_id}")
         if dispatch is not None:
             await dispatch()
@@ -189,7 +195,11 @@ class TestTheOrderOfWork:
         at-least-once with the duplicate suppressed.
         """
         recorder = _Recorder()
-        decision = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="An email arrived.")
+        decision = SimpleNamespace(
+            source_policy_id=uuid.uuid4(),
+            trigger_id=uuid.uuid4(),
+            event_context="An email arrived.",
+        )
 
         await _run(
             recorder,
@@ -246,7 +256,9 @@ class TestTheOrderOfWork:
         window is re-read next tick rather than marked handled - unlike a webhook,
         no provider resends a polled message."""
         recorder = _Recorder()
-        decision = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="a")
+        decision = SimpleNamespace(
+            source_policy_id=uuid.uuid4(), trigger_id=uuid.uuid4(), event_context="a"
+        )
 
         async def refused():
             raise RuntimeError("the database went away")
@@ -341,7 +353,11 @@ class TestOutlookWorkflows:
 
     async def test_an_outlook_poll_admits_workflow_runs_before_the_cursor_moves(self):
         recorder = _Recorder()
-        decision = SimpleNamespace(trigger_id=uuid.uuid4(), event_context="An email arrived.")
+        decision = SimpleNamespace(
+            source_policy_id=uuid.uuid4(),
+            trigger_id=uuid.uuid4(),
+            event_context="An email arrived.",
+        )
 
         await _run(
             recorder,
@@ -439,6 +455,7 @@ class TestOneMailboxIsOneTenant:
         connections.poll_grant = poll_grant
         connections.store_poll_cursor = store_cursor
         triggers = MagicMock()
+        triggers.polled_source_admissions = AsyncMock(return_value={uuid.uuid4(): uuid.uuid4()})
         triggers.prepare_polled_fires = AsyncMock(return_value=[])
         triggers.polled_places = AsyncMock(return_value={})
 
@@ -518,6 +535,7 @@ class TestMatchingAPollAgainstTriggers:
         from app.services.agent_trigger import AgentTriggerService
 
         service = AgentTriggerService(MagicMock())
+        service._polled_source_current = AsyncMock(return_value=True)
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.trigger_dedupe") as dedupe,
@@ -529,7 +547,19 @@ class TestMatchingAPollAgainstTriggers:
             )
 
     def _trigger(self, config):
-        return MagicMock(id=uuid.uuid4(), event_config=config)
+        from app.schemas.routine_sources import RoutineSourcePolicy
+
+        policy = RoutineSourcePolicy(
+            id=uuid.uuid4(),
+            consented_by=uuid.uuid4(),
+            reviewed_at=datetime.now(UTC),
+            version_id=uuid.uuid4(),
+            scope_hash="a" * 64,
+            spec_hash="b" * 64,
+        )
+        return MagicMock(
+            id=uuid.uuid4(), event_config=config, approved_sources=policy.model_dump(mode="json")
+        )
 
     async def test_one_message_can_fire_several_triggers(self):
         """Unlike a webhook, whose URL names exactly one. "Any message" and
@@ -802,6 +832,7 @@ class TestTheRefusalsAroundIt:
         from app.services.agent_trigger import AgentTriggerService
 
         service = AgentTriggerService(MagicMock())
+        service._polled_source_current = AsyncMock(return_value=True)
         service.agents = MagicMock(get=AsyncMock())
         with (
             patch("app.services.agent_trigger.portal_catalog") as catalog,
@@ -822,6 +853,7 @@ class TestTheRefusalsAroundIt:
         from app.services.agent_trigger import AgentTriggerService
 
         service = AgentTriggerService(MagicMock())
+        service._polled_source_current = AsyncMock(return_value=True)
         trigger = MagicMock(id=uuid.uuid4(), event_config={})
         with (
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
@@ -864,6 +896,7 @@ class TestWhereAnOutlookPollLooks:
         from app.services.agent_trigger import AgentTriggerService
 
         service = AgentTriggerService(MagicMock())
+        service._polled_source_current = AsyncMock(return_value=True)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
             repo.list_active_for_event_source = AsyncMock(return_value=triggers)
             disabled = AsyncMock()
@@ -958,7 +991,9 @@ async def test_file_debounce_history_is_pruned_before_matching() -> None:
         }
     )
     triggers = MagicMock(
-        polled_places=AsyncMock(return_value={}), prepare_polled_fires=AsyncMock(return_value=[])
+        polled_source_admissions=AsyncMock(return_value={uuid.uuid4(): uuid.uuid4()}),
+        polled_places=AsyncMock(return_value={}),
+        prepare_polled_fires=AsyncMock(return_value=[]),
     )
     read = PolledEvents(events=(), cursor={})
     connections = MagicMock(poll_grant=AsyncMock(return_value=read), store_poll_cursor=AsyncMock())

@@ -158,6 +158,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
+              data-tour="routine-access"
               aria-label={t("actionConsents.title")}
               onClick={() => setConsenting(true)}
             >

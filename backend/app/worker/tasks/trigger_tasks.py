@@ -60,8 +60,13 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
 
     assert grant.organization_id is not None, "a portal grant is always created org-scoped"
     triggers = AgentTriggerService(db)
+    source_admissions = await triggers.polled_source_admissions(
+        organization_id=grant.organization_id, event_source=source, connection=grant
+    )
     places = await triggers.polled_places(
-        organization_id=grant.organization_id, event_source=source
+        organization_id=grant.organization_id,
+        event_source=source,
+        source_admissions=source_admissions,
     )
     workflows = WorkflowExposureService(db)
     watched_by_workflows: dict[str, datetime] = {}
@@ -71,6 +76,11 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
         watched_by_workflows = await workflows.polled_places(organization_id=grant.organization_id)
         for place, since in watched_by_workflows.items():
             places[place] = min(places.get(place, since), since)
+    if not source_admissions and not (
+        source in {"gmail", "outlook"}
+        and await workflows.has_polled_email(organization_id=grant.organization_id, source=source)
+    ):
+        return 0
     # Only a workflow reads a message's HTML, so only its places pay for the request.
     read = await McpConnectionService(db).poll_grant(
         grant, places=places, html_places=watched_by_workflows.keys()
@@ -114,6 +124,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
         event_source=source,
         events=read.events,
         announced=announced,
+        source_admissions=source_admissions,
     )
     read.cursor["trigger_announced"] = announced
     for decision in decisions:
@@ -121,6 +132,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
             decision.trigger_id,
             organization_id=grant.organization_id,
             event_context=decision.event_context,
+            source_policy_id=decision.source_policy_id,
         )
     # The workflows listening to this mailbox, in the same transaction as the fires
     # and the cursor: a run is admitted and its message recorded, or neither, and a
@@ -270,12 +282,7 @@ async def fire_trigger(fire: FireTrigger) -> None:
     from app.services.agent_trigger import AgentTriggerService
 
     async with get_worker_db_context() as db:
-        await AgentTriggerService(db).fire(
-            fire.trigger_id,
-            event_context=fire.event_context,
-            claimed_at=fire.claimed_at,
-            activation_id=fire.activation_id,
-        )
+        await AgentTriggerService(db).fire_job(fire)
 
 
 async def deliver_routine_answer(payload: DeliverRoutineAnswer) -> None:

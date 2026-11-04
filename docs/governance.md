@@ -2168,3 +2168,12 @@ Each activation has one durable health observation. Retries cannot increase the 
 The existing owner incident records the pause, and its notification uses shared preferences and opted-in routes. An unacknowledged case gets one pause notice replacing its earlier Inbox entry. Resuming or changing the policy invalidates queued pause notices. Acknowledging that incident does not reset execution health or resume the routine. After correcting the problem, explicitly resume to start a new failure window. Changing the failure limit also starts a new window.
 
 The list shows when a routine was paused automatically and its failure count. Health metadata retains at most 50 observations per routine, contains no source bodies or provider errors, is included in the owner's bounded personal-data export and cascades away with the owner or routine. Migration `0275_routine_health.py` enables the default for existing routines too: update API and workers together. Downgrade removes this metadata and policy while retaining the paused state.
+
+
+## Reviewed routine sources { #routine-sources }
+
+A routine freezes its published source configuration, exact MCP accounts, credential consent generations and known tool names when it is created. The review includes pinned delegates, knowledge collections, skills, context and capability configuration; remote A2A registrations also retain their endpoint/card/credential binding. Changing instructions or model settings alone can follow publication. Adding sources, changing an account or granting it renewed consent requires the owner to review the Sources panel in the routine's consent dialog. This review does not waive action approvals or grant access to resources. Current resource permissions still apply.
+
+Queued activations, offline waits and parked runs keep their original review identity. A later review never lends new authority to old work. The mailbox poll checks the input account before reading, and its events retain the review admitted before that read. MCP calls use reviewed aliases and exclude unreviewed tools; unavailable reviewed sources produce an explicit refusal. A review needed before an execution appears in the owner's existing attention case and does not count as a model failure.
+
+Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.

@@ -110,6 +110,7 @@ def sync_source_key(source_id: UUID) -> str:
 
 class FireTrigger(Payload):
     trigger_id: UUID
+    source_policy_id: UUID | None = None
     activation_id: UUID | None = None
     event_context: str | None = None
     claimed_at: datetime | None = None

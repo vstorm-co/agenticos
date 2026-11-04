@@ -2929,9 +2929,11 @@ def reviewed_personal_sources(
     taken: set[str] = set()
     sources: dict[UUID, McpSourceIdentity] = {}
     for account in [primary, *(other for other in accounts if other is not primary)]:
-        name = catalog_key if account is primary else _extra_prefix(catalog_key, account)
+        name = tool_prefix(
+            catalog_key if account is primary else _extra_prefix(catalog_key, account)
+        )
         if name in taken:
-            name = f"{name[:55]}-{account.id.hex[:8]}"
+            name = f"{name[:55]}_{account.id.hex[:8]}"
         taken.add(name)
         sources[account.id] = McpSourceIdentity(
             endpoint_hash=hashlib.sha256(account.url.encode()).hexdigest(),

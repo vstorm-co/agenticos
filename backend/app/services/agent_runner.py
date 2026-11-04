@@ -323,6 +323,7 @@ from app.services.organization_secret import OrganizationSecretService
 from app.services.project import ProjectService
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.routine_health import RoutineHealthService
+from app.services.routine_sources import RoutineSourcesRequired
 from app.services.run_heartbeat import run_heartbeat
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
@@ -3438,6 +3439,18 @@ class AgentRunnerService:
         routine_check = None if routine is None else routine.check
         if routine is not None:
             routine.require_local_target(local)
+            if routine.routine_kind == "trigger":
+                routine.require_spec(spec)
+                if not routine.acts_as_creator:
+                    spec = spec.model_copy(
+                        update={
+                            "mcp_servers": [
+                                ref
+                                for ref in spec.mcp_servers
+                                if not isinstance(ref, PersonalMcpServerRef)
+                            ]
+                        }
+                    )
         spec = _with_local_capabilities(
             await self.registry.with_assistant_guidance(agent, spec),
             local,
@@ -3645,7 +3658,9 @@ class AgentRunnerService:
         # tools with nothing to show for it, and the answer would differ between
         # the playground and Slack for no reason anybody could see.
         admitted_mcp_sources = (
-            routine.mcp_sources or {} if routine is not None and existing_run is not None else None
+            routine.mcp_sources or {}
+            if routine is not None and routine.routine_kind == "trigger"
+            else None
         )
         personal_sources = admitted_mcp_sources
         if watch_sources is not None:
@@ -3675,6 +3690,11 @@ class AgentRunnerService:
             ),
         )
         spec_toolsets: list[AbstractToolset[object]] = resolved.toolsets
+        if routine is not None and routine.routine_kind == "trigger":
+            spec_toolsets = [
+                toolset.filtered(lambda _ctx, tool: routine.allows_tool(tool))
+                for toolset in spec_toolsets
+            ]
         if watch_sources is not None:
             if resolved.unavailable or not spec_toolsets:
                 raise BadRequestError(
@@ -3702,8 +3722,17 @@ class AgentRunnerService:
             )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
         spec = _with_account_notes(spec, resolved.accounts)
-        if routine is not None and routine.routine_kind == "trigger" and existing_run is None:
-            routine = replace(routine, mcp_sources=resolved.sources)
+        if routine is not None and routine.routine_kind == "trigger":
+            assert routine.source_policy is not None
+            if (
+                set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
+                or resolved.unavailable
+                or any(
+                    identity != (routine.mcp_sources or {}).get(identifier)
+                    for identifier, identity in resolved.sources.items()
+                )
+            ):
+                raise RoutineSourcesRequired(message="A reviewed routine source is unavailable")
             routine_check = routine.check
 
         run = existing_run
@@ -3728,6 +3757,9 @@ class AgentRunnerService:
                     else None
                     if routine is None
                     else {
+                        "approved_sources": None
+                        if routine.source_policy is None
+                        else routine.source_policy.model_dump(mode="json"),
                         "local_target_hash": routine.local_target_hash,
                         "mcp_sources": MCP_SOURCES.dump_python(
                             routine.mcp_sources or {}, mode="json"

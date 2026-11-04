@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.routine_sources import RoutineSourcePolicy
+
 
 class RoutineAnswerExport(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -45,6 +47,14 @@ class RoutineHealthExport(BaseModel):
     healthy: bool
 
 
+class RoutineSourceExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    organization_id: UUID
+    approved_sources: RoutineSourcePolicy | None
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -61,6 +71,7 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    routine_sources: list[RoutineSourceExport] = Field(default_factory=list)
     routine_health: list[RoutineHealthExport] = Field(default_factory=list)
     routine_device_waits: list[RoutineDeviceWaitExport] = Field(
         default_factory=list,

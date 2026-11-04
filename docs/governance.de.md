@@ -1,5 +1,5 @@
 ---
-source_sha: "6d1e23fb68bd"
+source_sha: "3e65608f88b3"
 ---
 
 # Governance { #governance }
@@ -2449,3 +2449,12 @@ Jede Aktivierung erhält genau eine dauerhafte Zustandsbeobachtung. Wiederholung
 Der bestehende Vorfall des Eigentümers vermerkt die Pause, seine Benachrichtigung verwendet gemeinsame Einstellungen und gewählte Ziele. Ein unbestätigter Vorfall erhält eine Pausenmeldung, die den früheren Inbox-Eintrag ersetzt. Fortsetzen oder eine Richtlinienänderung macht wartende Pausenmeldungen ungültig. Die Bestätigung des Vorfalls setzt weder den Ausführungszustand zurück noch die Routine fort. Nach der Fehlerbehebung startet ausdrückliches Fortsetzen ein neues Fehlerfenster. Eine Änderung des Limits startet ebenfalls ein neues Fenster.
 
 Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen pro Routine bleiben gespeichert, ohne Quelltexte oder Anbieterfehler. Sie gehören zum größenbegrenzten persönlichen Datenexport und werden mit Eigentümer oder Routine kaskadierend gelöscht. Migration `0275_routine_health.py` aktiviert den Standard auch für bestehende Routinen: API und Worker gemeinsam aktualisieren. Ein Downgrade entfernt Metadaten und Richtlinie, lässt die Routine jedoch pausiert.
+
+
+## Geprüfte Routinequellen { #routine-sources }
+
+Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, konkreten MCP-Konten, Zustimmungsgenerationen und bekannten Werkzeugnamen fest. Die Prüfung umfasst fixierte Delegaten, Wissenssammlungen, Skills, Kontext und Fähigkeitenkonfiguration; entfernte A2A-Registrierungen behalten außerdem ihre Endpunkt-, Karten- und Zugangsdatenbindung. Reine Änderungen an Anweisungen oder Modelleinstellungen können einer Veröffentlichung folgen. Neue Quellen, geänderte Konten und erneuerte Kontozustimmungen erfordern eine Prüfung im Quellenbereich des Zustimmungsdialogs durch den Eigentümer. Diese Prüfung hebt keine Aktionsfreigaben auf und gewährt keinen Ressourcenzugriff. Aktuelle Berechtigungen gelten weiterhin.
+
+Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
+
+Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.

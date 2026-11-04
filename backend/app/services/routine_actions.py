@@ -62,7 +62,9 @@ def activation_intent(trigger: AgentTrigger) -> str:
     """A waiting activation cannot borrow exceptions granted after it was queued."""
     return hashlib.sha256(
         json.dumps(
-            [action_intent(trigger), trigger.action_consents], sort_keys=True, default=str
+            [action_intent(trigger), trigger.action_consents, trigger.approved_sources],
+            sort_keys=True,
+            default=str,
         ).encode()
     ).hexdigest()
 

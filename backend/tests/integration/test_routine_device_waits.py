@@ -8,9 +8,10 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.organization import Organization
 from app.db.models.routine_device_wait import RoutineDeviceWait
@@ -25,6 +26,7 @@ from app.services.routine_devices import (
     RoutineLocalConsentRequired,
     admit_activation,
 )
+from tests.routine_source_support import reviewed_sources
 
 pytestmark = pytest.mark.anyio
 
@@ -55,6 +57,14 @@ async def world(db: AsyncSession, *, event: bool = False) -> World:
     )
     db.add_all([agent, device])
     await db.flush()
+    spec = AgentSpec(name="Monitor")
+    version = AgentVersion(
+        agent_id=agent.id, organization_id=org.id, version=1, spec=spec.model_dump(mode="json")
+    )
+    db.add(version)
+    await db.flush()
+    agent.status = "published"
+    agent.current_version_id = version.id
     local = LocalTarget(
         folder="/work",
         mode="read_only",
@@ -67,6 +77,7 @@ async def world(db: AsyncSession, *, event: bool = False) -> World:
         agent_id=agent.id,
         created_by_user_id=user.id,
         prompt="Read report",
+        pinned_version_id=version.id,
         trigger_type="event" if event else "schedule",
         event_source="webhook" if event else None,
         event_secret_encrypted="sealed" if event else None,
@@ -78,7 +89,10 @@ async def world(db: AsyncSession, *, event: bool = False) -> World:
     )
     db.add(trigger)
     await db.flush()
+    policy = reviewed_sources(trigger, spec=spec, version_id=version.id)
+    await db.flush()
     ctx = AuthContext(
+        routine_source_policy_id=policy.id,
         user_id=user.id,
         organization_id=org.id,
         role=OrgRoleName.OWNER,

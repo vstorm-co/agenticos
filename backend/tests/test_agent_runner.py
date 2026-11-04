@@ -7624,6 +7624,17 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     spec = AgentSpec(name="Routine")
     check = AsyncMock()
     assert ctx.routine_id is not None
+    from app.schemas.routine_sources import RoutineSourcePolicy
+    from app.services.routine_sources import spec_fingerprint
+
+    source_policy = RoutineSourcePolicy(
+        id=uuid.uuid4(),
+        consented_by=ctx.subject_id,
+        reviewed_at=datetime.now(UTC),
+        version_id=agent.current_version_id,
+        scope_hash="a" * 64,
+        spec_hash=spec_fingerprint(spec),
+    )
     authority = RoutineAuthority(
         routine_id=ctx.routine_id,
         organization_id=ctx.organization_id,
@@ -7631,6 +7642,7 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         root_agent_id=agent.id,
         role=ctx.role,
         acts_as_creator=False,
+        source_policy=source_policy,
     )
     with (
         patch.object(RoutineAuthority, "check", new=check),

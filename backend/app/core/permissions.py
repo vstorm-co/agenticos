@@ -544,6 +544,9 @@ class AuthContext:
     routine_id: UUID | None = None
     """Trusted origin set by the trigger worker, never accepted from a public API request."""
 
+    routine_source_policy_id: UUID | None = None
+    """Exact reviewed source ceiling admitted by the trigger worker."""
+
     routine_activation_id: UUID | None = None
     """A durable device activation, set only by its trigger worker before run admission."""
 

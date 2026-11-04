@@ -45,9 +45,18 @@ from app.schemas.routine_actions import (
     RoutineConsent,
     RoutineMcpActionKey,
 )
+from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
 from app.services.routine_actions import CONSENTS, action_intent, action_key, routine_effect
+from app.services.routine_sources import (
+    RoutineSourcesRequired,
+    account_identities,
+    read_policy,
+    require_bound_sources,
+    source_scope,
+    spec_fingerprint,
+)
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
 
@@ -84,6 +93,24 @@ class RoutineAuthority:
     root_version_id: UUID | None = None
     mcp_sources: dict[UUID, McpSourceIdentity] | None = None
     local_target_hash: str | None = None
+    source_policy: RoutineSourcePolicy | None = None
+
+    def allows_tool(self, tool: ToolDefinition) -> bool:
+        origin = tool_origin(tool)
+        if origin is None:
+            return True
+        source = (
+            None
+            if self.source_policy is None
+            else self.source_policy.mcp_sources.get(origin.connection_id)
+        )
+        return source is not None and origin.tool_id in source.tool_ids
+
+    def require_spec(self, spec: AgentSpec) -> None:
+        if self.routine_kind == "trigger" and (
+            self.source_policy is None or spec_fingerprint(spec) != self.source_policy.spec_hash
+        ):
+            raise RoutineSourcesRequired()
 
     @classmethod
     async def capture(
@@ -125,10 +152,19 @@ class RoutineAuthority:
         action_consents: tuple[RoutineConsent, ...] = ()
         mcp_sources: dict[UUID, McpSourceIdentity] | None = None
         local_target_hash: str | None = None
+        reviewed_sources: RoutineSourcePolicy | None = None
         if kind == "trigger":
             trigger = await agent_trigger_repo.get(db, origin, organization_id=ctx.organization_id)
             if trigger is None:
                 raise _refused()
+            reviewed_sources = read_policy(
+                trigger.approved_sources
+                if run is None
+                else (run.routine_policy or {}).get("approved_sources")
+            )
+            if run is None and ctx.routine_source_policy_id != reviewed_sources.id:
+                raise RoutineSourcesRequired()
+            mcp_sources = account_identities(reviewed_sources)
             try:
                 recorded = (
                     trigger.action_consents
@@ -176,6 +212,7 @@ class RoutineAuthority:
             sources=sources,
             action_consents=action_consents,
             mcp_sources=mcp_sources,
+            source_policy=reviewed_sources,
             local_target_hash=local_target_hash,
             root_version_id=version_id if run is None else run.agent_version_id,
         )
@@ -199,6 +236,10 @@ class RoutineAuthority:
             db, self.routine_id, organization_id=self.organization_id
         )
         trigger = self._require_trigger(trigger)
+        assert self.source_policy is not None
+        await require_bound_sources(
+            db, organization_id=self.organization_id, policy=self.source_policy
+        )
         if self.local_target_hash is not None:
             target = LocalTarget.model_validate(trigger.local_target)
             if (
@@ -242,6 +283,13 @@ class RoutineAuthority:
             or (self.acts_as_creator and not trigger.runs_as_creator)
         ):
             raise _refused()
+        if (
+            self.source_policy is None
+            or read_policy(trigger.approved_sources).id != self.source_policy.id
+            or source_scope(trigger) != self.source_policy.scope_hash
+            or trigger.created_by_user_id != self.source_policy.consented_by
+        ):
+            raise RoutineSourcesRequired()
         try:
             if target_fingerprint(trigger.local_target) != self.local_target_hash:
                 raise _refused()
@@ -393,6 +441,14 @@ class RoutineAuthority:
             )
         ):
             raise _refused()
+        if self.routine_kind == "trigger":
+            source = (
+                None
+                if self.source_policy is None
+                else self.source_policy.mcp_sources.get(origin.connection_id)
+            )
+            if source is None or origin.tool_id not in source.tool_ids:
+                raise RoutineSourcesRequired()
         connection = await mcp_connection_repo.get_by_id(db, origin.connection_id)
         if (
             connection is None

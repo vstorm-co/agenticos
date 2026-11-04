@@ -216,3 +216,37 @@ or create one review/follow-up reminder. No table, model, outbound mail or new
 provider authorization is provisioned. Project task-table/routine presets remain
 required. Full-graph validation also corrected the await node's branching kind and
 introduced a validated adapter for text inputs from the form.
+
+## Routine source ceilings — implementation resumed
+
+Migration 0276 is now wired into creation, source review, metadata admission,
+provider polling, canonical queue jobs, offline intents, root assembly, tool
+checks and parked-run restoration. Reviews retain exact account generations,
+normalized MCP aliases, cached tool ceilings, pinned delegate sources and remote
+A2A endpoint/card/credential bindings. Model/instruction-only publication may
+follow; new source authority requires the console owner's explicit review.
+Legacy routines receive no migration opt-in. Re-review invalidates old jobs and
+runs instead of lending them later authority. Mailbox places are filtered by the
+account/review admitted before provider reads. Unknown/unavailable sources cause
+an explicit refusal and the existing attention case, without fabricating a check.
+
+The consent dialog contains the source/account inventory and separately retains
+standing action exceptions. Added an optional owner-control onboarding stop.
+Owner export includes bounded review metadata; account erasure clears retained
+routine/run authority JSON before SET NULL can orphan the actor identity.
+
+Validation: the routine/privacy batch passed 438 checks and exposed one new
+mailbox fixture with a missing non-null schedule discriminator; that fixture was
+corrected. A subsequent 105-check batch passed assembly,
+portal-poll, native wait and source regressions. Final source/route/coverage gate
+batch: 49 passing checks, with both new backend modules at 100% statements and
+branches. All 261 focused console/onboarding checks pass. Backend lint,
+TypeScript, scoped ESLint/i18n, migration downgrade/upgrade/model-drift checks
+pass. Live provider accounts are not used.
+
+Still required in this original PR: project task-table/routine creation preset,
+automatic follow-up drafting, scoped decision episodes/actual Improve handoff,
+Twilio PSTN/contact/quiet-hour/rate/budget/call-card implementation. After all
+implementation blocks, request five sequential `@codex review` rounds through PR
+comments and address confirmed findings. The maintainer explicitly resumed work
+and continues to request one agent, feature delivery and no CI polling.

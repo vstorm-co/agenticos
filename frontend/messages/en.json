@@ -4963,6 +4963,10 @@
       "project-file-location": {
         "title": "Your computer or shared files",
         "body": "Computer shows your approved local folder. Shared project files contains uploaded copies for people with project access. The two locations do not synchronize automatically."
+      },
+      "routine-access": {
+        "title": "Review routine access",
+        "body": "Use the shield on your routine to review its source accounts and resources, then choose any standing action exceptions separately."
       }
     },
     "chooseLanguage": "Language",
@@ -8509,6 +8513,15 @@
       "required": "Approval required by the agent",
       "revokeAll": "Revoke all",
       "save": "Save consent"
+    },
+    "sourceConsents": {
+      "title": "Reviewed sources",
+      "description": "This routine uses only the published resources, accounts and tools reviewed here. New sources and renewed account consent require another review.",
+      "retry": "Try again",
+      "current": "The reviewed sources are current.",
+      "changed": "Review these sources before the next run.",
+      "unavailable": "Reconnect or inspect these sources first: {names}",
+      "accept": "Approve these sources"
     }
   },
   "portals": {

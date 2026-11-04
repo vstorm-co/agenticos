@@ -100,12 +100,30 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     service.connections.get_org_portal_connection = AsyncMock(
         return_value=_named(id=uuid.uuid4(), name="grant", portal_key="google")
     )
+    service._polled_source_current = AsyncMock(return_value=True)
+    service.sources = MagicMock()
+    service.sources.initial = AsyncMock(return_value=_source_policy())
+    service.sources.require_current = AsyncMock(return_value=_source_policy())
     return service
+
+
+def _source_policy():
+    from app.schemas.routine_sources import RoutineSourcePolicy
+
+    return RoutineSourcePolicy(
+        id=uuid.UUID(int=42),
+        consented_by=_CALLER,
+        reviewed_at=datetime.now(UTC),
+        version_id=uuid.uuid4(),
+        scope_hash="a" * 64,
+        spec_hash="b" * 64,
+    )
 
 
 def _trigger(**overrides: object) -> MagicMock:
     defaults: dict[str, object] = {
         "id": uuid.uuid4(),
+        "approved_sources": _source_policy().model_dump(mode="json"),
         "organization_id": _ORG,
         "agent_id": uuid.uuid4(),
         "created_by_user_id": _CALLER,
@@ -990,7 +1008,7 @@ class TestRunningNow:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(return_value=trigger)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
             service.fire.assert_not_awaited()
@@ -1049,7 +1067,7 @@ class TestRunningNow:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(return_value=trigger)
             repo.get = AsyncMock(return_value=trigger)
             await service.run_now(_ctx(), agent.id, trigger.id)
         assert [(fire.trigger_id, fire.event_context) for fire in queued_fires] == [
@@ -1124,7 +1142,11 @@ class TestClaiming:
             patch("app.services.agent_trigger.agent_trigger_repo") as repo,
             patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
         ):
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(
+                side_effect=lambda _db, identifier, **_: next(
+                    (item for item in live if item.id == identifier), None
+                )
+            )
             repo.claim_due = AsyncMock(
                 return_value=[(live[0], False), (orphan, False), (live[1], False)]
             )
@@ -1132,6 +1154,7 @@ class TestClaiming:
 
         assert queued_fires == [
             FireTrigger(
+                source_policy_id=uuid.UUID(int=42),
                 trigger_id=trigger.id,
                 activation_id=fire.activation_id,
                 event_context=None,
@@ -1169,13 +1192,14 @@ class TestClaiming:
         earlier = now - timedelta(minutes=2)
         busy = _trigger(interval_seconds=300, overlap="allow", fire_in_flight_since=earlier)
         with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
-            repo.get_by_id = AsyncMock(return_value=None)
+            repo.get_by_id = AsyncMock(return_value=busy)
             repo.claim_due = AsyncMock(return_value=[(busy, True)])
             claimed = await service.claim_and_advance(now=now)
 
         assert claimed == [busy]
         assert queued_fires == [
             FireTrigger(
+                source_policy_id=uuid.UUID(int=42),
                 trigger_id=busy.id,
                 activation_id=queued_fires[0].activation_id,
                 event_context=None,
@@ -1191,13 +1215,30 @@ class TestQueueingDeliveredFires:
     ):
         service = _service()
         decision = EventFireDecision(
-            trigger_id=uuid.uuid4(), event_context="ISSUE #7", organization_id=uuid.uuid4()
+            source_policy_id=uuid.UUID(int=42),
+            trigger_id=uuid.uuid4(),
+            event_context="ISSUE #7",
+            organization_id=uuid.uuid4(),
         )
         service.prepare_event_fire = AsyncMock(return_value=decision)
+        service.db.execute.return_value.scalar_one_or_none.return_value = _trigger(
+            id=decision.trigger_id, organization_id=decision.organization_id
+        )
 
-        assert await service.queue_event_fire("github", decision.trigger_id, body=b"{}", headers={})
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
+            AsyncMock(
+                return_value=_trigger(
+                    id=decision.trigger_id, organization_id=decision.organization_id
+                )
+            ),
+        ):
+            assert await service.queue_event_fire(
+                "github", decision.trigger_id, body=b"{}", headers={}
+            )
         assert queued_fires == [
             FireTrigger(
+                source_policy_id=uuid.UUID(int=42),
                 trigger_id=decision.trigger_id,
                 activation_id=queued_fires[0].activation_id,
                 event_context="ISSUE #7",
@@ -1224,13 +1265,29 @@ class TestQueueingDeliveredFires:
         service = _service()
         decisions = [
             EventFireDecision(
-                trigger_id=uuid.uuid4(), event_context=f"e{n}", organization_id=uuid.uuid4()
+                source_policy_id=uuid.UUID(int=42),
+                trigger_id=uuid.uuid4(),
+                event_context=f"e{n}",
+                organization_id=uuid.uuid4(),
             )
             for n in range(3)
         ]
         service.prepare_app_fires = AsyncMock(return_value=decisions)
+        service.db.execute.return_value.scalar_one_or_none.side_effect = [
+            _trigger(id=decision.trigger_id, organization_id=decision.organization_id)
+            for decision in decisions
+        ]
 
-        assert await service.queue_app_fires(body=b"{}", headers={}) == 3
+        with patch(
+            "app.services.agent_trigger.agent_trigger_repo.get_by_id",
+            AsyncMock(
+                side_effect=[
+                    _trigger(id=decision.trigger_id, organization_id=decision.organization_id)
+                    for decision in decisions
+                ]
+            ),
+        ):
+            assert await service.queue_app_fires(body=b"{}", headers={}) == 3
         assert [(f.trigger_id, f.event_context) for f in queued_fires] == [
             (d.trigger_id, d.event_context) for d in decisions
         ]
@@ -2136,6 +2193,7 @@ class TestPreparingAnEventFire:
                 "github", trigger.id, body=b'{"action": "opened"}', headers={}
             )
         assert decision == EventFireDecision(
+            source_policy_id=uuid.UUID(int=42),
             trigger_id=trigger.id,
             event_context="ISSUE #7 opened",
             organization_id=trigger.organization_id,
@@ -2164,7 +2222,10 @@ class TestPreparingAnEventFire:
                 headers={"x-github-delivery": "delivery-1"},
             )
         assert decision == EventFireDecision(
-            trigger_id=trigger.id, event_context="ISSUE #7", organization_id=trigger.organization_id
+            source_policy_id=uuid.UUID(int=42),
+            trigger_id=trigger.id,
+            event_context="ISSUE #7",
+            organization_id=trigger.organization_id,
         )
         dedupe.claim_event_delivery.assert_awaited_once()
         # The fire is a job row in this transaction; rolled back, the claim goes with it.

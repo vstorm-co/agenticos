@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
@@ -19,6 +20,7 @@ from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
 from app.repositories import agent_run_repo
 from app.services.routine_authority import RoutineAuthority
+from tests.routine_source_support import reviewed_sources
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -85,7 +87,10 @@ async def _world(db: AsyncSession) -> World:
     )
     db.add_all([grant, delegate_grant, trigger])
     await db.flush()
+    policy = reviewed_sources(trigger, spec=AgentSpec(name="Monitor"), version_id=uuid4())
+    await db.flush()
     ctx = AuthContext(
+        routine_source_policy_id=policy.id,
         user_id=user.id,
         organization_id=organization.id,
         role=OrgRoleName.VIEWER,
@@ -183,6 +188,7 @@ async def test_resumption_keeps_the_original_actor_and_origin_after_deletion(
         model_label=None,
         started_at=datetime.now(UTC),
         trigger_id=world.trigger.id,
+        routine_policy={"approved_sources": world.trigger.approved_sources},
     )
     approver = replace(world.ctx, user_id=world.owner.id, role="owner", routine_id=None)
     authority = await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
@@ -217,9 +223,13 @@ async def test_nonpersonal_routines_and_runs_with_no_routine_keep_their_contract
     world = await _world(db)
     world.trigger.runs_as_creator = False
     world.trigger.ends_at = datetime.now(UTC) + timedelta(days=1)
+    policy = reviewed_sources(world.trigger, spec=AgentSpec(name="Monitor"), version_id=uuid4())
     await db.flush()
     authority = await RoutineAuthority.capture(
-        db, replace(world.ctx, fired_as_creator=None), agent_id=world.agent.id, run=None
+        db,
+        replace(world.ctx, fired_as_creator=None, routine_source_policy_id=policy.id),
+        agent_id=world.agent.id,
+        run=None,
     )
     assert authority is not None and not authority.acts_as_creator
     run = AgentRun(
@@ -227,6 +237,7 @@ async def test_nonpersonal_routines_and_runs_with_no_routine_keep_their_contract
         user_id=world.user.id,
         initiated_by_publisher_fallback=True,
         routine_kind="trigger",
+        routine_policy={"approved_sources": world.trigger.approved_sources},
     )
     resumed = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
     assert resumed is not None and not resumed.acts_as_creator

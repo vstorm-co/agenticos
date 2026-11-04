@@ -17,9 +17,11 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.api_key import ApiKey
 from app.db.models.browser_sign_in import BrowserSignIn
@@ -530,3 +532,36 @@ async def routine_health_export_size(db: AsyncSession, user_id: UUID) -> int:
         .where(RoutineHealthObservation.user_id == user_id)
     )
     return int(count or 0) * 1024
+
+
+async def routine_sources_of(db: AsyncSession, user_id: UUID) -> list[AgentTrigger]:
+    return list(
+        await db.scalars(
+            select(AgentTrigger)
+            .where(AgentTrigger.created_by_user_id == user_id)
+            .order_by(AgentTrigger.id)
+        )
+    )
+
+
+async def routine_source_export_size(db: AsyncSession, user_id: UUID) -> int:
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.pg_column_size(AgentTrigger.approved_sources)), 0)
+            + func.count(AgentTrigger.id) * 1024
+        ).where(AgentTrigger.created_by_user_id == user_id)
+    )
+    return int(size or 0)
+
+
+async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
+    """SET NULL ownership must not leave the erased actor in durable policy JSON."""
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(AgentTrigger.created_by_user_id == user_id)
+        .values(approved_sources=None, action_consents=[])
+    )
+    await db.execute(
+        sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)
+    )
+    await db.flush()

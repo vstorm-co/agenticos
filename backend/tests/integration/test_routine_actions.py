@@ -23,6 +23,8 @@ from app.db.models.user import User
 from app.schemas.routine_actions import RoutineActionKey, RoutineActions
 from app.services.routine_actions import RoutineActionService, action_review
 from app.services.routine_authority import RoutineAuthority
+from app.services.routine_sources import read_policy
+from tests.routine_source_support import reviewed_sources
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 WRITE = RoutineActionKey(capability_id="sandbox", tool_id="execute")
@@ -80,6 +82,8 @@ async def world(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> World:
     )
     db.add(trigger)
     await db.flush()
+    reviewed_sources(trigger, spec=spec, version_id=version.id)
+    await db.flush()
     ctx = AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
 
     @asynccontextmanager
@@ -99,7 +103,12 @@ def _request(world: World, actions: list[RoutineActionKey]) -> RoutineActions:
 async def capture(db: AsyncSession, world: World) -> RoutineAuthority:
     authority = await RoutineAuthority.capture(
         db,
-        replace(world.ctx, routine_id=world.trigger.id, subject_is_publisher_fallback=True),
+        replace(
+            world.ctx,
+            routine_id=world.trigger.id,
+            subject_is_publisher_fallback=True,
+            routine_source_policy_id=read_policy(world.trigger.approved_sources).id,
+        ),
         agent_id=world.agent.id,
         version_id=world.version.id,
         run=None,
@@ -183,8 +192,12 @@ async def test_standing_consent_never_survives_changed_authority(
         assert decision.required and decision.consented_by is None
         return
     await db.flush()
-    decision = await authority.action_policy(world.agent.id, world.spec, tool())
-    assert decision.required and decision.consented_by is None
+    if change == "intent":
+        with pytest.raises(AuthorizationError):
+            await authority.action_policy(world.agent.id, world.spec, tool())
+    else:
+        decision = await authority.action_policy(world.agent.id, world.spec, tool())
+        assert decision.required and decision.consented_by is None
 
 
 @pytest.mark.parametrize("actor", ["api-key", "routine", "fallback", "other-owner"])
@@ -243,7 +256,10 @@ async def test_a_resumed_run_cannot_adopt_newly_granted_consent(
         routine_kind="trigger",
         initiated_by_publisher_fallback=True,
         surface="schedule",
-        routine_policy={"action_consents": admitted},
+        routine_policy={
+            "approved_sources": world.trigger.approved_sources,
+            "action_consents": admitted,
+        },
     )
     await service.replace(world.ctx, world.trigger, RoutineActions())
     await service.replace(world.ctx, world.trigger, _request(world, [WRITE]))
@@ -251,18 +267,26 @@ async def test_a_resumed_run_cannot_adopt_newly_granted_consent(
     assert restored is not None
     assert (await restored.action_policy(world.agent.id, world.spec, tool())).consented_by is None
     run.routine_policy = None
-    legacy = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
-    assert legacy is not None and legacy.action_consents == ()
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
 
 
 async def test_local_file_mutations_and_remote_delegation_are_actions(
-    db: AsyncSession, world: World
+    db: AsyncSession, world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     world.trigger.local_target = {
         "folder": "/reports",
+        "routine_grant": str(uuid4()),
+        "operations": {"read": True, "write": True, "execute": False},
         "mode": "workspace_write",
         "device_id": str(uuid4()),
     }
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "app.services.routine_authority.session_repo.active_device",
+        AsyncMock(return_value=object()),
+    )
     await db.flush()
     authority = await capture(db, world)
     assert (await authority.action_policy(world.agent.id, world.spec, tool("write_file"))).required
@@ -308,6 +332,8 @@ async def test_consent_uses_the_pinned_version_and_ignores_disabled_bindings(
             ]
         }
     )
+    reviewed_sources(world.trigger, spec=world.spec, version_id=world.version.id)
+    await db.flush()
     authority = await capture(db, world)
     denied = await authority.action_policy(world.agent.id, disabled, tool())
     assert denied.required and denied.consented_by is None
@@ -415,6 +441,13 @@ async def test_resumed_mcp_calls_remain_bound_to_the_admitted_account(
         authorization_generation=connection.authorization_generation,
         tool_prefix="work_account",
     )
+    reviewed_sources(
+        world.trigger,
+        spec=world.spec,
+        version_id=world.version.id,
+        sources={connection.id: identity},
+        tools=("write",),
+    )
     snapshot = MCP_SOURCES.dump_python({connection.id: identity}, mode="json")
     run = AgentRun(
         organization_id=world.org.id,
@@ -424,7 +457,11 @@ async def test_resumed_mcp_calls_remain_bound_to_the_admitted_account(
         routine_kind="trigger",
         initiated_by_publisher_fallback=True,
         surface="schedule",
-        routine_policy={"action_consents": [], "mcp_sources": snapshot},
+        routine_policy={
+            "approved_sources": world.trigger.approved_sources,
+            "action_consents": [],
+            "mcp_sources": snapshot,
+        },
     )
     if change in ("reauthorize", "reauthorize-resume"):
         connection.authorization_generation = uuid4()
@@ -452,6 +489,10 @@ async def test_resumed_mcp_calls_remain_bound_to_the_admitted_account(
     elif change == "legacy":
         run.routine_policy = None
     await db.flush()
+    if change in {"legacy", "reauthorize", "reauthorize-resume", "endpoint", "disabled", "removed"}:
+        with pytest.raises(AuthorizationError):
+            await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+        return
     restored = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
     assert restored is not None
     if change == "reauthorize-resume":
@@ -498,6 +539,14 @@ async def mcp_account(db: AsyncSession, world: World) -> McpConnection:
         }
     )
     world.version.spec = world.spec.model_dump(mode="json")
+    await db.flush()
+    reviewed_sources(
+        world.trigger,
+        spec=world.spec,
+        version_id=world.version.id,
+        sources={connection.id: mcp_source(connection)},
+        tools=("send_mail", "delete_mail", "read_mail"),
+    )
     await db.flush()
     return connection
 
@@ -719,7 +768,20 @@ async def test_personal_account_exceptions_require_personal_authority_and_the_sa
         world.trigger,
         RoutineActions(actions=[action_key(send)], review_token=offered.review_token),
     )
-    ctx = replace(world.ctx, routine_id=world.trigger.id, fired_as_creator="schedule")
+    policy = reviewed_sources(
+        world.trigger,
+        spec=world.spec,
+        version_id=world.version.id,
+        sources={own.id: mcp_source(own)},
+        tools=("send_mail", "delete_mail", "read_mail"),
+    )
+    await db.flush()
+    ctx = replace(
+        world.ctx,
+        routine_id=world.trigger.id,
+        fired_as_creator="schedule",
+        routine_source_policy_id=policy.id,
+    )
     admitted = await RoutineAuthority.capture(
         db, ctx, agent_id=world.agent.id, version_id=world.version.id, run=None
     )
@@ -773,6 +835,14 @@ async def test_an_account_exception_cannot_authorize_another_account_or_routine(
         RoutineActions(actions=[action_key(send)], review_token=offered.review_token),
     )
     sources = {connection.id: mcp_source(connection) for connection in (mcp_account, other_account)}
+    reviewed_sources(
+        world.trigger,
+        spec=world.spec,
+        version_id=world.version.id,
+        sources=sources,
+        tools=("send_mail", "delete_mail", "read_mail"),
+    )
+    await db.flush()
     original = replace(await capture(db, world), mcp_sources=sources)
     assert (
         await original.action_policy(
@@ -789,7 +859,20 @@ async def test_an_account_exception_cannot_authorize_another_account_or_routine(
     )
     db.add(other_routine)
     await db.flush()
-    other_ctx = replace(world.ctx, routine_id=other_routine.id, subject_is_publisher_fallback=True)
+    policy = reviewed_sources(
+        other_routine,
+        spec=world.spec,
+        version_id=world.version.id,
+        sources=sources,
+        tools=("send_mail", "delete_mail", "read_mail"),
+    )
+    await db.flush()
+    other_ctx = replace(
+        world.ctx,
+        routine_id=other_routine.id,
+        subject_is_publisher_fallback=True,
+        routine_source_policy_id=policy.id,
+    )
     other = await RoutineAuthority.capture(
         db, other_ctx, agent_id=world.agent.id, version_id=world.version.id, run=None
     )

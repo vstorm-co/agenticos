@@ -4841,6 +4841,10 @@
       "project-file-location": {
         "title": "Dein Computer oder gemeinsame Dateien",
         "body": "Computer zeigt deinen freigegebenen lokalen Ordner. Gemeinsame Projektdateien enthält hochgeladene Kopien für Personen mit Projektzugriff. Die beiden Orte werden nicht automatisch synchronisiert."
+      },
+      "routine-access": {
+        "title": "Routinezugriff prüfen",
+        "body": "Öffnen Sie das Schild Ihrer Routine, um Quellkonten und Ressourcen zu prüfen und anschließend dauerhafte Aktionsausnahmen getrennt auszuwählen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8388,6 +8392,15 @@
       "required": "Bestätigung vom Agenten verlangt",
       "revokeAll": "Alle widerrufen",
       "save": "Freigaben speichern"
+    },
+    "sourceConsents": {
+      "title": "Geprüfte Quellen",
+      "description": "Diese Routine verwendet nur die hier geprüften veröffentlichten Ressourcen, Konten und Werkzeuge. Neue Quellen und erneuerte Kontozustimmungen erfordern eine neue Prüfung.",
+      "retry": "Erneut versuchen",
+      "current": "Die geprüften Quellen sind aktuell.",
+      "changed": "Prüfen Sie diese Quellen vor dem nächsten Lauf.",
+      "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
+      "accept": "Diese Quellen genehmigen"
     }
   },
   "portals": {

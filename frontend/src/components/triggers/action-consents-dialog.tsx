@@ -1,5 +1,6 @@
 "use client";
 
+import { SourceConsentsPanel } from "@/components/triggers/source-consents-panel";
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRoutineActions } from "@/hooks/use-routine-actions";
@@ -43,6 +44,7 @@ export function ActionConsentsDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
+        <SourceConsentsPanel trigger={trigger} />
         {isLoading ? (
           <Spinner />
         ) : error ? (

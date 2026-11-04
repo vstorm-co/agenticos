@@ -9,13 +9,15 @@ from uuid import UUID, uuid4
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.mcp import McpSourceIdentity
+from app.agents.mcp import McpSourceIdentity, tool_prefix
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
-from app.repositories import agent_trigger_repo, mcp_connection_repo
+from app.db.models.external_agent import ExternalAgent
+from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo
+from app.repositories import external_agent as external_repo
 from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_sources import (
     RoutineSourceAccount,
@@ -74,6 +76,7 @@ def source_scope(trigger: AgentTrigger) -> str:
         "event_config",
         "connection_id",
         "portal_key",
+        "provider_target",
         "delivery_mode",
         "answer_to",
         "delivery_conversation_id",
@@ -101,6 +104,38 @@ def read_policy(value: object) -> RoutineSourcePolicy:
         raise RoutineSourcesRequired() from None
 
 
+def external_fingerprint(agent: ExternalAgent) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            [agent.endpoint_url, agent.card_url, agent.card, str(agent.secret_id)],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
+async def require_bound_sources(
+    db: AsyncSession, *, organization_id: UUID, policy: RoutineSourcePolicy
+) -> None:
+    for identifier, expected in policy.external_sources.items():
+        source = await external_repo.get(db, identifier, organization_id=organization_id)
+        if source is None or external_fingerprint(source) != expected:
+            raise RoutineSourcesRequired()
+
+    bindings = list(policy.mcp_sources.items())
+    if policy.input_connection_id is not None and policy.input_source is not None:
+        bindings.append((policy.input_connection_id, policy.input_source))
+    for identifier, expected_account in bindings:
+        account = await mcp_connection_repo.get_by_id(db, identifier)
+        if (
+            account is None
+            or not account.is_enabled
+            or hashlib.sha256(account.url.encode()).hexdigest() != expected_account.endpoint_hash
+            or account.authorization_generation != expected_account.authorization_generation
+        ):
+            raise RoutineSourcesRequired()
+
+
 def account_identities(policy: RoutineSourcePolicy) -> dict[UUID, McpSourceIdentity]:
     return {
         identifier: McpSourceIdentity(
@@ -117,6 +152,7 @@ class _Review:
     policy: RoutineSourcePolicy
     accounts: list[str]
     unavailable: list[str]
+    resources: list[str]
 
     def token(self) -> str:
         content = self.policy.model_dump(mode="json", exclude={"id", "reviewed_at"})
@@ -156,9 +192,55 @@ class RoutineSourceService:
                 ctx, trigger.agent_id, environment_id=trigger.environment_id
             )
         sources: dict[UUID, RoutineSourceAccount] = {}
+        root_sources: set[UUID] = set()
         names: set[str] = set()
         unavailable: set[str] = set()
-        for ref in spec.mcp_servers:
+        specs = [spec]
+        seen: set[UUID] = set()
+        resources: set[str] = set()
+        for current in specs:
+            resources.update(f"Knowledge · {identifier}" for identifier in current.collection_ids)
+            resources.update(f"Context · {identifier}" for identifier in current.context_ids)
+            resources.update(f"Skill · {identifier}" for identifier in current.skill_ids)
+            resources.update(f"Capability · {binding.id}" for binding in current.capabilities)
+            for delegate in current.subagents:
+                if delegate.agent_version_id in seen:
+                    continue
+                if len(seen) >= 64:
+                    raise RoutineSourcesRequired(
+                        message="A routine can review at most 64 delegate versions"
+                    )
+                seen.add(delegate.agent_version_id)
+                # Published parents lend their pinned delegates. Requiring a new
+                # direct run grant here would contradict the delegate runner.
+                child_agent = await agent_repo.get(
+                    self.db, delegate.agent_id, organization_id=ctx.organization_id
+                )
+                child_version = await agent_repo.get_version(
+                    self.db, delegate.agent_version_id, organization_id=ctx.organization_id
+                )
+                if (
+                    child_agent is None
+                    or child_agent.status == "archived"
+                    or child_version is None
+                    or child_version.agent_id != delegate.agent_id
+                ):
+                    raise RoutineSourcesRequired()
+                specs.append(AgentSpec.model_validate(child_version.spec))
+                resources.add(f"Delegate · {delegate.agent_id} · {delegate.agent_version_id}")
+        external_sources: dict[UUID, str] = {}
+        for ref in (ref for current in specs for ref in current.external_agents):
+            remote = await external_repo.get(
+                self.db, ref.external_agent_id, organization_id=ctx.organization_id
+            )
+            if remote is None:
+                unavailable.add(f"Remote agent · {ref.external_agent_id}")
+            else:
+                external_sources[remote.id] = external_fingerprint(remote)
+                resources.add(f"Remote agent · {remote.name} · {remote.id}")
+        if len(external_sources) > 100:
+            raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")
+        for ref in (ref for current in specs for ref in current.mcp_servers):
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
                     self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
@@ -168,7 +250,7 @@ class RoutineSourceService:
                     account.id: McpSourceIdentity(
                         endpoint_hash=hashlib.sha256(account.url.encode()).hexdigest(),
                         authorization_generation=account.authorization_generation,
-                        tool_prefix=account.name,
+                        tool_prefix=tool_prefix(account.name),
                     )
                     for account in accounts
                 }
@@ -184,6 +266,8 @@ class RoutineSourceService:
             if not accounts:
                 unavailable.add(missing_name)
             for account in accounts:
+                if ref in spec.mcp_servers:
+                    root_sources.add(account.id)
                 name = account.label or account.name
                 names.add(f"{name} · {account.id}")
                 if not account.is_enabled or account.last_tools is None:
@@ -201,6 +285,9 @@ class RoutineSourceService:
                             )
                         )
                     }
+                    previous = sources.get(account.id)
+                    if previous is not None:
+                        allowed.update(previous.tool_ids)
                     identity = identities[account.id]
                     candidate = RoutineSourceAccount(
                         endpoint_hash=identity.endpoint_hash,
@@ -211,15 +298,6 @@ class RoutineSourceService:
                 except ValidationError:
                     unavailable.add(name)
                     continue
-                previous = sources.get(account.id)
-                if previous is not None:
-                    candidate = candidate.model_copy(
-                        update={
-                            "tool_ids": tuple(
-                                sorted(set(previous.tool_ids) | set(candidate.tool_ids))
-                            )
-                        }
-                    )
                 sources[account.id] = candidate
         input_source = None
         if trigger.connection_id is not None:
@@ -236,6 +314,8 @@ class RoutineSourceService:
                     authorization_generation=connection.authorization_generation,
                 )
                 names.add(f"{connection.label or connection.name} · {connection.id}")
+        if len(sources) > 100:
+            raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
         return _Review(
             policy=RoutineSourcePolicy(
                 id=uuid4(),
@@ -245,11 +325,14 @@ class RoutineSourceService:
                 scope_hash=source_scope(trigger),
                 spec_hash=spec_fingerprint(spec),
                 mcp_sources=sources,
-                input_connection_id=trigger.connection_id,
+                root_mcp_ids=tuple(sorted(root_sources)),
+                external_sources=external_sources,
+                input_connection_id=trigger.connection_id if input_source is not None else None,
                 input_source=input_source,
             ),
             accounts=sorted(names),
             unavailable=sorted(unavailable),
+            resources=sorted(resources),
         )
 
     async def initial(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourcePolicy:
@@ -275,9 +358,7 @@ class RoutineSourceService:
             version_id=review.policy.version_id,
             current=current and not review.unavailable,
             accounts=review.accounts,
-            resources=[
-                "Published capability configuration, knowledge, context, skills and delegation bindings"
-            ],
+            resources=review.resources,
             unavailable_sources=review.unavailable,
         )
 
@@ -315,3 +396,22 @@ class RoutineSourceService:
             },
         )
         return await self.options(ctx, current)
+
+    async def require_current(
+        self, ctx: AuthContext, trigger: AgentTrigger, *, expected_id: UUID | None
+    ) -> RoutineSourcePolicy:
+        """Check metadata before opening a provider, preserving the admitted review."""
+        policy = read_policy(trigger.approved_sources)
+        if (
+            policy.id != expected_id
+            or policy.consented_by != trigger.created_by_user_id
+            or policy.scope_hash != source_scope(trigger)
+        ):
+            raise RoutineSourcesRequired()
+        review = await self._review(ctx, trigger)
+        excluded = {"id", "reviewed_at", "version_id"}
+        if review.unavailable or policy.model_dump(exclude=excluded) != review.policy.model_dump(
+            exclude=excluded
+        ):
+            raise RoutineSourcesRequired()
+        return policy

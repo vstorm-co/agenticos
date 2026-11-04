@@ -5,6 +5,8 @@ import { ActionConsentsDialog } from "./action-consents-dialog";
 import type { RoutineActionOptions } from "@/lib/routine-actions-api";
 import type { Trigger } from "@/types/triggers";
 
+vi.mock("./source-consents-panel", () => ({ SourceConsentsPanel: () => null }));
+
 const state = vi.hoisted(() => ({
   data: {
     can_waive: true,

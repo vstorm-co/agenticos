@@ -1,10 +1,9 @@
 """Explicit source ceilings for recurring work, independent of write exceptions."""
 
-from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 Fingerprint = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 ToolName = Annotated[
@@ -26,13 +25,21 @@ class RoutineSourcePolicy(BaseModel):
 
     id: UUID
     consented_by: UUID
-    reviewed_at: datetime
+    reviewed_at: AwareDatetime
     version_id: UUID
     scope_hash: Fingerprint
     spec_hash: Fingerprint
     mcp_sources: dict[UUID, RoutineSourceAccount] = Field(default_factory=dict, max_length=100)
+    root_mcp_ids: tuple[UUID, ...] = Field(default=(), max_length=100)
+    external_sources: dict[UUID, Fingerprint] = Field(default_factory=dict, max_length=100)
     input_connection_id: UUID | None = None
     input_source: RoutineSourceAccount | None = None
+
+    @model_validator(mode="after")
+    def pair_input_source(self) -> Self:
+        if (self.input_connection_id is None) != (self.input_source is None):
+            raise ValueError("An input source requires its exact account identity")
+        return self
 
 
 class RoutineSourceReview(BaseModel):
