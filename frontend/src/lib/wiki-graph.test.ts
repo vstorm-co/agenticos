@@ -232,3 +232,19 @@ it("caps frontmatter aliases and tags before indexing, and marks lost metadata",
       .metadataTruncated,
   ).toBe(true);
 });
+
+it("handles destination whitespace, escaped punctuation and optional titles", () => {
+  const page = parseWikiPage(
+    "a.md",
+    String.raw`[A](   a\(1\).md "A \"quoted\" title"   ) [B](b.md (title)  )`,
+  );
+  expect(page.links.map((link) => link.target)).toEqual(["a(1).md", "b.md"]);
+  for (const body of [
+    "[bad](<nested<)",
+    "[bad](<line\nbreak>)",
+    '[bad](a.md "unclosed',
+    "[bad]()",
+  ]) {
+    expect(parseWikiPage("a.md", body).links).toHaveLength(0);
+  }
+});

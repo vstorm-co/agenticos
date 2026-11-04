@@ -108,9 +108,7 @@ function relationshipProse(body: string): string {
         continue;
       }
     } else if (text[i] === "\\") {
-      parts.push(text.slice(kept, i), " ");
       i += 2;
-      kept = i;
       continue;
     }
     if (end !== undefined) {
@@ -121,6 +119,12 @@ function relationshipProse(body: string): string {
   }
   parts.push(text.slice(kept));
   return parts.join("");
+}
+
+function isEscaped(text: string, index: number): boolean {
+  let slashes = 0;
+  for (let i = index - 1; text[i] === "\\"; i--) slashes++;
+  return slashes % 2 === 1;
 }
 
 /** Consume each attempted destination once, including malformed nested parentheses. */
@@ -208,16 +212,17 @@ export function parseWikiPage(
   };
   for (const match of prose.matchAll(/!?\[\[([^\]\n]*)/g)) {
     const end = match.index + match[0].length;
-    if (prose.startsWith("]]", end) && !add(match[1], false)) break;
+    if (!isEscaped(prose, match.index) && prose.startsWith("]]", end) && !add(match[1], false))
+      break;
   }
   const labels = /(!?)\[([^\]\n]*)/g;
   if (!linksTruncated) {
     for (let match = labels.exec(prose); match !== null; match = labels.exec(prose)) {
       const end = match.index + match[0].length;
-      if (match[1] || !prose.startsWith("](", end)) continue;
+      if (match[1] || isEscaped(prose, match.index) || !prose.startsWith("](", end)) continue;
       const parsed = markdownDestination(prose, end + 1);
       labels.lastIndex = Math.max(labels.lastIndex, parsed.next);
-      if (parsed.target && !add(parsed.target, true)) break;
+      if (parsed.target && !add(parsed.target.replace(/\\([!-/:-@[-`{-~])/g, "$1"), true)) break;
     }
   }
   if (!linksTruncated)

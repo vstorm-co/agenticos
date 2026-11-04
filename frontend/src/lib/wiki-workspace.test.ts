@@ -212,3 +212,16 @@ it("shares a metadata budget across notes and reports a partial graph", async ()
   ).toBe(4096);
   expect(graph.truncated).toBe(true);
 });
+
+it("enforces the byte budget when files grow after their listing", async () => {
+  vi.mocked(listProjectFiles).mockResolvedValue(
+    listing(Array.from({ length: 33 }, (_, i) => file(`${String(i).padStart(2, "0")}.md`, 1))),
+  );
+  vi.mocked(readFileText).mockResolvedValue({
+    content: "a".repeat(WIKI_LIMITS.fileBytes),
+    truncated: false,
+  });
+  const graph = await readWikiWorkspace({ kind: "project", id: "p" }, signal());
+  expect(graph.pages).toHaveLength(32);
+  expect(graph.skipped).toEqual(["32.md"]);
+});
