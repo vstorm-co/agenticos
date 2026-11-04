@@ -1,5 +1,5 @@
 ---
-source_sha: "e61c5738586c"
+source_sha: "59cdf11dca18"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1650,6 +1650,8 @@ sobre lo que la sincronización nunca toca son las de la
 - Si un servidor no se puede leer, sus grupos asignados se conservan. Los posibles roles de organización solo conservan autoridad ya existente; una asignación `viewer` sin leer no conserva `admin`. Las concesiones confirmadas siguen aplicándose.
 
 Cada reconciliación comparte un presupuesto de red de diez segundos. Las consultas REST comparten el `rate_limit_rpm` del bot por usuario entre todas sus cuentas vinculadas, separado del límite de comprobaciones por mensaje. Borrar un grupo asignado también requiere `channels:manage`.
+
+El descubrimiento permite una solicitud simultánea por organización. La paginación y las consultas de roles comparten diez segundos, con un máximo de ocho servidores en paralelo. Superar los 2500 servidores admitidos o recibir una respuesta incompleta produce un error explícito.
 
 Desvincular la cuenta de Discord retira lo que dieron sus roles, salvo que otra
 cuenta de Discord vinculada lo siga ganando. Borrar una asignación retira lo que dio

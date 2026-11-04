@@ -103,6 +103,8 @@ _RATE_LIMIT_RETRIES = 2
 _RATE_LIMIT_CEILING = 10.0
 _CACHE_SIZE = 10_000
 _GUILD_PAGE = 200
+_MAX_ROLE_GUILDS = 2_500
+_ROLE_LOOKUP_CONCURRENCY = 8
 """The most servers `GET /users/@me/guilds` answers with at once; past it, `after` pages on."""
 # A close code of our own: 1000 and 1001 end the session for good, anything else
 # leaves it resumable, which is what a reconnect we start wants.
@@ -663,14 +665,29 @@ class DiscordAdapter(ChannelAdapter):
             found = await self._call("GET", f"/users/@me/guilds{query}", bot_token)
             found.raise_for_status()
             page = found.json()
+            if len(guilds) + len(page) > _MAX_ROLE_GUILDS:
+                raise httpx.ProtocolError("Discord role discovery supports at most 2,500 servers")
             guilds.extend(page)
             if len(page) < _GUILD_PAGE:
                 break
             after = str(page[-1]["id"])
-        return [
-            await self._with_roles(bot_token, str(guild["id"]), str(guild.get("name") or ""))
-            for guild in guilds
-        ]
+        servers: list[Server] = []
+        for offset in range(0, len(guilds), _ROLE_LOOKUP_CONCURRENCY):
+            try:
+                async with asyncio.TaskGroup() as group:
+                    tasks = [
+                        group.create_task(
+                            self._with_roles(
+                                bot_token, str(guild["id"]), str(guild.get("name") or "")
+                            )
+                        )
+                        for guild in guilds[offset : offset + _ROLE_LOOKUP_CONCURRENCY]
+                    ]
+            except* httpx.HTTPError as failures:
+                # Keep the adapter's HTTP error contract after sibling cleanup.
+                raise failures.exceptions[0] from None
+            servers.extend(task.result() for task in tasks)
+        return servers
 
     async def server(self, bot_token: str, guild_id: str) -> Server | None:
         """One server the bot is in, with the roles a mapping can name; `None` if it is not in it.

@@ -614,3 +614,65 @@ async def test_message_checks_for_two_accounts_share_the_linked_user_budget():
                 bot, MagicMock(id=uuid.uuid4(), user_id=user), _incoming("discord"), MagicMock()
             )
     assert [call.args[1] for call in meter.await_args_list] == [f"user:{user}"] * 2
+
+
+async def test_server_discovery_deadline_cancels_its_network_work(monkeypatch):
+    import asyncio
+
+    from app.core.exceptions import ExternalServiceError
+    from app.services import discord_role_mapping
+    from app.services.discord_role_mapping import DiscordRoleMappingService
+
+    monkeypatch.setattr(discord_role_mapping, "_SERVER_DISCOVERY_TIMEOUT_SECONDS", 0.01)
+    cancelled = asyncio.Event()
+
+    async def blocked(token: str) -> list[object]:
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled.set()
+        return []
+
+    bot = MagicMock(id=uuid.uuid4())
+    with (
+        patch.object(discord_role_mapping, "unseal_bot_token", return_value="tok"),
+        patch.object(
+            discord_role_mapping,
+            "discord_adapter",
+            return_value=MagicMock(servers=AsyncMock(side_effect=blocked)),
+        ),
+        pytest.raises(ExternalServiceError),
+    ):
+        await DiscordRoleMappingService(_db())._servers(bot)
+    assert cancelled.is_set()
+
+
+async def test_concurrent_server_discovery_is_refused_across_bots_in_one_org():
+    import asyncio
+
+    from app.core.exceptions import RateLimitError
+    from app.core.permissions import AuthContext
+    from app.services.discord_role_mapping import DiscordRoleMappingService
+
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="owner")
+    started, finish = asyncio.Event(), asyncio.Event()
+    service = DiscordRoleMappingService(_db())
+
+    async def blocked(bot: object) -> list[object]:
+        started.set()
+        await finish.wait()
+        return []
+
+    with (
+        patch.object(service, "_bot", AsyncMock(return_value=MagicMock())),
+        patch.object(service, "_servers", side_effect=blocked) as discovery,
+    ):
+        task = asyncio.create_task(service.servers(ctx, uuid.uuid4()))
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            with pytest.raises(RateLimitError):
+                await service.servers(ctx, uuid.uuid4())
+            assert discovery.await_count == 1
+        finally:
+            finish.set()
+            await asyncio.wait_for(task, 1)

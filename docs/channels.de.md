@@ -1,5 +1,5 @@
 ---
-source_sha: "e61c5738586c"
+source_sha: "59cdf11dca18"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1740,6 +1740,8 @@ der [Verzeichnissynchronisierung](directory.md#what-the-sync-never-touches):
 - Ist ein Server nicht lesbar, bleiben seine zugeordneten Gruppen erhalten. Mögliche Organisationsrollen erhalten nur bereits vorhandene Befugnisse; eine ungelesene `viewer`-Zuordnung erhält kein `admin`. Bestätigte Freigaben gelten weiterhin.
 
 Jeder Abgleich hat ein gemeinsames Netzwerkbudget von zehn Sekunden. REST-Abfragen teilen das `rate_limit_rpm` des Bots pro Benutzer über alle verknüpften Konten, getrennt vom Limit der Nachrichtenprüfungen. Das Löschen einer zugeordneten Gruppe erfordert ebenfalls `channels:manage`.
+
+Die Serverliste erlaubt eine gleichzeitige Anfrage pro Organisation. Seitennavigation und Rollenabfragen teilen ein Budget von zehn Sekunden; Rollen werden für höchstens acht Server gleichzeitig gelesen. Oberhalb der unterstützten 2.500 Server oder bei unvollständiger Antwort schlägt die Ermittlung ausdrücklich fehl.
 
 Wer die Verknüpfung des Discord-Kontos löst, verliert, was dessen Rollen gegeben
 haben, es sei denn, ein anderes verknüpftes Discord-Konto verdient es noch. Eine

@@ -34,7 +34,7 @@ from app.services.channels.base import (
     memory_room_key,
 )
 from app.services.channels.discord import DiscordAdapter, _Channel, _Reply, _Session
-from app.services.channels.discord_protocol import READ_MESSAGE_HISTORY, VIEW_CHANNEL
+from app.services.channels.discord_protocol import READ_MESSAGE_HISTORY, VIEW_CHANNEL, Server
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.live_reply import LiveReply, channel_stream
 from app.services.file_upload import FileUploadService
@@ -1954,6 +1954,39 @@ class TestServerRoles:
         assert [server.id for server in servers] == ids
         pages = [params for path, params in api.queries if path == "/users/@me/guilds"]
         assert pages == [{"limit": "200"}, {"limit": "200", "after": ids[199]}]
+
+    async def test_role_discovery_limits_concurrent_requests_and_keeps_order(self, adapter, api):
+        active, peak = 0, 0
+        ids = [str(n) for n in range(20)]
+        api.answer(
+            "GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": guild} for guild in ids])
+        )
+
+        async def roles(token: str, guild: str, name: str) -> Server:
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            try:
+                await asyncio.sleep(0)
+                return Server(id=guild, name=name, roles=())
+            finally:
+                active -= 1
+
+        with patch.object(adapter, "_with_roles", side_effect=roles):
+            servers = await adapter.servers("tok")
+        assert [server.id for server in servers] == ids
+        assert peak == 8 and active == 0
+
+    async def test_role_discovery_rejects_guild_fanout_above_its_supported_limit(
+        self, adapter, api, monkeypatch
+    ):
+        monkeypatch.setattr("app.services.channels.discord._MAX_ROLE_GUILDS", 2)
+        api.answer(
+            "GET", "/users/@me/guilds", httpx.Response(200, json=[{"id": str(n)} for n in range(3)])
+        )
+        with pytest.raises(httpx.ProtocolError):
+            await adapter.servers("tok")
+        assert len(api.calls) == 1
 
     async def test_one_server_is_read_without_listing_the_rest(
         self, adapter: DiscordAdapter, api: _Discord

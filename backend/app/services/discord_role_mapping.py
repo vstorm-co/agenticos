@@ -14,6 +14,7 @@ would match nobody, and one in a server the bot is not in would match only
 once somebody added it there.
 """
 
+import asyncio
 import logging
 from uuid import UUID
 
@@ -41,11 +42,14 @@ from app.repositories import (
     organization_repo,
 )
 from app.schemas.discord_role_mapping import DiscordRoleMappingCreate
+from app.services import rate_limit
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels.discord_protocol import Server
 from app.services.channels.discord_roles import PLATFORM, discord_adapter
 
 logger = logging.getLogger(__name__)
+
+_SERVER_DISCOVERY_TIMEOUT_SECONDS = 10
 
 
 class DiscordRoleMappingService:
@@ -95,12 +99,13 @@ class DiscordRoleMappingService:
         """Every server the bot is in, or only `guild_id` when one is named (empty if not in it)."""
         token = unseal_bot_token(bot)
         try:
-            if guild_id is None:
-                servers = await discord_adapter().servers(token)
-            else:
-                server = await discord_adapter().server(token, guild_id)
-                servers = [] if server is None else [server]
-        except httpx.HTTPError as exc:
+            async with asyncio.timeout(_SERVER_DISCOVERY_TIMEOUT_SECONDS):
+                if guild_id is None:
+                    servers = await discord_adapter().servers(token)
+                else:
+                    server = await discord_adapter().server(token, guild_id)
+                    servers = [] if server is None else [server]
+        except (httpx.HTTPError, TimeoutError) as exc:
             logger.warning(
                 "discord_servers_unreadable", exc_info=True, extra={"bot_id": str(bot.id)}
             )
@@ -112,7 +117,14 @@ class DiscordRoleMappingService:
 
     async def servers(self, ctx: AuthContext, bot_id: UUID) -> list[Server]:
         """The servers the bot is in and the roles in each a mapping may name, read live."""
-        return await self._servers(await self._bot(ctx, bot_id))
+        bot = await self._bot(ctx, bot_id)
+        async with rate_limit.one_in_flight(
+            "discord-server-discovery",
+            str(ctx.organization_id),
+            ttl_seconds=15,
+            message="Discord servers are already being read for this organization. Try again shortly.",
+        ):
+            return await self._servers(bot)
 
     async def list_mappings(
         self, ctx: AuthContext, bot_id: UUID

@@ -1569,6 +1569,8 @@ and the rules about what the sync never touches, are the ones the
 
 Each reconciliation shares a ten-second network deadline. REST lookups share the bot’s `rate_limit_rpm` per linked user across all their accounts, separately from the per-user message-check allowance. Removing a mapped group also requires `channels:manage`.
 
+Server discovery permits one concurrent request per organization, shares a ten-second deadline across pagination and role reads, and reads roles for at most eight servers concurrently. Discovery stops above the supported 2,500-server limit; an incomplete response fails explicitly.
+
 Unlinking the Discord account takes back what its roles gave, unless another linked
 Discord account still earns it. Deleting a mapping takes back what it gave at each
 person's next message or the next job run. Deleting the bot or a mapped group, or
