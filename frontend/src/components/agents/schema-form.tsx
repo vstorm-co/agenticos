@@ -836,8 +836,6 @@ function choiceMark(choice: string, field: string) {
   }
   const [head] = choice.split(":");
   const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
-  // Unequal only when there was a colon to split on: a value with none is a
-  // plain choice and wears nothing.
   if (provider === choice) return <CatalogChoiceMark name={choice} />;
   return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
 }
