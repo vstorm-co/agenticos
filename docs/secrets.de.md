@@ -1,5 +1,5 @@
 ---
-source_sha: "39e138114dc1"
+source_sha: "4322091f08d6"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -405,3 +405,6 @@ mit einem generierten Standardwert live gehen.
 - Die Rotation ist **gestuft** — beide Versionen konfigurieren,
   `vault-rotate --dry-run`, rotieren, dann den alten Schlüssel entfernen, sobald
   null Fehlschläge gemeldet werden.
+
+
+Die Zustimmung zu externen A2A-Quellen bindet auch die Autorisierungsgeneration des referenzierten Tresorschlüssels. Ein neuer Wert macht die Prüfung ungültig, selbst bei gleicher Secret-ID. Umbenennen und Wartung der Tresorverschlüsselung erhalten diese Generation. Bestehende A2A-Zustimmungen müssen nach diesem Upgrade erneut geprüft werden.

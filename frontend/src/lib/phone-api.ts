@@ -32,6 +32,10 @@ export interface PhoneContactConfig {
   allow_calls: boolean;
   allow_reports: boolean;
   allow_transfers: boolean;
+  agent_ids: string[];
+  allow_important: boolean;
+  importance_instructions: string;
+  escalation_delay_seconds: number;
   report_language: ReportLanguage;
   timezone: string;
   quiet_start_hour: number;
@@ -52,6 +56,9 @@ export interface PhoneSettings {
   call_endpoints: PhoneChoice[];
 }
 export interface PhoneCall {
+  purpose: string;
+  outcome_id: string | null;
+  not_before: string | null;
   id: string;
   endpoint_id: string;
   mode: string;
@@ -93,6 +100,10 @@ function contactPayload(data: PhoneContactConfig): PhoneContactConfig {
     allow_calls: data.allow_calls,
     allow_reports: data.allow_reports,
     allow_transfers: data.allow_transfers,
+    agent_ids: data.agent_ids,
+    allow_important: data.allow_important,
+    importance_instructions: data.importance_instructions,
+    escalation_delay_seconds: data.escalation_delay_seconds,
     report_language: data.report_language,
     timezone: data.timezone,
     quiet_start_hour: data.quiet_start_hour,

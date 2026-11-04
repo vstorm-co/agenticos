@@ -359,3 +359,6 @@ with a generated default.
   entry or an exported spec.
 - Rotation is **staged** — configure both versions, `vault-rotate --dry-run`,
   rotate, then drop the old key once it reports zero failures.
+
+
+External A2A source consent also binds the referenced vault credential’s authorization generation. Replacing its value invalidates a standing review, even when the secret ID stays the same. Renaming it and vault encryption-key maintenance preserve that generation. Existing A2A reviews require re-review after this upgrade.

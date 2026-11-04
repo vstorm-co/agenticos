@@ -129,10 +129,19 @@ def project_fingerprint(project: Project) -> str:
     ).hexdigest()
 
 
-def external_fingerprint(agent: ExternalAgent) -> str:
+async def external_fingerprint(db: AsyncSession, agent: ExternalAgent) -> str:
+    from app.repositories import organization_secret_repo
+
+    generation = None
+    if agent.secret_id is not None:
+        generation = await organization_secret_repo.authorization_generation(
+            db, agent.secret_id, organization_id=agent.organization_id
+        )
+        if generation is None:
+            raise RoutineSourcesRequired(message="The remote agent's credential is unavailable")
     return hashlib.sha256(
         json.dumps(
-            [agent.endpoint_url, agent.card_url, agent.card, str(agent.secret_id)],
+            [agent.endpoint_url, agent.card_url, agent.card, str(agent.secret_id), str(generation)],
             sort_keys=True,
             separators=(",", ":"),
         ).encode()
@@ -171,7 +180,7 @@ async def require_bound_sources(
             raise RoutineSourcesRequired()
     for identifier, expected in policy.external_sources.items():
         source = await external_repo.get(db, identifier, organization_id=organization_id)
-        if source is None or external_fingerprint(source) != expected:
+        if source is None or await external_fingerprint(db, source) != expected:
             raise RoutineSourcesRequired()
 
     bindings = list(policy.mcp_sources.items())
@@ -339,7 +348,7 @@ class RoutineSourceService:
             if remote is None:
                 unavailable.add(f"Remote agent · {ref.external_agent_id}")
             else:
-                external_sources[remote.id] = external_fingerprint(remote)
+                external_sources[remote.id] = await external_fingerprint(self.db, remote)
                 resources.add(f"Remote agent · {remote.name} · {remote.id}")
         if len(external_sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 remote agents")

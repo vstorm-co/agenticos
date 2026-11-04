@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Zeitlimits und Budgets, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "0abab0f5d4b0"
+source_sha: "4ef76b8dbb26"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -442,3 +442,6 @@ Der persönliche Dialog startet Gespräche oder Berichte. Die Capability `phone_
 Ausgehende Aufträge haben dauerhafte Idempotenzschlüssel. Bei unklarer Providerannahme wartet das System auf einen signierten Callback, ohne automatisch erneut anzurufen. Zustimmung, Mitgliedschaft, Quellenrechte und Routengeneration werden vor Ausführung und während des Anrufs geprüft. Ein vorbereiteter Bericht belegt kein Anhören. Anrufkarten zeigen Providerstatus, geschätzte Kosten und verfügbare Transkripte. Private Chats können fortgesetzt werden; gemeinsame Projektchats erhalten einen Beleg ohne privates Transkript.
 
 Trage einen konservativen Minutenpreis einschließlich Zieltarif, Sprachsynthese und weiterer Gebühren ein. Vor dem Anruf reserviert die Plattform aufgerundete Minuten einschließlich einer möglichen Weiterleitungsstrecke. Diese Schätzung ist vom KI-Budget getrennt und keine Twilio-Rechnung. Belege verfallen nach 30 Tagen; Gespräche behalten ihre normale Aufbewahrung. Persönliche Exporte enthalten Zustimmungen und Belege ohne Providerzugangsdaten. Prüfe echte Nummern, Audio, Mailbox, Weiterleitungen und Abrechnung mit deinem Twilio-Konto.
+
+
+Wähle die Agenten aus, die Anrufe oder Berichte anfordern dürfen. Kontakt zu wichtigen Fällen benötigt eine zusätzliche Zustimmung und deine schriftlichen Wichtigkeitskriterien. Der Agent liest Kriterien und offene Fälle des aktuellen Gesprächs mit `get_phone_contact_policy` und übergibt an `call_me` die vorhandene Fall-ID sowie seine Begründung. Null Sekunden bedeuten sofortigen Kontakt, sonst gilt die Wartezeit ab der ersten ungelesenen Benachrichtigung. Bestätigen, Lösen oder Stummschalten desselben Falls storniert einen wartenden Anruf. Pro Fall ist ein Telefonversuch erlaubt, auch nach Ablauf des Belegs. Quellkontext und aktuelle Berechtigungen bleiben erforderlich.

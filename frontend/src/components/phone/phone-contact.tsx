@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, Checkbox, Input, Label } from "@/components/ui";
+import { useAgents } from "@/hooks/use-agents";
+import { Button, Checkbox, Input, Label, Textarea } from "@/components/ui";
 import {
   REPORT_LANGUAGES,
   isReportLanguage,
@@ -20,12 +21,17 @@ export function PhoneContactForm({
 }) {
   const t = useTranslations("phone");
   const locale = useLocale();
+  const { agents } = useAgents();
   const [data, setData] = useState<PhoneContactConfig>(
     settings.contact ?? {
       identity_id: "",
       allow_calls: false,
       allow_reports: false,
       allow_transfers: false,
+      agent_ids: [],
+      allow_important: false,
+      importance_instructions: "",
+      escalation_delay_seconds: 0,
       report_language: locale === "pl" ? "pl-PL" : locale === "de" ? "de-DE" : "en-US",
       timezone: "UTC",
       quiet_start_hour: 22,
@@ -65,6 +71,54 @@ export function PhoneContactForm({
           {t(field)}
         </label>
       ))}
+      <fieldset className="space-y-2" disabled={pending}>
+        <legend className="text-sm font-medium">{t("selectedAgents")}</legend>
+        <p className="text-muted-foreground text-sm">{t("selectedAgentsHint")}</p>
+        {agents.map((agent) => (
+          <label key={agent.id} className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={data.agent_ids.includes(agent.id)}
+              onCheckedChange={(checked) =>
+                setData({
+                  ...data,
+                  agent_ids:
+                    checked === true
+                      ? [...data.agent_ids, agent.id]
+                      : data.agent_ids.filter((id) => id !== agent.id),
+                })
+              }
+            />
+            {agent.name}
+          </label>
+        ))}
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={data.allow_important}
+            onCheckedChange={(checked) => setData({ ...data, allow_important: checked === true })}
+          />
+          {t("allowImportant")}
+        </label>
+        <Label htmlFor="phone-importance">{t("importanceInstructions")}</Label>
+        <Textarea
+          id="phone-importance"
+          value={data.importance_instructions}
+          maxLength={1200}
+          required={data.allow_important}
+          onChange={(event) => setData({ ...data, importance_instructions: event.target.value })}
+        />
+        <Label htmlFor="phone-delay">{t("escalationDelay")}</Label>
+        <Input
+          id="phone-delay"
+          type="number"
+          min={0}
+          max={86400}
+          value={data.escalation_delay_seconds}
+          onChange={(event) =>
+            setData({ ...data, escalation_delay_seconds: Number(event.target.value) })
+          }
+        />
+        <p className="text-muted-foreground text-sm">{t("escalationHint")}</p>
+      </fieldset>
       <PhoneSelect
         label={t("reportLanguage")}
         value={data.report_language}
@@ -119,7 +173,12 @@ export function PhoneContactForm({
       </div>
       <Button
         type="submit"
-        disabled={pending || !data.identity_id || data.quiet_start_hour === data.quiet_end_hour}
+        disabled={
+          pending ||
+          !data.identity_id ||
+          data.quiet_start_hour === data.quiet_end_hour ||
+          (data.allow_important && (!data.agent_ids.length || !data.importance_instructions.trim()))
+        }
       >
         {t("saveContact")}
       </Button>

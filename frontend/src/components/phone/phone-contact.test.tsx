@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { phoneSettings } from "@/test-utils/phone";
 import { PhoneContactForm } from "./phone-contact";
+vi.mock("@/hooks/use-agents", () => ({
+  useAgents: () => ({ agents: [{ id: "agent", name: "Tracker" }] }),
+}));
 it("requires a selected verified identity and explicit report consent", async () => {
   const save = vi.fn();
   render(<PhoneContactForm settings={phoneSettings} pending={false} onSave={save} />);
@@ -36,4 +39,31 @@ it("explains why an unverified person cannot enable calls", () => {
   );
   expect(screen.getByText(/Link and verify an SMS number/)).toBeVisible();
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});
+
+it("requires an explicit agent and importance criteria before important-case consent", async () => {
+  const save = vi.fn();
+  render(<PhoneContactForm settings={phoneSettings} pending={false} onSave={save} />);
+  await userEvent.click(screen.getByRole("combobox", { name: "Verified SMS number" }));
+  await userEvent.click(screen.getByRole("option", { name: "••••1111" }));
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Allow these agents to call about important open cases" }),
+  );
+  expect(screen.getByRole("button", { name: "Save phone consent" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("checkbox", { name: "Tracker" }));
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "What counts as important" }),
+    "Production outages only",
+  );
+  await userEvent.clear(screen.getByRole("spinbutton", { name: /Wait after/ }));
+  await userEvent.type(screen.getByRole("spinbutton", { name: /Wait after/ }), "600");
+  await userEvent.click(screen.getByRole("button", { name: "Save phone consent" }));
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      agent_ids: ["agent"],
+      allow_important: true,
+      importance_instructions: "Production outages only",
+      escalation_delay_seconds: 600,
+    }),
+  );
 });

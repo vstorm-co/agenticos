@@ -1,5 +1,5 @@
 ---
-source_sha: "39e138114dc1"
+source_sha: "4322091f08d6"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -387,3 +387,6 @@ zanim wejdziesz na żywo z wygenerowaną wartością domyślną.
   w logu, we wpisie audytu ani w wyeksportowanym specu.
 - Rotacja jest **etapowa** — skonfiguruj obie wersje, `vault-rotate --dry-run`,
   zrotuj, a potem usuń stary klucz, gdy komenda zgłosi zero niepowodzeń.
+
+
+Zgoda na źródło zewnętrznego agenta A2A obejmuje też generację autoryzacji wskazanego sekretu w sejfie. Podmiana wartości unieważnia przegląd mimo zachowania identyfikatora sekretu. Zmiana nazwy i konserwacja klucza szyfrowania zachowują tę generację. Istniejące zgody A2A po aktualizacji wymagają ponownego przeglądu.

@@ -1,5 +1,6 @@
 """Execute an admitted phone intent, bind one media stream and always bound provider time."""
 
+import json
 import logging
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -62,6 +63,8 @@ async def live_contact(db: AsyncSession, row: PhoneCall) -> AuthContext:
     ctx = await acting_member(db, row.organization_id, str(row.user_id))
     if ctx is None:
         raise AuthorizationError(message="The call's member is no longer active")
+    if row.mode == "conversation" and row.agent_id is None:
+        raise AuthorizationError(message="The telephone agent no longer exists")
     if row.agent_id is not None:
         await AgentRegistryService(db).get(ctx, row.agent_id, perm=Perm.AGENTS_RUN)
         if row.mode == "conversation" and row.agent_version_id is None:
@@ -82,6 +85,19 @@ async def live_contact(db: AsyncSession, row: PhoneCall) -> AuthContext:
         raise AuthorizationError(
             message="The telephone intention's original authority no longer exists"
         )
+    if row.purpose == "important":
+        from app.services.telephony.cases import eligible_case
+
+        if row.outcome_id is None or row.agent_id is None:
+            raise AuthorizationError(message="The original telephone case no longer exists")
+        await eligible_case(
+            db,
+            ctx,
+            contact,
+            outcome_id=row.outcome_id,
+            agent_id=row.agent_id,
+            conversation_id=row.source_conversation_id,
+        )
     if row.source_run_id is not None:
         from app.services.routine_authority import RoutineAuthority
 
@@ -90,6 +106,8 @@ async def live_contact(db: AsyncSession, row: PhoneCall) -> AuthContext:
         )
         if source is None or source.user_id != row.user_id:
             raise AuthorizationError(message="The telephone intention's source no longer exists")
+        if str(source.agent_id) not in contact.agent_ids:
+            raise AuthorizationError(message="The source agent no longer has phone consent")
         authority = await RoutineAuthority.capture(db, ctx, agent_id=source.agent_id, run=source)
         if authority is not None:
             await authority.check_in(db, source.agent_id)
@@ -110,6 +128,19 @@ async def dial(
         await hold_subject(db, LockScope.PHONE_CALLS_PER_ORG, row.organization_id)
         row = await repo.call(db, call_id, lock=True)
         if row is None or row.status != "queued":
+            return
+        if row.not_before is not None and row.not_before > datetime.now(UTC):
+            from app.services.background_jobs import enqueue
+            from app.worker.jobs import DIAL_PHONE, DialPhone
+
+            await enqueue(
+                db,
+                DIAL_PHONE,
+                DialPhone(call_id=row.id),
+                organization_id=row.organization_id,
+                run_after=row.not_before,
+                dedupe_key=f"phone:{row.id}",
+            )
             return
         try:
             endpoint, _, auth = await PhonePolicyService(db).load_endpoint(
@@ -226,11 +257,13 @@ async def status_callback(db: AsyncSession, call_id: UUID, params: dict[str, str
         raise AuthorizationError(message="Telephone destination does not match this number")
     row.provider_sid = sid
     status = params.get("CallStatus")
-    if row.status in repo.TERMINAL:
+    terminal = row.status in repo.TERMINAL
+    if terminal and status != "completed":
         return
     if status in {"completed", "busy", "no-answer", "failed", "canceled"}:
-        row.status = "completed" if status == "completed" else "failed"
-        row.finished_at = datetime.now(UTC)
+        if not terminal:
+            row.status = "completed" if status == "completed" else "failed"
+            row.finished_at = datetime.now(UTC)
         duration = params.get("CallDuration", "")
         # Whole billable minutes, at the operator's conservative rate. Never a
         # claim about Twilio's invoice; unknown/transfer durations retain the cap.
@@ -625,6 +658,23 @@ async def _claim_stream(
                 )
                 if source.project_id is None and source.user_id == row.user_id:
                     conversation_id = source.id
+            context = None
+            if row.outcome_id is not None:
+                case = await repo.own_case(
+                    db,
+                    organization_id=row.organization_id,
+                    user_id=ctx.subject_id,
+                    outcome_id=row.outcome_id,
+                )
+                if case is not None:
+                    context = json.dumps(
+                        {
+                            "outcome_id": str(case.id),
+                            "case_summary": case.summary[:1200],
+                            "contact_reason": row.importance_reason,
+                        },
+                        ensure_ascii=False,
+                    )
             caller = VoiceCaller(
                 ctx=ctx,
                 user_id=row.user_id,
@@ -636,6 +686,7 @@ async def _claim_stream(
                 agent_id=row.agent_id,
                 conversation_id=conversation_id,
                 phone_call_id=row.id,
+                phone_context=context,
                 phone_cap_seconds=cap,
                 phone_agent_version_id=row.agent_version_id,
             )

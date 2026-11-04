@@ -37,6 +37,7 @@ from app.schemas.personal_data import (
     PersonalDataExport,
     PersonalDataPurge,
     PhoneCallExport,
+    PhoneCaseAttemptExport,
     PhoneContactExport,
     ProjectTrackingExport,
     RoutineAnswerExport,
@@ -203,6 +204,10 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            phone_case_attempts=[
+                PhoneCaseAttemptExport.model_validate(row)
+                for row in await personal_data_repo.phone_case_attempts_of(self.db, user_id)
+            ],
             phone_contacts=[
                 PhoneContactExport.model_validate(row)
                 for row in await personal_data_repo.phone_contacts_of(self.db, user_id)

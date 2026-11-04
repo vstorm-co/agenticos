@@ -1,5 +1,5 @@
 ---
-source_sha: "39e138114dc1"
+source_sha: "4322091f08d6"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -388,3 +388,6 @@ de salir a producción con un valor por defecto generado.
 - La rotación es **por etapas** — configura ambas versiones,
   `vault-rotate --dry-run`, rota, y luego elimina la clave antigua cuando informe
   de cero fallos.
+
+
+El consentimiento de fuentes A2A externas también vincula la generación de autorización de la credencial de bóveda referenciada. Sustituir el valor invalida la revisión aunque conserve su identificador. Cambiar el nombre y mantener las claves de cifrado conserva esa generación. Las revisiones A2A existentes requieren una nueva revisión tras actualizar.

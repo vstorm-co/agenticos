@@ -44,6 +44,10 @@ class PhoneContactConfig(BaseSchema):
     allow_calls: bool = False
     allow_reports: bool = False
     allow_transfers: bool = False
+    agent_ids: list[UUID] = Field(default_factory=list, max_length=100)
+    allow_important: bool = False
+    importance_instructions: str = Field(default="", max_length=1200)
+    escalation_delay_seconds: int = Field(default=0, ge=0, le=86400)
     report_language: Literal["en-US", "pl-PL", "de-DE", "es-ES"] = "en-US"
     timezone: str = Field(default="UTC", max_length=64)
     quiet_start_hour: int = Field(default=22, ge=0, le=23)
@@ -61,6 +65,12 @@ class PhoneContactConfig(BaseSchema):
 
     @model_validator(mode="after")
     def distinct_hours(self) -> Self:
+        if self.allow_important and (
+            not self.agent_ids or not self.importance_instructions.strip()
+        ):
+            raise ValueError(
+                "Important-case calls need selected agents and explicit importance criteria"
+            )
         if self.quiet_start_hour == self.quiet_end_hour:
             raise ValueError("Quiet hours need a nonempty interval")
         return self
@@ -95,9 +105,13 @@ class PhoneCallCreate(BaseSchema):
     mode: Literal["conversation", "report"] = "conversation"
     report: str | None = Field(default=None, min_length=1, max_length=5000)
     source_conversation_id: UUID | None = None
+    outcome_id: UUID | None = None
+    importance_reason: str | None = Field(default=None, min_length=1, max_length=1200)
 
     @model_validator(mode="after")
     def selected_mode(self) -> Self:
+        if (self.outcome_id is None) != (self.importance_reason is None):
+            raise ValueError("Important-case contact needs its shared outcome and assessment")
         if (self.mode == "report") != (self.report is not None):
             raise ValueError("A spoken report needs report text; a conversation does not")
         if self.mode == "conversation" and self.agent_id is None:
@@ -109,6 +123,9 @@ class PhoneCallRead(BaseSchema):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     endpoint_id: UUID
+    purpose: str
+    outcome_id: UUID | None
+    not_before: datetime | None
     mode: str
     direction: str
     status: str

@@ -76,6 +76,7 @@ class VoiceCaller:
     conversation_title: str = "Voice call"
     """What a conversation the call starts is called."""
     phone_call_id: UUID | None = None
+    phone_context: str | None = None
     phone_cap_seconds: int | None = None
     phone_agent_version_id: UUID | None = None
     embed: AgentEmbed | None = None
@@ -603,7 +604,7 @@ are billed again on every response of the call."""
 
 
 def _briefing(caller: VoiceCaller, frame: StartFrame) -> str | None:
-    """What a text turn on the caller's embed would prepend, or `None` off an embed.
+    """Server-bound telephone case evidence or the caller's embed placement context.
 
     The same preamble and the same narrowing (`placement_preamble`): only
     variables the embed declares (at most twenty), only URL-safe ones on a hosted
@@ -611,6 +612,8 @@ def _briefing(caller: VoiceCaller, frame: StartFrame) -> str | None:
     the call's instructions rather than its history on purpose (`CALL_BRIEFING`),
     so each value is bounded first.
     """
+    if caller.phone_context is not None:
+        return caller.phone_context[:2400]
     if caller.embed is None:
         return None
     supplied = {

@@ -1,5 +1,5 @@
 ---
-source_sha: "0abab0f5d4b0"
+source_sha: "4ef76b8dbb26"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i budżety, bezpieczne rozłączanie i transkrypcje."
@@ -417,3 +417,6 @@ Osobisty formularz pozwala zamówić rozmowę lub raport. Capability `phone_call
 Każde żądanie wychodzące ma trwały klucz idempotencji. Niepewny wynik u operatora oczekuje na podpisany callback i nie wywołuje automatycznego ponownego telefonu. Zgody, członkostwo, uprawnienia do źródeł i generacja trasy są sprawdzane przed wykonaniem i podczas rozmowy. Przygotowany raport nie potwierdza odsłuchania. Karty pokazują stan operatora, szacowany koszt i dostępne transkrypcje. Prywatny czat może zachować ciągłość; wspólny czat projektu otrzymuje potwierdzenie bez prywatnej transkrypcji.
 
 Podaj ostrożną stawkę minutową obejmującą kierunek, syntezę głosu i pozostałe opłaty. Platforma rezerwuje zaokrąglone minuty, także możliwy dodatkowy odcinek przekierowania, przed telefonem. Szacunki są niezależne od budżetu modelu AI i nie stanowią faktury Twilio. Potwierdzenia wygasają po 30 dniach; rozmowy podlegają zwykłej retencji. Eksport osobisty obejmuje zgody i historię bez poświadczeń operatora. Na własnym koncie Twilio sprawdź rzeczywiste numery, audio, pocztę głosową, przekierowania i rozliczenia.
+
+
+Wybierz agentów, którzy mogą zamawiać telefony i raporty. Kontakt w ważnej sprawie wymaga dodatkowej zgody i opisanych przez Ciebie kryteriów ważności. Agent odczytuje zasady i otwarte sprawy bieżącej rozmowy przez `get_phone_contact_policy`, a do `call_me` podaje istniejący identyfikator sprawy i uzasadnienie. Ustaw 0 dla kontaktu natychmiastowego albo opóźnienie od pierwszego nieprzeczytanego powiadomienia. Potwierdzenie, rozwiązanie lub wyciszenie tej samej sprawy anuluje oczekujący telefon. Jedna sprawa dopuszcza jedną próbę telefoniczną; deduplikacja przeżywa wygaśnięcie potwierdzenia. Nadal obowiązują kontekst źródłowy i bieżące uprawnienia.

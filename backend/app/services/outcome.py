@@ -249,6 +249,9 @@ class OutcomeService:
             self.db, outcome_id=outcome.id, at=now, dismiss=closing
         )
         await outcome_repo.skip_unsent_deliveries(self.db, outcome_id=outcome.id)
+        from app.repositories import telephony as phone_repo
+
+        await phone_repo.cancel_case_calls(self.db, outcome.id, at=now)
         return outcome
 
     async def track_finding(

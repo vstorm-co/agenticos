@@ -564,3 +564,177 @@ async def test_phone_capability_publishes_only_valid_routes_and_routines_freeze_
     )
     with pytest.raises(BadRequestError):
         await registry.publish(ctx, bad.id)
+
+
+@pytest.mark.parametrize("decision", ["acknowledge", "resolve", "mute"])
+async def test_delayed_case_call_is_one_delivery_and_settlement_cancels_it(
+    db: AsyncSession, monkeypatch, decision
+):
+    from app.agents.spec import AgentSpec
+    from app.db.models.notification import Notification
+    from app.db.models.organization import Organization
+    from app.repositories import agent_run_repo, outcome_repo
+    from app.services.agent_registry import AgentRegistryService
+    from app.services.outcome import OutcomeService
+    from tests.integration.test_workflow_agent_node import _profile
+
+    ctx, _, _, contact, endpoint = await setup(db, monkeypatch)
+    org = await db.get(Organization, ctx.organization_id)
+    assert org is not None
+    await db.commit()
+    profile = await _profile(db.bind, org)
+    registry = AgentRegistryService(db)
+    agent = await registry.create(
+        ctx, AgentSpec(name="Important case agent", model_profile_id=profile)
+    )
+    version = await registry.publish(ctx, agent.id)
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        user_id=ctx.user_id,
+        conversation_id=None,
+        surface="web",
+        model_label=None,
+        started_at=datetime.now(UTC),
+    )
+    case = await outcome_repo.open_or_find(
+        db,
+        organization_id=ctx.organization_id,
+        user_id=ctx.user_id,
+        kind="run_failed",
+        dedupe_key=f"phone-test:{uuid4()}",
+        summary="Production blocked",
+        context_url=None,
+        source_run_id=run.id,
+        source_conversation_id=None,
+    )
+    data = PhoneCallCreate(
+        request_key=uuid4(),
+        endpoint_id=endpoint.id,
+        mode="report",
+        report="Production is blocked.",
+        outcome_id=case.id,
+        importance_reason="The member allows calls for production outages.",
+    )
+    service = PhoneCallService(db)
+    with pytest.raises(AuthorizationError, match="Select this agent"):
+        await service.create(ctx, data, source_run_id=run.id)
+    config = PhoneContactConfig.model_validate(
+        contact.model_dump(include=set(PhoneContactConfig.model_fields))
+    ).model_copy(
+        update={
+            "agent_ids": [agent.id],
+            "allow_important": True,
+            "importance_instructions": "Production outages only",
+            "escalation_delay_seconds": 600,
+        }
+    )
+    await PhonePolicyService(db).set_contact(ctx, config)
+    with pytest.raises(AuthorizationError, match="unacknowledged notification"):
+        await service.create(ctx, data, source_run_id=run.id)
+    notified = datetime.now(UTC)
+    db.add(
+        Notification(
+            organization_id=ctx.organization_id,
+            recipient_user_id=ctx.user_id,
+            event_type="run_failed",
+            occurrence_id=str(uuid4()),
+            summary="Production blocked",
+            outcome_id=case.id,
+            created_at=notified,
+        )
+    )
+    await db.flush()
+    first = await service.create(ctx, data, source_run_id=run.id)
+    repeated = await service.create(
+        ctx, data.model_copy(update={"request_key": uuid4()}), source_run_id=run.id
+    )
+    assert first.id == repeated.id
+    row = await repo.call(db, first.id)
+    assert row is not None and row.agent_id == agent.id and row.purpose == "important"
+    assert row.not_before == notified + timedelta(seconds=600)
+    job = await db.scalar(
+        select(BackgroundJob).where(BackgroundJob.dedupe_key == f"phone:{row.id}")
+    )
+    assert job is not None and job.run_after == row.not_before
+    early = FakePhone()
+    await db.commit()
+    await dial(row.id, provider=early, sessions=sessions(db))
+    assert early.dials == []
+    await OutcomeService(db).settle(ctx, case.id, decision, via="inbox")
+    await db.refresh(row)
+    assert row.status == "cancelled" and row.estimated_cost_usd == 0
+    await db.commit()
+    provider = FakePhone()
+    await dial(row.id, provider=provider, sessions=sessions(db))
+    assert provider.dials == []
+    plain = PhoneCallCreate(
+        request_key=uuid4(), endpoint_id=endpoint.id, mode="report", report="Scheduled report"
+    )
+    first_report = await service.create(ctx, plain, source_run_id=run.id)
+    second_report = await service.create(
+        ctx, plain.model_copy(update={"request_key": uuid4()}), source_run_id=run.id
+    )
+    assert first_report.id == second_report.id
+
+
+async def test_agent_deletion_retains_provider_receipt_for_reaper_cleanup(
+    db: AsyncSession, monkeypatch
+):
+    from app.db.models.agent import Agent
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    agent = Agent(
+        organization_id=ctx.organization_id,
+        name="Deleted phone agent",
+        slug=uuid4().hex,
+        created_by_user_id=ctx.user_id,
+    )
+    db.add(agent)
+    await db.flush()
+    receipt = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, receipt.id)
+    assert row is not None
+    row.agent_id = agent.id
+    row.mode = "conversation"
+    row.status = "ringing"
+    row.provider_sid = SID
+    await db.commit()
+    await db.delete(agent)
+    await db.commit()
+    await db.refresh(row)
+    assert row.agent_id is None and row.provider_sid == SID
+    provider = FakePhone()
+    await reap(provider=provider, sessions=sessions(db))
+    assert provider.stops == [SID]
+    await db.refresh(row)
+    assert row.status in {"failed", "completed"}
+
+
+async def test_signed_completion_reconciles_cost_after_local_teardown_without_reopening(
+    db: AsyncSession, monkeypatch
+):
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    receipt = await report(db, ctx, endpoint.id)
+    await db.commit()
+    provider = FakePhone()
+    await dial(receipt.id, provider=provider, sessions=sessions(db))
+    await end_media(receipt.id, provider=provider, sessions=sessions(db))
+    row = await repo.call(db, receipt.id)
+    assert (
+        row is not None and row.status == "completed" and row.estimated_cost_usd == Decimal("0.5")
+    )
+    params = {
+        "AccountSid": ACCOUNT,
+        "CallSid": SID,
+        "To": PERSON_NUMBER,
+        "From": NUMBER,
+        "CallStatus": "completed",
+        "CallDuration": "5",
+    }
+    signature = twilio_signature(url(f"/status/{row.id}"), params, TOKEN)
+    await PhoneWebhookService(db).status(row.id, urlencode(params).encode(), signature)
+    await db.refresh(row)
+    assert row.status == "completed" and row.estimated_cost_usd == Decimal("0.1")

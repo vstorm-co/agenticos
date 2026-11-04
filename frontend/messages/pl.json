@@ -850,7 +850,8 @@
       "phoneCalling": "Zlecanie połączenia telefonicznego",
       "phoneContacts": "Sprawdzanie kontaktów przekierowania",
       "phoneTransferring": "Przekierowywanie połączenia",
-      "phoneEnding": "Kończenie połączenia"
+      "phoneEnding": "Kończenie połączenia",
+      "phoneContactPolicy": "Odczytaj zasady kontaktu telefonicznego"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -12551,6 +12552,13 @@
       "pl-PL": "Polski",
       "de-DE": "Deutsch",
       "es-ES": "Español"
-    }
+    },
+    "selectedAgents": "Agenci, którzy mogą do mnie dzwonić",
+    "selectedAgentsHint": "Tylko ci agenci mogą zamawiać telefony i zaplanowane raporty głosowe. Telefon z konsoli nadal wymaga Twojego jawnego żądania.",
+    "allowImportant": "Zezwalaj tym agentom dzwonić w ważnych otwartych sprawach",
+    "importanceInstructions": "Co uznaję za ważne",
+    "escalationDelay": "Czas od pierwszego niepotwierdzonego powiadomienia (sekundy)",
+    "escalationHint": "0 oznacza natychmiast. Opóźnienie wymaga nieprzeczytanego powiadomienia o tej samej sprawie. Potwierdzenie, rozwiązanie lub wyciszenie anuluje oczekujący telefon.",
+    "notBefore": "Najwcześniejszy telefon: {time}"
   }
 }

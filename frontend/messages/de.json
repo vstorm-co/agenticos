@@ -1763,7 +1763,8 @@
       "phoneCalling": "Telefonanruf wird eingereiht",
       "phoneContacts": "Weiterleitungskontakte prüfen",
       "phoneTransferring": "Anruf wird weitergeleitet",
-      "phoneEnding": "Anruf wird beendet"
+      "phoneEnding": "Anruf wird beendet",
+      "phoneContactPolicy": "Telefonkontaktregeln lesen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -12447,6 +12448,13 @@
       "pl-PL": "Polski",
       "de-DE": "Deutsch",
       "es-ES": "Español"
-    }
+    },
+    "selectedAgents": "Agenten, die mich anrufen dürfen",
+    "selectedAgentsHint": "Nur diese Agenten dürfen Anrufe oder geplante gesprochene Berichte anfordern. Konsolenanrufe benötigen weiterhin deinen ausdrücklichen Auftrag.",
+    "allowImportant": "Diesen Agenten Anrufe zu wichtigen offenen Fällen erlauben",
+    "importanceInstructions": "Was als wichtig gilt",
+    "escalationDelay": "Wartezeit nach der ersten unbestätigten Benachrichtigung (Sekunden)",
+    "escalationHint": "0 ruft sofort an. Eine Verzögerung benötigt eine ungelesene Nachricht desselben Falls. Bestätigen, Lösen oder Stummschalten storniert den ausstehenden Anruf.",
+    "notBefore": "Frühester Anruf: {time}"
   }
 }

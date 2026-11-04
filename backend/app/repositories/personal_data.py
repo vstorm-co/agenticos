@@ -15,7 +15,7 @@ runs on. `docs/security.md` has the table, with the reason for each.
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import Table, Text, and_, cast, func, or_, select
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,6 +38,7 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.outcome import Outcome
 from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.routine_device_wait import RoutineDeviceWait
@@ -588,10 +589,16 @@ async def project_tracking_export_size(db: AsyncSession, user_id: UUID) -> int:
 
 
 async def decision_episode_export_size(db: AsyncSession, user_id: UUID) -> int:
+    table = MemoryClaim.__table__
+    if not isinstance(table, Table):
+        raise TypeError("Memory claims must map to a concrete exportable table")
     size = await db.scalar(
-        select(func.coalesce(func.sum(func.pg_column_size(MemoryClaim.episode)), 0)).where(
-            MemoryClaim.scope_key == person_owner_key(user_id)
-        )
+        select(
+            func.coalesce(
+                func.sum(func.length(cast(func.to_jsonb(table.table_valued()), Text)) * 2 + 1024),
+                0,
+            )
+        ).where(MemoryClaim.scope_key == person_owner_key(user_id))
     )
     return int(size or 0)
 
@@ -617,11 +624,41 @@ async def phone_calls_of(db: AsyncSession, user_id: UUID) -> list[PhoneCall]:
 async def phone_export_size(db: AsyncSession, user_id: UUID) -> int:
     calls = await db.scalar(
         select(
-            func.coalesce(func.sum(func.length(PhoneCall.report)), 0)
+            func.coalesce(
+                func.sum(
+                    func.coalesce(func.length(PhoneCall.report), 0)
+                    + func.coalesce(func.length(PhoneCall.importance_reason), 0)
+                ),
+                0,
+            )
             + func.count(PhoneCall.id) * 2048
         ).where(PhoneCall.user_id == user_id)
     )
     contacts = await db.scalar(
-        select(func.count()).select_from(PhoneContact).where(PhoneContact.user_id == user_id)
+        select(
+            func.coalesce(
+                func.sum(
+                    func.length(PhoneContact.importance_instructions)
+                    + func.length(cast(PhoneContact.agent_ids, Text))
+                ),
+                0,
+            )
+            + func.count(PhoneContact.id) * 2048
+        ).where(PhoneContact.user_id == user_id)
     )
-    return int(calls or 0) + int(contacts or 0) * 1024
+    attempts = await db.scalar(
+        select(func.count())
+        .select_from(Outcome)
+        .where(Outcome.user_id == user_id, Outcome.phone_attempted_at.is_not(None))
+    )
+    return int(calls or 0) + int(contacts or 0) + int(attempts or 0) * 256
+
+
+async def phone_case_attempts_of(db: AsyncSession, user_id: UUID) -> list[Outcome]:
+    return list(
+        await db.scalars(
+            select(Outcome).where(
+                Outcome.user_id == user_id, Outcome.phone_attempted_at.is_not(None)
+            )
+        )
+    )

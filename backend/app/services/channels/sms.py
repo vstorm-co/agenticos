@@ -32,13 +32,14 @@ import hmac
 import logging
 import mimetypes
 import re
-from collections.abc import Mapping
+from collections.abc import AsyncIterable, Mapping
 from typing import Any
 from urllib.parse import parse_qsl
 
 import httpx
 
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
 from app.services.channels import sms_prompts
 from app.services.channels.base import (
     ChannelAdapter,
@@ -292,7 +293,7 @@ class SmsAdapter(ChannelAdapter):
         if not given or not url or body is None:
             return False
         params = dict(parse_qsl(body, keep_blank_values=True))
-        return hmac.compare_digest(given, twilio_signature(url, params, secret))
+        return given.isascii() and hmac.compare_digest(given, twilio_signature(url, params, secret))
 
     def parse_incoming(self, raw_payload: dict[str, Any], bot_id: str) -> IncomingMessage | None:
         """A private text or MMS, retaining media-only messages for ordinary file ingestion."""
@@ -313,3 +314,20 @@ class SmsAdapter(ChannelAdapter):
             addressed=True,
             attachments=attachments,
         )
+
+
+async def read_webhook_body(chunks: AsyncIterable[bytes]) -> str:
+    """Bound the signed form before allocating or hashing its decoded fields."""
+    body = bytearray()
+    try:
+        async with asyncio.timeout(10):
+            async for chunk in chunks:
+                if len(body) + len(chunk) > 65536:
+                    raise BadRequestError(message="The SMS webhook exceeds 64 KiB")
+                body.extend(chunk)
+    except TimeoutError as exc:
+        raise BadRequestError(message="The SMS webhook body timed out") from exc
+    try:
+        return body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise BadRequestError(message="The SMS webhook must use UTF-8") from exc

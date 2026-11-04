@@ -40,6 +40,25 @@ class PhoneCallService:
             )
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, ctx.subject_id)
         await hold_subject(self.db, LockScope.PHONE_CALLS_PER_ORG, ctx.organization_id)
+        if data.outcome_id is not None:
+            previous_case = await repo.call_for_case(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                outcome_id=data.outcome_id,
+            )
+            if previous_case is not None:
+                return PhoneCallRead.model_validate(previous_case)
+        if source_run_id is not None and data.outcome_id is None:
+            previous_source = await repo.call_for_source(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.subject_id,
+                source_run_id=source_run_id,
+                endpoint_id=data.endpoint_id,
+            )
+            if previous_source is not None:
+                return PhoneCallRead.model_validate(previous_source)
         fingerprint = hashlib.sha256(data.model_dump_json().encode()).hexdigest()
         existing = await repo.request(self.db, ctx.organization_id, data.request_key)
         if existing is not None:
@@ -60,6 +79,9 @@ class PhoneCallService:
             )
         number = await self.policy.available_contact(contact, mode=data.mode)
         version_id = None
+        agent_id = data.agent_id
+        purpose = "direct"
+        not_before = datetime.now(UTC)
         if data.agent_id is not None:
             agent = await AgentRegistryService(self.db).get(
                 ctx, data.agent_id, perm=Perm.AGENTS_RUN
@@ -87,6 +109,16 @@ class PhoneCallService:
                 raise AuthorizationError(
                     message="The call needs a production run admitted for this member"
                 )
+            if str(run.agent_id) not in contact.agent_ids:
+                raise AuthorizationError(
+                    message="Select this agent in your telephone contact consent first"
+                )
+            if data.agent_id is not None and data.agent_id != run.agent_id:
+                raise AuthorizationError(
+                    message="The telephone agent must match the originating run"
+                )
+            agent_id = run.agent_id
+            purpose = "scheduled" if run.routine_origin_id is not None else "direct"
             if data.mode == "conversation":
                 if run.routine_origin_id is not None:
                     raise AuthorizationError(
@@ -109,7 +141,29 @@ class PhoneCallService:
                 raise BadRequestError(
                     message="The selected published agent is not configured for voice calls"
                 )
+        if data.outcome_id is not None:
+            from app.services.telephony.cases import eligible_case
+
+            if agent_id is None:
+                raise AuthorizationError(message="Important-case contact needs its selected agent")
+            not_before = await eligible_case(
+                self.db,
+                ctx,
+                contact,
+                outcome_id=data.outcome_id,
+                agent_id=agent_id,
+                conversation_id=data.source_conversation_id,
+            )
+            purpose = "important"
         cost = await self.policy.admit_budget(endpoint)
+        if data.outcome_id is not None and not await repo.mark_case_phone_attempt(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            outcome_id=data.outcome_id,
+            at=datetime.now(UTC),
+        ):
+            raise ConflictError(message="This case is settled or already had its telephone attempt")
         row = PhoneCall(
             id=uuid4(),
             organization_id=ctx.organization_id,
@@ -120,8 +174,12 @@ class PhoneCallService:
             user_id=ctx.user_id,
             contact_id=contact.id,
             contact_hash=contact_fingerprint(contact),
-            agent_id=data.agent_id,
+            agent_id=agent_id,
             agent_version_id=version_id,
+            purpose=purpose,
+            outcome_id=data.outcome_id,
+            importance_reason=data.importance_reason,
+            not_before=not_before,
             source_context_required=data.source_conversation_id is not None,
             source_required=source_run_id is not None,
             source_run_id=source_run_id,
@@ -136,7 +194,8 @@ class PhoneCallService:
             cap_seconds=endpoint.max_call_seconds,
             price_per_minute_usd=endpoint.price_per_minute_usd,
             estimated_cost_usd=cost,
-            expires_at=datetime.now(UTC) + timedelta(seconds=endpoint.max_call_seconds + 60),
+            expires_at=max(datetime.now(UTC), not_before)
+            + timedelta(seconds=endpoint.max_call_seconds + 60),
         )
         if data.mode == "report":
             conversation = await conversation_repo.create_conversation(
@@ -169,6 +228,7 @@ class PhoneCallService:
             DialPhone(call_id=row.id),
             organization_id=ctx.organization_id,
             dedupe_key=f"phone:{row.id}",
+            run_after=not_before,
         )
         await record_audit(
             self.db,

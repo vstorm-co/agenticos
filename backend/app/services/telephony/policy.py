@@ -141,6 +141,12 @@ class PhonePolicyService:
         row.allow_calls = data.allow_calls
         row.allow_reports = data.allow_reports
         row.allow_transfers = data.allow_transfers
+        for agent_id in data.agent_ids:
+            await AgentRegistryService(self.db).get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        row.agent_ids = [str(value) for value in data.agent_ids]
+        row.allow_important = data.allow_important
+        row.importance_instructions = data.importance_instructions.strip()
+        row.escalation_delay_seconds = data.escalation_delay_seconds
         row.report_language = data.report_language
         row.timezone = data.timezone
         row.quiet_start_hour = data.quiet_start_hour

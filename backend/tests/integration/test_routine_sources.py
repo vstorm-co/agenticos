@@ -744,3 +744,48 @@ async def test_mail_poll_admission_does_not_borrow_later_review_or_another_accou
     assert not await triggers.polled_source_admissions(
         organization_id=ctx.organization_id, event_source="gmail", connection=grant
     )
+
+
+async def test_remote_source_review_fences_credential_rotation_but_not_label_changes(
+    db: AsyncSession,
+):
+    from app.agents.spec import ExternalAgentRef
+    from app.core.secret_kinds import ApiKeySecret
+    from app.db.models.external_agent import ExternalAgent
+    from app.services.organization_secret import OrganizationSecretService
+    from app.services.routine_sources import require_bound_sources
+
+    ctx, trigger, spec, _ = await world(db)
+    secrets = OrganizationSecretService(db)
+    secret = await secrets.create(
+        ctx, name="Remote bearer", value=ApiKeySecret(api_key="test-first-account"), purpose="a2a"
+    )
+    remote = ExternalAgent(
+        organization_id=ctx.organization_id,
+        slug=uuid4().hex,
+        name="Remote",
+        card_url="https://remote.example/card",
+        endpoint_url="https://remote.example/rpc",
+        card={},
+        secret_id=secret.id,
+    )
+    db.add(remote)
+    await db.flush()
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = spec.model_copy(
+        update={"external_agents": [ExternalAgentRef(external_agent_id=remote.id)]}
+    ).model_dump(mode="json")
+    await db.flush()
+    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+    generation = secret.authorization_generation
+    await secrets.update(ctx, secret.id, name="Renamed bearer")
+    assert secret.authorization_generation == generation
+    await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+    await secrets.update(ctx, secret.id, value=ApiKeySecret(api_key="test-replacement-account"))
+    assert secret.authorization_generation != generation
+    with pytest.raises(RoutineSourcesRequired):
+        await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+    reviewed = await RoutineSourceService(db).initial(ctx, trigger)
+    await require_bound_sources(db, organization_id=ctx.organization_id, policy=reviewed)

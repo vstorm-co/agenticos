@@ -197,3 +197,12 @@ async def test_messages_and_numbered_answers_use_existing_handlers_after_commit(
         answer.assert_awaited_once_with(
             str(bot.id), "iMessage;-;ada@example.com", "7", platform="imessage"
         )
+
+
+async def test_duplicate_numbered_reply_never_dispatches_another_toggle(service, monkeypatch):
+    dispatch = AsyncMock()
+    monkeypatch.setattr(receiver.sms_prompts, "answer", AsyncMock(return_value="question:choice"))
+    monkeypatch.setattr(receiver, "claim_delivery", AsyncMock(return_value=False))
+    monkeypatch.setattr(receiver, "spawn_after_commit", dispatch)
+    await service.receive(uuid4(), _AUTH, chunks(event()))
+    dispatch.assert_not_called()

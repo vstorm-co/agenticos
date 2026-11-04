@@ -75,6 +75,13 @@ class PhoneContactExport(PhoneContactConfig):
     organization_id: UUID
 
 
+class PhoneCaseAttemptExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    organization_id: UUID
+    phone_attempted_at: datetime
+
+
 class PhoneCallExport(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
@@ -90,6 +97,10 @@ class PhoneCallExport(BaseModel):
     status: str
     destination: str | None
     report: str | None
+    purpose: str
+    outcome_id: UUID | None
+    importance_reason: str | None
+    not_before: datetime | None
     report_language: str
     cap_seconds: int
     end_reason: str | None
@@ -115,6 +126,7 @@ class PersonalDataExport(BaseModel):
     """
 
     phone_contacts: list[PhoneContactExport] = Field(default_factory=list)
+    phone_case_attempts: list[PhoneCaseAttemptExport] = Field(default_factory=list)
     phone_calls: list[PhoneCallExport] = Field(default_factory=list)
     project_trackers: list[ProjectTrackingExport] = Field(default_factory=list)
     routine_sources: list[RoutineSourceExport] = Field(default_factory=list)

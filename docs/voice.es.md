@@ -1,5 +1,5 @@
 ---
-source_sha: "0abab0f5d4b0"
+source_sha: "4ef76b8dbb26"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y budgets, redes de seguridad y transcripciones."
@@ -424,3 +424,6 @@ El formulario personal permite solicitar una conversación o informe. La capacid
 Cada solicitud saliente tiene una clave de idempotencia duradera. Si la aceptación del proveedor es incierta, se espera un callback firmado sin volver a marcar automáticamente. Se comprueban consentimiento, membresía, fuentes y generación de ruta antes de ejecutar y durante la llamada. Preparar un informe no demuestra que alguien lo escuchó. Las tarjetas muestran estado del proveedor, coste estimado y transcripciones disponibles. Los chats privados pueden continuar; los proyectos compartidos reciben un comprobante sin transcripción privada.
 
 Introduce una tarifa conservadora por minuto que cubra destino, síntesis y demás cargos. La plataforma reserva minutos redondeados, incluida una posible segunda conexión de transferencia, antes de llamar. Estas estimaciones son independientes del presupuesto de IA y no son una factura de Twilio. Los comprobantes caducan a los 30 días; las conversaciones mantienen su retención habitual. La exportación personal incluye consentimientos e historial sin credenciales. Verifica números reales, audio, buzón de voz, transferencias y facturación en tu cuenta Twilio.
+
+
+Selecciona los agentes autorizados para solicitar llamadas o informes. El contacto por casos importantes requiere consentimiento adicional y tus criterios escritos de importancia. El agente consulta los criterios y casos abiertos de la conversación actual mediante `get_phone_contact_policy` y entrega a `call_me` el identificador existente y su evaluación. Cero segundos significa contacto inmediato; otro valor retrasa la llamada desde la primera notificación sin leer. Confirmar, resolver o silenciar ese caso cancela la llamada pendiente. Cada caso permite un intento telefónico, incluso después de caducar el comprobante. Se mantienen el contexto de origen y los permisos actuales.

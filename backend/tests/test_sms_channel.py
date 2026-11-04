@@ -616,6 +616,10 @@ class TestNumberedAnswers:
         with (
             patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
             patch(
+                "app.api.routes.v1.sms_webhook.claim_delivery",
+                new=AsyncMock(side_effect=[True, False]),
+            ),
+            patch(
                 "app.api.routes.v1.sms_webhook.spawn",
                 side_effect=lambda coro, name: (spawned.append(name), coro.close()),
             ),
@@ -631,7 +635,14 @@ class TestNumberedAnswers:
                     content=urlencode(params),
                     headers=_signed(bot.id, params),
                 )
+                duplicate = await client.post(
+                    f"{settings.API_V1_STR}/sms/{bot.id}/webhook",
+                    content=urlencode(params),
+                    headers=_signed(bot.id, params),
+                )
 
+        assert duplicate.status_code == 200
+        assert pressed.call_count == 1
         assert response.status_code == 200 and spawned == [f"sms_press:{bot.id}"]
         press = pressed.call_args.args[0]
         assert (press.platform, press.value, press.platform_user_id) == (
@@ -867,3 +878,15 @@ class TestASettledPromptIsForgotten:
                 ),
             ):
                 assert await sms_links.link_has_lapsed("+1555") is expected
+
+
+async def test_sms_webhook_body_is_bounded_before_decoding_or_signature_work():
+    from app.core.exceptions import BadRequestError
+    from app.services.channels.sms import read_webhook_body
+
+    async def chunks():
+        yield b"x" * 65536
+        yield b"x"
+
+    with pytest.raises(BadRequestError, match="64 KiB"):
+        await read_webhook_body(chunks())

@@ -70,6 +70,10 @@ class PhoneContact(Base, TimestampMixin):
     allow_calls: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     allow_reports: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     allow_transfers: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    agent_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    allow_important: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    importance_instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    escalation_delay_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     report_language: Mapped[str] = mapped_column(String(8), nullable=False, default="en-US")
     timezone: Mapped[str] = mapped_column(String(64), nullable=False)
     quiet_start_hour: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -102,12 +106,18 @@ class PhoneCall(Base, TimestampMixin):
     )
     contact_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("agents.id", ondelete="CASCADE"), nullable=True
+        ForeignKey("agents.id", ondelete="SET NULL"), nullable=True
     )
     agent_version_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agent_versions.id", ondelete="SET NULL"), nullable=True
     )
     source_context_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    outcome_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("outcomes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False, default="direct")
+    importance_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     source_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     source_run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("agent_runs.id", ondelete="SET NULL"), nullable=True

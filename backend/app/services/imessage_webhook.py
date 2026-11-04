@@ -12,6 +12,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
 from app.services.channels import get_adapter, sms_prompts
 from app.services.channels.base import IncomingPress
+from app.services.channels.dedupe import claim_delivery
 from app.worker.background.channel import process_channel_event, process_channel_press
 
 _PAYLOAD = TypeAdapter(dict[str, JsonValue])
@@ -58,6 +59,8 @@ class ImessageWebhookService:
             else None
         )
         if choice is not None:
+            if not await claim_delivery(incoming):
+                return
             press = IncomingPress(
                 platform="imessage",
                 bot_id=str(bot_id),

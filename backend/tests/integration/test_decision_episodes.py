@@ -174,3 +174,23 @@ async def test_episode_evidence_is_bounded(data: dict[str, object]):
 async def test_case_export_requires_explicit_review():
     with pytest.raises(ValidationError):
         ImproveCaseReview(confirmed=False, input="x", reference_answer="x")
+
+
+async def test_personal_claim_export_counts_non_episode_text_before_loading(db: AsyncSession):
+    from app.db.models.memory_claim import MemoryClaim
+    from app.repositories.personal_data import decision_episode_export_size
+
+    user, org, _, _ = await seed(db)
+    db.add(
+        MemoryClaim(
+            organization_id=org.id,
+            scope_key=person_owner_key(user.id),
+            statement="x" * 6000,
+            kind="fact",
+            origin="person",
+            status="superseded",
+            episode=None,
+        )
+    )
+    await db.flush()
+    assert await decision_episode_export_size(db, user.id) >= 12000

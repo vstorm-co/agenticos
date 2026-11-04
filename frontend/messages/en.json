@@ -1763,7 +1763,8 @@
       "phoneCalling": "Queueing a telephone call",
       "phoneContacts": "Checking transfer contacts",
       "phoneTransferring": "Transferring the call",
-      "phoneEnding": "Ending the call"
+      "phoneEnding": "Ending the call",
+      "phoneContactPolicy": "Read phone contact policy"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -12775,6 +12776,13 @@
       "pl-PL": "Polski",
       "de-DE": "Deutsch",
       "es-ES": "Español"
-    }
+    },
+    "selectedAgents": "Agents allowed to call me",
+    "selectedAgentsHint": "Only these agents may request calls or scheduled spoken reports. Console calls still require your explicit request.",
+    "allowImportant": "Allow these agents to call about important open cases",
+    "importanceInstructions": "What counts as important",
+    "escalationDelay": "Wait after the first unacknowledged notification (seconds)",
+    "escalationHint": "0 calls immediately. A delay requires an unread notification for the same case. Acknowledging, resolving or muting it cancels the pending call.",
+    "notBefore": "Earliest call: {time}"
   }
 }

@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_embed import AgentEmbed
+from app.db.models.outcome import Outcome
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
 
 TERMINAL = frozenset({"completed", "failed", "cancelled"})
@@ -184,4 +185,132 @@ async def live_page(db: AsyncSession, *, after: UUID | None = None) -> list[UUID
 async def purge_receipts(db: AsyncSession) -> None:
     await db.execute(
         delete(PhoneCall).where(PhoneCall.finished_at < datetime.now(UTC) - timedelta(days=30))
+    )
+
+
+async def own_case(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, outcome_id: UUID
+) -> Outcome | None:
+    from app.db.models.outcome import Outcome
+
+    return await db.scalar(
+        select(Outcome)
+        .where(
+            Outcome.id == outcome_id,
+            Outcome.organization_id == organization_id,
+            Outcome.user_id == user_id,
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+async def case_notification_time(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, outcome_id: UUID
+) -> datetime | None:
+    from app.db.models.notification import Notification
+
+    return await db.scalar(
+        select(func.min(Notification.created_at)).where(
+            Notification.organization_id == organization_id,
+            Notification.recipient_user_id == user_id,
+            Notification.outcome_id == outcome_id,
+            Notification.read_at.is_(None),
+            Notification.dismissed_at.is_(None),
+        )
+    )
+
+
+async def call_for_case(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, outcome_id: UUID
+) -> PhoneCall | None:
+    return await db.scalar(
+        select(PhoneCall)
+        .where(
+            PhoneCall.organization_id == organization_id,
+            PhoneCall.user_id == user_id,
+            PhoneCall.outcome_id == outcome_id,
+            PhoneCall.purpose == "important",
+        )
+        .limit(1)
+    )
+
+
+async def open_phone_cases(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    agent_id: UUID,
+    conversation_id: UUID | None,
+) -> list[Outcome]:
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.outcome import Outcome
+
+    return list(
+        await db.scalars(
+            select(Outcome)
+            .join(AgentRun, AgentRun.id == Outcome.source_run_id)
+            .where(
+                Outcome.organization_id == organization_id,
+                Outcome.user_id == user_id,
+                Outcome.status == "open",
+                Outcome.source_conversation_id == conversation_id,
+                AgentRun.organization_id == organization_id,
+                AgentRun.agent_id == agent_id,
+                AgentRun.user_id == user_id,
+            )
+            .order_by(Outcome.created_at.desc())
+            .limit(20)
+        )
+    )
+
+
+async def cancel_case_calls(db: AsyncSession, outcome_id: UUID, *, at: datetime) -> None:
+    from sqlalchemy import update
+
+    await db.execute(
+        update(PhoneCall)
+        .where(PhoneCall.outcome_id == outcome_id, PhoneCall.status == "queued")
+        .values(status="cancelled", finished_at=at, estimated_cost_usd=Decimal(0))
+    )
+
+
+async def mark_case_phone_attempt(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, outcome_id: UUID, at: datetime
+) -> bool:
+    from sqlalchemy import update
+
+    changed = await db.scalar(
+        update(Outcome)
+        .where(
+            Outcome.id == outcome_id,
+            Outcome.organization_id == organization_id,
+            Outcome.user_id == user_id,
+            Outcome.status == "open",
+            Outcome.phone_attempted_at.is_(None),
+        )
+        .values(phone_attempted_at=at)
+        .returning(Outcome.id)
+    )
+    return changed is not None
+
+
+async def call_for_source(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    source_run_id: UUID,
+    endpoint_id: UUID,
+) -> PhoneCall | None:
+    return await db.scalar(
+        select(PhoneCall)
+        .where(
+            PhoneCall.organization_id == organization_id,
+            PhoneCall.user_id == user_id,
+            PhoneCall.source_run_id == source_run_id,
+            PhoneCall.endpoint_id == endpoint_id,
+            PhoneCall.purpose != "important",
+        )
+        .limit(1)
     )

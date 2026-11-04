@@ -2721,3 +2721,6 @@ Text and files use BlueBubbles' AppleScript transport. Optional tapback acknowle
 Select the linked private conversation in **Settings → Notifications** to opt in. A group is never a private notification destination. Bridge acceptance records submission, not Apple's delivery or the recipient's acknowledgement. An offline bridge produces a visible failure; an uncertain submission is not retried automatically.
 
 [Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) is a separate business service. Its [provider setup](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) requires a Messages for Business account and messaging provider; this Mac adapter does not provision that integration.
+
+
+SMS webhook forms are capped at 64 KiB and a ten-second read deadline before signature verification. Numbered SMS and iMessage replies claim the provider message ID before dispatch, so a duplicate delivery cannot toggle a pending selection twice.

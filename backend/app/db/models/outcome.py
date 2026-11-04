@@ -73,6 +73,10 @@ class Outcome(Base, TimestampMixin):
         index=True,
     )
     """The chat it came from, where the card belongs."""
+    phone_attempted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """Retained event deduplication even after short-lived telephone receipts expire."""
     last_observed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

@@ -4,6 +4,10 @@ export const phoneContact: PhoneContactConfig = {
   allow_calls: false,
   allow_reports: false,
   allow_transfers: false,
+  agent_ids: [],
+  allow_important: false,
+  importance_instructions: "",
+  escalation_delay_seconds: 0,
   report_language: "en-US",
   timezone: "UTC",
   quiet_start_hour: 22,
@@ -21,6 +25,9 @@ export const phoneSettings: PhoneSettings = {
 };
 export const phoneCall: PhoneCall = {
   id: "call",
+  purpose: "direct",
+  outcome_id: null,
+  not_before: null,
   endpoint_id: "endpoint",
   mode: "conversation",
   direction: "outbound",

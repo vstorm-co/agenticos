@@ -30,7 +30,11 @@ No merge or deployment is part of this implementation authorization.
 - [x] Implement Twilio inbound/outbound voice, spoken reports, verified contact
   opt-ins, quiet hours, rate/concurrency/cost ceilings, transfer allowlists,
   private transcripts, source-chat cards and dashboard receipts.
-- [ ] Complete five sequential `@codex review` rounds and address verified findings.
+- [x] Restrict automatic calls to selected agents, important-case criteria and
+  immediate or delayed unacknowledged-case delivery; cancel on shared settlement
+  and retain event deduplication after short-lived receipt expiry.
+- [x] Address the existing Codex review findings. Further rounds are deferred
+  at the maintainer’s request so manual local acceptance can start.
 
 ## Authority and durable effects
 
@@ -84,3 +88,15 @@ intermediate filenames in `backend/alembic/versions/`; the migration chain is
 canonical). Telephone verification includes real Postgres admission/idempotency,
 revocation, unknown provider acceptance, signed callbacks, anonymous inbound media,
 late receipt binding, transfers, cleanup, source fencing and personal export.
+
+
+## Review rounds
+
+Round 1 requested at `c9eb68afa` (comment 6631817110). Code review completed
+with four confirmed findings; security review completed with one confirmed
+A2A credential-fencing finding. Corrections retain telephone cleanup receipts
+after agent deletion, reconcile signed terminal cost callbacks, count complete
+claim export rows and deduplicate numbered SMS/iMessage presses. Vault credential
+generations now invalidate reviewed remote-agent accounts on replacement.
+The SMS webhook also bounds reads before signature work. Further rounds are deferred at the maintainer’s explicit request. Start the
+local application and provide hands-on acceptance instructions instead.

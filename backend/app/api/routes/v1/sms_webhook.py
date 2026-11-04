@@ -12,7 +12,13 @@ from app.core.background import spawn
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter, inbound_webhook_url, sms_prompts
 from app.services.channels.base import IncomingPress
-from app.services.channels.sms import SIGNATURE_HEADER, SIGNED_URL_HEADER, split_credentials
+from app.services.channels.dedupe import claim_delivery
+from app.services.channels.sms import (
+    SIGNATURE_HEADER,
+    SIGNED_URL_HEADER,
+    read_webhook_body,
+    split_credentials,
+)
 from app.services.channels.sms_links import link_has_lapsed
 from app.worker.background.channel import process_channel_event, process_channel_press
 
@@ -41,7 +47,7 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
     except Exception:
         logger.warning("SMS bot %s has a token that cannot sign; refusing.", bot_id)
         raise HTTPException(status_code=403, detail="Invalid webhook signature") from None
-    body = (await request.body()).decode("utf-8", errors="replace")
+    body = await read_webhook_body(request.stream())
     adapter = get_adapter("sms")
     headers = {
         SIGNATURE_HEADER: request.headers.get(SIGNATURE_HEADER, ""),
@@ -65,6 +71,8 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
         await sms_prompts.forget(str(bot_id), incoming.platform_chat_id)
         chosen = None
     if chosen is not None:
+        if not await claim_delivery(incoming):
+            return Response(content=_EMPTY_TWIML, media_type="text/xml")
         press = IncomingPress(
             platform="sms",
             bot_id=str(bot_id),

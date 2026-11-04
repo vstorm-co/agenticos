@@ -1,5 +1,5 @@
 ---
-source_sha: "27196700eb8c"
+source_sha: "969691a25578"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2833,3 +2833,6 @@ Tekst i pliki korzystają z AppleScript w BlueBubbles. Opcjonalne potwierdzenia 
 W **Ustawienia → Powiadomienia** wybierz powiązaną rozmowę prywatną, aby włączyć dostarczanie. Grupa nigdy nie jest prywatnym miejscem docelowym. Akceptacja przez most oznacza przekazanie, nie dostarczenie przez Apple ani potwierdzenie odbiorcy. Niedostępność mostu daje widoczny błąd; niepewna wysyłka nie jest ponawiana automatycznie.
 
 [Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) to osobna usługa biznesowa. Jej [konfiguracja u dostawcy](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) wymaga konta Messages for Business i dostawcy wiadomości; adapter Maca nie tworzy tej integracji.
+
+
+Formularz webhooka SMS ma limit 64 KiB i dziesięciosekundowy czas odczytu przed weryfikacją podpisu. Odpowiedzi numeryczne SMS i iMessage rezerwują identyfikator wiadomości operatora przed obsługą, aby duplikat nie przełączał ponownie wyboru w otwartym pytaniu.

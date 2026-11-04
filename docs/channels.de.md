@@ -1,5 +1,5 @@
 ---
-source_sha: "27196700eb8c"
+source_sha: "969691a25578"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3021,3 +3021,6 @@ Text und Dateien verwenden BlueBubbles' AppleScript-Transport. Optionale Tapback
 Wählen Sie die verknüpfte private Unterhaltung unter **Einstellungen → Benachrichtigungen**. Gruppen sind keine privaten Benachrichtigungsziele. Die Annahme durch die Bridge bestätigt die Übergabe, nicht Apples Zustellung oder die Bestätigung des Empfängers. Eine unerreichbare Bridge erzeugt einen sichtbaren Fehler; ungewisse Übertragungen werden nicht automatisch wiederholt.
 
 [Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) ist ein eigener Geschäftsdienst. Die [Einrichtung beim Anbieter](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) benötigt ein Messages-for-Business-Konto und einen Messaging-Anbieter; dieser Mac-Adapter richtet diese Integration nicht ein.
+
+
+SMS-Webhookformulare haben vor der Signaturprüfung ein Limit von 64 KiB und zehn Sekunden Lesezeit. Nummerierte SMS- und iMessage-Antworten beanspruchen die Providernachrichten-ID vor der Verarbeitung, damit eine doppelte Zustellung eine Auswahl nicht zweimal umschaltet.

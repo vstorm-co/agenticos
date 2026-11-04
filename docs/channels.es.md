@@ -1,5 +1,5 @@
 ---
-source_sha: "27196700eb8c"
+source_sha: "969691a25578"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2861,3 +2861,6 @@ Los textos y archivos usan el transporte AppleScript de BlueBubbles. Las confirm
 Seleccione la conversación privada vinculada en **Ajustes → Notificaciones** para activar la entrega. Un grupo nunca es un destino privado. La aceptación del puente registra el envío, no la entrega por Apple ni la confirmación del destinatario. Un puente desconectado produce un error visible; los envíos inciertos no se repiten automáticamente.
 
 [Apple Messages for Business](https://www.apple.com/legal/privacy/data/en/messages-for-business/) es un servicio empresarial independiente. Su [configuración con un proveedor](https://learn.microsoft.com/en-us/dynamics365/customer-service/administer/configure-apple-messages-for-business-channel) requiere una cuenta de Messages for Business y un proveedor de mensajería; este adaptador de Mac no configura esa integración.
+
+
+Los formularios del webhook SMS tienen un límite de 64 KiB y diez segundos de lectura antes de verificar la firma. Las respuestas numéricas SMS e iMessage reservan el identificador del proveedor antes de procesarse para que un duplicado no alterne dos veces una selección pendiente.

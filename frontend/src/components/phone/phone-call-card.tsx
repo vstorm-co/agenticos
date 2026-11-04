@@ -49,6 +49,16 @@ export function PhoneReceiptCard({ call }: { call: PhoneCall }) {
           }),
         })}
       </p>
+      {call.status === "queued" && call.not_before ? (
+        <p className="text-muted-foreground text-xs">
+          {t("notBefore", {
+            time: format.dateTime(new Date(call.not_before), {
+              dateStyle: "short",
+              timeStyle: "short",
+            }),
+          })}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         {call.conversation_id ? (
           <Link href={`/chat?id=${call.conversation_id}`} className="text-sm underline">
