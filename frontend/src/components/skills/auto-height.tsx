@@ -14,8 +14,7 @@ export function AutoHeight({ children }: { children: ReactNode }) {
   const [height, setHeight] = useState<number | null>(null);
 
   useLayoutEffect(() => {
-    const element = inner.current;
-    if (!element) return;
+    const element = inner.current!;
     const measure = () => setHeight(element.offsetHeight);
     measure();
     const observer = new ResizeObserver(measure);

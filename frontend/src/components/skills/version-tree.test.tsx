@@ -58,6 +58,7 @@ describe("VersionTree", () => {
     // Three boxes and the room around them, drawn in a viewport jsdom gives no width.
     expect(canvas().style.transform).toBe("translate(-712px, 0px) scale(1)");
     await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Zoom out" }));
     await userEvent.click(screen.getByRole("button", { name: "Reset view" }));
     expect(canvas().style.transform).toBe("translate(-712px, 0px) scale(1)");
   });
