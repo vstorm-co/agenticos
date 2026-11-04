@@ -8497,7 +8497,8 @@
         },
         "never": "Noch nicht",
         "pick": "Agents im Diagramm",
-        "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen."
+        "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen.",
+        "noLoads": "Die gewählten Agents haben den Skill in den letzten 30 Tagen nicht geladen."
       },
       "catchUp": "„{name}“ auf main nachziehen",
       "toMain": "„{name}“ nach main übernehmen",

@@ -8619,7 +8619,8 @@
         },
         "never": "Not yet",
         "pick": "Agents on the chart",
-        "pickNone": "Pick an agent above to draw its line."
+        "pickNone": "Pick an agent above to draw its line.",
+        "noLoads": "The agents picked did not load the skill in the last 30 days."
       },
       "catchUp": "Catch “{name}” up with main",
       "toMain": "Move “{name}” to main",
