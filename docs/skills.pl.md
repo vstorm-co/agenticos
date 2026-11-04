@@ -1,5 +1,5 @@
 ---
-source_sha: "dbbdfc11b4bf"
+source_sha: "c1fdc0a563d6"
 ---
 
 # Skille { #skills }
@@ -749,10 +749,22 @@ tych, o których nie wiadomo. Pod nim jest wiersz dla każdego agenta: lepiej, b
 zmian, w granicach szumu, gorzej albo nie wiadomo, z agentami do obejrzenia na
 górze. Każdy wiersz ma mały pasek pytań naprawionych wobec zepsutych.
 
-Wiersz rozwija się do szczegółów: liczb, linku do runu i informacji, czy agenta sprawdzono
-tylko na własnych pytaniach skilla, bo nie miał swoich tam, gdzie wczytał skill.
-Otwarty wiersz dostaje znacznik **Obejrzany**, a linia nad wierszami liczy, ilu
-agentów już obejrzałeś, więc widać, kto został.
+Cały wiersz rozwija się do szczegółów kliknięciem w dowolnym miejscu albo
+klawiszem Enter lub Spacją: dla każdego zestawu pytań, który dostał - pytań
+skilla, własnego zestawu albo jego próbki - ile wyszło lepiej, bez zmian, gorzej
+albo nie wiadomo, z linkiem do runu, i czy sprawdzono go tylko na pytaniach
+skilla. Otwarty wiersz dostaje znacznik **Obejrzany**.
+
+Nad wierszami **Do obejrzenia** liczy gorszych i nieznanych agentów, których
+jeszcze nie otworzyłeś. Każda liczba na pasku filtruje wiersze do swoich agentów,
+pole wyszukiwania znajduje agenta po nazwie, a **Tylko nieobejrzane** ukrywa tych,
+których już otworzyłeś.
+
+Wiersze są pogrupowane według wyniku: najpierw gorsi, z
+najbardziej zepsutymi na górze, potem nieznani według powodu, dla którego nie dało
+się ich sprawdzić - z możliwością dodania pytań testowych, gdy to jest powodem -
+potem ci w trakcie, bez zmian i lepsi. Od ośmiu agentów grupy bez zmian i lepsi są
+zwinięte i tylko policzone, dopóki ich nie otworzysz.
 
 To, co proponuje Akceptacja, wynika z wyniku:
 

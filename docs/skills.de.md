@@ -1,5 +1,5 @@
 ---
-source_sha: "dbbdfc11b4bf"
+source_sha: "c1fdc0a563d6"
 ---
 
 # Skills { #skills }
@@ -817,11 +817,24 @@ Agent: besser, unverändert, im Rauschen, schlechter oder unbekannt, die wichtig
 zuerst. Jede Zeile hat einen kleinen Balken der behobenen gegen die
 verschlechterten Fragen.
 
-Eine Zeile öffnet sich zu ihren Details: den Zahlen, einem
-Link zu ihrem Run und ob der Agent nur auf den eigenen Fragen des Skills geprüft
-wurde, weil er keine eigenen hatte, bei denen er den Skill geladen hat. Eine
-geöffnete Zeile ist als **Angesehen** markiert, und eine Zeile darüber zählt, wie
-viele Sie angesehen haben, damit Sie sehen, welche Agents noch fehlen.
+Eine ganze Zeile öffnet sich zu ihren Details, mit einem Klick irgendwo darauf
+oder mit Enter oder Leertaste: für jede Fragenmenge, die der Agent bekam - die
+Fragen des Skills, seine eigene Menge oder eine Stichprobe daraus - wie viele
+besser, gleich, schlechter oder unbekannt herauskamen, mit einem Link zu diesem
+Run, und ob er nur auf den Fragen des Skills geprüft wurde. Eine geöffnete Zeile
+ist als **Angesehen** markiert.
+
+Über den Zeilen zählt **Noch anzusehen** die schlechteren und unbekannten Agents,
+die Sie noch nicht geöffnet haben. Jede Zahl auf dem Balken filtert die Zeilen auf
+ihre Agents, ein Suchfeld findet einen Agent nach Namen, und **Nur nicht
+angesehene** blendet die geöffneten aus.
+
+Die Zeilen sind nach Ergebnis gruppiert:
+zuerst die schlechteren, die am stärksten verschlechterten oben, dann die
+unbekannten nach dem Grund, warum sie nicht geprüft werden konnten - mit einem Weg,
+Testfragen hinzuzufügen, wenn das der Grund ist - dann die noch laufenden,
+unveränderten und besseren. Ab acht Agents sind unverändert und besser
+zugeklappt und nur gezählt, bis Sie sie öffnen.
 
 Was Annehmen anbietet, folgt aus dem Ergebnis:
 
