@@ -5409,7 +5409,7 @@
       },
       "skill-tree": {
         "title": "Main und seine Forks",
-        "body": "Main läuft von der neuesten Version nach unten, jeder Fork zweigt von seiner Startversion ab, und Agents stehen bei der Version, die sie nutzen."
+        "body": "Main läuft von links bis zur neuesten Version, jeder Fork zweigt auf einer eigenen Spur von der Version ab, aus der er entstand, und jeder Agent steht im Feld der Version, die er nutzt. Vergleichen stellt beliebige Versionen nebeneinander."
       },
       "skill-improve": {
         "title": "Den Skill verbessern",
@@ -8400,8 +8400,25 @@
         "latest": "neueste",
         "fork": "Fork „{name}“",
         "forkFacts": "{changes, plural, =0 {noch keine Änderungen} =1 {1 Änderung} other {# Änderungen}}{behind, plural, =0 {} other { · # hinter main}}",
-        "moreAgents": "+{count}",
-        "forkNumber": "{name} v{number}"
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "Noch keine eigene Version",
+        "compare": "{version} vergleichen",
+        "compareShort": "Vergleichen",
+        "comparing": "Im Vergleich"
+      },
+      "compare": {
+        "title": "Vergleich",
+        "count": "{count, plural, =1 {1 Version} other {# Versionen}}",
+        "clear": "Leeren",
+        "pickAnother": "Wähle im Diagramm eine weitere Version, um sie neben diese zu stellen.",
+        "remove": "{version} aus dem Vergleich nehmen",
+        "loading": "Version wird geladen…",
+        "description": "Beschreibung",
+        "instructions": "Anweisungen",
+        "files": "Dateien",
+        "noFiles": "Keine Dateien.",
+        "unreadable": "Diese Version konnte nicht geladen werden.",
+        "retry": "Erneut versuchen"
       },
       "edit": {
         "saved": "Als v{number} gespeichert.",
@@ -8447,29 +8464,55 @@
       "deleteSkill": {
         "title": "{name} löschen?",
         "description": "Seine Versionen und Forks verschwinden mit ihm. Kein Agent verwendet ihn gerade.",
-        "used": "Ein Skill, den ein Agent verwendet, kann nicht gelöscht werden. Verschieben Sie jeden Agent auf einen anderen Skill oder entfernen Sie den Skill im Builder, dann löschen Sie ihn.",
+        "used": "Agents nutzen diesen Skill. Er wird erst gelöscht, wenn keiner ihn mehr hat: hier für alle auf einmal oder einzeln im Builder.",
         "usedBy": "{named, select, yes {{count, plural, =1 {Verwendet von 1 Agent} other {Verwendet von # Agents}}: {names}{hidden, plural, =0 {.} =1 {, und 1, den Sie nicht sehen.} other {, und #, die Sie nicht sehen.}}} other {{hidden, plural, =1 {Verwendet von 1 Agent, den Sie nicht sehen.} other {Verwendet von # Agents, die Sie nicht sehen.}}}}",
         "close": "OK",
         "cancel": "Abbrechen",
         "delete": "Löschen",
         "checking": "Es wird geprüft, welche Agents ihn verwenden…",
-        "unread": "Welche Agents ihn verwenden, konnte nicht gelesen werden. Ein Skill, den ein Agent verwendet, wird trotzdem abgelehnt."
+        "unread": "Welche Agents ihn verwenden, konnte nicht gelesen werden. Ein Skill, den ein Agent verwendet, wird trotzdem abgelehnt.",
+        "removeAndDelete": "{count, plural, =1 {Von 1 Agent entfernen und löschen} other {Von # Agents entfernen und löschen}}",
+        "removeBody": "{count, plural, =1 {Der Skill wird von diesem Agent entfernt und dann mit seinen Versionen und Forks gelöscht. Das lässt sich nicht rückgängig machen.} other {Der Skill wird von diesen # Agents entfernt und dann mit seinen Versionen und Forks gelöscht. Das lässt sich nicht rückgängig machen.}}",
+        "removeConfirm": "Entfernen und löschen",
+        "back": "Zurück",
+        "locked": "{count, plural, =1 {Du darfst {names} nicht ändern, daher kann er hier nicht entfernt werden. Frag den Owner oder entferne ihn dort im Builder.} other {Du darfst {names} nicht ändern, daher kann er hier nicht entfernt werden. Frag ihre Owner oder entferne ihn dort im Builder.}}",
+        "hiddenBlocks": "Einige davon siehst du nicht, daher kann er hier nicht von allen entfernt werden. Bitte einen Admin, ihn zu entfernen.",
+        "button": "Löschen",
+        "agentsChanged": "Ein Agent hat den Skill während des Entfernens übernommen, daher hat sich nichts geändert. Versuche es erneut.",
+        "waiting": "{name} liefert ihn noch in {environments} aus, {count, plural, =1 {das auf Promotion wartet} other {die auf Promotion warten}}. Promote dort zuerst eine Version ohne den Skill.",
+        "unpublishable": "Die neueste Spec von {name} lässt sich ohne den Skill nicht veröffentlichen, daher hat sich nichts geändert. <link>Behebe das im Builder</link> und versuche es erneut."
       },
       "usage": {
         "title": "Nutzung in den letzten {days} Tagen",
         "loads": "{count, plural, =0 {Nicht geöffnet} =1 {Einmal geöffnet} other {# Mal geöffnet}}",
         "none": "Kein Agent hat diesen Skill in den letzten {days} Tagen geöffnet. Runs von Evals und dem Testbereich zählen nicht.",
-        "agent": "{loads, plural, =1 {einmal geöffnet} other {# Mal geöffnet}}{files, plural, =0 {} =1 { · 1 Datei gelesen} other { · # Dateien gelesen}}{seen, select, yes { · zuletzt {last}} other {}}",
-        "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet."
+        "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet.",
+        "chart": "Ladevorgänge pro Tag, eine Linie pro Agent",
+        "table": {
+          "agent": "Agent",
+          "loads": "Ladevorgänge",
+          "files": "Gelesene Dateien",
+          "last": "Zuletzt genutzt",
+          "label": "Nutzung pro Agent"
+        },
+        "never": "Noch nicht",
+        "pick": "Agents im Diagramm",
+        "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen."
       },
       "catchUp": "„{name}“ auf main nachziehen",
       "toMain": "„{name}“ nach main übernehmen",
+      "nothingToMerge": "Ändere zuerst etwas im Fork; noch gibt es nichts zusammenzuführen.",
       "returnFork": {
         "button": "„{name}“ zu main zurückholen",
         "title": "Die Agents von „{name}“ zu main zurückholen",
         "body": "{count, plural, =0 {Niemand liest diesen Fork, daher wird er archiviert.} =1 {Der 1 Agent, der diesen Fork liest, wechselt auf die neueste Version von main, veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.} other {Die # Agents, die diesen Fork lesen, wechseln auf die neueste Version von main, jeder veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.}}",
         "confirm": "Zu main zurückholen",
         "done": "Fertig"
+      },
+      "checkRunning": {
+        "running": "Prüfung läuft: {done} von {total} Agents geprüft.",
+        "finished": "Eine Prüfung auf {total, plural, =1 {1 Agent} other {# Agents}} ist fertig und wartet auf deine Entscheidung.",
+        "show": "Anzeigen"
       }
     },
     "checkOnAgents": "Auf Agents prüfen",
@@ -8479,7 +8522,7 @@
       "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
       "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
       "start": "Prüfung starten",
-      "running": "Wird geprüft. Das dauert einige Minuten; du kannst das Fenster schließen und später zurückkommen.",
+      "running": "Wird geprüft. Das dauert einige Minuten. Du kannst das schließen: Die Prüfung läuft weiter, und <page>die Seite des Skills</page> zeigt sie als „Prüfung läuft“, bis du entscheidest.",
       "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
       "skillSetOnly": "Nur mit den Fragen des Skills geprüft: keine Frage dieses Agents hat den Skill geöffnet.",
       "hidden": "{count, plural, =1 {1 weiterer Agent nutzt diesen Skill, den du nicht sehen kannst.} other {# weitere Agents nutzen diesen Skill, die du nicht sehen kannst.}}",
@@ -8515,7 +8558,9 @@
       "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
       "cancel": "Prüfung anhalten",
       "inSession": "Diese Prüfung gehört zu einer Verbesserungssitzung und wird dort entschieden.",
-      "openSession": "Sitzung öffnen"
+      "openSession": "Sitzung öffnen",
+      "progress": "{done} von {total} Agents geprüft",
+      "progressLabel": "Geprüfte Agents"
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen"
@@ -13230,6 +13275,8 @@
     "versionPlus": "v{version} + {count, plural, =1 {1 Vorschlag} other {# Vorschläge}}",
     "proposedSkill": "v{version} + vorgeschlagener Skill",
     "proposedContext": "v{version} + vorgeschlagene Kontextdatei",
+    "skillCurrent": "{agent} · aktueller Skill",
+    "skillProposed": "{agent} · vorgeschlagener Skill",
     "version": "v{version}",
     "status": {
       "queued": "In der Warteschlange",
@@ -15192,7 +15239,17 @@
         "skill_set": "Run auf den Fragen des Skills",
         "dataset_sample": "{named, select, yes {Run auf einer Stichprobe von {name}} other {Run auf einer Stichprobe der Fragen des Agents}}",
         "dataset": "{named, select, yes {Run auf {name}} other {Run auf den Fragen des Agents}}"
-      }
+      },
+      "summary": {
+        "worse": "{count} schlechter",
+        "unknown": "{count} unbekannt",
+        "same": "{count} unverändert",
+        "better": "{count} besser",
+        "pending": "{count} in Prüfung"
+      },
+      "seenCount": "{seen, plural, =0 {Noch keiner von {total} Agents angesehen} other {# von {total} Agents angesehen}}",
+      "seen": "Angesehen",
+      "details": "Details zu {name}"
     },
     "testSet": {
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",
@@ -15230,8 +15287,9 @@
       "openSession": "Diese Linie hat bereits eine offene Sitzung.",
       "continue": "Fortsetzen",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
-      "price": "Bis zum ersten Vorschlag kostet es etwa {cost}; jeder Versuch etwa {perRound}, höchstens {rounds, plural, =1 {1 Versuch} other {# Versuche}}.",
+      "price": "Bis zu {cost} (Schätzung) bis zum ersten Vorschlag; jeder weitere Versuch etwa {perRound}, höchstens {rounds, plural, =1 {1 Versuch} other {# Versuche}}. Das Limit von {limit} deckelt die ganze Sitzung.",
       "limit": "Ausgabenlimit für die ganze Sitzung (USD)",
+      "limitHint": "Ausgefüllt für den ersten Vorschlag und jeden Versuch, den die Sitzung machen kann. Senke es, um früher aufzuhören; die Sitzung hält vor einem Schritt an, der es überschreiten würde.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": "Starten",
       "reads": "{runs, plural, =1 {Es liest 1 Antwort} other {Es liest # Antworten}}, in denen Versionen dieser Linie geladen wurden, {agents, plural, =1 {von 1 Agent} other {von # Agents}}.",

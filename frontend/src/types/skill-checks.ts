@@ -69,6 +69,8 @@ export interface SkillCheckEstimate {
 export interface SkillCheck extends SkillCheckEstimate {
   id: string;
   skill_id: string;
+  /** `catch_up` for a pinned agent's update, accepted by moving that agent, never applied. */
+  source?: "manual" | "proposal" | "session" | "catch_up";
   status: CheckStatus;
   verdict: CheckVerdict | null;
   warnings: "within_noise"[];

@@ -180,11 +180,16 @@ export function useSkill(skillId: string | null) {
 
   /** The delete dialog says why a delete was refused, so a refusal is not toasted. */
   const remove = useMutation({
-    mutationFn: () => apiClient.delete<void>(`/skills/${skillId}`),
+    mutationFn: (removeFromAgents: boolean | void) =>
+      apiClient.delete<void>(
+        `/skills/${skillId}${removeFromAgents ? "?remove_from_agents=true" : ""}`,
+      ),
     onSuccess: async () => {
       await invalidate();
       toast.success(t("deleted"));
     },
+    // A refusal names who uses the skill now, which the agents list may not know yet.
+    onError: () => queryClient.invalidateQueries({ queryKey: qk.skills.agents(skillId ?? "") }),
   });
 
   /**

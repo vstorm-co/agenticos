@@ -37,11 +37,13 @@ function lineMoved(error: unknown): boolean {
  * Opening it prices the check; nothing runs until Start. Each agent answers its
  * questions with the stored text and with the change, and the result per agent
  * decides what applying may do. A check an improvement session started is decided
- * in that session, so the dialog points there instead of deciding it.
+ * in that session, so the dialog points there instead of deciding it. A check left
+ * running is opened again from the skill page by its id, and is not priced again.
  */
 export function SkillCheckDialog({
   skillId,
   change,
+  resume,
   forkId,
   onOpenChange,
   onApplied,
@@ -52,9 +54,11 @@ export function SkillCheckDialog({
    * What to check: a waiting proposal, or an unsaved text written over `baseVersionId`,
    * which the server refuses once the line has a newer version.
    */
-  change:
+  change?:
     | { proposalId: string }
     | { candidate: { description: string; content: string }; baseVersionId: string };
+  /** A check already started, opened again in place of a change to check. */
+  resume?: string;
   forkId: string | null;
   onOpenChange: (open: boolean) => void;
   /** Called once the change went live from this check. */
@@ -64,12 +68,12 @@ export function SkillCheckDialog({
 }) {
   const t = useTranslations("skills.check");
   const tErrors = useTranslations("errors");
-  const [checkId, setCheckId] = useState<string | null>(null);
+  const [checkId, setCheckId] = useState<string | null>(resume ?? null);
   const { check, estimate, start, apply, discard, cancel } = useSkillCheck(skillId, checkId);
-  const proposalId = "proposalId" in change ? change.proposalId : null;
-  const description = "candidate" in change ? change.candidate.description : null;
-  const content = "candidate" in change ? change.candidate.content : null;
-  const baseVersionId = "candidate" in change ? change.baseVersionId : null;
+  const proposalId = change && "proposalId" in change ? change.proposalId : null;
+  const description = change && "candidate" in change ? change.candidate.description : null;
+  const content = change && "candidate" in change ? change.candidate.content : null;
+  const baseVersionId = change && "candidate" in change ? change.baseVersionId : null;
   const body = useMemo(
     () =>
       proposalId !== null
@@ -82,7 +86,10 @@ export function SkillCheckDialog({
     [forkId, proposalId, description, content, baseVersionId],
   );
   const { mutate: price } = estimate;
-  useEffect(() => price(body), [price, body]);
+  const pricing = change !== undefined;
+  useEffect(() => {
+    if (pricing) price(body);
+  }, [pricing, price, body]);
   useEffect(() => {
     if (onLineMoved && lineMoved(estimate.error)) onLineMoved();
   }, [estimate.error, onLineMoved]);
@@ -118,7 +125,13 @@ export function SkillCheckDialog({
         {estimate.isError && (
           <p className="text-destructive text-sm">{getErrorMessage(estimate.error, tErrors)}</p>
         )}
-        {shown !== null && <CheckAgents agents={shown.agents} hidden={shown.hidden} />}
+        {shown !== null && (
+          <CheckAgents
+            agents={shown.agents}
+            hidden={shown.hidden}
+            running={check?.status === "running"}
+          />
+        )}
         {check === null && estimate.data && (
           <DialogFooter className="items-center gap-3 sm:justify-between">
             <p className="text-muted-foreground text-xs">
@@ -154,7 +167,18 @@ export function SkillCheckDialog({
         )}
         {session === null && check?.status === "running" && (
           <DialogFooter className="items-center gap-3 sm:justify-between">
-            <p className="text-muted-foreground text-sm">{t("running")}</p>
+            <p className="text-muted-foreground text-sm">
+              {t.rich("running", {
+                page: (chunks) => (
+                  <Link
+                    className="underline underline-offset-4"
+                    href={ROUTES.SKILL_DETAIL(skillId)}
+                  >
+                    {chunks}
+                  </Link>
+                ),
+              })}
+            </p>
             <Button
               variant="ghost"
               disabled={cancel.isPending}

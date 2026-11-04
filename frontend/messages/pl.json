@@ -5299,7 +5299,7 @@
       },
       "skill-tree": {
         "title": "Main i jego forki",
-        "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
+        "body": "Main biegnie od lewej do najnowszej wersji, każdy fork odchodzi na własnym torze od wersji, z której wystartował, a każdy agent siedzi w polu wersji, której używa. Porównaj stawia dowolne wersje obok siebie."
       },
       "skill-improve": {
         "title": "Popraw skill",
@@ -8282,8 +8282,25 @@
         "latest": "najnowsza",
         "fork": "Fork „{name}”",
         "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} other { · # za main}}",
-        "moreAgents": "+{count}",
-        "forkNumber": "{name} v{number}"
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "Jeszcze bez własnej wersji",
+        "compare": "Porównaj {version}",
+        "compareShort": "Porównaj",
+        "comparing": "W porównaniu"
+      },
+      "compare": {
+        "title": "Porównanie",
+        "count": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
+        "clear": "Wyczyść",
+        "pickAnother": "Wybierz na diagramie kolejną wersję, żeby postawić ją obok tej.",
+        "remove": "Usuń {version} z porównania",
+        "loading": "Wczytywanie wersji…",
+        "description": "Opis",
+        "instructions": "Instrukcje",
+        "files": "Pliki",
+        "noFiles": "Brak plików.",
+        "unreadable": "Nie udało się wczytać tej wersji.",
+        "retry": "Spróbuj ponownie"
       },
       "edit": {
         "saved": "Zapisano jako v{number}.",
@@ -8329,29 +8346,55 @@
       "deleteSkill": {
         "title": "Usunąć {name}?",
         "description": "Razem z nim znikną jego wersje i forki. Żaden agent go teraz nie używa.",
-        "used": "Nie można usunąć skilla, którego używa agent. Przenieś każdego agenta na inny skill albo usuń z niego ten skill w Builderze, a potem go usuń.",
+        "used": "Agenci używają tego skilla. Zostanie usunięty dopiero, gdy żaden go nie ma: tutaj, od razu ze wszystkich, albo po kolei w Builderze.",
         "usedBy": "{named, select, yes {{count, plural, one {Używa go 1 agent} few {Używają go # agenci} many {Używa go # agentów} other {Używa go # agenta}}: {names}{hidden, plural, =0 {.} one {, i 1, którego nie widzisz.} few {, i #, których nie widzisz.} many {, i #, których nie widzisz.} other {, i #, którego nie widzisz.}}} other {{hidden, plural, one {Używa go 1 agent, którego nie widzisz.} few {Używają go # agenci, których nie widzisz.} many {Używa go # agentów, których nie widzisz.} other {Używa go # agenta, którego nie widzisz.}}}}",
         "close": "OK",
         "cancel": "Anuluj",
         "delete": "Usuń",
         "checking": "Sprawdzamy, którzy agenci go używają…",
-        "unread": "Nie udało się odczytać, którzy agenci go używają. Skilla używanego przez agenta i tak nie da się usunąć."
+        "unread": "Nie udało się odczytać, którzy agenci go używają. Skilla używanego przez agenta i tak nie da się usunąć.",
+        "removeAndDelete": "{count, plural, one {Odepnij od # agenta i usuń} other {Odepnij od # agentów i usuń}}",
+        "removeBody": "{count, plural, one {Skill zostanie odpięty od tego agenta, a potem usunięty razem z wersjami i forkami. Tego nie da się cofnąć.} other {Skill zostanie odpięty od tych # agentów, a potem usunięty razem z wersjami i forkami. Tego nie da się cofnąć.}}",
+        "removeConfirm": "Odepnij i usuń",
+        "back": "Wstecz",
+        "locked": "{count, plural, one {Nie możesz zmieniać agenta {names}, więc nie da się go tu odpiąć. Poproś właściciela albo odepnij go w Builderze.} other {Nie możesz zmieniać agentów {names}, więc nie da się go tu odpiąć. Poproś ich właścicieli albo odepnij go w Builderze.}}",
+        "hiddenBlocks": "Części z nich nie widzisz, więc nie da się go tu odpiąć od wszystkich. Poproś admina o usunięcie.",
+        "button": "Usuń",
+        "agentsChanged": "W trakcie odpinania jakiś agent zaczął używać skilla, więc nic się nie zmieniło. Spróbuj ponownie.",
+        "waiting": "{name} nadal go serwuje w {environments}, {count, plural, one {które czeka} other {które czekają}} na promocję. Najpierw wypromuj tam wersję bez skilla.",
+        "unpublishable": "Najnowszy spec agenta {name} nie publikuje się bez skilla, więc nic się nie zmieniło. <link>Popraw go w Builderze</link> i spróbuj ponownie."
       },
       "usage": {
         "title": "Użycie w ostatnich {days} dniach",
         "loads": "{count, plural, =0 {Nie otwierany} one {Otwarty raz} few {Otwarty # razy} many {Otwarty # razy} other {Otwarty # razy}}",
         "none": "Żaden agent nie otworzył tego skilla w ostatnich {days} dniach. Runy ewaluacji i panelu testowego się nie liczą.",
-        "agent": "{loads, plural, one {otwarty raz} few {otwarty # razy} many {otwarty # razy} other {otwarty # razy}}{files, plural, =0 {} one { · przeczytany 1 plik} few { · przeczytane # pliki} many { · przeczytanych # plików} other { · przeczytano # pliku}}{seen, select, yes { · ostatnio {last}} other {}}",
-        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
+        "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}.",
+        "chart": "Wczytania dziennie, jedna linia na agenta",
+        "table": {
+          "agent": "Agent",
+          "loads": "Wczytania",
+          "files": "Odczytane pliki",
+          "last": "Ostatnio",
+          "label": "Użycie według agenta"
+        },
+        "never": "Jeszcze nie",
+        "pick": "Agenci na wykresie",
+        "pickNone": "Wybierz agenta powyżej, żeby narysować jego linię."
       },
       "catchUp": "Dogoń main w forku „{name}”",
       "toMain": "Przenieś „{name}” do main",
+      "nothingToMerge": "Najpierw wprowadź zmianę w forku; na razie nie ma czego scalać.",
       "returnFork": {
         "button": "Przenieś „{name}” z powrotem do main",
         "title": "Przenieś agentów „{name}” z powrotem do main",
         "body": "{count, plural, =0 {Nikt nie czyta tego forka, więc zostanie zarchiwizowany.} one {# agent czytający ten fork przejdzie na najnowszą wersję main, opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} few {# agenty czytające ten fork przejdą na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} many {# agentów czytających ten fork przejdzie na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} other {# agenta czytającego ten fork przejdzie na najnowszą wersję main. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.}}",
         "confirm": "Przenieś do main",
         "done": "Gotowe"
+      },
+      "checkRunning": {
+        "running": "Sprawdzanie trwa: sprawdzono {done} z {total} agentów.",
+        "finished": "Sprawdzanie na {total, plural, one {# agencie} other {# agentach}} się skończyło i czeka na twoją decyzję.",
+        "show": "Pokaż"
       }
     },
     "checkOnAgents": "Sprawdź na agentach",
@@ -8361,7 +8404,7 @@
       "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
       "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
       "start": "Uruchom sprawdzenie",
-      "running": "Trwa sprawdzanie. To zajmie kilka minut; możesz zamknąć okno i wrócić później.",
+      "running": "Trwa sprawdzanie, to zajmie kilka minut. Możesz to zamknąć: sprawdzanie trwa dalej, a <page>strona skilla</page> pokazuje je jako „Sprawdzanie trwa”, dopóki o nim nie zdecydujesz.",
       "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
       "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
       "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
@@ -8397,7 +8440,9 @@
       "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
       "cancel": "Zatrzymaj sprawdzenie",
       "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
-      "openSession": "Otwórz sesję"
+      "openSession": "Otwórz sesję",
+      "progress": "Sprawdzono {done} z {total} agentów",
+      "progressLabel": "Sprawdzeni agenci"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje"
@@ -12690,6 +12735,8 @@
     "versionPlus": "v{version} + {count, plural, one {# sugestia} few {# sugestie} many {# sugestii} other {# sugestii}}",
     "proposedSkill": "v{version} + proponowany skill",
     "proposedContext": "v{version} + proponowany plik kontekstu",
+    "skillCurrent": "{agent} · obecny skill",
+    "skillProposed": "{agent} · proponowany skill",
     "version": "v{version}",
     "status": {
       "queued": "W kolejce",
@@ -15294,7 +15341,17 @@
         "skill_set": "Run na pytaniach skilla",
         "dataset_sample": "{named, select, yes {Run na próbce {name}} other {Run na próbce pytań agenta}}",
         "dataset": "{named, select, yes {Run na {name}} other {Run na pytaniach agenta}}"
-      }
+      },
+      "summary": {
+        "worse": "Gorzej: {count}",
+        "unknown": "Nieznane: {count}",
+        "same": "Bez zmian: {count}",
+        "better": "Lepiej: {count}",
+        "pending": "W trakcie: {count}"
+      },
+      "seenCount": "{seen, plural, =0 {Nie obejrzano jeszcze żadnego z {total} agentów} other {Obejrzano # z {total} agentów}}",
+      "seen": "Obejrzany",
+      "details": "Szczegóły: {name}"
     },
     "testSet": {
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",
@@ -15332,8 +15389,9 @@
       "openSession": "Ta linia ma już otwartą sesję.",
       "continue": "Kontynuuj ją",
       "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używa jeszcze # agentów, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
-      "price": "Do pierwszej propozycji kosztuje około {cost}; każda próba około {perRound}, najwyżej {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}.",
+      "price": "Do {cost} (szacunek) do pierwszej propozycji; każda kolejna próba około {perRound}, maksymalnie {rounds, plural, one {# próba} few {# próby} many {# prób} other {# próby}}. Limit {limit} obejmuje całą sesję.",
       "limit": "Limit wydatków na całą sesję (USD)",
+      "limitHint": "Wypełniony na pierwszą propozycję i każdą próbę, jaką sesja może zrobić. Obniż go, żeby skończyć wcześniej; sesja zatrzymuje się przed krokiem, który by go przekroczył.",
       "unaffordable": "Budget organizacji tego nie pokrywa.",
       "start": "Zacznij",
       "reads": "{runs, plural, one {Czyta # odpowiedź} few {Czyta # odpowiedzi} many {Czyta # odpowiedzi} other {Czyta # odpowiedzi}}, w których wczytano wersje tej linii, {agents, plural, one {od # agenta} few {od # agentów} many {od # agentów} other {od # agenta}}.",

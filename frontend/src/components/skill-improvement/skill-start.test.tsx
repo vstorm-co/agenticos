@@ -68,6 +68,24 @@ describe("SkillStart", () => {
     });
   });
 
+  it("fills in a limit for the first proposal and every attempt, and says what it caps", async () => {
+    mount();
+
+    expect(await screen.findByLabelText(/Spending limit/)).toHaveValue("0.35");
+    expect(
+      screen.getByText(
+        "Up to $0.20 (estimate) to its first proposal; each attempt after it about $0.05, up to 3 attempts. The limit of $0.35 caps the whole session.",
+      ),
+    ).toBeVisible();
+    await userEvent.clear(screen.getByLabelText(/Spending limit/));
+    await userEvent.type(screen.getByLabelText(/Spending limit/), "1");
+    expect(screen.getByText(/The limit of \$1\.00 caps the whole session/)).toBeVisible();
+    await userEvent.clear(screen.getByLabelText(/Spending limit/));
+    await userEvent.type(screen.getByLabelText(/Spending limit/), "abc");
+    expect(screen.getByText(/The limit of \$0\.35 caps the whole session/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+  });
+
   it("starts on the line with the limit set, and opens the session", async () => {
     mount("f1");
 

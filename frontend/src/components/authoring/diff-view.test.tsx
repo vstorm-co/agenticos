@@ -86,3 +86,15 @@ it("marks a removed line with nothing to pair whole", () => {
   expect(screen.getByText(diffLine("second")).querySelector("del")).toBeNull();
   expect(screen.getByText(diffLine("first edited")).querySelector("ins")).not.toBeNull();
 });
+
+it("keeps the sign gutter narrow when the table opens on a fold, in either view", async () => {
+  wide.value = true;
+  const { container } = render(
+    <DiffView before={`${lines(10, "keep")}\nold`} after={`${lines(10, "keep")}\nnew`} />,
+  );
+  const gutters = () =>
+    [...container.querySelectorAll("col")].map((col) => col.className === "w-6");
+  expect(gutters()).toEqual([true, false]);
+  await userEvent.click(screen.getByRole("button", { name: "Side by side" }));
+  expect(gutters()).toEqual([true, false, true, false]);
+});

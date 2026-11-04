@@ -2,19 +2,30 @@
 
 import type { ArmRole, ArmSource, ProposalCheckRecord } from "@/types/eval-runs";
 
-type Translate = (key: string, values?: { version?: number; count?: number }) => string;
+type Translate = (
+  key: string,
+  values?: { version?: number; count?: number; agent?: string },
+) => string;
+
+/** A proposal's check, with the name of the agent it ran on once the page has read it. */
+export type SideCheck = ProposalCheckRecord & { agent?: string };
 
 /**
  * A side by what it ran - a published version by its number, otherwise its source.
  *
  * The candidate of a check of the authoring assistant's proposal is named by what
- * it adds to the side it is measured against, so both names say what differs.
+ * it adds to the side it is measured against, so both names say what differs. A
+ * skill's check runs one agent on the skill as it is and as proposed, so both sides
+ * are that agent, named by which skill each one read.
  */
 export function sideName(
   side: { version_number: number | null; source: ArmSource; role?: ArmRole },
   t: Translate,
-  check?: ProposalCheckRecord | null,
+  check?: SideCheck | null,
 ): string {
+  if (check?.kind === "skill" && check.agent !== undefined && side.role !== undefined) {
+    return t(side.role === "candidate" ? "skillProposed" : "skillCurrent", { agent: check.agent });
+  }
   if (check && side.role === "candidate") return proposedName(check, t);
   if (side.version_number !== null) return t("version", { version: side.version_number });
   return side.source === "explicit" ? t("proposed") : t("draft");

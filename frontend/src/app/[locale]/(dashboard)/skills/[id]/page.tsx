@@ -17,7 +17,8 @@ import {
   shownAgents,
   type ShownAgents,
 } from "@/components/skills/skill-lines";
-import { SkillPageHeader } from "@/components/skills/skill-page-header";
+import { CheckRunning } from "@/components/skills/check-running";
+import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
 import { ErrorState, LoadingState } from "@/components/states";
@@ -99,7 +100,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
+        onDelete={skill.can_edit ? () => setDeleting(true) : null}
       />
+      {skill.can_edit && can(Perm.runsView) && (
+        <CheckRunning skillId={id} forkId={fork?.id ?? null} />
+      )}
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
@@ -147,6 +152,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree
+            skillId={id}
             mainLatest={skill.version}
             forks={forks}
             agents={agents.agents?.items ?? []}
@@ -180,8 +186,8 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           agentsError={agents.error}
           deleting={remove.isPending}
           onClose={() => setDeleting(false)}
-          onDelete={async () => {
-            await remove.mutateAsync();
+          onDelete={async (removeFromAgents) => {
+            await remove.mutateAsync(removeFromAgents);
             router.push(ROUTES.SKILLS);
           }}
         />
@@ -208,10 +214,11 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
 /**
  * Where the fork shown merges with main: catching up while main has moved past it, and
  * moving to main once it has a version of its own. A fork without one has nothing to
- * merge - its agents return to main instead.
+ * merge yet - its agents return to main instead.
  */
-function mergesOf(skillId: string, fork: SkillFork | null) {
-  if (fork === null || fork.latest === null) return null;
+function mergesOf(skillId: string, fork: SkillFork | null): Merges | null {
+  if (fork === null) return null;
+  if (fork.latest === null) return { fork: fork.name, catchUp: null, toMain: null, empty: true };
   const href = (merge: string) =>
     `${ROUTES.SKILL_DETAIL(skillId)}/improve/new?fork=${fork.id}&merge=${merge}`;
   return {

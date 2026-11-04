@@ -124,7 +124,21 @@ describe("SkillCheckDialog", () => {
     open();
 
     expect(screen.getByText(/Checking\. This takes a few minutes/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "the skill's page" })).toHaveAttribute(
+      "href",
+      "/skills/s-1",
+    );
+    expect(screen.getByRole("progressbar", { name: "Agents checked" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+  });
+
+  it("opens a check left running again, without pricing it anew", () => {
+    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+    render(<SkillCheckDialog skillId="s-1" resume="c-9" forkId={null} onOpenChange={vi.fn()} />);
+
+    expect(held.checkId).toBe("c-9");
+    expect(held.estimate.mutate).not.toHaveBeenCalled();
+    expect(screen.getByText(/Checking\. This takes a few minutes/)).toBeInTheDocument();
   });
 
   it("closes once discarded, and stays open when applying is refused", async () => {

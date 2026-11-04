@@ -29,6 +29,21 @@ export function limitText(value: string, locale: string): string {
   }).format(Math.ceil(Number(value) * 100) / 100);
 }
 
+/**
+ * The limit a new improvement session is offered: getting to its first stop, then
+ * every attempt it may make, rounded up to a cent. The start is priced only to the
+ * first stop, but the limit caps the whole session, so it has to leave room for the
+ * steps after it.
+ */
+export function sessionLimit(quote: {
+  total_usd: string;
+  per_round_usd: string;
+  max_iterations: number;
+}): string {
+  const whole = Number(quote.total_usd) + quote.max_iterations * Number(quote.per_round_usd);
+  return String(Math.max(0.01, Math.ceil(whole * 100) / 100));
+}
+
 /** What a person typed as a limit, as the plain decimal the API reads. */
 export function limitValue(text: string): string {
   return text.replace(/\s/g, "").replace(",", ".");

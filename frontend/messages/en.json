@@ -5531,7 +5531,7 @@
       },
       "skill-tree": {
         "title": "Main and its forks",
-        "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+        "body": "Main runs left to right to its newest version, each fork branches off the version it started from on a lane of its own, and every agent sits in the box of the version it uses. Compare puts any versions side by side."
       },
       "skill-improve": {
         "title": "Improve the skill",
@@ -8522,8 +8522,25 @@
         "latest": "latest",
         "fork": "Fork “{name}”",
         "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
-        "moreAgents": "+{count}",
-        "forkNumber": "{name} v{number}"
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "No version of its own yet",
+        "compare": "Compare {version}",
+        "compareShort": "Compare",
+        "comparing": "Comparing"
+      },
+      "compare": {
+        "title": "Comparison",
+        "count": "{count, plural, =1 {1 version} other {# versions}}",
+        "clear": "Clear",
+        "pickAnother": "Pick another version on the diagram to put beside this one.",
+        "remove": "Remove {version} from the comparison",
+        "loading": "Loading the version…",
+        "description": "Description",
+        "instructions": "Instructions",
+        "files": "Files",
+        "noFiles": "No files.",
+        "unreadable": "Couldn't load this version.",
+        "retry": "Retry"
       },
       "edit": {
         "saved": "Saved as v{number}.",
@@ -8569,29 +8586,55 @@
       "deleteSkill": {
         "title": "Delete {name}?",
         "description": "Its versions and forks go with it. No agent uses it now.",
-        "used": "A skill an agent uses cannot be deleted. Move each agent to another skill, or remove the skill from it in the Builder, then delete it.",
+        "used": "Agents use this skill. It is deleted only once it is off all of them: here, from all of them at once, or one by one in the Builder.",
         "usedBy": "{named, select, yes {{count, plural, =1 {Used by 1 agent} other {Used by # agents}}: {names}{hidden, plural, =0 {.} =1 {, and 1 you can't see.} other {, and # you can't see.}}} other {{hidden, plural, =1 {Used by 1 agent you can't see.} other {Used by # agents you can't see.}}}}",
         "close": "OK",
         "cancel": "Cancel",
         "delete": "Delete",
         "checking": "Checking which agents use it…",
-        "unread": "Which agents use it could not be read. A skill an agent uses is still refused."
+        "unread": "Which agents use it could not be read. A skill an agent uses is still refused.",
+        "removeAndDelete": "{count, plural, =1 {Remove from 1 agent and delete} other {Remove from # agents and delete}}",
+        "removeBody": "{count, plural, =1 {The skill is taken off this agent, then deleted with its versions and forks. This cannot be undone.} other {The skill is taken off these # agents, then deleted with its versions and forks. This cannot be undone.}}",
+        "removeConfirm": "Remove and delete",
+        "back": "Back",
+        "locked": "{count, plural, =1 {You may not change {names}, so it cannot be taken off here. Ask its owner, or remove it there in the Builder.} other {You may not change {names}, so it cannot be taken off here. Ask their owners, or remove it there in the Builder.}}",
+        "hiddenBlocks": "Some of them you cannot see, so it cannot be taken off all of them here. Ask an admin to remove it.",
+        "button": "Delete",
+        "agentsChanged": "An agent started using the skill while it was being removed, so nothing changed. Try again.",
+        "waiting": "{name} still serves it in {environments}, which {count, plural, =1 {waits} other {wait}} for promotion. Promote a version without the skill there first.",
+        "unpublishable": "{name}'s newest spec does not publish without the skill, so nothing changed. <link>Fix it in the Builder</link>, then try again."
       },
       "usage": {
         "title": "Use in the last {days} days",
         "loads": "{count, plural, =0 {Not opened} =1 {Opened once} other {Opened # times}}",
         "none": "No agent opened this skill in the last {days} days. Runs of evals and the test panel are not counted.",
-        "agent": "{loads, plural, =1 {opened once} other {opened # times}}{files, plural, =0 {} =1 { · 1 file read} other { · # files read}}{seen, select, yes { · last {last}} other {}}",
-        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
+        "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}.",
+        "chart": "Loads per day, one line per agent",
+        "table": {
+          "agent": "Agent",
+          "loads": "Loads",
+          "files": "Files read",
+          "last": "Last used",
+          "label": "Use per agent"
+        },
+        "never": "Not yet",
+        "pick": "Agents on the chart",
+        "pickNone": "Pick an agent above to draw its line."
       },
       "catchUp": "Catch “{name}” up with main",
       "toMain": "Move “{name}” to main",
+      "nothingToMerge": "Make a change in the fork first; there's nothing to merge yet.",
       "returnFork": {
         "button": "Return “{name}” to main",
         "title": "Return the agents of “{name}” to main",
         "body": "{count, plural, =0 {Nobody reads this fork, so it is archived.} =1 {The 1 agent reading this fork moves to main's newest version, published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.} other {The # agents reading this fork move to main's newest version, each published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.}}",
         "confirm": "Return to main",
         "done": "Done"
+      },
+      "checkRunning": {
+        "running": "Check running: {done} of {total} agents checked.",
+        "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
+        "show": "Show"
       }
     },
     "checkOnAgents": "Check on agents",
@@ -8601,7 +8644,7 @@
       "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
       "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
       "start": "Start the check",
-      "running": "Checking. This takes a few minutes; you can close this and come back.",
+      "running": "Checking. This takes a few minutes. You can close this: the check keeps running, and <page>the skill's page</page> shows it as Check running until you decide it.",
       "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
       "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
       "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
@@ -8637,7 +8680,9 @@
       "unaffordable": "The organization's budget left this month cannot cover this check.",
       "cancel": "Stop the check",
       "inSession": "This check belongs to an improvement session, so it is decided there.",
-      "openSession": "Open the session"
+      "openSession": "Open the session",
+      "progress": "{done} of {total} agents checked",
+      "progressLabel": "Agents checked"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions"
@@ -13558,6 +13603,8 @@
     "versionPlus": "v{version} + {count, plural, =1 {1 suggestion} other {# suggestions}}",
     "proposedSkill": "v{version} + proposed skill",
     "proposedContext": "v{version} + proposed context file",
+    "skillCurrent": "{agent} · current skill",
+    "skillProposed": "{agent} · proposed skill",
     "version": "v{version}",
     "status": {
       "queued": "Queued",
@@ -15520,7 +15567,17 @@
         "skill_set": "Run on the skill's questions",
         "dataset_sample": "{named, select, yes {Run on a sample of {name}} other {Run on a sample of the agent's questions}}",
         "dataset": "{named, select, yes {Run on {name}} other {Run on the agent's questions}}"
-      }
+      },
+      "summary": {
+        "worse": "{count} worse",
+        "unknown": "{count} not known",
+        "same": "{count} no change",
+        "better": "{count} better",
+        "pending": "{count} still checking"
+      },
+      "seenCount": "{seen, plural, =0 {None of {total} agents looked at yet} other {Looked at # of {total} agents}}",
+      "seen": "Seen",
+      "details": "Details of {name}"
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",
@@ -15558,8 +15615,9 @@
       "openSession": "This line already has a session open.",
       "continue": "Continue it",
       "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
-      "price": "Up to the first proposal it costs about {cost}; each attempt about {perRound}, up to {rounds, plural, =1 {1 attempt} other {# attempts}}.",
+      "price": "Up to {cost} (estimate) to its first proposal; each attempt after it about {perRound}, up to {rounds, plural, =1 {1 attempt} other {# attempts}}. The limit of {limit} caps the whole session.",
       "limit": "Spending limit for the whole session (USD)",
+      "limitHint": "Filled in for the first proposal and every attempt it may make. Lower it to stop sooner; the session stops before a step that would go over it.",
       "unaffordable": "The organization's budget does not cover this.",
       "start": "Start",
       "reads": "{runs, plural, =1 {It reads 1 answer} other {It reads # answers}} where the line's versions were loaded, {agents, plural, =1 {from 1 agent} other {from # agents}}.",

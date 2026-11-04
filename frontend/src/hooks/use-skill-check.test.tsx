@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SKILL_CHECK_POLL_MS, useSkillCheck } from "./use-skill-check";
+import { SKILL_CHECK_POLL_MS, useOpenSkillCheck, useSkillCheck } from "./use-skill-check";
 import * as api from "@/lib/skill-checks-api";
 import type { SkillCheck } from "@/types/skill-checks";
 
@@ -12,6 +12,7 @@ vi.mock("@/lib/skill-checks-api", () => ({
   estimateSkillCheck: vi.fn(),
   startSkillCheck: vi.fn(),
   getSkillCheck: vi.fn(),
+  listSkillChecks: vi.fn(),
   applySkillCheck: vi.fn(),
   discardSkillCheck: vi.fn(),
 }));
@@ -83,5 +84,41 @@ describe("useSkillCheck", () => {
 
     expect(api.estimateSkillCheck).toHaveBeenCalledWith("s-1", body);
     expect(api.startSkillCheck).toHaveBeenCalledWith("s-1", body);
+  });
+});
+
+describe("useOpenSkillCheck", () => {
+  const check = (overrides: Partial<SkillCheck>) =>
+    ({ id: "c", status: "done", session_id: null, ...overrides }) as SkillCheck;
+
+  it("finds the check left to come back to, and reads it again while it runs", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(api.listSkillChecks).mockResolvedValue({
+      items: [
+        check({ id: "in-session", status: "running", session_id: "s" }),
+        check({ id: "applied", status: "applied" }),
+        check({ id: "catch-up", status: "done", source: "catch_up" }),
+        check({ id: "open", status: "running" }),
+      ],
+      total: 3,
+    });
+    const { result } = renderHook(() => useOpenSkillCheck("s-1", "f-1"), { wrapper });
+
+    await waitFor(() => expect(result.current?.id).toBe("open"));
+    expect(api.listSkillChecks).toHaveBeenCalledWith("s-1", "f-1");
+    await act(() => vi.advanceTimersByTimeAsync(SKILL_CHECK_POLL_MS));
+    expect(api.listSkillChecks).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("has nothing to come back to once every check is decided", async () => {
+    vi.mocked(api.listSkillChecks).mockResolvedValue({
+      items: [check({ status: "discarded" })],
+      total: 1,
+    });
+    const { result } = renderHook(() => useOpenSkillCheck("s-1", null), { wrapper });
+
+    await waitFor(() => expect(api.listSkillChecks).toHaveBeenCalled());
+    expect(result.current).toBeNull();
   });
 });
