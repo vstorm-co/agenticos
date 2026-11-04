@@ -82,25 +82,29 @@ export function InboxPage() {
               {t("filterLabel")}
             </span>
             <div
-              className="hidden items-center gap-1 sm:flex"
+              className="hidden flex-wrap items-center gap-1 sm:flex"
               role="group"
               aria-label={t("filterLabel")}
             >
-              {FILTERS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={filter === value}
-                  onClick={() => setFilter(value === "all" ? null : value)}
-                  className={
-                    filter === value
-                      ? "bg-accent text-foreground rounded-lg px-3 py-1.5 text-sm font-medium"
-                      : "text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-sm"
-                  }
-                >
-                  {t(`filter.${value}`)}
-                </button>
-              ))}
+              {FILTERS.map((value) => {
+                const Icon = FILTER_ICONS[value];
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={filter === value}
+                    onClick={() => setFilter(value === "all" ? null : value)}
+                    className={
+                      filter === value
+                        ? "bg-accent text-foreground inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium"
+                        : "text-muted-foreground hover:text-foreground inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm"
+                    }
+                  >
+                    <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
+                    {t(`filter.${value}`)}
+                  </button>
+                );
+              })}
             </div>
             <div className="sm:hidden">
               <Select
