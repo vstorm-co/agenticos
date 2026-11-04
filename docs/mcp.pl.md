@@ -1,5 +1,5 @@
 ---
-source_sha: "8f5441c979db"
+source_sha: "0c286820f30e"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -721,6 +721,10 @@ wyszukiwanie, a nie wyliczanka:
   W Connected i rejestrze dokładny klucz serwera ma pierwszeństwo przed powiązanymi wynikami,
   więc zapisany link działa także wtedy, gdy inne opisy zawierają ten sam klucz. Wpisy
   rejestru o identycznych nazwach zachowują stałą kolejność między stronami.
+
+  Gdy synchronizacja usunie wpis rejestru, zapisany klucz katalogu nadal otwiera istniejące
+  konta. Powrót z logowania w popupie odświeża zarówno strony listy, jak i zapisane zakładki
+  kont.
 
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,

@@ -26,7 +26,7 @@ def _bands(needle: str) -> ColumnElement[int]:
     same ordering across the whole mirror.
     """
     return case(
-        (McpRegistryServer.id == needle, _BAND_KEY_EXACT),
+        (func.lower(McpRegistryServer.id) == needle.lower(), _BAND_KEY_EXACT),
         (McpRegistryServer.name.ilike(f"{needle}%"), _BAND_NAME_STARTS),
         (McpRegistryServer.name.ilike(f"%{needle}%"), _BAND_NAME_HOLDS),
         else_=_BAND_ELSEWHERE,
@@ -45,7 +45,7 @@ def _matching(query: str) -> ColumnElement[bool] | None:
         return None
     like = f"%{needle}%"
     return or_(
-        McpRegistryServer.id == needle,
+        func.lower(McpRegistryServer.id) == needle.lower(),
         McpRegistryServer.name.ilike(like),
         McpRegistryServer.description.ilike(like),
         McpRegistryServer.host.ilike(like),

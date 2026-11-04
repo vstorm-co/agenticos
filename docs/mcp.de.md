@@ -1,5 +1,5 @@
 ---
-source_sha: "8f5441c979db"
+source_sha: "0c286820f30e"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -759,6 +759,10 @@ und keine Auflistung:
   Suchtreffern. Gespeicherte Links werden dadurch auch dann aufgelöst, wenn andere
   Beschreibungen denselben Schlüssel nennen. Registereinträge mit identischen Namen behalten
   eine stabile Reihenfolge über Seiten hinweg.
+
+  Wird ein Registereintrag bei der Synchronisierung entfernt, öffnet sein gespeicherter
+  Katalogschlüssel weiterhin die bestehenden Konten. Die Rückkehr von der Anmeldung im Popup
+  aktualisiert sowohl Serverseiten als auch gespeicherte Kontolinks.
 
 - **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
   Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen

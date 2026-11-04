@@ -694,3 +694,28 @@ async def test_exact_curated_keys_match_when_the_slug_is_absent_from_display_met
 
     assert found.total == 1
     assert [row.key for row in found.items] == [entry.key]
+
+
+@pytest.mark.parametrize("state", ["all", "connected"])
+async def test_pruned_registry_metadata_does_not_rename_a_saved_server_bookmark(
+    state: Literal["all", "connected"],
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    mock_db_session: AsyncSession,
+) -> None:
+    key = "registry/removed-service"
+    first = _connection(caller, name="work", key=key, url="https://work.example.test/mcp")
+    second = _connection(
+        caller, name="personal", key=key, url="https://home.example.test/mcp", scope="user"
+    )
+    repositories.organization.return_value = [first], 1
+    repositories.personal.return_value = [second], 1
+    repositories.registry.return_value = []
+
+    found = await mcp_listing.page(mock_db_session, ctx=caller, query=key, state=state)
+
+    assert found.total == 1
+    assert found.items[0].key == key
+    assert found.items[0].connection_ids == (first.id, second.id)
+    assert found.items[0].custom

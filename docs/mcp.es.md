@@ -1,5 +1,5 @@
 ---
-source_sha: "8f5441c979db"
+source_sha: "0c286820f30e"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -745,6 +745,10 @@ no un listado:
   relacionados, de modo que un enlace guardado se resuelve aunque otras descripciones
   mencionen la misma clave. Las entradas del registro con nombres idénticos mantienen un orden
   estable entre páginas.
+
+  Si la sincronización elimina una entrada del registro, su clave guardada sigue abriendo las
+  cuentas existentes. Volver del inicio de sesión en una ventana emergente actualiza tanto las
+  páginas de servidores como los enlaces guardados a cuentas.
 
 - **Una categoría también llega al espejo.** El registro no tiene categorías,
   así que cada entrada recibe una al sincronizar a partir de su propio nombre y

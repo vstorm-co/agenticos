@@ -199,7 +199,7 @@ async def _connected(
             by_url.setdefault(_normalize_url(entry.url), entry)
 
     accounts: dict[str, list[McpConnection]] = {}
-    customs: dict[str, list[McpConnection]] = {}
+    customs: dict[tuple[str, str], list[McpConnection]] = {}
     for one in connections:
         entry = (
             by_key.get(one.catalog_key or "")
@@ -207,7 +207,12 @@ async def _connected(
             or by_key.get(one.name)
         )
         if entry is None:
-            customs.setdefault(_normalize_url(one.url), []).append(one)
+            identity = (
+                ("catalog", one.catalog_key)
+                if one.catalog_key
+                else ("url", _normalize_url(one.url))
+            )
+            customs.setdefault(identity, []).append(one)
         else:
             accounts.setdefault(entry.key, []).append(one)
 
@@ -219,7 +224,8 @@ async def _connected(
     for group in customs.values():
         first = group[0]
         row = ListedServer(
-            key=str(uuid5(NAMESPACE_URL, f"agenticos:mcp:{_normalize_url(first.url)}")),
+            key=first.catalog_key
+            or str(uuid5(NAMESPACE_URL, f"agenticos:mcp:{_normalize_url(first.url)}")),
             name=first.name,
             description="",
             category="custom",

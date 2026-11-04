@@ -687,6 +687,9 @@ listing:
   saved link resolves even when other descriptions mention the same key. Registry entries with
   identical names keep a stable order across pages.
 
+  If a registry entry is removed during sync, its saved catalog key still opens the existing
+  accounts. Returning from popup sign-in refreshes both server pages and bookmarked accounts.
+
 - **A category reaches the mirror too.** The registry has no categories, so each
   listing is given one at sync from its own name and description, counting the
   words each category is known by; a listing that names none of them is filed

@@ -6,12 +6,17 @@ into the catalog and page three starts one row in - so an off-by-one here skips 
 server or shows it twice, on a list where nobody would notice which.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.permissions import AuthContext
+from app.db.models.mcp_connection import McpConnection
+from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.user import User
 from app.repositories import mcp_registry_server_repo as repo
 from app.repositories import mcp_server_check_repo as check_repo
 from app.services import mcp_catalog, mcp_listing
@@ -426,3 +431,80 @@ async def test_same_named_registry_servers_keep_a_stable_order_between_pages(
 
     assert first_total == second_total == 12
     assert [row.id for row, _check in first + second] == ids
+
+
+@pytest.mark.parametrize(
+    "query", ["ai.alpic.alpix/Alpix", "ai.alpic.alpix/alpix", "AI.ALPIC.ALPIX/ALPIX"]
+)
+async def test_registry_key_matching_and_ranking_ignore_case(db: AsyncSession, query: str) -> None:
+    key = "ai.alpic.alpix/Alpix"
+    await repo.upsert_many(
+        db,
+        [
+            {
+                "id": key,
+                "name": "Alpix",
+                "description": "Tools",
+                "url": "https://alpix.example.test/mcp",
+                "host": "alpix.example.test",
+            },
+            {
+                "id": "related/one",
+                "name": f"{query} alternative",
+                "description": "Tools",
+                "url": "https://other.example.test/mcp",
+                "host": "other.example.test",
+            },
+        ],
+    )
+
+    rows, total = await repo.search(db, query=query, limit=1)
+
+    assert total == 2
+    assert rows[0][0].id == key
+
+
+async def test_registry_pruning_keeps_a_persisted_account_and_its_saved_key(
+    db: AsyncSession,
+) -> None:
+    user = User(email=f"mcp-{uuid4().hex}@example.test", is_active=True)
+    db.add(user)
+    await db.flush()
+    org = Organization(name="MCP workspace", slug=uuid4().hex, created_by_user_id=user.id)
+    db.add(org)
+    await db.flush()
+    db.add(OrganizationMember(organization_id=org.id, user_id=user.id, role="owner"))
+    key = "registry/retired-fixture"
+    connection = McpConnection(
+        user_id=user.id,
+        scope="user",
+        name="saved-account",
+        catalog_key=key,
+        url="https://retired.example.test/mcp",
+        auth_type="bearer",
+    )
+    db.add(connection)
+    await db.flush()
+    await repo.upsert_many(
+        db,
+        [
+            {
+                "id": key,
+                "name": "Retired service",
+                "description": "",
+                "url": connection.url,
+                "host": "retired.example.test",
+            }
+        ],
+    )
+    ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
+    before = await mcp_listing.page(db, ctx=ctx, query=key, state="connected")
+    assert before.items[0].key == key and not before.items[0].custom
+
+    assert await repo.delete_stale(db, datetime.now(UTC) + timedelta(seconds=1)) == 1
+    after = await mcp_listing.page(db, ctx=ctx, query=key, state="connected")
+
+    assert after.total == 1
+    assert after.items[0].key == key
+    assert after.items[0].connection_ids == (connection.id,)
+    assert after.items[0].custom
