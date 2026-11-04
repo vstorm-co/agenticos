@@ -53,7 +53,7 @@ export function GroupList({
   const columns: Column<Group>[] = [
     {
       key: "name",
-      className: "w-full max-w-0 pl-3 sm:pl-5",
+      className: "w-full max-w-0 sm:w-[35%] pl-3 sm:pl-5",
       header: t("name"),
       cell: (group) => (
         <div className="flex min-w-0 items-center gap-3">
@@ -61,6 +61,7 @@ export function GroupList({
           <div className="min-w-0">
             <Link
               href={ROUTES.GROUP_DETAIL(group.id)}
+              title={group.name}
               className="text-foreground block truncate text-sm font-medium hover:underline"
             >
               {group.name}

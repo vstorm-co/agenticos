@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
       {
         key: "email",
         header: t("user"),
-        className: "w-full max-w-0 pl-3 sm:pl-5",
+        className: "w-full max-w-0 sm:w-[30%] pl-3 sm:pl-5",
         sortable: true,
         cell: (u) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -106,7 +106,9 @@ export default function AdminUsersPage() {
                   </Badge>
                 )}
               </div>
-              <p className="text-muted-foreground truncate text-xs">{u.email}</p>
+              <p title={u.email} className="text-muted-foreground truncate text-xs">
+                {u.email}
+              </p>
             </div>
           </div>
         ),
