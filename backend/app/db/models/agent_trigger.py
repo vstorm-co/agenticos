@@ -204,6 +204,13 @@ class AgentTrigger(Base, TimestampMixin):
     # not licence to run as nobody - it is a trigger that can no longer be
     # attributed, so the claim query requires it non-null and the row is disabled
     # the next time it is inspected.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

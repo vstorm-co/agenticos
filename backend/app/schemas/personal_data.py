@@ -55,6 +55,18 @@ class RoutineSourceExport(BaseModel):
     approved_sources: RoutineSourcePolicy | None
 
 
+class ProjectTrackingExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    organization_id: UUID
+    project_id: UUID
+    agent_id: UUID
+    agent_version_id: UUID
+    table_id: UUID
+    trigger_id: UUID
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -71,6 +83,7 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    project_trackers: list[ProjectTrackingExport] = Field(default_factory=list)
     routine_sources: list[RoutineSourceExport] = Field(default_factory=list)
     routine_health: list[RoutineHealthExport] = Field(default_factory=list)
     routine_device_waits: list[RoutineDeviceWaitExport] = Field(

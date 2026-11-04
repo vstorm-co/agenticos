@@ -234,8 +234,10 @@ async def create(
     monthly_budget_usd: Decimal | None = None,
     pinned_version_id: UUID | None = None,
     is_active: bool = True,
+    project_id: UUID | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
+        project_id=project_id,
         is_active=is_active,
         max_failures=max_failures,
         organization_id=organization_id,

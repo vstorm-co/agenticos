@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3f798c416272"
+source_sha: "47711e3a6052"
 ---
 
 # Projekte { #projects }
@@ -237,3 +237,10 @@ mit ihm.
 - `GET /api/v1/projects` und seine Unterrouten gehören zur öffentlichen API, sodass
   ein Skript ein Projekt anlegen und mit Dateien füllen kann. Siehe [die
   API](api.md).
+
+
+## Ein Projekt auf Kurs halten { #keep-a-project-on-track }
+
+Wähle auf der Projektseite **Projekt auf Kurs halten**. Wähle einen veröffentlichten Agenten, den du bearbeiten darfst, prüfe Ressourcen und verbundene Konten, benenne den neuen Agenten und die Aufgabentabelle, wähle das Intervall und bestätige ausdrücklich die Veröffentlichung und den Start. Es entstehen eine private Kopie des Agenten, eine Aufgabentabelle (privat, sofern du nicht die Organisation als Zielgruppe wählst), gespeicherte Ansichten für alle Aufgaben, Board, offene Aufgaben und Blockaden sowie eine an die neue Version gebundene Routine. Der ursprüngliche Agent bleibt unverändert.
+
+Die Routine handelt als du im Projekt und berichtet in dessen Unterhaltung. Sie liest Aufgaben, prüft Fortschritte anhand der genehmigten Quellen, aktualisiert nächste Schritte und meldet Blockaden und Fristen. Externe Nachrichten benötigen weiterhin die übliche Autorisierung. Neue Quellen, eine erneute Kontozustimmung oder ein ersetzter Projektarbeitsbereich verlangen eine neue Quellenprüfung. Verlorener Projektzugriff stoppt weitere Werkzeuge; wartende Projektbenachrichtigungen prüfen den aktuellen Zugriff des Empfängers erneut. Ein identischer Wiederholungsversuch verwendet vorhandene Ressourcen. Intervall und Quellen verwaltest du unter Routinen; die Tabelle öffnest du auf der Projektseite.

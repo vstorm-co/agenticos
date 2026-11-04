@@ -379,6 +379,20 @@ class ProjectService:
             details={"name": project.name},
         )
 
+    async def source_for_routine(self, ctx: AuthContext, project_id: UUID) -> Project:
+        """Authorize a metadata snapshot without holding a workspace lock over provider probes.
+
+        The runner takes the workspace's ordinary lock immediately before admission;
+        routine guards compare this snapshot again before every subsequent tool.
+        """
+        project = await self.get(ctx, project_id)
+        if not await resolve_access(
+            self.db, ctx, project, Perm.PROJECTS_USE, resource_type=PROJECT
+        ):
+            raise AuthorizationError(message="This routine can no longer work in its project")
+        await require_available(self.db, project)
+        return project
+
     async def for_run(self, ctx: AuthContext, conversation_id: UUID | None) -> Project | None:
         """The project a run works in, if its conversation is in one.
 

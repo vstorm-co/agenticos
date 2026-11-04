@@ -37,6 +37,7 @@ from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.project_tracking import ProjectTracking
 from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.routine_health import RoutineHealthObservation
@@ -565,3 +566,20 @@ async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
         sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)
     )
     await db.flush()
+
+
+async def project_trackers_of(db: AsyncSession, user_id: UUID) -> list[ProjectTracking]:
+    return list(
+        await db.scalars(
+            select(ProjectTracking)
+            .where(ProjectTracking.user_id == user_id)
+            .order_by(ProjectTracking.id)
+        )
+    )
+
+
+async def project_tracking_export_size(db: AsyncSession, user_id: UUID) -> int:
+    count = await db.scalar(
+        select(func.count()).select_from(ProjectTracking).where(ProjectTracking.user_id == user_id)
+    )
+    return int(count or 0) * 1024

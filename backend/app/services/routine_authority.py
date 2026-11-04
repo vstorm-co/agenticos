@@ -22,11 +22,12 @@ from app.agents.capabilities import get as capability
 from app.agents.mcp import McpSourceIdentity, McpToolOrigin, needs_approval, tool_origin
 from app.agents.routine_actions import RoutineToolDecision
 from app.agents.spec import AgentSpec
-from app.core.exceptions import AuthorizationError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.agent_trigger import AgentTrigger
+from app.db.models.project import Project
 from app.db.models.watch import Watch
 from app.db.session import get_db_context
 from app.repositories import (
@@ -48,10 +49,12 @@ from app.schemas.routine_actions import (
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
+from app.services.project import ProjectService
 from app.services.routine_actions import CONSENTS, action_intent, action_key, routine_effect
 from app.services.routine_sources import (
     RoutineSourcesRequired,
     account_identities,
+    project_fingerprint,
     read_policy,
     require_bound_sources,
     source_scope,
@@ -105,6 +108,17 @@ class RoutineAuthority:
             else self.source_policy.mcp_sources.get(origin.connection_id)
         )
         return source is not None and origin.tool_id in source.tool_ids
+
+    def require_project(self, project: Project | None) -> None:
+        if self.routine_kind != "trigger":
+            return
+        if (
+            self.source_policy is None
+            or (None if project is None else project.id) != self.source_policy.project_id
+            or (None if project is None else project_fingerprint(project))
+            != self.source_policy.project_hash
+        ):
+            raise RoutineSourcesRequired()
 
     def require_spec(self, spec: AgentSpec) -> None:
         if self.routine_kind == "trigger" and (
@@ -353,6 +367,11 @@ class RoutineAuthority:
         current = AuthContext(
             user_id=self.user_id, organization_id=self.organization_id, role=member.role
         )
+        if self.source_policy is not None and self.source_policy.project_id is not None:
+            try:
+                await ProjectService(db).source_for_routine(current, self.source_policy.project_id)
+            except (AuthorizationError, BadRequestError, NotFoundError) as exc:
+                raise _refused() from exc
         for identifier in sorted({self.root_agent_id, agent_id}):
             agent = await agent_repo.get(db, identifier, organization_id=self.organization_id)
             if agent is None or agent.status == AgentStatus.ARCHIVED.value:

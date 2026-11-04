@@ -129,6 +129,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "created_by_user_id": _CALLER,
         "is_active": True,
         "environment_id": None,
+        "project_id": None,
         "teams_conversation_id": None,
         "trigger_type": "schedule",
         "schedule_kind": "interval",

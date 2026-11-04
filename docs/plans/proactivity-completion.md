@@ -250,3 +250,8 @@ Twilio PSTN/contact/quiet-hour/rate/budget/call-card implementation. After all
 implementation blocks, request five sequential `@codex review` rounds through PR
 comments and address confirmed findings. The maintainer explicitly resumed work
 and continues to request one agent, feature delivery and no CI polling.
+
+
+### Project tracking preset
+
+Implemented explicit source review and publication, a private agent copy, task table with four saved views, fixed project binding and idempotent setup. Project access and workspace identity are checked before tools; queued outcome notices recheck project visibility. Setup is available on the project page and through onboarding. Automatic email follow-up drafting, structured decision episodes/Improve and PSTN remain in progress.

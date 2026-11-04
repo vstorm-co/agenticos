@@ -495,6 +495,16 @@ def get_project_service(db: DBSession) -> ProjectService:
 
 
 ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
+
+from app.services.project_tracking import ProjectTrackingService
+
+
+def get_project_tracking_service(db: DBSession) -> ProjectTrackingService:
+    return ProjectTrackingService(db)
+
+
+ProjectTrackingSvc = Annotated[ProjectTrackingService, Depends(get_project_tracking_service)]
+
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
 from app.schemas.change_event import ChangeSurface
 

@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Project tracking preset: explicitly review a published agent's sources, then create a private tracker, task table, saved views and a project-bound routine. Recheck project access for tools and queued notifications.
+
+
 - Bind routine execution, parked runs and queued events to reviewed source and account ceilings. Add owner-only source review in the console. **Upgrade:** apply `0276_routine_sources.py`, update API/workers together and explicitly review existing routines; migration grants no legacy consent.
 
 ### Changed

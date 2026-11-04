@@ -143,6 +143,12 @@ def _outcome_links(run: AgentRun) -> dict[str, str]:
         links["cause"] = f"watch:{run.routine_origin_id}"
     if run.conversation_id is not None:
         links["conversation_id"] = str(run.conversation_id)
+    policy = (run.routine_policy or {}).get("approved_sources")
+    if isinstance(policy, dict) and policy.get("project_id") is not None:
+        try:
+            links["project_id"] = str(UUID(str(policy["project_id"])))
+        except ValueError:
+            links["project_id"] = ""  # An invalid stored binding remains ineligible for delivery.
     return links
 
 

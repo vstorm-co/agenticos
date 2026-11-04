@@ -36,9 +36,10 @@ from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
 from app.repositories import notification_route as route_repo
+from app.repositories import project as project_repo
 from app.repositories import workflow as workflow_repo
 from app.services import rate_limit
-from app.services.access import ARTIFACT, WORKFLOW, resolve_access
+from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.outcome import OutcomeService
@@ -412,6 +413,7 @@ class _GateCache:
     announcement_visible_by_id: dict[uuid.UUID, bool]
     artifact_visible_by_id: dict[uuid.UUID, bool]
     workflow_visible_by_id: dict[uuid.UUID, bool]
+    project_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
 
 
 class NotificationCenterService:
@@ -1249,7 +1251,12 @@ class NotificationCenterService:
         announcement_ids: set[uuid.UUID] = set()
         artifact_ids: set[uuid.UUID] = set()
         workflow_ids: set[uuid.UUID] = set()
+        project_ids: set[uuid.UUID] = set()
         for notification in notifications:
+            context = notification.render_context or {}
+            if "project_id" in context:
+                with contextlib.suppress(ValueError):
+                    project_ids.add(uuid.UUID(str(context["project_id"])))
             gate = content_gate_for(NotificationEventType(notification.event_type))
             if gate is ContentGate.WORKFLOWS_VIEW:
                 with contextlib.suppress(ValueError):
@@ -1301,12 +1308,21 @@ class NotificationCenterService:
                 self.db, sorted(workflow_ids), organization_id=ctx.organization_id
             )
         }
+        project_visible_by_id = {
+            project.id: await resolve_access(
+                self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
+            )
+            for project in await project_repo.get_many(
+                self.db, sorted(project_ids), organization_id=ctx.organization_id
+            )
+        }
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
             announcement_visible_by_id=announcement_visible_by_id,
             artifact_visible_by_id=artifact_visible_by_id,
             workflow_visible_by_id=workflow_visible_by_id,
+            project_visible_by_id=project_visible_by_id,
         )
 
     async def gate_for(
@@ -1331,6 +1347,14 @@ class NotificationCenterService:
         """
         if cache is None:
             cache = await self._build_gate_cache(ctx, [notification])
+        context = notification.render_context or {}
+        if "project_id" in context:
+            try:
+                project_id = uuid.UUID(str(context["project_id"]))
+            except ValueError:
+                return _Gate(visible=False)
+            if not cache.project_visible_by_id.get(project_id, False):
+                return _Gate(visible=False)
         gate = content_gate_for(NotificationEventType(notification.event_type))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)

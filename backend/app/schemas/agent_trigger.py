@@ -445,6 +445,11 @@ class TriggerCreate(BaseSchema):
     stored or returned in the clear.
     """
 
+    project_id: UUID | None = Field(
+        default=None,
+        description="Explicit project workspace for this routine; fixed for its lifetime",
+    )
+
     max_failures: int | None = Field(
         default=3,
         ge=1,
@@ -782,6 +787,7 @@ class TriggerUpdate(BaseSchema):
 
 
 class TriggerRead(BaseSchema, TimestampSchema):
+    project_id: UUID | None = None
     max_failures: int | None = Field(
         default=3,
         ge=1,

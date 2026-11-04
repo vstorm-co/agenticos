@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.virtual_tables import VirtualTablesConfig
 from app.agents.mcp import McpSourceIdentity, tool_prefix
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
 from app.core.audit import current_impersonator, record_audit
@@ -16,7 +17,8 @@ from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.external_agent import ExternalAgent
-from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo
+from app.db.models.project import Project
+from app.repositories import agent_repo, agent_trigger_repo, mcp_connection_repo, project_repo
 from app.repositories import external_agent as external_repo
 from app.schemas.mcp_connection import McpToolRead
 from app.schemas.routine_sources import (
@@ -27,6 +29,7 @@ from app.schemas.routine_sources import (
 )
 from app.services.agent_registry import AgentRegistryService
 from app.services.mcp_connection import reviewed_personal_sources
+from app.services.project import ProjectService
 
 _TOOLS = TypeAdapter(list[McpToolRead])
 # A future spec field is conservatively source-bearing unless deliberately
@@ -84,7 +87,14 @@ def source_scope(trigger: AgentTrigger) -> str:
     )
     return hashlib.sha256(
         json.dumps(
-            {name: getattr(trigger, name) for name in fields},
+            {
+                **{name: getattr(trigger, name) for name in fields},
+                **(
+                    {"project_id": str(trigger.project_id)}
+                    if trigger.project_id is not None
+                    else {}
+                ),
+            },
             sort_keys=True,
             default=str,
             separators=(",", ":"),
@@ -104,6 +114,21 @@ def read_policy(value: object) -> RoutineSourcePolicy:
         raise RoutineSourcesRequired() from None
 
 
+def project_fingerprint(project: Project) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            [
+                project.backend,
+                str(project.sandbox_connection_id),
+                str(project.workspace_generation),
+                project.runtime,
+                str(project.workspace_move_job_id),
+            ],
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+
+
 def external_fingerprint(agent: ExternalAgent) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -117,6 +142,10 @@ def external_fingerprint(agent: ExternalAgent) -> str:
 async def require_bound_sources(
     db: AsyncSession, *, organization_id: UUID, policy: RoutineSourcePolicy
 ) -> None:
+    if policy.project_id is not None:
+        project = await project_repo.get(db, policy.project_id, organization_id=organization_id)
+        if project is None or project_fingerprint(project) != policy.project_hash:
+            raise RoutineSourcesRequired()
     for identifier, expected in policy.external_sources.items():
         source = await external_repo.get(db, identifier, organization_id=organization_id)
         if source is None or external_fingerprint(source) != expected:
@@ -126,7 +155,7 @@ async def require_bound_sources(
     if policy.input_connection_id is not None and policy.input_source is not None:
         bindings.append((policy.input_connection_id, policy.input_source))
     for identifier, expected_account in bindings:
-        account = await mcp_connection_repo.get_by_id(db, identifier)
+        account = await mcp_connection_repo.get_by_id(db, identifier, fresh=True)
         if (
             account is None
             or not account.is_enabled
@@ -148,7 +177,7 @@ def account_identities(policy: RoutineSourcePolicy) -> dict[UUID, McpSourceIdent
 
 
 @dataclass(frozen=True)
-class _Review:
+class RoutineSourceSnapshot:
     policy: RoutineSourcePolicy
     accounts: list[str]
     unavailable: list[str]
@@ -182,7 +211,7 @@ class RoutineSourceService:
                 message="Only the routine's owner can review its sources in the console"
             )
 
-    async def _review(self, ctx: AuthContext, trigger: AgentTrigger) -> _Review:
+    async def _review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
         if trigger.pinned_version_id is not None:
             _, spec, version = await self.agents.get_pinned_spec(
                 ctx, trigger.agent_id, trigger.pinned_version_id
@@ -191,6 +220,10 @@ class RoutineSourceService:
             _, spec, version = await self.agents.get_runnable_spec(
                 ctx, trigger.agent_id, environment_id=trigger.environment_id
             )
+        project_hash = None
+        if trigger.project_id is not None:
+            project = await ProjectService(self.db).source_for_routine(ctx, trigger.project_id)
+            project_hash = project_fingerprint(project)
         sources: dict[UUID, RoutineSourceAccount] = {}
         root_sources: set[UUID] = set()
         names: set[str] = set()
@@ -203,6 +236,19 @@ class RoutineSourceService:
             resources.update(f"Context · {identifier}" for identifier in current.context_ids)
             resources.update(f"Skill · {identifier}" for identifier in current.skill_ids)
             resources.update(f"Capability · {binding.id}" for binding in current.capabilities)
+            for binding in current.capabilities:
+                if binding.id == "virtual_tables" and binding.enabled:
+                    try:
+                        tables = VirtualTablesConfig.model_validate(binding.config)
+                    except ValidationError:
+                        unavailable.add("Task table configuration")
+                        continue
+                    resources.update(
+                        f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
+                        for grant in tables.tables
+                    )
+                    if tables.allow_create:
+                        resources.add("Capability · create additional tables")
             for delegate in current.subagents:
                 if delegate.agent_version_id in seen:
                     continue
@@ -243,7 +289,10 @@ class RoutineSourceService:
         for ref in (ref for current in specs for ref in current.mcp_servers):
             if isinstance(ref, OrgMcpServerRef):
                 connection = await mcp_connection_repo.get_org_scoped_by_id(
-                    self.db, connection_id=ref.connection_id, organization_id=ctx.organization_id
+                    self.db,
+                    connection_id=ref.connection_id,
+                    organization_id=ctx.organization_id,
+                    fresh=True,
                 )
                 accounts = [] if connection is None else [connection]
                 identities = {
@@ -257,7 +306,7 @@ class RoutineSourceService:
                 missing_name = str(ref.connection_id)
             elif isinstance(ref, PersonalMcpServerRef) and trigger.runs_as_creator:
                 accounts = await mcp_connection_repo.list_user_scoped_by_catalog_key(
-                    self.db, user_id=ctx.subject_id, catalog_key=ref.catalog_key
+                    self.db, user_id=ctx.subject_id, catalog_key=ref.catalog_key, fresh=True
                 )
                 identities = reviewed_personal_sources(ref.catalog_key, accounts)
                 missing_name = ref.catalog_key
@@ -301,7 +350,9 @@ class RoutineSourceService:
                 sources[account.id] = candidate
         input_source = None
         if trigger.connection_id is not None:
-            connection = await mcp_connection_repo.get_by_id(self.db, trigger.connection_id)
+            connection = await mcp_connection_repo.get_by_id(
+                self.db, trigger.connection_id, fresh=True
+            )
             if (
                 connection is None
                 or connection.organization_id != ctx.organization_id
@@ -316,7 +367,7 @@ class RoutineSourceService:
                 names.add(f"{connection.label or connection.name} · {connection.id}")
         if len(sources) > 100:
             raise RoutineSourcesRequired(message="A routine can review at most 100 source accounts")
-        return _Review(
+        return RoutineSourceSnapshot(
             policy=RoutineSourcePolicy(
                 id=uuid4(),
                 consented_by=ctx.subject_id,
@@ -324,6 +375,8 @@ class RoutineSourceService:
                 version_id=version,
                 scope_hash=source_scope(trigger),
                 spec_hash=spec_fingerprint(spec),
+                project_id=trigger.project_id,
+                project_hash=project_hash,
                 mcp_sources=sources,
                 root_mcp_ids=tuple(sorted(root_sources)),
                 external_sources=external_sources,
@@ -342,9 +395,13 @@ class RoutineSourceService:
             raise RoutineSourcesRequired(details={"unavailable_sources": review.unavailable})
         return review.policy
 
-    async def options(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceReview:
+    async def snapshot(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceSnapshot:
+        """A single metadata snapshot for a console-owned preset confirmation."""
         self._human(ctx, trigger)
-        review = await self._review(ctx, trigger)
+        return await self._review(ctx, trigger)
+
+    async def options(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineSourceReview:
+        review = await self.snapshot(ctx, trigger)
         try:
             previous = RoutineSourcePolicy.model_validate(trigger.approved_sources)
         except ValidationError:

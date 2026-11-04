@@ -1,3 +1,6 @@
+vi.mock("@/components/projects/project-tracking-control", () => ({
+  ProjectTrackingControl: () => null,
+}));
 import { Suspense, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react";

@@ -63,6 +63,7 @@ export interface Trigger {
    * trigger read carries it; the per-row controls gate on it rather than on a
    * role.
    */
+  project_id?: string | null;
   can_manage: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;

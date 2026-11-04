@@ -4237,6 +4237,10 @@
       "explore-chat": {
         "title": "Take a quick tour of chat?",
         "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"
+      },
+      "create-project-tracker": {
+        "title": "Set up a project tracker?",
+        "body": "Review an editable published agent and its accounts, then explicitly publish a private tracker with a task table and scheduled checks."
       }
     },
     "steps": {
@@ -4967,6 +4971,14 @@
       "routine-access": {
         "title": "Review routine access",
         "body": "Use the shield on your routine to review its source accounts and resources, then choose any standing action exceptions separately."
+      },
+      "project-tracking": {
+        "title": "Keep project on track",
+        "body": "Review a published source agent and its accounts, then explicitly publish a private tracker with a task table and an ordinary project routine."
+      },
+      "flow-project-tracker-create": {
+        "title": "Set up a project tracker?",
+        "body": "Review an editable published agent and its accounts, then explicitly publish a private tracker with a task table and scheduled checks."
       }
     },
     "chooseLanguage": "Language",
@@ -11773,6 +11785,31 @@
       "computer": "Computer · your files",
       "computerHint": "Use a folder on this computer for your chats. This is your personal choice; other project members keep using the shared project workspace.",
       "sharedWorkspace": "Shared project workspace"
+    },
+    "tracking": {
+      "title": "Keep project on track",
+      "description": "Create a task table with saved views and publish a private copy of a selected agent as its scheduled tracker.",
+      "audience": "The routine acts as you and writes its reports in this project’s shared conversation. The source agent remains unchanged.",
+      "baseAgent": "Source agent you can edit",
+      "chooseAgent": "Choose a published agent",
+      "agentDefault": "{name} tracker",
+      "tableDefault": "{name} tasks",
+      "agentName": "New tracker agent",
+      "tableName": "Task table name",
+      "cadence": "Check project",
+      "hourly": "Every hour",
+      "daily": "Every day",
+      "weekly": "Every week",
+      "shareTable": "Make the task table visible to the organization",
+      "sources": "Review resources and accounts",
+      "tableRights": "The new task table grants read, create and update access. All tasks, Board, Open tasks and Blocked views are included. External action approvals still apply.",
+      "unavailable": "Check these sources first: {names}",
+      "confirm": "I approve these sources and want to publish the private tracker and start its routine.",
+      "publish": "Publish and start",
+      "cancel": "Cancel",
+      "retry": "Try again",
+      "loadFailed": "Retry project tracker",
+      "openTasks": "Task table"
     }
   },
   "voiceGlow": {

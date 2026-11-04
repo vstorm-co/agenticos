@@ -23,8 +23,14 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 
 
-async def get_by_id(db: AsyncSession, connection_id: UUID) -> McpConnection | None:
-    result = await db.execute(select(McpConnection).where(McpConnection.id == connection_id))
+async def get_by_id(
+    db: AsyncSession, connection_id: UUID, *, fresh: bool = False
+) -> McpConnection | None:
+    result = await db.execute(
+        select(McpConnection)
+        .where(McpConnection.id == connection_id)
+        .execution_options(populate_existing=fresh)
+    )
     return result.scalar_one_or_none()
 
 
@@ -59,7 +65,12 @@ async def get_for_token_refresh(db: AsyncSession, connection_id: UUID) -> McpCon
 
 
 async def get_org_scoped_by_id(
-    db: AsyncSession, *, connection_id: UUID, organization_id: UUID, for_update: bool = False
+    db: AsyncSession,
+    *,
+    connection_id: UUID,
+    organization_id: UUID,
+    for_update: bool = False,
+    fresh: bool = False,
 ) -> McpConnection | None:
     """One organization-scoped connection, looked up inside one organization.
 
@@ -80,6 +91,7 @@ async def get_org_scoped_by_id(
         McpConnection.organization_id == organization_id,
         McpConnection.scope == "org",
     )
+    stmt = stmt.execution_options(populate_existing=fresh)
     if for_update:
         stmt = (
             stmt.options(lazyload(McpConnection.user))
@@ -198,7 +210,7 @@ async def get_org_scoped_by_catalog_key(
 
 
 async def list_user_scoped_by_catalog_key(
-    db: AsyncSession, *, user_id: UUID, catalog_key: str
+    db: AsyncSession, *, user_id: UUID, catalog_key: str, fresh: bool = False
 ) -> list[McpConnection]:
     """This person's own enabled connections to one catalog entry.
 
@@ -216,6 +228,7 @@ async def list_user_scoped_by_catalog_key(
             McpConnection.is_enabled.is_(True),
         )
         .order_by(McpConnection.created_at.asc())
+        .execution_options(populate_existing=fresh)
     )
     return list(result.scalars())
 

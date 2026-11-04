@@ -58,6 +58,8 @@ export default defineConfig({
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
         "src/components/triggers/source-consents-panel.tsx",
+        "src/components/projects/project-tracking-control.tsx",
+        "src/components/projects/project-tracking-dialog.tsx",
         // The workflow editor's client-side validation mirror (#1787): pure TS
         // over the in-memory graph, held to the gate the way the agents
         // components above are.

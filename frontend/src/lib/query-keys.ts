@@ -644,6 +644,10 @@ export const qk = {
     list: () => ["local-services", "list"] as const,
   },
   projects: {
+    tracking: (id: string) => ["projects", id, "tracking"] as const,
+    trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
+    trackingReview: (id: string, agentId: string | null, versionId: string | null) =>
+      ["projects", id, "tracking-review", agentId, versionId] as const,
     all: () => ["projects"] as const,
     list: (query: { search: string; skip: number; limit: number }) =>
       ["projects", "list", query] as const,

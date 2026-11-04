@@ -5732,6 +5732,10 @@
       "explore-chat": {
         "title": "Krótki przewodnik po czacie?",
         "body": "Zobacz, jak zacząć rozmowę, przełączyć, który agent odpowiada, i zmienić model albo wysiłek myślenia dla pojedynczego czatu. Chcesz szybki, prowadzony przegląd?"
+      },
+      "create-project-tracker": {
+        "title": "Skonfigurować opiekuna projektu?",
+        "body": "Przejrzyj opublikowanego agenta, którego możesz edytować, i jego konta. Następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i cyklicznymi sprawdzeniami."
       }
     },
     "steps": {
@@ -6462,6 +6466,14 @@
       "routine-access": {
         "title": "Przejrzyj dostęp rutyny",
         "body": "Otwórz tarczę przy swojej rutynie, aby przejrzeć konta i zasoby źródłowe, a następnie osobno wybrać stałe wyjątki dla działań."
+      },
+      "project-tracking": {
+        "title": "Pilnuj projektu",
+        "body": "Przejrzyj opublikowanego agenta i jego konta, a następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i zwykłą rutyną projektu."
+      },
+      "flow-project-tracker-create": {
+        "title": "Skonfigurować opiekuna projektu?",
+        "body": "Przejrzyj opublikowanego agenta, którego możesz edytować, i jego konta. Następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i cyklicznymi sprawdzeniami."
       }
     },
     "chooseLanguage": "Język",
@@ -9229,6 +9241,31 @@
       "computer": "Komputer · Twoje pliki",
       "computerHint": "Używaj folderu na tym komputerze w swoich czatach. To wybór osobisty; inni członkowie projektu nadal korzystają ze wspólnego obszaru roboczego.",
       "sharedWorkspace": "Wspólne środowisko projektu"
+    },
+    "tracking": {
+      "title": "Pilnuj projektu",
+      "description": "Utwórz tabelę zadań z zapisanymi widokami i opublikuj prywatną kopię wybranego agenta jako cyklicznego opiekuna projektu.",
+      "audience": "Rutyna działa w Twoim imieniu i zapisuje raporty we wspólnej rozmowie projektu. Agent źródłowy pozostaje bez zmian.",
+      "baseAgent": "Agent źródłowy, którego możesz edytować",
+      "chooseAgent": "Wybierz opublikowanego agenta",
+      "agentDefault": "Opiekun: {name}",
+      "tableDefault": "Zadania: {name}",
+      "agentName": "Nowy agent opiekuna",
+      "tableName": "Nazwa tabeli zadań",
+      "cadence": "Sprawdzaj projekt",
+      "hourly": "Co godzinę",
+      "daily": "Codziennie",
+      "weekly": "Co tydzień",
+      "shareTable": "Udostępnij tabelę zadań całej organizacji",
+      "sources": "Przejrzyj zasoby i konta",
+      "tableRights": "Nowa tabela zadań pozwala na odczyt, tworzenie i aktualizację rekordów. Zawiera widoki wszystkich zadań, tablicy, zadań otwartych i zablokowanych. Zewnętrzne działania nadal wymagają zwykłych zgód.",
+      "unavailable": "Najpierw sprawdź źródła: {names}",
+      "confirm": "Zatwierdzam te źródła i chcę opublikować prywatnego opiekuna oraz uruchomić jego rutynę.",
+      "publish": "Opublikuj i uruchom",
+      "cancel": "Anuluj",
+      "retry": "Spróbuj ponownie",
+      "loadFailed": "Ponów odczyt opiekuna",
+      "openTasks": "Tabela zadań"
     }
   },
   "voiceGlow": {

@@ -4115,6 +4115,10 @@
       "explore-chat": {
         "title": "Eine kurze Tour durch den Chat?",
         "body": "Sehen Sie, wie Sie eine Unterhaltung beginnen, den antwortenden Agent wechseln und Modell oder Denkaufwand für einen einzelnen Chat ändern. Möchten Sie eine kurze geführte Runde?"
+      },
+      "create-project-tracker": {
+        "title": "Projektbegleiter einrichten?",
+        "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
       }
     },
     "steps": {
@@ -4845,6 +4849,14 @@
       "routine-access": {
         "title": "Routinezugriff prüfen",
         "body": "Öffnen Sie das Schild Ihrer Routine, um Quellkonten und Ressourcen zu prüfen und anschließend dauerhafte Aktionsausnahmen getrennt auszuwählen."
+      },
+      "project-tracking": {
+        "title": "Projekt im Blick behalten",
+        "body": "Prüfen Sie einen veröffentlichten Quellagenten und seine Konten und veröffentlichen Sie anschließend ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und normaler Projektroutine."
+      },
+      "flow-project-tracker-create": {
+        "title": "Projektbegleiter einrichten?",
+        "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -11652,6 +11664,31 @@
       "computer": "Computer · Ihre Dateien",
       "computerHint": "Einen Ordner auf diesem Computer für Ihre Chats verwenden. Das ist Ihre persönliche Wahl; andere Projektmitglieder nutzen weiter den gemeinsamen Workspace.",
       "sharedWorkspace": "Gemeinsame Projektumgebung"
+    },
+    "tracking": {
+      "title": "Projekt im Blick behalten",
+      "description": "Erstellen Sie eine Aufgabentabelle mit gespeicherten Ansichten und veröffentlichen Sie eine private Kopie eines ausgewählten Agenten als geplanten Projektbegleiter.",
+      "audience": "Die Routine handelt in Ihrem Namen und schreibt Berichte in das gemeinsame Projektgespräch. Der Quellagent bleibt unverändert.",
+      "baseAgent": "Bearbeitbarer Quellagent",
+      "chooseAgent": "Veröffentlichten Agenten wählen",
+      "agentDefault": "Projektbegleiter: {name}",
+      "tableDefault": "Aufgaben: {name}",
+      "agentName": "Neuer Begleitagent",
+      "tableName": "Name der Aufgabentabelle",
+      "cadence": "Projekt prüfen",
+      "hourly": "Stündlich",
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "shareTable": "Aufgabentabelle für die Organisation sichtbar machen",
+      "sources": "Ressourcen und Konten prüfen",
+      "tableRights": "Die neue Aufgabentabelle erlaubt Lesen, Erstellen und Aktualisieren. Ansichten für alle Aufgaben, Board, offene und blockierte Aufgaben sind enthalten. Externe Aktionsfreigaben gelten weiterhin.",
+      "unavailable": "Prüfen Sie zuerst diese Quellen: {names}",
+      "confirm": "Ich genehmige diese Quellen und möchte den privaten Projektbegleiter veröffentlichen und seine Routine starten.",
+      "publish": "Veröffentlichen und starten",
+      "cancel": "Abbrechen",
+      "retry": "Erneut versuchen",
+      "loadFailed": "Projektbegleiter erneut laden",
+      "openTasks": "Aufgabentabelle"
     }
   },
   "voiceGlow": {

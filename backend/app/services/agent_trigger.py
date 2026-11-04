@@ -125,6 +125,7 @@ from app.services.outcome import OutcomeService
 from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
+from app.services.project import ProjectService
 from app.services.routine_actions import RoutineActionService, activation_intent
 from app.services.routine_devices import (
     RoutineActivationObsolete,
@@ -767,6 +768,10 @@ class AgentTriggerService:
                 message="This agent has no published version to run - publish it first",
                 details={"agent_id": str(agent_id)},
             )
+        if data.project_id is not None:
+            if not data.runs_as_creator:
+                raise BadRequestError(message="A project routine must act as its owner")
+            await ProjectService(self.db).get(ctx, data.project_id, perm=Perm.PROJECTS_USE)
         await self._version_target(ctx, agent.id, data.environment_id, data.pinned_version_id)
         if data.environment_id is not None:
             await self._environment_of(ctx, agent.id, data.environment_id)
@@ -891,6 +896,7 @@ class AgentTriggerService:
             is_active=data.is_active,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
+            project_id=data.project_id,
             created_by_user_id=ctx.subject_id,
             prompt=data.prompt,
             name=data.name,
@@ -3036,6 +3042,18 @@ class AgentTriggerService:
         SET NULL), and both want a fresh log.
         """
         if trigger.conversation_id is not None:
+            if trigger.project_id is not None:
+                existing = await conversation_repo.get_conversation_by_id(
+                    self.db, trigger.conversation_id
+                )
+                if (
+                    existing is None
+                    or existing.organization_id != trigger.organization_id
+                    or existing.project_id != trigger.project_id
+                ):
+                    raise RoutineSourcesRequired(
+                        message="The routine's project conversation changed"
+                    )
             return trigger.conversation_id
         suffix = "triggered" if trigger.trigger_type == TriggerType.EVENT.value else "scheduled"
         conversation = await conversation_repo.create_conversation(
@@ -3043,6 +3061,7 @@ class AgentTriggerService:
             organization_id=trigger.organization_id,
             user_id=None,
             title=f"{agent_name} - {suffix}",
+            project_id=trigger.project_id,
         )
         trigger.conversation_id = conversation.id
         await self.db.flush()

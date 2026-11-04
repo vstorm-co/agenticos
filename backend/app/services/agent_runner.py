@@ -3735,6 +3735,16 @@ class AgentRunnerService:
                 raise RoutineSourcesRequired(message="A reviewed routine source is unavailable")
             routine_check = routine.check
 
+        project_ctx = (
+            routine.local_context(ctx, public_origin=public_origin)
+            if routine is not None
+            and routine.source_policy is not None
+            and routine.source_policy.project_id is not None
+            else ctx
+        )
+        project = await ProjectService(self.db).for_run(project_ctx, conversation_id)
+        if routine is not None:
+            routine.require_project(project)
         run = existing_run
         if run is None:
             require_admission()
@@ -3870,7 +3880,6 @@ class AgentRunnerService:
 
         # A chat in a project works in the project's container and reads its
         # instructions, whichever agent answers - see `_in_project`.
-        project = await ProjectService(self.db).for_run(ctx, conversation_id)
         if project is not None:
             spec = _in_project(spec, project)
 

@@ -6,6 +6,7 @@ import { FolderKanban, Plus, Files, MessageSquare, AppWindow, FileText } from "l
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ProjectTrackingControl } from "@/components/projects/project-tracking-control";
 import { ProjectApps } from "@/components/projects/project-apps";
 import { ProjectChats } from "@/components/projects/project-chats";
 import { FileExplorer } from "@/components/sandboxes/workspace-explorer";
@@ -75,6 +76,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         actions={
           project ? (
             <>
+              {project.can_use &&
+                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
+                  <ProjectTrackingControl project={project} />
+                )}
               <ShareResourceButton
                 resourceType="project"
                 resourceId={project.id}

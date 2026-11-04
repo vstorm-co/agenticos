@@ -30,6 +30,8 @@ class RoutineSourcePolicy(BaseModel):
     scope_hash: Fingerprint
     spec_hash: Fingerprint
     mcp_sources: dict[UUID, RoutineSourceAccount] = Field(default_factory=dict, max_length=100)
+    project_id: UUID | None = None
+    project_hash: Fingerprint | None = None
     root_mcp_ids: tuple[UUID, ...] = Field(default=(), max_length=100)
     external_sources: dict[UUID, Fingerprint] = Field(default_factory=dict, max_length=100)
     input_connection_id: UUID | None = None
@@ -37,6 +39,8 @@ class RoutineSourcePolicy(BaseModel):
 
     @model_validator(mode="after")
     def pair_input_source(self) -> Self:
+        if (self.project_id is None) != (self.project_hash is None):
+            raise ValueError("A project source requires its exact workspace identity")
         if (self.input_connection_id is None) != (self.input_source is None):
             raise ValueError("An input source requires its exact account identity")
         return self

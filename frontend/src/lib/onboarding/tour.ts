@@ -881,6 +881,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "projects-list",
     permission: Perm.projectsView,
   },
+  { id: "project-tracking", page: PROJECT_DETAIL, target: "project-tracking", optional: true },
   { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
   { id: "project-file-location", page: PROJECT_DETAIL, target: "project-file-location" },
 
