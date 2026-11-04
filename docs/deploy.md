@@ -539,12 +539,16 @@ Before this upgrade, take the [database, media and vault-key backups](#backups)
 and coordinate the API and worker rollout. Use the deployment's normal migration
 step; do not copy rows or create replacement schedules manually.
 
-- `0248_drop_memory_mem0.py` removes `memory_mem0` from stored drafts and published
-  specs. It neither imports nor erases the external memories, and does not delete
-  the encrypted credentials in the vault. Export or erase that data in mem0 as
-  needed, review unused vault keys, and revoke retired credentials at the
-  provider. Downgrading this revision cannot reconstruct the removed bindings;
-  retain the pre-upgrade backup for that purpose.
+- `0248_drop_memory_mem0.py` refuses the upgrade while `memory_mem0` remains in
+  any stored draft or published spec. Before retrying, inventory every endpoint
+  and vault credential mapping from the backup, erase the external memories and
+  verify completion at each provider. Only then remove those bindings explicitly
+  from `agents.draft_spec` and `agent_versions.spec`. An export alone is not an
+  erasure. Keep the cleanup evidence, review unused vault keys and revoke retired
+  credentials. The migration makes no remote request and never assumes a purge
+  succeeded. If an earlier development build already stripped the bindings,
+  recover the inventory from its pre-upgrade backup and perform the same purge;
+  native person/agent erasure cannot reach that external data.
 - `0251_primary_conversations.py` and `0258_primary_channel_history.py` establish
   primary private chats. An existing mapping wins. Only demonstrably private,
   linked channel history is adopted once; project/group and ambiguous histories

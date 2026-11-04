@@ -1,5 +1,5 @@
 ---
-source_sha: "62dda4f76c92"
+source_sha: "91a297517bbc"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -547,12 +547,16 @@ Przed aktualizacją wykonaj [kopie bazy, mediów i kluczy sejfu](#backups)
 i skoordynuj wdrożenie API oraz workerów. Użyj zwykłego kroku migracji wdrożenia;
 nie kopiuj ręcznie wierszy ani nie twórz zastępczych harmonogramów.
 
-- `0248_drop_memory_mem0.py` usuwa `memory_mem0` z zapisanych szkiców i opublikowanych
-  specyfikacji. Nie importuje ani nie kasuje zewnętrznych wspomnień, nie usuwa też
-  zaszyfrowanych poświadczeń z sejfu. Eksportuj lub usuń dane w mem0 zgodnie
-  z potrzebą, przejrzyj nieużywane klucze w sejfie i unieważnij wycofane
-  poświadczenia u dostawcy. Cofnięcie tej migracji nie odtworzy usuniętych
-  powiązań; w tym celu zachowaj kopię sprzed aktualizacji.
+- `0248_drop_memory_mem0.py` zatrzymuje aktualizację, jeśli `memory_mem0` pozostaje
+  w którymkolwiek zapisanym szkicu lub opublikowanej specyfikacji. Przed ponowieniem
+  zinwentaryzuj wszystkie endpointy i powiązania poświadczeń sejfu z kopii zapasowej,
+  usuń zewnętrzne wspomnienia i potwierdź zakończenie u każdego dostawcy. Dopiero
+  potem jawnie usuń te bindingi z `agents.draft_spec` i `agent_versions.spec`.
+  Sam eksport nie oznacza usunięcia. Zachowaj dowody czyszczenia, przejrzyj nieużywane
+  klucze sejfu i unieważnij wycofane poświadczenia. Migracja nie wykonuje zdalnych
+  żądań ani nie zakłada udanego usunięcia. Jeśli wcześniejsza wersja rozwojowa już
+  usunęła bindingi, odtwórz inwentarz z kopii sprzed aktualizacji i wykonaj to samo
+  czyszczenie; natywne usuwanie pamięci osoby lub agenta nie dociera do tych danych.
 - `0251_primary_conversations.py` i `0258_primary_channel_history.py` ustanawiają
   główne czaty prywatne. Istniejące przypisanie ma pierwszeństwo. Tylko dowodnie
   prywatna historia powiązanego kanału jest przejmowana jednorazowo; historie

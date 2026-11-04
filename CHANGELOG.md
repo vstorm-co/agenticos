@@ -182,7 +182,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Removed
 
-- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
+- **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, `MEM0_ALLOWED_HOSTS` and `mem0ai` are removed (#2090). **Upgrade:** `0248_drop_memory_mem0.py` stops while any legacy binding remains. Inventory endpoints and vault mappings, verify external erasure, then explicitly remove bindings from drafts and published versions before retrying; follow the [upgrade checklist](docs/deploy.md#native-memory-upgrade). No remote data is imported or erased by the migration. Recover mappings from the pre-upgrade backup if an earlier development build already stripped them. Native erasure reports `claims_deleted` and reaches native stores only. Agents now use the Memory capability.
 
 
 ### Fixed

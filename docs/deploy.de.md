@@ -1,5 +1,5 @@
 ---
-source_sha: "62dda4f76c92"
+source_sha: "91a297517bbc"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -583,13 +583,18 @@ Erstelle vor dem Upgrade [Sicherungen von Datenbank, Medien und Vault-Schlüssel
 und koordiniere API- und Worker-Rollout. Nutze den normalen Migrationsschritt des
 Deployments; kopiere keine Zeilen und lege keine Ersatzzeitpläne manuell an.
 
-- `0248_drop_memory_mem0.py` entfernt `memory_mem0` aus gespeicherten Entwürfen und
-  veröffentlichten Specs. Externe Erinnerungen werden weder importiert noch
-  gelöscht; verschlüsselte Zugangsdaten im Vault bleiben erhalten. Exportiere
-  oder lösche die Daten bei mem0 nach Bedarf, prüfe ungenutzte Vault-Schlüssel
-  und widerrufe ausgemusterte Zugangsdaten beim Anbieter. Ein Downgrade dieser
-  Revision rekonstruiert die entfernten Bindungen nicht; bewahre dafür die
-  Sicherung vor dem Upgrade auf.
+- `0248_drop_memory_mem0.py` stoppt das Upgrade, solange `memory_mem0` in einem
+  gespeicherten Entwurf oder veröffentlichten Spec verbleibt. Inventarisiere vor
+  dem erneuten Versuch alle Endpunkte und Vault-Zugangsdatenzuordnungen aus der
+  Sicherung, lösche die externen Erinnerungen und bestätige den Abschluss bei jedem
+  Anbieter. Entferne erst danach diese Bindungen ausdrücklich aus `agents.draft_spec`
+  und `agent_versions.spec`. Ein Export allein ist keine Löschung. Bewahre die
+  Löschbelege auf, prüfe ungenutzte Vault-Schlüssel und widerrufe ausgemusterte
+  Zugangsdaten. Die Migration führt keine Remote-Anfrage aus und setzt keine
+  erfolgreiche Löschung voraus. Hat ein früherer Entwicklungsstand die Bindungen
+  bereits entfernt, stelle das Inventar aus der Sicherung vor dem Upgrade wieder
+  her und führe dieselbe Löschung durch; die native Personen-/Agentenlöschung
+  erreicht diese externen Daten nicht.
 - `0251_primary_conversations.py` und `0258_primary_channel_history.py` richten
   primäre private Chats ein. Bestehende Zuordnungen haben Vorrang. Nur nachweislich
   privater Verlauf eines verknüpften Kanals wird einmalig übernommen; Projekt-,

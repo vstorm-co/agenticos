@@ -1,5 +1,5 @@
 ---
-source_sha: "62dda4f76c92"
+source_sha: "91a297517bbc"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -567,12 +567,17 @@ Antes de actualizar, crea [copias de la base, los medios y las claves del vault]
 y coordina el despliegue de API y workers. Usa el paso normal de migración del
 despliegue; no copies filas ni crees horarios sustitutos manualmente.
 
-- `0248_drop_memory_mem0.py` elimina `memory_mem0` de borradores guardados y specs
-  publicadas. No importa ni borra recuerdos externos y no elimina las
-  credenciales cifradas del vault. Exporta o borra los datos en mem0 según
-  corresponda, revisa claves del vault sin uso y revoca las credenciales
-  retiradas en el proveedor. Revertir esta revisión no reconstruye los vínculos
-  eliminados; conserva la copia anterior para ello.
+- `0248_drop_memory_mem0.py` detiene la actualización mientras `memory_mem0` siga
+  en algún borrador guardado o spec publicada. Antes de reintentar, inventaría todos
+  los endpoints y las asignaciones de credenciales del vault desde la copia,
+  elimina los recuerdos externos y verifica la finalización en cada proveedor.
+  Solo entonces retira explícitamente esos vínculos de `agents.draft_spec` y
+  `agent_versions.spec`. Exportar no equivale a borrar. Conserva las pruebas de
+  limpieza, revisa claves del vault sin uso y revoca credenciales retiradas.
+  La migración no hace peticiones remotas ni presupone un borrado correcto.
+  Si una versión de desarrollo anterior ya eliminó los vínculos, recupera el
+  inventario desde la copia previa y realiza la misma limpieza; el borrado nativo
+  de personas o agentes no alcanza esos datos externos.
 - `0251_primary_conversations.py` y `0258_primary_channel_history.py` establecen
   chats privados principales. Una asignación existente prevalece. Solo se adopta
   una vez el historial demostrablemente privado de un canal vinculado; los

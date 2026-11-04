@@ -1,5 +1,5 @@
 ---
-source_sha: "040c929428ad"
+source_sha: "cc979d116092"
 ---
 
 # Bezpieczeństwo { #security }
@@ -135,7 +135,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 
 !!! warning "Czego usunięcie nie dosięga — i mówią to dokumenty, a nie wdrożenie po fakcie"
 
-    **Wspomnienia w usuniętej integracji mem0.** Wdrożenie, które używało mem0 (usuniętego w #2090), może nadal przechowywać wspomnienia w zewnętrznej usłudze. Aktualizacja usuwa zapisane powiązania, ale nie kasuje zaszyfrowanych poświadczeń w sejfie ani nie usuwa/importuje danych mem0. Zapomnienie osoby lub wyczyszczenie agenta tutaj nie dociera już do tej usługi. Przejrzyj nieużywane klucze w sejfie, unieważnij wycofane poświadczenia u dostawcy i obsłuż zewnętrzne wspomnienia oddzielnie. Zobacz [procedurę aktualizacji](deploy.md#native-memory-upgrade).
+    **Wspomnienia w usuniętej integracji mem0.** Wdrożenie, które używało mem0 (usuniętego w #2090), może nadal przechowywać wspomnienia w zewnętrznej usłudze. Aktualizacja zatrzymuje się, gdy pozostają stare bindingi, zachowując endpointy i mapowania poświadczeń do czasu potwierdzenia zewnętrznego usunięcia przez operatora i jawnego usunięcia bindingów. Nie kasuje poświadczeń sejfu ani nie usuwa/importuje zdalnych danych. Zapomnienie osoby lub wyczyszczenie agenta tutaj nie dociera już do tej usługi. Przejrzyj nieużywane klucze w sejfie, unieważnij wycofane poświadczenia u dostawcy i obsłuż zewnętrzne wspomnienia oddzielnie. Zobacz [procedurę aktualizacji](deploy.md#native-memory-upgrade).
 
     **Kopie zapasowe.** Usunięcie kasuje wiersze z żywej bazy. Harmonogram kopii,
     który uruchamia wdrożenie, trzyma je do swojej rotacji i żadne usunięcie na

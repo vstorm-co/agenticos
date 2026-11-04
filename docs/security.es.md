@@ -1,5 +1,5 @@
 ---
-source_sha: "040c929428ad"
+source_sha: "cc979d116092"
 ---
 
 # Seguridad { #security }
@@ -140,7 +140,7 @@ agent del que depende el equipo.
 
 !!! warning "Lo que el borrado no alcanza — y lo dice la documentación, no el despliegue al descubrirlo"
 
-    **Recuerdos en una integración de mem0 eliminada.** Un despliegue que usaba mem0 (eliminado en #2090) puede conservar esos recuerdos en el servicio externo. La actualización elimina los vínculos guardados, pero no borra credenciales cifradas del vault ni borra/importa datos de mem0. Olvidar a una persona o vaciar un agente aquí ya no alcanza ese servicio. Revisa claves del vault sin uso, revoca las credenciales retiradas del proveedor y trata los recuerdos externos por separado. Consulta la [lista de actualización](deploy.md#native-memory-upgrade).
+    **Recuerdos en una integración de mem0 eliminada.** Un despliegue que usaba mem0 (eliminado en #2090) puede conservar esos recuerdos en el servicio externo. La actualización se detiene si quedan vínculos antiguos y conserva endpoints y asignaciones de credenciales hasta que el operador verifique el borrado externo y retire explícitamente los vínculos. No borra credenciales del vault ni borra/importa datos remotos. Olvidar a una persona o vaciar un agente aquí ya no alcanza ese servicio. Revisa claves del vault sin uso, revoca las credenciales retiradas del proveedor y trata los recuerdos externos por separado. Consulta la [lista de actualización](deploy.md#native-memory-upgrade).
 
     **Las copias de seguridad.** Un borrado quita filas de la base de datos viva.
     El calendario de copias que ejecute un despliegue las conserva hasta su
