@@ -45,7 +45,7 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 
 # Lockfiles, generated code, uploaded media, the third-party licence texts and
 # the translated message catalogs and documentation pages are not English prose.
-# `messages/pl.json`, `messages/de.json` and every `*.{pl,de,es}.md` is a
+# `messages/{pl,de,tr}.json` and every `*.{pl,de,es}.md` is a
 # translation: entry for entry, codespell reads all of it as misspelled English,
 # and so is an Xcode string catalog (`*.xcstrings`) of the iOS app. `docs/howto/translate.md`
 # is the one English page that reads that way too - its glossary states each term
@@ -54,7 +54,7 @@ ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,a
 # A pattern written bare, like `*.pl.md`, applies to a path handed to codespell
 # explicitly as well as to its own walk; one written with a `./` prefix applies
 # only to the walk, because that prefix is how codespell names a file while
-# walking. The three prefixed entries are therefore repeated in
+# walking. The prefixed entries are therefore repeated in
 # `.pre-commit-config.yaml`, and the bare ones do not have to be.
 # Upstream armored public keys are binary data encoded as text.
-skip = *docker-apt.asc,*docker-rpm.asc,*package-lock.json,*THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./docs/howto/translate.md,*/values-pl/*,*/values-de/*,*.xcstrings,*/widgets/Strings.json
+skip = *docker-apt.asc,*docker-rpm.asc,*package-lock.json,*THIRD_PARTY_NOTICES.md,./frontend/licenses/texts,*.lock,*.min.js,*.svg,*.pl.md,*.de.md,*.es.md,./site,./backend/media,./frontend/node_modules,./backend/.venv,./frontend/src/lib/mcp-logos.generated.ts,./frontend/messages/pl.json,./frontend/messages/de.json,./frontend/messages/tr.json,./docs/howto/translate.md,*/values-pl/*,*/values-de/*,*.xcstrings,*/widgets/Strings.json

@@ -32,6 +32,9 @@ class ProviderInfo(BaseSchema):
     supports_base_url: bool = Field(
         description="Whether a custom endpoint can be stored; false means it would be ignored"
     )
+    requires_base_url: bool = Field(
+        default=False, description="Whether a gateway destination must be selected explicitly"
+    )
     keyless: bool = Field(
         description=(
             "Whether this provider can run with no credential at all. True only for "

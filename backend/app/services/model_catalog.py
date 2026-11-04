@@ -36,6 +36,7 @@ import httpx
 from genai_prices.data_snapshot import get_snapshot
 from pydantic import TypeAdapter
 
+from app.agents.model_resolver import PROVIDERS, otari_price_identity
 from app.core import catalog
 
 logger = logging.getLogger(__name__)
@@ -178,6 +179,9 @@ def priced_model(provider: str, model_id: str) -> Any | None:
     the snapshot prices those rows under the provider rather than under the
     namespaced spelling.
     """
+    if provider == "otari":
+        identity = otari_price_identity(model_id)
+        return priced_model(*identity) if identity is not None else None
     if provider == "openrouter" and "/" in model_id:
         upstream, _, bare = model_id.partition("/")
         return priced_model(upstream, bare)
@@ -406,12 +410,12 @@ def _fallback(curated: list[CatalogModel]) -> tuple[list[CatalogModel], CatalogS
     return (curated, "curated") if curated else ([], "unlisted")
 
 
-CUSTOM_LISTINGS: dict[str, bool] = {"openrouter": False, "stav": True}
+CUSTOM_LISTINGS: dict[str, bool] = {"openrouter": False, "stav": True, "otari": True}
 """Providers whose model list can be read at an endpoint the caller names, and
 whether the vault key goes with that request.
 
 OpenRouter's list is public, so a regional OpenRouter is asked with no key.
-Stav's needs one, and the key sent is the one the profile will send to that same
+Stav and Otari need one; the key is the one the profile sends to that same
 endpoint on every run - listing there reaches no host the profile does not.
 """
 
@@ -434,13 +438,19 @@ async def models_for(
             authorized by the caller. Its catalog never uses the global curated
             fallback.
     """
+    if (
+        base_url is None
+        and (provider_spec := PROVIDERS.get(provider)) is not None
+        and provider_spec.requires_base_url
+    ):
+        return [], "unlisted"
     spec = LISTINGS.get(provider)
     curated = list(curated_models(provider))
     cache_key = provider
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS or spec is None:
             raise ValueError(
-                "Custom model listing endpoints are supported only for OpenRouter and Stav"
+                "Custom model listing endpoints are supported only for OpenRouter, Stav and Otari"
             )
         # Regional catalogs must never inherit the global fallback or cache.
         endpoint = base_url.rstrip("/")

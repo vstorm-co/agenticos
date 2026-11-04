@@ -7969,6 +7969,9 @@
     "modelApiStored": "{api}, ustawione dla tego modelu",
     "modelApiFromModelHint": "Stav.ai obsługuje większość modeli przez Chat Completions, a kilka tylko przez Responses. Decyduje model.",
     "stavEndpointHint": "Zostaw puste dla api.stav.ai. Ustaw tylko dla regionalnego lub testowego endpointu Stav.ai.",
+    "otariEndpointHint": "Podaj adres bramki zakończony /api/v1, zanim pobierzesz modele. Hosting: https://api.otari.ai/api/v1. UE: https://eu.api.otari.ai/api/v1.",
+    "loadGatewayModels": "Pobierz modele",
+    "modelIdOtariHint": "Użyj provider:model albo aliasu/polityki routingu zdefiniowanej w Twojej bramce Otari.",
     "usingKey": "Używa <strong>{name}</strong>",
     "variableDescription": "Opis zmiennej {index}",
     "variableDescriptionPlaceholder": "Na jakim planie jest ten odwiedzający",
@@ -8782,7 +8785,7 @@
     "web_research": {
       "method": {
         "title": "Wyszukiwarka",
-        "description": "duckduckgo: za darmo, bez konta, wyniki jako klikalne źródła. native: szuka provider modelu, własnym indeksem i z cytatami (tylko na modelach, które to obsługują). tavily: streszczone do czytania przez model. brave: własny indeks. exa: szukanie po znaczeniu zamiast po słowach."
+        "description": "duckduckgo: za darmo, bez konta, wyniki jako klikalne źródła. native: szuka provider modelu, własnym indeksem i z cytatami (tylko na modelach, które to obsługują). tavily: streszczone do czytania przez model. brave: własny indeks. exa: szukanie po znaczeniu zamiast po słowach. keenable: bez konta; klucz API jest opcjonalny."
       },
       "max_results": {
         "title": "Wyników na wyszukiwanie",
@@ -11549,7 +11552,7 @@
       "does": "Agent szuka w internecie aktualnych informacji.",
       "example1": "Co zmieniło się w tym roku w tym przepisie?",
       "example2": "Znaleźć trzech konkurentów i ich ceny",
-      "needs": "Nic, z DuckDuckGo. Brave, Exa i Tavily potrzebują swojego klucza API w vault.",
+      "needs": "Nic, z DuckDuckGo lub Keenable (klucz Keenable w vault jest opcjonalny). Brave, Exa i Tavily potrzebują swojego klucza API w vault.",
       "never": "Nigdy nie wysyła twoich dokumentów do wyszukiwarki, tylko szukane słowa."
     },
     "visuals": {

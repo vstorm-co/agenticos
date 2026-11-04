@@ -155,20 +155,21 @@ async def test_update_current_user(auth_client: AsyncClient, mock_user_service: 
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("locale", ["en", "tr"])
 async def test_the_console_language_is_kept_on_the_account(
-    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock
+    auth_client: AsyncClient, mock_user: MockUser, mock_user_service: MagicMock, locale: str
 ):
     """What an agent asked to "switch to English" changes, through the platform's
     MCP server (#2301): the one preference, and nothing else on the account."""
     response = await auth_client.put(
-        f"{settings.API_V1_STR}/users/me/locale", json={"locale": "en"}
+        f"{settings.API_V1_STR}/users/me/locale", json={"locale": locale}
     )
 
     assert response.status_code == 200
-    assert response.json() == {"locale": "en"}
+    assert response.json() == {"locale": locale}
     user_id, update = mock_user_service.update.await_args.args
     assert user_id == mock_user.id
-    assert update.model_dump(exclude_unset=True) == {"locale": "en"}
+    assert update.model_dump(exclude_unset=True) == {"locale": locale}
 
 
 @pytest.mark.anyio

@@ -21,6 +21,7 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { useModelProviders } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
+import { useCustomIcons } from "@/components/icons/custom-icons";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
 import { cn } from "@/lib/utils";
@@ -777,6 +778,11 @@ function numberText(value: unknown, fallback: unknown): string {
   return typeof shown === "number" || typeof shown === "string" ? String(shown) : "";
 }
 
+function CatalogChoiceMark({ name }: { name: string }) {
+  const icons = useCustomIcons();
+  return icons.has(name) ? <ProviderIcon provider={name} className="h-3.5 w-3.5 shrink-0" /> : null;
+}
+
 /**
  * Environment symbols are scoped to the desktop field; other enums keep provider marks.
  *
@@ -830,9 +836,7 @@ function choiceMark(choice: string, field: string) {
   }
   const [head] = choice.split(":");
   const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
-  // Unequal only when there was a colon to split on: a value with none is a
-  // plain choice and wears nothing.
-  if (provider === choice) return null;
+  if (provider === choice) return <CatalogChoiceMark name={choice} />;
   return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
 }
 

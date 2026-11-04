@@ -216,6 +216,10 @@ def _check_shape(
     arriving at a new combination: a key removed from an OpenAI profile with no
     endpoint is the same unrunnable model creation refuses.
     """
+    if spec.requires_base_url and base_url is None:
+        raise refused_field(
+            "base_url", f"{spec.name} requires an explicit gateway endpoint", provider=spec.id
+        )
     if base_url is None and spec.keyless and secret_id is None:
         raise refused_field(
             "base_url",
@@ -360,12 +364,12 @@ class ModelProfileService:
         base_url: str | None,
         secret_id: UUID | None,
     ) -> CatalogModel | None:
-        """Read creation-time metadata using the selected Stav endpoint and credential."""
+        """Read creation-time metadata using the selected authenticated gateway credential."""
         endpoint = base_url if CUSTOM_LISTINGS.get(provider) else None
         secrets = OrganizationSecretService(self.db)
         api_key = (
             await secrets.listing_key(ctx, provider, secret_id=secret_id)
-            if provider == "stav"
+            if CUSTOM_LISTINGS.get(provider)
             else await secrets.listing_key(ctx, provider)
         )
         models, _ = await models_for(provider, api_key=api_key, base_url=endpoint)
