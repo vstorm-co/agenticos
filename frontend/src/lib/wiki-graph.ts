@@ -8,22 +8,26 @@ export interface WikiPage {
   links: { target: string; relative: boolean }[];
   invalidFrontmatter: boolean;
   linksTruncated: boolean;
+  metadataTruncated: boolean;
 }
 
 export interface WikiGraph {
   pages: WikiPage[];
   relationshipsTruncated: boolean;
+  metadataTruncated: boolean;
   edges: { source: string; target: string }[];
   unresolved: { source: string; target: string; reason: "missing" | "ambiguous" }[];
 }
 
 export const WIKI_RELATION_LIMITS = { page: 256, graph: 2048 } as const;
 
-function strings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
+export const WIKI_METADATA_LIMITS = { page: 128, graph: 4096 } as const;
+
+function* strings(value: unknown): Generator<string, void, unknown> {
+  if (typeof value === "string") yield value;
+  else if (Array.isArray(value)) {
+    for (const item of value) if (typeof item === "string") yield item;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -119,10 +123,56 @@ function relationshipProse(body: string): string {
   return parts.join("");
 }
 
+/** Consume each attempted destination once, including malformed nested parentheses. */
+function markdownDestination(text: string, start: number): { next: number; target?: string } {
+  let cursor = start + 1;
+  while (/\s/.test(text[cursor] ?? "") && cursor < text.length) cursor++;
+  const angle = text[cursor] === "<";
+  if (angle) cursor++;
+  const begin = cursor;
+  let depth = 0;
+  for (; cursor < text.length; cursor++) {
+    const char = text[cursor];
+    if (char === "\\") {
+      cursor++;
+      continue;
+    }
+    if (angle) {
+      if (char === ">") break;
+      if (char === "\n" || char === "<") return { next: cursor + 1 };
+    } else {
+      if (/\s/.test(char ?? "")) break;
+      if (char === "(") {
+        if (++depth > 32) return { next: cursor + 1 };
+      } else if (char === ")") {
+        if (depth === 0) break;
+        depth--;
+      }
+    }
+  }
+  const target = text.slice(begin, cursor);
+  if (!target || cursor >= text.length || depth !== 0) return { next: cursor };
+  if (angle) cursor++;
+  while (/\s/.test(text[cursor] ?? "") && cursor < text.length) cursor++;
+  const quote = text[cursor];
+  if (quote === '"' || quote === "'" || quote === "(") {
+    const close = quote === "(" ? ")" : quote;
+    cursor++;
+    for (; cursor < text.length && text[cursor] !== close; cursor++) {
+      if (text[cursor] === "\\") cursor++;
+    }
+    if (cursor >= text.length) return { next: cursor };
+    cursor++;
+    while (/\s/.test(text[cursor] ?? "") && cursor < text.length) cursor++;
+  }
+  return text[cursor] === ")" ? { next: cursor + 1, target } : { next: cursor };
+}
+
 export function parseWikiPage(
   path: string,
   content: string,
   linkBudget: number = WIKI_RELATION_LIMITS.page,
+  metadataBudget: number = WIKI_METADATA_LIMITS.page,
 ): WikiPage {
   let body = content.replace(/^\uFEFF/, "").replaceAll("\r\n", "\n");
   let metadata: Record<string, unknown> = {};
@@ -160,35 +210,57 @@ export function parseWikiPage(
     const end = match.index + match[0].length;
     if (prose.startsWith("]]", end) && !add(match[1], false)) break;
   }
-  const destination = /\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^\n]*?["'])?\s*\)/y;
-  if (!linksTruncated)
-    for (const match of prose.matchAll(/(!?)\[([^\]\n]*)/g)) {
+  const labels = /(!?)\[([^\]\n]*)/g;
+  if (!linksTruncated) {
+    for (let match = labels.exec(prose); match !== null; match = labels.exec(prose)) {
       const end = match.index + match[0].length;
-      if (match[1] || prose[end] !== "]") continue;
-      destination.lastIndex = end + 1;
-      const target = destination.exec(prose);
-      if (target && !add(target[1] ?? target[2], true)) break;
+      if (match[1] || !prose.startsWith("](", end)) continue;
+      const parsed = markdownDestination(prose, end + 1);
+      labels.lastIndex = Math.max(labels.lastIndex, parsed.next);
+      if (parsed.target && !add(parsed.target, true)) break;
     }
+  }
   if (!linksTruncated)
     outer: for (const field of ["links", "related", "sources"]) {
       for (const value of strings(metadata[field])) {
         if (!add(value, false)) break outer;
       }
     }
+  let remainingMetadata = Math.max(0, Math.min(WIKI_METADATA_LIMITS.page, metadataBudget));
+  let metadataTruncated = false;
+  const aliases: string[] = [];
+  const tags: string[] = [];
+  for (const alias of strings(metadata.aliases)) {
+    if (remainingMetadata === 0) {
+      metadataTruncated = true;
+      break;
+    }
+    aliases.push(alias);
+    remainingMetadata--;
+  }
+  outer: for (const value of strings(metadata.tags)) {
+    for (const tag of value.matchAll(/\S+/g)) {
+      if (remainingMetadata === 0) {
+        metadataTruncated = true;
+        break outer;
+      }
+      tags.push(tag[0].replace(/^#/, ""));
+      remainingMetadata--;
+    }
+  }
   return {
     path,
     title:
-      strings(metadata.title)[0] ||
+      strings(metadata.title).next().value ||
       /^#\s+(.+)$/m.exec(prose)?.[1]?.trim() ||
       path.split("/").at(-1)?.replace(/\.md$/i, "") ||
       path,
-    aliases: strings(metadata.aliases),
-    tags: strings(metadata.tags)
-      .flatMap((tag) => tag.split(/\s+/))
-      .map((tag) => tag.replace(/^#/, "")),
+    aliases,
+    tags,
     links,
     invalidFrontmatter,
     linksTruncated,
+    metadataTruncated,
   };
 }
 
@@ -197,11 +269,16 @@ export function buildWikiGraph(pages: WikiPage[]): WikiGraph {
   const paths = new Map<string, string>();
   const names = new Map<string, Set<string>>();
   const key = (name: string) => name.normalize("NFC").toLowerCase().replace(/\.md$/i, "");
+  let remainingMetadata: number = WIKI_METADATA_LIMITS.graph;
+  let metadataTruncated = pages.some((page) => page.metadataTruncated);
   for (const page of pages) {
     const path = wikiPath(page.path);
     if (path === null) continue;
     paths.set(path, page.path);
-    for (const name of [path.replace(/^.*\//, ""), page.title, ...page.aliases]) {
+    const aliases = page.aliases.slice(0, remainingMetadata);
+    remainingMetadata -= aliases.length;
+    if (aliases.length < page.aliases.length) metadataTruncated = true;
+    for (const name of [path.replace(/^.*\//, ""), page.title, ...aliases]) {
       const matches = names.get(key(name)) ?? new Set<string>();
       matches.add(page.path);
       names.set(key(name), matches);
@@ -247,6 +324,7 @@ export function buildWikiGraph(pages: WikiPage[]): WikiGraph {
   return {
     pages,
     relationshipsTruncated,
+    metadataTruncated,
     edges: [...edges.values()],
     unresolved: [...unresolved.values()],
   };

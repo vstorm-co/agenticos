@@ -12359,7 +12359,7 @@
     "failed": "Nie udało się odczytać workspace. Spróbuj ponownie lub sprawdź dostęp.",
     "counts": "{pages, plural, one {# notatka} few {# notatki} many {# notatek} other {# notatki}} · {links, plural, one {# link} few {# linki} many {# linków} other {# linku}}",
     "partial": "Ten graf jest niekompletny",
-    "limits": "Skanowanie obejmuje do 200 notatek, 256 KiB na plik i 8 MiB łącznie. Limit relacji to 256 na notatkę i 2048 na graf. Odśwież po edycji lub zawęź zestaw plików.",
+    "limits": "Skanowanie obejmuje do 200 notatek, 256 KiB na plik i 8 MiB łącznie. Limit relacji to 256 na notatkę i 2048 na graf. Odśwież po edycji lub zawęź zestaw plików. Aliasy i tagi mają wspólny limit 128 wpisów na notatkę i 4096 na cały graf.",
     "skipped": "Pominięto: {path}",
     "unreadable": "Nie można odczytać: {path}",
     "invalidFrontmatter": "Niepoprawny frontmatter YAML. Metadane tych notatek pominięto: {paths}",

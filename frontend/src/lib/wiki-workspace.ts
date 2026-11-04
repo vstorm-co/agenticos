@@ -3,7 +3,13 @@ import { listLocalFiles } from "./desktop/commands";
 import { listProjectFiles } from "./projects-api";
 import { readWorkspaceFiles, type WorkspaceFile } from "./sandbox-workspaces-api";
 import { readFileText, type FileSource } from "./workspace-files";
-import { buildWikiGraph, parseWikiPage, type WikiGraph, WIKI_RELATION_LIMITS } from "./wiki-graph";
+import {
+  buildWikiGraph,
+  parseWikiPage,
+  type WikiGraph,
+  WIKI_RELATION_LIMITS,
+  WIKI_METADATA_LIMITS,
+} from "./wiki-graph";
 
 export const WIKI_LIMITS = { pages: 200, fileBytes: 256 * 1024, totalBytes: 8 * 1024 * 1024 };
 
@@ -72,6 +78,7 @@ export async function readWikiWorkspace(
   const failed: string[] = [];
   let loadedBytes = 0;
   let remainingLinks: number = WIKI_RELATION_LIMITS.graph;
+  let remainingMetadata: number = WIKI_METADATA_LIMITS.graph;
   // Batch reads bound buffering and keep budget allocation independent of network timing.
   for (let offset = 0; offset < selected.length; offset += 4) {
     signal.throwIfAborted();
@@ -115,8 +122,9 @@ export async function readWikiWorkspace(
         continue;
       }
       loadedBytes += size;
-      const page = parseWikiPage(file.path, content, remainingLinks);
+      const page = parseWikiPage(file.path, content, remainingLinks, remainingMetadata);
       remainingLinks -= page.links.length;
+      remainingMetadata -= page.aliases.length + page.tags.length;
       results[offset + index] = page;
     }
   }
@@ -126,6 +134,6 @@ export async function readWikiWorkspace(
     files: files.items,
     skipped: skipped.sort(),
     failed: failed.sort(),
-    truncated: files.truncated || graph.relationshipsTruncated,
+    truncated: files.truncated || graph.relationshipsTruncated || graph.metadataTruncated,
   };
 }

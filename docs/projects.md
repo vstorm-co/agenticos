@@ -193,7 +193,8 @@ not schedule an agent to verify facts or refresh sources.
 
 A scan includes up to 200 Markdown files, 256 KiB per file and 8 MiB total, within
 the source listing's own limits. Relationships are capped at 256 per note and 2048
-across the graph; reaching either cap also marks the graph incomplete. The view identifies omitted or unreadable files,
+across the graph; reaching either cap also marks the graph incomplete. Aliases
+and tags share a budget of 128 entries per note and 4096 across the graph. The view identifies omitted or unreadable files,
 invalid YAML and incomplete listings. A missing reference can mean a skipped note,
 not just a broken link. Refresh is eventual; concurrent edits can span two scans.
 

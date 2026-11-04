@@ -23,6 +23,7 @@ const EMPTY_GRAPH: WikiGraph = {
   edges: [],
   unresolved: [],
   relationshipsTruncated: false,
+  metadataTruncated: false,
 };
 export function WorkspaceGraph({
   source,

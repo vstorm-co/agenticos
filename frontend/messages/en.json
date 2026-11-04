@@ -12584,7 +12584,7 @@
     "failed": "Could not read this workspace. Retry or check your access.",
     "counts": "{pages, plural, =1 {1 note} other {# notes}} · {links, plural, =1 {1 link} other {# links}}",
     "partial": "This graph is incomplete",
-    "limits": "The scan reads up to 200 notes, 256 KiB per file and 8 MiB in total, with up to 256 relationships per note and 2048 across the graph. Refresh after editing, or narrow the file set.",
+    "limits": "The scan reads up to 200 notes, 256 KiB per file and 8 MiB in total, with up to 256 relationships per note and 2048 across the graph. Refresh after editing, or narrow the file set. Aliases and tags share a limit of 128 entries per note and 4096 across the graph.",
     "skipped": "Skipped: {path}",
     "unreadable": "Could not read: {path}",
     "invalidFrontmatter": "Invalid YAML frontmatter. Metadata ignored for these notes: {paths}",

@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "c263e12720d9"
+source_sha: "3ba3ec38d6e7"
 ---
 
 # Projekty { #projects }
@@ -196,7 +196,8 @@ uruchamia agenta w celu weryfikacji faktów lub aktualizacji źródeł.
 
 Skan obejmuje do 200 plików Markdown, 256 KiB na plik i łącznie 8 MiB, w granicach
 listingu źródła. Limit relacji to 256 na notatkę i 2048 na cały graf; osiągnięcie
-limitu także oznacza niepełny graf. Widok wskazuje pominięte i nieczytelne pliki, niepoprawny YAML oraz
+limitu także oznacza niepełny graf. Aliasy i tagi mają wspólny limit 128 wpisów
+na notatkę i 4096 na cały graf. Widok wskazuje pominięte i nieczytelne pliki, niepoprawny YAML oraz
 niepełny listing. Brak odwołania może oznaczać pominiętą notatkę, nie tylko zerwany
 link. Odświeżanie jest okresowe; równoczesne edycje mogą trafić do różnych skanów.
 

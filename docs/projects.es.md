@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "c263e12720d9"
+source_sha: "3ba3ec38d6e7"
 ---
 
 # Proyectos { #projects }
@@ -209,7 +209,8 @@ Actualizar el grafo no inicia un agent para verificar hechos o fuentes.
 Un escaneo incluye hasta 200 archivos Markdown, 256 KiB por archivo y 8 MiB en
 total, dentro de los límites de la lista de origen. Se permiten hasta 256
 relaciones por nota y 2048 en todo el grafo; alcanzar un límite también marca
-el grafo como incompleto. La vista identifica archivos
+el grafo como incompleto. Los alias y las etiquetas comparten un límite de
+128 entradas por nota y 4096 en todo el grafo. La vista identifica archivos
 omitidos o ilegibles, YAML inválido y listas incompletas. Una referencia ausente
 puede indicar una nota omitida. La actualización es periódica; las ediciones
 simultáneas pueden aparecer en escaneos diferentes.

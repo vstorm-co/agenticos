@@ -197,3 +197,18 @@ it("allocates the shared relationship budget in path order regardless of read co
   expect(reverse.pages[0]?.links).toHaveLength(256);
   expect(reverse.pages[8]?.links).toHaveLength(0);
 });
+
+it("shares a metadata budget across notes and reports a partial graph", async () => {
+  vi.mocked(listProjectFiles).mockResolvedValue(
+    listing(Array.from({ length: 40 }, (_, i) => file(`${i}.md`))),
+  );
+  vi.mocked(readFileText).mockResolvedValue({
+    content: `---\naliases: ${JSON.stringify(Array.from({ length: 128 }, (_, i) => `alias${i}`))}\n---`,
+    truncated: false,
+  });
+  const graph = await readWikiWorkspace({ kind: "project", id: "p" }, signal());
+  expect(
+    graph.pages.reduce((count, page) => count + page.aliases.length + page.tags.length, 0),
+  ).toBe(4096);
+  expect(graph.truncated).toBe(true);
+});

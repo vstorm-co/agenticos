@@ -207,3 +207,28 @@ it("ignores escaped links but permits links after an escaped backslash", () => {
   );
   expect(page.links.map((link) => link.target)).toEqual(["real", "visible"]);
 });
+
+it("consumes malformed destination tails once and still parses balanced links", () => {
+  const page = parseWikiPage("a.md", "[](".repeat(80_000));
+  expect(page.links).toHaveLength(0);
+  const valid = parseWikiPage("a.md", "[A](notes/a(1).md \"Title\") [B](<b.md> 'Title')");
+  expect(valid.links.map((link) => link.target)).toEqual(["notes/a(1).md", "b.md"]);
+});
+
+it("caps frontmatter aliases and tags before indexing, and marks lost metadata", () => {
+  const values = Array.from({ length: 5000 }, (_, i) => `alias${i}`);
+  const page = parseWikiPage(
+    "a.md",
+    `---\naliases: ${JSON.stringify(values)}\ntags: research\n---`,
+  );
+  expect(page.aliases).toHaveLength(128);
+  expect(page.tags).toHaveLength(0);
+  expect(page.metadataTruncated).toBe(true);
+  const tags = parseWikiPage("a.md", `---\ntags: '${values.join(" ")}'\n---`);
+  expect(tags.tags).toHaveLength(128);
+  expect(tags.metadataTruncated).toBe(true);
+  expect(
+    buildWikiGraph(Array.from({ length: 40 }, (_, i) => ({ ...page, path: `${i}.md` })))
+      .metadataTruncated,
+  ).toBe(true);
+});

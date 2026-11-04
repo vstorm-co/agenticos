@@ -12256,7 +12256,7 @@
     "failed": "Workspace konnte nicht gelesen werden. Erneut versuchen oder Zugriff prüfen.",
     "counts": "{pages, plural, one {# Notiz} other {# Notizen}} · {links, plural, one {# Link} other {# Links}}",
     "partial": "Dieser Graph ist unvollständig",
-    "limits": "Der Scan umfasst bis zu 200 Notizen, 256 KiB pro Datei und insgesamt 8 MiB. Es gelten höchstens 256 Beziehungen pro Notiz und 2048 im gesamten Graphen. Nach Änderungen aktualisieren oder die Dateimenge verkleinern.",
+    "limits": "Der Scan umfasst bis zu 200 Notizen, 256 KiB pro Datei und insgesamt 8 MiB. Es gelten höchstens 256 Beziehungen pro Notiz und 2048 im gesamten Graphen. Nach Änderungen aktualisieren oder die Dateimenge verkleinern. Aliase und Tags sind zusammen auf 128 Einträge je Notiz und 4096 im gesamten Graphen begrenzt.",
     "skipped": "Übersprungen: {path}",
     "unreadable": "Nicht lesbar: {path}",
     "invalidFrontmatter": "Ungültiges YAML-Frontmatter. Metadaten dieser Notizen werden ignoriert: {paths}",
