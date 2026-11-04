@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "700242aaac3f"
+source_sha: "6c1db347d0da"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -59,18 +59,22 @@ fallo en una ejecución que alguien pagó.
 ## Qué mide una ejecución { #what-a-run-measures }
 
 El corpus es el sitio publicado: cada página Markdown bajo `docs/` excepto lo que
-`mkdocs.yml` deja fuera (`plans/`, `design/`, `audits/`, la hoja de ruta), y
-excepto esta página, que cita las preguntas y sus respuestas. Cada idioma se
-indexa en su propia colección, nombrada según el modelo de embeddings. Una
-ejecución posterior reutiliza una colección mientras contenga todas las páginas
-tal como están ahora, y la construye de nuevo cuando se añadió, eliminó,
-renombró o editó una página. Una pregunta normal busca en todas a la vez, como
-hace un agent vinculado a varias colecciones.
+`mkdocs.yml` deja fuera (`plans/`, `design/`, `audits/`, la hoja de ruta) y
+esta página, que cita las preguntas y sus respuestas. Cada idioma se indexa en
+su propia colección, nombrada según el modelo de embeddings y un digest de los
+ajustes de embeddings e ingesta: una ejecución que cambia el tamaño de fragmento
+o el modelo indexa desde cero. Una ejecución posterior reutiliza una colección
+mientras contenga cada página en su versión actual, y la reconstruye cuando se
+añadió, eliminó, renombró o editó una página. Una pregunta normal busca en
+todas a la vez, como hace un agent vinculado a varias colecciones.
 
 Cada configuración es una pasada sobre las 34 preguntas. La búsqueda sigue el
 propio camino de la herramienta de conocimiento: la consulta se expande según
 `query_analysis_mode`, se recupera cada consulta, y los resultados se fusionan y
-se recortan a `top_k`. Por categoría, la ejecución informa de:
+se recortan a `top_k`. Las consultas expandidas de una pregunta se generan una
+vez por modo y se reutilizan para cada `top_k`, así que dos valores de `top_k` se
+comparan sobre las mismas reformulaciones. Por categoría, la ejecución informa
+de:
 
 | Número | Significado |
 |---|---|
@@ -126,7 +130,7 @@ Las opciones:
 | `--keyless` | desactivado | El endpoint no requiere clave |
 | `--llm-model` | ninguno | Un nombre de modelo de Pydantic AI. Su provider lee su propia variable de clave |
 | `--answers` | desactivado | Además responde cada pregunta a partir de lo recuperado y comprueba los hechos |
-| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia una página |
+| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia una página o un ajuste; páselo tras un cambio en el código del parser |
 | `--json` | ninguno | Además escribe los resultados por pregunta en este archivo |
 
 El informe va a la salida estándar y el progreso a la salida de error estándar,

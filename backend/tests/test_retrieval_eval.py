@@ -17,6 +17,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.models import IngestionStatus, SearchResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -317,6 +318,14 @@ class TestAnswerFacts:
         assert wrong.answer_correct is False
         assert right.answer_correct is True
 
+    def test_an_item_without_facts_is_not_judged(self):
+        """Without an oracle every answer would count as correct, "not stated" included."""
+        result = scoring.ItemResult(
+            item=_item(expected_facts=[]), retrieved=(), answer="Not stated."
+        )
+
+        assert result.answer_correct is None
+
     def test_nothing_answered_is_not_judged(self):
         result = scoring.ItemResult(item=_item(), retrieved=())
 
@@ -528,3 +537,69 @@ class TestHeldNames:
         with pytest.raises(SystemExit, match="already uses eval_en"):
             await run.refuse_held_names(["eval_en", "eval_pl"])
         await run.refuse_held_names(["eval_pl"])
+
+
+class TestCollectionNames:
+    def _settings(self, model: str = "text-embedding-3-small", **changes: object) -> RAGSettings:
+        return RAGSettings(embeddings_config=EmbeddingsConfig(model=model), **changes)
+
+    def _names(self, settings: RAGSettings, prefix: str = "retrieval_eval") -> dict[str, str]:
+        return run.collection_names(prefix, settings, "https://api.openai.com/v1", ("en", "pl"))
+
+    def test_a_changed_ingestion_setting_indexes_afresh(self):
+        """A chunk-size comparison must not reuse the chunks the old size produced."""
+        assert self._names(self._settings()) != self._names(self._settings(chunk_size=1200))
+
+    def test_models_that_shorten_alike_get_their_own_collections(self):
+        first = self._names(self._settings("text-embedding-3-small"))
+        second = self._names(self._settings("text-embedding-3-small-v2", dim=1536))
+
+        assert first["en"] != second["en"]
+
+    def test_the_same_pipeline_reuses_its_collections(self):
+        names = self._names(self._settings())
+
+        assert names == self._names(self._settings())
+        assert names["en"].endswith("_en") and names["pl"].endswith("_pl")
+
+    def test_a_prefix_that_overflows_the_name_is_refused(self):
+        with pytest.raises(SystemExit, match="too long"):
+            self._names(self._settings(), prefix="x" * 40)
+
+
+class TestQueryPlans:
+    async def test_a_plan_is_generated_once_and_shared_across_top_k(self):
+        """Otherwise top_k 5 and 10 would compare two different rephrasings."""
+        prompts: list[str] = []
+
+        async def generate(prompt: str) -> str:
+            prompts.append(prompt)
+            return f"rephrasing {len(prompts)}"
+
+        class _Retrieval:
+            def __init__(self) -> None:
+                self.queries: list[str] = []
+
+            async def retrieve(self, *, query: str, limit: int, **_: object) -> list[SearchResult]:
+                self.queries.append(query)
+                return [
+                    SearchResult(content="x", score=1.0, metadata={"source_path": "directory.md"})
+                ]
+
+        retrieval = _Retrieval()
+        plans: dict[tuple[str, str], list[str]] = {}
+        item = _item(category="cross_language", search_locales=["pl"], language="en")
+        for top_k in (5, 10):
+            search = run.retriever(
+                retrieval,
+                collections={"pl": "c_pl"},
+                top_k=top_k,
+                mode="multi_query",
+                max_variants=1,
+                generate=generate,
+                plans=plans,
+            )
+            await search(item)
+
+        assert len(prompts) == 1
+        assert retrieval.queries == [item.question, "rephrasing 1"] * 2

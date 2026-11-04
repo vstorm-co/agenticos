@@ -198,6 +198,7 @@ items:
     expected_facts:
       - [openrouter]
       - [ollama]
+      - [openai]
     evidence: "data-protection.md: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog)"
 
   - id: default-pdf-parser-pl
@@ -265,7 +266,6 @@ items:
     question: Jak długo maksymalnie może trwać rozmowa głosowa z agentem?
     expected_pages: [voice.md, governance.md]
     expected_facts:
-      - ["10"]
       - ["50"]
     evidence: "voice.md: longest call (10 minutes when unset, 50 at most)"
 

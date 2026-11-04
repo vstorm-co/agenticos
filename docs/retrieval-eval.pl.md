@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "700242aaac3f"
+source_sha: "6c1db347d0da"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -58,16 +58,19 @@ zapłacił.
 Korpusem jest opublikowana strona: każda strona Markdown w `docs/` poza tym, co
 `mkdocs.yml` pomija (`plans/`, `design/`, `audits/`, roadmapa), oraz poza tą
 stroną, która cytuje pytania i ich odpowiedzi. Każdy język jest indeksowany do
-własnej kolekcji, nazwanej od modelu embeddingów. Kolejny przebieg ponownie
-wykorzystuje kolekcję, dopóki zawiera ona każdą stronę w jej obecnej postaci, i
-buduje ją od nowa, gdy jakąś stronę dodano, usunięto, przemianowano lub
-zmieniono. Zwykłe pytanie przeszukuje je wszystkie naraz, tak jak agent
-powiązany z kilkoma kolekcjami.
+własnej kolekcji, nazwanej od modelu embeddingów i skrótu ustawień embeddingów
+i ingestii, więc przebieg, który zmienia rozmiar chunka lub model, indeksuje od
+zera. Kolejny przebieg ponownie wykorzystuje kolekcję, dopóki zawiera ona każdą
+stronę w jej obecnej postaci, i buduje ją od nowa, gdy jakąś stronę dodano,
+usunięto, przemianowano lub zmieniono. Zwykłe pytanie przeszukuje je wszystkie
+naraz, tak jak agent powiązany z kilkoma kolekcjami.
 
 Każda konfiguracja to jedno przejście przez wszystkie 34 pytania. Wyszukiwanie
 idzie własną ścieżką narzędzia wiedzy: zapytanie jest rozszerzane według
 `query_analysis_mode`, każde zapytanie jest wyszukiwane, a wyniki są łączone i
-przycinane do `top_k`. Dla każdej kategorii przebieg raportuje:
+przycinane do `top_k`. Rozszerzone zapytania pytania są generowane raz na tryb
+i ponownie używane dla każdego `top_k`, więc dwie wartości `top_k` są porównywane
+na tych samych przeformułowaniach. Dla każdej kategorii przebieg raportuje:
 
 | Liczba | Znaczenie |
 |---|---|
@@ -121,7 +124,7 @@ Opcje:
 | `--keyless` | wył. | Endpoint nie przyjmuje klucza |
 | `--llm-model` | brak | Nazwa modelu Pydantic AI. Jego provider czyta własną zmienną z kluczem |
 | `--answers` | wył. | Dodatkowo odpowiada na każde pytanie na podstawie pobranych treści i sprawdza fakty |
-| `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa. Przebieg robi to sam, gdy zmieniła się jakaś strona |
+| `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa. Przebieg robi to sam, gdy zmieniła się jakaś strona lub ustawienie; podaj ją po zmianie w kodzie parsera |
 | `--json` | brak | Dodatkowo zapisuje wyniki dla poszczególnych pytań do tego pliku |
 
 Raport trafia na standardowe wyjście, a postęp na standardowe wyjście błędów, więc

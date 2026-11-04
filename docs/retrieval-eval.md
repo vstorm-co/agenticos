@@ -56,15 +56,18 @@ than becoming a miss in a run somebody paid for.
 The corpus is the published site: every Markdown page under `docs/` except what
 `mkdocs.yml` leaves out (`plans/`, `design/`, `audits/`, the roadmap), and
 except this page, which quotes the questions and their answers. Each language is
-indexed into its own collection, named after the embedding model. A later run
-reuses a collection while it holds every page as the page is now, and builds it
-again when a page was added, removed, renamed or edited. A normal question
+indexed into its own collection, named after the embedding model and a digest of
+the embedding and ingestion settings, so a run that changes the chunk size or the
+model indexes afresh. A later run reuses a collection while it holds every page
+as the page is now, and builds it again when a page was added, removed, renamed
+or edited. A normal question
 searches all of them together, as an agent bound to several collections does.
 
 Each configuration is one pass over all 34 questions. Search is the knowledge
 tool's own path: the query is expanded by `query_analysis_mode`, every query is
-retrieved, and the results are fused and cut to `top_k`. Per category, the run
-reports:
+retrieved, and the results are fused and cut to `top_k`. A question's expanded
+queries are generated once per mode and reused for every `top_k`, so two `top_k`
+values are compared on the same rephrasings. Per category, the run reports:
 
 | Number | Meaning |
 |---|---|
@@ -119,7 +122,7 @@ The options:
 | `--keyless` | off | The endpoint takes no key |
 | `--llm-model` | none | A Pydantic AI model name. Its provider reads its own key variable |
 | `--answers` | off | Also answer each question from what was retrieved, and check the facts |
-| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page changed |
+| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page or a setting changed; pass it after a change to parser code |
 | `--json` | none | Also write the per-question results to this file |
 
 The report goes to standard output and progress to standard error, so

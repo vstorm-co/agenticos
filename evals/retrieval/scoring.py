@@ -68,8 +68,12 @@ class ItemResult:
 
     @property
     def missing_facts(self) -> tuple[tuple[str, ...], ...] | None:
-        """The fact groups the answer lacks; `None` when nothing was answered."""
-        if self.answer is None:
+        """The fact groups the answer lacks; `None` when it cannot be judged.
+
+        That is when nothing was answered, and when the item names no facts: an
+        item without an oracle would otherwise count every answer as correct.
+        """
+        if self.answer is None or not self.item.expected_facts:
             return None
         # A citation marker is not a fact: "[5]" must not answer "five".
         text = _CITATION.sub(" ", self.answer)

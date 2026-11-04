@@ -35,7 +35,7 @@ from pydantic_ai.usage import RunUsage
 from scoring import Answer, Retrieve, Retrieved, as_json, evaluate, render_markdown
 
 from app.db.session import close_db, get_db_context
-from app.db.vector_tables import VectorScope
+from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH, VectorScope
 from app.repositories import knowledge_base_repo
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.documents import DocumentProcessor
@@ -160,6 +160,37 @@ def _generate(model: str | None, usage: RunUsage) -> GenerateText | None:
     return generate
 
 
+def collection_names(
+    prefix: str, settings: RAGSettings, base_url: str, locales: tuple[Locale, ...]
+) -> dict[Locale, str]:
+    """One collection per locale, named after everything that shaped its vectors.
+
+    The digest covers the embedding model, its width and endpoint and every
+    ingestion setting - chunk size and overlap, chunking strategy, parsers - so
+    changing any of them, which is what a comparison run does, indexes afresh
+    instead of reusing chunks the old pipeline produced. The readable part of
+    the model name is only a label; two models whose names shorten alike still
+    get two collections. A change to parser *code* is not in it: pass
+    `--reingest` after one.
+    """
+    identity = json.dumps(
+        {"base_url": base_url, "settings": settings.model_dump(mode="json")}, sort_keys=True
+    )
+    digest = hashlib.sha256(identity.encode()).hexdigest()[:10]
+    label = re.sub(r"[^a-z0-9]+", "_", settings.embeddings_config.model.lower()).strip("_")[:12]
+    names: dict[Locale, str] = {locale: f"{prefix}_{label}_{digest}_{locale}" for locale in locales}
+    too_long = [name for name in names.values() if len(name) > MAX_COLLECTION_NAME_LENGTH]
+    if too_long:
+        raise SystemExit(
+            f"--collection-prefix is too long: {too_long[0]} is over {MAX_COLLECTION_NAME_LENGTH}"
+        )
+    return names
+
+
+QueryPlans = dict[tuple[str, str], list[str]]
+"""The queries planned for each (item id, mode), shared by every `top_k` in a run."""
+
+
 def retriever(
     retrieval: RetrievalService,
     *,
@@ -168,14 +199,23 @@ def retriever(
     mode: QueryAnalysisMode,
     max_variants: int,
     generate: GenerateText | None,
+    plans: QueryPlans,
 ) -> Retrieve:
-    """One configuration's search: the knowledge tool's plan-retrieve-fuse, per item."""
+    """One configuration's search: the knowledge tool's plan-retrieve-fuse, per item.
+
+    An item's queries are planned once per mode and reused for every `top_k`:
+    `multi_query` and `hyde` generate text, and two generations differ, so
+    planning again would compare different rephrasings rather than two `top_k`.
+    """
 
     async def retrieve(item: Item) -> list[Retrieved]:
         names = [collections[locale] for locale in (item.search_locales or tuple(collections))]
-        queries = await plan_queries(
-            item.question, mode=mode, max_variants=max_variants, generate=generate
-        )
+        key = (item.id, mode)
+        if key not in plans:
+            plans[key] = await plan_queries(
+                item.question, mode=mode, max_variants=max_variants, generate=generate
+            )
+        queries = plans[key]
 
         async def retrieve_one(query: str) -> list[SearchResult]:
             if len(names) == 1:
@@ -241,12 +281,9 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, ob
     store = process_vector_store(settings, embedder)
     retrieval = RetrievalService(vector_store=store, settings=settings)
     ingestion = IngestionService(processor=DocumentProcessor(settings), vector_store=store)
-    # The model is in the name, so a run with another embedding model builds its
-    # own collections rather than searching vectors it cannot compare with.
-    model_slug = re.sub(r"[^a-z0-9]+", "_", arguments.embedding_model.lower()).strip("_")[:32]
-    collections: dict[Locale, str] = {
-        locale: f"{arguments.collection_prefix}_{model_slug}_{locale}" for locale in locales
-    }
+    collections = collection_names(
+        arguments.collection_prefix, settings, arguments.embedding_base_url, locales
+    )
     await refuse_held_names(list(collections.values()))
     for locale, collection in collections.items():
         await ingest(
@@ -267,6 +304,7 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, ob
         "",
     ]
     reports: list[dict[str, object]] = []
+    plans: QueryPlans = {}
     for top_k in arguments.top_k or [5]:
         for mode in (MODES[name] for name in arguments.mode or ["off"]):
             label = f"top_k={top_k}, query_analysis_mode={mode}"
@@ -278,6 +316,7 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, ob
                 mode=mode,
                 max_variants=arguments.max_variants,
                 generate=generate,
+                plans=plans,
             )
             results = await evaluate(dataset, search, answer)
             sections.append(render_markdown(label, results))

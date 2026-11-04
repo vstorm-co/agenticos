@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "700242aaac3f"
+source_sha: "6c1db347d0da"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -62,16 +62,19 @@ Der Korpus ist die veröffentlichte Website: jede Markdown-Seite unter `docs/`
 außer dem, was `mkdocs.yml` auslässt (`plans/`, `design/`, `audits/`, die
 Roadmap), und außer dieser Seite, die die Fragen und ihre Antworten zitiert. Jede
 Sprache wird in eine eigene Collection indexiert, benannt nach dem
-Embedding-Modell. Ein späterer Lauf verwendet eine Collection wieder, solange sie
-jede Seite in ihrer aktuellen Fassung enthält, und baut sie neu auf, wenn eine
-Seite hinzugefügt, entfernt, umbenannt oder bearbeitet wurde. Eine normale Frage
-durchsucht alle zusammen, wie es ein Agent tut, der an mehrere Collections
-gebunden ist.
+Embedding-Modell und einem Digest der Embedding- und Ingestion-Einstellungen,
+sodass ein Lauf, der die Chunk-Größe oder das Modell ändert, neu indexiert. Ein
+späterer Lauf verwendet eine Collection wieder, solange sie jede Seite in ihrer
+aktuellen Fassung enthält, und baut sie neu auf, wenn eine Seite hinzugefügt,
+entfernt, umbenannt oder bearbeitet wurde. Eine normale Frage durchsucht alle
+zusammen, wie es ein Agent tut, der an mehrere Collections gebunden ist.
 
 Jede Konfiguration ist ein Durchgang über alle 34 Fragen. Die Suche ist der
 eigene Pfad des Wissens-Tools: Die Abfrage wird nach `query_analysis_mode`
 erweitert, jede Abfrage wird abgerufen, und die Ergebnisse werden zusammengeführt
-und auf `top_k` gekürzt. Je Kategorie meldet der Lauf:
+und auf `top_k` gekürzt. Die erweiterten Abfragen einer Frage werden einmal je
+Modus erzeugt und für jedes `top_k` wiederverwendet, sodass zwei `top_k`-Werte
+auf denselben Umformulierungen verglichen werden. Je Kategorie meldet der Lauf:
 
 | Zahl | Bedeutung |
 |---|---|
@@ -127,7 +130,7 @@ Die Optionen:
 | `--keyless` | aus | Der Endpunkt nimmt keinen Schlüssel |
 | `--llm-model` | keiner | Ein Pydantic-AI-Modellname. Sein Provider liest seine eigene Schlüsselvariable |
 | `--answers` | aus | Beantwortet außerdem jede Frage aus dem Abgerufenen und prüft die Fakten |
-| `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu. Ein Lauf tut das von selbst, wenn sich eine Seite geändert hat |
+| `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu. Ein Lauf tut das von selbst, wenn sich eine Seite oder eine Einstellung geändert hat; nach einer Änderung am Parser-Code angeben |
 | `--json` | keiner | Schreibt außerdem die Ergebnisse je Frage in diese Datei |
 
 Der Bericht geht auf die Standardausgabe und der Fortschritt auf die
