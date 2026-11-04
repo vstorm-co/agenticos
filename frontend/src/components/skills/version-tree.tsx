@@ -1,31 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { GitBranch } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { Columns2, GitBranch } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ErrorState } from "@/components/states";
 import { ListCard } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { versionTree, type TreeFork, type TreeRow } from "@/lib/skill-version-tree";
+import { NODE_WIDTH, versionDiagram, type DiagramBox } from "@/lib/skill-version-diagram";
+import { versionTree } from "@/lib/skill-version-tree";
 import { cn } from "@/lib/utils";
 import type { SkillAgentUsage, SkillFork } from "@/types/skill-versions";
 import { eachAgentOnce } from "./skill-lines";
-
-const CHIPS = 3;
+import { VersionCompare, type Compared } from "./version-compare";
 
 /**
- * The skill's versions as a branch diagram: main runs down from its newest, each
- * fork branches off the version it started from, and agents sit at the version
- * they are served. Stretches nobody uses fold, and unfold on request.
+ * The skill's versions as a diagram: main runs left to right to its newest, each
+ * fork branches off the version it started from on a lane of its own, and every
+ * agent sits in the box of the version it is served. Stretches nobody uses fold,
+ * and unfold on request. Any versions can be put side by side to compare.
  */
 export function VersionTree({
+  skillId,
   mainLatest,
   forks,
   agents,
   error,
 }: {
+  skillId: string;
   mainLatest: number;
   forks: SkillFork[];
   agents: SkillAgentUsage[];
@@ -35,6 +38,7 @@ export function VersionTree({
   const t = useTranslations("skills.page.tree");
   const tErrors = useTranslations("errors");
   const [expanded, setExpanded] = useState<Map<string, Set<number>>>(new Map());
+  const [compared, setCompared] = useState<Compared[]>([]);
   const unfold = (line: string, from: number, to: number) =>
     setExpanded((was) => {
       const next = new Map(was);
@@ -43,132 +47,201 @@ export function VersionTree({
       next.set(line, numbers);
       return next;
     });
-  const rows = versionTree({ mainLatest, forks, agents, expanded });
+  const toggle = (item: Compared) =>
+    setCompared((was) =>
+      was.some((other) => other.key === item.key)
+        ? was.filter((other) => other.key !== item.key)
+        : [...was, item],
+    );
   return (
-    <ListCard
-      title={t("title")}
-      counted={t("summary", { versions: mainLatest, forks: forks.length })}
-      headerTour="skill-tree"
-    >
-      {error ? (
-        <ErrorState description={getErrorMessage(error, tErrors)} />
-      ) : (
-        <div className="p-4">
-          <Line rows={rows} line="main" forkName={null} onUnfold={unfold} />
-        </div>
-      )}
-    </ListCard>
-  );
-}
-
-function Line({
-  rows,
-  line,
-  forkName,
-  onUnfold,
-}: {
-  rows: TreeRow[];
-  line: string;
-  /** The fork the rows belong to, whose versions number from 1 like main's; null for main. */
-  forkName: string | null;
-  onUnfold: (line: string, from: number, to: number) => void;
-}) {
-  const t = useTranslations("skills.page.tree");
-  return (
-    <ol className="relative">
-      {rows.map((row, index) => (
-        <li key={row.kind === "gap" ? `gap-${row.from}` : row.number} className="relative pl-6">
-          {index < rows.length - 1 && (
-            <span
-              aria-hidden
-              className={cn(
-                "bg-border absolute top-3 bottom-0 left-[5px] w-0.5",
-                row.kind === "gap" && "border-border border-l-2 border-dashed bg-transparent",
-              )}
-            />
-          )}
-          {row.kind === "gap" ? (
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground py-1.5 text-xs underline-offset-4 hover:underline"
-              onClick={() => onUnfold(line, row.from, row.to)}
-            >
-              {t("folded", { count: row.count, from: row.from, to: row.to })}
-            </button>
-          ) : (
-            <>
-              <span
-                aria-hidden
-                className={cn(
-                  "absolute top-[0.45rem] left-0 size-3 rounded-full border-2",
-                  row.latest
-                    ? "bg-primary border-primary"
-                    : "bg-background border-muted-foreground",
-                )}
-              />
-              <div className="flex min-h-7 flex-wrap items-center gap-2 py-0.5">
-                <span className="font-mono text-sm font-medium">
-                  {forkName === null
-                    ? t("number", { number: row.number })
-                    : t("forkNumber", { name: forkName, number: row.number })}
-                </span>
-                {row.latest && <span className="text-muted-foreground text-xs">{t("latest")}</span>}
-                <Chips agents={row.agents} />
-              </div>
-              {row.forks.map((branch) => (
-                <Branch key={branch.fork.id} branch={branch} onUnfold={onUnfold} />
-              ))}
-            </>
-          )}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/** A fork, drawn off its base version with its own line of versions. */
-function Branch({
-  branch,
-  onUnfold,
-}: {
-  branch: TreeFork;
-  onUnfold: (line: string, from: number, to: number) => void;
-}) {
-  const t = useTranslations("skills.page.tree");
-  const { fork } = branch;
-  return (
-    <div className="relative mt-1 mb-2 pl-5">
-      <span
-        aria-hidden
-        className="border-primary/50 absolute -top-2 left-[-15px] h-5 w-5 rounded-bl-md border-b-2 border-l-2"
-      />
-      <div className="flex flex-wrap items-center gap-2 py-0.5 text-sm">
-        <GitBranch className="text-primary size-3.5" aria-hidden />
-        <span className="font-medium">{t("fork", { name: fork.name })}</span>
-        <span className="text-muted-foreground text-xs">
-          {t("forkFacts", { changes: fork.changes, behind: fork.behind_main })}
-        </span>
-        <Chips agents={branch.agents} />
-      </div>
-      {branch.rows.length > 0 && (
-        <Line rows={branch.rows} line={fork.id} forkName={fork.name} onUnfold={onUnfold} />
+    <div className="space-y-4">
+      <ListCard
+        title={t("title")}
+        counted={t("summary", { versions: mainLatest, forks: forks.length })}
+        headerTour="skill-tree"
+      >
+        {error ? (
+          <ErrorState description={getErrorMessage(error, tErrors)} />
+        ) : (
+          <Diagram
+            boxes={versionDiagram(versionTree({ mainLatest, forks, agents, expanded }))}
+            compared={compared}
+            onUnfold={unfold}
+            onCompare={toggle}
+          />
+        )}
+      </ListCard>
+      {compared.length > 0 && (
+        <VersionCompare
+          skillId={skillId}
+          compared={compared}
+          onRemove={toggle}
+          onClear={() => setCompared([])}
+        />
       )}
     </div>
   );
 }
 
-function Chips({ agents }: { agents: SkillAgentUsage[] }) {
+function Diagram({
+  boxes: diagram,
+  compared,
+  onUnfold,
+  onCompare,
+}: {
+  boxes: ReturnType<typeof versionDiagram>;
+  compared: Compared[];
+  onUnfold: (line: string, from: number, to: number) => void;
+  onCompare: (item: Compared) => void;
+}) {
   const t = useTranslations("skills.page.tree");
+  const scroller = useRef<HTMLDivElement>(null);
+  // The newest version is what a reader came for, and it is drawn at the right end.
+  useLayoutEffect(() => {
+    const element = scroller.current!;
+    element.scrollLeft = element.scrollWidth;
+  }, []);
+  return (
+    <div ref={scroller} className="overflow-x-auto p-6">
+      <div className="relative" style={{ width: diagram.width, height: diagram.height }}>
+        <svg
+          className="pointer-events-none absolute inset-0"
+          width={diagram.width}
+          height={diagram.height}
+          aria-hidden
+        >
+          {diagram.edges.map(({ key, path }) => (
+            <path
+              key={key}
+              d={path}
+              fill="none"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              className="map-flow stroke-brand/50"
+            />
+          ))}
+        </svg>
+        {diagram.labels.map(({ fork, x, y }) => (
+          <p
+            key={fork.id}
+            className="absolute flex items-center gap-1.5 text-xs whitespace-nowrap"
+            style={{ left: x, top: y }}
+          >
+            <GitBranch className="text-primary size-3.5" aria-hidden />
+            <span className="font-medium">{t("fork", { name: fork.name })}</span>
+            <span className="text-muted-foreground">
+              {t("forkFacts", { changes: fork.changes, behind: fork.behind_main })}
+            </span>
+          </p>
+        ))}
+        <ol>
+          {diagram.boxes.map(({ box, x, y, height }) => (
+            <li
+              key={box.key}
+              className="absolute"
+              style={{ left: x, top: y, width: NODE_WIDTH, height }}
+            >
+              <Box
+                box={box}
+                inComparison={compared.some((item) => item.key === box.key)}
+                onUnfold={onUnfold}
+                onCompare={onCompare}
+              />
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+function Box({
+  box,
+  inComparison,
+  onUnfold,
+  onCompare,
+}: {
+  box: DiagramBox;
+  inComparison: boolean;
+  onUnfold: (line: string, from: number, to: number) => void;
+  onCompare: (item: Compared) => void;
+}) {
+  const t = useTranslations("skills.page.tree");
+  if (box.kind === "gap") {
+    return (
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-foreground hover:border-foreground/30 flex h-full w-full items-center justify-center rounded-xl border border-dashed text-xs"
+        onClick={() => onUnfold(box.line, box.from, box.to)}
+      >
+        {t("folded", { count: box.count, from: box.from, to: box.to })}
+      </button>
+    );
+  }
+  const name =
+    box.kind === "empty-fork"
+      ? t("noVersionYet")
+      : box.fork === null
+        ? t("number", { number: box.number })
+        : t("forkNumber", { name: box.fork.name, number: box.number });
+  return (
+    <div
+      className={cn(
+        "bg-card h-full rounded-xl border shadow-sm",
+        box.kind === "version" && box.latest && "border-brand/50 border-2",
+        inComparison && "ring-primary ring-2",
+      )}
+    >
+      <div className="flex h-11 items-center gap-2 px-3">
+        <span
+          className={cn(
+            "min-w-0 truncate text-sm",
+            box.kind === "version" && "font-mono font-medium",
+          )}
+        >
+          {name}
+        </span>
+        {box.kind === "version" && box.latest && (
+          <span className="text-muted-foreground text-xs">{t("latest")}</span>
+        )}
+        {box.kind === "version" && (
+          <button
+            type="button"
+            aria-pressed={inComparison}
+            aria-label={t("compare", { version: name })}
+            className={cn(
+              "ml-auto flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs",
+              inComparison
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() =>
+              onCompare({
+                key: box.key,
+                fork: box.fork?.id ?? null,
+                number: box.number,
+                newest: box.newest,
+                name,
+              })
+            }
+          >
+            <Columns2 className="size-3.5" aria-hidden />
+            {inComparison ? t("comparing") : t("compareShort")}
+          </button>
+        )}
+      </div>
+      <Agents agents={box.agents} />
+    </div>
+  );
+}
+
+function Agents({ agents }: { agents: SkillAgentUsage[] }) {
   const shown = eachAgentOnce(agents);
   if (shown.length === 0) return null;
-  const rest = shown.slice(CHIPS);
   return (
-    <span className="flex flex-wrap items-center gap-1">
-      {shown.slice(0, CHIPS).map((usage) => (
-        <span
-          key={usage.agent.id}
-          className="bg-muted inline-flex max-w-40 items-center gap-1 rounded-full py-0.5 pr-2 pl-0.5 text-xs"
-        >
+    <ul className="space-y-0.5 border-t px-3 pt-1.5 pb-1">
+      {shown.map((usage) => (
+        <li key={usage.agent.id} className="flex h-7 items-center gap-1.5 text-xs">
           <AgentAvatar
             agentId={usage.agent.id}
             slug={usage.agent.slug}
@@ -177,16 +250,8 @@ function Chips({ agents }: { agents: SkillAgentUsage[] }) {
             size="sm"
           />
           <span className="truncate">{usage.agent.name}</span>
-        </span>
+        </li>
       ))}
-      {rest.length > 0 && (
-        <span
-          className="text-muted-foreground text-xs"
-          title={rest.map((usage) => usage.agent.name).join(", ")}
-        >
-          {t("moreAgents", { count: rest.length })}
-        </span>
-      )}
-    </span>
+    </ul>
   );
 }

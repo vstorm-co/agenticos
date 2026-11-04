@@ -5299,7 +5299,7 @@
       },
       "skill-tree": {
         "title": "Main i jego forki",
-        "body": "Main biegnie w dół od najnowszej wersji, każdy fork odchodzi od wersji, od której wystartował, a agenci stoją przy wersji, której używają."
+        "body": "Main biegnie od lewej do najnowszej wersji, każdy fork odchodzi na własnym torze od wersji, z której wystartował, a każdy agent siedzi w polu wersji, której używa. Porównaj stawia dowolne wersje obok siebie."
       },
       "skill-improve": {
         "title": "Popraw skill",
@@ -8282,8 +8282,23 @@
         "latest": "najnowsza",
         "fork": "Fork „{name}”",
         "forkFacts": "{changes, plural, =0 {jeszcze bez zmian} one {# zmiana} few {# zmiany} many {# zmian} other {# zmiany}}{behind, plural, =0 {} other { · # za main}}",
-        "moreAgents": "+{count}",
-        "forkNumber": "{name} v{number}"
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "Jeszcze bez własnej wersji",
+        "compare": "Porównaj {version}",
+        "compareShort": "Porównaj",
+        "comparing": "W porównaniu"
+      },
+      "compare": {
+        "title": "Porównanie",
+        "count": "{count, plural, one {# wersja} few {# wersje} many {# wersji} other {# wersji}}",
+        "clear": "Wyczyść",
+        "pickAnother": "Wybierz na diagramie kolejną wersję, żeby postawić ją obok tej.",
+        "remove": "Usuń {version} z porównania",
+        "loading": "Wczytywanie wersji…",
+        "description": "Opis",
+        "instructions": "Instrukcje",
+        "files": "Pliki",
+        "noFiles": "Brak plików."
       },
       "edit": {
         "saved": "Zapisano jako v{number}.",

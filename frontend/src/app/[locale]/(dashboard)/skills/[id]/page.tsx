@@ -147,6 +147,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         </TabsContent>
         <TabsContent value="tree">
           <VersionTree
+            skillId={id}
             mainLatest={skill.version}
             forks={forks}
             agents={agents.agents?.items ?? []}

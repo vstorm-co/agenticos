@@ -5531,7 +5531,7 @@
       },
       "skill-tree": {
         "title": "Main and its forks",
-        "body": "Main runs down from its newest version, each fork branches off the version it started from, and agents sit at the version they use."
+        "body": "Main runs left to right to its newest version, each fork branches off the version it started from on a lane of its own, and every agent sits in the box of the version it uses. Compare puts any versions side by side."
       },
       "skill-improve": {
         "title": "Improve the skill",
@@ -8522,8 +8522,23 @@
         "latest": "latest",
         "fork": "Fork “{name}”",
         "forkFacts": "{changes, plural, =0 {no changes yet} =1 {1 change} other {# changes}}{behind, plural, =0 {} other { · # behind main}}",
-        "moreAgents": "+{count}",
-        "forkNumber": "{name} v{number}"
+        "forkNumber": "{name} v{number}",
+        "noVersionYet": "No version of its own yet",
+        "compare": "Compare {version}",
+        "compareShort": "Compare",
+        "comparing": "Comparing"
+      },
+      "compare": {
+        "title": "Comparison",
+        "count": "{count, plural, =1 {1 version} other {# versions}}",
+        "clear": "Clear",
+        "pickAnother": "Pick another version on the diagram to put beside this one.",
+        "remove": "Remove {version} from the comparison",
+        "loading": "Loading the version…",
+        "description": "Description",
+        "instructions": "Instructions",
+        "files": "Files",
+        "noFiles": "No files."
       },
       "edit": {
         "saved": "Saved as v{number}.",
