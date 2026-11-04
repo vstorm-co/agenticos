@@ -1,5 +1,5 @@
 ---
-source_sha: "aaa9a9a6f331"
+source_sha: "65c2fb3a274d"
 ---
 
 # Skills { #skills }
@@ -156,7 +156,8 @@ una shell, un glob sobre varios skills ni un script que lee el archivo por su
 cuenta.
 
 `GET /api/v1/skills/{id}/usage?days=30` devuelve, por agent, cuántos runs usaron
-el skill en ese intervalo, con la versión que recibió cada uno. Los runs de evals
+el skill en ese intervalo, con la versión que recibió cada uno y la cifra de cada
+día del intervalo en UTC, también cuando es cero. Los runs de evals
 y del panel de pruebas del Builder no cuentan. Las cifras salen de los runs, así
 que necesitan `runs:view`; un agent que quien llama no puede ver se cuenta, pero
 nunca se nombra.

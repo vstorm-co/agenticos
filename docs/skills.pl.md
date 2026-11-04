@@ -1,5 +1,5 @@
 ---
-source_sha: "aaa9a9a6f331"
+source_sha: "65c2fb3a274d"
 ---
 
 # Skille { #skills }
@@ -152,7 +152,8 @@ shella, glob obejmujący kilka skilli ani skrypt, który sam czyta plik, nie są
 rozpoznawane.
 
 `GET /api/v1/skills/{id}/usage?days=30` zwraca dla każdego agenta liczbę runów,
-które użyły skilla w tym oknie, z wersją, którą każdy dostał. Runy ewaluacji i
+które użyły skilla w tym oknie, z wersją, którą każdy dostał, i liczbą na każdy
+dzień okna w UTC, także zerową. Runy ewaluacji i
 panelu testowego w Builderze są pominięte. Liczby pochodzą z runów, więc wymagają
 `runs:view`; agent, którego wywołujący nie widzi, jest policzony, ale nie nazwany.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "aaa9a9a6f331"
+source_sha: "65c2fb3a274d"
 ---
 
 # Skills { #skills }
@@ -159,7 +159,8 @@ Shell zusammensetzt, ein Glob über mehrere Skills oder ein Skript, das die Date
 selbst liest, wird nicht erkannt.
 
 `GET /api/v1/skills/{id}/usage?days=30` liefert pro Agent, wie viele Runs den
-Skill in diesem Zeitraum verwendet haben, mit der Version, die jeder bekam. Runs
+Skill in diesem Zeitraum verwendet haben, mit der Version, die jeder bekam, und
+der Zahl für jeden Tag des Zeitraums in UTC, auch wenn sie null ist. Runs
 von Evals und vom Testbereich des Builders werden nicht gezählt. Die Zahlen werden
 aus Runs gelesen und brauchen daher `runs:view`; ein Agent, den der Aufrufer nicht
 sehen darf, wird gezählt, aber nie genannt.

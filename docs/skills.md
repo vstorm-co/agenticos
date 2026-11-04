@@ -144,7 +144,8 @@ Listing the folder is not counted. A path a shell assembles, a glob over several
 skills, or a script that reads the file itself is not recognised.
 
 `GET /api/v1/skills/{id}/usage?days=30` returns, per agent, how many runs used the
-skill in that window, with the version each was served. Runs of evals and of the
+skill in that window, with the version each was served and the count for every
+UTC day of the window, zeros included. Runs of evals and of the
 Builder's test panel are left out. The figures are read off runs, so they need
 `runs:view`; an agent the caller may not see is counted, never named.
 
