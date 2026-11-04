@@ -33,14 +33,15 @@ from pydantic_ai import Agent
 from pydantic_ai.usage import RunUsage
 from scoring import Answer, Retrieve, Retrieved, as_json, evaluate, render_markdown
 
-from app.db.session import close_db
+from app.db.session import close_db, get_db_context
 from app.db.vector_tables import VectorScope
+from app.repositories import knowledge_base_repo
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
 from app.services.rag.filters import UnscopedScope
 from app.services.rag.ingestion import IngestionService
-from app.services.rag.models import SearchResult
+from app.services.rag.models import IngestionStatus, SearchResult
 from app.services.rag.query_analysis import GenerateText, QueryAnalysisMode, plan_queries
 from app.services.rag.retrieval import RetrievalService, fuse_over_queries
 from app.services.rag.vectorstore import BaseVectorStore, process_vector_store
@@ -57,42 +58,82 @@ ANSWER_INSTRUCTIONS = (
 )
 
 
+async def refuse_held_names(collections: list[str]) -> None:
+    """Stop when a knowledge base already uses one of the eval's collection names.
+
+    A collection name is one physical table that every organization shares, and
+    the harness drops and reads its collections unscoped. A base holding the
+    same name would lose its vectors to `--reingest`, and lend its chunks to the
+    report, so the run refuses instead - as `rag-drop` refuses a held name
+    (#2560). Run it against a development database, not a deployment's.
+    """
+    async with get_db_context() as db:
+        held = [
+            name
+            for name in collections
+            if await knowledge_base_repo.list_by_collection_name(db, name)
+        ]
+    if held:
+        raise SystemExit(
+            f"A knowledge base already uses {', '.join(held)}. Pass another --collection-prefix, "
+            "and run this against a development database rather than a deployment's."
+        )
+
+
 async def ingest(
     store: BaseVectorStore,
     ingestion: IngestionService,
     collection: str,
     files: list[Path],
     *,
+    docs_root: Path,
     reingest: bool,
 ) -> None:
-    """Fill `collection` with `files`, unless an earlier run already did."""
-    if reingest:
-        await store.delete_collection(collection)
-    elif (await store.get_collection_info(collection, VectorScope(tenant=None))).total_vectors:
+    """Fill `collection` with `files`, unless an earlier run already indexed all of them.
+
+    A collection holding a different number of documents - an earlier run that
+    was interrupted, or a docs tree that gained or lost pages since - is built
+    again rather than measured: a corpus with holes measures the holes. Each
+    document is stored under its path relative to `docs/`, so a collection
+    indexed from one checkout reads the same from another.
+    """
+    stored = await store.get_documents(collection, VectorScope(tenant=None))
+    if stored and not reingest and len(stored) == len(files):
         print(
             f"{collection}: reusing what an earlier run indexed (--reingest to rebuild)",
             file=sys.stderr,
         )
         return
+    await store.delete_collection(collection)
     print(f"{collection}: indexing {len(files)} pages", file=sys.stderr)
     failed: list[str] = []
-    for path in files:
-        result = await ingestion.ingest_file(path, collection, source_path=str(path))
-        if result.status.value != "done":
-            failed.append(f"{path.name}: {result.error_message}")
+    try:
+        for path in files:
+            relative = path.relative_to(docs_root).as_posix()
+            # `replace=False`: the collection was just emptied, and the replace
+            # lookup falls back to a bare file name, which would let
+            # `howto/code-review.md` replace `code-review.md`.
+            result = await ingestion.ingest_file(
+                path, collection, replace=False, source_path=relative
+            )
+            if result.status != IngestionStatus.DONE:
+                failed.append(f"{relative}: {result.error_message}")
+    except BaseException:
+        # Interrupted part-way: leave nothing a later run would take for a corpus.
+        await store.delete_collection(collection)
+        raise
     if failed:
-        # A corpus with holes measures the holes; stop rather than report on it.
         await store.delete_collection(collection)
         raise SystemExit(
             f"{collection}: {len(failed)} file(s) failed to ingest:\n  " + "\n  ".join(failed)
         )
 
 
-def _retrieved(result: SearchResult, docs_root: Path) -> Retrieved:
+def _retrieved(result: SearchResult) -> Retrieved:
     source = result.metadata.get("source_path")
     if not isinstance(source, str) or not source:
         raise SystemExit(f"A chunk carries no source_path: {result.metadata}")
-    key, _locale = page_key(Path(source).relative_to(docs_root).as_posix())
+    key, _locale = page_key(source)
     return Retrieved(page=key, content=result.content, score=result.score)
 
 
@@ -113,7 +154,6 @@ def retriever(
     retrieval: RetrievalService,
     *,
     collections: dict[Locale, str],
-    docs_root: Path,
     top_k: int,
     mode: QueryAnalysisMode,
     max_variants: int,
@@ -140,7 +180,7 @@ def retriever(
             )
 
         results = await fuse_over_queries(queries, retrieve_one, limit=top_k)
-        return [_retrieved(result, docs_root) for result in results]
+        return [_retrieved(result) for result in results]
 
     return retrieve
 
@@ -197,12 +237,14 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, ob
     collections: dict[Locale, str] = {
         locale: f"{arguments.collection_prefix}_{model_slug}_{locale}" for locale in locales
     }
+    await refuse_held_names(list(collections.values()))
     for locale, collection in collections.items():
         await ingest(
             store,
             ingestion,
             collection,
             corpus_files(docs_root, locale),
+            docs_root=docs_root,
             reingest=arguments.reingest,
         )
 
@@ -222,7 +264,6 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, list[dict[str, ob
             search = retriever(
                 retrieval,
                 collections=collections,
-                docs_root=docs_root,
                 top_k=top_k,
                 mode=mode,
                 max_variants=arguments.max_variants,

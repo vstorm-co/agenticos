@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "30564d6dfb48"
+source_sha: "9aba1b51e57e"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -56,10 +56,12 @@ zapłacił.
 ## Co mierzy przebieg { #what-a-run-measures }
 
 Korpusem jest opublikowana strona: każda strona Markdown w `docs/` poza tym, co
-`mkdocs.yml` pomija (`plans/`, `design/`, `audits/`, roadmapa). Każdy język jest
-indeksowany do własnej kolekcji, nazwanej od modelu embeddingów, a kolejne
-przebiegi ją ponownie wykorzystują. Zwykłe pytanie przeszukuje je wszystkie
-naraz, tak jak agent powiązany z kilkoma kolekcjami.
+`mkdocs.yml` pomija (`plans/`, `design/`, `audits/`, roadmapa), oraz poza tą
+stroną, która cytuje pytania i ich odpowiedzi. Każdy język jest indeksowany do
+własnej kolekcji, nazwanej od modelu embeddingów. Kolejny przebieg ponownie
+wykorzystuje kolekcję, dopóki zawiera ona każdą stronę, a w przeciwnym razie
+buduje ją od nowa. Zwykłe pytanie przeszukuje je wszystkie naraz, tak jak agent
+powiązany z kilkoma kolekcjami.
 
 Każda konfiguracja to jedno przejście przez wszystkie 34 pytania. Wyszukiwanie
 idzie własną ścieżką narzędzia wiedzy: zapytanie jest rozszerzane według
@@ -78,15 +80,20 @@ zamiast nich — i tam jest użyteczna informacja.
 
 Sprawdzenie odpowiedzi jest celowo proste. Fakt pasuje jako całe słowo, wielkość
 liter nie ma znaczenia, a alternatywa kończąca się na `*` pasuje jako prefiks
-(`Keycloak*` pasuje do „Keycloaka”). Nie odróżni poprawnego „nie” od
-pogubionego, więc traktuj je jako dolne ograniczenie jakości odpowiedzi. `--json`
-zapisuje pobrane strony i odpowiedź dla każdego pytania, dla każdego, kto chce je
-przeczytać.
+(`Keycloak*` pasuje do „Keycloaka”). Znaczniki cytowań, takie jak `[5]`, są
+pomijane, więc numer fragmentu nigdy nie liczy się jako liczba w odpowiedzi. Samo
+„nie” nie wystarcza: każde pytanie negatywne wymaga też alternatywy, którą podaje
+dokumentacja, więc „dokumentacja tego nie mówi” nigdy nie przechodzi. Sprawdzenie
+nadal nie odróżni poprawnej odpowiedzi od pogubionej, która używa tych samych
+słów, więc traktuj je jako przybliżony sygnał. `--json` zapisuje pobrane strony i
+odpowiedź dla każdego pytania, dla każdego, kto chce je przeczytać.
 
 ## Uruchamianie { #running-it }
 
 Przebieg potrzebuje zmigrowanej bazy z pgvector (`make dev` ją daje), endpointu
-embeddingów, a dla `multi_query`, `hyde` i `--answers` — modelu.
+embeddingów, a dla `multi_query`, `hyde` i `--answers` — modelu. Używaj bazy
+deweloperskiej, nie bazy wdrożenia. Harness usuwa i odbudowuje własne kolekcje i
+odmawia startu, gdy baza wiedzy już używa jednej z ich nazw.
 
 !!! warning "Każde wywołanie jest prawdziwym, płatnym wywołaniem"
     Harness tworzy embeddingi korpusu i każdego zapytania przez podany endpoint
@@ -113,12 +120,13 @@ Opcje:
 | `--keyless` | wył. | Endpoint nie przyjmuje klucza |
 | `--llm-model` | brak | Nazwa modelu Pydantic AI. Jego provider czyta własną zmienną z kluczem |
 | `--answers` | wył. | Dodatkowo odpowiada na każde pytanie na podstawie pobranych treści i sprawdza fakty |
-| `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa, po zmianie dokumentacji |
+| `--reingest` | wył. | Usuwa kolekcje i indeksuje korpus od nowa. Przebieg robi to sam, gdy zmieniła się liczba stron |
 | `--json` | brak | Dodatkowo zapisuje wyniki dla poszczególnych pytań do tego pliku |
 
 Raport trafia na standardowe wyjście, a postęp na standardowe wyjście błędów, więc
 `> results.md` zachowuje sam raport. Harness zatrzymuje się przed pomiarem, jeśli
-którejś strony nie da się zindeksować, bo korpus z lukami mierzy luki.
+którejś strony nie da się zindeksować, a przerwany przebieg usuwa to, co
+zindeksował, bo korpus z lukami mierzy luki.
 
 ### Bez płatnego klucza { #without-a-paid-key }
 

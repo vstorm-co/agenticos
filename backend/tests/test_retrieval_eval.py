@@ -10,10 +10,13 @@ Imported by path, the way `test_loadtest_harness.py` reaches `loadtest/`.
 
 import importlib.util
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
+
+from app.services.rag.models import IngestionStatus, SearchResult
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HARNESS = REPO_ROOT / "evals" / "retrieval"
@@ -158,6 +161,54 @@ class TestTheQuestionSet:
             _item(**overrides)
 
 
+class TestTheCommittedSetCannotBeGamed:
+    """What #2482 is about must score as a failure on every committed question."""
+
+    @pytest.fixture(scope="class")
+    def committed(self):
+        return dataset.load_dataset(HARNESS / "docs_questions.yaml", docs_root=REPO_ROOT / "docs")
+
+    @pytest.mark.parametrize(
+        "fallback",
+        [
+            "The documentation does not state it.",
+            "No, the documentation does not say. Not stated.",
+            "Dokumentacja tego nie podaje. Nie wiem.",
+        ],
+    )
+    def test_a_dont_know_answer_that_echoes_the_question_fails(self, committed, fallback: str):
+        """The answerer is told to say this when nothing answers; it is never a pass."""
+        passing = [
+            item.id
+            for item in committed.items
+            if scoring.ItemResult(
+                item=item, retrieved=(), answer=f"{fallback} {item.question}"
+            ).answer_correct
+        ]
+
+        assert passing == []
+
+    def test_no_corpus_page_quotes_a_question(self, committed):
+        """A page that repeats a question word for word would outrank the page that answers it."""
+        docs = REPO_ROOT / "docs"
+        corpus = [
+            path
+            for locale in ("en", "pl", "de", "es")
+            for path in dataset.corpus_files(docs, locale)
+        ]
+        texts = {path: " ".join(path.read_text(encoding="utf-8").split()) for path in corpus}
+
+        quoting = [
+            (item.id, path.relative_to(docs).as_posix())
+            for item in committed.items
+            for path, text in texts.items()
+            if item.question in text
+        ]
+
+        assert quoting == []
+        assert not any(path.name.startswith("retrieval-eval") for path in corpus)
+
+
 class TestRetrievalScores:
     def test_a_hit_at_rank_two_scores_half(self):
         result = scoring.ItemResult(
@@ -228,6 +279,16 @@ class TestAnswerFacts:
         assert scoring.mentions("The file is SKILL.md.", "SKILL.md")
         assert scoring.mentions("Up to 100,000 records", "100,000")
 
+    def test_a_citation_marker_is_not_a_number(self):
+        """Cited as [5], a passage number must not answer "how many: five"."""
+        item = _item(category="factual", expected_facts=[["five", "5"]])
+
+        wrong = scoring.ItemResult(item=item, retrieved=(), answer="Ten at once [5], or [3, 5].")
+        right = scoring.ItemResult(item=item, retrieved=(), answer="Five at once [2].")
+
+        assert wrong.answer_correct is False
+        assert right.answer_correct is True
+
     def test_nothing_answered_is_not_judged(self):
         result = scoring.ItemResult(item=_item(), retrieved=())
 
@@ -283,3 +344,131 @@ class TestEvaluate:
         report = scoring.render_markdown("x", await scoring.evaluate(questions, retrieve))
 
         assert "Answers correct" not in report and "Missed" not in report
+
+
+run = _load("run")
+
+
+class _Store:
+    """Stands in for the vector store: what it holds, and what was dropped."""
+
+    def __init__(self, documents: int) -> None:
+        self.documents = documents
+        self.dropped = 0
+
+    async def get_documents(self, collection: str, scope: object) -> list[object]:
+        return [object()] * self.documents
+
+    async def delete_collection(self, collection: str) -> None:
+        self.dropped += 1
+        self.documents = 0
+
+
+class _Ingestion:
+    def __init__(
+        self, store: _Store, *, fail: str | None = None, interrupt_at: int | None = None
+    ) -> None:
+        self.store = store
+        self.fail = fail
+        self.interrupt_at = interrupt_at
+        self.source_paths: list[str] = []
+
+    async def ingest_file(
+        self, path: Path, collection: str, *, replace: bool, source_path: str
+    ) -> SimpleNamespace:
+        assert replace is False, "the replace lookup matches bare file names"
+        if len(self.source_paths) == self.interrupt_at:
+            raise KeyboardInterrupt
+        self.source_paths.append(source_path)
+        self.store.documents += 1
+        if path.name == self.fail:
+            return SimpleNamespace(status=IngestionStatus.ERROR, error_message="parser refused")
+        return SimpleNamespace(status=IngestionStatus.DONE, error_message=None)
+
+
+def _pages(tmp_path: Path) -> list[Path]:
+    paths = [tmp_path / "a.md", tmp_path / "howto" / "b.md"]
+    for path in paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x", encoding="utf-8")
+    return paths
+
+
+class TestIndexing:
+    async def test_a_complete_collection_is_reused(self, tmp_path: Path):
+        store = _Store(documents=2)
+        ingestion = _Ingestion(store)
+
+        await run.ingest(
+            store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=False
+        )
+
+        assert store.dropped == 0 and ingestion.source_paths == []
+
+    async def test_a_partial_collection_is_rebuilt_not_measured(self, tmp_path: Path):
+        """What an interrupted run leaves behind holds fewer documents than the corpus."""
+        store = _Store(documents=1)
+        ingestion = _Ingestion(store)
+
+        await run.ingest(
+            store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=False
+        )
+
+        assert store.dropped == 1 and store.documents == 2
+
+    async def test_pages_are_stored_relative_to_the_docs(self, tmp_path: Path):
+        """So a collection indexed from one checkout reads the same from another."""
+        store = _Store(documents=0)
+        ingestion = _Ingestion(store)
+
+        await run.ingest(store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True)
+
+        assert ingestion.source_paths == ["a.md", "howto/b.md"]
+
+    async def test_an_interrupted_index_is_dropped(self, tmp_path: Path):
+        store = _Store(documents=0)
+        ingestion = _Ingestion(store, interrupt_at=1)
+
+        with pytest.raises(KeyboardInterrupt):
+            await run.ingest(
+                store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True
+            )
+
+        assert store.documents == 0 and store.dropped == 2
+
+    async def test_a_page_that_fails_drops_the_collection_and_stops(self, tmp_path: Path):
+        store = _Store(documents=0)
+        ingestion = _Ingestion(store, fail="b.md")
+
+        with pytest.raises(SystemExit, match=r"howto/b\.md: parser refused"):
+            await run.ingest(
+                store, ingestion, "c", _pages(tmp_path), docs_root=tmp_path, reingest=True
+            )
+
+        assert store.documents == 0
+
+    def test_a_chunk_is_scored_by_its_page_key(self):
+        result = SearchResult(
+            content="No SAML.", score=0.9, metadata={"source_path": "directory.pl.md"}
+        )
+
+        assert run._retrieved(result).page == "directory.md"
+
+
+class TestHeldNames:
+    async def test_a_name_a_knowledge_base_holds_is_refused(self, monkeypatch: pytest.MonkeyPatch):
+        """Its table is shared: `--reingest` would drop a tenant's vectors (#2560)."""
+
+        @asynccontextmanager
+        async def db_context():
+            yield None
+
+        async def holders(db: object, name: str) -> list[object]:
+            return [object()] if name.endswith("_en") else []
+
+        monkeypatch.setattr(run, "get_db_context", db_context)
+        monkeypatch.setattr(run.knowledge_base_repo, "list_by_collection_name", holders)
+
+        with pytest.raises(SystemExit, match="already uses eval_en"):
+            await run.refuse_held_names(["eval_en", "eval_pl"])
+        await run.refuse_held_names(["eval_pl"])

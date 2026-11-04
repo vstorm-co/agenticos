@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "30564d6dfb48"
+source_sha: "9aba1b51e57e"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -59,10 +59,12 @@ fallo en una ejecución que alguien pagó.
 ## Qué mide una ejecución { #what-a-run-measures }
 
 El corpus es el sitio publicado: cada página Markdown bajo `docs/` excepto lo que
-`mkdocs.yml` deja fuera (`plans/`, `design/`, `audits/`, la hoja de ruta). Cada
-idioma se indexa en su propia colección, nombrada según el modelo de embeddings, y
-las ejecuciones posteriores la reutilizan. Una pregunta normal busca en todas a la
-vez, como hace un agent vinculado a varias colecciones.
+`mkdocs.yml` deja fuera (`plans/`, `design/`, `audits/`, la hoja de ruta), y
+excepto esta página, que cita las preguntas y sus respuestas. Cada idioma se
+indexa en su propia colección, nombrada según el modelo de embeddings. Una
+ejecución posterior reutiliza una colección mientras contenga todas las páginas,
+y la construye de nuevo en caso contrario. Una pregunta normal busca en todas a
+la vez, como hace un agent vinculado a varias colecciones.
 
 Cada configuración es una pasada sobre las 34 preguntas. La búsqueda sigue el
 propio camino de la herramienta de conocimiento: la consulta se expande según
@@ -81,16 +83,21 @@ obtuvo en su lugar, que es donde está la información útil.
 
 La comprobación de la respuesta es deliberadamente simple. Un hecho coincide como
 palabra completa, las mayúsculas no importan, y una alternativa que termina en `*`
-coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). No distingue un "no"
-correcto de uno confundido, así que tómala como una cota inferior de la calidad de
-las respuestas. `--json` escribe las páginas recuperadas y la respuesta de cada
+coincide como prefijo (`Keycloak*` coincide con "Keycloaka"). Los marcadores de
+cita como `[5]` se ignoran, así que un número de pasaje nunca cuenta como
+número de la respuesta. Un simple "no" no basta: cada pregunta negativa necesita
+también la alternativa que nombra la documentación, así que "la documentación no
+lo dice" nunca pasa. La comprobación sigue sin distinguir una respuesta correcta
+de una confundida con las mismas palabras, así que tómala como señal aproximada. `--json` escribe las páginas recuperadas y la respuesta de cada
 pregunta para quien quiera leerlas.
 
 ## Ejecutarlo { #running-it }
 
 Una ejecución necesita una base de datos migrada con pgvector (`make dev` te da
 una), un endpoint de embeddings y, para `multi_query`, `hyde` y `--answers`, un
-modelo.
+modelo. Usa una base de datos de desarrollo, no la de un despliegue. El harness
+elimina y reconstruye sus propias colecciones, y se niega a arrancar cuando una
+base de conocimiento ya usa uno de sus nombres.
 
 !!! warning "Cada llamada es una llamada real y facturada"
     El harness genera los embeddings del corpus y de cada consulta con el endpoint
@@ -117,12 +124,13 @@ Las opciones:
 | `--keyless` | desactivado | El endpoint no requiere clave |
 | `--llm-model` | ninguno | Un nombre de modelo de Pydantic AI. Su provider lee su propia variable de clave |
 | `--answers` | desactivado | Además responde cada pregunta a partir de lo recuperado y comprueba los hechos |
-| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo, tras cambios en la documentación |
+| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia el número de páginas |
 | `--json` | ninguno | Además escribe los resultados por pregunta en este archivo |
 
 El informe va a la salida estándar y el progreso a la salida de error estándar,
 así que `> results.md` conserva solo el informe. El harness se detiene antes de
-medir si una página no se indexa, porque un corpus con huecos mide los huecos.
+medir si una página no se indexa, y una ejecución interrumpida elimina lo que
+indexó, porque un corpus con huecos mide los huecos.
 
 ### Sin una clave de pago { #without-a-paid-key }
 

@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "30564d6dfb48"
+source_sha: "9aba1b51e57e"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -60,8 +60,10 @@ werden, den jemand bezahlt hat.
 
 Der Korpus ist die veröffentlichte Website: jede Markdown-Seite unter `docs/`
 außer dem, was `mkdocs.yml` auslässt (`plans/`, `design/`, `audits/`, die
-Roadmap). Jede Sprache wird in eine eigene Collection indexiert, benannt nach dem
-Embedding-Modell, und spätere Läufe verwenden sie wieder. Eine normale Frage
+Roadmap), und außer dieser Seite, die die Fragen und ihre Antworten zitiert. Jede
+Sprache wird in eine eigene Collection indexiert, benannt nach dem
+Embedding-Modell. Ein späterer Lauf verwendet eine Collection wieder, solange sie
+jede Seite enthält, und baut sie andernfalls neu auf. Eine normale Frage
 durchsucht alle zusammen, wie es ein Agent tut, der an mehrere Collections
 gebunden ist.
 
@@ -82,16 +84,22 @@ Seiten, die er stattdessen bekam, und dort steht die nützliche Information.
 
 Die Antwortprüfung ist absichtlich einfach. Ein Fakt passt als ganzes Wort,
 Groß- und Kleinschreibung spielt keine Rolle, und eine Alternative, die auf `*`
-endet, passt als Präfix (`Keycloak*` passt auf "Keycloaka"). Sie kann ein
-richtiges „Nein“ nicht von einem verwirrten unterscheiden, also behandle sie als
-untere Schranke der Antwortqualität. `--json` schreibt die abgerufenen Seiten und
-die Antwort jeder Frage für jeden, der sie lesen will.
+endet, passt als Präfix (`Keycloak*` passt auf "Keycloaka"). Zitatmarker wie
+`[5]` werden ignoriert, sodass eine Passagennummer nie als Zahl in der Antwort
+zählt. Ein bloßes „Nein“ reicht nicht: Jede verneinende Frage braucht auch die
+Alternative, die die Dokumentation nennt, sodass „die Dokumentation sagt dazu
+nichts“ nie besteht. Die Prüfung kann trotzdem eine richtige Antwort nicht von
+einer verwirrten unterscheiden, die dieselben Wörter verwendet, also behandle sie
+als grobes Signal. `--json` schreibt die abgerufenen Seiten und die Antwort jeder
+Frage für jeden, der sie lesen will.
 
 ## Ausführen { #running-it }
 
 Ein Lauf braucht eine migrierte Datenbank mit pgvector (`make dev` liefert eine),
 einen Embedding-Endpunkt und, für `multi_query`, `hyde` und `--answers`, ein
-Modell.
+Modell. Verwende eine Entwicklungsdatenbank, nicht die eines Deployments. Der
+Harness verwirft seine eigenen Collections und baut sie neu auf, und er startet
+nicht, wenn eine Wissensdatenbank bereits einen ihrer Namen verwendet.
 
 !!! warning "Jeder Aufruf ist ein echter, abgerechneter Aufruf"
     Der Harness bettet den Korpus und jede Abfrage mit dem Endpunkt ein, den du
@@ -118,13 +126,14 @@ Die Optionen:
 | `--keyless` | aus | Der Endpunkt nimmt keinen Schlüssel |
 | `--llm-model` | keiner | Ein Pydantic-AI-Modellname. Sein Provider liest seine eigene Schlüsselvariable |
 | `--answers` | aus | Beantwortet außerdem jede Frage aus dem Abgerufenen und prüft die Fakten |
-| `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu, nachdem sich die Dokumentation geändert hat |
+| `--reingest` | aus | Verwirft die Collections und indexiert den Korpus neu. Ein Lauf tut das von selbst, wenn sich die Zahl der Seiten geändert hat |
 | `--json` | keiner | Schreibt außerdem die Ergebnisse je Frage in diese Datei |
 
 Der Bericht geht auf die Standardausgabe und der Fortschritt auf die
 Standardfehlerausgabe, sodass `> results.md` nur den Bericht behält. Der Harness
-bricht vor dem Messen ab, wenn eine Seite nicht indexiert werden kann, weil ein
-Korpus mit Lücken die Lücken misst.
+bricht vor dem Messen ab, wenn eine Seite nicht indexiert werden kann, und ein
+abgebrochener Lauf verwirft, was er indexiert hat, weil ein Korpus mit Lücken die
+Lücken misst.
 
 ### Ohne bezahlten Schlüssel { #without-a-paid-key }
 

@@ -66,6 +66,14 @@ held equal by `backend/tests/test_retrieval_eval.py`.
 """
 
 
+EVAL_PAGES: tuple[str, ...] = ("retrieval-eval.md",)
+"""Published, and left out of the corpus anyway.
+
+The page that documents this evaluation quotes its questions and their answers
+word for word, so in the corpus it would outrank the page each answer is on.
+"""
+
+
 def is_published(relative: str) -> bool:
     """Whether a docs-relative path is a page the site publishes."""
     key, _locale = page_key(relative)
@@ -75,12 +83,17 @@ def is_published(relative: str) -> bool:
 
 
 def corpus_files(docs_root: Path, locale: Locale) -> list[Path]:
-    """Every published Markdown page under `docs_root` written in `locale`, in path order."""
+    """Every published page under `docs_root` written in `locale`, in path order.
+
+    This evaluation's own page (`EVAL_PAGES`) is left out.
+    """
+    pages = [
+        (path, page_key(path.relative_to(docs_root).as_posix())) for path in docs_root.rglob("*.md")
+    ]
     return sorted(
         path
-        for path in docs_root.rglob("*.md")
-        if is_published(relative := path.relative_to(docs_root).as_posix())
-        and page_key(relative)[1] == locale
+        for path, (key, written_in) in pages
+        if written_in == locale and key not in EVAL_PAGES and is_published(key)
     )
 
 

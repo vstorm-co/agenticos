@@ -1,7 +1,7 @@
 # Retrieval-evaluation questions over the AgenticOS documentation (docs/).
 # A retrieved chunk is a hit when its page key - the docs-relative path with the
 # locale suffix removed (directory.pl.md -> directory.md) - is in expected_pages;
-# scored as hit@k and MRR per category. expected_facts optionally score an answer:
+# scored as hit@k, recall@k and MRR per category. expected_facts optionally score an answer:
 # every group must match, any alternative in a group matches (case-insensitive,
 # whole word, a trailing * is a prefix). See docs/retrieval-eval.md.
 version: 1
@@ -24,7 +24,7 @@ items:
     expected_pages: [directory.md]
     expected_facts:
       - ["no", "not", "isn't", "doesn't"]
-      - [SCIM]
+      - [sign-in*, "sign in", deactivat*, sync*, synchroni*]
     evidence: "directory.md: There is no SCIM and no scheduled directory sync."
 
   - id: org-wide-default-model
@@ -44,6 +44,7 @@ items:
     expected_pages: [api.md]
     expected_facts:
       - ["no", "not", "isn't"]
+      - [OpenAPI, curl, HTTP, "API reference"]
     evidence: "api.md: There is no client library yet."
 
   - id: per-document-access-in-collection
@@ -53,7 +54,7 @@ items:
     expected_pages: [file-processing.md]
     expected_facts:
       - ["no", "not", "cannot", "isn't"]
-      - [collection*]
+      - ["every document", "all documents", "whole collection", separate*, split*, "different collection*", "another collection"]
     evidence: "file-processing.md: **Within a collection there is no per-document isolation.** Access is decided at the"
 
   - id: admin-creates-account-when-closed
@@ -83,7 +84,7 @@ items:
     expected_pages: [data-protection.md, file-processing.md]
     expected_facts:
       - ["no", "not", "cannot", "isn't"]
-      - [embedding_secret_id, vault, collection*]
+      - [embedding_secret_id, vault*, "each collection", "its own key"]
     evidence: "data-protection.md: There is no deployment-wide embedding key; a keyed collection without one refuses to index or search."
 
   - id: environment-without-version-pl
@@ -93,7 +94,7 @@ items:
     expected_pages: [environments.md]
     expected_facts:
       - ["nie", "no", "not", "brak"]
-      - [wersj*, version*]
+      - [domyśln*, default, opublikowan*, published]
     evidence: "environments.md: Which published version answers here. There is no unpinned state"
 
   - id: voice-calls-recorded-pl
@@ -287,6 +288,7 @@ items:
     expected_pages: [licenses.md]
     expected_facts:
       - ["nie", "no", "not", "brak"]
+      - [dostawc*, provider*, pobier*, download*, profil*]
     evidence: "licenses.md: No model weights ship in either image."
 
   # cross_language: English questions over the Polish pages only
@@ -298,7 +300,7 @@ items:
     expected_pages: [scaling.md]
     expected_facts:
       - ["no", "not", "nie", "isn't"]
-      - [cluster*, klast*]
+      - [instance, instancj*, primary, endpoint*, "one Redis", "single Redis", pojedyncz*]
     evidence: "scaling.md: The client is not cluster-aware, so Redis Cluster is not supported."
 
   - id: desktop-app-framework-pl-corpus
@@ -340,4 +342,5 @@ items:
     expected_pages: [sandbox.md]
     expected_facts:
       - ["no", "not", "nie"]
+      - [sibling*, "host's daemon", "host daemon", sandboxd, socket]
     evidence: "sandbox.md: There is no Docker-in-Docker here, nothing is `--privileged`, and no nested"

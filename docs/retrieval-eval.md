@@ -54,10 +54,12 @@ than becoming a miss in a run somebody paid for.
 ## What a run measures
 
 The corpus is the published site: every Markdown page under `docs/` except what
-`mkdocs.yml` leaves out (`plans/`, `design/`, `audits/`, the roadmap). Each
-language is indexed into its own collection, named after the embedding model,
-and later runs reuse it. A normal question searches all of them together, as an
-agent bound to several collections does.
+`mkdocs.yml` leaves out (`plans/`, `design/`, `audits/`, the roadmap), and
+except this page, which quotes the questions and their answers. Each language is
+indexed into its own collection, named after the embedding model. A later run
+reuses a collection while it holds every page, and builds it again otherwise. A
+normal question searches all of them together, as an agent bound to several
+collections does.
 
 Each configuration is one pass over all 34 questions. Search is the knowledge
 tool's own path: the query is expanded by `query_analysis_mode`, every query is
@@ -76,14 +78,21 @@ instead, which is where the useful information is.
 
 The answer check is deliberately simple. A fact matches as a whole word, case
 does not matter, and an alternative ending in `*` matches as a prefix
-(`Keycloak*` matches "Keycloaka"). It cannot tell a correct "no" from a confused
-one, so treat it as a lower bound on answer quality. `--json` writes every
-question's retrieved pages and answer for anyone who wants to read them.
+(`Keycloak*` matches "Keycloaka"). Citation markers such as `[5]` are ignored, so
+a passage number never counts as a number in the answer. A plain "no" is not
+enough: every negative question also needs the alternative the docs name, so
+"the documentation does not say" never passes. The check still cannot tell a
+correct answer from a confused one that uses the same words, so treat it as a
+rough signal. `--json` writes every question's retrieved pages and answer for
+anyone who wants to read them.
 
 ## Running it
 
 A run needs a migrated database with pgvector (`make dev` gives you one), an
-embedding endpoint and, for `multi_query`, `hyde` and `--answers`, a model.
+embedding endpoint and, for `multi_query`, `hyde` and `--answers`, a model. Use a
+development database, not a deployment's. The harness drops and rebuilds its own
+collections, and it refuses to start when a knowledge base already uses one of
+their names.
 
 !!! warning "Every call is a real, billed call"
     The harness embeds the corpus and every query with the endpoint you give it,
@@ -110,12 +119,13 @@ The options:
 | `--keyless` | off | The endpoint takes no key |
 | `--llm-model` | none | A Pydantic AI model name. Its provider reads its own key variable |
 | `--answers` | off | Also answer each question from what was retrieved, and check the facts |
-| `--reingest` | off | Drop the collections and index the corpus again, after the docs changed |
+| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when the number of pages changed |
 | `--json` | none | Also write the per-question results to this file |
 
 The report goes to standard output and progress to standard error, so
 `> results.md` keeps the report alone. The harness stops before measuring if a
-page fails to index, because a corpus with gaps measures the gaps.
+page fails to index, and an interrupted run drops what it indexed, because a
+corpus with gaps measures the gaps.
 
 ### Without a paid key
 

@@ -748,7 +748,7 @@ load-test:
 # has what it needs, the options and what a run costs.
 EVAL_ARGS ?=
 eval-retrieval:
-	uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
+	@uv run --directory backend python ../evals/retrieval/run.py $(EVAL_ARGS)
 
 # Every CI job, in the order the workflow declares them, with the exceptions
 # named below. This is the one claim in this file that has to be exactly true:

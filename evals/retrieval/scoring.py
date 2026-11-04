@@ -20,9 +20,11 @@ the JSON output for anyone who wants to read them.
 
 import re
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from dataset import CATEGORIES, Dataset, Item
+
+_CITATION = re.compile(r"\[\d+(?:\s*[,-]\s*\d+)*\]")
 
 
 @dataclass(frozen=True)
@@ -69,10 +71,12 @@ class ItemResult:
         """The fact groups the answer lacks; `None` when nothing was answered."""
         if self.answer is None:
             return None
+        # A citation marker is not a fact: "[5]" must not answer "five".
+        text = _CITATION.sub(" ", self.answer)
         return tuple(
             group
             for group in self.item.expected_facts
-            if not any(mentions(self.answer, alt) for alt in group)
+            if not any(mentions(text, alt) for alt in group)
         )
 
     @property
@@ -112,12 +116,8 @@ def summarize(results: Sequence[ItemResult]) -> list[Summary]:
     groups = [
         (category, [r for r in results if r.item.category == category]) for category in CATEGORIES
     ]
-    rows: list[tuple[str, list[ItemResult]]] = [
-        (name, members) for name, members in groups if members
-    ]
-    rows.append(("all", list(results)))
     summaries: list[Summary] = []
-    for name, members in rows:
+    for name, members in [*groups, ("all", list(results))]:
         if not members:
             continue
         count = len(members)
@@ -191,7 +191,7 @@ def as_json(label: str, top_k: int, mode: str, results: Sequence[ItemResult]) ->
         "label": label,
         "top_k": top_k,
         "query_analysis_mode": mode,
-        "summary": [s.__dict__ for s in summarize(results)],
+        "summary": [asdict(s) for s in summarize(results)],
         "items": [
             {
                 "id": r.item.id,
