@@ -880,7 +880,18 @@ async def test_otari_lists_the_configured_gateways_models(endpoint: str | None) 
     def respond(request: httpx.Request) -> httpx.Response:
         received.append(request)
         return httpx.Response(
-            200, json={"data": [{"id": "anthropic:claude-sonnet-4-6"}, {"id": "support-agent"}]}
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "anthropic:claude-sonnet-4-6",
+                        "name": "Claude",
+                        "context_window": 200000,
+                        "architecture": {"output_modalities": ["text"]},
+                    },
+                    {"id": "support-agent"},
+                ]
+            },
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
@@ -888,6 +899,9 @@ async def test_otari_lists_the_configured_gateways_models(endpoint: str | None) 
             models, source = await models_for("otari", api_key="selected-key", base_url=endpoint)
     assert source == "live"
     assert [m.id for m in models] == ["anthropic:claude-sonnet-4-6", "support-agent"]
+    assert models[0].name == "Claude"
+    assert models[0].context_length == 200000
+    assert models[0].output_modalities == ("text",)
     assert str(received[0].url) == (endpoint or "https://api.otari.ai/api/v1") + "/models"
     assert received[0].headers["Authorization"] == "Bearer selected-key"
 
