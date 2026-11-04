@@ -600,9 +600,10 @@ describe("TriggersPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Edit" }));
     const dialog = await screen.findByRole("dialog");
     const zone = within(dialog).getByLabelText("Time zone");
-    expect(zone).toHaveValue("UTC");
-    await user.clear(zone);
-    await user.type(zone, "Europe/Warsaw");
+    expect(zone).toHaveTextContent("UTC");
+    await user.click(zone);
+    await user.type(screen.getByRole("combobox", { name: "Search city or time zone…" }), "Warsaw");
+    await user.click(screen.getByRole("option", { name: "Europe/Warsaw" }));
     expect(
       within(dialog).getByText("Runs every day at 09:00 (Europe/Warsaw)."),
     ).toBeInTheDocument();
@@ -615,7 +616,7 @@ describe("TriggersPanel", () => {
     });
   });
 
-  it("refuses a zone the server would not know, before anything is sent", async () => {
+  it("keeps the selected zone while a search matches nothing", async () => {
     const user = userEvent.setup();
     serve([]);
     await mount();
@@ -626,12 +627,17 @@ describe("TriggersPanel", () => {
     await user.type(within(dialog).getByLabelText("Message"), "Daily digest");
     await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     const zone = within(dialog).getByLabelText("Time zone");
-    expect(zone).toHaveValue("Europe/Warsaw");
-    await user.clear(zone);
-    await user.type(zone, "Mars/Olympus");
-
-    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Choose a time zone/);
-    expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
+    expect(zone).toHaveTextContent("Europe/Warsaw");
+    await user.click(zone);
+    await user.type(
+      screen.getByRole("combobox", { name: "Search city or time zone…" }),
+      "Mars/Olympus",
+    );
+    expect(screen.getByText("No time zones found. Try another city.")).toBeInTheDocument();
+    expect(zone).toHaveTextContent("Europe/Warsaw");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(within(dialog).getByRole("button", { name: "Create" })).toBeEnabled();
     expect(apiClient.post).not.toHaveBeenCalled();
   });
 

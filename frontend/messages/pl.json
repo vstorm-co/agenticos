@@ -7446,6 +7446,8 @@
     "dayOfMonthLabel": "Dzień miesiąca",
     "timeLabel": "Godzina",
     "timeZoneLabel": "Strefa czasowa",
+    "searchTimeZones": "Szukaj miasta lub strefy czasowej…",
+    "noTimeZones": "Nie znaleziono stref. Spróbuj innego miasta.",
     "timeZoneHelp": "Zegar, według którego liczona jest godzina, razem ze zmianą czasu. Domyślnie Twoja.",
     "timeZoneInvalid": "Wybierz strefę czasową z listy, np. Europe/Warsaw.",
     "weekdayMon": "Pn",

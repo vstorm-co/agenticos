@@ -8500,6 +8500,8 @@
     "dayOfMonthLabel": "Tag des Monats",
     "timeLabel": "Uhrzeit",
     "timeZoneLabel": "Zeitzone",
+    "searchTimeZones": "Stadt oder Zeitzone suchen…",
+    "noTimeZones": "Keine Zeitzonen gefunden. Versuche eine andere Stadt.",
     "timeZoneHelp": "Die Uhr, nach der die Uhrzeit gilt, Sommerzeit eingeschlossen. Standardmäßig Ihre.",
     "timeZoneInvalid": "Wählen Sie eine Zeitzone aus der Liste, etwa Europe/Warsaw.",
     "weekdayMon": "Mo",

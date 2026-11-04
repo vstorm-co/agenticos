@@ -1,5 +1,6 @@
 "use client";
 
+import { ZoneField, isTimeZone } from "./zone-field";
 import { ResultModeField, type RoutineResultMode } from "./result-mode-field";
 import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
@@ -91,13 +92,7 @@ import type {
   TriggerUpdate,
 } from "@/types/triggers";
 import type { TriggerTemplate } from "@/types/trigger-templates";
-import {
-  DIALOG_CONFIRM,
-  DIALOG_FORM,
-  DIALOG_FRAMED,
-  DIALOG_SCROLL,
-  DIALOG_WIDE,
-} from "@/lib/dialog-sizes";
+import { DIALOG_CONFIRM, DIALOG_FORM, DIALOG_FRAMED, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 /** The backend's floor for a webhook secret; the generator comfortably clears it. */
 const MIN_SECRET = 16;
@@ -996,13 +991,16 @@ export function TriggerFormDialog({
           nav and give the body whatever is between. */}
       {/* `gap-0`: the three bands pad themselves, and the dialog's own grid gap
           on top of the body's padding left a band of nothing over the first field. */}
-      <DialogContent className={cn(DIALOG_FRAMED, DIALOG_WIDE, "gap-0")}>
+      <DialogContent
+        className={cn(DIALOG_FRAMED, DIALOG_FORM, "gap-0 sm:gap-0 sm:p-0")}
+        style={{ backgroundColor: "var(--color-card)" }}
+      >
         <DialogHeader className="border-foreground/10 border-b px-6 pt-4 pb-3">
           <DialogTitle className="text-base font-semibold">
             {type === "event" ? t("newEvent") : t("newSchedule")}
           </DialogTitle>
           <DialogDescription>{t("createDescription")}</DialogDescription>
-          <WizardSteps steps={steps} current={step} compact />
+          <WizardSteps steps={steps} current={step} />
         </DialogHeader>
 
         {/* Keyed on the step, so each one slides in rather than swapping in place -
@@ -1402,14 +1400,6 @@ function CronBuilder({
   );
 }
 
-/** Every zone this browser knows, for the picker's suggestions and its check. */
-const ZONES = Intl.supportedValuesOf("timeZone");
-
-/** Whether `zone` is one the server will accept - an IANA name, or plain UTC. */
-function isTimeZone(zone: string): boolean {
-  return zone === "UTC" || ZONES.includes(zone);
-}
-
 /** The clock time and the zone it is read in - one is meaningless without the other. */
 function TimeField({
   value,
@@ -1438,33 +1428,6 @@ function TimeField({
         <ZoneField value={zone} onChange={onZone} />
       </div>
     </div>
-  );
-}
-
-/** An IANA zone, typed or picked from the browser's list. */
-function ZoneField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const t = useTranslations("triggers");
-  const valid = isTimeZone(value);
-  return (
-    <FormField label={t("timeZoneLabel")} htmlFor="cron-zone" description={t("timeZoneHelp")}>
-      <Input
-        id="cron-zone"
-        list="cron-zones"
-        value={value}
-        aria-invalid={!valid}
-        onChange={(event) => onChange(event.target.value.trim())}
-      />
-      <datalist id="cron-zones">
-        {ZONES.map((name) => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
-      {!valid && (
-        <p className="text-destructive text-xs" role="alert">
-          {t("timeZoneInvalid")}
-        </p>
-      )}
-    </FormField>
   );
 }
 

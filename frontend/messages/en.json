@@ -8621,6 +8621,8 @@
     "dayOfMonthLabel": "Day of the month",
     "timeLabel": "Time",
     "timeZoneLabel": "Time zone",
+    "searchTimeZones": "Search city or time zone…",
+    "noTimeZones": "No time zones found. Try another city.",
     "timeZoneHelp": "The clock the time is read on, daylight saving included. Yours by default.",
     "timeZoneInvalid": "Choose a time zone from the list, such as Europe/Warsaw.",
     "weekdayMon": "Mon",

@@ -10288,6 +10288,8 @@
     "dayOfMonthLabel": "Ayın günü",
     "timeLabel": "Saat",
     "timeZoneLabel": "Saat dilimi",
+    "searchTimeZones": "Şehir veya saat dilimi ara…",
+    "noTimeZones": "Saat dilimi bulunamadı. Başka bir şehir deneyin.",
     "timeZoneHelp": "Yaz saati uygulaması dâhil, saatin yorumlandığı saat dilimi. Varsayılan sizin saat diliminizdir.",
     "timeZoneInvalid": "Listeden Europe/Warsaw gibi bir saat dilimi seçin.",
     "weekdayMon": "Pzt",
