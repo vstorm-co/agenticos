@@ -8272,7 +8272,30 @@
         },
         "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
         "forkEmpty": "Fork nie ma jeszcze własnej wersji: czyta v{number} z main. Edytuj forka, żeby wprowadzić pierwszą zmianę.",
-        "forkStarts": "Tu zaczyna się fork „{name}”"
+        "forkStarts": "Tu zaczyna się fork „{name}”",
+        "fromSession": "Z sesji Improve",
+        "sessions": {
+          "title": "Sesje Improve",
+          "count": "{count, plural, =0 {Jeszcze żadnej} one {# sesja} few {# sesje} many {# sesji} other {# sesji}}",
+          "none": "Nikt jeszcze nie poprawiał tej linii.",
+          "unknownStarter": "Ktoś",
+          "meta": "{who} · {when} · {line} · wydano {cost}",
+          "continue": "Kontynuuj",
+          "open": "Otwórz",
+          "appliedAs": "Zastosowana jako {version}",
+          "result": {
+            "open": "Otwarta",
+            "applied": "Zastosowana",
+            "forked": "Utworzono fork",
+            "discarded": "Odrzucona",
+            "caught_up": "Nadrobiono main",
+            "returned_to_main": "Przeniesiono do main",
+            "expired": "Wygasła",
+            "failed": "Nie powiodła się",
+            "cancelled": "Zakończona",
+            "stopped": "Zatrzymana bez zmiany"
+          }
+        }
       },
       "tree": {
         "title": "Drzewo wersji",

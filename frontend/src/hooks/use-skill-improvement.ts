@@ -38,6 +38,20 @@ export function useSkillImprovements(skillId: string, origin: SkillImprovementOr
   };
 }
 
+/** A line's sessions, newest first, read only for someone who may read runs. */
+export function useSkillImprovementHistory(
+  skillId: string,
+  forkId: string | null,
+  { enabled = true } = {},
+) {
+  const query = useQuery({
+    queryKey: qk.skills.improvements(skillId, forkId),
+    queryFn: () => listSkillImprovements(skillId, forkId),
+    enabled,
+  });
+  return { sessions: query.data ?? [], isLoading: query.isLoading, error: query.error };
+}
+
 /** The problems a session found, each with the agents it occurs in. */
 export function useSkillProblems(skillId: string, sessionId: string) {
   const query = useQuery({

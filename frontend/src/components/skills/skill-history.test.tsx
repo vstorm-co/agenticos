@@ -9,6 +9,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { SkillFork, SkillVersionSummary } from "@/types/skill-versions";
+import { skillSession } from "@/test-utils/skill-improvement";
 import { SkillHistory } from "./skill-history";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -16,6 +17,11 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+const access = vi.hoisted(() => ({ runsView: false }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => access.runsView, isLoading: false }),
+}));
+const held = vi.hoisted(() => ({ sessions: [] as unknown[] }));
 
 const RETURNS = { id: "f1", name: "Returns", base: { id: "m7", number: 7 } } as SkillFork;
 
@@ -38,6 +44,7 @@ function version(number: number, extra: Partial<SkillVersionSummary> = {}): Skil
 
 function serve(total = 2) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+    if (path === "/skills/s1/improvements") return held.sessions;
     if (path.startsWith("/skills/s1/versions?")) {
       return { items: [version(2), version(1, { source: "backfill" })], total };
     }
@@ -179,5 +186,76 @@ describe("SkillHistory", () => {
     expect(
       await screen.findByText(/No version of its own yet: the fork reads v7 on main/),
     ).toBeInTheDocument();
+  });
+
+  it("lists the line's Improve sessions beside its versions, each tied to the version it applied", async () => {
+    access.runsView = true;
+    held.sessions = [
+      skillSession({
+        id: "open-1",
+        status: "waiting",
+        outcome: null,
+        created_by: { id: "u1", name: "Anna" },
+        spent_usd: "0.12",
+      }),
+      skillSession({
+        id: "done-1",
+        status: "accepted",
+        outcome: "applied",
+        applied_version_id: "m2",
+      }),
+      skillSession({
+        id: "far-1",
+        status: "accepted",
+        outcome: "applied",
+        applied_version_id: "m9",
+      }),
+      skillSession({ id: "gone-1", status: "stopped", outcome: null, stop_reason: "expired" }),
+      skillSession({ id: "bad-1", status: "failed", outcome: null }),
+      skillSession({ id: "fork-1", status: "accepted", outcome: "forked" }),
+      skillSession({ id: "none-1", status: "stopped", outcome: null, stop_reason: "no_change" }),
+    ];
+    serve();
+    mount();
+
+    const card = await screen.findByText("Improve sessions");
+    expect(card).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Continue" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/open-1",
+    );
+    expect(screen.getByText(/Anna · .* · main · spent \$0\.12/)).toBeInTheDocument();
+    expect(screen.getByText("Applied as v2")).toBeInTheDocument();
+    expect(screen.getByText("Applied")).toBeInTheDocument();
+    for (const text of ["Expired", "Failed", "Made a fork", "Stopped without a change"]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+    expect(screen.getByRole("link", { name: "From its Improve session" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/done-1",
+    );
+    access.runsView = false;
+    held.sessions = [];
+  });
+
+  it("says when the line has no Improve sessions, and leaves them out without runs:view", async () => {
+    access.runsView = true;
+    serve();
+    mount();
+    expect(await screen.findByText("Nobody has improved this line yet.")).toBeInTheDocument();
+    access.runsView = false;
+  });
+
+  it("says when the line's Improve sessions cannot be read", async () => {
+    access.runsView = true;
+    serve();
+    const versions = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path: string, ...rest: unknown[]) => {
+      if (path === "/skills/s1/improvements") throw new Error("Sessions are down");
+      return versions(path, ...(rest as []));
+    });
+    mount();
+    expect(await screen.findByText("Sessions are down")).toBeInTheDocument();
+    access.runsView = false;
   });
 });
