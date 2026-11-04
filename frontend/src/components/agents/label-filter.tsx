@@ -62,7 +62,7 @@ export function LabelFilter({
           variant="outline"
           size="sm"
           aria-label={ariaLabel}
-          className="max-w-full rounded-lg px-2.5 font-normal"
+          className="h-9 max-w-full rounded-lg px-2.5 font-normal"
         >
           <ListFilter />
           <span className="min-w-0 flex-1 truncate text-start">

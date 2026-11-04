@@ -213,10 +213,7 @@ export default function SkillsPage() {
                   <DropdownMenuTrigger asChild>
                     {/* Drawn like every other filter in the console - the
                           agents' label filters and the selects beside them. */}
-                    <Button
-                      variant="outline"
-                      className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
-                    >
+                    <Button variant="outline" className="h-9 px-3 font-normal">
                       <ListFilter className="h-4 w-4" />
                       {selectedCategories.length === 0
                         ? t("allCategories")

@@ -14,8 +14,8 @@ const SelectTrigger = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & {
     /**
-     * `sm` is a filter in a row of filters: 32px, 12px text, a finer edge - the
-     * height of the small buttons and the search box beside it.
+     * `sm` is a filter in a row of filters: 36px, 13px text, a quieter edge - the
+     * height of the filter disclosure and search box beside it.
      */
     size?: "default" | "sm";
   }
@@ -24,8 +24,8 @@ const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       FORM_CONTROL,
-      "data-[state=open]:border-foreground/60 data-[state=open]:bg-muted/50 touch:min-h-11 flex h-10 touch-manipulation items-center justify-between px-3 py-2 text-sm whitespace-nowrap [&>span]:line-clamp-1",
-      size === "sm" && "h-8 gap-1.5 px-2.5 py-1 text-[13px]",
+      "data-[state=open]:border-foreground/25 data-[state=open]:bg-foreground/[0.05] touch:min-h-11 flex h-10 touch-manipulation items-center justify-between px-3 py-2 text-sm whitespace-nowrap [&>span]:line-clamp-1",
+      size === "sm" && "h-9 gap-1.5 px-2.5 py-1 text-[13px]",
       className,
     )}
     {...props}

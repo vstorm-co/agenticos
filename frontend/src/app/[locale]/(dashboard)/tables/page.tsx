@@ -127,7 +127,7 @@ export default function TablesPage() {
                   setPage(0);
                 }}
               >
-                <SelectTrigger className="w-44" aria-label={t("shownFilter")}>
+                <SelectTrigger size="sm" className="w-44" aria-label={t("shownFilter")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

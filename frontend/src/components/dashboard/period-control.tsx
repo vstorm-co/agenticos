@@ -149,7 +149,7 @@ function PeriodMenu({ period, onChange }: { period: Period; onChange: (period: P
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5" aria-label={t("period.label")}>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5" aria-label={t("period.label")}>
           <CalendarRange className="size-3.5" aria-hidden />
           {label}
           <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />

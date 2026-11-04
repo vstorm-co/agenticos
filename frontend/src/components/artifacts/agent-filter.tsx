@@ -28,7 +28,7 @@ export function AgentFilter({ agents, value, onChange }: AgentFilterProps) {
   if (agents.length < 2 && value === null) return null;
   return (
     <Select value={value ?? EVERY} onValueChange={(next) => onChange(next === EVERY ? null : next)}>
-      <SelectTrigger className="w-full sm:w-48" aria-label={t("filterByAgent")}>
+      <SelectTrigger size="sm" className="w-full sm:w-48" aria-label={t("filterByAgent")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -150,6 +150,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Soften text-field and select edges and keyboard focus, and align search boxes and toolbar filters at the same height.
+
 - Give console modules a shared set of product icons, consistent optical weight and quieter icon surfaces across navigation, chat and resource cards.
 
 - Persist telephone cleanup before provider requests, immediately finish cancellations accepted during dialing, and retain SMS credentials until all calls finish.

@@ -169,7 +169,7 @@ export default function WorkflowsPage() {
         active={Number(filter !== "all") + Number(tagParam !== null) + Number(sort !== "edited")}
       >
         <Select value={filter} onValueChange={(value) => onFilter(value as Filter)}>
-          <SelectTrigger className="w-36" aria-label={t("filterByStatus")}>
+          <SelectTrigger size="sm" className="w-36" aria-label={t("filterByStatus")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -188,7 +188,7 @@ export default function WorkflowsPage() {
               list.setPage(0);
             }}
           >
-            <SelectTrigger className="w-36" aria-label={t("filterByTag")}>
+            <SelectTrigger size="sm" className="w-36" aria-label={t("filterByTag")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -205,7 +205,7 @@ export default function WorkflowsPage() {
           value={sort}
           onValueChange={(value) => setSortParam(value === "edited" ? null : value)}
         >
-          <SelectTrigger className="w-40" aria-label={t("sortBy")}>
+          <SelectTrigger size="sm" className="w-40" aria-label={t("sortBy")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

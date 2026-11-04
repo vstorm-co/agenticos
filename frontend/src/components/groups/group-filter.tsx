@@ -41,7 +41,12 @@ export function GroupFilter({
   if (groups.length === 0 && value === null) return null;
   return (
     <Select value={value ?? EVERY} onValueChange={(next) => onChange(next === EVERY ? null : next)}>
-      <SelectTrigger className="w-full sm:w-48" aria-label={t("label")} data-tour="group-filter">
+      <SelectTrigger
+        size="sm"
+        className="w-full sm:w-48"
+        aria-label={t("label")}
+        data-tour="group-filter"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -231,7 +231,7 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
       >
         <div className="flex flex-wrap items-center gap-2">
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-auto min-w-40" aria-label={t("category")}>
+            <SelectTrigger size="sm" className="w-auto min-w-40" aria-label={t("category")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

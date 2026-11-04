@@ -142,7 +142,7 @@ export default function ArtifactsPage() {
                 setPage(0);
               }}
             >
-              <SelectTrigger className="w-full sm:w-44" aria-label={t("shownFilter")}>
+              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label={t("shownFilter")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
