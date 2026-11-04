@@ -1,5 +1,5 @@
 ---
-source_sha: "d6575a8a0ef8"
+source_sha: "8f5441c979db"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -741,7 +741,10 @@ no un listado:
   y los valores de consulta, por lo que los endpoints distintos permanecen separados.
   Al volver a autorizar una cuenta se utiliza la URL guardada de esa cuenta.
 
-  Las claves exactas tienen prioridad sobre los resultados relacionados, de modo que un enlace guardado se resuelve aunque otras descripciones mencionen la misma clave. Las entradas del registro con nombres idénticos mantienen un orden estable entre páginas.
+  En Connected y en el registro, las claves exactas tienen prioridad sobre los resultados
+  relacionados, de modo que un enlace guardado se resuelve aunque otras descripciones
+  mencionen la misma clave. Las entradas del registro con nombres idénticos mantienen un orden
+  estable entre páginas.
 
 - **Una categoría también llega al espejo.** El registro no tiene categorías,
   así que cada entrada recibe una al sincronizar a partir de su propio nombre y

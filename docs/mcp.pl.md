@@ -1,5 +1,5 @@
 ---
-source_sha: "d6575a8a0ef8"
+source_sha: "8f5441c979db"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -718,7 +718,9 @@ wyszukiwanie, a nie wyliczanka:
   czemu różne punkty końcowe pozostają osobne. Ponowna autoryzacja konta korzysta
   z adresu URL zapisanego dla tego konta.
 
-  Dokładny klucz serwera ma pierwszeństwo przed powiązanymi wynikami wyszukiwania, więc zapisany link działa także wtedy, gdy inne opisy zawierają ten sam klucz. Wpisy rejestru o identycznych nazwach zachowują stałą kolejność między stronami.
+  W Connected i rejestrze dokładny klucz serwera ma pierwszeństwo przed powiązanymi wynikami,
+  więc zapisany link działa także wtedy, gdy inne opisy zawierają ten sam klucz. Wpisy
+  rejestru o identycznych nazwach zachowują stałą kolejność między stronami.
 
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,

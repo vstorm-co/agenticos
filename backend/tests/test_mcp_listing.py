@@ -658,3 +658,39 @@ async def test_a_saved_exact_key_precedes_related_results_in_a_bounded_bookmark_
     assert found.total == 13
     assert found.items[0].key == target.id
     assert len(found.items) == 10
+
+
+@pytest.mark.parametrize("state", ["all", "connected", "not-connected"])
+@pytest.mark.parametrize("query", ["work-iq", "WORK-IQ", " work-iq "])
+async def test_exact_curated_keys_match_when_the_slug_is_absent_from_display_metadata(
+    state: Literal["all", "connected", "not-connected"],
+    query: str,
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    mock_db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = replace(
+        catalog[0],
+        key="work-iq",
+        name="Microsoft Work IQ",
+        description="Company knowledge",
+        url="https://workspace.example.test/mcp",
+    )
+    monkeypatch.setattr(mcp_catalog, "CATALOG", (entry,))
+    if state == "connected":
+        account = _connection(caller, name="work", key=entry.key, url=entry.url)
+        repositories.organization.return_value = [account], 1
+
+    found = await mcp_listing.page(
+        mock_db_session,
+        ctx=caller,
+        query=query,
+        state=state,
+        category=entry.category,
+        auth=entry.auth.value,
+    )
+
+    assert found.total == 1
+    assert [row.key for row in found.items] == [entry.key]

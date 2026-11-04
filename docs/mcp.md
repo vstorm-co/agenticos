@@ -683,7 +683,9 @@ listing:
   of paths and query values, so distinct endpoints remain separate. Reauthorizing
   an account uses that account's saved URL.
 
-  Exact server keys take priority over related search results, so a saved link resolves even when other descriptions mention the same key. Registry entries with identical names keep a stable order across pages.
+  Connected and registry searches prioritize exact server keys over related results, so a
+  saved link resolves even when other descriptions mention the same key. Registry entries with
+  identical names keep a stable order across pages.
 
 - **A category reaches the mirror too.** The registry has no categories, so each
   listing is given one at sync from its own name and description, counting the

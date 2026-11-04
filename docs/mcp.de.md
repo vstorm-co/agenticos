@@ -1,5 +1,5 @@
 ---
-source_sha: "d6575a8a0ef8"
+source_sha: "8f5441c979db"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -755,7 +755,10 @@ und keine Auflistung:
   Abfragewerten erhalten, sodass verschiedene Endpunkte getrennt bleiben. Eine
   erneute Autorisierung verwendet die gespeicherte URL des jeweiligen Kontos.
 
-  Exakte Serverschlüssel haben Vorrang vor verwandten Suchtreffern. Gespeicherte Links werden dadurch auch dann aufgelöst, wenn andere Beschreibungen denselben Schlüssel nennen. Registereinträge mit identischen Namen behalten eine stabile Reihenfolge über Seiten hinweg.
+  In Connected und im Register haben exakte Serverschlüssel Vorrang vor verwandten
+  Suchtreffern. Gespeicherte Links werden dadurch auch dann aufgelöst, wenn andere
+  Beschreibungen denselben Schlüssel nennen. Registereinträge mit identischen Namen behalten
+  eine stabile Reihenfolge über Seiten hinweg.
 
 - **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
   Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen
