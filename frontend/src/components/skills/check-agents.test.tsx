@@ -32,4 +32,26 @@ describe("CheckAgents", () => {
       screen.getByText("2 more agents use this skill that you cannot see."),
     ).toBeInTheDocument();
   });
+
+  it("shows each agent's progress and how many are done while the check runs", () => {
+    render(
+      <CheckAgents
+        hidden={0}
+        running
+        agents={[
+          checkAgent({ name: "Online desk", state: "better" }),
+          checkAgent({ name: "Gift shop", state: "running" }),
+          checkAgent({ name: "Wholesale", state: "queued" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("1 of 3 agents checked")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Agents checked" })).toHaveAttribute(
+      "aria-valuenow",
+      "1",
+    );
+    expect(screen.getByText("Running")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+  });
 });

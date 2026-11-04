@@ -8375,6 +8375,11 @@
         "body": "{count, plural, =0 {Nikt nie czyta tego forka, więc zostanie zarchiwizowany.} one {# agent czytający ten fork przejdzie na najnowszą wersję main, opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} few {# agenty czytające ten fork przejdą na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} many {# agentów czytających ten fork przejdzie na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} other {# agenta czytającego ten fork przejdzie na najnowszą wersję main. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.}}",
         "confirm": "Przenieś do main",
         "done": "Gotowe"
+      },
+      "checkRunning": {
+        "running": "Sprawdzanie trwa: sprawdzono {done} z {total} agentów.",
+        "finished": "Sprawdzanie na {total, plural, one {# agencie} other {# agentach}} się skończyło i czeka na twoją decyzję.",
+        "show": "Pokaż"
       }
     },
     "checkOnAgents": "Sprawdź na agentach",
@@ -8384,7 +8389,7 @@
       "description": "Każdy agent odpowiada na swoje pytania ze skillem w obecnej wersji i z tą zmianą. Nic się nie zmienia, dopóki nie zdecydujesz.",
       "price": "Najpewniej ${expected}, najwyżej ${most}. Część każdego agenta idzie z jego budżetu.",
       "start": "Uruchom sprawdzenie",
-      "running": "Trwa sprawdzanie. To zajmie kilka minut; możesz zamknąć okno i wrócić później.",
+      "running": "Trwa sprawdzanie, to zajmie kilka minut. Możesz to zamknąć: sprawdzanie trwa dalej, a <page>strona skilla</page> pokazuje je jako „Sprawdzanie trwa”, dopóki o nim nie zdecydujesz.",
       "asked": "{count, plural, one {Zadano 1 pytanie} few {Zadano # pytania} many {Zadano # pytań} other {Zadano # pytania}}",
       "skillSetOnly": "Sprawdzono tylko na pytaniach skilla: żadne pytanie tego agenta nie otworzyło skilla.",
       "hidden": "{count, plural, one {Tego skilla używa jeszcze 1 agent, którego nie widzisz.} few {Tego skilla używa jeszcze # agentów, których nie widzisz.} many {Tego skilla używa jeszcze # agentów, których nie widzisz.} other {Tego skilla używa jeszcze # agenta, którego nie widzisz.}}",
@@ -8420,7 +8425,9 @@
       "unaffordable": "Budżet organizacji na ten miesiąc nie pokryje tego sprawdzenia.",
       "cancel": "Zatrzymaj sprawdzenie",
       "inSession": "To sprawdzenie należy do sesji poprawiania, więc decyzja zapada w niej.",
-      "openSession": "Otwórz sesję"
+      "openSession": "Otwórz sesję",
+      "progress": "Sprawdzono {done} z {total} agentów",
+      "progressLabel": "Sprawdzeni agenci"
     },
     "savedMainVersion": "Zapisano jako nową wersję main. Agenci na main czytają ją od następnego uruchomienia; przypięci agenci i forki zostają przy swoich.",
     "instructions": "Instrukcje"

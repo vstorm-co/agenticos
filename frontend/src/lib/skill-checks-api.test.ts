@@ -26,6 +26,14 @@ describe("the skill checks client", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks/c-1");
   });
 
+  it("lists a line's newest checks, main's or a fork's", async () => {
+    await api.listSkillChecks("s-1", null);
+    await api.listSkillChecks("s-1", "f-1");
+
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks?limit=5");
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s-1/checks?limit=5&fork_id=f-1");
+  });
+
   it("stops a running check", async () => {
     await api.cancelSkillCheck("s-1", "c-1");
 

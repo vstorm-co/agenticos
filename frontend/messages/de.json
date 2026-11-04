@@ -8493,6 +8493,11 @@
         "body": "{count, plural, =0 {Niemand liest diesen Fork, daher wird er archiviert.} =1 {Der 1 Agent, der diesen Fork liest, wechselt auf die neueste Version von main, veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.} other {Die # Agents, die diesen Fork lesen, wechseln auf die neueste Version von main, jeder veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.}}",
         "confirm": "Zu main zurückholen",
         "done": "Fertig"
+      },
+      "checkRunning": {
+        "running": "Prüfung läuft: {done} von {total} Agents geprüft.",
+        "finished": "Eine Prüfung auf {total, plural, =1 {1 Agent} other {# Agents}} ist fertig und wartet auf deine Entscheidung.",
+        "show": "Anzeigen"
       }
     },
     "checkOnAgents": "Auf Agents prüfen",
@@ -8502,7 +8507,7 @@
       "description": "Jeder Agent beantwortet seine Fragen mit dem Skill, wie er ist, und mit dieser Änderung. Nichts ändert sich, bevor du entscheidest.",
       "price": "Wahrscheinlich ${expected}, höchstens ${most}. Der Anteil jedes Agents geht auf sein Budget.",
       "start": "Prüfung starten",
-      "running": "Wird geprüft. Das dauert einige Minuten; du kannst das Fenster schließen und später zurückkommen.",
+      "running": "Wird geprüft. Das dauert einige Minuten. Du kannst das schließen: Die Prüfung läuft weiter, und <page>die Seite des Skills</page> zeigt sie als „Prüfung läuft“, bis du entscheidest.",
       "asked": "{count, plural, =1 {1 Frage gestellt} other {# Fragen gestellt}}",
       "skillSetOnly": "Nur mit den Fragen des Skills geprüft: keine Frage dieses Agents hat den Skill geöffnet.",
       "hidden": "{count, plural, =1 {1 weiterer Agent nutzt diesen Skill, den du nicht sehen kannst.} other {# weitere Agents nutzen diesen Skill, die du nicht sehen kannst.}}",
@@ -8538,7 +8543,9 @@
       "unaffordable": "Das restliche Monatsbudget der Organisation deckt diese Prüfung nicht.",
       "cancel": "Prüfung anhalten",
       "inSession": "Diese Prüfung gehört zu einer Verbesserungssitzung und wird dort entschieden.",
-      "openSession": "Sitzung öffnen"
+      "openSession": "Sitzung öffnen",
+      "progress": "{done} von {total} Agents geprüft",
+      "progressLabel": "Geprüfte Agents"
     },
     "savedMainVersion": "Als neue Main-Version gespeichert. Agents auf main lesen sie ab ihrem nächsten Run; festgesetzte Agents und Forks behalten ihre.",
     "instructions": "Anweisungen"

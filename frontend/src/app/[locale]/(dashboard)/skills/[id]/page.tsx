@@ -17,6 +17,7 @@ import {
   shownAgents,
   type ShownAgents,
 } from "@/components/skills/skill-lines";
+import { CheckRunning } from "@/components/skills/check-running";
 import { SkillPageHeader, type Merges } from "@/components/skills/skill-page-header";
 import { SkillUsageCard } from "@/components/skills/skill-usage";
 import { VersionTree } from "@/components/skills/version-tree";
@@ -100,6 +101,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
       />
+      {skill.can_edit && <CheckRunning skillId={id} forkId={fork?.id ?? null} />}
       <Tabs
         value={tab}
         onValueChange={(next) => setTabParam(next === "agents" ? null : next)}
@@ -131,7 +133,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             shown={shown}
             onShow={(next) => setShowParam(next === "all" ? null : next)}
           />
-          {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
+          {can(Perm.runsView) && (
+            <SkillUsageCard skillId={id} agents={agents.agents?.items ?? []} />
+          )}
         </TabsContent>
         <TabsContent value="history">
           <SkillHistory

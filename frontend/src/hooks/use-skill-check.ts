@@ -11,9 +11,10 @@ import {
   estimateSkillCheck,
   getSkillCheck,
   getSkillTestSet,
+  listSkillChecks,
   startSkillCheck,
 } from "@/lib/skill-checks-api";
-import type { SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
+import type { SkillCheck, SkillCheckApply, SkillCheckStart } from "@/types/skill-checks";
 
 /** How often a running check is read again: its stages are eval runs, minutes long. */
 export const SKILL_CHECK_POLL_MS = 5000;
@@ -37,7 +38,7 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
-      queryClient.invalidateQueries({ queryKey: key }),
+      queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
     ]);
   };
   return {
@@ -45,7 +46,10 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
     estimate: useMutation({
       mutationFn: (body: SkillCheckStart) => estimateSkillCheck(skillId, body),
     }),
-    start: useMutation({ mutationFn: (body: SkillCheckStart) => startSkillCheck(skillId, body) }),
+    start: useMutation({
+      mutationFn: (body: SkillCheckStart) => startSkillCheck(skillId, body),
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+    }),
     apply: useMutation({
       mutationFn: (body: SkillCheckApply) => applySkillCheck(skillId, checkId as string, body),
       onSuccess: decided,
@@ -59,6 +63,27 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
       onSuccess: decided,
     }),
   };
+}
+
+/**
+ * The line's newest check a person still has to come back to: one running, or one
+ * finished and not yet decided. A check a session started is decided in the session,
+ * which says so itself, so it is left out. Read again while it runs.
+ */
+export function useOpenSkillCheck(skillId: string, forkId: string | null): SkillCheck | null {
+  const { data } = useQuery({
+    queryKey: qk.skillChecks.line(skillId, forkId),
+    queryFn: () => listSkillChecks(skillId, forkId),
+    refetchInterval: (current) =>
+      current.state.data?.items.some((check) => check.status === "running")
+        ? SKILL_CHECK_POLL_MS
+        : false,
+  });
+  return (
+    data?.items.find(
+      (check) => !check.session_id && (check.status === "running" || check.status === "done"),
+    ) ?? null
+  );
 }
 
 /** The skill's own test questions, and writing them when there are none. */

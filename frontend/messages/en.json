@@ -8615,6 +8615,11 @@
         "body": "{count, plural, =0 {Nobody reads this fork, so it is archived.} =1 {The 1 agent reading this fork moves to main's newest version, published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.} other {The # agents reading this fork move to main's newest version, each published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.}}",
         "confirm": "Return to main",
         "done": "Done"
+      },
+      "checkRunning": {
+        "running": "Check running: {done} of {total} agents checked.",
+        "finished": "A check finished on {total, plural, =1 {1 agent} other {# agents}} and waits for your decision.",
+        "show": "Show"
       }
     },
     "checkOnAgents": "Check on agents",
@@ -8624,7 +8629,7 @@
       "description": "Each agent answers its questions with the skill as it is and with this change. Nothing changes until you decide.",
       "price": "Most likely ${expected}, at most ${most}. Each agent's share is billed to that agent.",
       "start": "Start the check",
-      "running": "Checking. This takes a few minutes; you can close this and come back.",
+      "running": "Checking. This takes a few minutes. You can close this: the check keeps running, and <page>the skill's page</page> shows it as Check running until you decide it.",
       "asked": "{count, plural, =1 {Asked 1 question} other {Asked # questions}}",
       "skillSetOnly": "Checked on the skill's own questions only: none of this agent's questions opened the skill.",
       "hidden": "{count, plural, =1 {1 more agent uses this skill that you cannot see.} other {# more agents use this skill that you cannot see.}}",
@@ -8660,7 +8665,9 @@
       "unaffordable": "The organization's budget left this month cannot cover this check.",
       "cancel": "Stop the check",
       "inSession": "This check belongs to an improvement session, so it is decided there.",
-      "openSession": "Open the session"
+      "openSession": "Open the session",
+      "progress": "{done} of {total} agents checked",
+      "progressLabel": "Agents checked"
     },
     "savedMainVersion": "Saved as a new main version. Agents on main read it from their next run; pinned agents and forks keep theirs.",
     "instructions": "Instructions"

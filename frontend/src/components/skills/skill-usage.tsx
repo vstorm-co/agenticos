@@ -13,7 +13,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { CHART_MIN_HEIGHT, SERIES_TOKENS, seriesColor } from "@/lib/dashboard/system";
 import { cn, formatDate } from "@/lib/utils";
-import type { SkillUsage } from "@/types/skill-versions";
+import type { SkillAgentUsage, SkillUsage } from "@/types/skill-versions";
 
 const UsageLinesImpl = dynamic(
   () => import("@/components/charts/usage-lines.impl").then((m) => m.UsageLinesImpl),
@@ -65,7 +65,14 @@ export function usageDays(
  * this is real use. Reading it needs `runs:view`, so the page draws it only for
  * such a reader.
  */
-export function SkillUsageCard({ skillId }: { skillId: string }) {
+export function SkillUsageCard({
+  skillId,
+  agents,
+}: {
+  skillId: string;
+  /** The skill's agents as the page read them, whose faces the table draws. */
+  agents: SkillAgentUsage[];
+}) {
   const t = useTranslations("skills.page.usage");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
@@ -98,16 +105,17 @@ export function SkillUsageCard({ skillId }: { skillId: string }) {
               <UsageLinesImpl lines={chart.lines} days={chart.days} />
             </div>
           )}
-          <UsageTable usage={usage} />
+          <UsageTable usage={usage} agents={agents} />
         </>
       )}
     </ListCard>
   );
 }
 
-function UsageTable({ usage }: { usage: SkillUsage }) {
+function UsageTable({ usage, agents }: { usage: SkillUsage; agents: SkillAgentUsage[] }) {
   const t = useTranslations("skills.page.usage");
   const locale = useLocale();
+  const faces = new Map(agents.map((usage) => [usage.agent.id, usage.agent]));
   return (
     <table className="w-full text-sm">
       <thead className="text-muted-foreground text-left text-xs">
@@ -125,9 +133,9 @@ function UsageTable({ usage }: { usage: SkillUsage }) {
               <div className="flex min-w-0 items-center gap-2">
                 <AgentAvatar
                   agentId={agent.agent_id}
-                  slug={agent.slug ?? agent.agent_id}
-                  hasAvatar={agent.has_avatar}
-                  colorSlot={agent.avatar_color}
+                  slug={faces.get(agent.agent_id)?.slug ?? agent.agent_id}
+                  hasAvatar={faces.get(agent.agent_id)?.has_avatar}
+                  colorSlot={faces.get(agent.agent_id)?.avatar_color}
                   size="sm"
                 />
                 <Link

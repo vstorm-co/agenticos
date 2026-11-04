@@ -141,10 +141,6 @@ export interface SkillUsageAgent {
   resource_reads: number;
   workspace_reads: number;
   last_loaded_at: string | null;
-  /** The handle the agent's generated face is drawn from. */
-  slug?: string;
-  has_avatar?: boolean;
-  avatar_color?: number | null;
   /** Loads per UTC day, only days with any; absent from a server that does not count by day. */
   daily?: { date: string; loads: number }[];
 }

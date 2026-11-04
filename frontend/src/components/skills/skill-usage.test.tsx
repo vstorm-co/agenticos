@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import type { SkillUsage } from "@/types/skill-versions";
+import type { SkillAgentUsage, SkillUsage } from "@/types/skill-versions";
 import { SkillUsageCard, usageDays } from "./skill-usage";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -41,7 +41,8 @@ const USAGE: SkillUsage = {
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<SkillUsageCard skillId="s1" />, {
+  const faces = [{ agent: { id: "a1", name: "Gift shop counter", slug: "gift-shop" } }];
+  render(<SkillUsageCard skillId="s1" agents={faces as SkillAgentUsage[]} />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),

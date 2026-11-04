@@ -753,7 +753,10 @@ export const qk = {
     file: (id: string, path: string) => ["sandbox-workspaces", "file", id, path] as const,
   },
   skillChecks: {
+    skill: (skillId: string) => ["skill-checks", skillId] as const,
     detail: (skillId: string, checkId: string) => ["skill-checks", skillId, checkId] as const,
+    line: (skillId: string, forkId: string | null) =>
+      ["skill-checks", skillId, "line", forkId ?? "main"] as const,
   },
   skillChanges: {
     all: () => ["skill-changes"] as const,
