@@ -991,8 +991,9 @@ class NotificationService:
         notify about, and never after it. `record_audit` holds a
         transaction-scoped lock on the organization's audit chain, and the
         notification write that follows reaches for a key-share lock on every
-        recipient's `users` row - while `UserService.admin_delete` takes those
-        rows exclusively *first* and the chain lock second. Two transactions,
+        recipient's `users` row - while `UserService.admin_update` takes those
+        rows exclusively *first* and the chain lock second (and
+        `UserService.admin_delete` the deleted account's own row). Two transactions,
         the same two locks, opposite orders: Postgres aborts one, and the side
         that loses can lose its mandatory security notification inside the
         per-recipient savepoint while the audit entry commits regardless
@@ -1009,7 +1010,7 @@ class NotificationService:
 
     async def hold_configuration_audience(self) -> list[UUID]:
         """The same, for `configuration_changed`, whose audience is always the
-        deployment's app admins - which is exactly the set `admin_delete` locks
+        deployment's app admins - which is exactly the set `admin_update` locks
         exclusively, so this is the half of #1763 with the shortest cycle."""
         audience = sorted(await member_repo.list_app_admin_ids(self.db))
         await user_repo.hold_key_share(self.db, audience)
