@@ -354,6 +354,36 @@ class TestStatistics:
             [(v1, 1), (v2, 2)]
         )
 
+    async def test_loads_are_counted_per_utc_day_with_every_day_of_the_window(
+        self, db: AsyncSession
+    ):
+        """A chart reads one point a day, so a day nobody used it is a zero, not a gap."""
+        org, user = await _org(db)
+        desk = await _agent(db, org, user, "Desk")
+        desk.avatar_url, desk.avatar_color = "avatars/desk.png", 3
+        skill = await _skill(db, org)
+        now = datetime.now(UTC)
+        earlier = now - timedelta(days=3)
+        await _used(db, await _run(db, org, desk), skill)
+        await _used(db, await _run(db, org, desk), skill)
+        await _used(db, await _run(db, org, desk, started_at=earlier), skill)
+        await _used(
+            db, await _run(db, org, desk, surface=RunSurface.EVAL, started_at=earlier), skill
+        )
+        await _used(db, await _run(db, org, desk, is_test=True, started_at=earlier), skill)
+
+        usage = await SkillService(db).usage(_builder(org, user), skill.id, days=7)
+
+        [agent] = usage.agents
+        assert (agent.slug, agent.has_avatar, agent.avatar_color) == (desk.slug, True, 3)
+        assert [day.date for day in agent.daily] == [
+            (now - timedelta(days=7 - offset)).date() for offset in range(8)
+        ]
+        assert {day.date: day.loads for day in agent.daily if day.loads} == {
+            now.date(): 2,
+            earlier.date(): 1,
+        }
+
     async def test_an_agent_the_caller_cannot_see_is_only_counted(self, db: AsyncSession):
         org, user = await _org(db)
         desk = await _agent(db, org, user, "Desk")
