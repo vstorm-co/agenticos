@@ -90,7 +90,10 @@ export function SkillAccept({
     session.fork_id !== null &&
     !session.outcomes.includes("apply_and_pin") &&
     !session.outcomes.includes("fork_for_helped");
-  const writes = session.outcomes.some((outcome) => WRITES.includes(outcome));
+  const writes = session.outcomes.some(
+    (outcome) =>
+      WRITES.includes(outcome) && (outcome !== "fork_for_helped" || helped !== undefined),
+  );
   const held = !confirmed || (unknown > 0 && !acknowledged);
   const recheck = session.stale === true || lineMoved;
 

@@ -1211,6 +1211,25 @@ class TestWhatTheCheckMeasuredIsWhatShips:
             )
         assert refused.value.details["agent_ids"] == [lab.pinned.id]
 
+    async def test_a_pick_the_caller_may_not_see_reads_as_outside_the_check(self, db, monkeypatch):
+        """Refusing it as not editable would confirm a hidden agent was checked."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+        _deny(monkeypatch, Perm.AGENTS_VIEW, lab.b.id)
+
+        with pytest.raises(BadRequestError, match="Pick agents this check asked") as refused:
+            await service.fork(
+                lab.ctx,
+                lab.skill.id,
+                check.id,
+                SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.b.id]),
+            )
+        assert refused.value.details["agent_ids"] == [lab.b.id]
+
     async def test_a_pick_the_caller_may_not_edit_is_refused(self, db, monkeypatch):
         """The default leaves a helped agent the caller may not edit on main; one they named
         themselves is refused rather than left behind without a word."""

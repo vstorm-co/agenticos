@@ -1838,20 +1838,23 @@ class SkillCheckService:
     ) -> SkillCheckForked:
         """Make the checked text a new fork, and move the agents `data.agent_ids` names onto it.
 
-        Main stays as it is. With no `agent_ids` the agents the change helped move; an
-        empty list moves none. An agent the caller may publish moves at once; one they
-        may only edit moves in its draft. A helped agent they may not edit stays on main.
+        Main stays as it is. With no `agent_ids` the agents the change helped move, and
+        one of them the caller may not edit stays on main; an empty list moves none. An
+        agent the caller may publish moves at once; one they may only edit moves in its
+        draft.
 
         Raises:
             AuthorizationError: `agent_ids` names an agent the caller may not edit.
-            BadRequestError: `agent_ids` names an agent the check did not ask, or one
-                reading the skill through a specialist.
+            BadRequestError: `agent_ids` names an agent the check did not ask or the
+                caller may not see, or one reading the skill through a specialist.
         """
         skill, check, rows = await self._decidable(
             ctx, skill_id, check_id, CheckOutcome.FORK_FOR_HELPED, from_session=from_session
         )
         self._refuse_unacknowledged(check, rows, data.acknowledge_unknown)
-        chosen = _chosen_for_fork(rows, data.agent_ids)
+        chosen = _chosen_for_fork(
+            rows if data.agent_ids is None else await self._seen(ctx, rows), data.agent_ids
+        )
         agents = await agent_repo.get_many(
             self.db, [row.agent_id for row in chosen], organization_id=ctx.organization_id
         )
@@ -1929,6 +1932,18 @@ class SkillCheckService:
         forks = await self.versions.list_forks(ctx, skill.id)
         read = next(item for item in forks.items if item.id == fork.id)
         return SkillCheckForked(fork=read, moved=moved, draft_only=draft_only)
+
+    async def _seen(
+        self, ctx: AuthContext, rows: Sequence[SkillCheckAgent]
+    ) -> list[SkillCheckAgent]:
+        """The check's rows of agents the caller may see; a hidden one is never confirmed."""
+        agents = await agent_repo.get_many(
+            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        return [row for row in rows if row.agent_id in visible]
 
     async def discard(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False

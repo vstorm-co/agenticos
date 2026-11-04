@@ -97,6 +97,27 @@ describe("SkillAccept", () => {
     });
   });
 
+  it.each([
+    ["no_better", ["improve_further", "fork_for_helped", "discard"], false],
+    ["blocked", ["improve_further", "apply_and_pin", "fork_for_helped", "discard"], true],
+  ] as const)(
+    "offers no fork, and confirms only what it offers, when nobody got better (%s)",
+    (verdict, outcomes, confirms) => {
+      mount(
+        skillCheck({
+          agents: [checkAgent("Support", "no_change"), checkAgent("Refunds", "no_change")],
+          verdict,
+          outcomes: [...outcomes],
+        }),
+      );
+
+      expect(screen.queryByRole("button", { name: /Make a fork/ })).toBeNull();
+      expect(
+        screen.queryAllByLabelText("I have reviewed the selected changes and want to apply them."),
+      ).toHaveLength(confirms ? 1 : 0);
+    },
+  );
+
   it("applies while keeping the agents it made worse on their version", async () => {
     mount(BLOCKED);
 
