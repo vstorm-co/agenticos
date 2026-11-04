@@ -1503,7 +1503,10 @@ class TestCatchingUp:
             outcome="return_to_main",
         )
 
-        assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {"confirmed": True}
+        assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {
+            "confirmed": True,
+            "acknowledge_unknown": False,
+        }
         assert dropped["moved"] == [{"name": "Wholesale desk", "published": True}]
         assert dropped["refused"] == [
             {"name": "Gift shop counter", "why": "You may not edit this agent"}
@@ -1544,7 +1547,11 @@ class TestCatchingUp:
             outcome="return_to_main",
             acknowledge_unknown=True,
         )
-        assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {"confirmed": True}
+        # The server asks the same of the return, so the person's acceptance goes with it.
+        assert _sent(api, "POST", f"{SESSION_PATH}/return-to-main") == {
+            "confirmed": True,
+            "acknowledge_unknown": True,
+        }
 
     @pytest.mark.parametrize(
         ("agent_ids", "sent"),

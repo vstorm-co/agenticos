@@ -2352,7 +2352,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
                     "Some of the fork's agents could not be checked on main alone. Name them "
                     "to the person, and call again with acknowledge_unknown once they accept."
                 )
-            returned = await api.request("POST", f"{path}/return-to-main", json={"confirmed": True})
+            returned = await api.request(
+                "POST",
+                f"{path}/return-to-main",
+                json={"confirmed": True, "acknowledge_unknown": acknowledge_unknown},
+            )
             return {
                 "status": returned["session"]["status"],
                 **_returned(returned["returned"]),
