@@ -1,5 +1,5 @@
 ---
-source_sha: "dba106dd80cc"
+source_sha: "e21cd92c44c1"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -710,7 +710,10 @@ Karte.
 
 Drei Aktionen, jede mit dem Handelnden auditiert:
 
-- **Retry** gibt einem toten Job eine neue Reihe von Versuchen.
+- **Retry** gibt einem toten Job eine neue Reihe von Versuchen. Ein toter
+  Dokument-Ingest wird abgelehnt: seine Parse-Kopie ist mit ihm gegangen, also
+  wiederhole das Dokument aus seiner Wissensbasis, die die gespeicherte Datei
+  erneut parst.
 - **Cancel** zieht einen Job zurück, den noch niemand begonnen hat.
 - **Resume** lässt die Worker eine pausierte Art wieder abholen.
 

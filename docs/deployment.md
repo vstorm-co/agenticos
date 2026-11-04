@@ -626,7 +626,9 @@ the same day as a card.
 
 Three actions, each audited with who took it:
 
-- **Retry** gives a dead job a fresh set of attempts.
+- **Retry** gives a dead job a fresh set of attempts. A dead document ingest
+  is refused: its parse copy went with it, so retry the document from its
+  knowledge base, which parses the stored file again.
 - **Cancel** withdraws a job nobody has started.
 - **Resume** lets workers claim a paused kind again.
 

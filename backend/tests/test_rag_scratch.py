@@ -542,3 +542,23 @@ class TestARunOfADispatchThatAlreadyEnded:
             await rag_tasks.ingest_document(_job(media / f"{uuid.uuid4()}-1.pdf"))
 
         fail.assert_awaited()
+
+
+async def test_a_dead_ingest_is_retried_from_its_document_not_from_the_jobs_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Its copy went with it: requeuing the payload could only end it again. The
+    document's own retry parses the stored file into a new copy."""
+    from app.core.exceptions import BadRequestError
+    from app.repositories import background_job as background_job_repo
+    from app.services.background_jobs import BackgroundJobService
+
+    job = SimpleNamespace(id=uuid.uuid4(), kind=jobs.INGEST_DOCUMENT.kind, dedupe_key=None)
+    monkeypatch.setattr(background_job_repo, "get", AsyncMock(return_value=job))
+    requeue = AsyncMock()
+    monkeypatch.setattr(background_job_repo, "requeue_dead", requeue)
+
+    with pytest.raises(BadRequestError, match="Retry the document"):
+        await BackgroundJobService(MagicMock()).retry(job.id, actor_user_id=uuid.uuid4())
+
+    requeue.assert_not_awaited()

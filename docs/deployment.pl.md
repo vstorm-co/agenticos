@@ -1,5 +1,5 @@
 ---
-source_sha: "dba106dd80cc"
+source_sha: "e21cd92c44c1"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -665,7 +665,9 @@ pokazuje ten sam dzień jako kartę.
 
 Trzy akcje, każda zapisywana w audycie z tym, kto ją wykonał:
 
-- **Retry** daje martwemu zadaniu nowy zestaw prób.
+- **Retry** daje martwemu zadaniu nowy zestaw prób. Martwy ingest dokumentu
+  jest odrzucany: jego kopia do parsowania zniknęła razem z nim, więc ponów
+  dokument z jego bazy wiedzy, co ponownie parsuje zapisany plik.
 - **Cancel** wycofuje zadanie, którego nikt jeszcze nie zaczął.
 - **Resume** pozwala workerom znowu pobierać wstrzymany rodzaj.
 

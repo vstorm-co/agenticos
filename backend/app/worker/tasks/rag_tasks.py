@@ -277,6 +277,10 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     written reason and returns, logged at INFO, and the queue does not retry it
     (#2561).
 
+    So is a run of a dispatch that already ended: its copy went with it, and a
+    rescued attempt or a requeued payload finding the row settled, or a newer
+    retry's, returns `ended` rather than failing again (#2681).
+
     `job.attempt` is which dispatch of the document this is (#1598) - `1` for an
     upload, whatever `retry_ingestion` bumped it to for a retry - carried through
     to every settlement so a stale one (superseded by a later retry) is ignored
@@ -506,9 +510,6 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
-        # A failure is a refusal too once the document is no longer wanted: a delete
-        # removes the scratch copy after its commit, and a parser that had not opened
-        # it yet cannot read it (#2681).
         if (
             not result.refused
             and not file_path.exists()
@@ -525,6 +526,9 @@ async def _run_ingestion(
                 "filename": source_path,
                 "message": "This ingest already ended; retry the document to parse it again",
             }
+        # A failure is a refusal too once the document is no longer wanted: a delete
+        # removes the scratch copy after its commit, and a parser that had not opened
+        # it yet cannot read it (#2681).
         if result.refused or not await _still_ingestable(rag_document_id, collection_name):
             # Skipped on purpose: the collection or its base went while the file
             # parsed. A retry cannot index it, so this ends the job instead of
