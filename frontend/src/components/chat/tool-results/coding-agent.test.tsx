@@ -1,9 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CodingAgentResult, parseCodingReport } from "./coding-agent";
 import type { ToolCall } from "@/types";
+
+vi.mock("./coding-changes", () => ({
+  TaskChanges: ({ changeId }: { changeId: string }) => <p>{`changes ${changeId}`}</p>,
+}));
 
 function call(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
@@ -40,6 +44,18 @@ describe("CodingAgentResult", () => {
     expect(await screen.findByText("the off-by-one")).toBeInTheDocument();
     expect(screen.getByText("Changed 1 file:")).toBeInTheDocument();
     expect(screen.getByText("Not allowed read-only: WebFetch")).toBeInTheDocument();
+  });
+
+  it("shows what the task changed instead of the names, where a change set was kept", () => {
+    render(
+      <CodingAgentResult
+        toolCall={call()}
+        resultText={JSON.stringify({ ...REPORT, changes_id: "c-1" })}
+      />,
+    );
+
+    expect(screen.getByText("changes c-1")).toBeInTheDocument();
+    expect(screen.queryByText("Changed 1 file:")).not.toBeInTheDocument();
   });
 
   it("lists every step, a failed one marked as failed", async () => {

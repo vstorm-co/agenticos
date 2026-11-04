@@ -604,6 +604,10 @@ export const qk = {
     usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
   },
+  // What one coding-agent task changed: written once, when the task ends, and never again.
+  codingChanges: {
+    detail: (changeId: string) => ["coding-changes", changeId] as const,
+  },
   conversationWorkspace: {
     all: () => ["conversation-workspace"] as const,
     files: (conversationId: string) => ["conversation-workspace", conversationId] as const,
