@@ -696,3 +696,38 @@ async def test_a_second_future_correction_cannot_make_two_owners_current(db: Asy
     await db.refresh(original)
     assert original.effective_to == tomorrow
     assert pending.effective_from == tomorrow and pending.effective_to is None
+
+
+async def test_a_share_cannot_recreate_a_personal_claim_erased_after_it_was_read(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.core.exceptions import ConflictError
+    from app.db.locks import LockScope, hold_subject
+
+    org, user, _, _ = await _tenant(db)
+    scope = ClaimScope(person_owner_key(user.id), None)
+    original = (await _say(db, org, scope, "Private fact")).claim
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+    async with sessions() as sharing:
+        stale = await claim_repo.get(sharing, organization_id=org.id, claim_id=original.id)
+        assert stale is not None
+        async with sessions() as erasing:
+            await hold_subject(erasing, LockScope.PERSONAL_DATA_PER_USER, user.id)
+            await claim_repo.delete_for_scope(
+                erasing, organization_id=org.id, scope_key=scope.scope_key
+            )
+            await erasing.commit()
+        with pytest.raises(ConflictError, match="no longer current"):
+            await claims.share(
+                sharing,
+                claim=stale,
+                to=ClaimScope(organization_owner_key(org.id), None),
+                author_user_id=user.id,
+            )
+    remaining = await claim_repo.list_in_scopes(
+        db, organization_id=org.id, scopes=[ClaimScope(organization_owner_key(org.id), None)]
+    )
+    assert remaining == []

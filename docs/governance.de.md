@@ -1,5 +1,5 @@
 ---
-source_sha: "3a0e34f1da43"
+source_sha: "f963b395769b"
 ---
 
 # Governance { #governance }
@@ -860,6 +860,8 @@ Ausführungen.
 |---|---|---|
 | `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Unter Proaktivität, oben: dasselbe Modell und Limit, hier nur lesbar |
 | `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
+
+Die Gedächtnispflege benötigt den AgenticOS-Starter nicht. Ihr Run behält den Ursprungsagenten als Speicherreferenz und wird als `memory_maintenance` abgerechnet; ausgeführt werden nur die Extraktionsanweisungen der Plattform auf dem für die Rolle gewählten Modell. Entfernen oder Zurückziehen des Starters deaktiviert die Extraktion anderer veröffentlichter Agenten nicht.
 
 Eine Rolle wird ausgeschaltet, nicht gelöscht. Die **Gedächtnispflege** benötigt
 ein ausdrücklich gewähltes Modell und beachtet ihr Monatsbudget sowie die Obergrenze

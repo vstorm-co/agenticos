@@ -224,6 +224,7 @@ async def extract(
     found = await ProactiveThinker(db).think(
         ctx,
         feature="maintenance",
+        source_agent_id=run.agent_id,
         output_type=_Extraction,
         instructions=_INSTRUCTIONS,
         prompt=f"Conversation:\n\n{transcript}",

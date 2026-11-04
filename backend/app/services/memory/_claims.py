@@ -87,7 +87,7 @@ def mutable(claim: MemoryClaim) -> bool:
     )
 
 
-async def _hold_scope(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> None:
+async def _hold_person(db: AsyncSession, scope_key: str) -> None:
     if is_person_key(scope_key):
         try:
             person_id = UUID(scope_key.removeprefix(PERSON_PREFIX))
@@ -95,6 +95,10 @@ async def _hold_scope(db: AsyncSession, *, organization_id: UUID, scope_key: str
             person_id = None
         if person_id is not None:
             await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person_id)
+
+
+async def _hold_scope(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> None:
+    await _hold_person(db, scope_key)
     # Serialize all agent bindings too: consolidation traverses an owner's scopes together.
     await hold_subject(db, LockScope.MEMORY_CLAIMS_PER_SCOPE, uuid5(organization_id, scope_key))
 
@@ -286,6 +290,13 @@ async def share(
         raise ConflictError(
             message="The claim is already in that scope", details={"claim_id": claim.id}
         )
+    await _hold_person(db, claim.scope_key)
+    current = await claim_repo.get(db, organization_id=claim.organization_id, claim_id=claim.id)
+    if current is None or not mutable(current):
+        raise ConflictError(
+            message="That claim is no longer current", details={"claim_id": claim.id}
+        )
+    claim = current
     result = await remember(
         db,
         organization_id=claim.organization_id,

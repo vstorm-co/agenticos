@@ -124,9 +124,8 @@ async def test_the_overview_lists_both_roles_with_the_briefing_read_from_proacti
     assert briefing.enabled and briefing.model_label == "Maintenance model"
     assert maintenance.role == MEMORY_MAINTENANCE and maintenance.managed_in is None
     assert maintenance.model_profile_id is None and maintenance.runs == []
-    assert briefing.unavailable == "starter_agent" == maintenance.unavailable, (
-        "no published starter agent, so a role that is on would record nothing"
-    )
+    assert briefing.unavailable == "starter_agent"
+    assert maintenance.unavailable is None, "maintenance uses each originating agent"
 
 
 async def test_a_published_starter_agent_leaves_the_roles_available(db: AsyncSession) -> None:
@@ -339,6 +338,7 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
     prompt = think.await_args.kwargs["prompt"]
     assert "I prefer short answers" in prompt and "ignore me" not in prompt
     assert think.await_args.kwargs["feature"] == "maintenance"
+    assert think.await_args.kwargs["source_agent_id"] == agent.id
     claims = (
         (await db.execute(select(MemoryClaim).where(MemoryClaim.organization_id == org.id)))
         .scalars()

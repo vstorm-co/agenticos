@@ -9,8 +9,9 @@ gets what a run gets where it matters:
   organization turns it on, and turning it on names the model profile it runs
   on (`Organization.proactive_model_profile_id`) - never the agent's by default,
   because this spends money nobody asked for in the moment. An organization
-  without the starter agent gets nothing either.
-- **A run row**, `surface=proactive`, under the starter agent and the person -
+  without the starter agent gets no nightly suggestions. Memory maintenance uses
+  its own role profile and the originating agent instead.
+- **A run row**, `surface=proactive`, with its system role and person -
   so the cost is in run history, the spend views and the organization's monthly
   total, and a failure is written down rather than lost.
 - **Two limits, checked first.** The organization's monthly cap, and its
@@ -161,18 +162,27 @@ class ProactiveThinker:
         instructions: str,
         prompt: str,
         toolsets: Sequence[AbstractToolset[object]] = (),
+        source_agent_id: UUID | None = None,
     ) -> OutputT | None:
-        """Ask the organization's proactivity model, attributed to its starter agent.
+        """Ask the configured model using platform instructions and role attribution.
 
         `toolsets` are what it may read before answering - a watch's connection,
         narrowed to the tools that only read.
 
-        Returns `None` - having spent nothing - without a starter agent or past a
+        Maintenance records its originating agent and needs no starter agent.
+        Returns `None` - having spent nothing - without its attribution agent or past a
         limit, and `None` with the failure on the run row when the model could
         not answer. Background work has no one to raise to; the next look is the
         retry.
         """
-        agent = await self.starter_agent(ctx.organization_id)
+        if feature == "maintenance":
+            if source_agent_id is None:
+                return None
+            agent = await agent_repo.get(
+                self.db, source_agent_id, organization_id=ctx.organization_id
+            )
+        else:
+            agent = await self.starter_agent(ctx.organization_id)
         if agent is None or agent.current_version_id is None:
             return None
         profile_id = await self.allowance(ctx, feature)

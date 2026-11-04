@@ -1,5 +1,5 @@
 ---
-source_sha: "3a0e34f1da43"
+source_sha: "f963b395769b"
 ---
 
 # Governance { #governance }
@@ -820,6 +820,8 @@ y sus últimas ejecuciones.
 |---|---|---|
 | `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En Proactividad, arriba: el mismo modelo y límite, aquí solo de lectura |
 | `memory_maintenance` | Lee una vez un turno admitido terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
+
+El mantenimiento de memoria no necesita al agente inicial AgenticOS. Su run conserva el agente de origen como referencia de almacenamiento y se contabiliza como `memory_maintenance`; solo ejecuta las instrucciones de extracción de la plataforma con el modelo elegido para el rol. Eliminar o retirar la publicación del agente inicial no desactiva la extracción de otros agentes publicados.
 
 Un rol se desactiva, no se borra. El **mantenimiento de memoria** requiere un modelo
 elegido expresamente y respeta su presupuesto mensual y el tope de la organización.

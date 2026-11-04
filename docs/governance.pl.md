@@ -1,5 +1,5 @@
 ---
-source_sha: "3a0e34f1da43"
+source_sha: "f963b395769b"
 ---
 
 # Governance { #governance }
@@ -805,6 +805,8 @@ miesiącu i ostatnimi wykonaniami.
 |---|---|---|
 | `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W Proaktywności, powyżej: ten sam model i limit, tutaj tylko do odczytu |
 | `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
+
+Utrzymanie pamięci nie wymaga startowego agenta AgenticOS. Przebieg zachowuje agenta źródłowego jako referencję zapisu i jest rozliczany jako `memory_maintenance`; wykonują się wyłącznie platformowe instrukcje ekstrakcji na modelu wybranym dla roli. Usunięcie lub wycofanie publikacji agenta startowego nie wyłącza ekstrakcji innych opublikowanych agentów.
 
 Rolę się wyłącza, nie usuwa. **Utrzymanie pamięci** wymaga wybranego modelu i
 respektuje własny budżet miesięczny oraz limit organizacji. Czyta zakończone tury,

@@ -466,3 +466,39 @@ async def test_an_expired_claim_cannot_replace_or_republish_its_successor(db: As
         )
         is None
     )
+
+
+@pytest.mark.parametrize("operation", ["correct", "share"])
+async def test_a_claim_conflict_after_admission_is_reported_to_the_agent(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import ConflictError
+
+    user, org, agent, _, conversation = await _world(db)
+    mine = ClaimScope(person_owner_key(user.id), agent.id)
+    saved = await _remember(org, mine, "Private fact", user)
+    assert saved is not None
+    monkeypatch.setattr(
+        runtime._claims, operation, AsyncMock(side_effect=ConflictError(message="Claim changed"))
+    )
+    with pytest.raises(runtime.ShareRefused, match="Claim changed"):
+        if operation == "correct":
+            await runtime.correct(
+                organization_id=org.id,
+                claim_id=saved[0].id,
+                scopes=[mine],
+                statement="Correction",
+                author_user_id=user.id,
+                effective_from=None,
+            )
+        else:
+            await runtime.share(
+                organization_id=org.id,
+                claim_id=saved[0].id,
+                scopes=[mine],
+                to="organization",
+                run_person=user.id,
+                conversation_id=conversation.id,
+            )

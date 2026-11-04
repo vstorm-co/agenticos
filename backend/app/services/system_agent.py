@@ -156,7 +156,7 @@ class SystemAgentService:
         )
         return SystemAgentRead(
             role=MEMORY_MAINTENANCE,
-            unavailable=await self._unavailable(ctx),
+            unavailable=None,
             enabled=profile.enabled,
             model_profile_id=profile.model_profile_id,
             model_label=await self._label(ctx, profile.model_profile_id),

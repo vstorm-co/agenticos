@@ -146,6 +146,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Run memory maintenance using its explicitly configured role/model and originating agent, without depending on a published AgenticOS starter. Recheck memory sharing after the person-erasure lock so a stale read cannot republish an erased claim, and report mutation conflicts to the agent.
+
 - Keep persistent routine/watch creation and updates behind the platform MCP binding's configured write approval.
 
 - Serialize watches and nightly work sharing a member budget; drain proactive jobs and apply `0285_member_proactivity.py` before updating API/workers together. Prevent deleting SMS bots with unfinished telephone calls, rotate private bot sessions after agent rebinding, reject overlapping future memory corrections, and expose removable unavailable phone agents/transfer targets.

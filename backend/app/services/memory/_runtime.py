@@ -17,6 +17,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.core.memory_keys import (
     ORGANIZATION_PREFIX,
     PROJECT_PREFIX,
@@ -201,13 +202,16 @@ async def correct(
             run_person=author_user_id,
             scope_key=claim.scope_key,
         )
-        fixed = await _claims.correct(
-            db,
-            claim=claim,
-            statement=statement,
-            author_user_id=author_user_id,
-            effective_from=effective_from,
-        )
+        try:
+            fixed = await _claims.correct(
+                db,
+                claim=claim,
+                statement=statement,
+                author_user_id=author_user_id,
+                effective_from=effective_from,
+            )
+        except ConflictError as exc:
+            raise ShareRefused(exc.message) from exc
         return _view(fixed)
 
 
@@ -251,11 +255,14 @@ async def share(
         await _may_write_wide(
             db, organization_id=organization_id, run_person=run_person, scope_key=target.scope_key
         )
-        shared = await _claims.share(
-            db,
-            claim=claim,
-            to=target,
-            author_user_id=run_person,
-            conversation_id=conversation_id,
-        )
+        try:
+            shared = await _claims.share(
+                db,
+                claim=claim,
+                to=target,
+                author_user_id=run_person,
+                conversation_id=conversation_id,
+            )
+        except ConflictError as exc:
+            raise ShareRefused(exc.message) from exc
         return _view(shared)

@@ -760,6 +760,8 @@ spend and its recent executions.
 | `daily_briefing` | The nightly look at each person's week and the briefing built from it | Under Proactivity, above: the same model and limit, shown here read-only |
 | `memory_maintenance` | Reads a completed admitted turn once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own |
 
+Memory maintenance does not require the AgenticOS starter. Its run retains the originating agent as a storage reference and is accounted as `memory_maintenance`; only platform extraction instructions and the role-selected model execute. Removing or unpublishing the starter does not disable extraction for other published agents.
+
 A role is disabled, not deleted. **Memory maintenance** needs an explicitly chosen
 model and respects its monthly budget and the organization's cap. It reads completed
 turns only when the runner admitted a real person with memory writes enabled: private

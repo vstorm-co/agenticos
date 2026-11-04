@@ -1206,8 +1206,13 @@ class TestMemoryMaintenanceAllowance:
 
     async def test_its_runs_are_attributed_to_the_role(self):
         get_slug, limits, version, profiles, create, finish = TestThinking._patches(TestModel())
+        source = _agent()
+        db = _session()
         with (
-            get_slug,
+            get_slug as starter,
+            patch.object(
+                _thinker.agent_repo, "get", new=AsyncMock(return_value=source)
+            ) as originating,
             limits,
             version,
             profiles,
@@ -1215,15 +1220,19 @@ class TestMemoryMaintenanceAllowance:
             finish,
             patch.object(_thinker.run_manifest_repo, "record", new=AsyncMock()),
         ):
-            await ProactiveThinker(_session()).think(
+            await ProactiveThinker(db).think(
                 _ctx(),
                 feature="maintenance",
+                source_agent_id=source.id,
                 output_type=NightlyReading,
                 instructions="Read.",
                 prompt="{}",
             )
 
         assert create_run.await_args.kwargs["system_role"] == "memory_maintenance"
+        assert create_run.await_args.kwargs["agent_id"] == source.id
+        starter.assert_not_awaited()
+        originating.assert_awaited_once_with(db, source.id, organization_id=ORG)
 
 
 def test_turkish_briefing_text_keeps_the_count_and_console_link() -> None:
