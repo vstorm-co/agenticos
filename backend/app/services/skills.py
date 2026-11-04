@@ -1451,6 +1451,7 @@ class SkillService:
                 which agents it could not be removed from, and why.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        locked: set[UUID] = set()
         if remove_from_agents:
             # A draft save or a publish locks its agent before it holds the skill, so the
             # agents are locked in that order too, or the two wait on each other.
@@ -1463,6 +1464,7 @@ class SkillService:
                 await agent_repo.get(
                     self.db, agent.id, organization_id=ctx.organization_id, for_update=True
                 )
+                locked.add(agent.id)
         # Locked before the in-use check: an agent binding the skill holds it shared
         # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
         await skill_repo.lock_for_delete(self.db, skill.id)
@@ -1470,6 +1472,14 @@ class SkillService:
             self.db, organization_id=ctx.organization_id, skill_id=skill.id
         )
         if using and remove_from_agents:
+            if {agent.id for agent in using} - locked:
+                raise InUseError(
+                    message=(
+                        f"Another agent started using '{skill.name}' while it was being "
+                        "removed. Nothing changed; try again."
+                    ),
+                    details={"reason": "agents_changed"},
+                )
             # Imported here: the agent registry reads skills through this service.
             from app.services.skill_agents import SkillAgentService
 

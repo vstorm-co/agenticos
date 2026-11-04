@@ -4,11 +4,13 @@ All or nothing: every agent loses the skill and the skill is gone, or a refusal 
 the agents it could not be taken from and nothing changes.
 """
 
+import asyncio
+import contextlib
 from typing import Any
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError, InUseError
@@ -16,6 +18,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
+from app.repositories import agent_repo, skill_repo
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published
 from tests.integration.test_skill_bindings import (
@@ -204,3 +207,88 @@ class TestRefusingTheWholeDelete:
         )
         assert refused.value.details["problems"]
         assert refused.value.message.startswith("'Clerk' does not publish without 'refunds'")
+
+
+class TestBesideAnotherWriter:
+    """Two sessions on one skill: the delete and a draft save or a new binding."""
+
+    async def test_a_draft_saved_meanwhile_waits_for_its_turn_instead_of_deadlocking(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """A save locks its agent, then holds the skill; the delete takes them in that order."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec=_spec(skill))
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id, remove_from_agents=True)
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as saving:
+            try:
+                await agent_repo.get(
+                    saving, agent.id, organization_id=ctx.organization_id, for_update=True
+                )
+                task = asyncio.create_task(delete())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await asyncio.wait_for(
+                    skill_repo.hold(saving, [skill.id], organization_id=ctx.organization_id), 5
+                )
+                await saving.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        async with factory() as reading:
+            assert await reading.get(Skill, skill.id) is None
+            after = await reading.get(Agent, agent.id)
+            assert after is not None and AgentSpec.model_validate(after.draft_spec).skill_ids == []
+
+    async def test_an_agent_that_starts_using_it_meanwhile_refuses_the_delete(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """It was not locked with the others, so nothing is removed and nothing deleted."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        clerk = await _published(db, ctx, name="Clerk", spec=_spec(skill))
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id, remove_from_agents=True)
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as binding:
+            try:
+                await skill_repo.hold(binding, [skill.id], organization_id=ctx.organization_id)
+                await _published(binding, ctx, name="Desk", spec=_spec(skill))
+                task = asyncio.create_task(delete())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await binding.commit()
+                with pytest.raises(InUseError) as refused:
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        assert refused.value.details == {"reason": "agents_changed"}
+        async with factory() as reading:
+            assert await reading.get(Skill, skill.id) is not None
+            after = await reading.get(Agent, clerk.id)
+            assert after is not None and after.draft_spec == _spec(skill)
