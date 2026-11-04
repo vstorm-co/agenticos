@@ -63,7 +63,7 @@ export function NextStep({
   const [moved, setMoved] = useState<"price" | "line" | null>(null);
   const [stuck, setStuck] = useState(false);
   // A refusal belongs to the price it answered, so pricing again clears it.
-  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const [said, setSaid] = useState<{ key: string; text: string } | null>(null);
   // Choosing or rewording a change changes what the check measures, and so its price.
   const candidate = currentAttempt(session)?.candidate_spec_hash;
   const key = JSON.stringify([
@@ -77,7 +77,7 @@ export function NextStep({
     revision,
   ]);
   const priced = quote?.key === key ? quote.value : null;
-  const error = failure?.key === key ? failure.message : null;
+  const error = said?.key === key ? said.text : null;
   const estimate = actions.estimateContinuation.mutateAsync;
   // Too few questions kept aside is final for this session: it keeps the questions it began with.
   const refusal = useCallback(
@@ -99,7 +99,7 @@ export function NextStep({
         if (current) setQuote({ key, value });
       },
       (refused: unknown) => {
-        if (current) setFailure({ key, message: refusal(refused) });
+        if (current) setSaid({ key, text: refusal(refused) });
       },
     );
     return () => {
@@ -109,7 +109,7 @@ export function NextStep({
   if (!stop || readOnly || !allowed) return null;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
-    setFailure(null);
+    setSaid(null);
     try {
       await actions.continueSession.mutateAsync({ ...value, body });
       setMoved(null);
@@ -117,7 +117,7 @@ export function NextStep({
       onStarted();
     } catch (cause) {
       if (!(cause instanceof ApiError && cause.status === 409)) {
-        setFailure({ key, message: getErrorMessage(cause, tErrors) });
+        setSaid({ key, text: getErrorMessage(cause, tErrors) });
         return;
       }
       const line = cause.code === "LINE_MOVED";
@@ -126,7 +126,7 @@ export function NextStep({
         setMoved(line ? "line" : "price");
         setStuck(false);
       } catch (again) {
-        setFailure({ key, message: refusal(again) });
+        setSaid({ key, text: refusal(again) });
         setStuck(line);
       }
     }
