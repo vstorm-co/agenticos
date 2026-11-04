@@ -364,9 +364,10 @@ class CollectionAccessService:
     async def detach_sources_targeting(self, kb: KnowledgeBase) -> None:
         """Detach and deactivate exactly this base's sync sources, before it is deleted or cleared.
 
-        `KnowledgeBaseService.delete`, `delete_for_rag_collection` (a cleared
-        default base included, whose row stays) and a member's personal purge
-        call this, whoever else holds the name: a source left pointing at the
+        `KnowledgeBaseService._tear_down` (`DELETE /kb/{id}`, `DELETE
+        /rag/collections/{name}` and `rag-drop`, a cleared default base included,
+        whose row stays) and a member's personal purge call this, whoever else
+        holds the name: a source left pointing at the
         name would sync into the base that keeps it, or unfiled into none, and
         one left on a cleared default would refill it (#2551). An organization's
         purge does not: its sources go with it. The configuration is kept for an

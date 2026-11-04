@@ -384,8 +384,8 @@ class KnowledgeBaseService:
             # Reserve the name against reuse until the deferred drop runs, so a
             # concurrent claim cannot adopt the still-populated table (#1362).
             await collection_teardown_repo.reserve(self.db, collection)
-        # A kept default's sources stop too: due again on its kept row, they would
-        # refill what was just dropped, or run clean over stale sync state.
+        # Unconditional: a default's row stays, so its sources would otherwise stay
+        # due and sync the purged documents back into it.
         await CollectionAccessService(self.db).detach_sources_targeting(kb)
         if not kb.is_default:
             await knowledge_base_repo.delete(self.db, kb.id)
