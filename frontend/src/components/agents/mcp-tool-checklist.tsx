@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { Search, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -190,6 +190,7 @@ function ToolGroup({
           onValueChange={(next) => onAsk(next === "ask")}
         >
           <SelectTrigger
+            icon={ShieldCheck}
             size="sm"
             className="ml-auto w-auto gap-1.5"
             aria-label={t("approvalForGroup", { group: label })}

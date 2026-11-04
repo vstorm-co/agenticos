@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
-import { FORM_CONTROL } from "./control-styles";
+import { Check, ChevronDown, ChevronUp, ListFilter, type LucideIcon } from "lucide-react";
+import { FILTER_CONTROL, FORM_CONTROL } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -18,26 +18,36 @@ const SelectTrigger = React.forwardRef<
      * height of the filter disclosure and search box beside it.
      */
     size?: "default" | "sm";
+    /** Semantic icon; compact toolbar filters default to the filter glyph. */
+    icon?: LucideIcon;
   }
->(({ className, children, size = "default", ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      FORM_CONTROL,
-      "data-[state=open]:border-foreground/25 data-[state=open]:bg-background touch:min-h-11 flex h-10 touch-manipulation items-center justify-between px-3 py-2 text-sm whitespace-nowrap [&>span]:line-clamp-1",
-      size === "sm" && "h-9 gap-1.5 px-2.5 py-1 text-[13px]",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown
-        className={cn("text-foreground/75 stroke-2", size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4")}
-      />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+>(({ className, children, size = "default", icon, ...props }, ref) => {
+  const Icon = icon ?? (size === "sm" ? ListFilter : undefined);
+  return (
+    <SelectPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        FORM_CONTROL,
+        "data-[state=open]:border-foreground/25 touch:min-h-11 flex h-10 touch-manipulation items-center justify-between px-3 py-2 text-sm whitespace-nowrap [&>span]:line-clamp-1",
+        size === "sm" && FILTER_CONTROL,
+        Icon && "gap-2 [&>span]:min-w-0 [&>span]:flex-1 [&>span]:text-left",
+        className,
+      )}
+      {...props}
+    >
+      {Icon && <Icon aria-hidden className="size-3.5 shrink-0 opacity-70" strokeWidth={1.75} />}
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown
+          className={cn(
+            "text-foreground/60 shrink-0 stroke-2",
+            size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4",
+          )}
+        />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+});
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 const SelectScrollUpButton = React.forwardRef<

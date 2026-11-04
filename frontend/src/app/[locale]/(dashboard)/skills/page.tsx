@@ -1,5 +1,7 @@
 "use client";
 
+import { FILTER_CONTROL } from "@/components/ui/control-styles";
+
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
@@ -213,8 +215,12 @@ export default function SkillsPage() {
                   <DropdownMenuTrigger asChild>
                     {/* Drawn like every other filter in the console - the
                           agents' label filters and the selects beside them. */}
-                    <Button variant="outline" className="h-9 px-3 font-normal">
-                      <ListFilter className="h-4 w-4" />
+                    <Button variant="outline" className={FILTER_CONTROL}>
+                      <ListFilter
+                        className="size-3.5 shrink-0 opacity-70"
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
                       {selectedCategories.length === 0
                         ? t("allCategories")
                         : selectedCategories.length === 1

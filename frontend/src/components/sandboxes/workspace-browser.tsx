@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FolderOpen } from "lucide-react";
+import { ArrowDownWideNarrow, FolderOpen } from "lucide-react";
 
 import {
   ListCard,
@@ -167,7 +167,12 @@ function FlatFiles() {
           </SelectContent>
         </Select>
         <Select value={sort} onValueChange={(value) => setSort(value as FlatSort)}>
-          <SelectTrigger size="sm" className="w-auto min-w-36" aria-label={t("sortFiles")}>
+          <SelectTrigger
+            size="sm"
+            icon={ArrowDownWideNarrow}
+            className="w-auto min-w-36"
+            aria-label={t("sortFiles")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
