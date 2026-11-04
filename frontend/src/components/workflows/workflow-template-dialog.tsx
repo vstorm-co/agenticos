@@ -63,7 +63,10 @@ export function WorkflowTemplateDialog({
               </Button>
               <div className="grid items-stretch gap-4 sm:grid-cols-2">
                 {templates.map((template) => (
-                  <div key={template.id} className="flex flex-col gap-4 rounded-xl border p-5">
+                  <div
+                    key={template.id}
+                    className="bg-muted flex flex-col gap-4 rounded-xl border p-5"
+                  >
                     <Workflow className="text-muted-foreground size-8" aria-hidden />
                     <div className="flex-1 space-y-2">
                       <h3 className="font-semibold">{t(`templates.${template.id}.name`)}</h3>
@@ -107,7 +110,7 @@ export function WorkflowTemplateDialog({
                     type="button"
                     key={id}
                     onClick={() => setCategory(id)}
-                    className="hover:bg-accent hover:border-foreground/30 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
+                    className="bg-muted hover:bg-accent focus-visible:ring-ring/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
                   >
                     <Icon
                       className="text-muted-foreground row-span-4 size-7 sm:size-8"

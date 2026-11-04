@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Restore contrast between dialog surfaces, gallery and template cards, audience choices and file editors. Skill and context editors now separate the file tree, toolbar and document from the surrounding form. Skill descriptions use single-line inputs in create and edit forms.
+
 - Unify scheduled, event and monitoring routine dialogs with one form frame, shared navigation and message editor. Creating a watch now uses three steps, preserves the draft when going back and groups advanced settings in one panel. Agent pickers display their avatars.
 
 - Keep chart axes, legends and tooltip text readable in both themes across dashboard charts, sparklines and charts made by agents.

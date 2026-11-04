@@ -67,10 +67,10 @@ const DialogContent = React.forwardRef<
           if (document.querySelector("[data-coach-card]")) event.preventDefault();
         }}
         className={cn(
-          // A floating surface separates the form from the cards behind it.
+          // Dialogs use the form surface; popover gray is reserved for short-lived menus.
           // Rises a few pixels as it scales in, and settles with a spring - the
           // motion of something placed in front of the page, not faded onto it.
-          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 border-foreground/10 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-3 overflow-y-auto overscroll-contain rounded-xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:gap-5 sm:p-6",
+          "bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2 border-foreground/10 fixed top-[var(--dialog-center)] left-[50%] z-50 grid max-h-[var(--dialog-available-height)] w-[calc(100%-1.5rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-3 overflow-y-auto overscroll-contain rounded-xl border p-5 shadow-[0_32px_80px_-24px_oklch(0%_0_0/0.45),0_2px_8px_oklch(0%_0_0/0.08)] duration-300 data-[state=closed]:duration-150 data-[state=open]:ease-[var(--ease-spring)] sm:gap-5 sm:p-6",
           className,
         )}
         {...props}
