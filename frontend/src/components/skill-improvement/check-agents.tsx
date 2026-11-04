@@ -10,6 +10,7 @@ import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { AgentCheckState, SkillCheck, SkillCheckAgent } from "@/types/skill-checks";
 import { CheckSummary, FixBreakBar } from "./check-summary";
+import { StageBreakdown } from "./stage-breakdown";
 
 const TONE: Record<AgentCheckState, Tone> = {
   queued: "neutral",
@@ -115,22 +116,26 @@ function AgentRow({
   const [open, setOpen] = useState(false);
   const measured = !["queued", "running", "unknown"].includes(row.state);
   return (
-    <li className="px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <Link
-            href={ROUTES.AGENT_DETAIL(row.agent.id)}
-            className="block truncate text-sm font-medium hover:underline"
-          >
-            {row.agent.name}
-          </Link>
+    <li>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={t("details", { name: row.agent.name })}
+        className="hover:bg-muted/40 flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left"
+        onClick={() => {
+          setOpen(!open);
+          onOpen();
+        }}
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">{row.agent.name}</span>
           {row.via_specialist !== null && (
-            <p className="text-muted-foreground text-xs">
+            <span className="text-muted-foreground block text-xs">
               {t("viaSpecialist", { name: row.via_specialist })}
-            </p>
+            </span>
           )}
-        </div>
-        <div className="flex items-center gap-3">
+        </span>
+        <span className="flex items-center gap-3">
           {measured && <FixBreakBar fixed={row.fixed} broken={row.broken} most={most} />}
           {seen && (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
@@ -139,20 +144,15 @@ function AgentRow({
             </span>
           )}
           <StateBadge tone={TONE[row.state]}>{t(`state.${row.state}`)}</StateBadge>
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-label={t("details", { name: row.agent.name })}
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setOpen(!open);
-              onOpen();
-            }}
-          >
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-          </button>
-        </div>
-      </div>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "text-muted-foreground h-4 w-4 transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </span>
+      </button>
       {open && <AgentDetails row={row} measured={measured} />}
     </li>
   );
@@ -160,8 +160,9 @@ function AgentRow({
 
 function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boolean }) {
   const t = useTranslations("skillImprovement.agents");
+  const ran = row.stages.filter((stage) => stage.eval_run_id !== null);
   return (
-    <div className="mt-2 space-y-1.5">
+    <div className="space-y-2 px-4 pb-3">
       {measured && (
         <p className="text-sm">{t("fixedBroken", { fixed: row.fixed, broken: row.broken })}</p>
       )}
@@ -171,25 +172,19 @@ function AgentDetails({ row, measured }: { row: SkillCheckAgent; measured: boole
       {row.sample === "skill_set_only" && (
         <p className="text-muted-foreground text-xs">{t("skillSetOnly")}</p>
       )}
-      {row.stages.some((stage) => stage.eval_run_id !== null) && (
-        <p className="flex flex-wrap gap-x-3 text-xs">
-          {row.stages.map(
-            (stage) =>
-              stage.eval_run_id !== null && (
-                <Link
-                  key={stage.eval_run_id}
-                  className="underline underline-offset-4"
-                  href={`${ROUTES.AGENT_DETAIL(row.agent.id)}/evals/${stage.eval_run_id}`}
-                >
-                  {t(`stage.${stage.kind}`, {
-                    name: stage.dataset_name ?? "",
-                    named: stage.dataset_name === null ? "no" : "yes",
-                  })}
-                </Link>
-              ),
-          )}
-        </p>
+      {ran.length > 0 && (
+        <ul className="space-y-1 rounded-md border px-3 py-2">
+          {ran.map((stage) => (
+            <StageBreakdown key={stage.eval_run_id} agentId={row.agent.id} stage={stage} />
+          ))}
+        </ul>
       )}
+      <Link
+        href={ROUTES.AGENT_DETAIL(row.agent.id)}
+        className="text-muted-foreground inline-block text-xs underline underline-offset-4"
+      >
+        {t("openAgent", { name: row.agent.name })}
+      </Link>
     </div>
   );
 }

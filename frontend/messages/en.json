@@ -15580,7 +15580,11 @@
       },
       "seenCount": "{seen, plural, =0 {None of {total} agents looked at yet} other {Looked at # of {total} agents}}",
       "seen": "Seen",
-      "details": "Details of {name}"
+      "details": "Details of {name}",
+      "stageCounts": "{better} better · {same} same · {worse} worse · {unknown} not known",
+      "stageLoading": "Reading the results…",
+      "stageUnread": "Its results could not be read.",
+      "openAgent": "Open {name}"
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",

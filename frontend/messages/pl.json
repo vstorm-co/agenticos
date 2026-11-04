@@ -15354,7 +15354,11 @@
       },
       "seenCount": "{seen, plural, =0 {Nie obejrzano jeszcze żadnego z {total} agentów} other {Obejrzano # z {total} agentów}}",
       "seen": "Obejrzany",
-      "details": "Szczegóły: {name}"
+      "details": "Szczegóły: {name}",
+      "stageCounts": "lepiej: {better} · bez zmian: {same} · gorzej: {worse} · nieznane: {unknown}",
+      "stageLoading": "Wczytywanie wyników…",
+      "stageUnread": "Nie udało się wczytać wyników.",
+      "openAgent": "Otwórz {name}"
     },
     "testSet": {
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",

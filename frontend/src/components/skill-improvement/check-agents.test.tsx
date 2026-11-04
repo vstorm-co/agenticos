@@ -3,7 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { checkAgent, skillCheck } from "@/test-utils/skill-improvement";
+import type { EvalComparison } from "@/types/eval-runs";
 import { CheckAgents } from "./check-agents";
+
+const compared = vi.hoisted(() => ({
+  comparison: undefined as Partial<EvalComparison> | undefined,
+  error: null as Error | null,
+}));
+vi.mock("@/hooks/use-eval-runs", () => ({ useEvalComparison: () => compared }));
 
 /** Opens every agent's row, as a person reading them all would. */
 async function openAll() {
@@ -12,7 +19,11 @@ async function openAll() {
   }
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  compared.comparison = undefined;
+  compared.error = null;
+});
 
 describe("CheckAgents", () => {
   it("leads with the agents to look at: worse, then unknown", async () => {
@@ -28,8 +39,12 @@ describe("CheckAgents", () => {
       />,
     );
 
-    const names = screen.getAllByRole("link", { name: /^(Support|Refunds|Billing)$/ });
-    expect(names.map((link) => link.textContent)).toEqual(["Refunds", "Billing", "Support"]);
+    const rows = screen.getAllByRole("button", { name: /^Details of / });
+    expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
+      "Details of Refunds",
+      "Details of Billing",
+      "Details of Support",
+    ]);
     await openAll();
     expect(screen.getByText("Not checked: its budget is spent.")).toBeInTheDocument();
   });
@@ -88,7 +103,7 @@ describe("CheckAgents", () => {
     render(<CheckAgents check={skillCheck({ agents: [own, specialist] })} />);
     await openAll();
 
-    expect(screen.getAllByRole("link", { name: "Support" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Details of Support" })).toHaveLength(2);
     expect(screen.getByRole("link", { name: "Run on the agent's questions" })).toBeVisible();
   });
 
@@ -150,5 +165,49 @@ describe("CheckAgents", () => {
     await userEvent.click(screen.getByRole("button", { name: "Details of Sales" }));
     expect(screen.getByText("Seen")).toBeVisible();
     setItem.mockRestore();
+  });
+
+  it("opens a row from anywhere on it, and by keyboard", async () => {
+    render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
+    const row = screen.getByRole("button", { name: "Details of Refunds" });
+
+    await userEvent.click(screen.getByText("Refunds"));
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    row.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(row).toHaveAttribute("aria-expanded", "false");
+    await userEvent.keyboard(" ");
+    expect(row).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Open Refunds" })).toHaveAttribute(
+      "href",
+      "/agents/refunds",
+    );
+  });
+
+  it("breaks each stage down into better, same, worse and not known", async () => {
+    compared.comparison = {
+      fixed_confirmed: 1,
+      fixed_unconfirmed: 1,
+      regressions_confirmed: 1,
+      regressions_unconfirmed: 0,
+      compared: 7,
+      not_compared: 2,
+    };
+    render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
+    await openAll();
+
+    expect(screen.getByText("2 better · 4 same · 1 worse · 2 not known")).toBeInTheDocument();
+  });
+
+  it("says while a stage's results are read, and when they cannot be", async () => {
+    const { rerender } = render(
+      <CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />,
+    );
+    await openAll();
+    expect(screen.getByText("Reading the results…")).toBeInTheDocument();
+
+    compared.error = new Error("Forbidden");
+    rerender(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
+    expect(screen.getByText("Its results could not be read.")).toBeInTheDocument();
   });
 });
