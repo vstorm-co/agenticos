@@ -536,7 +536,7 @@ class TestTheLateAnswerTemplate:
     @pytest.mark.parametrize(
         "stored, expected",
         [
-            (to_stored(TEMPLATE), TEMPLATE.__dict__),
+            (to_stored(TEMPLATE), to_stored(TEMPLATE)),
             (None, None),
             ({"name": "late_answer", "language": "en_US", "body": "no variable"}, None),
             ("garbage", None),

@@ -1019,6 +1019,45 @@ class TestTheWindow:
         assert window.closures == [NOW]
         assert graph.send_template.await_args.kwargs["text"] == "short"
 
+    async def test_a_closure_is_recorded_at_the_send_attempt_not_at_the_refusal(self, graph):
+        attempt = datetime(2026, 11, 4, 12, 0, 0, 750_000, tzinfo=UTC)
+        later = attempt + timedelta(seconds=3)
+        clock = [attempt]
+
+        async def refuse(*args: Any, **kwargs: Any) -> None:
+            clock[0] = later
+            raise _refusal(CLOSED_WINDOW_CODE)
+
+        graph.send_text.side_effect = refuse
+        window = OpenWindow(template=TEMPLATE)
+        with patch.object(whatsapp, "_now", side_effect=lambda: clock[0]):
+            await _late_adapter(graph, window).send_message(TOKEN, _message("short", run_id="r1"))
+        assert window.closures == [attempt.replace(microsecond=0)]
+
+    async def test_a_prompt_closure_is_recorded_at_the_send_attempt_not_at_the_refusal(self, graph):
+        attempt = datetime(2026, 11, 4, 12, 0, 0, 750_000, tzinfo=UTC)
+        later = attempt + timedelta(seconds=3)
+        clock = [attempt]
+
+        async def refuse(*args: Any, **kwargs: Any) -> None:
+            clock[0] = later
+            raise _refusal(CLOSED_WINDOW_CODE)
+
+        graph.send_interactive.side_effect = refuse
+        window = OpenWindow()
+        prompt = PromptMessage(
+            platform_chat_id=CHAT,
+            text="Approve?",
+            choices=[ChannelChoice(label="Yes", value="y")],
+            run_id="r1",
+        )
+        with (
+            patch.object(whatsapp, "_now", side_effect=lambda: clock[0]),
+            pytest.raises(WhatsAppWindowClosed),
+        ):
+            await _late_adapter(graph, window).send_prompt(TOKEN, prompt)
+        assert window.closures == [attempt.replace(microsecond=0)]
+
     async def test_any_other_refusal_from_a_send_is_raised_untouched(self, graph):
         graph.send_text.side_effect = _refusal(131026)
         window = OpenWindow(template=TEMPLATE)

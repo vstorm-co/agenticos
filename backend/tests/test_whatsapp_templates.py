@@ -114,3 +114,66 @@ def test_a_stored_template_reads_back_and_garbage_reads_as_none() -> None:
     assert stored_template(None) is None
     assert stored_template({"name": 1}) is None
     assert stored_template({"name": "n", "language": "en", "body": "{{1}} and {{2}}"}) is None
+
+
+def _buttons(*buttons: object) -> dict[str, Any]:
+    return {"type": "BUTTONS", "buttons": list(buttons)}
+
+
+def _quick(text: object = "Show me") -> dict[str, Any]:
+    return {"type": "QUICK_REPLY", "text": text}
+
+
+def test_one_quick_reply_is_the_templates_button() -> None:
+    [template] = usable_templates([entry(extra=[_buttons(_quick())])])
+    assert template.button == "Show me"
+
+
+def test_a_template_with_no_buttons_has_none() -> None:
+    [template] = usable_templates([entry()])
+    assert template.button is None
+
+
+def test_two_quick_replies_make_a_template_unusable() -> None:
+    one_component = entry(extra=[_buttons(_quick("A"), _quick("B"))])
+    two_components = entry(extra=[_buttons(_quick("A")), _buttons(_quick("B"))])
+    assert usable_templates([one_component, two_components]) == []
+
+
+def test_a_url_button_beside_one_quick_reply_is_fine() -> None:
+    url = {"type": "URL", "text": "Site", "url": "https://example.test"}
+    [template] = usable_templates([entry(extra=[_buttons(url, _quick())])])
+    assert template.button == "Show me"
+
+
+def test_buttons_that_are_not_a_list_or_not_mappings_are_skipped() -> None:
+    odd = [
+        entry(extra=[{"type": "BUTTONS", "buttons": None}]),
+        entry(extra=[{"type": "BUTTONS"}]),
+        entry(extra=[_buttons("nope", None, _quick())]),
+    ]
+    assert [t.button for t in usable_templates(odd)] == [None, None, "Show me"]
+
+
+def test_a_quick_reply_with_no_text_is_usable_without_a_button() -> None:
+    listing = [
+        entry(extra=[_buttons({"type": "QUICK_REPLY"})]),
+        entry(extra=[_buttons(_quick(""))]),
+    ]
+    templates = usable_templates(listing)
+    assert [t.button for t in templates] == [None, None]
+
+
+def test_the_button_round_trips_through_storage() -> None:
+    [with_button] = usable_templates([entry(extra=[_buttons(_quick())])])
+    [without] = usable_templates([entry()])
+    assert to_stored(with_button)["button"] == "Show me"
+    assert "button" not in to_stored(without)
+    assert stored_template(to_stored(with_button)) == with_button
+    assert stored_template(to_stored(without)) == without
+
+
+def test_a_stored_button_that_is_not_text_is_dropped_and_the_template_kept() -> None:
+    stored = {"name": "n", "language": "en", "body": "A {{1}} b.", "button": 5}
+    template = stored_template(stored)
+    assert template is not None and template.button is None

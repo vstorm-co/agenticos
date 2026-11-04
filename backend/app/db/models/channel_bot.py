@@ -74,7 +74,7 @@ class ChannelBot(Base, TimestampMixin):
     whatsapp_account_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     whatsapp_verify_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     # The utility template a WhatsApp bot answers in once the customer's 24-hour
-    # window has closed: `{name, language, body}` (`whatsapp_templates.to_stored`).
+    # window has closed: `{name, language, body[, button]}` (`whatsapp_templates.to_stored`).
     # Read back through `stored_template`, so a malformed value reads as none.
     whatsapp_late_template: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
 

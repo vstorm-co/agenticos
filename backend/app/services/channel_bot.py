@@ -649,8 +649,8 @@ class ChannelBotService:
                 return to_stored(template)
         raise refused_field(
             "whatsapp_late_template",
-            "Meta lists no approved utility template with that name and language "
-            "and one variable in its body",
+            "Meta lists no approved utility template with that name and language, "
+            "one variable in its body and at most one quick-reply button",
         )
 
     async def whatsapp_templates(self, bot_id: UUID) -> list[LateTemplate]:

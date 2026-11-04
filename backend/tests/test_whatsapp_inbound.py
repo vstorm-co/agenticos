@@ -21,6 +21,7 @@ from app.services.channels.whatsapp_customers import Held, WindowStore
 from app.services.channels.whatsapp_graph import WhatsAppGraphError
 from app.services.channels.whatsapp_inbound import WhatsAppInbound, handle_customer
 from app.services.channels.whatsapp_payload import ParsedWebhook, WhatsAppMessage, parse_webhook
+from app.services.channels.whatsapp_templates import LateTemplate
 from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED
 from tests.test_whatsapp_payload import FIXTURES
 
@@ -228,8 +229,16 @@ def _answer_id(run_id: uuid.UUID) -> uuid.UUID:
 class StubStore(WindowStore):
     """The held rows in memory, with the claim and settle rules the real store has."""
 
-    def __init__(self, rows: list[Held], *, window: bool | None = True, order: list[str]) -> None:
+    def __init__(
+        self,
+        rows: list[Held],
+        *,
+        window: bool | None = True,
+        order: list[str],
+        template: LateTemplate | Exception | None = None,
+    ) -> None:
         super().__init__()
+        self.template = template
         self.rows = list(rows)
         self.claimed: set[uuid.UUID] = set()
         self.window_state = window
@@ -238,6 +247,11 @@ class StubStore(WindowStore):
         self.held_new: list[uuid.UUID] = []
         self.closures: list[datetime] = []
         self.hold_is_new = True
+
+    async def late_template(self, bot_id: str) -> LateTemplate | None:
+        if isinstance(self.template, Exception):
+            raise self.template
+        return self.template
 
     async def has_held(self, bot_id: str, chat_id: str, *, now: datetime) -> bool:
         return any(row.id not in self.claimed or row.answer or row.files for row in self.rows)
@@ -436,9 +450,15 @@ def _text(text: str = "any news?") -> list[WhatsAppMessage]:
     return list(_batch(("wamid.N1", CHAT, 5, text)).messages)
 
 
-def _tap() -> list[WhatsAppMessage]:
+def _template(button: str | None) -> LateTemplate:
+    return LateTemplate(name="late_answer", language="en_US", body="Update: {{1}}", button=button)
+
+
+def _tap(label: str = "Show me") -> list[WhatsAppMessage]:
     payload = _fixture("template_button")
-    payload["entry"][0]["changes"][0]["value"]["messages"][0]["timestamp"] = str(NOW - 2)
+    message = payload["entry"][0]["changes"][0]["value"]["messages"][0]
+    message["timestamp"] = str(NOW - 2)
+    message["button"] = {"payload": label, "text": label}
     return list(_parse(payload).messages)
 
 
@@ -720,12 +740,55 @@ class TestHeldAnswers:
 
     async def test_a_show_me_tap_is_not_answered_after_a_held_answer(self, world):
         run = world.run()
-        store = world.store([world.held(run)])
+        store = world.store([world.held(run)], template=_template("Show me"))
 
-        await _handle(world, store, _tap())
+        with patch(f"{MODULE}.claim_delivery", AsyncMock()) as claim:
+            await _handle(world, store, _tap())
 
         assert len(world.sent) == 1
         assert world.routed == []
+        claim.assert_awaited_once()
+        assert claim.await_args.args[0].message_id == "wamid.T1"
+
+    async def test_another_template_button_after_a_held_answer_is_routed(self, world):
+        run = world.run()
+        store = world.store([world.held(run)], template=_template("Show me"))
+
+        await _handle(world, store, _tap("Stop"))
+
+        assert [e.text for e in world.routed[0]] == ["Stop"]
+
+    async def test_a_show_me_tap_is_routed_when_the_template_has_no_stored_button(self, world):
+        run = world.run()
+        store = world.store([world.held(run)], template=_template(None))
+
+        await _handle(world, store, _tap())
+
+        assert [e.text for e in world.routed[0]] == ["Show me"]
+
+    async def test_a_show_me_tap_is_routed_when_there_is_no_template_and_nothing_is_logged(
+        self, world, caplog
+    ):
+        run = world.run()
+        store = world.store([world.held(run)], template=None)
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store, _tap())
+
+        assert [e.text for e in world.routed[0]] == ["Show me"]
+        assert "whatsapp_template_unread" not in caplog.text
+
+    async def test_an_unreadable_template_still_routes_the_batch(self, world, caplog):
+        run = world.run()
+        store = world.store([world.held(run)], template=RuntimeError("secret-bsuid"))
+
+        with caplog.at_level(logging.WARNING):
+            await _handle(world, store, _tap())
+
+        assert [e.text for e in world.routed[0]] == ["Show me"]
+        (record,) = [r for r in caplog.records if r.message == "whatsapp_template_unread"]
+        assert (record.bot_id, record.error) == (BOT, "RuntimeError")
+        assert "secret-bsuid" not in caplog.text
 
     async def test_a_show_me_tap_after_a_prompt_only_delivery_is_routed(self, world):
         run = world.run(status=PARKED)
@@ -856,7 +919,7 @@ class TestHeldAnswers:
 
     async def test_a_tap_dropped_after_a_held_answer_still_claims_its_delivery(self, world):
         run = world.run()
-        store = world.store([world.held(run)])
+        store = world.store([world.held(run)], template=_template("Show me"))
         [tap] = _tap()
 
         with patch(f"{MODULE}.claim_delivery", AsyncMock(return_value=True)) as claim:
@@ -870,7 +933,7 @@ class TestHeldAnswers:
         self, world
     ):
         first, second = world.run(status=PARKED), world.run()
-        store = world.store([world.held(first), world.held(second)])
+        store = world.store([world.held(first), world.held(second)], template=_template("Show me"))
         settled = store.answer_sent
 
         async def fail_second(held: Held, *, prompts_owed: bool) -> None:

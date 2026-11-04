@@ -2296,7 +2296,7 @@
       "whatsappLateTemplateHint": "Używany, gdy odpowiedź jest gotowa po zamknięciu 24-godzinnego okna klienta. Każda taka późna odpowiedź jest wysyłana jako wiadomość z szablonu, za którą Meta pobiera opłatę.",
       "whatsappLateTemplateNone": "Brak",
       "whatsappLateTemplateLoading": "Wczytywanie szablonów…",
-      "whatsappLateTemplateEmpty": "Meta nie pokazuje na tym koncie żadnego zatwierdzonego szablonu Utility z jedną zmienną w treści.",
+      "whatsappLateTemplateEmpty": "Meta nie pokazuje na tym koncie żadnego zatwierdzonego szablonu Utility z jedną zmienną w treści i co najwyżej jednym przyciskiem szybkiej odpowiedzi.",
       "whatsappLateTemplateFailed": "Nie udało się wczytać szablonów z Mety. Spróbuj za chwilę, a jeśli błąd się powtarza, sprawdź token dostępu bota.",
       "whatsappLateTemplateOption": "{name} · {language}",
       "whatsappLateTemplateUnlisted": "{name} · {language} (Meta nie pokazuje go już jako możliwego do użycia)",

@@ -5469,7 +5469,7 @@
       "whatsappLateTemplateHint": "Wird verwendet, wenn eine Antwort erst nach Ablauf des 24-Stunden-Fensters des Kunden fertig ist. Jede späte Antwort wird als Vorlagennachricht gesendet, die Meta in Rechnung stellt.",
       "whatsappLateTemplateNone": "Keine",
       "whatsappLateTemplateLoading": "Vorlagen werden geladen…",
-      "whatsappLateTemplateEmpty": "Meta listet für dieses Konto keine genehmigte Utility-Vorlage mit genau einer Variablen im Text auf.",
+      "whatsappLateTemplateEmpty": "Meta listet für dieses Konto keine genehmigte Utility-Vorlage mit genau einer Variablen im Text und höchstens einer Schnellantwort-Schaltfläche auf.",
       "whatsappLateTemplateFailed": "Die Vorlagen konnten nicht von Meta geladen werden. In einem Moment erneut versuchen und bei weiteren Fehlern das Zugriffstoken des Bots prüfen.",
       "whatsappLateTemplateOption": "{name} · {language}",
       "whatsappLateTemplateUnlisted": "{name} · {language} (Meta listet sie nicht mehr als nutzbar auf)",

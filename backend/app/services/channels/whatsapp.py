@@ -156,12 +156,13 @@ class WhatsAppAdapter(ChannelAdapter):
         if await self._window_state(creds, msg.platform_chat_id) is False:
             await self._send_late(creds, msg)
             return
+        attempted = _now().replace(microsecond=0)
         try:
             await self._send_now(creds, msg)
         except WhatsAppGraphError as failure:
             if _code_of(failure) != CLOSED_WINDOW_CODE:
                 raise
-            await self._close_window(creds, msg.platform_chat_id)
+            await self._close_window(creds, msg.platform_chat_id, at=attempted)
             await self._send_late(creds, msg, refused_by_meta=True)
 
     async def _window_state(self, creds: WhatsAppCredentials, chat_id: str) -> bool | None:
@@ -178,10 +179,17 @@ class WhatsAppAdapter(ChannelAdapter):
             )
             return None
 
-    async def _close_window(self, creds: WhatsAppCredentials, chat_id: str) -> None:
-        """Record that Meta said the window is closed; a record that cannot be written is only logged."""
+    async def _close_window(
+        self, creds: WhatsAppCredentials, chat_id: str, *, at: datetime
+    ) -> None:
+        """Record that Meta said the window is closed; a record that cannot be written is only logged.
+
+        `at` is the send attempt's time, floored to the second: Meta stamps a
+        customer's message in whole seconds, and a message in the same second as
+        a closure counts as the later event (`window_open`), so it reopens the window.
+        """
         try:
-            await self._window.close(creds.bot_id, chat_id, at=_now())
+            await self._window.close(creds.bot_id, chat_id, at=at)
         except Exception as failure:
             logger.warning(
                 "whatsapp_window_unwritten",
@@ -514,6 +522,7 @@ class WhatsAppAdapter(ChannelAdapter):
             await self._hold_prompt(creds, prompt, refused_by_meta=False)
         plan = plan_interactive(to_whatsapp(prompt.text).strip(), prompt.choices)
         self._stop_typing((creds.bot_id, prompt.platform_chat_id))
+        attempted = _now().replace(microsecond=0)
         try:
             if plan is None:
                 # The base class's text list, sent here: a refusal as outside the window
@@ -550,7 +559,7 @@ class WhatsAppAdapter(ChannelAdapter):
         except WhatsAppGraphError as failure:
             if _code_of(failure) != CLOSED_WINDOW_CODE:
                 raise
-            await self._close_window(creds, prompt.platform_chat_id)
+            await self._close_window(creds, prompt.platform_chat_id, at=attempted)
             await self._hold_prompt(creds, prompt, refused_by_meta=True)  # always raises
         await self._record_sent(creds)
 

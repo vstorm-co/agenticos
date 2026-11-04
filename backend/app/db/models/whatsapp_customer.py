@@ -37,7 +37,7 @@ class WhatsAppCustomer(Base, TimestampMixin):
     bot_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("channel_bots.id", ondelete="CASCADE"), nullable=False
     )
-    bsuid: Mapped[str] = mapped_column(String(100), nullable=False)
+    bsuid: Mapped[str] = mapped_column(String(255), nullable=False)
     """The same width as `channel_sessions.platform_chat_id`."""
 
     last_inbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -46,7 +46,7 @@ class WhatsAppCustomer(Base, TimestampMixin):
     window_closed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    """When Meta last refused a send as outside the window; older than `last_inbound_at` means reopened."""
+    """When Meta last refused a send as outside the window; not after `last_inbound_at` means reopened."""
 
     def __repr__(self) -> str:
         return f"<WhatsAppCustomer(bot={self.bot_id}, last_inbound_at={self.last_inbound_at})>"

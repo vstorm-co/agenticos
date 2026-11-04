@@ -40,12 +40,17 @@ _WHITESPACE = re.compile(r"\s+")
 def window_open(
     *, last_inbound_at: datetime | None, closed_at: datetime | None, now: datetime
 ) -> bool:
-    """Whether a free-form message may be sent to the customer now."""
+    """Whether a free-form message may be sent to the customer now.
+
+    A closure marked in the same second as the customer's latest message does not
+    close the window: Meta stamps messages in whole seconds, so the message is
+    taken as the later event.
+    """
     if last_inbound_at is None:
         return False
     if now >= last_inbound_at + WINDOW - WINDOW_MARGIN:
         return False
-    return closed_at is None or closed_at < last_inbound_at
+    return closed_at is None or closed_at <= last_inbound_at
 
 
 def closure_is_news(
@@ -55,11 +60,12 @@ def closure_is_news(
 
     A closure older than the customer's latest message describes a window that has
     since been reopened (statuses trail by minutes), and a closure already marked
-    since that message adds nothing.
+    since that message adds nothing. A closure marked in the same second as the
+    message has been superseded by it, so a later closure is news.
     """
     if last_inbound_at is not None and at <= last_inbound_at:
         return False
-    return closed_at is None or (last_inbound_at is not None and closed_at < last_inbound_at)
+    return closed_at is None or (last_inbound_at is not None and closed_at <= last_inbound_at)
 
 
 def flatten(text: str) -> str:

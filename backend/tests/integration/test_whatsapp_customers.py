@@ -15,12 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_identity import ChannelIdentity
+from app.db.models.channel_link_request import ChannelLinkRequest
+from app.db.models.channel_session import ChannelSession
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.models.whatsapp_customer import WhatsAppCustomer, WhatsAppHeldRun
 from app.repositories import agent_run_repo, conversation_repo, whatsapp_customer_repo
 from app.services.channels.whatsapp_customers import Held, WindowStore
+from app.services.channels.whatsapp_payload import platform_user_id_for
 from app.services.channels.whatsapp_templates import LateTemplate, to_stored
 from app.services.channels.whatsapp_window import CLAIM_LEASE
 
@@ -71,6 +75,39 @@ async def _run(db: AsyncSession, org: Organization, user: User, agent: Agent) ->
 
 async def _customer(db: AsyncSession, org: Organization, bot: ChannelBot) -> WhatsAppCustomer:
     return await whatsapp_customer_repo.lock(db, organization_id=org.id, bot_id=bot.id, bsuid=BSUID)
+
+
+async def test_a_full_length_business_scoped_id_fits_every_column_that_holds_it(
+    db: AsyncSession,
+) -> None:
+    org, bot, _, _ = await _estate(db)
+    longest = "US." + "a" * 128
+    namespaced = platform_user_id_for(org.id, longest)
+    assert (len(longest), len(namespaced)) == (131, 168)
+
+    await whatsapp_customer_repo.record_inbound(
+        db, organization_id=org.id, bot_id=bot.id, bsuid=longest, sent_at=T1
+    )
+    identity = ChannelIdentity(platform="whatsapp", platform_user_id=namespaced)
+    db.add(identity)
+    await db.flush()
+    db.add_all(
+        [
+            ChannelSession(bot_id=bot.id, identity_id=identity.id, platform_chat_id=longest),
+            ChannelLinkRequest(
+                token=uuid.uuid4().hex,
+                platform="whatsapp",
+                platform_user_id=namespaced,
+                expires_at=T2,
+            ),
+        ]
+    )
+    await db.flush()
+
+    assert (await db.scalar(select(WhatsAppCustomer.bsuid))) == longest
+    assert (await db.scalar(select(ChannelIdentity.platform_user_id))) == namespaced
+    assert (await db.scalar(select(ChannelSession.platform_chat_id))) == longest
+    assert (await db.scalar(select(ChannelLinkRequest.platform_user_id))) == namespaced
 
 
 async def test_the_latest_message_time_is_kept(db: AsyncSession) -> None:
@@ -536,6 +573,18 @@ class TestTheStore:
         await self._record(sessions, org, bot, T2)
         assert not await store.close(str(bot.id), BSUID, at=T1 + timedelta(minutes=30))
         assert await store.window(str(bot.id), BSUID, now=T2 + timedelta(minutes=1)) is True
+
+    async def test_a_message_in_the_second_of_a_closure_reopens_the_window(
+        self, sessions, estate
+    ) -> None:
+        org, bot, _ = estate
+        store = WindowStore(sessions)
+        await self._record(sessions, org, bot, T1)
+        assert await store.close(str(bot.id), BSUID, at=T2)
+        assert await store.window(str(bot.id), BSUID, now=T2 + timedelta(minutes=1)) is False
+        await self._record(sessions, org, bot, T2)
+        assert await store.window(str(bot.id), BSUID, now=T2 + timedelta(minutes=1)) is True
+        assert await store.close(str(bot.id), BSUID, at=T2 + timedelta(minutes=2))
 
     async def test_no_record_reads_as_none(self, sessions, estate) -> None:
         _, bot, _ = estate

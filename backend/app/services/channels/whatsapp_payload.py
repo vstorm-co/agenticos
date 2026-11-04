@@ -21,6 +21,11 @@ from app.services.channels.base import IncomingAttachment, IncomingMessage, Inco
 MAX_MESSAGE_AGE = timedelta(days=7)
 """Meta retries a refused webhook for up to a week; older than that is not a live conversation."""
 
+MAX_BSUID = 218
+"""A business-scoped id is at most 131 characters (a country code, a period, 128
+alphanumerics). Namespaced as `"{organization}:{id}"` it gains 37, and the identifier
+columns are 255 wide: a longer id is refused, never stored."""
+
 IGNORED_KINDS = frozenset({"reaction", "system"})
 """A reaction asks for no answer; a `system` number-change event is logged only, because
 the new id arrives as a new customer."""
@@ -105,11 +110,16 @@ def _location_text(location: Mapping[str, Any]) -> str:
     return " ".join(part for part in ("Location:", place, coordinates) if part)
 
 
+def _stored_id(value: str | None) -> str | None:
+    """A customer id, or `None` when it is longer than `MAX_BSUID`."""
+    return value if value is not None and len(value) <= MAX_BSUID else None
+
+
 def _message(raw: object, contacts: Mapping[str, Mapping[str, Any]]) -> WhatsAppMessage | None:
     """One message, or `None` when a required field is missing or malformed."""
     item = _mapping(raw)
     wamid, kind = _str(item.get("id")), _str(item.get("type"))
-    bsuid = _str(item.get("from_user_id")) or _str(item.get("user_id"))
+    bsuid = _stored_id(_str(item.get("from_user_id")) or _str(item.get("user_id")))
     timestamp = item.get("timestamp")
     if not (wamid and kind and bsuid and isinstance(timestamp, str | int)):
         return None
@@ -192,7 +202,7 @@ def _status(raw: object) -> WhatsAppStatus | None:
         wamid=wamid,
         status=status,
         error_codes=codes,
-        recipient=_str(item.get("recipient_user_id")),
+        recipient=_stored_id(_str(item.get("recipient_user_id"))),
         at=at,
         callback=_str(item.get("biz_opaque_callback_data")),
     )

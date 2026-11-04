@@ -12,6 +12,7 @@ import pytest
 
 from app.services.channels.base import IncomingMessage, IncomingPress
 from app.services.channels.whatsapp_payload import (
+    MAX_BSUID,
     MAX_MESSAGE_AGE,
     WhatsAppMessage,
     group_by_customer,
@@ -156,6 +157,39 @@ def test_reactions_and_system_events_are_ignored_not_answered():
     parsed = _parse("reaction_and_system")
     assert parsed.messages == ()
     assert parsed.ignored == 2
+
+
+def _with_id(name: str, user_id: str) -> dict[str, Any]:
+    payload = _load(name)
+    value = payload["entry"][0]["changes"][0]["value"]
+    for message in value.get("messages", []):
+        message["from_user_id"] = user_id
+    for status in value.get("statuses", []):
+        status["recipient_user_id"] = user_id
+    return payload
+
+
+def _read(payload: dict[str, Any]):
+    return parse_webhook(payload, phone_number_id="PNID1", account_id="WABA1", now=NOW)
+
+
+def test_a_message_from_an_id_too_long_to_store_is_unidentified():
+    kept = _read(_with_id("text", "US." + "a" * (MAX_BSUID - 3)))
+    assert [m.bsuid for m in kept.messages] == ["US." + "a" * (MAX_BSUID - 3)]
+    assert kept.unidentified == 0
+
+    refused = _read(_with_id("text", "US." + "a" * (MAX_BSUID - 2)))
+    assert refused.messages == ()
+    assert refused.unidentified == 1
+
+
+def test_a_status_recipient_too_long_to_store_reads_as_none():
+    kept = _read(_with_id("statuses", "x" * MAX_BSUID))
+    assert {s.recipient for s in kept.statuses} == {"x" * MAX_BSUID}
+
+    refused = _read(_with_id("statuses", "x" * (MAX_BSUID + 1)))
+    assert len(refused.statuses) == 2
+    assert {s.recipient for s in refused.statuses} == {None}
 
 
 def test_a_message_without_a_user_id_is_counted_not_guessed():

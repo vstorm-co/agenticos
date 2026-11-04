@@ -43,7 +43,7 @@ class ChannelLinkRequest(Base, TimestampMixin):
     # sharing one would make which account gets claimed a matter of row order.
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     platform: Mapped[str] = mapped_column(String(20), nullable=False)
-    platform_user_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    platform_user_id: Mapped[str] = mapped_column(String(255), nullable=False)
     # Shown on the confirmation page, so somebody can see *which* chat account
     # they are about to become - a token alone would ask them to trust a URL.
     platform_username: Mapped[str | None] = mapped_column(String(100), nullable=True)

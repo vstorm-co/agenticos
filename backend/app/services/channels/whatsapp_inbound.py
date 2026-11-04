@@ -168,11 +168,17 @@ async def handle_customer(
         logger.warning(
             "whatsapp_held_failed", extra={"bot_id": bot_id, "error": type(failure).__name__}
         )
-    # A tap on the template's "show me" button asked for the answer that was just sent.
-    answered = any(held.answer for held in delivered)
+    # A tap on the template's own quick-reply button asked for the answer that was just
+    # sent; any other button tap is a message like another and is routed.
+    show_me = await _template_button(bot_id, store) if any(h.answer for h in delivered) else None
     events = []
     for message in messages:
-        if answered and message.kind == "button" and message.reply_id is None:
+        if (
+            message.kind == "button"
+            and message.reply_id is None
+            and show_me is not None
+            and message.text == show_me
+        ):
             # Dropped, but still taken, so a redelivery of it is not routed as a new turn later.
             await claim_delivery(
                 to_incoming(message, bot_id=bot_id, organization_id=organization_id)
@@ -193,6 +199,18 @@ async def handle_customer(
         )
         for held in owing:
             await store.release(held)
+
+
+async def _template_button(bot_id: str, store: WindowStore) -> str | None:
+    """The bot's late-answer template's quick-reply label; `None` when it has none or cannot be read."""
+    try:
+        template = await store.late_template(bot_id)
+    except Exception as failure:
+        logger.warning(
+            "whatsapp_template_unread", extra={"bot_id": bot_id, "error": type(failure).__name__}
+        )
+        return None
+    return template.button if template is not None else None
 
 
 @dataclass(frozen=True)

@@ -32,6 +32,12 @@ def test_a_closure_since_the_latest_message_closes_the_window() -> None:
     assert window_open(last_inbound_at=T, closed_at=T - timedelta(seconds=1), now=now)
 
 
+def test_a_closure_in_the_same_second_as_the_latest_message_has_been_reopened() -> None:
+    now = T + timedelta(hours=1)
+    assert window_open(last_inbound_at=T, closed_at=T, now=now)
+    assert closure_is_news(last_inbound_at=T, closed_at=T, at=T + timedelta(seconds=1))
+
+
 def test_a_closure_older_than_the_latest_message_is_not_news() -> None:
     second = timedelta(seconds=1)
     assert not closure_is_news(last_inbound_at=T, closed_at=None, at=T - second)
