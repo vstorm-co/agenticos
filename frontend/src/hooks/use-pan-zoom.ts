@@ -85,6 +85,20 @@ export function usePanZoom(home: View = HOME) {
     return () => element.removeEventListener("wheel", onWheel);
   }, [zoomAt]);
 
+  // A press below the threshold is not captured, so its release can land outside the
+  // canvas; the page hears it either way, and a later move must not pan unpressed.
+  useEffect(() => {
+    const release = () => {
+      drag.current = null;
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, []);
+
   const panHandlers = {
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
       drag.current = {
