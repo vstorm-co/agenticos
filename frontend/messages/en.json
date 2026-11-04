@@ -8586,6 +8586,7 @@
       },
       "catchUp": "Catch “{name}” up with main",
       "toMain": "Move “{name}” to main",
+      "nothingToMerge": "Make a change in the fork first; there's nothing to merge yet.",
       "returnFork": {
         "button": "Return “{name}” to main",
         "title": "Return the agents of “{name}” to main",

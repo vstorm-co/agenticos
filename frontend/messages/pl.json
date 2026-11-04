@@ -8346,6 +8346,7 @@
       },
       "catchUp": "Dogoń main w forku „{name}”",
       "toMain": "Przenieś „{name}” do main",
+      "nothingToMerge": "Najpierw wprowadź zmianę w forku; na razie nie ma czego scalać.",
       "returnFork": {
         "button": "Przenieś „{name}” z powrotem do main",
         "title": "Przenieś agentów „{name}” z powrotem do main",

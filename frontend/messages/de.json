@@ -8464,6 +8464,7 @@
       },
       "catchUp": "„{name}“ auf main nachziehen",
       "toMain": "„{name}“ nach main übernehmen",
+      "nothingToMerge": "Ändere zuerst etwas im Fork; noch gibt es nichts zusammenzuführen.",
       "returnFork": {
         "button": "„{name}“ zu main zurückholen",
         "title": "Die Agents von „{name}“ zu main zurückholen",

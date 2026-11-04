@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Skill } from "@/types/providers";
-import { SkillPageHeader } from "./skill-page-header";
+import { SkillPageHeader, type Merges } from "./skill-page-header";
 
 const state = vi.hoisted(() => ({ runsView: true }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -21,10 +21,7 @@ const MERGES = {
   toMain: "/skills/k1/improve/new?fork=f1&merge=to_main",
 };
 
-function mount(
-  skill: Skill = SKILL,
-  merges: { fork: string; catchUp: string | null; toMain: string | null } | null = MERGES,
-) {
+function mount(skill: Skill = SKILL, merges: Merges | null = MERGES) {
   render(
     <SkillPageHeader
       skill={skill}
@@ -63,6 +60,18 @@ describe("SkillPageHeader", () => {
     document.body.innerHTML = "";
     mount({ ...SKILL, can_edit: false });
     expect(screen.queryByRole("link", { name: /to main/ })).not.toBeInTheDocument();
+  });
+
+  it("holds both merges of a fork with nothing of its own, and says why", () => {
+    mount(SKILL, { fork: "returns", catchUp: null, toMain: null, empty: true });
+    for (const name of ["Catch “returns” up with main", "Move “returns” to main"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(
+        "Make a change in the fork first; there's nothing to merge yet.",
+      );
+    }
+    expect(screen.queryByRole("link", { name: /main/ })).not.toBeInTheDocument();
   });
 
   it("offers returning a fork with nothing of its own to main", async () => {

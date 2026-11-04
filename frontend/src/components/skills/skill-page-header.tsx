@@ -1,11 +1,19 @@
 "use client";
 
+import { useId } from "react";
 import Link from "next/link";
 import { GitBranch, GitMerge, Pencil, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Badge, Button } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
@@ -20,6 +28,15 @@ import type { Skill } from "@/types/providers";
  * with main and moving it to main, which are checked the same way. New fork starts a
  * line of its own from main's newest version.
  */
+/** Where the fork shown merges with main. */
+export interface Merges {
+  fork: string;
+  catchUp: string | null;
+  toMain: string | null;
+  /** The fork has no version of its own, so neither merge has anything to carry. */
+  empty?: boolean;
+}
+
 export function SkillPageHeader({
   skill,
   line,
@@ -35,8 +52,11 @@ export function SkillPageHeader({
   line: string | null;
   /** Where Improve opens the wizard for that line. */
   improveHref: string;
-  /** Where the wizard merges the fork shown with main; each null where there is nothing to merge. */
-  merges?: { fork: string; catchUp: string | null; toMain: string | null } | null;
+  /**
+   * Where the wizard merges the fork shown with main; each null where there is nothing
+   * to merge. A fork with no version of its own has nothing yet, and says so.
+   */
+  merges?: Merges | null;
   /** Returns the fork shown to main when it has nothing of its own to merge. */
   onReturn?: { fork: string; open: () => void } | null;
   onEdit: () => void;
@@ -71,6 +91,7 @@ export function SkillPageHeader({
                   {line === null ? t("improve") : t("improveFork", { name: line })}
                 </Link>
               </Button>
+              {merges?.empty && <NothingToMerge fork={merges.fork} />}
               {merges?.catchUp && (
                 <Button variant="outline" asChild data-tour="skill-catch-up">
                   <Link href={merges.catchUp}>
@@ -112,5 +133,37 @@ export function SkillPageHeader({
         </>
       }
     />
+  );
+}
+
+/**
+ * Both merges, held until the fork has a version of its own to carry. Marked rather
+ * than disabled, so the pointer and the keyboard both reach the reason.
+ */
+function NothingToMerge({ fork }: { fork: string }) {
+  const t = useTranslations("skills.page");
+  const hint = useId();
+  return (
+    <TooltipProvider>
+      <span id={hint} className="sr-only">
+        {t("nothingToMerge")}
+      </span>
+      {[t("catchUp", { name: fork }), t("toMain", { name: fork })].map((label) => (
+        <Tooltip key={label}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              aria-disabled
+              aria-describedby={hint}
+              className="cursor-not-allowed opacity-50"
+            >
+              <GitMerge className="h-4 w-4" aria-hidden />
+              {label}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("nothingToMerge")}</TooltipContent>
+        </Tooltip>
+      ))}
+    </TooltipProvider>
   );
 }
