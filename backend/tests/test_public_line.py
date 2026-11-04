@@ -20,6 +20,7 @@ from app.services.channels.public_line import (
     answers_unlinked_direct,
     answers_unlinked_on,
     bot_answers_unlinked_direct,
+    bot_ceiling,
     bot_served_spec,
     ceiling_for,
     refuse_without_ceiling,
@@ -280,6 +281,25 @@ class TestTheSpecABotIsBoundTo:
 
         served.assert_awaited_once()
         assert served.await_args.args[1] is binding
+
+
+class TestTheCeilingOfABotsLine:
+    async def test_it_is_the_ceiling_of_the_spec_the_bot_serves(self) -> None:
+        bot, spec = MagicMock(), _spec(2)
+        ceiling = Ceiling(Decimal(3), None)
+        with (
+            patch(
+                "app.services.channels.public_line.bot_served_spec",
+                new=AsyncMock(return_value=spec),
+            ) as served,
+            patch(
+                "app.services.channels.public_line.ceiling_for", new=AsyncMock(return_value=ceiling)
+            ) as caps,
+        ):
+            assert await bot_ceiling(MagicMock(), bot) is ceiling
+
+        assert served.await_args.args[1] == bot.id
+        assert caps.await_args.kwargs == {"organization_id": bot.organization_id, "spec": spec}
 
 
 class TestWhichBotsAnswerStrangers:

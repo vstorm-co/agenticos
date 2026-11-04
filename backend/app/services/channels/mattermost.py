@@ -1293,7 +1293,9 @@ class MattermostAdapter(ChannelAdapter):
             )
         return found
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a Mattermost file from the URL the parser resolved.
 
         Empty means this bot's server was not known when the message arrived -

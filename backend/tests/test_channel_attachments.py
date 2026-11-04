@@ -28,6 +28,7 @@ from pydantic_ai.workspaces import (
 )
 from pydantic_ai_backends import StateBackend
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.services.channels.attachments import (
@@ -163,7 +164,13 @@ def _channel(agent_router: Any, rows: list[Any]) -> Iterator[None]:
             self.db = db
 
         async def receive(
-            self, adapter: Any, token: str, attachments: list[Any], *, user_id: uuid.UUID
+            self,
+            adapter: Any,
+            token: str,
+            attachments: list[Any],
+            *,
+            user_id: uuid.UUID,
+            max_bytes: int | None = None,
         ) -> tuple[list[Any], list[str]]:
             stored = [
                 SimpleNamespace(id=uuid.uuid4(), filename=one.filename) for one in attachments
@@ -1426,3 +1433,174 @@ async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
     answer = agents.answer if text.startswith("@") else agents.answer_default
     assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
     load.assert_awaited_once()
+
+
+_CREATOR = uuid.uuid4()
+
+
+def _public_line_bot(*, accept: bool) -> Any:
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        platform="whatsapp",
+        access_policy={"answer_unlinked_direct": True, "accept_customer_files": accept},
+    )
+
+
+@contextlib.contextmanager
+def _binding(creator: uuid.UUID | None) -> Iterator[ChannelAttachmentService]:
+    """The binding a bot has, and the attachment service its files would go through."""
+    service = _service()
+    adapter = _adapter()
+    router = "app.services.channels.router"
+    with (
+        patch(
+            f"{router}.agent_exposure_repo.bound_to_bot",
+            AsyncMock(return_value=SimpleNamespace(created_by_user_id=creator)),
+        ),
+        patch(f"{router}.ChannelAttachmentService", return_value=service),
+        patch(f"{router}.get_adapter", return_value=adapter),
+        patch(f"{router}.unseal_bot_token", return_value="tok"),
+    ):
+        service.adapter = adapter  # type: ignore[attr-defined]
+        yield service
+
+
+async def _customer_sends(
+    bot: Any, *, attachment: IncomingAttachment | None = None, as_agent: bool = True
+) -> tuple[list[Any], list[str]]:
+    incoming = _incoming("here")
+    incoming.attachments = [attachment or _attachment()]
+    identity = MagicMock(user_id=None)
+    return await ChannelMessageRouter()._receive_files(
+        MagicMock(), bot, incoming, identity, as_agent=as_agent
+    )
+
+
+class TestACustomersFiles:
+    @pytest.mark.security
+    async def test_a_customers_file_is_refused_while_the_line_takes_none(self):
+        with _binding(_CREATOR) as service:
+            stored, refused = await _customer_sends(_public_line_bot(accept=False))
+
+        assert stored == []
+        assert refused == ["This line does not accept files."]
+        service.adapter.download_attachment.assert_not_called()
+        service.uploads.upload.assert_not_called()
+
+    async def test_a_public_line_customers_image_is_stored_under_the_binding_creator(self):
+        image = _attachment(filename="photo.png", mime_type="image/png")
+        service_data = b"\x89PNG\r\n\x1a\n" + bytes(32)
+        with _binding(_CREATOR) as service:
+            service.adapter.download_attachment.return_value = service_data
+            stored, refused = await _customer_sends(_public_line_bot(accept=True), attachment=image)
+
+        assert refused == []
+        assert len(stored) == 1
+        assert service.uploads.upload.await_args.kwargs["user_id"] == _CREATOR
+
+    async def test_a_customers_file_over_the_public_cap_is_refused_by_name(self):
+        cap = settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        claimed = _attachment(filename="big.csv", size=cap + 1)
+        with _binding(_CREATOR) as service:
+            stored, refused = await _customer_sends(
+                _public_line_bot(accept=True), attachment=claimed
+            )
+            assert stored == []
+            assert refused[0].startswith("big.csv: ")
+            assert "too large" in refused[0].lower()
+            service.adapter.download_attachment.assert_not_called()
+
+            service.adapter.download_attachment.return_value = b"x" * (cap + 1)
+            stored, refused = await _customer_sends(
+                _public_line_bot(accept=True), attachment=_attachment(filename="lie.csv", size=10)
+            )
+
+        assert stored == []
+        assert refused[0].startswith("lie.csv: ")
+        service.uploads.upload.assert_not_called()
+
+    @pytest.mark.security
+    async def test_a_binding_with_no_creator_takes_no_files(self):
+        with _binding(None) as service:
+            stored, refused = await _customer_sends(_public_line_bot(accept=True))
+
+        assert stored == []
+        assert refused == ["This line does not accept files."]
+        service.adapter.download_attachment.assert_not_called()
+
+    async def test_an_unlinked_room_sender_keeps_todays_refusal(self):
+        with _binding(_CREATOR) as service:
+            stored, refused = await _customer_sends(_public_line_bot(accept=True), as_agent=False)
+
+        assert stored == []
+        assert refused[0].startswith("To read your files, connect your account first.")
+        service.adapter.download_attachment.assert_not_called()
+
+
+class TestAStrangersDownloadStopsAtTheirLimit:
+    @pytest.mark.security
+    async def test_a_size_nobody_could_state_does_not_pull_a_members_file(self):
+        """The lookup failed, so the claim reads 0 and passes every pre-download
+        check: the fetch itself has to stop at the public cap."""
+        graph = _whatsapp_graph(file_size=0)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+        cap = settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        service = _service()
+        service.uploads.validate_bytes = lambda *_a: (True, None)
+
+        await service.receive(
+            adapter,
+            WA_TOKEN,
+            [_attachment(size=0, handle="12345")],
+            user_id=_CREATOR,
+            max_bytes=cap,
+        )
+
+        assert graph.download_media.await_args.kwargs["limit"] == cap
+        assert cap < settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        await adapter.aclose()
+
+    async def test_a_member_is_fetched_under_the_usual_limit(self):
+        graph = _whatsapp_graph(file_size=0)
+        adapter = WhatsAppAdapter(graph, window=OpenWindow())
+
+        await adapter.download_attachment(WA_TOKEN, _attachment(handle="12345"))
+
+        assert (
+            graph.download_media.await_args.kwargs["limit"]
+            == settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        )
+        await adapter.aclose()
+
+
+class TestTheRouteTreatsADepartedMemberAsAStranger:
+    async def test_files_and_voice_reach_the_stranger_paths_with_no_person_behind_them(self):
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._transcribe = AsyncMock(return_value=([], []))  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock(return_value=False)  # type: ignore[method-assign]
+        router._load_history = AsyncMock(return_value=[])  # type: ignore[method-assign]
+        router._deliver = AsyncMock()  # type: ignore[method-assign]
+        incoming = IncomingMessage(
+            platform="whatsapp",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="private",
+            text="please handle this",
+            attachments=[_attachment(mime_type="audio/ogg", filename="voice.ogg")],
+        )
+
+        with (
+            _channel(_agent_router(answer_default=None), rows),
+            patch("app.services.channels.router.bot_answers_unlinked_direct", return_value=True),
+            patch(
+                "app.services.channels.router.member_repo.get_active", AsyncMock(return_value=None)
+            ),
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        assert router._receive_files.await_args.kwargs["as_agent"] is True
+        assert router._transcribe.await_args.kwargs["as_agent"] is True
+        assert router._transcribe.await_args.kwargs["requested_by"] is None

@@ -654,7 +654,9 @@ class TelegramAdapter(ChannelAdapter):
 
         return found
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a file: `getFile` for the path, then the file API for the bytes.
 
         Two requests because that is Telegram's design - a `file_id` is not a URL

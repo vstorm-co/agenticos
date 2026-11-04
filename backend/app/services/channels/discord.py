@@ -553,7 +553,9 @@ class DiscordAdapter(ChannelAdapter):
         )
         response.raise_for_status()
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a file from Discord's CDN, which serves it on the signed URL the message carried."""
         if urlparse(attachment.handle).hostname not in _CDN_HOSTS:
             raise ValueError("Not a Discord attachment URL")

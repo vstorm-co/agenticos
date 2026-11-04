@@ -16,6 +16,7 @@ from uuid import UUID
 import httpx
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
+from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.prompt_variables import channel_name
 from app.agents.steering import SteeringInbox
 from app.core.config import settings
@@ -82,12 +83,17 @@ from app.services.channels.mentions import (
 )
 from app.services.channels.next_steps import ChannelNextSteps
 from app.services.channels.prompts import ChannelPrompts
-from app.services.channels.public_line import bot_answers_unlinked_direct
+from app.services.channels.public_line import (
+    bot_answers_unlinked_direct,
+    bot_ceiling,
+    parse_policy,
+)
 from app.services.channels.steering import InFlight, answering_aside, aside_question, steerable
 from app.services.conversation import ConversationService
 from app.services.ml import measure_audio_seconds
 from app.services.rate_limit import Limit
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
+from app.services.spend import assert_organization_within_budget
 from app.services.transcription import MAX_BYTES as TRANSCRIPTION_MAX_BYTES
 from app.services.transcription import (
     RECORDING_EXTENSIONS,
@@ -112,6 +118,12 @@ if TYPE_CHECKING:
     from app.db.models.channel_session import ChannelSession
 
 logger = logging.getLogger(__name__)
+
+STRANGER_NO_VOICE = "This line does not accept voice messages."
+"""The one sentence a stranger is told whenever their voice note is not taken."""
+
+STRANGER_RECORDING_MAX_BYTES = 2 * 1024 * 1024
+"""The largest voice note taken from somebody with no account: about fifteen minutes of a WhatsApp voice note."""
 
 _DEFAULT_RPM = 10
 
@@ -1351,7 +1363,10 @@ class ChannelMessageRouter:
             return [], []
         if not bot.transcribe_voice_notes:
             return [], [
-                "This bot does not listen to voice messages - transcription is turned off for it."
+                STRANGER_NO_VOICE
+                if as_agent
+                else "This bot does not listen to voice messages - "
+                "transcription is turned off for it."
             ]
         settings = await SpeechToTextSettingsService(db).for_bot(bot)
         if not settings.exposed:
@@ -1359,9 +1374,15 @@ class ChannelMessageRouter:
         resolved = settings.resolved
         if resolved is None:
             return [], [
-                "This bot cannot listen to voice messages - nobody has set up a "
+                STRANGER_NO_VOICE
+                if as_agent
+                else "This bot cannot listen to voice messages - nobody has set up a "
                 "transcription provider for it."
             ]
+
+        if as_agent and (stranger_refusal := await self._stranger_voice_refusal(db, bot)):
+            return [], [stranger_refusal]
+        limit = STRANGER_RECORDING_MAX_BYTES if as_agent else TRANSCRIPTION_MAX_BYTES
 
         adapter = get_adapter(bot.platform)
         token = unseal_bot_token(bot)
@@ -1375,15 +1396,13 @@ class ChannelMessageRouter:
             # before any limit applied - and a channel bot is a rate-limited
             # public surface, so one large file, or a few senders at once, was a
             # worker's memory.
-            if recording.size > TRANSCRIPTION_MAX_BYTES:
-                refusals.append(
-                    f"{recording.filename}: too large to transcribe "
-                    f"({recording.size // (1024 * 1024)} MB; the limit is "
-                    f"{TRANSCRIPTION_MAX_BYTES // (1024 * 1024)} MB)."
-                )
+            if recording.size > limit:
+                refusals.append(self._too_large_to_transcribe(recording, recording.size, limit))
                 continue
             try:
-                content = await adapter.download_attachment(token, recording)
+                content = await adapter.download_attachment(
+                    token, recording, max_bytes=limit if as_agent else None
+                )
             except NotImplementedError:
                 # The platform's adapter cannot fetch files yet: a known limit, not a failure.
                 refusals.append(
@@ -1394,6 +1413,9 @@ class ChannelMessageRouter:
             except Exception:
                 logger.warning("Could not fetch a voice message: bot=%s", bot.id, exc_info=True)
                 refusals.append(f"{recording.filename}: could not be downloaded.")
+                continue
+            if as_agent and len(content) > limit:
+                refusals.append(self._too_large_to_transcribe(recording, len(content), limit))
                 continue
             # Held to the organization's longest dictation before any provider is
             # paid: 25 MB of low-bitrate audio is hours of it, and the sender's
@@ -1464,6 +1486,33 @@ class ChannelMessageRouter:
         return transcripts, refusals
 
     @staticmethod
+    def _too_large_to_transcribe(recording: IncomingAttachment, size: int, limit: int) -> str:
+        return (
+            f"{recording.filename}: too large to transcribe "
+            f"({size // (1024 * 1024)} MB; the limit is {limit // (1024 * 1024)} MB)."
+        )
+
+    @staticmethod
+    async def _stranger_voice_refusal(db: AsyncSession, bot: ChannelBot) -> str | None:
+        """Why a voice note from somebody with no account is not transcribed, or `None`.
+
+        Asked before anything is downloaded or paid for. The line needs a spending
+        limit at all, and takes voice only under the organization's own monthly
+        cap - an agent budget alone does not bound what strangers send in - which
+        must not be spent already.
+        """
+        ceiling = await bot_ceiling(db, bot)
+        if not ceiling.exists:
+            return NoSpendingLimitError.message
+        if ceiling.organization_monthly_usd is None:
+            return STRANGER_NO_VOICE
+        try:
+            await assert_organization_within_budget(db, bot.organization_id)
+        except BudgetExceeded:
+            return NoSpendingLimitError.message
+        return None
+
+    @staticmethod
     def _as_sent(recording: IncomingAttachment, content: bytes) -> Recording:
         """The recording as the provider is sent it: `voice.<ext>` for its type.
 
@@ -1523,12 +1572,15 @@ class ChannelMessageRouter:
         carry. A message with no attachments costs nothing here - not even a token
         decryption - which is the common case.
 
-        An unlinked sender is not handled specially: a stored file belongs to a
-        user row, and the agent router refuses an unlinked sender anyway. Without
-        the check this would raise where the refusal reads better.
+        A stranger on a line that answers them (`as_agent`) is handled by
+        `_receive_customer_files`. Any other unlinked sender is told to connect an
+        account: a stored file belongs to a user row, and without the check this
+        would raise where the refusal reads better.
         """
         if not incoming.attachments:
             return [], []
+        if as_agent:
+            return await self._receive_customer_files(db, bot, incoming)
         if identity.user_id is None:
             return [], [
                 "To read your files, connect your account first. " + LINK_ACCOUNT_INSTRUCTION
@@ -1540,6 +1592,31 @@ class ChannelMessageRouter:
             unseal_bot_token(bot),
             incoming.attachments,
             user_id=identity.user_id,
+        )
+
+    async def _receive_customer_files(
+        self, db: AsyncSession, bot: ChannelBot, incoming: IncomingMessage
+    ) -> tuple[list[Any], list[str]]:
+        """What a customer with no account sent, when the line takes files at all.
+
+        Off unless the bot's policy turns it on, and answered with one neutral
+        sentence - never an invitation to link, which a customer has no account for.
+        A stored file belongs to a user row, so it is stored under the person who
+        bound the agent to the line; a binding with no such person takes none. Held
+        to the smaller public upload size.
+        """
+        refusal = ["This line does not accept files."]
+        if parse_policy(bot.access_policy).get("accept_customer_files") is not True:
+            return [], refusal
+        binding = await agent_exposure_repo.bound_to_bot(db, channel_bot_id=bot.id)
+        if binding is None or binding.created_by_user_id is None:
+            return [], refusal
+        return await ChannelAttachmentService(db).receive(
+            get_adapter(incoming.platform),
+            unseal_bot_token(bot),
+            incoming.attachments,
+            user_id=binding.created_by_user_id,
+            max_bytes=settings.EMBED_MAX_UPLOAD_SIZE_MB * 1024 * 1024,
         )
 
     @staticmethod

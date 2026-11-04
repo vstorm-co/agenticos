@@ -173,6 +173,13 @@ async def ceiling_for(
     )
 
 
+async def bot_ceiling(db: AsyncSession, bot: ChannelBot) -> Ceiling:
+    """The caps that bound a run on this bot's line: its served agent's and the organization's."""
+    return await ceiling_for(
+        db, organization_id=bot.organization_id, spec=await bot_served_spec(db, bot.id)
+    )
+
+
 async def refuse_without_ceiling(
     db: AsyncSession,
     *,

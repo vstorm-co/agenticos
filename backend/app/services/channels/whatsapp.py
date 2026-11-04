@@ -719,7 +719,9 @@ class WhatsAppAdapter(ChannelAdapter):
             described.append(replace(attachment, mime_type=mime_type, size=info.file_size or 0))
         return described
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a customer's file; the lookup is repeated because Meta's URL lives 5 minutes."""
         creds = WhatsAppCredentials.decode(bot_token)
         info = await self._graph.media_info(creds, media_id=attachment.handle)
@@ -728,6 +730,8 @@ class WhatsAppAdapter(ChannelAdapter):
             if attachment.mime_type.startswith("audio/")
             else settings.CHAT_MAX_UPLOAD_SIZE_MB * 1024 * 1024
         )
+        if max_bytes is not None:
+            limit = min(limit, max_bytes)
         return await self._graph.download_media(creds, url=info.url, limit=limit)
 
     async def begin_reply(self, bot_token: str, msg: OutgoingMessage) -> str | None:

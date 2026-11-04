@@ -178,8 +178,12 @@ class ChannelAttachmentService:
         attachments: list[IncomingAttachment],
         *,
         user_id: UUID,
+        max_bytes: int | None = None,
     ) -> tuple[list[ChatFile], list[str]]:
         """Fetch, validate and store what arrived with a message.
+
+        `max_bytes` holds the files to a smaller size than a member's upload, both
+        as claimed and as received; a file over it is refused by name.
 
         Returns the rows that made it and a message per file that did not, for the
         reply to carry. A refusal is reported rather than raised: one unsupported
@@ -205,8 +209,11 @@ class ChannelAttachmentService:
             if not valid:
                 refusals.append(f"{attachment.filename}: {_why(attachment, error)}")
                 continue
+            if max_bytes is not None and attachment.size > max_bytes:
+                refusals.append(f"{attachment.filename}: {_over(max_bytes)}")
+                continue
             try:
-                data = await adapter.download_attachment(bot_token, attachment)
+                data = await adapter.download_attachment(bot_token, attachment, max_bytes=max_bytes)
             except NotImplementedError:
                 refusals.append(
                     f"{attachment.filename}: this build cannot fetch files from "
@@ -232,6 +239,9 @@ class ChannelAttachmentService:
             )
             if not valid:
                 refusals.append(f"{attachment.filename}: {_why(attachment, error)}")
+                continue
+            if max_bytes is not None and len(data) > max_bytes:
+                refusals.append(f"{attachment.filename}: {_over(max_bytes)}")
                 continue
 
             # And against the content, now the bytes are in hand: a forged
@@ -278,6 +288,10 @@ class ChannelAttachmentService:
                     extra={"chat_file_id": str(stored.id)},
                     exc_info=True,
                 )
+
+
+def _over(max_bytes: int) -> str:
+    return f"File too large. Maximum size is {max_bytes // (1024 * 1024)}MB."
 
 
 def _why(attachment: IncomingAttachment, error: str | None) -> str:

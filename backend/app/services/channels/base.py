@@ -647,12 +647,17 @@ class ChannelAdapter(ABC):
         """
         return False
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch what somebody sent, using this platform's own second request.
 
         Not abstract: a platform this build cannot fetch files from is better off
         saying so than forcing every adapter to implement a stub. A surface that
         never produces attachments never calls this.
+
+        `max_bytes` narrows the adapter's own size limit for this one fetch; an
+        adapter that streams stops there, and the rest ignore it.
 
         Raises:
             NotImplementedError: If this platform's adapter cannot fetch files.

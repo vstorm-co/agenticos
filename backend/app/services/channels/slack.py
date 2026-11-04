@@ -906,7 +906,9 @@ class SlackAdapter(ChannelAdapter):
             )
         return found
 
-    async def download_attachment(self, bot_token: str, attachment: IncomingAttachment) -> bytes:
+    async def download_attachment(
+        self, bot_token: str, attachment: IncomingAttachment, *, max_bytes: int | None = None
+    ) -> bytes:
         """Fetch a Slack file with the bot token.
 
         Slack's file URLs are private: an unauthenticated GET answers 200 with an
