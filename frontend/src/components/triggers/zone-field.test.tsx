@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui";
 import { ZoneField, isTimeZone } from "./zone-field";
 
 describe("schedule time zone picker", () => {
@@ -32,6 +33,30 @@ describe("schedule time zone picker", () => {
     expect(trigger).toHaveTextContent("Europe/Warsaw");
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("allows wheel scrolling in the portalled list while a parent dialog locks the page", async () => {
+    const user = userEvent.setup();
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Schedule</DialogTitle>
+          <ZoneField value="UTC" onChange={vi.fn()} />
+        </DialogContent>
+      </Dialog>,
+    );
+    await user.click(screen.getByRole("combobox", { name: "Time zone" }));
+    const list = screen.getByRole("listbox");
+    // JSDOM does not lay out the list or load its Tailwind overflow rule.
+    list.style.overflowY = "auto";
+    Object.defineProperties(list, {
+      scrollHeight: { value: 1200 },
+      clientHeight: { value: 240 },
+      scrollTop: { value: 100, writable: true },
+    });
+    expect(fireEvent.wheel(list, { deltaX: 0, deltaY: 100, bubbles: true, cancelable: true })).toBe(
+      true,
+    );
   });
 
   it("marks invalid stored values instead of pretending they are valid", () => {

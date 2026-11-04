@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Allow the schedule time-zone list to scroll inside a dialog, with its own nested scroll lock and a list height constrained to the available space.
+
 - Give single-select and multi-select toolbar filters the same surface, dimensions and focus treatment. Compact selects show consistent icons, with specific marks for sorting, accounts and approval controls.
 
 - Wrap Skills and Context cards in the shared full-height resource-list panel, keeping search, filters, loading and empty states inside the same frame as other console pages.

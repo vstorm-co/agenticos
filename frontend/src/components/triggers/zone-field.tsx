@@ -34,7 +34,8 @@ export function ZoneField({
       description={t("timeZoneHelp")}
       error={valid ? null : t("timeZoneInvalid")}
     >
-      <Popover open={open} onOpenChange={setOpen}>
+      {/* Own the nested scroll lock so the parent dialog does not cancel list gestures. */}
+      <Popover modal open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             id="cron-zone"
@@ -62,6 +63,7 @@ export function ZoneField({
           style={{ backgroundColor: "var(--color-card)" }}
         >
           <Command
+            className="flex max-h-[calc(var(--radix-popover-content-available-height)-2px)] flex-col"
             label={t("searchTimeZones")}
             defaultValue={value}
             filter={(zone, query) =>
@@ -73,7 +75,7 @@ export function ZoneField({
                 : 0
             }
           >
-            <div className="flex items-center gap-2 border-b px-3 py-3">
+            <div className="flex shrink-0 items-center gap-2 border-b px-3 py-3">
               <Search aria-hidden className="text-muted-foreground size-4 shrink-0" />
               <Command.Input
                 aria-label={t("searchTimeZones")}
@@ -81,7 +83,7 @@ export function ZoneField({
                 className="placeholder:text-muted-foreground w-full bg-transparent text-sm outline-none"
               />
             </div>
-            <Command.List className="max-h-60 scrollbar-thin overflow-y-auto p-1.5">
+            <Command.List className="max-h-60 min-h-0 touch-pan-y scrollbar-thin overflow-y-auto overscroll-contain p-1.5">
               <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
                 {t("noTimeZones")}
               </Command.Empty>
