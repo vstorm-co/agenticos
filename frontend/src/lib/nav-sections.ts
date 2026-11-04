@@ -1,5 +1,6 @@
 import {
   MessagesSquare,
+  GitBranch,
   PanelsTopLeft,
   Activity,
   Boxes,
@@ -80,7 +81,6 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: null,
     domain: "use",
     items: [
-      { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
       // What the platform brought each person on its own (#2301): theirs, so ungated.
       {
@@ -90,6 +90,21 @@ export const NAV_GROUPS: NavGroup[] = [
         dataTour: "nav-inbox",
         count: "inbox",
       },
+      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: GitBranch },
+      {
+        labelKey: "agents",
+        href: ROUTES.AGENTS,
+        icon: BotMessageSquare,
+        permission: Perm.agentsView,
+        dataTour: "nav-agents",
+      },
+      {
+        labelKey: "artifacts",
+        href: ROUTES.ARTIFACTS,
+        icon: PanelsTopLeft,
+        permission: Perm.artifactsView,
+      },
+      { labelKey: "documents", href: ROUTES.DOCUMENTS, icon: Files },
     ],
   },
   // Somebody's ongoing work: the projects they are in, most recent first, drawn
@@ -112,14 +127,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     labelKey: "build",
     domain: "build",
+    collapsible: true,
     items: [
-      {
-        labelKey: "agents",
-        href: ROUTES.AGENTS,
-        icon: BotMessageSquare,
-        permission: Perm.agentsView,
-        dataTour: "nav-agents",
-      },
+      { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       {
         labelKey: "workflows",
         href: ROUTES.WORKFLOWS,
@@ -136,12 +146,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: TimerReset,
         permission: Perm.agentsView,
       },
-      {
-        labelKey: "artifacts",
-        href: ROUTES.ARTIFACTS,
-        icon: PanelsTopLeft,
-        permission: Perm.artifactsView,
-      },
       { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
     ],
   },
@@ -150,6 +154,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     labelKey: "knowledge",
     domain: "knowledge",
+    collapsible: true,
     items: [
       {
         labelKey: "knowledgeBases",
@@ -163,15 +168,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Table2,
         permission: Perm.tablesView,
         dataTour: "nav-tables",
-      },
-      {
-        // Deliberately ungated. These are the files an agent kept *for the
-        // person looking*, and the backend narrows the listing to what they are
-        // part of - so a permission here would hide somebody's own files behind
-        // an operator's authority.
-        labelKey: "documents",
-        href: ROUTES.DOCUMENTS,
-        icon: Files,
       },
       { labelKey: "skills", href: ROUTES.SKILLS, icon: Waypoints, permission: Perm.skillsView },
       {

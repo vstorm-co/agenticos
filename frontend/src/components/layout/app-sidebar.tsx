@@ -26,6 +26,10 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronRight, Loader2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
+import dynamic from "next/dynamic";
+import { useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { ProjectRows } from "@/components/layout/project-rows";
 
 import { BrandLink } from "@/components/layout/brand-link";
@@ -37,6 +41,10 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useAuthStore, useSidebarStore } from "@/stores";
 import { NAV_GROUPS, isActive, type NavGroup, type NavItem } from "@/lib/nav-sections";
+
+const ConversationSidebar = dynamic(() =>
+  import("@/components/chat/conversation-sidebar").then((module) => module.ConversationSidebar),
+);
 
 export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
 
@@ -75,7 +83,7 @@ function NavLink({
         // with the content it points at.
         active
           ? "bg-accent text-foreground"
-          : "text-foreground/90 hover:bg-accent/60 hover:text-foreground",
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >
       <NavIcon icon={item.icon} />
@@ -126,24 +134,32 @@ function NavIcon({ icon: Icon }: { icon: NavItem["icon"] }) {
 export function SidebarNav({
   onNavigate,
   collapsed = false,
+  section = "all",
 }: {
   onNavigate?: () => void;
   collapsed?: boolean;
+  section?: "all" | "primary" | "secondary";
 }) {
   const { can } = usePermissions();
   const { user } = useAuthStore();
   const t = useTranslations("nav");
   const admin = isAppAdmin(user);
 
-  const groups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !item.permission || can(item.permission)),
-  })).filter((group) => group.items.length > 0 && (!group.adminOnly || admin));
+  const groups = NAV_GROUPS.filter(
+    (group) =>
+      section === "all" ||
+      (section === "primary" ? group.labelKey === null : group.labelKey !== null),
+  )
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.permission || can(item.permission)),
+    }))
+    .filter((group) => group.items.length > 0 && (!group.adminOnly || admin));
 
   return (
     <nav
       aria-label={t("primary")}
-      className={cn("flex flex-col gap-3 py-3", collapsed ? "items-center px-2" : "px-3")}
+      className={cn("flex shrink-0 flex-col gap-3 py-3", collapsed ? "items-center px-2" : "px-3")}
     >
       {groups.map((group) => (
         <NavGroupBlock
@@ -240,6 +256,10 @@ function NavGroupBlock({
 }
 
 export function AppSidebar() {
+  const pathname = usePathname();
+  const inChat = stripLocale(pathname) === "/chat";
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const tw = useTranslations("workspaceHome");
   const t = useTranslations("nav");
   // The stored value only after mount. `persist` reads `localStorage`
   // synchronously, so the browser's first render already knows the column was
@@ -310,7 +330,27 @@ export function AppSidebar() {
         </button>
       </div>
       <SidebarShell collapsed={collapsed}>
-        <SidebarNav collapsed={collapsed} />
+        <SidebarNav collapsed={collapsed} section={inChat ? "primary" : "all"} />
+        {inChat && (
+          <>
+            <ConversationSidebar embedded className={collapsed ? "md:hidden" : undefined} />
+            <Popover open={workspaceOpen} onOpenChange={setWorkspaceOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground mx-3 my-2 flex h-9 shrink-0 items-center justify-between rounded-lg px-2.5 text-sm"
+                  aria-label={tw("workspace")}
+                >
+                  {!collapsed && tw("workspace")}
+                  <ChevronRight className="size-4" aria-hidden />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="right" align="end" className="w-72 p-0">
+                <SidebarNav section="secondary" onNavigate={() => setWorkspaceOpen(false)} />
+              </PopoverContent>
+            </Popover>
+          </>
+        )}
       </SidebarShell>
     </aside>
   );

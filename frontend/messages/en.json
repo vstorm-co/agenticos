@@ -4233,12 +4233,12 @@
     "adminOverview": "Admin",
     "agents": "Agents",
     "apiDocs": "API documentation",
-    "build": "Build",
+    "build": "Build & manage",
     "channels": "Channels",
     "chat": "Chat",
     "commandPalette": "Command palette",
     "conversations": "Conversations",
-    "dashboard": "Dashboard",
+    "dashboard": "Overview",
     "esc": "ESC",
     "kb": "Knowledge",
     "knowledge": "Knowledge",
@@ -4312,7 +4312,8 @@
     "viewRelease": "View release",
     "whatsNewTitle": "What’s new in {version}",
     "whatsNewDescription": "Recent changes in the version you are using.",
-    "whatsNewDone": "Got it"
+    "whatsNewDone": "Got it",
+    "backgroundWork": "Background work"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -5191,6 +5192,14 @@
       "routine-advanced": {
         "title": "Keep the defaults or fine-tune",
         "body": "Routine and watch forms start with standard execution and notification settings. Expand Advanced options to choose a version, environment, budget or delivery policy."
+      },
+      "workspace-background": {
+        "title": "Background work",
+        "body": "Follow the topics your agents are working on, and return to their results."
+      },
+      "workspace-pulse": {
+        "title": "Needs your attention",
+        "body": "Ask, create, or hand a task to your agents."
       }
     },
     "chooseLanguage": "Language",
@@ -13151,5 +13160,28 @@
     "rootFolder": "Root folder",
     "untagged": "Untagged",
     "visibleNotes": "{visible} of {total} notes visible"
+  },
+  "workspaceHome": {
+    "newChat": "New chat",
+    "attention": "Needs your attention",
+    "background": "Background work",
+    "retry": "Try again",
+    "loading": "Loading…",
+    "allClear": "You’re all caught up.",
+    "nothingRunning": "Nothing running right now",
+    "backgroundDescription": "Follow the work your agents continue outside the conversation.",
+    "backgroundEmpty": "Ask an agent to work on something in the background. You can follow its progress here and open the conversation whenever you need to.",
+    "routines": "Routines & watches",
+    "backToChat": "Start a conversation",
+    "details": "Details",
+    "urgent": "Urgent",
+    "prompt": "What are we working on?",
+    "lead": "Ask, create, or hand a task to your agents.",
+    "active": "In progress",
+    "history": "History",
+    "stop": "Stop",
+    "noHistory": "No background work yet",
+    "historyDescription": "Completed tasks and their results will appear here.",
+    "workspace": "Workspace"
   }
 }

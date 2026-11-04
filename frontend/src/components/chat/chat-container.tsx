@@ -1280,6 +1280,8 @@ function ChatUI({
       />
     </span>
   );
+  const showWorkspaceHome =
+    !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   return (
     <div className="chat-surface relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
@@ -1291,12 +1293,20 @@ function ChatUI({
           shows only while the column is wide enough to have one beside the
           centred transcript - not at a window width, which says nothing about
           a column narrowed by the sidebar and the conversation list. */}
-        <div className="@container/chat relative flex h-full min-w-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "@container/chat relative flex h-full min-w-0 flex-1 flex-col",
+            showWorkspaceHome && "md:justify-center",
+          )}
+        >
           {!compact && <TurnRail entries={railEntries} />}
           <BrowserPanelAutoOpen browses={browses} />
           <div
             ref={scrollContainerRef}
-            className="flex-1 scrollbar-thin overflow-y-auto"
+            className={cn(
+              "flex-1 scrollbar-thin overflow-y-auto",
+              showWorkspaceHome && "md:flex-initial md:pb-0!",
+            )}
             style={{
               paddingBottom: dockHeight,
               // In the page the transcript fades out as it reaches the glass
@@ -1304,7 +1314,7 @@ function ChatUI({
               // drawn by the GPU and is not always drawn - a screen capture, a
               // throttled tab - and without it the words under the box read
               // through it, crisp, beside the placeholder.
-              ...(compact
+              ...(compact || messages.length === 0
                 ? {}
                 : {
                     maskImage: `linear-gradient(to bottom, #000 calc(100% - ${dockHeight + 8}px), transparent calc(100% - ${Math.max(dockHeight - 32, 0)}px))`,
@@ -1449,7 +1459,8 @@ function ChatUI({
                 event.preventDefault();
             }}
             className={cn(
-              "pointer-events-none absolute inset-x-0 bottom-0 z-20",
+              "pointer-events-none inset-x-0 bottom-0 z-20",
+              showWorkspaceHome ? "absolute md:relative" : "absolute",
               compact && "bg-background",
             )}
           >

@@ -3,6 +3,9 @@
 /** Shared desktop and phone navigation chrome. Search stays above the scrollable
  * destinations; notifications and account stay within reach below them. */
 
+import Link from "next/link";
+import { SquarePen } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { DesktopInstallPrompt } from "@/components/layout/desktop-install-prompt";
@@ -16,18 +19,30 @@ import { cn } from "@/lib/utils";
 export function SidebarShell({
   children,
   collapsed = false,
+  onNavigate,
 }: {
   children: ReactNode;
   collapsed?: boolean;
+  onNavigate?: () => void;
 }) {
+  const t = useTranslations("workspaceHome");
   return (
     <>
       {!collapsed && (
-        <div className="shrink-0 px-3 pt-3">
+        <div className="flex shrink-0 flex-col gap-2 px-3 pt-3">
+          <Link
+            href="/chat?new=workspace"
+            onClick={onNavigate}
+            className="bg-primary text-primary-foreground hover:bg-primary-hover flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-medium"
+            data-tour="chat-start"
+          >
+            <SquarePen className="size-4" aria-hidden />
+            {t("newChat")}
+          </Link>
           <SidebarSearch variant="row" />
         </div>
       )}
-      <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain">
+      <div className="flex min-h-0 flex-1 scrollbar-thin flex-col overflow-y-auto overscroll-contain">
         {children}
       </div>
 

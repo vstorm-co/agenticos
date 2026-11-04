@@ -58,14 +58,16 @@ export function ChatWelcome({
     <div
       className={cn(
         "@container mx-auto w-full",
-        compact ? "px-3 py-2" : "max-w-2xl px-4 py-6 md:[@media(min-height:761px)]:py-16",
+        compact ? "px-3 py-2" : "max-w-3xl px-5 py-6 md:py-8",
       )}
     >
-      <div className="text-center">
+      <div className={compact ? "text-center" : "text-left"}>
         <div
           className={cn(
-            "mx-auto flex justify-center",
-            compact ? "mb-3" : "mb-5 [@media(max-height:760px)]:hidden",
+            "flex",
+            compact
+              ? "mb-3 justify-center"
+              : "mb-4 justify-start [@media(max-height:760px)]:hidden",
           )}
         >
           {mark}
@@ -80,7 +82,7 @@ export function ChatWelcome({
         </h2>
         <p
           className={cn(
-            "text-muted-foreground mx-auto line-clamp-2 max-w-md leading-relaxed",
+            "text-muted-foreground line-clamp-2 max-w-xl leading-relaxed",
             compact ? "mt-1 text-[13px]" : "mt-2 text-sm",
           )}
         >
@@ -88,9 +90,7 @@ export function ChatWelcome({
         </p>
       </div>
 
-      {notice && <div className={compact ? "mt-3" : "mt-6"}>{notice}</div>}
-
-      <div className={cn("grid", compact ? "mt-4 gap-1.5" : "mt-8 gap-3 sm:grid-cols-2")}>
+      <div className={cn("grid", compact ? "mt-4 gap-1.5" : "mt-6 gap-2 sm:grid-cols-2")}>
         {suggestions.map((suggestion) => (
           <div key={suggestion.key} className="relative">
             <button
@@ -99,8 +99,8 @@ export function ChatWelcome({
               // A filled card rather than a hairline box: four outlines on a
               // blank page read as a form to fill in, not as places to start.
               className={cn(
-                "group bg-muted/60 hover:bg-muted focus-visible:ring-ring flex w-full items-start gap-3 rounded-2xl text-left transition-colors outline-none focus-visible:ring-2",
-                compact ? "px-3 py-2.5" : "p-3.5 md:p-4",
+                "group bg-muted/60 hover:bg-muted focus-visible:ring-ring flex w-full items-start gap-3 rounded-lg text-left transition-colors outline-none focus-visible:ring-2",
+                compact ? "px-3 py-2.5" : "px-3 py-3",
               )}
             >
               {/* Off in a narrow column, where it took a third of a card's
@@ -146,10 +146,11 @@ export function ChatWelcome({
         ))}
       </div>
 
+      {notice && <div className={compact ? "mt-3" : "mt-7 border-t pt-5"}>{notice}</div>}
       {footer && (
         // Keyboard hints, so not on a phone - where they also ran into the
         // caption under the composer.
-        <div className="text-muted-foreground mt-8 hidden flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs md:[@media(min-height:761px)]:flex">
+        <div className="text-muted-foreground mt-5 hidden flex-wrap items-center justify-start gap-x-2 gap-y-1 text-xs md:[@media(min-height:761px)]:flex">
           {footer}
         </div>
       )}

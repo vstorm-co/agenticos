@@ -36,10 +36,8 @@ vi.mock("@/stores", () => ({
 }));
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => <span /> }));
 // The cards are tested on their own; here it only matters which chat carries them.
-vi.mock("./suggestion-cards", () => ({
-  SuggestionCards: ({ agentId }: { agentId: string | null }) => (
-    <div data-testid="suggestions" data-agent={agentId ?? ""} />
-  ),
+vi.mock("./workspace-pulse", () => ({
+  WorkspacePulse: () => <div data-testid="suggestions" />,
 }));
 
 const AGENT = { id: "a1", slug: "amigo", name: "Amigo", has_avatar: false, avatar_color: 0 };
@@ -62,7 +60,7 @@ describe("ChatEmptyState", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show my pipeline" }));
 
     expect(onPick).toHaveBeenCalledWith("Show my pipeline");
-    expect(screen.getByTestId("suggestions")).toHaveAttribute("data-agent", "a1");
+    expect(screen.getByTestId("suggestions")).toBeInTheDocument();
     expect(screen.queryByText("Set up a routine")).toBeNull();
   });
 

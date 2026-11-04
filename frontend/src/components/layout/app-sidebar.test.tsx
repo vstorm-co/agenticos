@@ -86,6 +86,7 @@ describe("isActive", () => {
 describe("SidebarNav", () => {
   it("shows every destination the caller is entitled to", () => {
     can.mockReturnValue(true);
+    sidebar.openGroups = ["build", "knowledge"];
 
     renderNav();
 
@@ -137,13 +138,13 @@ describe("SidebarNav", () => {
     expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
-  it("drops a group heading when nothing in it survives the filter", () => {
+  it("keeps the overview available without management permissions", () => {
     // A "Build" label above empty space reads as a broken page.
     can.mockReturnValue(false);
 
     renderNav();
 
-    expect(screen.queryByText("build")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "dashboard" })).toBeInTheDocument();
   });
 
   it("keeps the admin group for platform admins only", () => {
@@ -310,7 +311,15 @@ describe("the navigation definition", () => {
     // The inbox holds only what was brought to the person looking (#2301).
     // Everything else must state what it needs, or a Viewer is shown pages that
     // will refuse them.
-    const open = new Set(["dashboard", "chat", "inbox", "organizations", "groups", "documents"]);
+    const open = new Set([
+      "dashboard",
+      "chat",
+      "inbox",
+      "backgroundWork",
+      "organizations",
+      "groups",
+      "documents",
+    ]);
     const unguarded = NAV_GROUPS.filter((group) => !group.adminOnly)
       .flatMap((group) => group.items)
       .filter((item) => !item.permission && !open.has(item.labelKey));

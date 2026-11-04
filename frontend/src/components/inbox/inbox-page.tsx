@@ -32,7 +32,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { timeAgo } from "@/lib/utils";
-import { SuggestionRows } from "./suggestion-rows";
+import { InboxBrowser } from "./inbox-browser";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
 
@@ -87,30 +87,53 @@ export function InboxPage() {
             <span id="inbox-filter-label" className="sr-only">
               {t("filterLabel")}
             </span>
-            <Select
-              value={filter}
-              onValueChange={(value) => {
-                const next = FILTERS.find((each) => each === value);
-                if (next) setFilter(next === "all" ? null : next);
-              }}
+            <div
+              className="hidden items-center gap-1 sm:flex"
+              role="group"
+              aria-label={t("filterLabel")}
             >
-              <SelectTrigger aria-labelledby="inbox-filter-label" className="w-full sm:w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTERS.map((value) => {
-                  const Icon = FILTER_ICONS[value];
-                  return (
-                    <SelectItem key={value} value={value}>
-                      <span className="flex items-center gap-2">
-                        <Icon className="size-4" aria-hidden />
-                        {t(`filter.${value}`)}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              {FILTERS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value === "all" ? null : value)}
+                  className={
+                    filter === value
+                      ? "bg-accent text-foreground rounded-lg px-3 py-1.5 text-sm font-medium"
+                      : "text-muted-foreground hover:text-foreground rounded-lg px-3 py-1.5 text-sm"
+                  }
+                >
+                  {t(`filter.${value}`)}
+                </button>
+              ))}
+            </div>
+            <div className="sm:hidden">
+              <Select
+                value={filter}
+                onValueChange={(value) => {
+                  const next = FILTERS.find((each) => each === value);
+                  if (next) setFilter(next === "all" ? null : next);
+                }}
+              >
+                <SelectTrigger aria-labelledby="inbox-filter-label" className="w-full sm:w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FILTERS.map((value) => {
+                    const Icon = FILTER_ICONS[value];
+                    return (
+                      <SelectItem key={value} value={value}>
+                        <span className="flex items-center gap-2">
+                          <Icon className="size-4" aria-hidden />
+                          {t(`filter.${value}`)}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
           </>
         }
       >
@@ -126,7 +149,7 @@ export function InboxPage() {
         ) : open.length === 0 ? (
           <Nothing filter={filter} />
         ) : (
-          <SuggestionRows items={open} />
+          <InboxBrowser items={open} />
         )}
       </ListCard>
     </div>

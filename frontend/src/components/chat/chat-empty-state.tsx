@@ -24,7 +24,7 @@ import { useAgentSelectionStore } from "@/stores";
 import type { Agent } from "@/types/agents";
 
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
-import { SuggestionCards } from "./suggestion-cards";
+import { WorkspacePulse } from "./workspace-pulse";
 
 /** The starter agent, whose empty chat carries what the platform proposes to the person. */
 const STARTER_SLUG = "agenticos";
@@ -87,6 +87,7 @@ interface WelcomeProps extends ChatEmptyStateProps {
 
 function Welcome({ agent, starters, onPick }: WelcomeProps) {
   const t = useTranslations("chat.empty");
+  const th = useTranslations("workspaceHome");
   const { user } = useAuth();
   const firstName = user?.full_name?.split(" ")[0] || user?.email?.split("@")[0];
   const description = agent?.description?.trim();
@@ -125,9 +126,17 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
           <WelcomeIcon icon={Sparkles} />
         )
       }
-      title={firstName ? t("greeting", { name: firstName }) : t("greetingAnonymous")}
+      title={
+        isStarter
+          ? th("prompt")
+          : firstName
+            ? t("greeting", { name: firstName })
+            : t("greetingAnonymous")
+      }
       lead={
-        agent ? (
+        isStarter ? (
+          th("lead")
+        ) : agent ? (
           <>
             <span className="text-foreground font-medium">{agent.name}</span>
             {description ? ` · ${description}` : ""}
@@ -137,7 +146,7 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
         )
       }
       suggestions={suggestions}
-      notice={isStarter && agent ? <SuggestionCards agentId={agent.id} /> : undefined}
+      notice={isStarter && agent ? <WorkspacePulse /> : undefined}
       onPick={onPick}
       footer={
         <>

@@ -54,6 +54,24 @@ beforeEach(() => {
 });
 
 describe("SuggestionRows", () => {
+  it("keeps the full selected detail and its actions available", async () => {
+    render(
+      <SuggestionRows
+        detail
+        items={[
+          item("selected", {
+            kind: "finding",
+            detail: "Full context and the requested next step.",
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("Full context and the requested next step.")).not.toHaveClass(
+      "line-clamp-2",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(state.accept).toHaveBeenCalledWith("selected");
+  });
   it("keeps an acknowledged finding actionable and labels its shared state", () => {
     render(
       <SuggestionRows items={[item("ack", { kind: "finding", outcome_status: "acknowledged" })]} />,

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatContainer, ConversationSidebar } from "@/components/chat";
+import { ChatContainer } from "@/components/chat";
 import { PhoneChatBar } from "@/components/chat/phone-chat-bar";
 import { useMcpOAuthOutcome } from "@/hooks";
 import { useChatWith } from "@/hooks/use-chat-with";
@@ -18,7 +18,6 @@ export default function ChatPage() {
   // id here would short-circuit that loader and leave the chat empty on refresh.
   return (
     <div className={cn("flex min-h-0 flex-1", SAFE_AREA_CLEARANCE)}>
-      <ConversationSidebar />
       {/* Room at the top of the transcript for
           the buttons floating over it on a phone. */}
       <div className="relative min-w-0 flex-1 max-md:[&_[data-transcript]]:pt-16">

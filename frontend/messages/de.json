@@ -4115,12 +4115,12 @@
     "adminOverview": "Admin",
     "agents": "Agents",
     "apiDocs": "API-Dokumentation",
-    "build": "Bauen",
+    "build": "Erstellen und verwalten",
     "channels": "Kanäle",
     "chat": "Chat",
     "commandPalette": "Befehlspalette",
     "conversations": "Unterhaltungen",
-    "dashboard": "Dashboard",
+    "dashboard": "Übersicht",
     "esc": "ESC",
     "kb": "Wissen",
     "knowledge": "Wissen",
@@ -4190,7 +4190,8 @@
     "viewRelease": "Release ansehen",
     "whatsNewTitle": "Neu in {version}",
     "whatsNewDescription": "Änderungen in der verwendeten Version.",
-    "whatsNewDone": "Verstanden"
+    "whatsNewDone": "Verstanden",
+    "backgroundWork": "Arbeit im Hintergrund"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -5069,6 +5070,14 @@
       "routine-advanced": {
         "title": "Standards behalten oder anpassen",
         "body": "Routinen und Beobachtungen beginnen mit üblichen Ausführungs- und Benachrichtigungseinstellungen. Erweiterte Optionen öffnen die Wahl von Version, Umgebung, Budget und Zustellung."
+      },
+      "workspace-background": {
+        "title": "Arbeit im Hintergrund",
+        "body": "Verfolge die Themen deiner Agenten und kehre zu ihren Ergebnissen zurück."
+      },
+      "workspace-pulse": {
+        "title": "Braucht deine Aufmerksamkeit",
+        "body": "Stelle eine Frage, erstelle etwas oder übergib deinen Agenten eine Aufgabe."
       }
     },
     "chooseLanguage": "Sprache",
@@ -12823,5 +12832,28 @@
     "rootFolder": "Stammordner",
     "untagged": "Ohne Tags",
     "visibleNotes": "{visible} von {total} Notizen sichtbar"
+  },
+  "workspaceHome": {
+    "newChat": "Neuer Chat",
+    "attention": "Braucht deine Aufmerksamkeit",
+    "background": "Arbeit im Hintergrund",
+    "retry": "Erneut versuchen",
+    "loading": "Wird geladen…",
+    "allClear": "Alles erledigt.",
+    "nothingRunning": "Derzeit läuft nichts im Hintergrund",
+    "backgroundDescription": "Verfolge die Arbeit, die deine Agenten außerhalb des Gesprächs fortsetzen.",
+    "backgroundEmpty": "Bitte einen Agenten, eine Aufgabe im Hintergrund zu bearbeiten. Hier siehst du den Fortschritt und kannst jederzeit das Gespräch öffnen.",
+    "routines": "Routinen und Watches",
+    "backToChat": "Gespräch beginnen",
+    "details": "Details",
+    "urgent": "Dringend",
+    "prompt": "Woran arbeiten wir heute?",
+    "lead": "Stelle eine Frage, erstelle etwas oder übergib deinen Agenten eine Aufgabe.",
+    "active": "In Bearbeitung",
+    "history": "Verlauf",
+    "stop": "Stoppen",
+    "noHistory": "Noch keine Hintergrundarbeit",
+    "historyDescription": "Abgeschlossene Aufgaben und ihre Ergebnisse erscheinen hier.",
+    "workspace": "Arbeitsbereich"
   }
 }

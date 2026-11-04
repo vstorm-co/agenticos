@@ -55,7 +55,7 @@
   },
   "nav": {
     "memory": "Pamięć",
-    "dashboard": "Panel",
+    "dashboard": "Przegląd",
     "chat": "Czat",
     "knowledge": "Wiedza",
     "knowledgeBases": "Bazy wiedzy",
@@ -88,7 +88,7 @@
     "skills": "Skille",
     "activity": "Aktywność",
     "primary": "Główna",
-    "build": "Budowanie",
+    "build": "Tworzenie i zarządzanie",
     "workspace": "Przestrzeń",
     "vault": "Vault",
     "mcpServers": "Serwery MCP",
@@ -140,7 +140,8 @@
     "viewRelease": "Zobacz wydanie",
     "whatsNewTitle": "Co nowego w {version}",
     "whatsNewDescription": "Zmiany w wersji, z której korzystasz.",
-    "whatsNewDone": "Rozumiem"
+    "whatsNewDone": "Rozumiem",
+    "backgroundWork": "Praca w tle"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -6738,6 +6739,14 @@
       "routine-advanced": {
         "title": "Zostaw domyślne lub dostosuj",
         "body": "Formularze rutyn i obserwacji zaczynają od standardowych ustawień wykonania i powiadomień. Rozwiń opcje zaawansowane, aby wybrać wersję, środowisko, budżet lub sposób dostarczania."
+      },
+      "workspace-background": {
+        "title": "Praca w tle",
+        "body": "Śledź tematy, nad którymi pracują Twoi agenci, i wracaj do wyników."
+      },
+      "workspace-pulse": {
+        "title": "Wymaga Twojej uwagi",
+        "body": "Zapytaj, stwórz coś lub powierz zadanie swoim agentom."
       }
     },
     "chooseLanguage": "Język",
@@ -12926,5 +12935,28 @@
     "rootFolder": "Folder główny",
     "untagged": "Bez tagów",
     "visibleNotes": "Widoczne notatki: {visible} z {total}"
+  },
+  "workspaceHome": {
+    "newChat": "Nowa rozmowa",
+    "attention": "Wymaga Twojej uwagi",
+    "background": "Praca w tle",
+    "retry": "Spróbuj ponownie",
+    "loading": "Wczytywanie…",
+    "allClear": "Wszystko załatwione.",
+    "nothingRunning": "Teraz nic nie pracuje w tle",
+    "backgroundDescription": "Śledź pracę, którą agenci kontynuują poza rozmową.",
+    "backgroundEmpty": "Poproś agenta o wykonanie zadania w tle. Tutaj zobaczysz postęp i wrócisz do rozmowy, kiedy zechcesz.",
+    "routines": "Rutyny i watches",
+    "backToChat": "Rozpocznij rozmowę",
+    "details": "Szczegóły",
+    "urgent": "Pilne",
+    "prompt": "Nad czym dzisiaj pracujemy?",
+    "lead": "Zapytaj, stwórz coś lub powierz zadanie swoim agentom.",
+    "active": "W toku",
+    "history": "Historia",
+    "stop": "Zatrzymaj",
+    "noHistory": "Brak historii pracy w tle",
+    "historyDescription": "Tutaj pojawią się ukończone zadania i ich wyniki.",
+    "workspace": "Przestrzeń robocza"
   }
 }
