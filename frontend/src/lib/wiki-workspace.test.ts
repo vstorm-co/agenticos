@@ -172,3 +172,28 @@ it("stops retaining relationships at the graph-wide budget and warns of the part
   );
   expect(graph.truncated).toBe(true);
 });
+
+it("allocates the shared relationship budget in path order regardless of read completion order", async () => {
+  const files = Array.from({ length: 12 }, (_, i) => file(`${String(i).padStart(2, "0")}.md`));
+  vi.mocked(listProjectFiles).mockResolvedValue(listing(files));
+  const scan = async (reverse: boolean) => {
+    vi.mocked(readFileText).mockImplementation(async (_, path) => {
+      const index = Number.parseInt(path, 10);
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, reverse ? (3 - (index % 4)) * 2 : (index % 4) * 2),
+      );
+      return {
+        content: Array.from({ length: 256 }, (_, i) => `[[target-${i}]]`).join(" "),
+        truncated: false,
+      };
+    });
+    return readWikiWorkspace({ kind: "project", id: "p" }, signal());
+  };
+  const forward = await scan(false);
+  const reverse = await scan(true);
+  expect(reverse.pages).toEqual(forward.pages);
+  expect(reverse.edges).toEqual(forward.edges);
+  expect(reverse.unresolved).toEqual(forward.unresolved);
+  expect(reverse.pages[0]?.links).toHaveLength(256);
+  expect(reverse.pages[8]?.links).toHaveLength(0);
+});

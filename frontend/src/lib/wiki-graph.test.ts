@@ -199,3 +199,11 @@ it("bounds Markdown relationships as well as wikilinks", () => {
   expect(page.links).toHaveLength(WIKI_RELATION_LIMITS.page);
   expect(page.linksTruncated).toBe(true);
 });
+
+it("ignores escaped links but permits links after an escaped backslash", () => {
+  const page = parseWikiPage(
+    "a.md",
+    String.raw`\[[draft]] \[label](draft.md) \\[[real]] [[visible]]`,
+  );
+  expect(page.links.map((link) => link.target)).toEqual(["real", "visible"]);
+});

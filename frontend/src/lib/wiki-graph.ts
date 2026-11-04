@@ -104,7 +104,9 @@ function relationshipProse(body: string): string {
         continue;
       }
     } else if (text[i] === "\\") {
+      parts.push(text.slice(kept, i), " ");
       i += 2;
+      kept = i;
       continue;
     }
     if (end !== undefined) {

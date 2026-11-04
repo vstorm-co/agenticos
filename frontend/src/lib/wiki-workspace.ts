@@ -70,30 +70,26 @@ export async function readWikiWorkspace(
     () => null,
   );
   const failed: string[] = [];
-  const pending = selected.entries();
   let loadedBytes = 0;
   let remainingLinks: number = WIKI_RELATION_LIMITS.graph;
-  // Four in flight, including on refresh. Abort stops queued reads after navigation.
-  await Promise.all(
-    Array.from({ length: Math.min(4, selected.length) }, async () => {
-      for (const [index, file] of pending) {
+  // Batch reads bound buffering and keep budget allocation independent of network timing.
+  for (let offset = 0; offset < selected.length; offset += 4) {
+    signal.throwIfAborted();
+    const batch = selected.slice(offset, offset + 4);
+    const texts = await Promise.all(
+      batch.map(async (file) => {
         signal.throwIfAborted();
         try {
           const text = await readFileText(source, file.path);
           signal.throwIfAborted();
-          const size = new TextEncoder().encode(text.content).length;
           if (
             text.truncated ||
-            size > WIKI_LIMITS.fileBytes ||
-            loadedBytes + size > WIKI_LIMITS.totalBytes
-          )
+            new TextEncoder().encode(text.content).length > WIKI_LIMITS.fileBytes
+          ) {
             skipped.push(file.path);
-          else {
-            loadedBytes += size;
-            const page = parseWikiPage(file.path, text.content, remainingLinks);
-            remainingLinks -= page.links.length;
-            results[index] = page;
+            return null;
           }
+          return text.content;
         } catch (error) {
           signal.throwIfAborted();
           // Revocation must remove the whole previous graph, not retain its cached pages.
@@ -105,10 +101,25 @@ export async function readWikiWorkspace(
           )
             throw error;
           failed.push(file.path);
+          return null;
         }
+      }),
+    );
+    for (const [index, content] of texts.entries()) {
+      signal.throwIfAborted();
+      const file = batch[index];
+      if (!file || content === null) continue;
+      const size = new TextEncoder().encode(content).length;
+      if (loadedBytes + size > WIKI_LIMITS.totalBytes) {
+        skipped.push(file.path);
+        continue;
       }
-    }),
-  );
+      loadedBytes += size;
+      const page = parseWikiPage(file.path, content, remainingLinks);
+      remainingLinks -= page.links.length;
+      results[offset + index] = page;
+    }
+  }
   const graph = buildWikiGraph(results.filter((page) => page !== null));
   return {
     ...graph,
