@@ -59,6 +59,54 @@ class TestChannelBotServiceScope:
             await service.get(uuid.uuid4())
 
     @pytest.mark.anyio
+    async def test_sessions_of_a_bot_outside_the_organization_read_as_missing(self):
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.channel_bot.channel_session_repo.list_by_bot", new=AsyncMock()
+            ) as listing,
+            patch(
+                "app.services.channel_bot.channel_session_repo.count_by_bot", new=AsyncMock()
+            ) as counting,
+            pytest.raises(NotFoundError),
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=uuid.uuid4())
+            await service.list_sessions(uuid.uuid4())
+
+        listing.assert_not_awaited()
+        counting.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_sessions_are_listed_for_the_bot_the_lookup_returned(self):
+        org_id = uuid.uuid4()
+        bot = _bot(org_id)
+
+        with (
+            patch(
+                "app.services.channel_bot.channel_bot_repo.get_for_org",
+                new=AsyncMock(return_value=bot),
+            ) as lookup,
+            patch(
+                "app.services.channel_bot.channel_session_repo.list_by_bot",
+                new=AsyncMock(return_value=["s"]),
+            ) as listing,
+            patch(
+                "app.services.channel_bot.channel_session_repo.count_by_bot",
+                new=AsyncMock(return_value=1),
+            ) as counting,
+        ):
+            service = ChannelBotService(MagicMock(), organization_id=org_id)
+            items, total = await service.list_sessions(uuid.uuid4())
+
+        assert (items, total) == (["s"], 1)
+        assert lookup.call_args.kwargs["organization_id"] == org_id
+        assert listing.call_args.args[1] == bot.id
+        assert counting.call_args.args[1] == bot.id
+
+    @pytest.mark.anyio
     async def test_create_stamps_org(self):
         org_id = uuid.uuid4()
         data = ChannelBotCreate(

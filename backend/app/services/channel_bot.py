@@ -913,9 +913,10 @@ class ChannelBotService:
     async def list_sessions(
         self, bot_id: UUID, *, skip: int = 0, limit: int = 50
     ) -> tuple[list, int]:
-        """List channel sessions for this bot."""
-        items = await channel_session_repo.list_by_bot(self.db, bot_id, skip=skip, limit=limit)
-        total = await channel_session_repo.count_by_bot(self.db, bot_id)
+        """List this organization's bot's sessions; another organization's bot reads as missing."""
+        bot = await self.get(bot_id)
+        items = await channel_session_repo.list_by_bot(self.db, bot.id, skip=skip, limit=limit)
+        total = await channel_session_repo.count_by_bot(self.db, bot.id)
         return items, total
 
     async def register_webhook(self, bot_id: UUID) -> dict[str, Any]:
