@@ -66,6 +66,7 @@ from app.db.models.user import User
 from app.db.models.visual import Visual
 from app.db.models.workflow_file import WorkflowFile
 from app.db.session import get_db_context
+from app.services.rag_scratch import SCRATCH_DIRECTORY
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
 # only as good as this list: a column missing from it turns every file it names
@@ -96,7 +97,7 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
 # is not one of them since `generated_media` records each file (#2310), so a
 # file generated before that table existed is counted here - it has no row, and
 # goes only with its organization.
-UNREFERENCED_BY_DESIGN = ("_rag_tmp",)
+UNREFERENCED_BY_DESIGN = (SCRATCH_DIRECTORY,)
 
 # Which capabilities send something out of the deployment when an agent runs
 # with them, and where. A capability reaches the network without any row in

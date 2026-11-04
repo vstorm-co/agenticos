@@ -11,6 +11,7 @@ document is deleted; and swept hourly once its document is gone or settled, for
 whatever a lost job or a deployment from before the fix left behind.
 """
 
+import asyncio
 import logging
 import os
 import uuid
@@ -77,8 +78,8 @@ class TestWhereACopyLives:
         removes: that cleanup can run after the person already pressed Retry."""
         document = uuid.uuid4()
 
-        first = rag_scratch.scratch_path(document, attempt=1, suffix=".pdf")
-        second = rag_scratch.scratch_path(document, attempt=2, suffix=".pdf")
+        first = rag_scratch.scratch_path(document, attempt=1, filename="Policy.PDF")
+        second = rag_scratch.scratch_path(document, attempt=2, filename="Policy.PDF")
 
         assert first == media / f"{document}-1.pdf"
         assert second == media / f"{document}-2.pdf"
@@ -132,7 +133,7 @@ class TestRemovingOneCopy:
         ]
         neighbour = _copy(media, f"{uuid.uuid4()}-1.pdf")
 
-        removed = await rag_scratch.discard_document(document, suffix=".pdf", attempts=2)
+        removed = await rag_scratch.discard_document(document, filename="policy.pdf", attempts=2)
 
         assert removed == 3
         assert not any(path.exists() for path in mine)
@@ -300,8 +301,6 @@ class TestTheIngestJob:
         self, media: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Cancelled - a shutdown or a lost lease - is not ended: the job runs again."""
-        import asyncio
-
         path = _copy(media, f"{uuid.uuid4()}-1.pdf")
         monkeypatch.setattr(
             rag_tasks, "_run_ingestion", AsyncMock(side_effect=asyncio.CancelledError())
@@ -315,11 +314,12 @@ class TestTheIngestJob:
     async def test_a_copy_that_cannot_be_removed_does_not_change_the_outcome(
         self, media: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        path = _copy(media, f"{uuid.uuid4()}-1.pdf")
         outcome = {"status": "done", "document_id": "vec-1", "filename": "policy.pdf"}
         monkeypatch.setattr(rag_tasks, "_run_ingestion", AsyncMock(return_value=outcome))
-        monkeypatch.setattr(rag_scratch, "discard", MagicMock(side_effect=RuntimeError("disk")))
+        monkeypatch.setattr(Path, "unlink", MagicMock(side_effect=PermissionError("read-only")))
 
-        assert await rag_tasks.ingest_document(_job(media / "x-1.pdf")) == outcome
+        assert await rag_tasks.ingest_document(_job(path)) == outcome
 
     async def test_a_job_the_queue_wrote_off_removes_it(
         self, media: Path, monkeypatch: pytest.MonkeyPatch
@@ -453,3 +453,92 @@ class TestDeletingADocument:
         background.start_deferred(db)
         await background.drain(timeout=5.0)
         assert not any(path.exists() for path in copies)
+
+
+class TestARunOfADispatchThatAlreadyEnded:
+    """The copy goes with its dispatch, so a second run of the same payload finds none:
+    an operator requeuing a dead job, or an attempt rescued from a lost lease while the
+    first one finished. That run ends; it is not a failure to retry and alert on."""
+
+    @staticmethod
+    def _pipeline_that_cannot_read(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        documents = MagicMock()
+        documents.return_value.get_document = AsyncMock(
+            return_value=MagicMock(
+                organization_id=None,
+                ingestion_config={},
+                status=DocumentStatus.ERROR,
+                knowledge_base_id=None,
+            )
+        )
+        pipeline = MagicMock()
+        pipeline.ingest_file = AsyncMock(
+            return_value=IngestionResult(
+                status=IngestionStatus.ERROR, error_message="The file could not be read"
+            )
+        )
+
+        @asynccontextmanager
+        async def _pipeline(**_kwargs: object) -> AsyncIterator[MagicMock]:
+            yield pipeline
+
+        fail = AsyncMock()
+        monkeypatch.setattr(rag_tasks, "get_worker_db_context", _worker_db)
+        monkeypatch.setattr("app.services.rag_document.RAGDocumentService", documents)
+        monkeypatch.setattr(
+            "app.services.ingestion_config.IngestionConfigService.build_processor", AsyncMock()
+        )
+        monkeypatch.setattr(rag_tasks, "_ingestion_service", _pipeline)
+        monkeypatch.setattr(rag_tasks, "_record_embedding_spend", AsyncMock())
+        monkeypatch.setattr(rag_tasks, "_still_ingestable", AsyncMock(return_value=True))
+        monkeypatch.setattr(rag_tasks, "_fail_document", fail)
+        return fail
+
+    @pytest.mark.parametrize(
+        ("status", "current_attempt"),
+        [(DocumentStatus.ERROR, 1), (DocumentStatus.DONE, 1), (DocumentStatus.PROCESSING, 2)],
+        ids=["requeued-after-it-failed", "rescued-after-it-indexed", "a-retry-took-over"],
+    )
+    async def test_it_ends_without_failing_or_retrying(
+        self,
+        media: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        status: DocumentStatus,
+        current_attempt: int,
+    ) -> None:
+        fail = self._pipeline_that_cannot_read(monkeypatch)
+        monkeypatch.setattr(
+            rag_document_repo,
+            "get_by_id",
+            AsyncMock(
+                return_value=SimpleNamespace(status=status, ingestion_attempt=current_attempt)
+            ),
+        )
+
+        with running(Attempt(1, 3)):
+            outcome = await rag_tasks.ingest_document(_job(media / f"{uuid.uuid4()}-1.pdf"))
+
+        assert outcome["status"] == "ended"
+        fail.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "lookup",
+        [
+            AsyncMock(
+                return_value=SimpleNamespace(status=DocumentStatus.PROCESSING, ingestion_attempt=1)
+            ),
+            AsyncMock(side_effect=ConnectionError("database down")),
+        ],
+        ids=["still-its-dispatch", "row-unreadable"],
+    )
+    async def test_a_missing_copy_of_the_current_dispatch_is_still_a_failure(
+        self, media: Path, monkeypatch: pytest.MonkeyPatch, lookup: AsyncMock
+    ) -> None:
+        """Nothing else took the copy over: the failure is reported and retried as before."""
+        fail = self._pipeline_that_cannot_read(monkeypatch)
+        monkeypatch.setattr(rag_document_repo, "get_by_id", lookup)
+
+        with running(Attempt(1, 3)), pytest.raises(RuntimeError):
+            await rag_tasks.ingest_document(_job(media / f"{uuid.uuid4()}-1.pdf"))
+
+        fail.assert_awaited()

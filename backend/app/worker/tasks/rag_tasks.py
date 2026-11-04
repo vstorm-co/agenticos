@@ -248,6 +248,22 @@ async def _still_ingestable(document_id: str, collection_name: str) -> bool:
         return True
 
 
+async def _dispatch_ended(document_id: str, attempt: int) -> bool:
+    """Whether this dispatch of the document is over: the row moved on, or a retry did.
+
+    Fail-safe: an error answers no, so a failure is only ever reported as before.
+    """
+    try:
+        async with get_worker_db_context() as db:
+            doc = await rag_document_repo.get_by_id(db, UUID(document_id))
+    except Exception:
+        logger.warning("Could not read document %s back", document_id)
+        return False
+    return doc is not None and (
+        doc.status != DocumentStatus.PROCESSING or doc.ingestion_attempt != attempt
+    )
+
+
 async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     """Process a document: parse, chunk, embed, store in vector DB.
 
@@ -301,13 +317,10 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
 
 
 def _discard_scratch(filepath: str) -> None:
-    """Remove a job's scratch copy without letting a failure replace the job's outcome."""
+    """Remove a job's scratch copy; `discard` logs a failed unlink rather than raising."""
     from app.services import rag_scratch
 
-    try:
-        rag_scratch.discard(filepath)
-    except Exception:
-        logger.exception("Could not remove the parse scratch copy of a finished ingest")
+    rag_scratch.discard(filepath)
 
 
 async def sync_collection(job: SyncCollection) -> dict[str, Any]:
@@ -496,6 +509,22 @@ async def _run_ingestion(
         # A failure is a refusal too once the document is no longer wanted: a delete
         # removes the scratch copy after its commit, and a parser that had not opened
         # it yet cannot read it (#2681).
+        if (
+            not result.refused
+            and not file_path.exists()
+            and await _dispatch_ended(rag_document_id, attempt)
+        ):
+            # This dispatch already ended - settled, or superseded by a retry with a
+            # copy of its own - and took its copy with it (#2681). What ran it again
+            # is a requeued dead job, or an attempt rescued from a lost lease while
+            # the first one finished: nothing is left for it to do, and the document
+            # is parsed again by retrying it, which writes a new copy.
+            logger.info("Ingestion %d of %s already ended", attempt, rag_document_id)
+            return {
+                "status": "ended",
+                "filename": source_path,
+                "message": "This ingest already ended; retry the document to parse it again",
+            }
         if result.refused or not await _still_ingestable(rag_document_id, collection_name):
             # Skipped on purpose: the collection or its base went while the file
             # parsed. A retry cannot index it, so this ends the job instead of

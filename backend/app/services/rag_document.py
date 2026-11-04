@@ -415,9 +415,7 @@ class RAGDocumentService:
         in a child process of the ingest pool, so a parse that runs out of memory
         is stopped there and written down on the job, not in the API.
         """
-        scratch = rag_scratch.scratch_path(
-            doc_id, attempt=attempt, suffix=Path(filename).suffix.lower()
-        )
+        scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
         scratch.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = str(scratch)
         # anyio, not open(): an upload can be tens of megabytes, and writing it
@@ -788,7 +786,7 @@ class RAGDocumentService:
             self.db,
             rag_scratch.discard_document(
                 doc.id,
-                suffix=Path(doc.filename).suffix.lower(),
+                filename=doc.filename,
                 attempts=doc.ingestion_attempt,
             ),
             name="delete-document-scratch",

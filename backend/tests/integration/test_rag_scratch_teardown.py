@@ -52,7 +52,7 @@ async def _processing_document(
 
 
 def _write_copy(document_id: uuid.UUID, *, age: timedelta = timedelta(0)) -> Path:
-    path = rag_scratch.scratch_path(document_id, attempt=1, suffix=".txt")
+    path = rag_scratch.scratch_path(document_id, attempt=1, filename="notes.txt")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"what the uploader wrote")
     stamp = (datetime.now(UTC) - age).timestamp()
