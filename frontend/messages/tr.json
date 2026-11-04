@@ -10394,6 +10394,8 @@
     "rotateAutoNote": "Platform webhook’u yeni secret ile yeniden kaydetti. Yapıştırmanız gereken bir şey yok.",
     "secretRotated": "İmzalama secret’ı yenilendi",
     "templatesLabel": "Şablonla başlayın",
+    "templatesUnavailable": "Kullanılabilir şablon yok. Kendi mesajınızı yazabilirsiniz.",
+    "templatesLoadFailed": "Şablonlar yüklenemedi. Yine de kendi mesajınızı yazabilirsiniz.",
     "templateScratch": "Sıfırdan başla",
     "templateScratchHelp": "Kendi mesajınızı ve çalışma sıklığınızı yazın.",
     "stepSchedule": "Schedule",

@@ -7552,6 +7552,8 @@
     "rotateAutoNote": "Platforma ponownie zarejestrowała webhook z nowym sekretem. Nie ma nic do wklejenia.",
     "secretRotated": "Sekret podpisujący zrotowany",
     "templatesLabel": "Zacznij od szablonu",
+    "templatesUnavailable": "Brak dostępnych szablonów. Możesz napisać własną wiadomość.",
+    "templatesLoadFailed": "Nie udało się załadować szablonów. Nadal możesz napisać własną wiadomość.",
     "templateScratch": "Zacznij od zera",
     "templateScratchHelp": "Napisz własną wiadomość i kadencję.",
     "stepSchedule": "Harmonogram",

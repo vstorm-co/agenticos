@@ -8606,6 +8606,8 @@
     "rotateAutoNote": "Die Plattform hat den Webhook mit dem neuen Secret neu registriert. Es gibt nichts einzufügen.",
     "secretRotated": "Signatur-Secret rotiert",
     "templatesLabel": "Mit einer Vorlage beginnen",
+    "templatesUnavailable": "Keine Vorlagen verfügbar. Du kannst eine eigene Nachricht schreiben.",
+    "templatesLoadFailed": "Vorlagen konnten nicht geladen werden. Du kannst trotzdem eine eigene Nachricht schreiben.",
     "templateScratch": "Von Grund auf neu",
     "templateScratchHelp": "Schreiben Sie Ihre eigene Nachricht und Ihren eigenen Takt.",
     "stepSchedule": "Zeitplan",

@@ -61,7 +61,7 @@ import { NO_TEAMS_POST, TeamsPostField } from "@/components/triggers/teams-post-
 import { LocalTargetField } from "@/components/triggers/local-target-field";
 import { RunAsCreatorField } from "@/components/triggers/run-as-creator-field";
 import { EventSourceMark } from "@/components/triggers/event-source-mark";
-import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
+import { TriggerTemplateSelector } from "@/components/triggers/trigger-template-picker";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAgentEnvironments, useAgents } from "@/hooks";
@@ -983,12 +983,8 @@ export function TriggerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      {/* A ceiling, not a height. The message step's editor asks for eighteen
-          rows and so fills a page on its own; the configure step holds three
-          fields, and `h-[90vh]` gave it the same page with six hundred pixels of
-          white under the last caption and the Continue button pinned to the
-          bottom of the screen (#1069). The grid rows still pin the header and the
-          nav and give the body whatever is between. */}
+      {/* Each step takes the space it needs; only the body scrolls when the
+          available height is exceeded, keeping navigation reachable. */}
       {/* `gap-0`: the three bands pad themselves, and the dialog's own grid gap
           on top of the body's padding left a band of nothing over the first field. */}
       <DialogContent
@@ -1125,7 +1121,7 @@ export function TriggerFormDialog({
 
           {step === "message" && (
             <div className="space-y-4">
-              <TriggerTemplatePicker
+              <TriggerTemplateSelector
                 triggerType={type}
                 eventSource={type === "event" ? eventSource : undefined}
                 selectedKey={templateKey}
@@ -1135,7 +1131,7 @@ export function TriggerFormDialog({
 
               {/* The step is the message's own, so the editor gets the room a
                   long prompt needs. */}
-              <PromptField value={prompt} onChange={setPrompt} rows={18} />
+              <PromptField value={prompt} onChange={setPrompt} rows={8} />
             </div>
           )}
 
@@ -1187,14 +1183,16 @@ function PromptField({
   const [mode, setMode] = useState<MarkdownMode>("source");
   return (
     <div className="space-y-1.5">
-      {/* The label and the source/preview toggle on one row, rather than the
-          toggle on a row of its own between them. */}
-      <div className="flex items-end justify-between gap-2">
-        <Label htmlFor="trigger-prompt">{t("prompt")}</Label>
-        <MarkdownModeToggle mode={mode} onChange={setMode} />
-      </div>
       <MarkdownEditor
         id="trigger-prompt"
+        toolbar={
+          <>
+            <Label htmlFor="trigger-prompt" className="flex-1">
+              {t("prompt")}
+            </Label>
+            <MarkdownModeToggle mode={mode} onChange={setMode} />
+          </>
+        }
         label={t("prompt")}
         value={value}
         onChange={onChange}

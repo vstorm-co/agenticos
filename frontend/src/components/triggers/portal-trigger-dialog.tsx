@@ -32,7 +32,7 @@ import { useAgentEnvironments, useAgents } from "@/hooks";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DEFAULT_ENV, EnvironmentField } from "@/components/triggers/environment-field";
 import { SecretRevealField } from "@/components/triggers/secret-reveal-field";
-import { TriggerTemplatePicker } from "@/components/triggers/trigger-template-picker";
+import { TriggerTemplateSelector } from "@/components/triggers/trigger-template-picker";
 import { usePortalTargets } from "@/hooks/use-portal-targets";
 import { useTriggers } from "@/hooks/use-triggers";
 import { useAgentSelectionStore } from "@/stores";
@@ -419,7 +419,7 @@ export function PortalTriggerDialog({
 
           {step === "message" && (
             <div className="space-y-4">
-              <TriggerTemplatePicker
+              <TriggerTemplateSelector
                 triggerType="event"
                 eventSource={eventSource}
                 selectedKey={templateKey}
@@ -433,14 +433,14 @@ export function PortalTriggerDialog({
                 }}
               />
               <div className="space-y-1.5">
-                <Label htmlFor="portal-prompt">{tt("prompt")}</Label>
                 <MarkdownEditor
                   id="portal-prompt"
+                  toolbar={<Label htmlFor="portal-prompt">{tt("prompt")}</Label>}
                   label={tt("prompt")}
                   value={prompt}
                   onChange={setPrompt}
                   placeholder={tt("promptPlaceholder")}
-                  rows={18}
+                  rows={8}
                   describedBy="portal-prompt-desc"
                 />
                 <p

@@ -8727,6 +8727,8 @@
     "rotateAutoNote": "The platform re-registered the webhook with the new secret. There's nothing to paste.",
     "secretRotated": "Signing secret rotated",
     "templatesLabel": "Start from a template",
+    "templatesUnavailable": "No templates available. You can write your own message.",
+    "templatesLoadFailed": "Could not load templates. You can still write your own message.",
     "templateScratch": "Start from scratch",
     "templateScratchHelp": "Write your own message and cadence.",
     "stepSchedule": "Schedule",
