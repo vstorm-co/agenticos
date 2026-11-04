@@ -1,5 +1,5 @@
 ---
-source_sha: "45358ad54c78"
+source_sha: "67159a2b0696"
 ---
 
 # La consola { #the-console }
@@ -793,8 +793,8 @@ cambiar de pestaña conserva los valores del formulario sin guardar.
 
 ## Idiomas { #languages }
 
-La consola habla inglés, polaco y alemán, en su totalidad salvo las páginas
-legales, que siguen en inglés. La primera tarjeta del recorrido ofrece los tres, y
+La consola habla inglés, polaco, alemán y turco. La primera tarjeta del recorrido
+ofrece los cuatro, y
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
 inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la

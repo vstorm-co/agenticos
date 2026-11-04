@@ -13,6 +13,7 @@ import sys
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel
@@ -122,6 +123,39 @@ class TestProviderNormalisation:
         assert results.results[0].content == "body"
 
     @pytest.mark.anyio
+    async def test_keenable_works_without_a_key(self):
+        """Keyless searches prefer current snippets and keep legacy description-only results."""
+        client = _http_client(
+            "post",
+            {
+                "results": [
+                    {"title": "T", "url": "https://k.dev", "description": "d", "snippet": "s"},
+                    {"title": "No URL", "description": "dropped"},
+                    {"title": "U", "url": "https://k2.dev", "description": "legacy text"},
+                ]
+            },
+        )
+        with patch("httpx.AsyncClient", return_value=client):
+            results = await search("q", provider="keenable", api_key=None, max_results=5)
+
+        url, kwargs = client.post.call_args.args[0], client.post.call_args.kwargs
+        assert url == "https://api.keenable.ai/v1/search/public"
+        assert kwargs["json"] == {"query": "q", "max_results": 5, "snippet_max_length": 1000}
+        assert kwargs["headers"]["X-Keenable-Title"] == "AgenticOS"
+        assert "X-API-Key" not in kwargs["headers"]
+        assert [r.url for r in results.results] == ["https://k.dev", "https://k2.dev"]
+        assert [r.content for r in results.results] == ["s", "legacy text"]
+
+    @pytest.mark.anyio
+    async def test_keenable_uses_the_keyed_endpoint_when_given_a_key(self):
+        client = _http_client("post", {"results": []})
+        with patch("httpx.AsyncClient", return_value=client):
+            await search("q", provider="keenable", api_key="kn", max_results=5)
+
+        assert client.post.call_args.args[0] == "https://api.keenable.ai/v1/search"
+        assert client.post.call_args.kwargs["headers"]["X-API-Key"] == "kn"
+
+    @pytest.mark.anyio
     async def test_duckduckgo_needs_no_key_at_all(self):
         """The default, and the reason it is the default."""
         client = MagicMock()
@@ -153,6 +187,16 @@ class TestFailures:
             pytest.raises(SearchUnavailable, match="Tavily search is unavailable"),
         ):
             await search("q", provider="tavily", api_key="k", max_results=5)
+
+    @pytest.mark.anyio
+    async def test_a_failing_keenable_request_raises(self):
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=httpx.ConnectError("upstream unavailable"))
+        with (
+            patch("httpx.AsyncClient", return_value=client),
+            pytest.raises(SearchUnavailable, match="Keenable search is unavailable"),
+        ):
+            await search("q", provider="keenable", api_key=None, max_results=5)
 
     @pytest.mark.anyio
     async def test_a_providers_own_message_stays_in_the_log(self, caplog):
@@ -207,6 +251,7 @@ class TestConfiguration:
         definition = get("web_research")
         assert definition.needs_secret(WebResearchConfig(method="duckduckgo")) is False
         assert definition.needs_secret(WebResearchConfig(method="native")) is False
+        assert definition.needs_secret(WebResearchConfig(method="keenable")) is False
 
     def test_a_capability_that_declares_no_key_never_asks_for_one(self):
         """Most builtins take no credential at all. The same question is asked of
@@ -328,3 +373,33 @@ class TestSharedHttpClient:
         # And a no-op when there is nothing to close.
         await _search.close_http_client()
         assert _search._client is None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "payload", [[], {}, {"results": None}, {"results": [None]}, {"results": [{"url": 12}]}]
+)
+async def test_keenable_malformed_responses_are_explicit_failures(payload: object) -> None:
+    client = _http_client("post", payload)
+    with (
+        patch("httpx.AsyncClient", return_value=client),
+        pytest.raises(SearchUnavailable, match="Keenable search is unavailable"),
+    ):
+        await search("q", provider="keenable", api_key=None, max_results=5)
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_keenable_http_refusals_do_not_return_vendor_credentials() -> None:
+    client = _http_client("post", {"results": []})
+    client.post.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "private-provider-diagnostic",
+        request=httpx.Request("POST", "https://api.keenable.ai/v1/search"),
+        response=httpx.Response(401),
+    )
+    with (
+        patch("httpx.AsyncClient", return_value=client),
+        pytest.raises(SearchUnavailable) as refused,
+    ):
+        await search("q", provider="keenable", api_key="private-provider-diagnostic", max_results=5)
+    assert "private-provider-diagnostic" not in str(refused.value)

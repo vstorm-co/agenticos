@@ -64,6 +64,17 @@ async def test_a_traversal_shaped_name_is_404_not_a_file_read(client: AsyncClien
 
 
 @pytest.mark.anyio
+async def test_bundled_keenable_mark_is_listed_and_served(client: AsyncClient) -> None:
+    listing = await client.get(BASE)
+    assert "keenable" in listing.json()["items"]
+    response = await client.get(f"{BASE}/keenable")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert 'aria-label="Keenable"' in response.text
+    assert "<path" in response.text
+
+
+@pytest.mark.anyio
 async def test_otari_mark_is_bundled(client: AsyncClient) -> None:
     listing = await client.get(BASE)
     assert "otari" in listing.json()["items"]

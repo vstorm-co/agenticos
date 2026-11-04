@@ -405,6 +405,8 @@ line-length = 100
 per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
+# Dotless i is a distinct Turkish letter used in localized messages.
+allowed-confusables = ["ı"]
 # The rule set is deliberately wide. A linter that only catches formatting is a
 # linter people stop reading; these are the categories that catch real defects
 # in an async, multi-tenant service — swallowed exceptions, blocking calls in a

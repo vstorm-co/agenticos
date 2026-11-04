@@ -19,4 +19,5 @@ The contract:
 
 ## Bundled sources
 
+- `keenable.svg`: the official [Keenable documentation favicon](https://docs.keenable.ai/favicon.svg), adapted to a monochrome mask by retaining the original blue paths and transforms and removing the opaque white highlights from the transparent counters. The mark belongs to Keenable; the console renders it through the same theme-aware mask as other catalog icons.
 - `otari.svg`: the official Otari mark from [mozilla-ai/otari](https://github.com/mozilla-ai/otari/blob/main/web/public/favicon.svg), rendered as a monochrome mask with the original transparent cutouts.

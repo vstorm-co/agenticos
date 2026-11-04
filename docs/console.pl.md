@@ -1,5 +1,5 @@
 ---
-source_sha: "45358ad54c78"
+source_sha: "67159a2b0696"
 ---
 
 # Konsola { #the-console }
@@ -771,8 +771,8 @@ wartości formularzy.
 
 ## Języki { #languages }
 
-Konsola mówi po angielsku, polsku i niemiecku, w całości poza stronami
-prawnymi, które zostają po angielsku. Pierwsza karta przewodnika proponuje te trzy
+Konsola mówi po angielsku, polsku, niemiecku i turecku. Pierwsza karta
+przewodnika proponuje te cztery
 języki, a menu konta zmienia język w każdej chwili; wybór jest zapisywany na twoim
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
 logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni

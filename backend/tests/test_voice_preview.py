@@ -98,6 +98,12 @@ async def test_another_language_hears_the_consoles_sentence(world):
     assert world.said == [PREVIEW_LINES["de"]]
 
 
+async def test_turkish_console_has_a_turkish_preview(world):
+    service, _ = _service(world)
+    await service.preview(_ctx(), _block(), locale="tr")
+    assert world.said == [PREVIEW_LINES["tr"]]
+
+
 @pytest.mark.parametrize(
     "block",
     [
@@ -222,3 +228,13 @@ def test_wav_wraps_pcm_without_changing_it():
     with wave.open(io.BytesIO(audio)) as file:
         assert file.readframes(2) == b"\x10\x00\x20\x00"
     assert base64.b64decode(base64.b64encode(audio)) == audio
+
+
+def test_every_console_language_has_a_voice_preview_line() -> None:
+    from typing import get_args
+
+    from app.schemas.user import ConsoleLocale
+    from app.schemas.voice import VoicePreviewRequest
+
+    assert set(PREVIEW_LINES) == set(get_args(ConsoleLocale))
+    assert VoicePreviewRequest.model_validate({"voice": _block(), "locale": "tr"}).locale == "tr"

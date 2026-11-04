@@ -7,6 +7,13 @@ import userEvent from "@testing-library/user-event";
 import { SchemaForm } from "./schema-form";
 import type { JsonSchema } from "@/types/agents";
 
+vi.mock("@/components/icons/custom-icons", async () => {
+  const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
+    "@/components/icons/custom-icons",
+  );
+  return { ...actual, useCustomIcons: () => new Set(["keenable"]) };
+});
+
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({ profiles: [{ id: "p-fast" }], profilesStatus: "ready" }),
 }));
@@ -1497,4 +1504,29 @@ it("clears a sandbox model when switching to this computer", async () => {
   );
   await userEvent.click(screen.getByRole("radio", { name: "this_computer" }));
   expect(onChange).toHaveBeenLastCalledWith({ runs_on: "this_computer", model: undefined });
+});
+
+it("renders the catalog logo for Keenable in a search-engine choice", () => {
+  const { container } = render(
+    <SchemaForm
+      schema={{
+        type: "object",
+        properties: {
+          method: {
+            type: "string",
+            enum: ["duckduckgo", "keenable"],
+            title: "Search engine",
+            "x-enum-labels": { duckduckgo: "DuckDuckGo", keenable: "Keenable" },
+          },
+        },
+      }}
+      value={{ method: "keenable" }}
+      onChange={vi.fn()}
+      idPrefix="search"
+    />,
+  );
+  const mark = container.querySelector<HTMLElement>('[style*="mask-image"]');
+  expect(mark?.style.maskImage).toBe('url("/api/catalog/icons/keenable")');
+  expect(mark?.style.backgroundColor).toBe("currentcolor");
+  expect(screen.getByRole("combobox")).toHaveTextContent("Keenable");
 });

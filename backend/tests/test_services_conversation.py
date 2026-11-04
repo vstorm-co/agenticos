@@ -1,5 +1,6 @@
 """Tests for ConversationService (PostgreSQL async variant)."""
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -1599,6 +1600,52 @@ class TestConversationServiceAddMessage:
         assert written["input_tokens"] == 1200
         assert written["output_tokens"] == 300
         assert written["cost_usd"] == Decimal("0.0125")
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("source_kind", ["conversation", "local"])
+    async def test_runner_message_parts_are_json_serializable(
+        self, service: ConversationService, source_kind: str
+    ) -> None:
+        from app.schemas.conversation import (
+            ConversationMessageFileSource,
+            LocalMessageFileSource,
+            MessageCreate,
+            MessagePart,
+        )
+
+        conv_id, run_id, file_id = uuid4(), uuid4(), uuid4()
+        source = (
+            ConversationMessageFileSource(id=file_id)
+            if source_kind == "conversation"
+            else LocalMessageFileSource(id=file_id)
+        )
+        data = MessageCreate(
+            role="assistant",
+            content="answered",
+            parts=[
+                MessagePart(type="tool", tool_call_id="tool-1", file_source=source),
+                MessagePart(type="text", text="answered"),
+            ],
+        )
+
+        with (
+            patch("app.services.conversation.conversation_repo") as mock_repo,
+            patch("app.services.follow_ups.queue_next_steps"),
+        ):
+            mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
+            mock_repo.create_message = AsyncMock(return_value=MockMessage())
+
+            await service.add_message(conv_id, data, organization_id=TEST_ORG_ID, run_id=run_id)
+
+        written = mock_repo.create_message.await_args.kwargs["parts"]
+        assert json.loads(json.dumps(written)) == [
+            {
+                "type": "tool",
+                "tool_call_id": "tool-1",
+                "file_source": {"kind": source_kind, "id": str(file_id)},
+            },
+            {"type": "text", "text": "answered"},
+        ]
 
     @pytest.mark.anyio
     async def test_a_run_id_in_the_request_body_reaches_no_row(self, service: ConversationService):
