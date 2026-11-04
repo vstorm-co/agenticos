@@ -172,17 +172,19 @@ async function seedSkillsLab(page: Page) {
       review: { select: "all" },
     });
     // A check judges an agent on its held-out questions and needs five of them.
-    let held = 0;
+    // The split is drawn per question, so each topic gets asked until three of
+    // its questions are held out.
     for (const topic of ["receipt", "digital"] as const) {
-      for (let n = 0; n < 10; n++) {
+      let held = 0;
+      for (let n = 0; n < 40 && (n < 10 || held < 3); n++) {
         const question = await write(api, "post", `/datasets/${id(dataset)}/cases`, headers, {
           input: `TOPIC:${topic} Returns question ${n + 1}`,
           checks: [{ type: "equals", value: EXPECTED[role][topic] }],
         });
         if (question.improvement_partition !== "train") held++;
       }
+      expect(held).toBeGreaterThanOrEqual(3);
     }
-    expect(held).toBeGreaterThanOrEqual(5);
     const measured = await write(api, "post", `/agents/${id(created)}/eval-runs`, headers, {
       dataset_id: id(dataset),
       reruns: 0,
@@ -365,11 +367,13 @@ test("a shared skill's page shows each agent's line, and Improve prices the line
 
 /**
  * One skill, several agents: a change one agent fails is applied with that
- * agent pinned, and a change that helps and breaks nothing passes.
+ * agent pinned, a change that helps and breaks nothing passes, and a fork
+ * catches up with main.
  * Actual API, worker, checks and persisted rows; only the model is a fixture.
  */
-test("a shared skill improves on main and pins the agent a change breaks", async ({ page }) => {
-  test.fixme(true, "A skill session runs its seeded helper until it takes `improver_agent_id`");
+test("a shared skill improves on main, pins the agent a change breaks and catches a fork up", async ({
+  page,
+}) => {
   test.setTimeout(900_000);
   const { api, headers, skill, fork, helper, online, counter, wholesale } =
     await seedSkillsLab(page);
@@ -442,6 +446,46 @@ test("a shared skill improves on main and pins the agent a change breaks", async
     expect(await bindingOf(api, headers, skillId, id(counter.agent))).toMatchObject({
       state: "pinned",
       behind_main: 2,
+    });
+  });
+
+  await test.step("the fork catches up with main", async () => {
+    const behind = await read(api, "/skills/behind-main", headers);
+    const lagging = (Array.isArray(behind.items) ? behind.items.map(record) : []).filter(
+      (item) => record(item.skill).id === skillId,
+    );
+    expect(lagging.map((item) => [item.kind, item.behind_main])).toEqual(
+      expect.arrayContaining([
+        ["pinned", 2],
+        ["fork", 2],
+      ]),
+    );
+    const merge = `/skills/${skillId}/forks/${id(fork)}/catch-up`;
+    // Main changed its receipt lines and the online line, the fork only its
+    // wholesale line, so every part merges by itself and nothing is proposed.
+    expect((await write(api, "post", `${merge}/estimate`, headers, {})).conflicts).toBe(0);
+    const session = await write(api, "post", merge, headers, { budget_usd: "5" });
+    const path = `/skills/${skillId}/improvements/${id(session)}`;
+    await until(api, headers, path, "waiting", "check");
+    await nextStep(api, headers, path, "thorough");
+    await until(api, headers, path, "ready");
+    const result = await read(api, path, headers);
+    // Main alone gives the wholesale desk store credit on receipts, so the fork stays.
+    expect(result.main_alone).toBe("checked");
+    expect(result.outcomes).toContain("catch_up");
+    expect(result.outcomes).not.toContain("return_to_main");
+    await write(api, "post", `${path}/apply`, headers, {
+      confirmed: true,
+      acknowledge_unknown: false,
+      pin_worse: false,
+    });
+    const forks = await read(api, `/skills/${skillId}/forks`, headers);
+    const caughtUp = (Array.isArray(forks.items) ? forks.items.map(record) : []).find(
+      (item) => item.id === id(fork),
+    );
+    expect(caughtUp).toMatchObject({ behind_main: 0, base: { number: 3 } });
+    expect(await bindingOf(api, headers, skillId, id(wholesale.agent))).toMatchObject({
+      state: "fork",
     });
   });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "5b43d9648043"
+source_sha: "0a12b9142960"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1087,6 +1087,9 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_skill_improvements`, `get_skill_improvement` | `skills:view` i `runs:view` |
 | `estimate_skill_improvement`, `start_skill_improvement`, `estimate_next_skill_improvement_step`, `run_next_skill_improvement_step`, `retry_skill_improvement_step`, `accept_skill_improvement`, `end_skill_improvement` | prawo edycji skilla i `runs:view`; przypięcie gorszych agentów także `agents:publish` na każdym z nich |
 | `change_skill_version` | prawo edycji agenta; wejście na żywo także `agents:publish` |
+| `list_skills_behind_main` | `skills:view` |
+| `estimate_skill_update_check`, `start_skill_update_check`, `estimate_skill_catch_up`, `start_skill_catch_up` | prawo edycji skilla i `runs:view`; sprawdzenie aktualizacji także dostęp do agenta |
+| `return_skill_fork_to_main` | prawo edycji każdego agenta; wejście na żywo także `agents:publish` |
 | `list_projects`                                                                                                                                                                                               | `projects:view`                                                                                                                            |
 | `get_project`                                                                                                                                                                                                 | dostęp do projektu                                                                                                                         |
 | `create_project`                                                                                                                                                                                              | `projects:edit`                                                                                                                            |

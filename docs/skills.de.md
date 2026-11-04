@@ -1,5 +1,5 @@
 ---
-source_sha: "b381f1b58bd5"
+source_sha: "f6a650da99f7"
 ---
 
 # Skills { #skills }
@@ -801,10 +801,11 @@ wartet, wird neu bepreist: Der nächste Schritt prüft die Änderungen auf der
 neuesten Version.
 
 Der [Architekt](console.md#the-assistant) liest die Agents, Versionen und
-Sitzungen eines Skills. Er startet eine Sitzung, führt einen Schritt aus oder
-wiederholt ihn, nimmt ein Ergebnis an, beendet eine Sitzung oder verschiebt einen
-Agent auf eine andere Version nur, wenn Sie darum bitten, jeweils über eine
-Freigabekarte.
+Sitzungen eines Skills und die festgesetzten Agents und Forks, an denen main
+vorbeigezogen ist. Er startet eine Sitzung, führt einen Schritt aus oder
+wiederholt ihn, nimmt ein Ergebnis an, beendet eine Sitzung, verschiebt einen
+Agent auf eine andere Version oder holt einen festgesetzten Agent oder einen Fork
+zu main auf, nur wenn Sie darum bitten, jeweils über eine Freigabekarte.
 
 ## Skills oder Knowledge? { #skills-or-knowledge }
 
