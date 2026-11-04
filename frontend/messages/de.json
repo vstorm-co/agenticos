@@ -4983,6 +4983,14 @@
       "chat-background-tasks": {
         "title": "Hintergrundthemen",
         "body": "Unabhängige Arbeit öffnet ein neues Thema in diesem Projekt. Sprich hier weiter; der Agent meldet sich mit dem Ergebnis. Öffne oder stoppe Aufgaben über diese Leiste."
+      },
+      "project-graph": {
+        "title": "Verknüpfte Notizen erkunden",
+        "body": "Die Graphansicht ermittelt Links und Rückverweise aus Markdown und Frontmatter. Solange sie geöffnet ist, wird sie aktualisiert und verwendet nur Dateien, die Sie an diesem Ort lesen dürfen."
+      },
+      "workspace-graph": {
+        "title": "Verknüpfte Notizen erkunden",
+        "body": "Die Graphansicht ermittelt Links und Rückverweise aus Markdown und Frontmatter. Solange sie geöffnet ist, wird sie aktualisiert und verwendet nur Dateien, die Sie an diesem Ort lesen dürfen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -12248,7 +12256,7 @@
     "failed": "Workspace konnte nicht gelesen werden. Erneut versuchen oder Zugriff prüfen.",
     "counts": "{pages, plural, one {# Notiz} other {# Notizen}} · {links, plural, one {# Link} other {# Links}}",
     "partial": "Dieser Graph ist unvollständig",
-    "limits": "Der Scan nutzt die verfügbare Dateiliste: bis zu 200 Markdown-Dateien, 256 KiB je Datei und insgesamt 8 MiB. Übersprungene oder unlesbare Notizen und ihre Links fehlen.",
+    "limits": "Der Scan umfasst bis zu 200 Notizen, 256 KiB pro Datei und insgesamt 8 MiB. Es gelten höchstens 256 Beziehungen pro Notiz und 2048 im gesamten Graphen. Nach Änderungen aktualisieren oder die Dateimenge verkleinern.",
     "skipped": "Übersprungen: {path}",
     "unreadable": "Nicht lesbar: {path}",
     "invalidFrontmatter": "Ungültiges YAML-Frontmatter. Metadaten dieser Notizen werden ignoriert: {paths}",

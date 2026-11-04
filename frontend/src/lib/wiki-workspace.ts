@@ -3,7 +3,7 @@ import { listLocalFiles } from "./desktop/commands";
 import { listProjectFiles } from "./projects-api";
 import { readWorkspaceFiles, type WorkspaceFile } from "./sandbox-workspaces-api";
 import { readFileText, type FileSource } from "./workspace-files";
-import { buildWikiGraph, parseWikiPage, type WikiGraph } from "./wiki-graph";
+import { buildWikiGraph, parseWikiPage, type WikiGraph, WIKI_RELATION_LIMITS } from "./wiki-graph";
 
 export const WIKI_LIMITS = { pages: 200, fileBytes: 256 * 1024, totalBytes: 8 * 1024 * 1024 };
 
@@ -21,7 +21,7 @@ async function listing(source: FileSource) {
     case "workspace":
       return readWorkspaceFiles(source.id);
     case "conversation":
-      return readConversationWorkspace(source.id).then((files) => ({ ...files, truncated: false }));
+      return readConversationWorkspace(source.id);
     case "local":
       return listLocalFiles(source.root).then((items) => ({
         items: items.map((file): WorkspaceFile => ({
@@ -72,6 +72,7 @@ export async function readWikiWorkspace(
   const failed: string[] = [];
   const pending = selected.entries();
   let loadedBytes = 0;
+  let remainingLinks: number = WIKI_RELATION_LIMITS.graph;
   // Four in flight, including on refresh. Abort stops queued reads after navigation.
   await Promise.all(
     Array.from({ length: Math.min(4, selected.length) }, async () => {
@@ -89,7 +90,9 @@ export async function readWikiWorkspace(
             skipped.push(file.path);
           else {
             loadedBytes += size;
-            results[index] = parseWikiPage(file.path, text.content);
+            const page = parseWikiPage(file.path, text.content, remainingLinks);
+            remainingLinks -= page.links.length;
+            results[index] = page;
           }
         } catch (error) {
           signal.throwIfAborted();
@@ -106,11 +109,12 @@ export async function readWikiWorkspace(
       }
     }),
   );
+  const graph = buildWikiGraph(results.filter((page) => page !== null));
   return {
-    ...buildWikiGraph(results.filter((page) => page !== null)),
+    ...graph,
     files: files.items,
     skipped: skipped.sort(),
     failed: failed.sort(),
-    truncated: files.truncated,
+    truncated: files.truncated || graph.relationshipsTruncated,
   };
 }

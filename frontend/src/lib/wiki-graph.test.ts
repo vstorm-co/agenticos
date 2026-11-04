@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWikiGraph, parseWikiPage, wikiPath } from "./wiki-graph";
+import { buildWikiGraph, parseWikiPage, wikiPath, WIKI_RELATION_LIMITS } from "./wiki-graph";
 import { layoutWiki } from "./wiki-layout";
 
 describe("wiki document relationships", () => {
@@ -139,4 +139,63 @@ links: notes/d.md
       }),
     ).toEqual(first);
   });
+});
+
+it.each([
+  "   ```md\n[[hidden]]\n   ````\n[[shown]]",
+  "  ~~~md\n[[hidden]]\n~~~~~\n[[shown]]",
+  "```md\n[[hidden]]\n```not-a-close\n[[also hidden]]",
+  "~~~\n[[hidden]]",
+])("respects indented, longer and unclosed Markdown fences: %s", (body) => {
+  expect(parseWikiPage("a.md", body).links.map((link) => link.target)).toEqual(
+    body.includes("[[shown]]") ? ["shown"] : [],
+  );
+});
+
+it("keeps inline code delimiters exact and comments out of relationships", () => {
+  const page = parseWikiPage(
+    "a.md",
+    "`` [[hidden]] ` <!-- `` [[shown]] <!-- [[comment]] --> [[last]]",
+  );
+  expect(page.links.map((link) => link.target)).toEqual(["shown", "last"]);
+});
+
+it("handles adversarial backticks, brackets and unclosed comments without backtracking", () => {
+  for (const prefix of ["`".repeat(200_000), "[".repeat(200_000), "<!--".repeat(50_000)]) {
+    const page = parseWikiPage("a.md", prefix + "\n[[visible]]");
+    expect(page.links).toHaveLength(prefix.startsWith("<!--") || prefix.startsWith("```") ? 0 : 1);
+  }
+});
+
+it("bounds relationships from body and frontmatter and reports exactly what was omitted", () => {
+  const many = Array.from({ length: WIKI_RELATION_LIMITS.page + 1 }, (_, i) => `[[target${i}]]`);
+  const page = parseWikiPage("a.md", many.join(" "));
+  expect(page.links).toHaveLength(WIKI_RELATION_LIMITS.page);
+  expect(page.linksTruncated).toBe(true);
+  expect(parseWikiPage("a.md", many.slice(0, -1).join(" ")).linksTruncated).toBe(false);
+  const frontmatter = parseWikiPage("a.md", `---\nrelated: ${JSON.stringify(many)}\n---`);
+  expect(frontmatter.links).toHaveLength(WIKI_RELATION_LIMITS.page);
+  expect(frontmatter.linksTruncated).toBe(true);
+  const pages = Array.from({ length: 12 }, (_, i) => parseWikiPage(`${i}.md`, many.join(" ")));
+  const graph = buildWikiGraph(pages);
+  expect(graph.edges.length + graph.unresolved.length).toBe(WIKI_RELATION_LIMITS.graph);
+  expect(graph.relationshipsTruncated).toBe(true);
+});
+
+it("leaves unmatched and escaped backticks as prose without hiding later links", () => {
+  for (const prefix of ["text ` unmatched", "text \\` escaped"]) {
+    expect(parseWikiPage("a.md", prefix + " [[a]]").links.map((link) => link.target)).toEqual([
+      "a",
+    ]);
+  }
+});
+
+it("bounds Markdown relationships as well as wikilinks", () => {
+  const body = Array.from(
+    { length: WIKI_RELATION_LIMITS.page + 1 },
+    (_, i) => `[note](${i}.md)`,
+  ).join(" ");
+  const page = parseWikiPage("a.md", body);
+  expect(page.links).toHaveLength(WIKI_RELATION_LIMITS.page);
+  expect(page.linksTruncated).toBe(true);
 });

@@ -1,9 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { WikiCanvas } from "./wiki-canvas";
+import { layoutWiki } from "@/lib/wiki-layout";
 import { buildWikiGraph, parseWikiPage } from "@/lib/wiki-graph";
 import type { WikiFlowNode } from "@/lib/wiki-flow";
 import type { ReactFlowProps } from "@xyflow/react";
+
+vi.mock("@/lib/wiki-layout", async (original) => {
+  const actual = await original<typeof import("@/lib/wiki-layout")>();
+  return { ...actual, layoutWiki: vi.fn(actual.layoutWiki) };
+});
 
 vi.mock("@/hooks/use-resolved-theme", () => ({ useResolvedTheme: () => "light" }));
 vi.mock("@xyflow/react", async (original) => ({
@@ -69,4 +75,32 @@ it("keeps a dragged point's position when selection and refreshed graph data cha
   expect(screen.getByLabelText("Position")).toHaveTextContent('{"x":120,"y":240}');
   expect(screen.getByLabelText("Measurements")).toHaveTextContent('{"width":20,"height":20}');
   expect(onSelect).toHaveBeenCalledTimes(1);
+});
+
+it("reuses physics for selection and filtering, and recomputes it only for new graph data", () => {
+  vi.mocked(layoutWiki).mockClear();
+  const graph = buildWikiGraph([parseWikiPage("a.md", "[[b]]"), parseWikiPage("b.md", "")]);
+  const onSelect = vi.fn();
+  const { rerender } = render(
+    <WikiCanvas
+      graph={graph}
+      selected={null}
+      visible={new Set(["a.md", "b.md"])}
+      onSelect={onSelect}
+    />,
+  );
+  expect(layoutWiki).toHaveBeenCalledTimes(1);
+  rerender(
+    <WikiCanvas graph={graph} selected="a.md" visible={new Set(["a.md"])} onSelect={onSelect} />,
+  );
+  expect(layoutWiki).toHaveBeenCalledTimes(1);
+  rerender(
+    <WikiCanvas
+      graph={{ ...graph }}
+      selected="a.md"
+      visible={new Set(["a.md"])}
+      onSelect={onSelect}
+    />,
+  );
+  expect(layoutWiki).toHaveBeenCalledTimes(2);
 });

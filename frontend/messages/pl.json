@@ -6483,6 +6483,14 @@
       "chat-background-tasks": {
         "title": "Tematy w tle",
         "body": "Niezależne zadanie otwiera nowy temat w tym projekcie. Kontynuuj rozmowę tutaj; agent wróci z wynikiem. Z tego paska otworzysz lub zatrzymasz zadanie."
+      },
+      "project-graph": {
+        "title": "Poznaj powiązane notatki",
+        "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
+      },
+      "workspace-graph": {
+        "title": "Poznaj powiązane notatki",
+        "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -12351,7 +12359,7 @@
     "failed": "Nie udało się odczytać workspace. Spróbuj ponownie lub sprawdź dostęp.",
     "counts": "{pages, plural, one {# notatka} few {# notatki} many {# notatek} other {# notatki}} · {links, plural, one {# link} few {# linki} many {# linków} other {# linku}}",
     "partial": "Ten graf jest niekompletny",
-    "limits": "Skan korzysta z dostępnej listy plików: do 200 plików Markdown, 256 KiB na plik i łącznie 8 MiB. Pominięte lub nieczytelne notatki i ich linki nie są uwzględnione.",
+    "limits": "Skanowanie obejmuje do 200 notatek, 256 KiB na plik i 8 MiB łącznie. Limit relacji to 256 na notatkę i 2048 na graf. Odśwież po edycji lub zawęź zestaw plików.",
     "skipped": "Pominięto: {path}",
     "unreadable": "Nie można odczytać: {path}",
     "invalidFrontmatter": "Niepoprawny frontmatter YAML. Metadane tych notatek pominięto: {paths}",

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { WIKI_RELATION_LIMITS } from "./wiki-graph";
 import { readWikiWorkspace, WIKI_LIMITS } from "./wiki-workspace";
 import { listProjectFiles } from "./projects-api";
 import { readWorkspaceFiles, type WorkspaceFiles } from "./sandbox-workspaces-api";
@@ -144,4 +145,30 @@ describe("wiki workspace reads", () => {
     });
     await expect(readWikiWorkspace({ kind: "project", id: "p" }, during.signal)).rejects.toThrow();
   });
+});
+
+it("keeps the incomplete-listing flag for conversation workspaces", async () => {
+  vi.mocked(readConversationWorkspace).mockResolvedValue({
+    ...listing(),
+    items: [],
+    bytes_limit: null,
+    truncated: true,
+  });
+  const graph = await readWikiWorkspace({ kind: "conversation", id: "c" }, signal());
+  expect(graph.truncated).toBe(true);
+});
+
+it("stops retaining relationships at the graph-wide budget and warns of the partial graph", async () => {
+  vi.mocked(listProjectFiles).mockResolvedValue(
+    listing(Array.from({ length: 12 }, (_, i) => file(`${i}.md`))),
+  );
+  vi.mocked(readFileText).mockResolvedValue({
+    content: Array.from({ length: 256 }, (_, i) => `[[${i}]]`).join(" "),
+    truncated: false,
+  });
+  const graph = await readWikiWorkspace({ kind: "project", id: "p" }, signal());
+  expect(graph.pages.reduce((sum, page) => sum + page.links.length, 0)).toBe(
+    WIKI_RELATION_LIMITS.graph,
+  );
+  expect(graph.truncated).toBe(true);
 });

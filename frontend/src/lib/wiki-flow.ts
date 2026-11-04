@@ -1,6 +1,6 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
 import type { WikiGraph, WikiPage } from "./wiki-graph";
-import { layoutWiki } from "./wiki-layout";
+import { layoutWiki, type WikiPosition } from "./wiki-layout";
 
 export const WIKI_COLOURS = [
   "#36a3db",
@@ -47,9 +47,9 @@ export function wikiFlow(
   visible: Set<string>,
   selected: string | null,
   options: { showLabels?: boolean; showArrows?: boolean; grouping?: WikiGrouping } = {},
+  layout: ReadonlyMap<string, WikiPosition> = layoutWiki(graph),
 ) {
   const { showLabels = false, showArrows = false, grouping = "folder" } = options;
-  const layout = layoutWiki(graph);
   const groups = wikiGroups(graph.pages, grouping);
   const neighbours = new Set([selected]);
   for (const edge of graph.edges) {

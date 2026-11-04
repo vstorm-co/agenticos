@@ -24,6 +24,7 @@ it("polls only the mounted view, rereads on focus and cancels when leaving", asy
       failed: [],
       skipped: [],
       truncated: false,
+      relationshipsTruncated: false,
     };
   });
   const client = new QueryClient();

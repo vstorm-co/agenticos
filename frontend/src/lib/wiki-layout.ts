@@ -5,7 +5,7 @@ export interface WikiPoint {
   y: number;
 }
 
-interface WikiPosition extends WikiPoint {
+export interface WikiPosition extends WikiPoint {
   page: WikiPage;
 }
 

@@ -15,6 +15,7 @@ import { ArrowUpRight, CaseSensitive, Minus, Plus, Scan } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useResolvedTheme } from "@/hooks/use-resolved-theme";
 import { wikiFlow, type WikiFlowNode, type WikiGrouping } from "@/lib/wiki-flow";
+import { layoutWiki } from "@/lib/wiki-layout";
 import type { WikiGraph } from "@/lib/wiki-graph";
 import { WikiNode } from "./wiki-node";
 import { WikiEdge } from "./wiki-edge";
@@ -42,9 +43,10 @@ export function WikiCanvas({
   const t = useTranslations("wikiGraph");
   const [showLabels, setShowLabels] = useState(false);
   const [showArrows, setShowArrows] = useState(false);
+  const layout = useMemo(() => layoutWiki(graph), [graph]);
   const view = useMemo(
-    () => wikiFlow(graph, visible, selected, { showLabels, showArrows, grouping }),
-    [graph, visible, selected, showLabels, showArrows, grouping],
+    () => wikiFlow(graph, visible, selected, { showLabels, showArrows, grouping }, layout),
+    [graph, visible, selected, showLabels, showArrows, grouping, layout],
   );
   const [nodes, setNodes, onNodesChange] = useNodesState<WikiFlowNode>(view.nodes);
   // Reconcile file refreshes with the canvas model: measurements and dragged positions

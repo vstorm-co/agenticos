@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "6add263cbcdc"
+source_sha: "c263e12720d9"
 ---
 
 # Projekte { #projects }
@@ -208,7 +208,9 @@ haben aber kein Workspace-Datei-Binding; dieser Graph liest Notizen direkt. Eine
 Graphaktualisierung startet keinen Agenten zur Prüfung von Fakten oder Quellen.
 
 Ein Scan umfasst bis zu 200 Markdown-Dateien, 256 KiB je Datei und insgesamt
-8 MiB, innerhalb der Grenzen der Quelldateiliste. Ausgelassene oder unlesbare
+8 MiB, innerhalb der Grenzen der Quelldateiliste. Beziehungen sind auf 256 je
+Notiz und 2048 im gesamten Graphen begrenzt; erreichte Grenzen kennzeichnen
+den Graphen ebenfalls als unvollständig. Ausgelassene oder unlesbare
 Dateien, ungültiges YAML und unvollständige Listen werden angezeigt. Ein fehlender
 Verweis kann eine ausgelassene Notiz bedeuten. Aktualisierungen erfolgen
 periodisch; gleichzeitige Änderungen können in verschiedene Scans fallen.

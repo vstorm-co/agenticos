@@ -7,13 +7,17 @@ export interface WikiPage {
   tags: string[];
   links: { target: string; relative: boolean }[];
   invalidFrontmatter: boolean;
+  linksTruncated: boolean;
 }
 
 export interface WikiGraph {
   pages: WikiPage[];
+  relationshipsTruncated: boolean;
   edges: { source: string; target: string }[];
   unresolved: { source: string; target: string; reason: "missing" | "ambiguous" }[];
 }
+
+export const WIKI_RELATION_LIMITS = { page: 256, graph: 2048 } as const;
 
 function strings(value: unknown): string[] {
   if (typeof value === "string") return [value];
@@ -55,7 +59,69 @@ function targetName(value: string): string | null {
   return /^[a-z][a-z\d+.-]*:/i.test(name) || name.startsWith("//") ? null : name;
 }
 
-export function parseWikiPage(path: string, content: string): WikiPage {
+/** Strip examples in bounded passes; backreference regexes can retry at every backtick. */
+function relationshipProse(body: string): string {
+  let fence: { marker: string; length: number } | null = null;
+  const lines: string[] = [];
+  for (const line of body.split("\n")) {
+    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (
+        delimiter &&
+        delimiter[1]?.[0] === fence.marker &&
+        delimiter[1].length >= fence.length &&
+        !delimiter[2]?.trim()
+      )
+        fence = null;
+      lines.push("");
+    } else if (delimiter && !(delimiter[1]?.[0] === "`" && delimiter[2]?.includes("`"))) {
+      fence = { marker: delimiter[1]?.[0] ?? "", length: delimiter[1]?.length ?? 0 };
+      lines.push("");
+    } else lines.push(line);
+  }
+  const text = lines.join("\n");
+  const nextRun = new Map<number, number>();
+  const lastByLength = new Map<number, number>();
+  const runs = [...text.matchAll(/`+/g)];
+  for (const run of runs.reverse()) {
+    const next = lastByLength.get(run[0].length);
+    if (next !== undefined) nextRun.set(run.index, next + run[0].length);
+    lastByLength.set(run[0].length, run.index);
+  }
+  const parts: string[] = [];
+  let kept = 0;
+  for (let i = 0; i < text.length;) {
+    let end: number | undefined;
+    if (text.startsWith("<!--", i)) {
+      const close = text.indexOf("-->", i + 4);
+      end = close < 0 ? text.length : close + 3;
+    } else if (text[i] === "`") {
+      end = nextRun.get(i);
+      if (end === undefined) {
+        do {
+          i++;
+        } while (text[i] === "`");
+        continue;
+      }
+    } else if (text[i] === "\\") {
+      i += 2;
+      continue;
+    }
+    if (end !== undefined) {
+      parts.push(text.slice(kept, i), "\n");
+      kept = end;
+      i = end;
+    } else i++;
+  }
+  parts.push(text.slice(kept));
+  return parts.join("");
+}
+
+export function parseWikiPage(
+  path: string,
+  content: string,
+  linkBudget: number = WIKI_RELATION_LIMITS.page,
+): WikiPage {
   let body = content.replace(/^\uFEFF/, "").replaceAll("\r\n", "\n");
   let metadata: Record<string, unknown> = {};
   let invalidFrontmatter = false;
@@ -73,25 +139,40 @@ export function parseWikiPage(path: string, content: string): WikiPage {
       invalidFrontmatter = true;
     }
   }
-  // Examples, inline code and comments do not assert relationships.
-  const prose = body
-    .replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[^\n]*(?:\n|$)/gm, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/(`+)[\s\S]*?\1/g, "");
+  const prose = relationshipProse(body);
   const links: WikiPage["links"] = [];
-  const add = (value: string | undefined, relative: boolean) => {
+  const limit = Math.min(WIKI_RELATION_LIMITS.page, Math.max(0, linkBudget));
+  let linksTruncated = false;
+  const add = (value: string | undefined, relative: boolean): boolean => {
     const target = targetName(value ?? "");
-    if (target) links.push({ target, relative });
+    if (target) {
+      if (links.length === limit) {
+        linksTruncated = true;
+        return false;
+      }
+      links.push({ target, relative });
+    }
+    return true;
   };
-  for (const match of prose.matchAll(/!?\[\[([^\]\n]+)\]\]/g)) add(match[1], false);
-  for (const match of prose.matchAll(
-    /(?<!!)\[[^\]\n]*\]\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^\n]*?["'])?\s*\)/g,
-  )) {
-    add(match[1] ?? match[2], true);
+  for (const match of prose.matchAll(/!?\[\[([^\]\n]*)/g)) {
+    const end = match.index + match[0].length;
+    if (prose.startsWith("]]", end) && !add(match[1], false)) break;
   }
-  for (const field of ["links", "related", "sources"]) {
-    for (const value of strings(metadata[field])) add(value, false);
-  }
+  const destination = /\(\s*(?:<([^>]+)>|([^\s)]+))(?:\s+["'][^\n]*?["'])?\s*\)/y;
+  if (!linksTruncated)
+    for (const match of prose.matchAll(/(!?)\[([^\]\n]*)/g)) {
+      const end = match.index + match[0].length;
+      if (match[1] || prose[end] !== "]") continue;
+      destination.lastIndex = end + 1;
+      const target = destination.exec(prose);
+      if (target && !add(target[1] ?? target[2], true)) break;
+    }
+  if (!linksTruncated)
+    outer: for (const field of ["links", "related", "sources"]) {
+      for (const value of strings(metadata[field])) {
+        if (!add(value, false)) break outer;
+      }
+    }
   return {
     path,
     title:
@@ -105,6 +186,7 @@ export function parseWikiPage(path: string, content: string): WikiPage {
       .map((tag) => tag.replace(/^#/, "")),
     links,
     invalidFrontmatter,
+    linksTruncated,
   };
 }
 
@@ -127,9 +209,16 @@ export function buildWikiGraph(pages: WikiPage[]): WikiGraph {
     path === null ? undefined : (paths.get(path) ?? paths.get(`${path}.md`));
   const edges = new Map<string, WikiGraph["edges"][number]>();
   const unresolved = new Map<string, WikiGraph["unresolved"][number]>();
+  let remaining = WIKI_RELATION_LIMITS.graph as number;
+  let relationshipsTruncated = pages.some((page) => page.linksTruncated);
   for (const page of pages) {
     const parent = wikiPath(page.path)?.split("/").slice(0, -1).join("/") ?? "";
     for (const link of page.links) {
+      if (remaining === 0) {
+        relationshipsTruncated = true;
+        break;
+      }
+      remaining--;
       const root = wikiPath(link.target);
       const local = wikiPath(`${parent}/${link.target}`);
       // Markdown is relative to its document; wiki links prefer vault-root paths.
@@ -153,5 +242,10 @@ export function buildWikiGraph(pages: WikiPage[]): WikiGraph {
       }
     }
   }
-  return { pages, edges: [...edges.values()], unresolved: [...unresolved.values()] };
+  return {
+    pages,
+    relationshipsTruncated,
+    edges: [...edges.values()],
+    unresolved: [...unresolved.values()],
+  };
 }

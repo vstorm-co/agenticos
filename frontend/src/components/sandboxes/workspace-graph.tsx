@@ -18,7 +18,12 @@ import { WikiNavigator } from "./wiki-navigator";
 import { WikiGroups } from "./wiki-groups";
 import { WikiDiagnostics } from "./wiki-diagnostics";
 
-const EMPTY_GRAPH: WikiGraph = { pages: [], edges: [], unresolved: [] };
+const EMPTY_GRAPH: WikiGraph = {
+  pages: [],
+  edges: [],
+  unresolved: [],
+  relationshipsTruncated: false,
+};
 export function WorkspaceGraph({
   source,
   renderEditor,

@@ -93,7 +93,9 @@ in the background. This cadence is eventual refresh, not a transactional snapsho
 concurrent writes can appear across successive scans.
 
 The first implementation caps a scan at 200 notes, 256 KiB per note and 8 MiB total,
-with four reads in flight. Larger/failed/truncated notes are listed as omitted, and
+with four reads in flight, at most 256 relationships per note and 2048 across
+the graph. Relationship extraction stops retaining links at the shared budget,
+and reaching a relationship cap marks the graph incomplete. Larger/failed/truncated notes are listed as omitted, and
 a truncated source listing marks the graph incomplete. Invalid frontmatter is
 reported; body links remain usable. A failed listing or revoked access hides cached
 results. Cancellation stops queued reads after navigation. This is deliberately a
