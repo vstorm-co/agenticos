@@ -1,5 +1,5 @@
 ---
-source_sha: "7e9458c120bc"
+source_sha: "bd163100ac0f"
 ---
 
 # Configuración { #configuration }
@@ -79,6 +79,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Máximo de archivos y carpetas que puede contener un `.zip`/`.tar.gz` adjunto, y de archivos en el zip de una carpeta del workspace |
 | `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Máximo que puede ocupar un archivo comprimido adjunto una vez descomprimido, y que puede llevar el zip de una carpeta del workspace |
 | `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Máximo que puede ocupar un archivo comprimido adjunto una vez descomprimido, como múltiplo de su tamaño comprimido; por encima se rechaza como bomba de descompresión |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Máximo que puede ocupar un archivo dentro de un archivo comprimido adjunto una vez descomprimido; es lo que la descompresión mantiene en memoria a la vez |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Tope del texto extraído almacenado, para que un ZIP/OLE pequeño no infle la fila |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |

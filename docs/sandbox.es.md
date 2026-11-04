@@ -1,5 +1,5 @@
 ---
-source_sha: "b38cce2e4bbd"
+source_sha: "fb0f7f957d22"
 ---
 
 # La sandbox { #the-sandbox }
@@ -654,6 +654,10 @@ El listado para un zip llega a 64 niveles de profundidad, no a seis, porque un
 repositorio es más profundo que una página de mosaicos, y pide al host hasta 100.000
 entradas, porque el host lista también las carpetas ocultas. Los archivos quedan
 bajo una carpeta superior con el nombre de la carpeta descargada.
+
+Una barra invertida, un `%` o un carácter de control en el nombre de un archivo se codifica
+con porcentajes en el zip (`a\b` pasa a ser `a%5Cb`), porque un descompresor en
+Windows lee la barra invertida como separador de carpetas.
 
 Se lista entera antes de enviar el primer byte. Una carpeta con más de
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` archivos o más de `WORKSPACE_ARCHIVE_MAX_BYTES`, o

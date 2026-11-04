@@ -1671,6 +1671,30 @@ class TestDownloadingAFolderAsAZip:
             "ab12-repo/README.md": b"# repo",
         }
 
+    async def test_a_stored_workspace_builds_its_document_once_per_zip(
+        self, monkeypatch, mock_db_session
+    ):
+        """Building the document copies every file; once per member was quadratic."""
+        stored = StateBackend()
+        for index in range(5):
+            stored.write_bytes(f"/out/{index}.txt", b"x")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder="out"
+        )
+        built: list[object] = []
+        real = sandbox_workspace.StateBackend
+
+        def counting(*args, **kwargs):
+            built.append(args)
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(sandbox_workspace, "StateBackend", counting)
+
+        assert len(await _unzipped(folder)) == 5
+        assert len(built) == 1
+
     async def test_a_container_folder_is_listed_deep_and_read_through_one_client(
         self, monkeypatch, mock_db_session
     ):

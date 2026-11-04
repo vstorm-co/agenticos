@@ -170,6 +170,9 @@ class Settings(BaseSettings):
     WORKSPACE_ARCHIVE_MAX_ENTRIES: int = Field(default=5000, gt=0)
     WORKSPACE_ARCHIVE_MAX_BYTES: int = Field(default=200 * 1024 * 1024, gt=0)
     WORKSPACE_ARCHIVE_MAX_RATIO: int = Field(default=100, gt=0)
+    # One file in an attached archive: the most an unpack holds in memory at
+    # once, since it writes one member at a time.
+    WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES: int = Field(default=50 * 1024 * 1024, gt=0)
 
     # The layered text budget. Stored extracted text is capped so a ZIP/OLE
     # expansion cannot bloat the row; the per-file and per-turn prompt caps bound

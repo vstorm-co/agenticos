@@ -182,6 +182,13 @@ class _Tree:
             size += len(chunk)
             self.total += len(chunk)
             self._check_size()
+            # The one member a writer holds whole, so the bound on what one
+            # unpack holds at once - however small the archive it came in.
+            if size > settings.WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES:
+                raise _refused(
+                    "A file in the archive is too large to unpack.",
+                    max_member_bytes=settings.WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES,
+                )
             if self.keep:
                 kept += chunk
         self.files.add(path)
@@ -516,7 +523,9 @@ async def stream_zip(
                     "The folder grew past the download limit while it was being zipped.",
                     max_bytes=settings.WORKSPACE_ARCHIVE_MAX_BYTES,
                 )
-            await run_blocking(_add, archive, name, data)
+            # Settled: a client that goes away mid-member must not close the
+            # archive while a pool thread is still writing into it.
+            await run_blocking_settled(_add, archive, name, data)
             yield sink.drain()
         if missing:
             top = members[0][1].split("/", 1)[0]
@@ -569,7 +578,7 @@ def zip_members(
         if folder and not relative.startswith(f"{folder}/"):
             continue
         inside = relative[len(folder) + 1 :] if folder else relative
-        picked.append((path, f"{top}/{inside}"))
+        picked.append((path, f"{top}/{_zip_safe(inside)}"))
         total += size or 0
         if (
             len(picked) > settings.WORKSPACE_ARCHIVE_MAX_ENTRIES
@@ -583,6 +592,21 @@ def zip_members(
                 },
             )
     return picked, f"{top}.zip"
+
+
+_UNSAFE_IN_ZIP = re.compile(r"[\\\x00-\x1f\x7f%]")
+
+
+def _zip_safe(name: str) -> str:
+    """A workspace path as a zip entry no unpacker reads as anything else.
+
+    A POSIX filename may hold a backslash, and an unpacker on Windows reads one as
+    a separator - so a file an agent named `..\\..\\x` would land outside the
+    folder it was unzipped into. The same characters `safe_member_path` refuses on
+    the way in are percent-encoded on the way out, `%` itself included so the
+    encoding stays reversible.
+    """
+    return _UNSAFE_IN_ZIP.sub(lambda match: f"%{ord(match.group()):02X}", name)
 
 
 def _normal(path: str) -> str:

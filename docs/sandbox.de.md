@@ -1,5 +1,5 @@
 ---
-source_sha: "b38cce2e4bbd"
+source_sha: "fb0f7f957d22"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -674,6 +674,10 @@ Auflistung für ein Zip reicht 64 Ebenen tief statt sechs, weil ein Repository
 tiefer ist als eine Seite voller Kacheln, und fragt den Host nach bis zu 100.000
 Einträgen, weil der Host auch die ausgeblendeten Ordner auflistet. Die Dateien
 liegen unter einem obersten Ordner, der wie der heruntergeladene Ordner heißt.
+
+Ein Backslash, ein `%` oder ein Steuerzeichen im Namen einer Datei wird im Zip
+prozentkodiert (`a\b` wird zu `a%5Cb`), weil ein Entpacker unter Windows einen
+Backslash als Ordnertrenner liest.
 
 Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner
 mit mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Dateien oder mehr als

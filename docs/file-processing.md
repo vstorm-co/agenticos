@@ -142,7 +142,9 @@ and nothing is stored, when:
   unpacks to more than `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB), or unpacks to more
   than `WORKSPACE_ARCHIVE_MAX_RATIO` times its own size (100) — a decompression
   bomb. Sizes are measured while the members are read, not taken from the
-  archive's headers, which can be false.
+  archive's headers, which can be false;
+- one file in it unpacks to more than `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES`
+  (50 MiB), since an unpack holds one file in memory at a time.
 
 The upload limit, `CHAT_MAX_UPLOAD_SIZE_MB`, applies to the archive itself.
 

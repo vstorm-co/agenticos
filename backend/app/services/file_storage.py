@@ -378,7 +378,8 @@ def sniff_container(data: bytes) -> str | None:
         return "tiff"
     if data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
         return "ole"
-    if data[:4] == b"PK\x03\x04":
+    # An archive with no members is only its end record, so it opens on that.
+    if data[:4] in (b"PK\x03\x04", b"PK\x05\x06"):
         return "zip"
     if data[:2] == b"\x1f\x8b":
         return "gzip"

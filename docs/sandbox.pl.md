@@ -1,5 +1,5 @@
 ---
-source_sha: "b38cce2e4bbd"
+source_sha: "fb0f7f957d22"
 ---
 
 # Sandbox { #the-sandbox }
@@ -638,6 +638,11 @@ Zip zawiera to, co pokazuje panel. Prefiksy i foldery narzędzi wymienione wyże
 poziomów w głąb, a nie sześciu, bo repozytorium jest głębsze niż strona kafli, i
 prosi host o najwyżej 100 000 wpisów, bo host listuje też ukryte foldery. Pliki
 leżą pod jednym folderem głównym nazwanym jak pobierany folder.
+
+Ukośnik wsteczny,
+`%` albo znak sterujący w nazwie pliku są w zipie zakodowane procentowo (`a\b`
+staje się `a%5Cb`), bo program rozpakowujący na Windows czyta ukośnik wsteczny jako
+separator folderów.
 
 Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` plikami albo większy niż

@@ -2287,9 +2287,17 @@ class SandboxWorkspaceService:
         serves every read rather than one per file.
         """
 
+        # One document for the whole zip: building it copies every file the
+        # workspace holds, and doing that per member was quadratic in files.
+        document = (
+            StateBackend(files=dict(row.files or {}), directories=row.directories or ())
+            if row.backend == "state"
+            else None
+        )
+
         async def read(path: str) -> bytes:
-            if row.backend == "state":
-                data = self._state_bytes(row, path)
+            if document is not None:
+                data = _document_bytes(document, path)
             else:
                 try:
                     data = await self._read_bytes_from(ctx, row, path)
@@ -2468,10 +2476,7 @@ class SandboxWorkspaceService:
     def _state_bytes(row: AgentWorkspace, path: str) -> bytes | None:
         """One file's bytes out of a state-backed workspace, or None when absent."""
         document = StateBackend(files=dict(row.files or {}), directories=row.directories or ())
-        try:
-            return document.read_bytes(path)
-        except FileNotFoundError, IsADirectoryError, NotADirectoryError:
-            return None
+        return _document_bytes(document, path)
 
     @asynccontextmanager
     async def _sharing_archives(self) -> AsyncGenerator[None]:
@@ -2637,6 +2642,14 @@ async def _destroy_and_forget(
         return
     async with get_db_context() as db:
         await pending_destroy_repo.remove(db, pending_id)
+
+
+def _document_bytes(document: StateBackend, path: str) -> bytes | None:
+    """One file's bytes out of a stored workspace's document, or None when absent."""
+    try:
+        return document.read_bytes(path)
+    except FileNotFoundError, IsADirectoryError, NotADirectoryError:
+        return None
 
 
 def _zip_members_of(listing: list[FileInfo], folder: str) -> tuple[list[tuple[str, str]], str]:

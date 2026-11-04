@@ -170,6 +170,10 @@ class TestArchives:
         assert validate("image/png", 1024, "repo.zip")[0] is False
         assert validate("text/plain", 1024, "repo.zip")[0] is False
 
+    def test_an_empty_zip_is_a_zip(self):
+        # An archive with no members is only its end-of-directory record.
+        assert validate_bytes(b"PK\x05\x06" + b"\x00" * 18, "application/zip", "e.zip")[0]
+
     def test_each_archive_needs_its_own_signature(self):
         assert validate_bytes(ZIP, "application/zip", "repo.zip")[0] is True
         assert validate_bytes(b"\x1f\x8brest", None, "repo.tar.gz")[0] is True

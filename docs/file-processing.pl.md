@@ -1,5 +1,5 @@
 ---
-source_sha: "265f1ab5cde8"
+source_sha: "e8235f6fa34d"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -158,7 +158,10 @@ kodem 400 i nic nie zostaje zapisane, gdy:
   rozpakowuje się do więcej niż `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB) albo do
   więcej niż `WORKSPACE_ARCHIVE_MAX_RATIO` razy własny rozmiar (100) — to bomba
   dekompresyjna. Rozmiary są mierzone podczas czytania elementów, a nie brane z
-  nagłówków archiwum, które mogą kłamać.
+  nagłówków archiwum, które mogą kłamać;
+- jeden plik w nim rozpakowuje się do więcej niż
+  `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB), bo rozpakowywanie trzyma w pamięci
+  jeden plik naraz.
 
 Limit przesyłania, `CHAT_MAX_UPLOAD_SIZE_MB`, dotyczy samego archiwum.
 

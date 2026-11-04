@@ -1,5 +1,5 @@
 ---
-source_sha: "265f1ab5cde8"
+source_sha: "e8235f6fa34d"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -163,7 +163,9 @@ guarda nada, cuando:
   descomprime en más de `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB), o en más de
   `WORKSPACE_ARCHIVE_MAX_RATIO` veces su propio tamaño (100): una bomba de
   descompresión. Los tamaños se miden al leer los miembros, no se toman de las
-  cabeceras del archivo, que pueden ser falsas.
+  cabeceras del archivo, que pueden ser falsas;
+- un archivo dentro se descomprime en más de `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES`
+  (50 MiB), porque la descompresión mantiene en memoria un archivo cada vez.
 
 El límite de subida, `CHAT_MAX_UPLOAD_SIZE_MB`, se aplica al archivo en sí.
 

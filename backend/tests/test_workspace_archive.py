@@ -230,6 +230,16 @@ class TestAnArchiveThatSpendsTheServerIsRefused:
         with pytest.raises(BadRequestError, match="too large once unpacked"):
             scan_archive(_zip(("a.txt", b"x" * 11)), "zip")
 
+    def test_one_file_past_the_member_bound(self, monkeypatch):
+        """An unpack holds one member whole, so one member is what is bounded -
+        however small the archive that carries it."""
+        monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES", 10)
+        with pytest.raises(BadRequestError, match="too large to unpack"):
+            scan_archive(_zip(("a.txt", b"x" * 11)), "zip")
+
+    def test_an_empty_zip_holds_nothing(self):
+        assert scan_archive(_zip(), "zip") == []
+
     def test_too_many_entries_in_a_zip(self, monkeypatch):
         monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 2)
         with pytest.raises(BadRequestError, match="too many files"):
@@ -495,6 +505,17 @@ class TestZippingAFolder:
         assert picked == [
             ("/uploads/repo/a.py", "repo/a.py"),
             ("./uploads/repo/sub/b.py", "repo/sub/b.py"),
+        ]
+
+    @pytest.mark.security
+    def test_a_name_an_unpacker_would_split_is_encoded(self):
+        """A POSIX name may hold a backslash, which Windows reads as a separator:
+        `..\\..\\x` would land outside the folder the zip was saved into."""
+        picked, _name = zip_members([("/..\\..\\payload", 1), ("/50%\nnew", 1)], "")
+
+        assert picked == [
+            ("/..\\..\\payload", "workspace/..%5C..%5Cpayload"),
+            ("/50%\nnew", "workspace/50%25%0Anew"),
         ]
 
     def test_the_whole_workspace(self):

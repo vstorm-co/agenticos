@@ -1,5 +1,5 @@
 ---
-source_sha: "265f1ab5cde8"
+source_sha: "e8235f6fa34d"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -167,7 +167,9 @@ abgelehnt und nichts gespeichert, wenn:
   auf mehr als `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB) entpackt oder auf mehr als
   `WORKSPACE_ARCHIVE_MAX_RATIO`-mal seine eigene Größe (100) — eine
   Dekompressionsbombe. Größen werden beim Lesen der Members gemessen, nicht aus
-  den Kopfdaten des Archivs übernommen, die falsch sein können.
+  den Kopfdaten des Archivs übernommen, die falsch sein können;
+- eine Datei darin auf mehr als `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB)
+  entpackt, denn beim Entpacken liegt immer eine Datei auf einmal im Speicher.
 
 Die Upload-Grenze `CHAT_MAX_UPLOAD_SIZE_MB` gilt für das Archiv selbst.
 

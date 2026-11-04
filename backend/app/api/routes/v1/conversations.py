@@ -705,7 +705,7 @@ async def download_workspace_folder(
     path: str = Query(
         "", description="Folder inside the workspace, as the listing gives it; empty for all of it"
     ),
-) -> Response:
+) -> Any:
     """One workspace folder as a `.zip`, streamed (#2479).
 
     Authorised exactly as `/raw` is, by fetching the conversation first - so

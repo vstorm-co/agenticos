@@ -1,5 +1,5 @@
 ---
-source_sha: "7e9458c120bc"
+source_sha: "bd163100ac0f"
 ---
 
 # Konfiguracja { #configuration }
@@ -77,6 +77,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Najwięcej plików i folderów, jakie może zawierać załączony `.zip`/`.tar.gz`, i najwięcej plików w zipie folderu workspace'u |
 | `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Najwięcej, do ilu może się rozpakować załączone archiwum, i najwięcej, ile może nieść zip folderu workspace'u |
 | `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Najwięcej, do ilu może się rozpakować załączone archiwum, jako wielokrotność rozmiaru skompresowanego — powyżej jest odrzucane jako bomba dekompresyjna |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Najwięcej, do ilu może się rozpakować jeden plik w załączonym archiwum — tyle rozpakowywanie trzyma naraz w pamięci |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Limit przechowywanego wyciągniętego tekstu, żeby małe ZIP/OLE nie rozdęło wiersza |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Limit na plik dla sparsowanego tekstu wklejanego do promptu bez workspace'u |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Zbiorczy limit tekstu załączników w jednej turze |

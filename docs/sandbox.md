@@ -618,6 +618,10 @@ levels deep, not six, because a repository is deeper than a page of tiles, and a
 the host for up to 100,000 entries, because the host lists the hidden folders too.
 The files are under one top folder named after the folder that was downloaded.
 
+A backslash, a `%` or a control character in a file's name is percent-encoded in the
+zip (`a\b` becomes `a%5Cb`), because an unpacker on Windows reads a backslash as a
+folder separator.
+
 It is listed in full before the first byte is sent. A folder with more than
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` files or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or
 one the host could not list completely, is refused with a 413; a zip that is
