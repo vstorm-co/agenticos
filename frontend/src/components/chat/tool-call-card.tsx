@@ -26,6 +26,7 @@ import { CodingAgentResult } from "./tool-results/coding-agent";
 import { DelegationResult } from "./tool-results/delegation";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { delegateNamed, type DelegateRef } from "@/lib/delegations";
+import { MemoryToolResult } from "./tool-results/memory";
 import { WorkspaceToolResult } from "./tool-results/workspace";
 import type { McpServerRef } from "@/lib/tool-steps";
 import { useTranslations } from "next-intl";
@@ -309,6 +310,8 @@ export function ToolCallCard({
         <AskedResult asked={asked} />
       ) : delegate !== null ? (
         <DelegationResult brief={brief} answer={resultText} />
+      ) : renderer === "memory" ? (
+        <MemoryToolResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
       ) : (

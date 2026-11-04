@@ -1,0 +1,292 @@
+"""Platform upgrades refresh defaults, not the user's model or unpublished work."""
+
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agents.spec import AgentSpec, BudgetSpec
+from app.db.models.credential import ModelProfile
+from app.repositories import agent_repo
+from app.services.agent_defaults import STARTER, baseline
+from app.services.agent_registry import AgentRegistryService
+from app.services.assistant import AssistantService
+from app.services.sandbox_connection import SandboxConnectionService
+from app.services.shipped_agents import ShippedAgentService
+from tests.integration._keys import provider_key
+from tests.integration.test_bootstrap_starters import _agents, _owner
+
+pytestmark = pytest.mark.anyio
+
+
+@pytest.fixture(autouse=True)
+def no_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        SandboxConnectionService, "ensure_local_connection", AsyncMock(return_value=None)
+    )
+
+
+async def test_opening_an_old_organization_installs_both_with_memory(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    agents = await _agents(db, ctx)
+    assert set(agents) == {"AgenticOS", "Architect"}
+    for agent in agents.values():
+        assert "memory_files" in {
+            binding.id for binding in AgentSpec.model_validate(agent.draft_spec).capabilities
+        }
+        assert agent.shipped_template is not None
+    await AssistantService(db).state(ctx)
+    assert len(await _agents(db, ctx)) == 2
+
+
+async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    registry = AgentRegistryService(db)
+    agent = (await _agents(db, ctx))["Architect"]
+    profile = ModelProfile(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        label="My model",
+        provider="openai",
+        model="gpt-4.1",
+        secret_id=await provider_key(db, ctx.organization_id),
+    )
+    db.add(profile)
+    await db.flush()
+    old = AgentSpec.model_validate(agent.draft_spec).model_copy(
+        update={"instructions": "Old shipped prompt", "model_profile_id": profile.id}
+    )
+    await registry.save_draft(ctx, agent.id, old)
+    await registry.publish(ctx, agent.id)
+    await agent_repo.update(
+        db,
+        agent=agent,
+        update_data={"shipped_template": baseline("general/platform-assistant", old)},
+    )
+    pending_model = ModelProfile(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        label="Unpublished model choice",
+        provider="openai",
+        model="gpt-4.1",
+        secret_id=profile.secret_id,
+    )
+    db.add(pending_model)
+    await db.flush()
+    await registry.save_draft(
+        ctx,
+        agent.id,
+        old.model_copy(
+            update={"budget": BudgetSpec(monthly_usd=3), "model_profile_id": pending_model.id}
+        ),
+    )
+    await ShippedAgentService(db).refresh(ctx, agent, "general/platform-assistant")
+    version = await agent_repo.get_version(
+        db, agent.current_version_id, organization_id=ctx.organization_id
+    )
+    live = AgentSpec.model_validate(version.spec)
+    draft = AgentSpec.model_validate(agent.draft_spec)
+    assert live.instructions != "Old shipped prompt"
+    assert draft.instructions == live.instructions
+    assert live.model_profile_id == profile.id
+    assert draft.model_profile_id == pending_model.id
+    assert draft.budget.monthly_usd == 3
+    assert live.budget == old.budget
+
+
+async def test_custom_prompt_and_removed_tools_are_preserved(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    agent = (await _agents(db, ctx))["AgenticOS"]
+    registry = AgentRegistryService(db)
+    old = AgentSpec.model_validate(agent.draft_spec)
+    await agent_repo.update(
+        db, agent=agent, update_data={"shipped_template": baseline(STARTER, old)}
+    )
+    await registry.save_draft(
+        ctx,
+        agent.id,
+        old.model_copy(
+            update={
+                "instructions": "Only answer invoice questions",
+                "capabilities": [],
+                "mcp_servers": [],
+            }
+        ),
+    )
+    refreshed = await ShippedAgentService(db).refresh(ctx, agent, STARTER)
+    spec = AgentSpec.model_validate(refreshed.draft_spec)
+    assert spec.instructions == "Only answer invoice questions"
+    assert spec.capabilities == spec.mcp_servers == []
+
+
+async def test_a_familiar_name_is_not_proof_an_agent_is_shipped(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    registry = AgentRegistryService(db)
+    profile = ModelProfile(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        label="Ready model",
+        provider="openai",
+        model="gpt-4.1",
+        secret_id=await provider_key(db, ctx.organization_id),
+    )
+    db.add(profile)
+    await db.flush()
+    agent = await registry.create(
+        ctx,
+        AgentSpec(name="AgenticOS", instructions="My own agent", model_profile_id=profile.id),
+        choose_model=False,
+    )
+    await AssistantService(db).state(ctx)
+    assert agent.shipped_template is None
+    assert AgentSpec.model_validate(agent.draft_spec).instructions == "My own agent"
+    assert agent.current_version_id is None
+
+
+async def test_legacy_defaults_are_adopted_and_receive_new_memory_guidance(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services import shipped_agents
+    from app.services.agent_defaults import LegacyDefaults, fingerprint
+
+    ctx = await _owner(db)
+    registry = AgentRegistryService(db)
+    old = AgentSpec(
+        name="AgenticOS",
+        instructions="Recognized shipped prompt",
+        capabilities=[{"id": "clock"}],
+        mcp_servers=[{"account": "platform", "approval": "writes"}],
+    )
+    agent = await registry.create(ctx, old, choose_model=False)
+    monkeypatch.setattr(
+        shipped_agents,
+        "legacy_defaults",
+        lambda: {
+            STARTER: [
+                LegacyDefaults(
+                    instructions=fingerprint(old, "instructions"),
+                    capabilities=[{"id": "clock"}],
+                    mcp_servers=[{"account": "platform", "approval": "writes"}],
+                    skills=[],
+                    starters=[],
+                )
+            ]
+        },
+    )
+    updated = await ShippedAgentService(db).starter(ctx)
+    spec = AgentSpec.model_validate(updated.draft_spec)
+    assert updated.id == agent.id
+    assert updated.shipped_template["key"] == STARTER
+    assert "Memory that helps the next conversation" in spec.instructions
+    assert "memory_files" in {cap.id for cap in spec.capabilities}
+    assert updated.current_version_id is None
+    # Provenance, rather than a display name, keeps a renamed starter recognizable.
+    await agent_repo.update(
+        db, agent=updated, update_data={"name": "My assistant", "slug": "my-assistant"}
+    )
+    assert (await ShippedAgentService(db).starter(ctx)).id == agent.id
+
+
+async def test_archived_starters_are_not_recreated_or_republished(db: AsyncSession) -> None:
+    from app.db.models.agent import AgentStatus
+
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    agent = (await _agents(db, ctx))["AgenticOS"]
+    await agent_repo.update(db, agent=agent, update_data={"status": AgentStatus.ARCHIVED.value})
+    await AssistantService(db).state(ctx)
+    assert len(await _agents(db, ctx)) == 2
+    assert agent.status == AgentStatus.ARCHIVED.value
+    assert agent.current_version_id is None
+
+
+async def test_a_draft_prompt_edit_does_not_get_published_by_an_upgrade(db: AsyncSession) -> None:
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    registry = AgentRegistryService(db)
+    agent = (await _agents(db, ctx))["AgenticOS"]
+    old = AgentSpec.model_validate(agent.draft_spec)
+    await agent_repo.update(
+        db, agent=agent, update_data={"shipped_template": baseline(STARTER, old)}
+    )
+    await registry.save_draft(
+        ctx, agent.id, old.model_copy(update={"instructions": "A new policy, still under review"})
+    )
+    await ShippedAgentService(db).refresh(ctx, agent, STARTER)
+    assert (
+        AgentSpec.model_validate(agent.draft_spec).instructions
+        == "A new policy, still under review"
+    )
+    assert agent.current_version_id is None
+
+
+async def test_a_foreign_agent_is_refused_even_when_its_defaults_are_current(
+    db: AsyncSession,
+) -> None:
+    from app.core.exceptions import NotFoundError
+
+    ctx = await _owner(db)
+    other = await _owner(db)
+    await AssistantService(db).state(ctx)
+    agent = (await _agents(db, ctx))["AgenticOS"]
+    with pytest.raises(NotFoundError):
+        await ShippedAgentService(db).refresh(other, agent, STARTER)
+
+
+async def test_published_custom_tool_bindings_stay_typed_during_prompt_refresh(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    await AssistantService(db).state(ctx)
+    registry = AgentRegistryService(db)
+    agent = (await _agents(db, ctx))["Architect"]
+    original = AgentSpec.model_validate(agent.draft_spec)
+    old = original.model_copy(update={"instructions": "Old shipped guidance"})
+    profile = ModelProfile(
+        id=uuid4(),
+        organization_id=ctx.organization_id,
+        label="My model",
+        provider="openai",
+        model="gpt-4.1",
+        secret_id=await provider_key(db, ctx.organization_id),
+    )
+    db.add(profile)
+    await db.flush()
+    custom = AgentSpec.model_validate(
+        {
+            **old.model_dump(),
+            "model_profile_id": profile.id,
+            "capabilities": [
+                binding.model_dump() for binding in old.capabilities if binding.id != "clock"
+            ],
+            "mcp_servers": [
+                {"account": "platform", "approval": "writes", "allowed_tools": ["list_agents"]}
+            ],
+        }
+    )
+    await registry.save_draft(ctx, agent.id, custom)
+    await registry.publish(ctx, agent.id)
+    await agent_repo.update(
+        db,
+        agent=agent,
+        update_data={"shipped_template": baseline("general/platform-assistant", old)},
+    )
+    await ShippedAgentService(db).refresh(ctx, agent, "general/platform-assistant")
+    version = await agent_repo.get_version(
+        db, agent.current_version_id, organization_id=ctx.organization_id
+    )
+    live = AgentSpec.model_validate(version.spec)
+    assert live.instructions == original.instructions
+    assert live.capabilities == custom.capabilities
+    assert live.mcp_servers == custom.mcp_servers
+    assert AgentSpec.model_validate(agent.draft_spec) == live
+
+    delivered = {key: value for key, value in agent.shipped_template.items() if key != "release"}
+    current = agent.current_version_id
+    await agent_repo.update(db, agent=agent, update_data={"shipped_template": delivered})
+    await ShippedAgentService(db).refresh(ctx, agent, "general/platform-assistant")
+    assert agent.current_version_id == current

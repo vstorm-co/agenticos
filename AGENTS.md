@@ -241,6 +241,7 @@ retranslated is how a stale translation stops being visible.
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Virtual Tables — typed records, schema versions, revisions, idempotent writes, the `/tables` API | `docs/virtual-tables.md` |
+| Agent and team tasks: research and proposal only | `docs/design/agent-tasks.md` (repo only) |
 | Workflows — the visual editor: canvas, palette, bindings, autosave, publish, versions | `docs/workflows.md` |
 | Projects: shared files, instructions and chats | `docs/projects.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |

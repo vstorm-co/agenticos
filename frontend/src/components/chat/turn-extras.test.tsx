@@ -88,8 +88,13 @@ describe("TurnExtras", () => {
           call("write_memory", {
             id: "w",
             args: { name: "role.md", description: "You work in sales" },
+            result: "Saved note 'role.md'.",
           }),
-          call("delete_memory", { id: "d", args: { name: "old.md" } }),
+          call("delete_memory", {
+            id: "d",
+            args: { name: "old.md" },
+            result: "Forgot note 'old.md'.",
+          }),
         ])}
       />,
     );

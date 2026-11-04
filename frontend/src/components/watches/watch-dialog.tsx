@@ -1,5 +1,7 @@
 "use client";
 
+import { RoutineOptions } from "@/components/triggers/routine-options";
+
 import { FailurePolicyField } from "@/components/triggers/failure-policy-field";
 import { NotificationChannelsField } from "@/components/triggers/notification-channels-field";
 import type { RoutineNotificationChannel, WatchReportMode } from "@/types/routines";
@@ -96,12 +98,14 @@ export function WatchDialog({
   watch,
   connectionId,
   agentId,
+  initialTask,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   watch?: Watch;
   connectionId?: string;
   agentId?: string;
+  initialTask?: { title: string; instructions: string };
 }) {
   const t = useTranslations("watches");
   const tCadence = useTranslations("watches.cadence");
@@ -113,7 +117,11 @@ export function WatchDialog({
   const accountName = useAccountName();
   const router = useRouter();
   const onRoutines = usePathname().endsWith(ROUTES.ROUTINES);
-  const [draft, setDraft] = useState(() => startFrom(watch, connectionId, agentId));
+  const [draft, setDraft] = useState(() => ({
+    ...startFrom(watch, connectionId, agentId),
+    ...(!watch && initialTask ? initialTask : {}),
+    interval: watch?.interval_minutes ?? Math.max(60, activeOrg?.proactive_watch_min_minutes ?? 15),
+  }));
   const [endsAt, setEndsAt] = useState(() => endInput(watch?.ends_at));
   const [endTouched, setEndTouched] = useState(false);
   const [invalidEnd, setInvalidEnd] = useState(false);
@@ -132,7 +140,9 @@ export function WatchDialog({
   const connection = connections.find((each) => each.id === draft.connectionId);
   const offered = presets.filter((preset) => preset.server === connection?.catalog_key);
   const floor = activeOrg?.proactive_watch_min_minutes ?? 15;
-  const intervals = allowedIntervals(floor);
+  const intervals = [...new Set([...allowedIntervals(floor), draft.interval])]
+    .filter((minutes) => minutes >= floor)
+    .sort((left, right) => left - right);
   const edit = (next: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...next }));
     setErrors({});
@@ -257,6 +267,7 @@ export function WatchDialog({
               setVersionValid(true);
             }}
             onVersion={(id) => edit({ pinnedVersionId: id })}
+            versionValid={versionValid}
             onVersionValid={setVersionValid}
           />
           <FormField
@@ -359,85 +370,87 @@ export function WatchDialog({
               </SelectContent>
             </Select>
           </FormField>
-          {watch && draft.agentId === watch.agent_id && (
+          <RoutineOptions invalid={invalidEnd}>
+            {watch && draft.agentId === watch.agent_id && (
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="watch-review-sources">{t("reviewSources")}</Label>
+                  <p className="text-muted-foreground text-xs">{t("reviewSourcesHint")}</p>
+                </div>
+                <Switch
+                  id="watch-review-sources"
+                  checked={reviewSources}
+                  disabled={saving}
+                  onCheckedChange={setReviewSources}
+                />
+              </div>
+            )}
+            <FormField
+              label={t("reportMode")}
+              htmlFor="watch-report-mode"
+              description={t("reportModeHint")}
+            >
+              <Select
+                value={reportMode}
+                onValueChange={(value) => {
+                  if (value === "changes" || value === "every_check") setReportMode(value);
+                }}
+              >
+                <SelectTrigger id="watch-report-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="changes">{t("changesOnly")}</SelectItem>
+                  <SelectItem value="every_check">{t("everyCheck")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+            <NotificationChannelsField
+              value={notificationChannels}
+              onChange={setNotificationChannels}
+            />
+            <EndsAtField
+              value={endsAt}
+              invalid={invalidEnd}
+              onChange={(value) => {
+                setEndsAt(value);
+                setEndTouched(true);
+                const parsed = endInstant(value);
+                setInvalidEnd(
+                  parsed === undefined ||
+                    (parsed !== null && new Date(parsed).getTime() <= Date.now()),
+                );
+              }}
+            />
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
-                <Label htmlFor="watch-review-sources">{t("reviewSources")}</Label>
-                <p className="text-muted-foreground text-xs">{t("reviewSourcesHint")}</p>
+                <Label htmlFor="watch-urgent">{t("urgent")}</Label>
+                <p className="text-muted-foreground text-xs">{t("urgentHint")}</p>
               </div>
               <Switch
-                id="watch-review-sources"
-                checked={reviewSources}
+                id="watch-urgent"
+                checked={draft.urgent}
                 disabled={saving}
-                onCheckedChange={setReviewSources}
+                onCheckedChange={(urgent) => edit({ urgent })}
               />
             </div>
-          )}
-          <FormField
-            label={t("reportMode")}
-            htmlFor="watch-report-mode"
-            description={t("reportModeHint")}
-          >
-            <Select
-              value={reportMode}
-              onValueChange={(value) => {
-                if (value === "changes" || value === "every_check") setReportMode(value);
-              }}
-            >
-              <SelectTrigger id="watch-report-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="changes">{t("changesOnly")}</SelectItem>
-                <SelectItem value="every_check">{t("everyCheck")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
-          <NotificationChannelsField
-            value={notificationChannels}
-            onChange={setNotificationChannels}
-          />
-          <EndsAtField
-            value={endsAt}
-            invalid={invalidEnd}
-            onChange={(value) => {
-              setEndsAt(value);
-              setEndTouched(true);
-              const parsed = endInstant(value);
-              setInvalidEnd(
-                parsed === undefined ||
-                  (parsed !== null && new Date(parsed).getTime() <= Date.now()),
-              );
-            }}
-          />
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="watch-urgent">{t("urgent")}</Label>
-              <p className="text-muted-foreground text-xs">{t("urgentHint")}</p>
-            </div>
-            <Switch
-              id="watch-urgent"
-              checked={draft.urgent}
-              disabled={saving}
-              onCheckedChange={(urgent) => edit({ urgent })}
-            />
-          </div>
-          {watch && (
-            <FormField
-              label={t("exclusions")}
-              htmlFor="watch-exclusions"
-              description={t("exclusionsHint")}
-            >
-              <Textarea
-                id="watch-exclusions"
-                rows={3}
-                value={draft.exclusions}
-                disabled={saving}
-                onChange={(event) => edit({ exclusions: event.target.value })}
-              />
-            </FormField>
-          )}
+            {watch && (
+              <FormField
+                label={t("exclusions")}
+                htmlFor="watch-exclusions"
+                description={t("exclusionsHint")}
+              >
+                <Textarea
+                  id="watch-exclusions"
+                  rows={3}
+                  value={draft.exclusions}
+                  disabled={saving}
+                  onChange={(event) => edit({ exclusions: event.target.value })}
+                />
+              </FormField>
+            )}
+          </RoutineOptions>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

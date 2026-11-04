@@ -89,8 +89,13 @@ describe("memoryChangesOf", () => {
       call("write_memory", {
         id: "w-1",
         args: { name: "role.md", description: "Your role is sales" },
+        result: "Saved note 'role.md'.",
       }),
-      call("edit_memory", { id: "e-1", args: { name: "team.md", description: "" } }),
+      call("edit_memory", {
+        id: "e-1",
+        args: { name: "team.md", description: "" },
+        result: "Updated note 'team.md'.",
+      }),
     ];
 
     expect(memoryChangesOf(calls)).toEqual([
@@ -100,9 +105,11 @@ describe("memoryChangesOf", () => {
   });
 
   it("says what was forgotten", () => {
-    expect(memoryChangesOf([call("delete_memory", { args: { name: "role.md" } })])).toEqual([
-      { callId: "delete_memory-1", forgot: true, label: "role.md" },
-    ]);
+    expect(
+      memoryChangesOf([
+        call("delete_memory", { args: { name: "role.md" }, result: "Forgot note 'role.md'." }),
+      ]),
+    ).toEqual([{ callId: "delete_memory-1", forgot: true, label: "role.md" }]);
   });
 
   it("leaves out the agent's own index, a failed save, another tool and a nameless note", () => {

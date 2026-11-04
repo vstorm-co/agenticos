@@ -1,5 +1,7 @@
 "use client";
 
+import { RoutineOptions } from "@/components/triggers/routine-options";
+
 import { ErrorState } from "@/components/states/error-state";
 import { useTranslations } from "next-intl";
 
@@ -23,6 +25,7 @@ export function WatchAgentFields({
   onEnvironment,
   onVersion,
   onVersionValid,
+  versionValid,
   disabled,
   error,
 }: {
@@ -33,6 +36,7 @@ export function WatchAgentFields({
   onEnvironment: (id: string | null) => void;
   onVersion: (id: string | null) => void;
   onVersionValid: (valid: boolean) => void;
+  versionValid: boolean;
   disabled: boolean;
   error?: string;
 }) {
@@ -75,7 +79,7 @@ export function WatchAgentFields({
         </Select>
       </FormField>
       {agentId && (
-        <>
+        <RoutineOptions invalid={!versionValid || Boolean(error) || Boolean(environmentsError)}>
           {environmentsError && (
             <ErrorState cta={{ label: tUi("retry"), onClick: () => void refetchEnvironments() }} />
           )}
@@ -95,7 +99,7 @@ export function WatchAgentFields({
               onValidChange={onVersionValid}
             />
           )}
-        </>
+        </RoutineOptions>
       )}
     </div>
   );

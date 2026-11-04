@@ -1,5 +1,5 @@
 ---
-source_sha: "a99ebc0fc1bb"
+source_sha: "22e37d20aac2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2939,6 +2939,8 @@ zawsze, gdy prośba wymaga usługi, której osoba jeszcze nie podłączyła. Kar
 
 Jest włączona w agencie startowym i w Architekcie, a autor może ją wyłączyć.
 Rozmowa głosowa jej nie używa.
+
+Propozycja konfiguracji `watch` otwiera formularz prywatnej obserwacji z uzupełnioną nazwą i zadaniem. Użytkownik wybiera podłączone konto oraz sprawdza częstotliwość i zatwierdzone źródła agenta przed utworzeniem obserwacji. Sama propozycja niczego nie tworzy ani nie aktywuje.
 
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 

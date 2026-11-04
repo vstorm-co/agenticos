@@ -1047,6 +1047,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsRun,
   },
 
+  {
+    id: "routine-advanced",
+    page: ROUTES.ROUTINES,
+    target: "routine-advanced",
+    permission: Perm.agentsRun,
+    optional: true,
+  },
+
   // What the platform brought the reader on its own (#2301). "?"-only, like the
   // routines stop: the launch walk does not take a first login here.
   { id: "inbox-filters", page: ROUTES.INBOX, target: "inbox-filters" },

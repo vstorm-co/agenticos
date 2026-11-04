@@ -1407,7 +1407,11 @@ class AgentRegistryService:
         )
 
     async def template_skills(
-        self, ctx: AuthContext, template: agent_templates.AgentTemplate
+        self,
+        ctx: AuthContext,
+        template: agent_templates.AgentTemplate,
+        *,
+        install_missing: bool = True,
     ) -> list[Skill]:
         """The skills a template expects, installed where missing and readable by `ctx`.
 
@@ -1423,7 +1427,7 @@ class AgentRegistryService:
             if (entry := skill_library.get(key)) is not None
         }
         gallery_keys = [key for key in template.skills if key not in bundled]
-        if gallery_keys:
+        if gallery_keys and install_missing:
             await SkillService(self.db).install_gallery(ctx, gallery_keys)
 
         wanted = sorted(
@@ -1533,6 +1537,16 @@ class AgentRegistryService:
             starters=list(template.starters),
         )
         agent = await self.create(ctx, spec, visibility=visibility)
+        if key in ("general/agenticos", "general/platform-assistant"):
+            from app.services.agent_defaults import baseline
+
+            await agent_repo.update(
+                self.db,
+                agent=agent,
+                update_data={
+                    "shipped_template": baseline(key, AgentSpec.model_validate(agent.draft_spec)),
+                },
+            )
         if template.avatar is not None:
             agent = await self.set_avatar(
                 ctx, agent.id, file_data=template.avatar.read_bytes(), content_type="image/png"

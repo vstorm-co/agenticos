@@ -102,6 +102,38 @@ class AssistantService:
                 can_use=can_use,
                 can_configure=can_configure,
             )
+        # The console asks on every install, including organizations created by
+        # older releases. One tenant lock serializes installs and refreshes.
+        from app.services.shipped_agents import ShippedAgentService
+
+        installer = await self._installer(ctx.organization_id)
+        shipped = ShippedAgentService(self.db)
+        for key in (TEMPLATE_KEY, agent_templates.STARTER_TEMPLATE):
+            try:
+                async with self.db.begin_nested():
+                    await organization_assistant_repo.lock_for_install(self.db, ctx.organization_id)
+                    if key == TEMPLATE_KEY:
+                        agent = await shipped.refresh(
+                            installer,
+                            agent,
+                            key,
+                            legacy_instructions_fingerprint=row.instructions_fingerprint,
+                        )
+                    else:
+                        starter = await shipped.starter(installer)
+                        if (
+                            starter.shipped_template is not None
+                            and starter.status != AgentStatus.ARCHIVED.value
+                            and starter.current_version_id is None
+                        ):
+                            await self._publish_when_possible(ctx.organization_id, starter)
+            except AppException:
+                # A missing model/service may block a refresh, but must not hide
+                # the existing assistant. The next console open retries it.
+                logger.exception(
+                    "Could not refresh shipped agent %s in %s", key, ctx.organization_id
+                )
+                agent = await self.registry.get(installer, row.agent_id)
         if row.enabled and agent.current_version_id is None:
             agent = await self._publish_when_possible(ctx.organization_id, agent)
         return self._read(row, agent, can_use=can_use, can_configure=can_configure)
@@ -384,6 +416,17 @@ class AssistantService:
         # finds in the draft as somebody's deliberate choice (#2483).
         agent = await self.registry.create(
             installer, spec, visibility=Visibility.ORG, choose_model=False
+        )
+        from app.services.agent_defaults import baseline
+
+        await agent_repo.update(
+            self.db,
+            agent=agent,
+            update_data={
+                "shipped_template": baseline(
+                    TEMPLATE_KEY, AgentSpec.model_validate(agent.draft_spec)
+                ),
+            },
         )
         return await self.registry.set_avatar(
             installer, agent.id, file_data=AVATAR.read_bytes(), content_type="image/png"

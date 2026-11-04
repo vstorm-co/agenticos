@@ -2820,6 +2820,8 @@ connected. The cards are the console's; a chat app does not draw them.
 It is on in the starter agent and in the Architect, and an author can switch it
 off. A voice call leaves it out.
 
+A `watch` setup proposal opens the personal watch form with its title and task filled in. The person selects an actual connected account and reviews the cadence and approved agent sources before creating it. Proposing a watch neither creates nor activates one.
+
 ## What a binding may change
 
 The catalog is the deployment's answer to "what exists". A spec's

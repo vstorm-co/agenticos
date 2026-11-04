@@ -1824,7 +1824,11 @@
       "listingBackgroundTasks": "Hintergrundthemen lesen",
       "backgroundTasks": "Hintergrundthemen",
       "stoppingBackgroundTask": "Hintergrundthema stoppen",
-      "backgroundTaskStopped": "Hintergrundthema gestoppt"
+      "backgroundTaskStopped": "Hintergrundthema gestoppt",
+      "memoryResult": "Gedächtnis",
+      "manageMemory": "Dein Gedächtnis",
+      "memoryRecordedResult": "Im Gedächtnis gespeichert",
+      "memoryCorrectedResult": "Korrigiert; frühere Version im Verlauf erhalten"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -2239,7 +2243,8 @@
         "take": {
           "agent": "Mit dem Architect bauen",
           "routine": "Einrichten",
-          "connection": "Verbinden"
+          "connection": "Verbinden",
+          "watch": "Beobachtung einrichten"
         }
       },
       "makeSkill": "Einen Skill daraus machen",
@@ -5060,6 +5065,10 @@
       "memory-views": {
         "title": "Zwei Arten von Gedächtnis",
         "body": "Erinnerungen enthält Fakten, Präferenzen und Entscheidungen. Notizen enthält längere Dateien und Checklisten. Durchsuchen Sie den gesamten Bestand und öffnen Sie einen Eintrag für Quelle und Verwendung."
+      },
+      "routine-advanced": {
+        "title": "Standards behalten oder anpassen",
+        "body": "Routinen und Beobachtungen beginnen mit üblichen Ausführungs- und Benachrichtigungseinstellungen. Erweiterte Optionen öffnen die Wahl von Version, Umgebung, Budget und Zustellung."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8685,7 +8694,9 @@
       "changed": "Prüfen Sie diese Quellen vor dem nächsten Lauf.",
       "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
       "accept": "Diese Quellen genehmigen"
-    }
+    },
+    "advancedOptions": "Erweiterte Optionen",
+    "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen."
   },
   "portals": {
     "mailboxInterval": {

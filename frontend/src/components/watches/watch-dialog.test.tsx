@@ -313,3 +313,26 @@ describe("WatchDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+it("starts a proposed watch with a visible cadence that respects a nonstandard floor", async () => {
+  state.floor = 90;
+  render(
+    <WatchDialog
+      open
+      agentId="a-monitor"
+      connectionId="c-gh"
+      onOpenChange={vi.fn()}
+      initialTask={{ title: "My reviews", instructions: "Find review requests" }}
+    />,
+  );
+  expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 90 minutes");
+  await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+  expect(state.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: "My reviews",
+      instructions: "Find review requests",
+      interval_minutes: 90,
+      urgent: false,
+    }),
+  );
+});

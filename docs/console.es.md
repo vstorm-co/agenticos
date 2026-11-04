@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "6caa9e9791b1"
 ---
 
 # La consola { #the-console }
@@ -323,6 +323,29 @@ conocimiento y el resto de su spec se editan en el Agent Builder - lo hace quien
 puede cambiar los ajustes de la organización, porque todos en la organización lo
 usan. La página de la organización tiene una tarjeta que lo apaga para todos y
 fija su saludo. **Settings → Assistant** guarda solo tus propios consejos.
+
+## Agentes incluidos { #shipped-agent-defaults }
+
+Cada organización recibe **AgenticOS**, para trabajo general, y **Architect**,
+para configurar la plataforma. Ambos incluyen memoria. Los agentes creados en
+la consola parten de la plantilla actual de AgenticOS; después se pueden adaptar
+el prompt y las herramientas. AgenticOS puede consultar al Architect publicado
+mediante AgenticOS MCP, respetando permisos, presupuestos y aprobaciones.
+
+Al abrir la consola se comprueban los valores incluidos. Las instrucciones,
+capabilities, vinculaciones MCP, skills y mensajes iniciales sin modificar reciben
+actualizaciones. Cambiar solo el modelo o el presupuesto no impide actualizarlos;
+las elecciones se conservan. Los prompts y herramientas personalizados quedan
+protegidos. Los cambios sin publicar siguen como borradores y no se publican al
+actualizar el agente activo. Los agentes archivados permanecen archivados. Las
+instalaciones antiguas se reconocen por su origen o por valores históricos
+conocidos, no solamente por el nombre.
+
+El chat muestra guardados y correcciones confirmados de memoria con un enlace
+a **Your memory**. Los rechazos y datos en disputa no se presentan como guardados
+correctos. Las propuestas de rutinas y observaciones aparecen como tarjetas para
+revisar antes de activarlas. Los formularios agrupan las opciones de ejecución y
+entrega en opciones avanzadas, manteniendo sus valores predeterminados.
 
 ## Cambios hechos en otro lugar { #changes-made-elsewhere }
 

@@ -299,6 +299,29 @@ the organization's settings, because everyone in the organization runs it. The
 organization's page has a card that switches it off for everyone and sets its
 greeting. **Settings → Assistant** holds only your own tips.
 
+## Shipped agent defaults
+
+Every organization gets **AgenticOS**, a general-purpose coworker, and
+**Architect**, the platform setup assistant. Both include memory. New agents
+created in the console start from the current AgenticOS template; their authors
+can then change the prompt and tools. AgenticOS can ask the published Architect
+for platform help through the existing AgenticOS MCP tools, subject to the same
+permissions, budgets and approvals.
+
+Opening the console also checks installed defaults. Unmodified instructions,
+capabilities, MCP bindings, skills and starters receive the shipped updates.
+Changing only the model or budget does not freeze those defaults, and those
+choices are preserved. Custom prompts and tool settings remain yours. An
+unpublished edit stays a draft; refreshing the live agent does not publish it.
+Archived agents stay archived. Legacy agents are adopted only when their shipped
+origin or historical defaults can be recognized, not just by display name.
+
+Chat shows confirmed memory writes and corrections with a link to **Your memory**;
+refusals and disputed claims are not reported as successful saves. A proposed
+routine or watch appears as a setup card and becomes active only after review.
+The routine and watch forms keep execution and delivery options under
+**Advanced options**, retaining their existing defaults.
+
 ## Changes made elsewhere
 
 An open page keeps up with changes made somewhere else: a colleague's console,

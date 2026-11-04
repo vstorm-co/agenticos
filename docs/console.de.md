@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "6caa9e9791b1"
 ---
 
 # Die Konsole { #the-console }
@@ -339,6 +339,30 @@ Einstellungen der Organisation ändern darf, weil ihn alle in der Organisation
 ausführen. Auf der Seite der Organisation schaltet eine Karte ihn für alle ab und
 legt seine Begrüßung fest. **Einstellungen → Assistent** enthält nur noch Ihre
 eigenen Tipps.
+
+## Mitgelieferte Agenten { #shipped-agent-defaults }
+
+Jede Organisation erhält **AgenticOS** für allgemeine Aufgaben und **Architect**
+für die Einrichtung der Plattform. Beide haben Gedächtnis. Neue Agenten in der
+Konsole beginnen mit der aktuellen AgenticOS-Vorlage; anschließend lassen sich
+Prompt und Werkzeuge anpassen. AgenticOS kann den veröffentlichten Architect
+über AgenticOS MCP um Hilfe bitten. Berechtigungen, Budgets und Genehmigungen
+gelten weiterhin.
+
+Beim Öffnen der Konsole werden mitgelieferte Einstellungen geprüft. Unveränderte
+Anweisungen, Capabilities, MCP-Bindungen, Skills und Gesprächseinstiege erhalten
+Updates. Ein anderes Modell oder Budget blockiert diese Updates nicht; die
+gewählten Werte bleiben erhalten. Eigene Prompts und Werkzeugeinstellungen
+werden geschützt. Unveröffentlichte Änderungen bleiben Entwürfe und werden beim
+Update des laufenden Agenten nicht mitveröffentlicht. Archivierte Agenten bleiben
+archiviert. Ältere Installationen werden anhand ihrer Herkunft oder bekannter
+historischer Vorgaben erkannt, nicht allein am Namen.
+
+Der Chat zeigt bestätigte Gedächtnisspeicherungen und Korrekturen mit einem Link
+zu **Your memory**. Ablehnungen und strittige Angaben gelten nicht als erfolgreiche
+Speicherung. Vorschläge für Routinen und Beobachtungen erscheinen als Karten zur
+Prüfung vor der Aktivierung. Ausführungs- und Zustelloptionen stehen unter
+**Erweiterte Optionen**; ihre bisherigen Standardwerte bleiben erhalten.
 
 ## Änderungen von anderswo { #changes-made-elsewhere }
 

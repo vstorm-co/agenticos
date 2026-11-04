@@ -77,6 +77,7 @@ export type ToolRenderer =
   | "asked"
   | "delegation"
   | "workspace"
+  | "memory"
   | "generic";
 
 /**
@@ -579,64 +580,64 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     hidden: true,
   },
   // memory - the agent's own file store. An index and a note read back as text, so the
-  // generic renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
+  // dedicated renderer serves; `delete_memory` is `edit` because `StepKind` has no delete.
   // All of it `staysClosed`: bookkeeping, not an answer.
   list_memory: {
     kind: "list",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryChecking",
     displayNameKey: "listMemory",
     staysClosed: true,
   },
   read_memory: {
     kind: "read",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryReading",
     displayNameKey: "readMemory",
     staysClosed: true,
   },
   write_memory: {
     kind: "write",
-    render: "generic",
+    render: "memory",
     captionKey: "memorySaving",
     displayNameKey: "writeMemory",
     staysClosed: true,
   },
   edit_memory: {
     kind: "edit",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryUpdating",
     displayNameKey: "editMemory",
     staysClosed: true,
   },
   delete_memory: {
     kind: "edit",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryForgetting",
     displayNameKey: "deleteMemory",
     staysClosed: true,
   },
   correct_memory: {
     kind: "edit",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryCorrecting",
     displayNameKey: "correctMemory",
     staysClosed: true,
   },
   share_memory: {
     kind: "write",
-    render: "generic",
+    render: "memory",
     captionKey: "memorySharing",
     displayNameKey: "shareMemory",
     staysClosed: true,
   },
   remember: {
     kind: "write",
-    render: "generic",
+    render: "memory",
     captionKey: "memoryRemembering",
     staysClosed: true,
   },
-  recall: { kind: "search", render: "generic", captionKey: "memoryRecalling", staysClosed: true },
+  recall: { kind: "search", render: "memory", captionKey: "memoryRecalling", staysClosed: true },
 
   // conversation search - past threads, found and opened. Both answer in Markdown,
   // which the generic renderer already shows as prose.

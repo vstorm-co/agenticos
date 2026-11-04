@@ -1,5 +1,5 @@
 ---
-source_sha: "a99ebc0fc1bb"
+source_sha: "22e37d20aac2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3016,6 +3016,8 @@ consola; una app de chat no las dibuja.
 
 Está activa en el agent inicial y en el Architect, y un autor puede desactivarla.
 Una llamada de voz la deja fuera.
+
+Una propuesta de tipo `watch` abre el formulario de observación personal con el título y la tarea completados. La persona elige una cuenta conectada y revisa la frecuencia y las fuentes aprobadas del agente. Proponer una observación no la crea ni la activa.
 
 ## Qué puede cambiar una vinculación { #what-a-binding-may-change }
 

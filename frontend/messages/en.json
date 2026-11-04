@@ -1824,7 +1824,11 @@
       "listingBackgroundTasks": "Reading background topics",
       "backgroundTasks": "Background topics",
       "stoppingBackgroundTask": "Stopping a background topic",
-      "backgroundTaskStopped": "Background topic stopped"
+      "backgroundTaskStopped": "Background topic stopped",
+      "memoryResult": "Memory",
+      "manageMemory": "Your memory",
+      "memoryRecordedResult": "Saved to memory",
+      "memoryCorrectedResult": "Corrected; earlier version kept in history"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2239,7 +2243,8 @@
         "take": {
           "agent": "Build it with the Architect",
           "routine": "Set it up",
-          "connection": "Connect it"
+          "connection": "Connect it",
+          "watch": "Set up watch"
         }
       },
       "makeSkill": "Make a skill of this",
@@ -5182,6 +5187,10 @@
       "memory-views": {
         "title": "Two ways agents remember",
         "body": "Memories holds facts, preferences and decisions. Notes holds longer files and checklists. Search the whole store, then open an entry to see its source and manage its use."
+      },
+      "routine-advanced": {
+        "title": "Keep the defaults or fine-tune",
+        "body": "Routine and watch forms start with standard execution and notification settings. Expand Advanced options to choose a version, environment, budget or delivery policy."
       }
     },
     "chooseLanguage": "Language",
@@ -8806,7 +8815,9 @@
       "changed": "Review these sources before the next run.",
       "unavailable": "Reconnect or inspect these sources first: {names}",
       "accept": "Approve these sources"
-    }
+    },
+    "advancedOptions": "Advanced options",
+    "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences."
   },
   "portals": {
     "mailboxInterval": {

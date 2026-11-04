@@ -38,6 +38,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Refresh shipped AgenticOS and Architect defaults on console open while preserving custom prompts, tool settings, models, budgets and unpublished edits. New console agents retain the same AgenticOS baseline; apply `0284_shipped_agent_defaults.py` before starting the updated API.
+
+- Offer watch setup cards in chat, show confirmed claim writes and corrections, and group routine/watch execution and delivery settings under advanced options.
+
 - Make personal memory browsable with separate memories and notes, whole-store search, type and scope filters, decision details, shared file previews and confirmed note deletion.
 
 - **Breaking:** routines and watches now pause after three consecutive unsuccessful executions by default. Owners can choose 1–20 or disable this limit; waiting and delivery errors do not count. Acknowledgement does not reset health. Resume after correcting the issue to start a fresh window. Migration `0275_routine_health.py` requires API/workers to be updated together.

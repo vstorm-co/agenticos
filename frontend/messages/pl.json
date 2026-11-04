@@ -864,7 +864,11 @@
       "listingBackgroundTasks": "Sprawdzanie tematów w tle",
       "backgroundTasks": "Tematy w tle",
       "stoppingBackgroundTask": "Zatrzymywanie tematu w tle",
-      "backgroundTaskStopped": "Zatrzymano temat w tle"
+      "backgroundTaskStopped": "Zatrzymano temat w tle",
+      "memoryResult": "Pamięć",
+      "manageMemory": "Twoja pamięć",
+      "memoryRecordedResult": "Zapisano w pamięci",
+      "memoryCorrectedResult": "Poprawiono; wcześniejsza wersja pozostała w historii"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1379,7 +1383,8 @@
         "take": {
           "agent": "Zbuduj z Architektem",
           "routine": "Ustaw",
-          "connection": "Podłącz"
+          "connection": "Podłącz",
+          "watch": "Ustaw obserwację"
         }
       },
       "makeSkill": "Zrób z tego skill",
@@ -6729,6 +6734,10 @@
       "memory-views": {
         "title": "Dwa rodzaje pamięci",
         "body": "Wspomnienia to fakty, preferencje i decyzje. Notatki to dłuższe pliki i checklisty. Przeszukaj cały zbiór i otwórz wpis, aby sprawdzić źródło lub zmienić jego używanie."
+      },
+      "routine-advanced": {
+        "title": "Zostaw domyślne lub dostosuj",
+        "body": "Formularze rutyn i obserwacji zaczynają od standardowych ustawień wykonania i powiadomień. Rozwiń opcje zaawansowane, aby wybrać wersję, środowisko, budżet lub sposób dostarczania."
       }
     },
     "chooseLanguage": "Język",
@@ -7637,7 +7646,9 @@
       "changed": "Przejrzyj te źródła przed kolejnym uruchomieniem.",
       "unavailable": "Najpierw sprawdź lub ponownie połącz źródła: {names}",
       "accept": "Zatwierdź te źródła"
-    }
+    },
+    "advancedOptions": "Opcje zaawansowane",
+    "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień."
   },
   "portals": {
     "mailboxInterval": {

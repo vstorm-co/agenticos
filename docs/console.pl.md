@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "6caa9e9791b1"
 ---
 
 # Konsola { #the-console }
@@ -314,6 +314,28 @@ spec edytuje się w Agent Builderze - może to zrobić ktoś, kto zmienia ustawi
 organizacji, bo uruchamia go każdy w organizacji. Na stronie organizacji jest
 karta, która wyłącza go dla wszystkich i ustawia jego powitanie. **Ustawienia →
 Asystent** to już tylko twoje własne wskazówki.
+
+## Domyślne agenty platformy { #shipped-agent-defaults }
+
+Każda organizacja otrzymuje **AgenticOS**, agenta do codziennej pracy, oraz
+**Architect**, asystenta konfiguracji platformy. Oba mają pamięć. Nowy agent
+tworzony w konsoli zaczyna od aktualnego szablonu AgenticOS; autor może potem
+zmienić prompt i narzędzia. AgenticOS może poprosić opublikowanego Architecta o
+pomoc przez AgenticOS MCP, z zachowaniem uprawnień, budżetów i zatwierdzeń.
+
+Otwarcie konsoli sprawdza również dostarczone ustawienia. Niezmienione instrukcje,
+capability, powiązania MCP, skille i propozycje pierwszych wiadomości otrzymują
+aktualizacje. Sama zmiana modelu lub budżetu nie blokuje aktualizacji, a wybrane
+wartości pozostają zachowane. Własne prompty i konfiguracja narzędzi pozostają
+Twoje. Nieopublikowana edycja pozostaje draftem; aktualizacja działającego agenta
+nie publikuje jej. Zarchiwizowane agenty pozostają zarchiwizowane. Starsze agenty
+są rozpoznawane po pochodzeniu lub historycznych ustawieniach, nie tylko po nazwie.
+
+Czat pokazuje potwierdzone zapisy i korekty pamięci z linkiem do **Your memory**;
+odmowy i sporne informacje nie są oznaczane jako udany zapis. Propozycja rutyny
+lub obserwacji ma własną kartę konfiguracji i wymaga sprawdzenia przed aktywacją.
+Formularze chowają opcje wykonania i dostarczania pod **Opcje zaawansowane**,
+zachowując dotychczasowe wartości domyślne.
 
 ## Zmiany wprowadzone gdzie indziej { #changes-made-elsewhere }
 

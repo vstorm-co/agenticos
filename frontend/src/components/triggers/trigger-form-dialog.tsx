@@ -1,5 +1,6 @@
 "use client";
 
+import { RoutineOptions } from "./routine-options";
 import { EventOptions, eventOptionsValid } from "./event-options";
 import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useEffect, useRef, useState } from "react";
@@ -879,52 +880,54 @@ export function TriggerFormDialog({
                 <RotateSecretSection triggerId={trigger.id} rotate={rotateSecret} />
               )}
 
-            {namedEnvironments.length > 0 && (
-              <EnvironmentField
-                value={environmentId}
-                onChange={changeEnvironment}
-                environments={namedEnvironments}
-                defaultEnvironment={defaultEnvironment}
+            <RoutineOptions invalid={invalidEnd || !versionValid}>
+              {namedEnvironments.length > 0 && (
+                <EnvironmentField
+                  value={environmentId}
+                  onChange={changeEnvironment}
+                  environments={namedEnvironments}
+                  defaultEnvironment={defaultEnvironment}
+                />
+              )}
+
+              {environmentId === DEFAULT_ENV && effectiveAgentId && (
+                <VersionField
+                  key={effectiveAgentId}
+                  agentId={effectiveAgentId}
+                  value={pinnedVersion}
+                  onChange={setPinnedVersion}
+                  onValidChange={setVersionValid}
+                />
+              )}
+
+              <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+
+              <AnswerToField value={answerTo} onChange={setAnswerTo} />
+              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+              <NotificationChannelsField
+                value={notificationChannels}
+                onChange={setNotificationChannels}
               />
-            )}
 
-            {environmentId === DEFAULT_ENV && effectiveAgentId && (
-              <VersionField
-                key={effectiveAgentId}
-                agentId={effectiveAgentId}
-                value={pinnedVersion}
-                onChange={setPinnedVersion}
-                onValidChange={setVersionValid}
+              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+
+              <BudgetField value={budget} onChange={setBudget} />
+
+              <RunAsCreatorField
+                checked={runsAsCreator}
+                onChange={setRunsAsCreator}
+                type={trigger.trigger_type}
+                isCreator={isCreator}
               />
-            )}
-
-            <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-
-            <AnswerToField value={answerTo} onChange={setAnswerTo} />
-            <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
-            <NotificationChannelsField
-              value={notificationChannels}
-              onChange={setNotificationChannels}
-            />
-
-            <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
-
-            <BudgetField value={budget} onChange={setBudget} />
-
-            <RunAsCreatorField
-              checked={runsAsCreator}
-              onChange={setRunsAsCreator}
-              type={trigger.trigger_type}
-              isCreator={isCreator}
-            />
-            <LocalTargetField
-              value={localTarget}
-              onChange={(target) => {
-                setLocalTarget(target);
-                setApprovedLocal(null);
-              }}
-              visible={runsAsCreator && isCreator}
-            />
+              <LocalTargetField
+                value={localTarget}
+                onChange={(target) => {
+                  setLocalTarget(target);
+                  setApprovedLocal(null);
+                }}
+                visible={runsAsCreator && isCreator}
+              />
+            </RoutineOptions>
           </div>
 
           <DialogFooter className="sm:justify-between">
@@ -1028,52 +1031,54 @@ export function TriggerFormDialog({
 
               <NameField value={name} onChange={setName} />
 
-              {namedEnvironments.length > 0 && (
-                <EnvironmentField
-                  value={environmentId}
-                  onChange={changeEnvironment}
-                  environments={namedEnvironments}
-                  defaultEnvironment={defaultEnvironment}
+              <RoutineOptions invalid={invalidEnd || !versionValid}>
+                {namedEnvironments.length > 0 && (
+                  <EnvironmentField
+                    value={environmentId}
+                    onChange={changeEnvironment}
+                    environments={namedEnvironments}
+                    defaultEnvironment={defaultEnvironment}
+                  />
+                )}
+
+                {environmentId === DEFAULT_ENV && effectiveAgentId && (
+                  <VersionField
+                    key={effectiveAgentId}
+                    agentId={effectiveAgentId}
+                    value={pinnedVersion}
+                    onChange={setPinnedVersion}
+                    onValidChange={setVersionValid}
+                  />
+                )}
+
+                <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
+
+                <AnswerToField value={answerTo} onChange={setAnswerTo} />
+                <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
+                <NotificationChannelsField
+                  value={notificationChannels}
+                  onChange={setNotificationChannels}
                 />
-              )}
 
-              {environmentId === DEFAULT_ENV && effectiveAgentId && (
-                <VersionField
-                  key={effectiveAgentId}
-                  agentId={effectiveAgentId}
-                  value={pinnedVersion}
-                  onChange={setPinnedVersion}
-                  onValidChange={setVersionValid}
+                <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
+
+                <BudgetField value={budget} onChange={setBudget} />
+
+                <RunAsCreatorField
+                  checked={runsAsCreator}
+                  onChange={setRunsAsCreator}
+                  type={type}
+                  isCreator={isCreator}
                 />
-              )}
-
-              <TeamsPostField value={teamsPost} onChange={setTeamsPost} />
-
-              <AnswerToField value={answerTo} onChange={setAnswerTo} />
-              <FailurePolicyField value={maxFailures} onChange={setMaxFailures} />
-              <NotificationChannelsField
-                value={notificationChannels}
-                onChange={setNotificationChannels}
-              />
-
-              <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
-
-              <BudgetField value={budget} onChange={setBudget} />
-
-              <RunAsCreatorField
-                checked={runsAsCreator}
-                onChange={setRunsAsCreator}
-                type={type}
-                isCreator={isCreator}
-              />
-              <LocalTargetField
-                value={localTarget}
-                onChange={(target) => {
-                  setLocalTarget(target);
-                  setApprovedLocal(null);
-                }}
-                visible={runsAsCreator && isCreator}
-              />
+                <LocalTargetField
+                  value={localTarget}
+                  onChange={(target) => {
+                    setLocalTarget(target);
+                    setApprovedLocal(null);
+                  }}
+                  visible={runsAsCreator && isCreator}
+                />
+              </RoutineOptions>
             </div>
           )}
 

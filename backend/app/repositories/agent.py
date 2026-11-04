@@ -122,6 +122,20 @@ async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
     return result.scalar_one_or_none()
 
 
+async def get_shipped_starter(db: AsyncSession, *, organization_id: UUID) -> Agent | None:
+    """Keep finding the installed starter after its owner renames it."""
+    result = await db.execute(
+        select(Agent)
+        .where(
+            Agent.organization_id == organization_id,
+            Agent.shipped_template["key"].astext == "general/agenticos",
+        )
+        .order_by(Agent.created_at, Agent.id)
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> Agent | None:
     result = await db.execute(
         select(Agent).where(Agent.slug == slug, Agent.organization_id == organization_id)

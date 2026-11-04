@@ -1,5 +1,5 @@
 ---
-source_sha: "a99ebc0fc1bb"
+source_sha: "22e37d20aac2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3167,6 +3167,8 @@ den die Person noch nicht verbunden hat. Die Karten gibt es nur in der Konsole; 
 
 Sie ist im Starter-Agent und im Architect eingeschaltet, und ein Autor kann sie
 abschalten. Ein Sprachanruf lässt sie weg.
+
+Ein Einrichtungsvorschlag vom Typ `watch` öffnet das persönliche Beobachtungsformular mit Titel und Aufgabe. Die Person wählt ein tatsächlich verbundenes Konto und prüft Intervall sowie genehmigte Agentenquellen. Ein Vorschlag erstellt oder aktiviert keine Beobachtung.
 
 ## Was eine Bindung ändern darf { #what-a-binding-may-change }
 

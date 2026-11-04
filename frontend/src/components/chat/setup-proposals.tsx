@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, CalendarClock, Plug } from "lucide-react";
+import { Bot, CalendarClock, Plug, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ConnectOwnButton } from "@/components/agents/connect-server-dialog";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { WatchDialog } from "@/components/watches/watch-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
@@ -25,6 +26,7 @@ const WEEKLY = { schedule_kind: "cron", cron_expression: "0 8 * * 1" } as const;
 const ICONS: Record<SetupKind, typeof Bot> = {
   agent: Bot,
   routine: CalendarClock,
+  watch: Eye,
   connection: Plug,
 };
 
@@ -51,6 +53,8 @@ export function SetupProposals({
   const ask = useArchitectAskStore((state) => state.ask);
   const [routine, setRoutine] = useState<TriggerTemplate | null>(null);
 
+  const [watch, setWatch] = useState<SetupProposal | null>(null);
+
   const take = (proposal: SetupProposal) => {
     if (proposal.kind === "routine") {
       setRoutine({
@@ -63,6 +67,8 @@ export function SetupProposals({
           ? { schedule_kind: "cron", cron_expression: proposal.cron }
           : WEEKLY,
       });
+    } else if (proposal.kind === "watch") {
+      setWatch(proposal);
     } else if (proposal.kind === "agent") {
       ask(t("agentAsk", { request: proposal.request }));
     } else {
@@ -84,6 +90,14 @@ export function SetupProposals({
         ) : (
           <ProposalCard key={proposal.key} proposal={proposal} onTake={() => take(proposal)} />
         ),
+      )}
+      {watch && (
+        <WatchDialog
+          open
+          agentId={agentId ?? undefined}
+          initialTask={{ title: watch.title, instructions: watch.request }}
+          onOpenChange={(open) => !open && setWatch(null)}
+        />
       )}
       {routine && (
         <TriggerFormDialog
