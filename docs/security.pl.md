@@ -1,5 +1,5 @@
 ---
-source_sha: "f637a0bdd4e6"
+source_sha: "d422ef59b14f"
 ---
 
 # Bezpieczeństwo { #security }
@@ -344,7 +344,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Kontrola | Mechanizm | Trzymane przez |
 |---|---|---|
 | Żaden sekret otwartym tekstem w odpowiedzi API ani we wpisie audytowym | `SealedStr`/`CredentialStr` maskują każdy repr; podpowiedzi to wyłącznie ostatnie 4 znaki (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (przemiata całą powierzchnię OpenAPI), `test_capability_secrets.py::TestInjection` |
-| Logi nie są częścią tej gwarancji | Zniekształcona odpowiedź tokena MCP OAuth trafia do logów przez `ValidationError` Pydantica, który powtarza swoje wejście — znana luka, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (dokumentuje, że token ląduje w `caplog`) |
+| Logi nie są częścią tej gwarancji | Zniekształcona odpowiedź tokena MCP OAuth trafia do logów przez `ValidationError` Pydantica, który powtarza swoje wejście — znana luka, [#1626](https://github.com/vstorm-co/agenticos/issues/1626). Przy ustawionym `LOGFIRE_TOKEN` Logfire zapisuje komunikat wyjątku i stos wywołań nieudanego zapytania bez zmian, więc linia `DETAIL` błędu ograniczenia, zawierająca wartości, które go naruszyły, trafia do Logfire — to także znana luka | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (dokumentuje, że token ląduje w `caplog`) |
 | Podpisane linki w logach dostępu | Aplikacja redaguje ścieżki i wartości parametrów zawierające poświadczenia, także w logach dostępu i błędów uvicorna. Dostarczone konfiguracje Nginx i Traefika pomijają ścieżkę, parametry zapytania i Referer w logach dostępu. Operatorzy innych proxy muszą skonfigurować równoważną ochronę. | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | Żadne poświadczenie providera nie trafia do przeglądarki rozmowy głosowej | Serwer odpowiada na ofertę SDP i trzyma połączenie sideband; oferta z kanałem danych jest odrzucana; sekrety klienta nigdy nie są wydawane; klucz jest odpieczętowywany na rozmowę, a na rozłączenie tylko przez `OrganizationSecretService.voice_call_key`, którego otwarty tekst trafia do endpointu rozłączania providera i nigdzie indziej (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | Poświadczenie jest w spoczynku związane ze swoją organizacją | Koperta HKDF per właściciel (`app/core/vault.py`); zakres to poświadczenia konektorów i API — o tokenach bearer, których nie obejmuje, mówi „Co jest gdzie szyfrowane” | `test_secret_tenant_isolation.py`, `test_vault.py` |

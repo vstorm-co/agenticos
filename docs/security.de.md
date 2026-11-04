@@ -1,5 +1,5 @@
 ---
-source_sha: "f637a0bdd4e6"
+source_sha: "d422ef59b14f"
 ---
 
 # Sicherheit { #security }
@@ -374,7 +374,7 @@ SOC 2 CC6–CC8.
 | Kontrolle | Mechanismus | Gehalten von |
 |---|---|---|
 | Kein Secret im Klartext in einer API-Antwort oder einem Audit-Eintrag | `SealedStr`/`CredentialStr` maskieren jedes repr; Hinweise sind nur die letzten 4 Zeichen (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (durchkämmt die gesamte OpenAPI-Oberfläche), `test_capability_secrets.py::TestInjection` |
-| Logs sind nicht Teil dieser Zusage | Eine fehlerhafte MCP-OAuth-Token-Antwort erreicht die Logs über einen Pydantic-`ValidationError`, der seine Eingabe wiedergibt — eine bekannte Lücke, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (hält fest, dass das Token in `caplog` landet) |
+| Logs sind nicht Teil dieser Zusage | Eine fehlerhafte MCP-OAuth-Token-Antwort erreicht die Logs über einen Pydantic-`ValidationError`, der seine Eingabe wiedergibt — eine bekannte Lücke, [#1626](https://github.com/vstorm-co/agenticos/issues/1626). Ist `LOGFIRE_TOKEN` gesetzt, speichert Logfire die Fehlermeldung und den Stacktrace einer fehlgeschlagenen Abfrage unverändert, sodass die `DETAIL`-Zeile eines Constraint-Fehlers mit den verletzenden Werten Logfire erreicht - ebenfalls eine bekannte Lücke | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (hält fest, dass das Token in `caplog` landet) |
 | Signierte Links in Access-Logs | Die Anwendung schwärzt Pfade und Abfragewerte mit Zugangsdaten, auch in den Access- und Error-Logs von uvicorn. Die mitgelieferten Konfigurationen von Nginx und Traefik lassen Pfad, Query und Referer in Access-Logs weg. Betreiber anderer Proxys müssen einen gleichwertigen Schutz konfigurieren. | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | Kein Credential des Providers erreicht den Browser eines Sprachanrufs | Der Server beantwortet das SDP-Angebot und hält die Sideband-Verbindung; ein Angebot mit einem Datenkanal wird abgelehnt; Client-Secrets werden nie ausgestellt; der Schlüssel wird für einen Anruf entsiegelt, und für ein Auflegen nur über `OrganizationSecretService.voice_call_key`, dessen Klartext an den Auflege-Endpunkt des Providers geht und nirgendwohin sonst (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | Ein Credential ist im Ruhezustand an seine Organisation gebunden | HKDF-Umschlag pro Eigentümer (`app/core/vault.py`); der Geltungsbereich sind Konnektor- und API-Credentials — zu den Bearer-Token, die er nicht abdeckt, siehe „Was wo verschlüsselt ist“ | `test_secret_tenant_isolation.py`, `test_vault.py` |

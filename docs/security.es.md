@@ -1,5 +1,5 @@
 ---
-source_sha: "f637a0bdd4e6"
+source_sha: "d422ef59b14f"
 ---
 
 # Seguridad { #security }
@@ -351,7 +351,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Control | Mecanismo | Sostenido por |
 |---|---|---|
 | Ningún secreto en claro en una respuesta de la API ni en una entrada de auditoría | `SealedStr`/`CredentialStr` enmascaran cada repr; las pistas son solo los últimos 4 caracteres (`app/core/secret_kinds.py`, `app/core/vault.py`) | `test_no_secret_escapes.py` (barre toda la superficie de OpenAPI), `test_capability_secrets.py::TestInjection` |
-| Los logs no forman parte de esa garantía | Una respuesta de token MCP OAuth mal formada llega a los logs a través de un `ValidationError` de Pydantic que repite su entrada — un hueco conocido, [#1626](https://github.com/vstorm-co/agenticos/issues/1626) | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documenta que el token acaba en `caplog`) |
+| Los logs no forman parte de esa garantía | Una respuesta de token MCP OAuth mal formada llega a los logs a través de un `ValidationError` de Pydantic que repite su entrada — un hueco conocido, [#1626](https://github.com/vstorm-co/agenticos/issues/1626). Con `LOGFIRE_TOKEN` configurado, Logfire guarda tal cual el mensaje de la excepción y la traza de pila de una consulta fallida, así que la línea `DETAIL` de un error de restricción, con los valores que la incumplen, llega a Logfire; también es una carencia conocida | `test_mcp_connections.py::test_an_unreadable_token_response_does_not_echo_its_input` (documenta que el token acaba en `caplog`) |
 | Enlaces firmados en los logs de acceso | La aplicación redacta las rutas y los parámetros que contienen credenciales, también en los logs de acceso y errores de uvicorn. Las configuraciones incluidas de Nginx y Traefik omiten la ruta, la consulta y Referer en los logs de acceso. Los operadores de otros proxies deben configurar una protección equivalente. | `test_logging.py::test_a_signed_link_in_the_access_log_is_redacted` |
 | Ninguna credencial del proveedor llega al navegador de una llamada de voz | El servidor responde a la oferta SDP y mantiene el sideband; una oferta con canal de datos se rechaza; los client secrets nunca se emiten; la clave se desella para una llamada, y para colgar solo a través de `OrganizationSecretService.voice_call_key`, cuyo texto en claro va al endpoint de colgado del proveedor y a ningún otro sitio (`app/services/voice/transport.py`, `app/services/voice/hangup.py`) | `test_voice_session.py::test_no_frame_carries_the_provider_key`, `test_voice_transport.py::test_an_offer_with_a_data_channel_is_refused` |
 | Una credencial está ligada a su organización en reposo | Sobre HKDF por propietario (`app/core/vault.py`); el alcance son las credenciales de conectores y de API — para los tokens bearer que no cubre, ver «Qué se cifra y dónde» | `test_secret_tenant_isolation.py`, `test_vault.py` |
