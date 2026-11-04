@@ -70,7 +70,7 @@ vi.mock("@/hooks", () => ({
   }),
   useSecretPurposes: () => ({ purposes: state.purposes }),
   useSecrets: () => ({ secrets: state.secrets }),
-  useProviderModels: (...args: [string, string?]) => {
+  useProviderModels: (...args: [string, string?, string?]) => {
     listingRequests(...args);
     return {
       models: state.models,
@@ -1150,7 +1150,11 @@ describe("choosing where a Stav model's requests run", () => {
     await fillStav();
     await userEvent.type(screen.getByLabelText("Endpoint"), "https://staging-api.stav.ai/v1/");
 
-    expect(listingRequests).toHaveBeenLastCalledWith("stav", "https://staging-api.stav.ai/v1");
+    expect(listingRequests).toHaveBeenLastCalledWith(
+      "stav",
+      "https://staging-api.stav.ai/v1",
+      "s-stav",
+    );
   });
 
   it("opens a Stav model stored with no region as unchanged", async () => {
@@ -1611,7 +1615,11 @@ it("keeps an OpenRouter key and lists models at its selected regional endpoint",
   await userEvent.click(screen.getByLabelText("Model"));
   await userEvent.click(screen.getByRole("option", { name: /Claude test/ }));
   await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-  expect(listingRequests).toHaveBeenCalledWith("openrouter", "https://eu.openrouter.ai/api/v1");
+  expect(listingRequests).toHaveBeenCalledWith(
+    "openrouter",
+    "https://eu.openrouter.ai/api/v1",
+    undefined,
+  );
   expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({
       provider: "openrouter",

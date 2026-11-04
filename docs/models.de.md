@@ -1,5 +1,5 @@
 ---
-source_sha: "54529b3e6abc"
+source_sha: "26050af2d0e0"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -328,6 +328,8 @@ die EU also nur, wenn es mit `eea` oder `global` gespeichert wurde.
 
 Die Region geht bei jedem Request als Header `X-Stav-Runs-In` mit, nicht im Body,
 damit ein `extra_body` in den Settings des Profiles sie nicht ersetzen kann.
+
+Ein eigener Stav-Katalog verwendet den im Formular ausgewählten Vault-Schlüssel. Der Benutzer muss auf diesen Schlüssel zugreifen dürfen; für eine eigene URL wird niemals ein verborgener Organisationsschlüssel gewählt. Authentifizierte Kataloge werden pro Zugangsdaten getrennt gecacht. `extra_headers` eines Requests können die EU- oder EEA-Beschränkung des Profils nicht überschreiben.
 
 ## Provider { #providers }
 

@@ -131,9 +131,7 @@ class ProviderSpec:
     native_api: ModelApi | None = None
     # The first supported region is the default.
     regions: tuple[ModelRegion, ...] = ()
-    # Whether the API is chosen from the model rather than by the person adding
-    # it: true where the provider's listing says which APIs each model is served
-    # on (Stav.ai), so a choice nobody can make well is not asked.
+    # Resolve the API from advertised model surfaces rather than a form selection.
     api_from_model: bool = False
 
     @property

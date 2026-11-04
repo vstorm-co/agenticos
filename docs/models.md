@@ -288,6 +288,8 @@ saved with `eea` or `global`.
 The region is sent as the `X-Stav-Runs-In` header on every request, not in the
 body, so an `extra_body` in the profile's settings cannot replace it.
 
+Custom Stav catalogs use the vault key selected in the form. The caller must be able to see that key; the application never chooses a hidden organization key for a custom URL. Authenticated catalog caches are separated by credential. Request-level `extra_headers` cannot override the profile's EU or EEA restriction.
+
 ## Providers
 
 Twenty-nine: everything Pydantic AI ships that a chat profile can point at, and

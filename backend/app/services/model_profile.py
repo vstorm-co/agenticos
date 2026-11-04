@@ -35,7 +35,6 @@ from app.core.exceptions import (
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import (
-    ApiKeySecret,
     NoSecret,
     OpenAICodexSecret,
     SecretKind,
@@ -361,60 +360,16 @@ class ModelProfileService:
         base_url: str | None,
         secret_id: UUID | None,
     ) -> CatalogModel | None:
-        """The provider's own listing entry for this model, or None.
-
-        Read for how many tokens the model accepts and, on Stav.ai, which API it
-        is served on.
-
-        Read once here rather than per run, because the request path must not
-        call a provider - and stored, because the alternative source is wrong in
-        the direction that breaks a run. The `compaction` capability triggers on
-        a fraction of the context window; `genai-prices` records 1,000,000 for
-        `anthropic:claude-sonnet-4-5` against a real 200,000, so a trigger at 90%
-        lands above the ceiling and compaction never fires before the provider
-        refuses the request (#773).
-
-        The picker asked the same question moments ago and the listing is cached
-        for an hour, so this is usually free. `models_for` never raises and
-        answers its curated list when a provider cannot be reached; a model the
-        answer does not mention - a bespoke deployment, one shipped this morning,
-        or anything under a curated list that carries no lengths - records
-        nothing, and nothing means the capability resolves the window itself.
-        """
-        # Stav's list is read where the profile points, so a regional or staging
-        # Stav records that endpoint's window; every other provider keeps its own.
+        """Read creation-time metadata using the selected Stav endpoint and credential."""
         endpoint = base_url if CUSTOM_LISTINGS.get(provider) else None
-        if endpoint is None:
-            api_key = await OrganizationSecretService(self.db).listing_key(ctx, provider)
-        else:
-            # Only the profile's own key goes to its endpoint: the one the caller
-            # has just been checked to see, and the one every run sends there.
-            # The organization's listing key may be one they cannot see, and the
-            # endpoint is theirs to choose.
-            api_key = await self._profile_key(ctx, secret_id)
+        secrets = OrganizationSecretService(self.db)
+        api_key = (
+            await secrets.listing_key(ctx, provider, secret_id=secret_id)
+            if provider == "stav"
+            else await secrets.listing_key(ctx, provider)
+        )
         models, _ = await models_for(provider, api_key=api_key, base_url=endpoint)
         return next((entry for entry in models if entry.id == model), None)
-
-    async def _profile_key(self, ctx: AuthContext, secret_id: UUID | None) -> str | None:
-        """The bearer token in the profile's own key, or None where it has none.
-
-        Called after `_check_key`, so the key is this organization's and the
-        caller's to see; an AWS pair or a service-account JSON is no bearer token.
-        """
-        if secret_id is None:
-            return None
-        secret = await organization_secret_repo.get(
-            self.db, secret_id, organization_id=ctx.organization_id
-        )
-        if secret is None:
-            return None
-        value = unseal_secret(
-            secret.sealed_secret,
-            kind=SecretKind(secret.kind),
-            scope=VaultScope.organization(ctx.organization_id),
-            key_version=secret.key_version,
-        )
-        return value.api_key.get_secret_value() if isinstance(value, ApiKeySecret) else None
 
     async def _check_label_free(self, ctx: AuthContext, label: str) -> None:
         """Refuse a label another profile in this organization already carries."""

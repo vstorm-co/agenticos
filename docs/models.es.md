@@ -1,5 +1,5 @@
 ---
-source_sha: "54529b3e6abc"
+source_sha: "26050af2d0e0"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -308,6 +308,8 @@ guardó con `eea` o `global`.
 
 La región se envía en cada petición como la cabecera `X-Stav-Runs-In`, no en el
 cuerpo, así que un `extra_body` en los ajustes del perfil no puede sustituirla.
+
+Un catálogo personalizado de Stav utiliza la clave del vault seleccionada en el formulario. El usuario debe tener acceso a esa clave; nunca se elige una clave oculta de la organización para una URL personalizada. La caché de catálogos autenticados se separa por credencial. Los `extra_headers` de una solicitud no pueden reemplazar la restricción EU o EEA del perfil.
 
 ## Providers { #providers }
 

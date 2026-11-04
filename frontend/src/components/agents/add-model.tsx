@@ -286,55 +286,6 @@ export function AddModel({
   // provider there is nothing to choose and the field is not drawn.
   // What the provider publishes, where it publishes anything. Cached hard: a
   // catalog changes when a provider ships a model, not while a form is open.
-  const {
-    models: suggestions,
-    refused,
-    source,
-    isLoading: loadingModels,
-  } = useProviderModels(
-    providerId,
-    // Only OpenRouter and Stav can be listed at an endpoint of the reader's: a
-    // regional or staging Stav serves its own catalogue, not the public one.
-    providerId === "openrouter" || providerId === "stav"
-      ? baseUrl.trim().replace(/\/+$/, "") || undefined
-      : undefined,
-  );
-  // Stav.ai says per model which API it is served on, so nobody is asked.
-  const apiFromModel = capabilities?.api_from_model ?? false;
-  const choosesApi = (capabilities?.apis.length ?? 0) > 1 && !apiFromModel;
-  // Before anybody picks: the model in use's own choice while its provider and
-  // endpoint are the ones on screen, and otherwise the default for what is - so
-  // pointing the model in use at a vLLM does not carry Responses there with it.
-  const startingApi =
-    selected?.api != null &&
-    providerId === selected.provider &&
-    baseUrl.trim() === (selected.base_url ?? "")
-      ? selected.api
-      : defaultApi(capabilities, baseUrl);
-  // The model in use keeps the API it was saved with; a new model takes the one
-  // its listing names, and an unlisted one is left for the server to choose.
-  const listedApis = suggestions.find((entry) => entry.id === model.trim())?.apis ?? [];
-  const modelApi: ModelApi | null = listedApis.includes("chat")
-    ? "chat"
-    : (listedApis.find((entry) => entry === "responses") ?? null);
-  const storedApi =
-    selected !== undefined && providerId === selected.provider && model.trim() === selected.model
-      ? (selected.api ?? null)
-      : null;
-  const api = choosesApi
-    ? (pickedApi ?? startingApi)
-    : apiFromModel
-      ? (storedApi ?? modelApi)
-      : null;
-  // Only Stav takes a region. Before anybody picks: the model in use's own
-  // region while its provider is on screen, else the provider's default (the
-  // first listed), so a new Stav model starts in the EU.
-  const regions = capabilities?.regions ?? [];
-  const startingRegion =
-    selected?.region != null && providerId === selected.provider
-      ? selected.region
-      : (regions[0] ?? null);
-  const region = regions.length > 0 ? (pickedRegion ?? startingRegion) : null;
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
@@ -348,6 +299,54 @@ export function AddModel({
     hasKey(selected) &&
     providerId === selected.provider;
   const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
+
+  const {
+    models: suggestions,
+    refused,
+    source,
+    isLoading: loadingModels,
+  } = useProviderModels(
+    providerId,
+    // Only OpenRouter and Stav can be listed at an endpoint of the reader's: a
+    // regional or staging Stav serves its own catalogue, not the public one.
+    providerId === "openrouter" || providerId === "stav"
+      ? baseUrl.trim().replace(/\/+$/, "") || undefined
+      : undefined,
+    providerId === "stav" ? chosenKey || undefined : undefined,
+  );
+  // Stav.ai says per model which API it is served on, so nobody is asked.
+  const apiFromModel = capabilities?.api_from_model ?? false;
+  const choosesApi = (capabilities?.apis.length ?? 0) > 1 && !apiFromModel;
+  // Before anybody picks: the model in use's own choice while its provider and
+  // endpoint are the ones on screen, and otherwise the default for what is - so
+  // pointing the model in use at a vLLM does not carry Responses there with it.
+  const startingApi =
+    selected?.api != null &&
+    providerId === selected.provider &&
+    baseUrl.trim() === (selected.base_url ?? "")
+      ? selected.api
+      : defaultApi(capabilities, baseUrl);
+  // Preserve stored API choices; derive new profiles from advertised surfaces.
+  const listedApis = suggestions.find((entry) => entry.id === model.trim())?.apis ?? [];
+  const modelApi: ModelApi | null = listedApis.includes("chat")
+    ? "chat"
+    : (listedApis.find((entry) => entry === "responses") ?? null);
+  const storedApi =
+    selected !== undefined && providerId === selected.provider && model.trim() === selected.model
+      ? (selected.api ?? null)
+      : null;
+  const api = choosesApi
+    ? (pickedApi ?? startingApi)
+    : apiFromModel
+      ? (storedApi ?? modelApi)
+      : null;
+  // Existing profiles retain their region; new profiles use the provider default.
+  const regions = capabilities?.regions ?? [];
+  const startingRegion =
+    selected?.region != null && providerId === selected.provider
+      ? selected.region
+      : (regions[0] ?? null);
+  const region = regions.length > 0 ? (pickedRegion ?? startingRegion) : null;
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 

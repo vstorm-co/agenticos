@@ -2082,12 +2082,12 @@ class TestTheWindowAModelAccepts:
         the organization's listing key, which the caller may not be able to see."""
         catalog = self._catalog(("mistralai/mistral-small-4", 128_000))
         secret_id = uuid.uuid4()
-        org_key = AsyncMock(return_value="sk_stav_org")
         profile_key = AsyncMock(return_value="sk_stav_profile")
         with (
             patch("app.services.model_profile.models_for", new=catalog),
-            patch("app.services.model_profile.OrganizationSecretService.listing_key", new=org_key),
-            patch("app.services.model_profile.ModelProfileService._profile_key", new=profile_key),
+            patch(
+                "app.services.model_profile.OrganizationSecretService.listing_key", new=profile_key
+            ),
             patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
             patch(
                 "app.services.model_profile._checked_endpoint",
@@ -2111,33 +2111,9 @@ class TestTheWindowAModelAccepts:
         catalog.assert_awaited_once_with(
             "stav", api_key="sk_stav_profile", base_url="https://staging-api.stav.ai/v1"
         )
-        org_key.assert_not_awaited()
-        assert profile_key.await_args.args[1] == secret_id
+        assert profile_key.await_args.kwargs == {"secret_id": secret_id}
         assert create.call_args.kwargs["context_length"] == 128_000
         assert create.call_args.kwargs["region"] == stored
-
-    @pytest.mark.anyio
-    async def test_a_profile_key_is_the_bearer_token_in_the_profiles_own_key(self):
-        ctx = _ctx()
-        stored = _credential(ctx, provider="stav", secret=ApiKeySecret(api_key="sk_stav_own"))
-        with patch(
-            "app.services.model_profile.organization_secret_repo.get",
-            new=AsyncMock(return_value=stored),
-        ):
-            assert await ModelProfileService(_db())._profile_key(ctx, stored.id) == "sk_stav_own"
-
-    @pytest.mark.anyio
-    async def test_a_profile_without_a_bearer_key_lists_with_none(self):
-        ctx = _ctx()
-        aws = _credential(ctx, provider="stav", secret=secret_for(PROVIDERS["bedrock"]))
-        service = ModelProfileService(_db())
-        assert await service._profile_key(ctx, None) is None
-        with patch(
-            "app.services.model_profile.organization_secret_repo.get",
-            new=AsyncMock(side_effect=[None, aws]),
-        ):
-            assert await service._profile_key(ctx, uuid.uuid4()) is None
-            assert await service._profile_key(ctx, aws.id) is None
 
     async def _stav_created(self, surfaces, *, api=None) -> dict:
         catalog = AsyncMock(

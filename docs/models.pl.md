@@ -1,5 +1,5 @@
 ---
-source_sha: "54529b3e6abc"
+source_sha: "26050af2d0e0"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -299,6 +299,8 @@ gdy zapisano go z `eea` lub `global`.
 
 Region jest wysyłany przy każdym żądaniu jako nagłówek `X-Stav-Runs-In`, a nie w
 treści, więc `extra_body` w ustawieniach profilu nie może go zastąpić.
+
+Własny katalog Stav używa klucza wybranego w formularzu. Użytkownik musi mieć do niego dostęp; aplikacja nie wybiera ukrytego klucza organizacji dla własnego adresu URL. Cache uwierzytelnionych katalogów jest rozdzielony według poświadczeń. `extra_headers` w ustawieniach żądania nie może nadpisać ograniczenia profilu do EU lub EEA.
 
 ## Providery { #providers }
 

@@ -185,15 +185,16 @@ class TestCaching:
         assert client.get.await_count == 1
 
     @pytest.mark.anyio
-    async def test_the_cache_is_keyed_on_the_provider_and_not_on_the_key(self):
-        """Two keys for one provider see the same catalog, and a cache keyed on
-        the key would put a secret in a dictionary key."""
+    async def test_authenticated_catalogs_are_isolated_without_caching_plaintext_keys(self):
         client = _responds({"data": [{"id": "gpt-5.6-sol"}]})
         with patch(f"{MODULE}.httpx.AsyncClient", return_value=client):
-            await models_for("openai", api_key="first")
-            await models_for("openai", api_key="second")
+            await models_for("openai", api_key="first-secret-token")
+            await models_for("openai", api_key="second-secret-token")
+            await models_for("openai", api_key="first-secret-token")
 
-        assert client.get.await_count == 1
+        assert client.get.await_count == 2
+        assert len(model_catalog._cache) == 2
+        assert all("secret-token" not in key for key in model_catalog._cache)
 
 
 class TestTheCuratedList:
@@ -839,3 +840,28 @@ async def test_a_defect_while_listing_embedding_models_is_not_read_as_unconfirme
         pytest.raises(AttributeError),
     ):
         await model_catalog.embedding_models_at("https://x.example/v1")
+
+
+@pytest.mark.anyio
+async def test_custom_stav_catalogs_do_not_leak_between_credentials() -> None:
+    received: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        auth = request.headers["Authorization"]
+        received.append(auth)
+        model = "account/a" if auth == "Bearer token-a" else "account/b"
+        return httpx.Response(200, json={"data": [{"id": model}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with patch(f"{MODULE}._client", return_value=client):
+            for token, expected in [
+                ("token-a", "account/a"),
+                ("token-b", "account/b"),
+                ("token-a", "account/a"),
+            ]:
+                models, source = await models_for(
+                    "stav", api_key=token, base_url="https://stav.example/v1"
+                )
+                assert source == "live"
+                assert [model.id for model in models] == [expected]
+    assert received == ["Bearer token-a", "Bearer token-b"]

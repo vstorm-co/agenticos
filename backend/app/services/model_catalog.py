@@ -23,6 +23,7 @@ hour is politeness rather than necessity: the lists move on the order of weeks.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -450,6 +451,9 @@ async def models_for(
     if spec is None or (spec.auth_header is not None and api_key is None):
         return _fallback(curated)
 
+    if spec.auth_header is not None and api_key is not None:
+        cache_key = f"{cache_key}:{hashlib.sha256(api_key.encode()).hexdigest()}"
+
     try:
         models = await _listed(cache_key, spec, api_key, custom=base_url is not None)
     except Exception:
@@ -510,8 +514,6 @@ async def _listed(
     Raises:
         Exception: Whatever the fetch raised; the caller decides what a failure means.
     """
-    # Public provider and endpoint identify a catalog. Credentials never form
-    # cache keys; a regional catalog cannot inherit the global response.
     async with _lock:
         entry = _cache.get(cache_key)
         if entry is not None and time.monotonic() - entry.fetched_at < CACHE_TTL_SECONDS:

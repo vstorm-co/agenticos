@@ -390,26 +390,13 @@ async def list_video_models() -> Any:
     dependencies=[Depends(require(Perm.AGENTS_VIEW))],
 )
 async def list_provider_models(
-    provider: str, secrets: SecretSvc, ctx: Auth, base_url: str | None = None
+    provider: str,
+    secrets: SecretSvc,
+    ctx: Auth,
+    base_url: str | None = None,
+    secret_id: UUID | None = None,
 ) -> Any:
-    """What this provider offers, for the field where a model id is chosen.
-
-    Suggestions, not a constraint - the field stays free text, because a
-    provider ships a model the morning after this was cached. `source` says
-    whether the provider answered or the deployment's own list was used, so the
-    UI can be honest about which it is showing.
-
-    The key comes from the vault, when the listing needs one and the
-    organization has one. Nothing here opens it: the vault service hands back a
-    bearer token for this one outbound request, and providers that publish a
-    public list (OpenRouter) are asked without one.
-
-    `base_url` selects a regional or custom API, for OpenRouter and Stav only
-    (`CUSTOM_LISTINGS`). It requires connection-management authority and has a
-    separate cache with no global catalog fallback. OpenRouter's is fetched
-    without any vault credential; Stav's with the organization's Stav key, which
-    a profile on that endpoint sends there on every run anyway.
-    """
+    """List suggestions; custom authenticated endpoints require a visible selected key."""
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
@@ -421,7 +408,15 @@ async def list_provider_models(
             )
         base_url = await validate_endpoint_url(base_url)
     sends_key = base_url is None or CUSTOM_LISTINGS[provider]
-    api_key = await secrets.listing_key(ctx, provider) if sends_key else None
+    if base_url is not None and sends_key and secret_id is None:
+        raise refused_field("secret_id", "Choose a vault key before listing this endpoint")
+    api_key = (
+        await secrets.listing_key(ctx, provider, secret_id=secret_id)
+        if sends_key and secret_id is not None
+        else await secrets.listing_key(ctx, provider)
+        if sends_key
+        else None
+    )
     models, source = await models_for(provider, api_key=api_key, base_url=base_url)
     return ProviderModelList(
         items=[
