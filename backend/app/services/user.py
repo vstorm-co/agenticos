@@ -774,7 +774,7 @@ class UserService:
 
         With `app_admins`, the deployment's app-admin set first, in its own id
         order (#1208) - the rows `admin_delete` decides the last-admin rule on.
-        `FOR NO KEY UPDATE`, which serialises two deletions and a promotion as
+        `FOR NO KEY UPDATE`, which serialises two deletions and a demotion as
         `FOR UPDATE` did, but not against the `FOR KEY SHARE` every write
         referencing an administrator takes: with `nowait` those would refuse a
         deletion unrelated to them.
@@ -1133,9 +1133,10 @@ class UserService:
             )
         # The same set `admin_delete` locks, and first among the user rows for the
         # same reason. This route updates a `users` row and then audits; a
-        # concurrent delete locks every app-admin row and then audits. Without a shared first lock the
-        # two take the target row and the admin set in opposite orders, and the
-        # deadlock aborts a whole PATCH rather than one notification (#1763).
+        # concurrent delete locks the app-admin set and its target and then
+        # audits. Without a shared first lock the two take the target row and the
+        # admin set in opposite orders, and the deadlock aborts a whole PATCH
+        # rather than one notification (#1763).
         #
         # `FOR UPDATE` rather than the key-share the notification audience
         # takes: this transaction goes on to *write* the target row, and taking

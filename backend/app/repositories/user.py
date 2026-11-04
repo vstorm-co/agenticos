@@ -82,8 +82,9 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
     when it is inserted, so this acquires nothing extra - it only acquires it
     *earlier*. The first purpose: `record_audit` holds a
     transaction-scoped lock on the audit chain, and a write that reaches for a
-    user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`,
-    which takes its rows first and the chain second (#1763). A caller about to
+    user row afterwards closes an ABBA cycle against `app_admin_ids_for_update`
+    (`admin_update`) or a deleted account's own row lock, either taken first and
+    the chain second (#1763). A caller about to
     write notifications inside an audited transaction takes them here instead,
     before the chain lock, so every transaction takes user rows first. The
     second: a failed ingest's settlement takes its uploader before the
@@ -108,7 +109,7 @@ async def hold_key_share(db: AsyncSession, user_ids: Sequence[UUID]) -> None:
 async def app_admin_ids_for_no_key_update(db: AsyncSession, *, nowait: bool = False) -> list[UUID]:
     """`app_admin_ids_for_update`, one step weaker: `FOR NO KEY UPDATE`.
 
-    It still conflicts with another lock of the set and with a promotion's
+    It still conflicts with another lock of the set and with a demotion's
     update, so it serialises what the set's lock is for (#1208), but not with
     the `FOR KEY SHARE` every write referencing an administrator takes. Account
     deletion takes the set this way and without waiting (#2682), where the
@@ -123,7 +124,7 @@ async def app_admin_ids_for_no_key_update(db: AsyncSession, *, nowait: bool = Fa
     return list(result.scalars().all())
 
 
-async def app_admin_ids_for_update(db: AsyncSession, *, nowait: bool = False) -> list[UUID]:
+async def app_admin_ids_for_update(db: AsyncSession) -> list[UUID]:
     """Every app admin's id, locked, in a fixed order.
 
     The lock is on the *set* rather than on one row, because what has to hold is
@@ -135,13 +136,9 @@ async def app_admin_ids_for_update(db: AsyncSession, *, nowait: bool = False) ->
     `ORDER BY id` is what keeps that from being a deadlock instead: rows are
     locked in the order they are returned, so two requests taking the same set
     take it in the same order and one waits rather than both holding half of it.
-    `nowait` as on `get_by_id_for_update`.
     """
     result = await db.execute(
-        select(User.id)
-        .where(User.is_app_admin.is_(True))
-        .order_by(User.id)
-        .with_for_update(nowait=nowait)
+        select(User.id).where(User.is_app_admin.is_(True)).order_by(User.id).with_for_update()
     )
     return list(result.scalars().all())
 

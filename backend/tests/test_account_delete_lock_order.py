@@ -201,11 +201,11 @@ async def test_rows_still_busy_when_the_time_is_up_refuse_without_waiting_again(
     """Busy at every attempt: once the time is up the deletion refuses at once,
     rather than waiting for a row it would not use."""
     account = _Account(user_row=lambda _call, nowait: _BUSY if nowait else None)
-    # Read for the deadline, then after each busy attempt.
-    clock = iter([0.0, 1.0, 11.0])
+    # Read for the deadline, then after each busy attempt; the time stays up.
+    clock = iter([0.0, 1.0])
 
     with (
-        patch("app.services.user.time.monotonic", side_effect=lambda: next(clock)),
+        patch("app.services.user.time.monotonic", side_effect=lambda: next(clock, 11.0)),
         pytest.raises(ConcurrentChangeError) as refused,
     ):
         await account.lock()
