@@ -146,6 +146,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show failed chat attention reads with retry and report rejected actions, retain retriable email deliveries when inbound state cannot be saved, accept numeric replies above mail signatures, serialize concurrent memory writes/corrections, disable maintenance after model removal, and refresh reopened cases to their current conversation.
+
 - Keep concurrent email replies and approval prompts in their originating mail thread, give inbound files unique handles, bound aggregate attachment admission before caching, and remove consumed file blobs.
 
 - Reject timezone-less memory corrections, allow disabling a watch failure limit, extract facts from the newest conversation turns, rotate parked device work fairly, and announce committed conversation updates across chat, workflows, watches and phone calls.

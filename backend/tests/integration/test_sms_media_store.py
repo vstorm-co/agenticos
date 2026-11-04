@@ -32,7 +32,8 @@ async def test_media_handoff_survives_sender_disconnect_and_expires_in_shared_re
         key = f"channel:sms:outbound-media:{identifier}"
         assert 0 < await api.raw.ttl(key) <= TTL_SECONDS
         await sender.close()
-        assert (await SmsMediaService(api).open(identifier, token)).content == b"a,b\n1,2"
+        opened = await SmsMediaService(api).open(identifier, token)
+        assert opened.content == b"a,b\n1,2"
         await api.raw.expire(key, 0)
         with pytest.raises(NotFoundError):
             await SmsMediaService(api).open(identifier, token)

@@ -623,3 +623,54 @@ async def test_a_correction_dated_for_later_leaves_the_old_claim_true_until_then
     )
     assert [claim.id for claim in found] == [old.id]
     assert new.effective_from == monday
+
+
+async def test_concurrent_same_scope_writers_deduplicate_before_inserting(db: AsyncSession) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    org, user, _, _ = await _tenant(db)
+    scope = ClaimScope(person_owner_key(user.id), None)
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+
+    async def remember() -> uuid.UUID:
+        async with sessions() as session:
+            result = await _say(session, org, scope, "Anna handles invoices")
+            await session.commit()
+            return result.claim.id
+
+    ids = await asyncio.gather(*(remember() for _ in range(4)))
+    assert len(set(ids)) == 1
+
+
+async def test_concurrent_corrections_cannot_rewrite_a_superseded_id(db: AsyncSession) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.core.exceptions import ConflictError
+
+    org, user, _, _ = await _tenant(db)
+    original = (await _say(db, org, ClaimScope(person_owner_key(user.id), None), "Anna")).claim
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+    loaded = asyncio.Barrier(2)
+
+    async def correct(statement: str) -> uuid.UUID | None:
+        async with sessions() as session:
+            claim = await claim_repo.get(session, organization_id=org.id, claim_id=original.id)
+            assert claim is not None
+            await loaded.wait()
+            try:
+                fixed = await claims.correct(
+                    session, claim=claim, statement=statement, author_user_id=user.id
+                )
+            except ConflictError:
+                return None
+            await session.commit()
+            return fixed.id
+
+    results = await asyncio.gather(correct("Piotr"), correct("Marta"))
+    assert sum(result is not None for result in results) == 1

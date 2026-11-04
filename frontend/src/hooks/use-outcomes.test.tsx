@@ -41,12 +41,12 @@ describe("useConversationOutcomes", () => {
     const { Wrapper } = wrapper();
 
     const { result } = renderHook(() => useConversationOutcomes("c-1"), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current).toHaveLength(1));
-    expect(result.current[0]?.status).toBe("open");
+    await waitFor(() => expect(result.current.outcomes).toHaveLength(1));
+    expect(result.current.outcomes[0]?.status).toBe("open");
 
     vi.mocked(listConversationOutcomes).mockClear();
     const none = renderHook(() => useConversationOutcomes(null), { wrapper: Wrapper });
-    expect(none.result.current).toEqual([]);
+    expect(none.result.current.outcomes).toEqual([]);
     expect(listConversationOutcomes).not.toHaveBeenCalled();
   });
 });
@@ -68,4 +68,15 @@ describe("useSettleOutcome", () => {
       ["watches"],
     ]);
   });
+});
+
+it("exposes failed outcome reads and lets the person retry", async () => {
+  const error = new Error("offline");
+  vi.mocked(listConversationOutcomes).mockRejectedValueOnce(error).mockResolvedValueOnce([]);
+  const { Wrapper } = wrapper();
+  const { result } = renderHook(() => useConversationOutcomes("retry-chat"), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.error).toBe(error));
+  await act(() => result.current.retry());
+  await waitFor(() => expect(result.current.error).toBeNull());
+  expect(result.current.outcomes).toEqual([]);
 });

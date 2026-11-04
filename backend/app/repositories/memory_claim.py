@@ -65,9 +65,9 @@ def _in_scopes(scopes: Sequence[ClaimScope]) -> Any:
 
 async def get(db: AsyncSession, *, organization_id: UUID, claim_id: UUID) -> MemoryClaim | None:
     result = await db.execute(
-        select(MemoryClaim).where(
-            MemoryClaim.organization_id == organization_id, MemoryClaim.id == claim_id
-        )
+        select(MemoryClaim)
+        .where(MemoryClaim.organization_id == organization_id, MemoryClaim.id == claim_id)
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 

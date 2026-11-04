@@ -629,3 +629,36 @@ async def test_delivery_membership_reads_do_not_reuse_a_role_cached_before_the_r
     )
     current = await member_repo.get_active(db, organization_id=org.id, user_id=users[0].id)
     assert current is cached and current.role == "viewer"
+
+
+async def test_reopened_cause_moves_to_the_new_incidents_chat(db: AsyncSession) -> None:
+    org, users, ctxs = await _world(db)
+    first_run, first_chat = await _run(db, org, users[0])
+    next_run, next_chat = await _run(db, org, users[0])
+    first = await _finding(
+        db,
+        org,
+        users[0],
+        "old-incident",
+        context={
+            "cause": "recurring",
+            "run_id": str(first_run.id),
+            "conversation_id": str(first_chat.id),
+        },
+    )
+    await OutcomeService(db).settle(ctxs[0], first.outcome_id, "resolve", via="chat")
+    again = await _finding(
+        db,
+        org,
+        users[0],
+        "new-incident",
+        context={
+            "cause": "recurring",
+            "run_id": str(next_run.id),
+            "conversation_id": str(next_chat.id),
+        },
+    )
+    row = await db.get(Outcome, again.outcome_id)
+    assert row is not None and row.id == first.outcome_id
+    assert row.source_run_id == next_run.id and row.source_conversation_id == next_chat.id
+    assert row.summary == "Found new-incident" and row.status == "open"

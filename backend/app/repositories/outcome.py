@@ -271,3 +271,20 @@ async def observe_recovery(db: AsyncSession, *, outcome: Outcome, at: datetime) 
     if outcome.last_recovered_at is None or at > outcome.last_recovered_at:
         outcome.last_recovered_at = at
         await db.flush()
+
+
+async def refresh_context(
+    db: AsyncSession,
+    outcome: Outcome,
+    *,
+    summary: str,
+    context_url: str | None,
+    source_run_id: UUID | None,
+    source_conversation_id: UUID | None,
+) -> None:
+    """A reopened case points to the incident that reopened it, not its old transcript."""
+    outcome.summary = summary
+    outcome.context_url = context_url
+    outcome.source_run_id = source_run_id
+    outcome.source_conversation_id = source_conversation_id
+    await db.flush()

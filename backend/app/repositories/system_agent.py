@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,3 +54,18 @@ async def update(
     await db.flush()
     await db.refresh(profile)
     return profile
+
+
+async def disable_for_model(
+    db: AsyncSession, *, organization_id: UUID, model_profile_id: UUID
+) -> None:
+    """Keep a removed maintenance model from leaving its role switched on."""
+    await db.execute(
+        sql_update(SystemAgentProfile)
+        .where(
+            SystemAgentProfile.organization_id == organization_id,
+            SystemAgentProfile.model_profile_id == model_profile_id,
+        )
+        .values(enabled=False, model_profile_id=None)
+    )
+    await db.flush()

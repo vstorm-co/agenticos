@@ -12957,7 +12957,9 @@
     "acknowledge": "Seen",
     "resolve": "Done",
     "mute": "Stop asking",
-    "open": "Open"
+    "open": "Open",
+    "loadFailed": "Could not load items needing your attention",
+    "retry": "Try again"
   },
   "routineNotifications": {
     "label": "Notifications for this routine",

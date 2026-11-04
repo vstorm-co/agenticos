@@ -23,6 +23,7 @@ from app.core.audit import record_audit
 from app.core.exceptions import NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
+from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent_run import AgentRun
 from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
 from app.repositories import (
@@ -80,6 +81,7 @@ class SystemAgentService:
         """
         if role != MEMORY_MAINTENANCE:
             raise NotFoundError(message="System agent not found", details={"role": role})
+        await hold_subject_shared(self.db, LockScope.MODEL_PROFILE_REFERENCES, ctx.organization_id)
         if data.model_profile_id is not None:
             await self._check_model(ctx, data.model_profile_id)
         if data.enabled and data.model_profile_id is None:

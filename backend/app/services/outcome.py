@@ -134,6 +134,14 @@ class OutcomeService:
                 source_conversation_id=_uuid_of(context, "conversation_id"),
             )
             if outcome.status in (OutcomeStatus.RESOLVED.value, OutcomeStatus.ACKNOWLEDGED.value):
+                await outcome_repo.refresh_context(
+                    self.db,
+                    outcome,
+                    summary=notification.summary,
+                    context_url=notification.context_url,
+                    source_run_id=_uuid_of(context, "run_id"),
+                    source_conversation_id=_uuid_of(context, "conversation_id"),
+                )
                 await outcome_repo.set_status(
                     self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
                 )

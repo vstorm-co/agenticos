@@ -1,21 +1,30 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OutcomeActions, OutcomeCards } from "./outcome-cards";
 
 const state = vi.hoisted(() => ({
   outcomes: [] as unknown[],
+  error: null as Error | null,
+  retry: vi.fn(),
   settle: vi.fn().mockResolvedValue(undefined),
   via: "" as string,
 }));
 
 vi.mock("@/hooks/use-outcomes", () => ({
-  useConversationOutcomes: () => state.outcomes,
+  useConversationOutcomes: () => ({
+    outcomes: state.outcomes,
+    error: state.error,
+    retry: state.retry,
+  }),
   useSettleOutcome: (via: string) => {
     state.via = via;
     return { settle: state.settle, isPending: false };
   },
 }));
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
@@ -34,6 +43,8 @@ const outcome = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   state.outcomes = [];
+  state.error = null;
+  state.retry.mockClear();
   state.settle.mockClear();
 });
 
@@ -71,7 +82,16 @@ describe("OutcomeActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "mute" }));
 
     await waitFor(() => expect(state.settle).toHaveBeenCalledWith({ id: "o-9", action: "mute" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("closed"));
     expect(state.via).toBe("inbox");
     expect(screen.getAllByRole("button")).toHaveLength(3);
   });
+});
+
+it("shows a failed read with a retry instead of an empty chat", () => {
+  state.error = new Error("offline");
+  render(<OutcomeCards conversationId="failed-chat" />);
+  expect(screen.getByRole("alert")).toHaveTextContent("loadFailed");
+  fireEvent.click(screen.getByRole("button", { name: "retry" }));
+  expect(state.retry).toHaveBeenCalledOnce();
 });

@@ -444,7 +444,10 @@ class TestTheWebhook:
         files = [key for key in redis.data if key.startswith(f"channel:email:file:{bot.id}:")]
         assert len(files) == 1 and await redis.get(files[0]) == "aGk="
 
-    async def test_a_lone_number_that_fits_a_waiting_prompt_is_a_press(self, redis: _Redis) -> None:
+    @pytest.mark.parametrize("reply", ["1\n> Send it?", "1\n\n--\nAda"])
+    async def test_a_lone_number_that_fits_a_waiting_prompt_is_a_press(
+        self, redis: _Redis, reply: str
+    ) -> None:
         bot = self._bot()
         await sms_prompts.remember(
             str(bot.id), "ada@acme.com", ["aos:a:0"], start=1, platform="email"
@@ -452,7 +455,7 @@ class TestTheWebhook:
         body = {
             "from": "ada@acme.com",
             "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
-            "text": "1\n> Send it?",
+            "text": reply,
             "message_id": "<9>",
         }
         async with self._wired(bot) as spawned, _client(bot) as client:
@@ -639,3 +642,26 @@ async def test_email_storage_quota_refuses_before_caching_and_allows_retry(redis
         redis.data.pop(f"channel:email:capacity:{bot.id}")
         retried = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
         assert retried.status_code == 200 and len(spawned) == 1
+
+
+async def test_email_state_failure_releases_the_delivery_claim(redis: _Redis) -> None:
+    webhook = TestTheWebhook()
+    bot = webhook._bot()
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "message_id": "<retry-state>",
+        "text": "Hello",
+    }
+    async with webhook._wired(bot) as spawned, _client(bot) as client:
+        with (
+            patch(
+                "app.api.routes.v1.email_webhook.keep_inbound",
+                new=AsyncMock(side_effect=RuntimeError("cache failed")),
+            ),
+            pytest.raises(RuntimeError, match="cache failed"),
+        ):
+            await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
+        assert spawned == []
+        response = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
+        assert response.status_code == 200 and len(spawned) == 1

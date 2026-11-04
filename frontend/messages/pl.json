@@ -12732,7 +12732,9 @@
     "acknowledge": "Widziane",
     "resolve": "Zrobione",
     "mute": "Nie pytaj więcej",
-    "open": "Otwórz"
+    "open": "Otwórz",
+    "loadFailed": "Nie udało się wczytać spraw wymagających uwagi",
+    "retry": "Spróbuj ponownie"
   },
   "routineNotifications": {
     "label": "Powiadomienia dla tej rutyny",

@@ -66,29 +66,36 @@ async def email_inbound(bot_id: UUID, request: Request, bot_service: ChannelBotS
     incoming = adapter.parse_incoming(payload, str(bot_id))
     if incoming is None or not await email_state.first_delivery(str(bot_id), incoming.message_id):
         return Response(status_code=200)
-    bot_address = unseal_bot_token(bot).strip().lower()
-    thread = await keep_inbound(bot_address, incoming, payload)
-    if thread is None:
-        await email_state.release_delivery(str(bot_id), incoming.message_id)
-        return Response(
-            status_code=429, headers={"Retry-After": str(email_state.ATTACHMENT_TTL_SECONDS)}
-        )
-    with email_state.replying_to(bot_address, incoming.platform_chat_id, thread):
-        # A reply that is a lone number and fits what was last asked of this address is the
-        # answer to it.
-        chosen = await sms_prompts.answer(
-            str(bot_id), incoming.platform_chat_id, incoming.text, platform=PLATFORM
-        )
-        if chosen is not None:
-            press = IncomingPress(
-                platform=PLATFORM,
-                bot_id=str(bot_id),
-                platform_user_id=incoming.platform_user_id,
-                platform_chat_id=incoming.platform_chat_id,
-                value=chosen,
-                message_id=incoming.message_id,
+    try:
+        bot_address = unseal_bot_token(bot).strip().lower()
+        thread = await keep_inbound(bot_address, incoming, payload)
+        if thread is None:
+            await email_state.release_delivery(str(bot_id), incoming.message_id)
+            return Response(
+                status_code=429, headers={"Retry-After": str(email_state.ATTACHMENT_TTL_SECONDS)}
             )
-            spawn(process_channel_press(press), name=f"email_press:{bot_id}")
-        else:
-            spawn(process_channel_event(incoming), name=f"email_event:{bot_id}")
+        with email_state.replying_to(bot_address, incoming.platform_chat_id, thread):
+            # A reply that is a lone number and fits what was last asked of this address is the
+            # answer to it.
+            chosen = await sms_prompts.answer(
+                str(bot_id),
+                incoming.platform_chat_id,
+                incoming.text.splitlines()[0] if incoming.text else "",
+                platform=PLATFORM,
+            )
+            if chosen is not None:
+                press = IncomingPress(
+                    platform=PLATFORM,
+                    bot_id=str(bot_id),
+                    platform_user_id=incoming.platform_user_id,
+                    platform_chat_id=incoming.platform_chat_id,
+                    value=chosen,
+                    message_id=incoming.message_id,
+                )
+                spawn(process_channel_press(press), name=f"email_press:{bot_id}")
+            else:
+                spawn(process_channel_event(incoming), name=f"email_event:{bot_id}")
+    except BaseException:
+        await email_state.release_delivery(str(bot_id), incoming.message_id)
+        raise
     return Response(status_code=200)

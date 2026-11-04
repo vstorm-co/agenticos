@@ -94,6 +94,8 @@ class LockScope(IntEnum):
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
     #: Telephone reservations, opt-in changes and endpoint admission share one order.
     PHONE_CALLS_PER_ORG = 25
+    #: Read/compare/write of claims within one organization, owner and agent scope.
+    MEMORY_CLAIMS_PER_SCOPE = 26
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.

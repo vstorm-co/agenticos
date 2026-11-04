@@ -26,11 +26,13 @@ import re
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError
+from app.core.memory_keys import PERSON_PREFIX, is_person_key
+from app.db.locks import LockScope, hold_subject
 from app.db.models.memory_claim import MemoryClaim
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
@@ -85,6 +87,28 @@ def mutable(claim: MemoryClaim) -> bool:
     )
 
 
+async def _hold_scope(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> None:
+    if is_person_key(scope_key):
+        try:
+            person_id = UUID(scope_key.removeprefix(PERSON_PREFIX))
+        except ValueError:
+            person_id = None
+        if person_id is not None:
+            await hold_subject(db, LockScope.PERSONAL_DATA_PER_USER, person_id)
+    # Serialize all agent bindings too: consolidation traverses an owner's scopes together.
+    await hold_subject(db, LockScope.MEMORY_CLAIMS_PER_SCOPE, uuid5(organization_id, scope_key))
+
+
+async def _live_for_mutation(db: AsyncSession, claim: MemoryClaim) -> MemoryClaim:
+    await _hold_scope(db, organization_id=claim.organization_id, scope_key=claim.scope_key)
+    current = await claim_repo.get(db, organization_id=claim.organization_id, claim_id=claim.id)
+    if current is None or not mutable(current):
+        raise ConflictError(
+            message="That claim is no longer current", details={"claim_id": claim.id}
+        )
+    return current
+
+
 async def remember(
     db: AsyncSession,
     *,
@@ -107,6 +131,7 @@ async def remember(
     """
     if episode is not None and kind != "decision":
         raise BadRequestError(message="Structured episodes belong to decision claims")
+    await _hold_scope(db, organization_id=organization_id, scope_key=scope.scope_key)
     episode_data = None if episode is None else episode.model_dump(mode="json")
     statement = statement.strip()[:MAX_STATEMENT]
     topic = normalise_subject(subject)
@@ -184,6 +209,7 @@ async def correct(
     of the past. A claim with no subject gets one derived from its own id, so the
     correction has something to supersede.
     """
+    claim = await _live_for_mutation(db, claim)
     subject = claim.subject or f"claim_{claim.id.hex[:12]}"
     if claim.subject is None:
         claim.subject = subject
@@ -218,6 +244,7 @@ async def retract(db: AsyncSession, *, claim: MemoryClaim) -> None:
     undone, the evidence is not. Its consolidation key stays, so the next pass does
     not draw the same conclusion again.
     """
+    claim = await _live_for_mutation(db, claim)
     await claim_repo.set_status(db, claim, "retracted", effective_to=datetime.now(UTC))
     if claim.derived_from:
         sources = await claim_repo.many(
@@ -381,6 +408,7 @@ async def consolidate(db: AsyncSession, *, organization_id: UUID, scope_key: str
     Deterministic, with no model: the cost of an unchanged scope is one row lock.
     Returns `ran=False` when nothing changed.
     """
+    await _hold_scope(db, organization_id=organization_id, scope_key=scope_key)
     state = await claim_repo.locked_state(db, organization_id=organization_id, scope_key=scope_key)
     if state is None or state.revision <= state.consolidated_revision:
         return Consolidation(ran=False)

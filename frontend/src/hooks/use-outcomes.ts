@@ -2,12 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  listConversationOutcomes,
-  settleOutcome,
-  type Outcome,
-  type OutcomeAction,
-} from "@/lib/outcomes-api";
+import { listConversationOutcomes, settleOutcome, type OutcomeAction } from "@/lib/outcomes-api";
 import { qk } from "@/lib/query-keys";
 
 /**
@@ -17,12 +12,16 @@ import { qk } from "@/lib/query-keys";
  * the Inbox or answered in another tab closes here without a push channel of its own.
  */
 export function useConversationOutcomes(conversationId: string | null) {
-  const { data } = useQuery({
+  const query = useQuery({
     queryKey: qk.outcomes.conversation(conversationId ?? ""),
     queryFn: () => listConversationOutcomes(conversationId as string),
     enabled: conversationId !== null,
   });
-  return (data ?? ([] as Outcome[])).filter((item) => item.status === "open");
+  return {
+    outcomes: (query.data ?? []).filter((item) => item.status === "open"),
+    error: query.error,
+    retry: query.refetch,
+  };
 }
 
 /**

@@ -715,3 +715,20 @@ async def test_memory_extraction_reads_the_end_of_a_long_run_in_chronological_or
     assert "Fact number 015" in prompt
     assert "Fact number 074" in prompt
     assert prompt.index("Fact number 015") < prompt.index("Fact number 074")
+
+
+async def test_removing_a_maintenance_model_disables_its_role(db: AsyncSession) -> None:
+    from app.services.model_profile import ModelProfileService
+
+    _, org, _, _, model, ctx = await _world(db)
+    await SystemAgentService(db).update(
+        ctx,
+        MEMORY_MAINTENANCE,
+        SystemAgentUpdate(
+            enabled=True,
+            model_profile_id=model.id,
+        ),
+    )
+    await ModelProfileService(db).delete_profile(ctx, model.id)
+    profile = await system_agent_repo.get(db, organization_id=org.id, role=MEMORY_MAINTENANCE)
+    assert profile is not None and profile.enabled is False and profile.model_profile_id is None

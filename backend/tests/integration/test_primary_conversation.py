@@ -194,8 +194,10 @@ async def test_imessage_shares_only_the_linked_private_primary_conversation(
     finally:
         await adapter.aclose()
     assert (chosen == console) is private
-    assert await PrimaryConversationService(db).open(ctxs[0], agents[0].id) == console
-    assert await PrimaryConversationService(db).open(ctxs[1], agents[0].id) != console
+    same_owner = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
+    other_owner = await PrimaryConversationService(db).open(ctxs[1], agents[0].id)
+    assert same_owner == console
+    assert other_owner != console
 
 
 def _backfill(session: Session) -> None:
@@ -260,7 +262,8 @@ async def test_only_a_verified_private_legacy_session_is_adopted(
 
     # Reapplying cannot replace an existing choice with some other old thread.
     await db.run_sync(_backfill)
-    assert await PrimaryConversationService(db).open(ctxs[0], agents[0].id) == primary
+    existing = await PrimaryConversationService(db).open(ctxs[0], agents[0].id)
+    assert existing == primary
     deleted = await db.get(Conversation, primary)
     assert deleted is not None
     await db.delete(deleted)

@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { BellRing } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
+import { ErrorState } from "@/components/states";
+import { getErrorMessage } from "@/lib/api-error";
 import { Button } from "@/components/ui";
 import { useConversationOutcomes, useSettleOutcome } from "@/hooks/use-outcomes";
 import type { OutcomeAction } from "@/lib/outcomes-api";
@@ -27,6 +30,7 @@ export function OutcomeActions({
   className?: string;
 }) {
   const t = useTranslations("outcomes");
+  const tErrors = useTranslations("errors");
   const { settle, isPending } = useSettleOutcome(via);
   return (
     <div className={cn("flex flex-wrap gap-2", className)}>
@@ -36,7 +40,11 @@ export function OutcomeActions({
           size="sm"
           variant={action === "resolve" ? "default" : "outline"}
           disabled={isPending}
-          onClick={() => void settle({ id, action }).catch(() => {})}
+          onClick={() =>
+            void settle({ id, action }).catch((error: unknown) => {
+              toast.error(getErrorMessage(error, tErrors));
+            })
+          }
         >
           {t(action)}
         </Button>
@@ -57,7 +65,15 @@ export function OutcomeCards({
   className?: string;
 }) {
   const t = useTranslations("outcomes");
-  const outcomes = useConversationOutcomes(conversationId);
+  const { outcomes, error, retry } = useConversationOutcomes(conversationId);
+  if (error)
+    return (
+      <ErrorState
+        title={t("loadFailed")}
+        cta={{ label: t("retry"), onClick: () => void retry() }}
+        className={className}
+      />
+    );
   if (outcomes.length === 0) return null;
   return (
     <ul aria-label={t("label")} className={cn("space-y-2", className)}>
