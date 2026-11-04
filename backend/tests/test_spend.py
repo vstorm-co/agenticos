@@ -781,3 +781,47 @@ class TestHeadroom:
             ],
         )
         assert await guard.headroom() == Decimal(0)
+
+
+@pytest.mark.parametrize(
+    "selector,upstream,model",
+    [
+        ("anthropic:claude-sonnet-4-6", "anthropic", "claude-sonnet-4-6"),
+        ("openai:gpt-4.1", "openai", "gpt-4.1"),
+        ("openai/gpt-4.1", "openai", "gpt-4.1"),
+        ("gemini:gemini-2.5-pro", "google", "gemini-2.5-pro"),
+    ],
+)
+def test_otari_direct_selectors_use_the_upstream_price(
+    selector: str, upstream: str, model: str
+) -> None:
+    usage = _usage(input_tokens=1000, output_tokens=1000)
+    amount = price_request(usage, selector, "otari")
+    assert amount == price_request(usage, model, upstream)
+    assert amount is not None and amount > 0
+
+
+@pytest.mark.parametrize(
+    "alias", ["support-agent", "gpt-4.1", "openai:", ":gpt-4.1", "mystery:model"]
+)
+def test_otari_routing_aliases_and_unknown_upstreams_stay_partially_priced(alias: str) -> None:
+    ledger = SpendLedger()
+    ledger.record(alias, _usage(1000, 1000), "otari")
+    assert ledger.has_unpriced_models
+    assert ledger.total_usd == 0
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_spend_stops_the_next_model_request() -> None:
+    guard = BudgetGuard(
+        ledger=SpendLedger(),
+        provider="otari",
+        limits=[SpendLimit(scope=BudgetScope.RUN, limit_usd=Decimal("0.005"))],
+    )
+    handler = AsyncMock(return_value=_response("openai:gpt-4.1", 1000, 1000))
+    await guard.wrap_model_request(MagicMock(), request_context=MagicMock(), handler=handler)
+    assert guard.ledger.total_usd > Decimal("0.005")
+    with pytest.raises(BudgetExceeded):
+        await guard.wrap_model_request(MagicMock(), request_context=MagicMock(), handler=handler)
+    assert handler.await_count == 1

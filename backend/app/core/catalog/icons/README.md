@@ -16,3 +16,7 @@ The contract:
 - **Compiled-in marks win.** A name the bundled icon sets already carry
   (Simple Icons for MCP/connectors, lobehub for providers) is drawn from the
   bundle; the file here is the fallback for brands they do not know.
+
+## Bundled sources
+
+- `otari.svg`: the official Otari mark from [mozilla-ai/otari](https://github.com/mozilla-ai/otari/blob/main/web/public/favicon.svg), rendered as a monochrome mask with the original transparent cutouts.

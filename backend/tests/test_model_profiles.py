@@ -2297,3 +2297,129 @@ async def test_stav_transport_refuses_an_unsupported_legacy_http_client() -> Non
             pytest.raises(TypeError, match="Stav requires an httpx2 client"),
         ):
             _StavProvider(api_key="test", base_url="https://stav.example/v1", region="eu")
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "endpoint", ["https://api.otari.ai/api/v1", "https://eu.api.otari.ai/api/v1"]
+)
+async def test_otari_creation_metadata_uses_the_selected_key(endpoint: str | None) -> None:
+    ctx, secret_id = _ctx(), uuid.uuid4()
+    selected_key = AsyncMock(return_value="otari-selected-test")
+    catalog = AsyncMock(
+        return_value=(
+            [CatalogModel(id="support-agent", name="Support", context_length=200_000)],
+            "live",
+        )
+    )
+    with (
+        patch("app.services.model_profile.models_for", new=catalog),
+        patch("app.services.model_profile.OrganizationSecretService.listing_key", new=selected_key),
+        patch("app.services.model_profile.ModelProfileService._check_key", new=AsyncMock()),
+        patch(
+            "app.services.model_profile._checked_endpoint",
+            new=AsyncMock(side_effect=lambda _spec, url: url),
+        ),
+        patch(
+            "app.services.model_profile.credential_repo.create_profile",
+            new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+        ) as create,
+        patch("app.services.model_profile.record_audit", new=AsyncMock()),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            ctx,
+            label="Otari support",
+            provider="otari",
+            model="support-agent",
+            secret_id=secret_id,
+            base_url=endpoint,
+        )
+    selected_key.assert_awaited_once_with(ctx, "otari", secret_id=secret_id)
+    catalog.assert_awaited_once_with("otari", api_key="otari-selected-test", base_url=endpoint)
+    assert create.call_args.kwargs["context_length"] == 200_000
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_metadata_never_forwards_a_builders_hidden_organization_key() -> None:
+    ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.BUILDER)
+    selected = _credential(
+        ctx, provider="otari", secret=ApiKeySecret(api_key="selected-otari-test")
+    )
+    hidden = _credential(ctx, provider="otari", secret=ApiKeySecret(api_key="hidden-otari-test"))
+    selected.purpose = hidden.purpose = "otari"
+    hidden.name, selected.name = "A private", "Z selected"
+    endpoint = f"https://{uuid.uuid4().hex}.gateway.test/api/v1"
+    db = _db()
+    received: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        received.append(request)
+        return httpx.Response(
+            200, json={"data": [{"id": "support-agent", "context_window": 200000}]}
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        with (
+            patch(
+                "app.services.organization_secret.organization_secret_repo.get",
+                new=AsyncMock(return_value=selected),
+            ) as get,
+            patch(
+                "app.services.organization_secret.organization_secret_repo.list_secrets",
+                new=AsyncMock(return_value=[hidden, selected]),
+            ) as enumerate_keys,
+            patch(
+                "app.services.organization_secret.resolve_access",
+                new=AsyncMock(
+                    side_effect=lambda _db, _ctx, row, *_args, **_kwargs: row.id == selected.id
+                ),
+            ),
+            patch("app.services.model_catalog._client", return_value=client),
+        ):
+            result = await ModelProfileService(db)._listed_model(
+                ctx, "otari", "support-agent", endpoint, selected.id
+            )
+    get.assert_awaited_once_with(db, selected.id, organization_id=ctx.organization_id)
+    enumerate_keys.assert_not_called()
+    assert result is not None and result.context_length == 200000
+    assert len(received) == 1
+    assert str(received[0].url) == endpoint + "/models"
+    assert received[0].headers["Authorization"] == "Bearer selected-otari-test"
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_requires_a_destination_before_reading_metadata() -> None:
+    with (
+        patch(
+            "app.services.model_profile.OrganizationSecretService.listing_key", new=AsyncMock()
+        ) as key,
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).create_profile(
+            _ctx(),
+            label="Otari",
+            provider="otari",
+            model="support-agent",
+            secret_id=uuid.uuid4(),
+        )
+    key.assert_not_called()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_otari_profile_destination_cannot_be_cleared() -> None:
+    ctx = _ctx()
+    row = _profile(ctx, provider="otari", base_url="https://api.otari.ai/api/v1")
+    with (
+        patch(
+            "app.services.model_profile.ModelProfileService._get_profile",
+            new=AsyncMock(return_value=row),
+        ),
+        pytest.raises(BadRequestError),
+    ):
+        await ModelProfileService(_db()).update_profile(
+            ctx, row.id, ModelProfileUpdate(base_url=None)
+        )

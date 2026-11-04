@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
+
 ### Fixed
 
 - Deleting an account no longer fails with 500 when the person writes in their personal organization at the same moment, for example creates a knowledge base, or when a failed ingest of their document is being recorded. While the account's rows stay busy the deletion keeps trying for about 10 seconds, then returns 409 and deletes nothing. (#2682)
