@@ -89,6 +89,7 @@ import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { TestPanel } from "@/components/agents/test-panel/test-panel";
 import { useTestShortcut } from "@/components/agents/test-panel/use-test-shortcut";
 import { VersionHistory } from "@/components/agents/version-history";
+import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
 import {
@@ -159,7 +160,7 @@ import {
   VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
-import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
+import { ApiError, getErrorMessage, type FieldProblem } from "@/lib/api-error";
 import { toolsForBinding } from "@/lib/binding-tools";
 import { ROUTES } from "@/lib/constants";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
@@ -230,6 +231,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
     agent,
     isLoading,
     fetchedAt,
+    error: agentError,
+    refetch: refetchAgent,
     saveDraft,
     validate,
     publish,
@@ -784,7 +787,21 @@ export default function AgentBuilderPage({ params }: PageProps) {
     [capabilities],
   );
 
-  if (isLoading || !spec || !agent) return <BuilderSkeleton />;
+  if (isLoading) return <BuilderSkeleton />;
+  if (agentError || !agent) {
+    const unavailable =
+      agentError instanceof ApiError && (agentError.status === 404 || agentError.status === 403);
+    return (
+      <ErrorState
+        title={tAgents(unavailable ? "unavailableTitle" : "loadFailedTitle")}
+        description={
+          unavailable ? tAgents("unavailableDescription") : getErrorMessage(agentError, tErrors)
+        }
+        cta={{ label: tAgents("retryLoad"), onClick: () => void refetchAgent() }}
+      />
+    );
+  }
+  if (!spec) return <BuilderSkeleton />;
 
   const isPublished = agent.status === "published";
 

@@ -8419,7 +8419,11 @@
     "backendComputerLabel": "Komputer",
     "backendComputerDetail": "Używaj komputera użytkownika, zatwierdzanego osobno w czacie desktopowym.",
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
-    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia."
+    "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
+    "unavailableTitle": "Agent niedostępny",
+    "unavailableDescription": "Sprawdź wybraną organizację. Agent może należeć do innej organizacji, być usunięty albo nie być już Tobie udostępniony.",
+    "loadFailedTitle": "Nie udało się wczytać agenta",
+    "retryLoad": "Spróbuj ponownie"
   },
   "steps": {
     "skills-gallery": {
