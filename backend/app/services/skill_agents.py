@@ -657,12 +657,10 @@ class SkillAgentService:
         serving: list[AgentEnvironment] = []
         for environment in environments:
             served = versions[environment.version_id].spec
-            if str(skill.id) not in json.dumps(served):
-                continue
-            if _parsed(served) is None:
-                return None
             if lines_of(served, skill.id):
                 serving.append(environment)
+            elif str(skill.id) in json.dumps(served) and _parsed(served) is None:
+                return None
         publish_from: AgentSpec | None = None
         if any(environment.tracks_latest for environment in serving):
             newest = await agent_repo.newest_version(
@@ -758,26 +756,31 @@ def without_skill(spec: AgentSpec, skill_id: UUID) -> AgentSpec:
 
 
 def _config_without(config: dict[str, Any], skill_id: UUID) -> dict[str, Any]:
+    """The delegation's config with the skill gone from each inline specialist, edited
+    as stored so nothing else in it changes; one that no longer reads is kept as it is."""
     try:
-        inline = SubagentsConfig.model_validate(config).inline
+        SubagentsConfig.model_validate(config)
     except ValidationError:
         return config
-    if not inline:
+    if not config.get("inline"):
         return config
-    kept = [
-        specialist.model_copy(
-            update={
-                "skill_ids": [found for found in specialist.skill_ids if found != skill_id],
-                "skill_bindings": [
-                    binding for binding in specialist.skill_bindings if binding.skill_id != skill_id
-                ],
-            }
-        )
-        for specialist in inline
-    ]
+    wanted = str(skill_id)
     return {
         **config,
-        "inline": [specialist.model_dump(mode="json", exclude_unset=True) for specialist in kept],
+        "inline": [
+            {
+                **specialist,
+                "skill_ids": [
+                    found for found in specialist.get("skill_ids", []) if str(found) != wanted
+                ],
+                "skill_bindings": [
+                    binding
+                    for binding in specialist.get("skill_bindings", [])
+                    if str(binding["skill_id"]) != wanted
+                ],
+            }
+            for specialist in config["inline"]
+        ],
     }
 
 
