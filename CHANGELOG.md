@@ -23,6 +23,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Breaking:** A sync source now records the knowledge base it syncs into (`sync_sources.knowledge_base_id`, migration `0257_sync_source_knowledge_base`) instead of resolving one again from its collection name, which is not unique (#2551). A source added to an organization base newer than a member's personal base of the same name now stays on that base, with its runs and synced documents; a source can be added to any base of a shared name from that base's Sync tab, where it was refused with 400, but not to a member's personal base of another organization, and a `PATCH` resending a source's own collection name no longer moves it. `rag-source-add` records the organization base it checked rather than syncing into whichever base the name resolves to, and takes `--knowledge-base <id>` when several of the organization's bases hold the name. Deleting a base, or dropping it with `DELETE /rag/collections/{name}` or `rag-drop`, detaches and deactivates exactly the sources that record it, whoever else holds the name - a cleared default base included, which keeps its row but no longer its sources, so they cannot sync the dropped content back - and a source with no knowledge base is neither scheduled nor synced. The migration gives every existing source the base its sync wrote into before; a source whose collection no base of its organization or of the deployment holds was writing unfiled chunks, so the migration deactivates it and logs its id. It also logs, without moving them, sources it leaves on a member's personal base while the organization has an org base of the same name, which is where they synced before. To act on: point each deactivated source at a knowledge base and set `is_active` back to true to sync it again, move a logged source off a personal base when it belongs to the organization's, and add `--knowledge-base` to `rag-source-add` scripts whose organization holds the collection name twice. Downgrading drops the column and does not reactivate those sources.
 
+## [1.45.0] - 2026-11-04
+
 ### Added
 
 - Map a role in a Discord bot's server to a group of the organization, from the bot's row on **Channels** (#2569). A linked member who holds the role joins the group before each message to the bot and by a `sync-discord-roles` job every 15 minutes, and leaves it when the role is taken away. A mapping can also name an organization role, which admits linked holders who are not members yet. The sync changes only memberships it made, marked **Discord**: group memberships added by hand, directory memberships and owners are left alone, and Discord users who have not linked an account get nothing. Migration `0256_discord_role_mappings` adds the `discord_role_mappings` table and the `discord` membership source.
@@ -19938,7 +19940,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...HEAD
+[1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...v1.42.0
