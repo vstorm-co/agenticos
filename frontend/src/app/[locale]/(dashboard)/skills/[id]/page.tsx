@@ -136,9 +136,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
             shown={shown}
             onShow={(next) => setShowParam(next === "all" ? null : next)}
           />
-          {can(Perm.runsView) && (
-            <SkillUsageCard skillId={id} agents={agents.agents?.items ?? []} />
-          )}
+          {can(Perm.runsView) && <SkillUsageCard skillId={id} />}
         </TabsContent>
         <TabsContent value="history">
           <SkillHistory

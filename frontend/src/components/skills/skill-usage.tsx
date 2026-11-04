@@ -12,7 +12,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { SERIES_TOKENS, seriesColor } from "@/lib/dashboard/system";
 import { formatDate } from "@/lib/utils";
-import type { SkillAgentUsage, SkillUsage, SkillUsageAgent } from "@/types/skill-versions";
+import type { SkillUsage, SkillUsageAgent } from "@/types/skill-versions";
 import { UsageChart, type Face } from "./usage-chart";
 
 /** The window the page counts use over. */
@@ -21,32 +21,27 @@ const DAYS = 30;
 const DASHES = [undefined, "6 3", "2 3"];
 
 /**
- * Every day from `since` to `today`, each agent's loads on it, zero where it has
- * none; null when the server sent no days, which draws no chart.
+ * Each agent's loads by day, keyed under the agent: one row per day the server
+ * counted, read off the first agent, since every agent carries the same days.
  */
 export function usageDays(
   usage: SkillUsage,
   label: (day: string) => string,
-  today: Date = new Date(),
-): { lines: UsageLine[]; days: UsageDay[] } | null {
-  if (usage.agents.every((agent) => agent.daily === undefined)) return null;
+): { lines: UsageLine[]; days: UsageDay[] } {
   const lines = usage.agents.map((agent, index) => ({
     key: agent.agent_id,
     name: agent.agent_name,
     color: seriesColor(index),
     dash: DASHES[Math.floor(index / SERIES_TOKENS.length) % DASHES.length],
   }));
-  const days: UsageDay[] = [];
-  const end = today.toISOString().slice(0, 10);
-  for (let at = new Date(usage.since.slice(0, 10)); ; at.setUTCDate(at.getUTCDate() + 1)) {
-    const day = at.toISOString().slice(0, 10);
-    const row: UsageDay = { day: label(day) };
+  const dates = usage.agents[0]!.daily.map((point) => point.date);
+  const days = dates.map((date) => {
+    const row: UsageDay = { day: label(date) };
     for (const agent of usage.agents) {
-      row[agent.agent_id] = agent.daily?.find((point) => point.date === day)?.loads ?? 0;
+      row[agent.agent_id] = agent.daily.find((point) => point.date === date)?.loads ?? 0;
     }
-    days.push(row);
-    if (day >= end) break;
-  }
+    return row;
+  });
   return { lines, days };
 }
 
@@ -58,27 +53,19 @@ export function usageDays(
  * this is real use. Reading it needs `runs:view`, so the page draws it only for
  * such a reader.
  */
-export function SkillUsageCard({
-  skillId,
-  agents,
-}: {
-  skillId: string;
-  /** The skill's agents as the page read them, whose faces the table draws. */
-  agents: SkillAgentUsage[];
-}) {
+export function SkillUsageCard({ skillId }: { skillId: string }) {
   const t = useTranslations("skills.page.usage");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { usage, isLoading, error } = useSkillUsage(skillId, DAYS);
-  const read = new Map(agents.map((row) => [row.agent.id, row.agent]));
-  // An agent the usage names without its face is drawn as the agents list has it.
   const faceOf = (agent: SkillUsageAgent): Face => ({
-    slug: agent.slug ?? read.get(agent.agent_id)?.slug ?? agent.agent_id,
-    hasAvatar: agent.has_avatar ?? read.get(agent.agent_id)?.has_avatar,
-    colorSlot: agent.avatar_color ?? read.get(agent.agent_id)?.avatar_color,
+    slug: agent.slug,
+    hasAvatar: agent.has_avatar,
+    colorSlot: agent.avatar_color,
   });
   const chart =
     usage &&
+    usage.agents.length > 0 &&
     usageDays(usage, (day) =>
       new Date(day).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" }),
     );

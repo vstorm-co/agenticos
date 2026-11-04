@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
-import type { SkillAgentUsage, SkillUsage } from "@/types/skill-versions";
+import type { SkillUsage } from "@/types/skill-versions";
 import { SkillUsageCard, usageDays } from "./skill-usage";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -26,6 +26,13 @@ const USAGE: SkillUsage = {
       resource_reads: 2,
       workspace_reads: 0,
       last_loaded_at: "2026-11-02T10:00:00Z",
+      slug: "gift-shop",
+      has_avatar: false,
+      avatar_color: null,
+      daily: [
+        { date: "2026-11-01", loads: 0 },
+        { date: "2026-11-02", loads: 9 },
+      ],
     },
     {
       agent_id: "a2",
@@ -34,6 +41,13 @@ const USAGE: SkillUsage = {
       resource_reads: 0,
       workspace_reads: 0,
       last_loaded_at: null,
+      slug: "wholesale",
+      has_avatar: false,
+      avatar_color: 4,
+      daily: [
+        { date: "2026-11-01", loads: 3 },
+        { date: "2026-11-02", loads: 0 },
+      ],
     },
   ],
   hidden_agents: 1,
@@ -42,8 +56,7 @@ const USAGE: SkillUsage = {
 
 function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const faces = [{ agent: { id: "a1", name: "Gift shop counter", slug: "gift-shop" } }];
-  render(<SkillUsageCard skillId="s1" agents={faces as SkillAgentUsage[]} />, {
+  render(<SkillUsageCard skillId="s1" />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
@@ -65,7 +78,7 @@ describe("SkillUsageCard", () => {
     expect(row("Gift shop counter")).toHaveTextContent(/92Nov 2, 2026/);
     expect(row("Wholesale desk")).toHaveTextContent("30Not yet");
     expect(row("Gift shop counter").querySelector("[data-agent-avatar='a1']")).not.toBeNull();
-    expect(screen.queryByRole("img", { name: /Loads per day/ })).toBeNull();
+    expect(screen.getByRole("img", { name: "Loads per day, one line per agent" })).toBeVisible();
     expect(screen.getByText("1 agent you can't see opened it 4 times.")).toBeInTheDocument();
     expect(screen.getByText("Opened 16 times")).toBeInTheDocument();
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/usage?days=30");
@@ -120,21 +133,18 @@ describe("SkillUsageCard", () => {
 });
 
 describe("usageDays", () => {
-  it("fills every day from since to today, zero where an agent loaded nothing", () => {
+  it("keys each agent's loads under it, a row per day, and dashes lines past five colours", () => {
     const agents = Array.from({ length: 7 }, (_, index) => ({
       ...USAGE.agents[0]!,
       agent_id: `a${index}`,
       agent_name: `Agent ${index}`,
-      daily: index === 0 ? [{ date: "2026-10-05", loads: 4 }] : undefined,
+      daily: index === 1 ? [{ date: "2026-11-01", loads: 4 }] : USAGE.agents[0]!.daily,
     }));
-    const chart = usageDays(
-      { ...USAGE, since: "2026-10-04T08:00:00Z", agents },
-      (day) => day.slice(5),
-      new Date("2026-10-06T12:00:00Z"),
-    )!;
-    expect(chart.days.map((day) => day.day)).toEqual(["10-04", "10-05", "10-06"]);
-    expect(chart.days.map((day) => day.a0)).toEqual([0, 4, 0]);
-    expect(chart.days[1]!.a1).toBe(0);
+    const chart = usageDays({ ...USAGE, agents }, (day) => day.slice(5));
+
+    expect(chart.days.map((day) => day.day)).toEqual(["11-01", "11-02"]);
+    expect(chart.days.map((day) => day.a0)).toEqual([0, 9]);
+    expect(chart.days.map((day) => day.a1)).toEqual([4, 0]);
     expect(chart.lines.map((line) => line.dash)).toEqual([
       undefined,
       undefined,
@@ -144,9 +154,5 @@ describe("usageDays", () => {
       "6 3",
       "6 3",
     ]);
-  });
-
-  it("draws nothing for a server that does not count by day", () => {
-    expect(usageDays(USAGE, String)).toBeNull();
   });
 });
