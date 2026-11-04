@@ -195,7 +195,7 @@ describe("SkillAccept", () => {
     );
   });
 
-  it("picks and sends nothing while it cannot tell which agents the reader may change", async () => {
+  it("picks and sends nothing until it knows which agents the reader may change, and retries", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(
       new ApiError(500, "The skill's agents could not be read", {
         error: { code: "INTERNAL", message: "The skill's agents could not be read" },
@@ -209,6 +209,13 @@ describe("SkillAccept", () => {
     expect(screen.getByLabelText("Support")).toBeDisabled();
     expect(screen.getByLabelText("Support")).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Make the fork, moving no agent" })).toBeDisabled();
+
+    serveAgents();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Support")).toBeChecked());
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Make the fork and move 1 agent" })).toBeEnabled();
   });
 
   it("keeps the dialog and what was typed when the fork is refused", async () => {

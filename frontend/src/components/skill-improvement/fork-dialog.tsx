@@ -94,7 +94,8 @@ function ForkForm({
   const t = useTranslations("skillImprovement.accept");
   const tState = useTranslations("skillImprovement.agents.state");
   const tErrors = useTranslations("errors");
-  const { agents: usages, error } = useSkillAgents(skillId);
+  const tCommon = useTranslations("common");
+  const { agents: usages, error, retry, retrying } = useSkillAgents(skillId);
   const [refusal, setRefusal] = useState<string | null>(null);
   const movable = check.agents.filter((row) => row.via_specialist === null);
   const throughSpecialist = check.agents.length - movable.length;
@@ -170,10 +171,15 @@ function ForkForm({
             </p>
           )}
         </fieldset>
-        {error && (
-          <p role="alert" className="text-destructive text-sm">
-            {getErrorMessage(error, tErrors)}
-          </p>
+        {error && !ready && (
+          <div className="flex items-center gap-2">
+            <p role="alert" className="text-destructive flex-1 text-sm">
+              {getErrorMessage(error, tErrors)}
+            </p>
+            <Button variant="outline" size="sm" loading={retrying} onClick={() => void retry()}>
+              {tCommon("retry")}
+            </Button>
+          </div>
         )}
         {refusal !== null && (
           <p role="alert" className="text-destructive text-sm">
