@@ -255,3 +255,8 @@ and continues to request one agent, feature delivery and no CI polling.
 ### Project tracking preset
 
 Implemented explicit source review and publication, a private agent copy, task table with four saved views, fixed project binding and idempotent setup. Project access and workspace identity are checked before tools; queued outcome notices recheck project visibility. Setup is available on the project page and through onboarding. Automatic email follow-up drafting, structured decision episodes/Improve and PSTN remain in progress.
+
+
+### Decision evidence / Improve handoff
+
+Implemented bounded structured episodes on the existing scoped memory ledger, runtime capture and maintenance extraction, append-only corrections/outcomes, readback, erasure/export and an explicit personal review/download flow. The flat JSONL case subset was checked against #2172 at `cae0914f75c5a2b1106da178ae46f8e2062cdf94` (`DatasetCaseContent`, `dataset_files.parse`). #2172 remains open: the handoff imports into its actual dataset UI after installation, without duplicating its optimizer or automatically publishing a generalized rule.

@@ -40,6 +40,7 @@ from app.repositories import (
     conversation_repo,
     system_agent_repo,
 )
+from app.schemas.decision_episode import DecisionEpisode
 from app.services.access import member_context
 from app.services.background_jobs import enqueue
 from app.services.memory import _claims
@@ -65,6 +66,9 @@ _INSTRUCTIONS = (
     "suggested. Mark a claim `profile` only when it is general about the person and would "
     "help any assistant (a preference, a role); leave it off for details of one case. Give "
     "claims about the same thing the same short `subject` (for example `invoice_owner`). "
+    "For an explicit decision you may attach an episode: the situation, choice, alternatives, "
+    "expected outcome, actual outcome and correction only when stated by the person. "
+    "Never infer a successful outcome. Keep episodes case-specific, with profile false. "
     "When nothing qualifies, return an empty list."
 )
 
@@ -74,6 +78,7 @@ class _Extracted(BaseModel):
     subject: str | None = Field(default=None, max_length=60)
     kind: Literal["fact", "preference", "decision"] = "fact"
     profile: bool = False
+    episode: DecisionEpisode | None = None
 
 
 class _Extraction(BaseModel):
@@ -239,7 +244,7 @@ async def extract(
             audience,
             agent_id=run.agent_id,
             allow_personal=True,
-            shared_with_agents=item.profile,
+            shared_with_agents=item.profile if item.episode is None else False,
         )
         if scope is None or not await person_still_exists(db, scope.scope_key):
             continue
@@ -249,10 +254,11 @@ async def extract(
             scope=scope,
             statement=item.statement,
             subject=item.subject,
-            kind=item.kind,
+            kind="decision" if item.episode is not None else item.kind,
             origin="agent",
             conversation_id=run.conversation_id,
             run_id=run.id,
+            episode=item.episode,
         )
         recorded += int(result.created)
     await db.commit()

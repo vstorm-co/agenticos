@@ -4970,7 +4970,21 @@
         },
         "showing": "{from}–{to} von {total}",
         "newer": "Neuer",
-        "older": "Älter"
+        "older": "Älter",
+        "episode": {
+          "situation": "Situation",
+          "choice": "Entscheidung",
+          "alternatives": "Alternativen",
+          "expected": "Erwartetes Ergebnis",
+          "actual": "Beobachtetes Ergebnis",
+          "correction": "Korrektur",
+          "export": "Improve-Fall vorbereiten",
+          "review": "Prüfe den Text vor dem Export aus dem persönlichen Gedächtnis. Importiere die JSONL-Datei in einen Improve-Datensatz, evaluiere sie und bestätige Änderungen dort ausdrücklich. Der Export veröffentlicht keine Regel.",
+          "input": "Zu prüfende Eingabe",
+          "reference": "Erwartete Antwort",
+          "consent": "Ich habe diese Felder geprüft und stimme ihrem Export als Datensatzdatei zu.",
+          "download": "Geprüften Fall herunterladen"
+        }
       }
     },
     "admin": {

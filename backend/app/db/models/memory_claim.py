@@ -85,6 +85,8 @@ class MemoryClaim(Base, TimestampMixin):
     )
     """Ids of the claims a consolidation drew this one from; empty for a source claim."""
 
+    episode: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+
     consolidation_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     """Hash of scope, subject and sources: what makes a second consolidation a no-op."""
 

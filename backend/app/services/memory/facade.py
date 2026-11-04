@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthorizationError, ConflictError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
@@ -35,6 +35,7 @@ from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
 from app.repositories import agent_repo, memory_claim, memory_repo, organization_repo
+from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview, ImproveDecisionCase
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimDetail,
@@ -69,6 +70,7 @@ def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
         effective_to=row.effective_to,
         supersedes_id=row.supersedes_id,
         derived_from_count=len(row.derived_from or []),
+        episode=DecisionEpisode.model_validate(row.episode) if row.episode is not None else None,
     )
 
 
@@ -127,6 +129,33 @@ class MemoryService:
             superseded=_claim_read(found.superseded, names) if found.superseded else None,
         )
 
+    async def improve_case(
+        self, ctx: AuthContext, claim_id: UUID, data: ImproveCaseReview
+    ) -> ImproveDecisionCase:
+        """Export only human-reviewed text in #2172's JSONL case contract.
+
+        Dataset import, evaluation and publishing stay in Improve. This does not
+        grant any dataset access or turn one private episode into a shared rule.
+        """
+        row = await self._own_live_claim(ctx, claim_id)
+        if row.kind != "decision" or row.episode is None:
+            raise BadRequestError(message="Choose a recorded decision episode")
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.episode.exported",
+            target_type="memory_claim",
+            target_id=str(row.id),
+            details={},
+        )
+        return ImproveDecisionCase(
+            input=data.input,
+            reference_answer=data.reference_answer,
+            tags=["decision-episode"],
+            note=f"Reviewed memory episode {row.id}; source run {row.source_run_id}; source conversation {row.source_conversation_id}",
+        )
+
     async def correct_claim(
         self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
     ) -> MemoryClaimRead:
@@ -138,6 +167,7 @@ class MemoryService:
             statement=data.statement,
             author_user_id=ctx.subject_id,
             effective_from=data.effective_from,
+            episode=data.episode,
         )
         await record_audit(
             self.db,

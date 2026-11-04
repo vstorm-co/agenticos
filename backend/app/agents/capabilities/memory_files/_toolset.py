@@ -27,6 +27,7 @@ from app.agents.deps import AgentDeps
 from app.agents.memory_scope import claim_write_scope, memory_owner_key, readable_claim_scopes
 from app.core.memory_keys import INDEX_NAME as _INDEX_NAME
 from app.repositories.memory_claim import ClaimScope
+from app.schemas.decision_episode import DecisionEpisode
 from app.services import memory as memory_store
 from app.services.memory._runtime import ClaimView, ShareRefused
 
@@ -290,6 +291,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         kind: Literal["fact", "preference", "decision"] = "fact",
         profile: bool = False,
         effective_from: str | None = None,
+        episode: DecisionEpisode | None = None,
     ) -> str:
         """Record one durable fact, preference or decision, with where it came from.
 
@@ -312,6 +314,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             kind: `fact`, `preference` or `decision`.
             profile: True for a general fact or preference about the person.
             effective_from: ISO date from which it holds, for example `2026-11-03`.
+            episode: For a decision only: observed situation, chosen action, alternatives,
+                expected and actual outcomes, and any correction. Do not invent outcomes.
+                Keep case evidence in this agent or room; never set profile for an episode.
 
         Returns:
             A confirmation with the claim's id, or why nothing was saved.
@@ -322,6 +327,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             return _NO_STORE
         if not audience.writes_memory:
             return _READ_ONLY
+        if episode is not None and (kind != "decision" or profile):
+            return "Record an episode as a decision in this case, without profile sharing."
         target = claim_write_scope(
             audience,
             agent_id=deps.agent_id,
@@ -346,6 +353,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             conversation_id=deps.conversation_id,
             run_id=deps.run_id,
             effective_from=start,
+            **({"episode": episode} if episode is not None else {}),
         )
         if saved is None:
             return "Nothing was saved: the person this would be about no longer has an account."
@@ -508,4 +516,7 @@ def _parse_date(value: str | None) -> datetime | None:
 def _line(claim: ClaimView) -> str:
     since = f" (since {claim.effective_from:%Y-%m-%d})" if claim.effective_from else ""
     mark = " [disputed]" if claim.status == "disputed" else ""
-    return f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}"
+    details = ""
+    if claim.episode is not None:
+        details = " · Decision evidence: " + claim.episode.model_dump_json(exclude_none=True)[:1200]
+    return f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}{details}"

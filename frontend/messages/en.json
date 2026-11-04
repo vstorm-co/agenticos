@@ -5691,7 +5691,21 @@
         },
         "showing": "Showing {from}–{to} of {total}",
         "newer": "Newer",
-        "older": "Older"
+        "older": "Older",
+        "episode": {
+          "situation": "Situation",
+          "choice": "Choice",
+          "alternatives": "Alternatives",
+          "expected": "Expected outcome",
+          "actual": "Observed outcome",
+          "correction": "Correction",
+          "export": "Prepare Improve case",
+          "review": "Review the text before exporting it from personal memory. Import this JSONL into an Improve dataset, evaluate it and explicitly accept any change there. This does not publish a rule.",
+          "input": "Input to evaluate",
+          "reference": "Expected answer",
+          "consent": "I have reviewed these fields and approve exporting them to a dataset file.",
+          "download": "Download reviewed case"
+        }
       }
     },
     "admin": {

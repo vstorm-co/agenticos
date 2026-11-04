@@ -2928,3 +2928,12 @@ which is what makes the set of things an agent can do reviewable. See
 when the capability already exists.
 
 For tools nobody here has to write, see [MCP](../mcp.md).
+
+
+### Decision episodes and Improve { #decision-episodes-and-improve }
+
+A decision claim can carry structured evidence: the situation, choice, alternatives, expected outcome, observed outcome and correction. The agent uses `remember` with `kind: decision` and an `episode`; memory maintenance can capture the same evidence from an admitted conversation. Unknown outcomes stay empty. An episode stays in the case's person-agent or room scope. Sharing still requires the existing explicit audience approval.
+
+In **Settings → Memory**, read the evidence and record an observed outcome with **Correct**. A correction appends a new claim; the previous episode and its provenance remain in history. Deterministic consolidation does not fold episodes into general rules. Erasure removes their payload along with the claims; personal data export includes it.
+
+**Prepare Improve case** opens an editable input and expected answer. Review the text, remove anything that must stay private, and explicitly approve downloading one JSONL record. Its flat `input`, `reference_answer`, `tags` and `note` fields match the dataset importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Import that file into an Improve dataset when that feature is installed, evaluate it and accept/publish changes there. This handoff does not create a dataset, run an optimizer or publish instructions automatically.

@@ -17,6 +17,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema
+from app.schemas.decision_episode import DecisionEpisode
 
 
 class MemoryErasureResult(BaseSchema):
@@ -91,6 +92,7 @@ class MemoryClaimRead(BaseSchema):
     effective_to: datetime | None = None
     supersedes_id: UUID | None = None
     derived_from_count: int = 0
+    episode: DecisionEpisode | None = None
 
 
 class MemoryClaimList(BaseSchema):
@@ -113,3 +115,4 @@ class MemoryClaimCorrect(BaseSchema):
 
     statement: str = Field(min_length=1, max_length=600)
     effective_from: datetime | None = None
+    episode: DecisionEpisode | None = None

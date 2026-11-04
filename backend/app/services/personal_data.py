@@ -68,6 +68,7 @@ _CLAIM_FIELDS = (
     "effective_to",
     "supersedes_id",
     "derived_from",
+    "episode",
 )
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
@@ -328,6 +329,7 @@ class PersonalDataService:
         size += await personal_data_repo.routine_health_export_size(self.db, user_id)
         size += await personal_data_repo.routine_source_export_size(self.db, user_id)
         size += await personal_data_repo.project_tracking_export_size(self.db, user_id)
+        size += await personal_data_repo.decision_episode_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(

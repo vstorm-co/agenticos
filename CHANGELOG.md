@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Structured, scoped decision episodes with alternatives, expected/observed outcomes and append-only corrections; explicitly reviewed JSONL handoff to Improve datasets.
+
 - Project tracking preset: explicitly review a published agent's sources, then create a private tracker, task table, saved views and a project-bound routine. Recheck project access for tools and queued notifications.
 
 

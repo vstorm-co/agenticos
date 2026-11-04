@@ -1,5 +1,5 @@
 ---
-source_sha: "d11455969d48"
+source_sha: "48308a66e9e5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3288,3 +3288,12 @@ Siehe [Eine Capability hinzufügen](../howto/add-capability.md) für eine neue, 
 wenn die Capability bereits existiert.
 
 Für Tools, die hier niemand schreiben muss, siehe [MCP](../mcp.md).
+
+
+### Entscheidungsepisoden und Improve { #decision-episodes-and-improve }
+
+Eine Entscheidung kann strukturierte Belege enthalten: Situation, Wahl, Alternativen, erwartetes Ergebnis, beobachtetes Ergebnis und Korrektur. Der Agent verwendet `remember` mit `kind: decision` und `episode`; die Gedächtnispflege kann dieselben Angaben aus einer zugelassenen Unterhaltung erfassen. Unbekannte Ergebnisse bleiben leer. Eine Episode bleibt im Bereich der Person-Agent-Beziehung oder des Quellraums. Teilen verlangt weiterhin die ausdrückliche Genehmigung der Zielgruppe.
+
+Unter **Einstellungen → Gedächtnis** liest du Belege und erfasst mit der Korrektur ein beobachtetes Ergebnis. Eine Korrektur fügt einen neuen Eintrag hinzu; die bisherige Episode und ihre Herkunft bleiben im Verlauf. Die deterministische Konsolidierung macht aus Episoden keine allgemeinen Regeln. Löschung entfernt ihre Inhalte zusammen mit den Einträgen; der persönliche Datenexport enthält sie.
+
+**Improve-Fall vorbereiten** öffnet eine bearbeitbare Eingabe und erwartete Antwort. Prüfe den Text, entferne private Angaben und bestätige ausdrücklich den Download eines JSONL-Datensatzes. Die Felder `input`, `reference_answer`, `tags` und `note` entsprechen dem Importer in [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importiere die Datei nach Installation dieser Funktion in einen Improve-Datensatz, evaluiere sie und akzeptiere/veröffentliche Änderungen dort. Dieser Export erstellt keinen Datensatz, startet keinen Optimierer und veröffentlicht keine Anweisungen automatisch.

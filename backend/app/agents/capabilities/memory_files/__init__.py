@@ -79,7 +79,7 @@ class MemoryFilesConfig(BaseModel):
         ),
         CapabilityToolInfo(
             id="remember",
-            description="Record one durable fact, preference or decision, with where it came from.",
+            description="Record a scoped fact, preference or decision, optionally with structured decision evidence.",
             side_effecting=True,
         ),
         CapabilityToolInfo(

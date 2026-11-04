@@ -1,5 +1,5 @@
 ---
-source_sha: "d11455969d48"
+source_sha: "48308a66e9e5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -3051,3 +3051,12 @@ Zobacz [Dodaj capability](../howto/add-capability.md) dla nowej albo
 gdy capability już istnieje.
 
 Narzędzia, których nikt tutaj nie musi pisać — zobacz [MCP](../mcp.md).
+
+
+### Epizody decyzji i Improve { #decision-episodes-and-improve }
+
+Wpis decyzji może przechowywać ustrukturyzowane dowody: sytuację, wybór, alternatywy, oczekiwany wynik, zaobserwowany wynik i korektę. Agent używa `remember` z `kind: decision` i `episode`; utrzymanie pamięci może przechwycić te same informacje z dopuszczonej rozmowy. Nieznane wyniki pozostają puste. Epizod zostaje w zakresie relacji osoba-agent lub pokoju źródłowego. Udostępnianie nadal wymaga jawnego zatwierdzenia odbiorców.
+
+W **Ustawienia → Pamięć** przeczytaj dowody i zapisz zaobserwowany wynik przez korektę. Korekta dopisuje nowy wpis; wcześniejszy epizod i jego pochodzenie pozostają w historii. Konsolidacja deterministyczna nie zamienia epizodów w ogólne reguły. Usuwanie pamięci usuwa ich treść razem z wpisami; eksport danych osobistych ją uwzględnia.
+
+**Przygotuj przypadek Improve** otwiera edytowalne wejście i oczekiwaną odpowiedź. Sprawdź tekst, usuń informacje, które muszą pozostać prywatne, i jawnie zatwierdź pobranie jednego rekordu JSONL. Pola `input`, `reference_answer`, `tags` i `note` odpowiadają importerowi zbiorów w [PR Improve #2172](https://github.com/vstorm-co/agenticos/pull/2172). Zaimportuj plik do zbioru Improve po instalacji tej funkcji, przeprowadź ocenę i tam zaakceptuj/opublikuj zmiany. Ten eksport nie tworzy zbioru, nie uruchamia optymalizatora ani nie publikuje instrukcji automatycznie.

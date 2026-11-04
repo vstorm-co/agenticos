@@ -6,7 +6,13 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
 import { getErrorMessage } from "@/lib/api-error";
-import { correctClaim, getMyClaims, retractClaim, type MemoryClaimPage } from "@/lib/memory-api";
+import {
+  correctClaim,
+  getMyClaims,
+  retractClaim,
+  type DecisionEpisode,
+  type MemoryClaimPage,
+} from "@/lib/memory-api";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 
@@ -19,7 +25,12 @@ interface UseMyClaimsResult {
   skip: number;
   showPage: (skip: number) => void;
   /** Resolves true once the correction is saved, false when it was refused. */
-  correct: (id: string, statement: string, effectiveFrom: string | null) => Promise<boolean>;
+  correct: (
+    id: string,
+    statement: string,
+    effectiveFrom: string | null,
+    episode?: DecisionEpisode,
+  ) => Promise<boolean>;
   retract: (id: string) => Promise<void>;
 }
 
@@ -52,8 +63,15 @@ export function useMyClaims(): UseMyClaimsResult {
     queryClient.invalidateQueries({ queryKey: qk.memory.all(activeOrgId ?? "current") });
 
   const correction = useMutation({
-    mutationFn: (input: { id: string; statement: string; effectiveFrom: string | null }) =>
-      correctClaim(input.id, input.statement, input.effectiveFrom),
+    mutationFn: (input: {
+      id: string;
+      statement: string;
+      effectiveFrom: string | null;
+      episode?: DecisionEpisode;
+    }) =>
+      input.episode
+        ? correctClaim(input.id, input.statement, input.effectiveFrom, input.episode)
+        : correctClaim(input.id, input.statement, input.effectiveFrom),
     onSuccess: invalidate,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
@@ -67,9 +85,19 @@ export function useMyClaims(): UseMyClaimsResult {
   // Awaited, so the editor closes on a saved correction and stays open - with the
   // person's words in it - on a refused one. `onError` has already said why.
   const correct = useCallback(
-    async (id: string, statement: string, effectiveFrom: string | null) => {
+    async (
+      id: string,
+      statement: string,
+      effectiveFrom: string | null,
+      episode?: DecisionEpisode,
+    ) => {
       try {
-        await correction.mutateAsync({ id, statement, effectiveFrom });
+        await correction.mutateAsync({
+          id,
+          statement,
+          effectiveFrom,
+          ...(episode ? { episode } : {}),
+        });
         return true;
       } catch {
         return false;

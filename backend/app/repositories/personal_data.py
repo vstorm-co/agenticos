@@ -20,6 +20,7 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.memory_keys import person_owner_key
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.agent_workspace import AgentWorkspace
@@ -583,3 +584,12 @@ async def project_tracking_export_size(db: AsyncSession, user_id: UUID) -> int:
         select(func.count()).select_from(ProjectTracking).where(ProjectTracking.user_id == user_id)
     )
     return int(count or 0) * 1024
+
+
+async def decision_episode_export_size(db: AsyncSession, user_id: UUID) -> int:
+    size = await db.scalar(
+        select(func.coalesce(func.sum(func.pg_column_size(MemoryClaim.episode)), 0)).where(
+            MemoryClaim.scope_key == person_owner_key(user_id)
+        )
+    )
+    return int(size or 0)

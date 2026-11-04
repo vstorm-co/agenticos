@@ -30,6 +30,7 @@ from app.db.models.project import Project
 from app.db.session import get_db_context
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
+from app.schemas.decision_episode import DecisionEpisode
 from app.services.access import PROJECT, acting_member, resolve_access
 from app.services.memory import _claims
 from app.services.memory._native import person_still_exists
@@ -48,6 +49,7 @@ class ClaimView:
     scope: str
     effective_from: datetime | None
     observed_at: datetime
+    episode: DecisionEpisode | None = None
 
 
 def _view(claim: MemoryClaim) -> ClaimView:
@@ -64,6 +66,9 @@ def _view(claim: MemoryClaim) -> ClaimView:
         scope=scope,
         effective_from=claim.effective_from,
         observed_at=claim.observed_at,
+        episode=DecisionEpisode.model_validate(claim.episode)
+        if claim.episode is not None
+        else None,
     )
 
 
@@ -88,6 +93,7 @@ async def remember(
     conversation_id: UUID | None,
     run_id: UUID | None,
     effective_from: datetime | None,
+    episode: DecisionEpisode | None = None,
 ) -> tuple[ClaimView, bool, bool] | None:
     """Record a claim. `None` when its person is gone; else (claim, created, disputed)."""
     async with get_db_context() as db:
@@ -105,6 +111,7 @@ async def remember(
             conversation_id=conversation_id,
             run_id=run_id,
             effective_from=effective_from,
+            episode=episode,
         )
         return _view(result.claim), result.created, result.disputed
 

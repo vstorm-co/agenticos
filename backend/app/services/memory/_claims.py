@@ -30,10 +30,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import BadRequestError, ConflictError
 from app.db.models.memory_claim import MemoryClaim
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
+from app.schemas.decision_episode import DecisionEpisode
 
 MAX_STATEMENT = 600
 PROFILE_CLAIMS = 20
@@ -97,12 +98,16 @@ async def remember(
     conversation_id: UUID | None = None,
     run_id: UUID | None = None,
     effective_from: datetime | None = None,
+    episode: DecisionEpisode | None = None,
 ) -> Remembered:
     """Record one claim in `scope`, applying the precedence rules above.
 
     Writing the same statement again is a no-op that returns the existing claim, so
     a retried run or a repeated mention never multiplies a fact.
     """
+    if episode is not None and kind != "decision":
+        raise BadRequestError(message="Structured episodes belong to decision claims")
+    episode_data = None if episode is None else episode.model_dump(mode="json")
     statement = statement.strip()[:MAX_STATEMENT]
     topic = normalise_subject(subject)
     live = (
@@ -113,7 +118,7 @@ async def remember(
         else await claim_repo.without_subject(db, organization_id=organization_id, scope=scope)
     )
     for existing in live:
-        if _same(existing.statement, statement):
+        if _same(existing.statement, statement) and existing.episode == episode_data:
             return Remembered(existing, created=False, disputed=existing.status == "disputed")
 
     now = datetime.now(UTC)
@@ -157,6 +162,7 @@ async def remember(
         observed_at=now,
         effective_from=effective_from,
         supersedes_id=supersedes.id if supersedes else None,
+        episode=episode_data,
     )
     await claim_repo.bump_revision(db, organization_id=organization_id, scope_key=scope.scope_key)
     return Remembered(claim, created=True, disputed=disputed)
@@ -169,6 +175,7 @@ async def correct(
     statement: str,
     author_user_id: UUID,
     effective_from: datetime | None = None,
+    episode: DecisionEpisode | None = None,
 ) -> MemoryClaim:
     """A person's correction of one claim: a new claim that supersedes it.
 
@@ -192,6 +199,14 @@ async def correct(
         origin="person",
         author_user_id=author_user_id,
         effective_from=effective_from,
+        episode=episode
+        or (
+            DecisionEpisode.model_validate(claim.episode).model_copy(
+                update={"correction": statement}
+            )
+            if claim.episode is not None
+            else None
+        ),
     )
     return result.claim
 
@@ -241,6 +256,9 @@ async def share(
         organization_id=claim.organization_id,
         scope=to,
         statement=claim.statement,
+        episode=DecisionEpisode.model_validate(claim.episode)
+        if claim.episode is not None
+        else None,
         subject=claim.subject,
         kind=claim.kind,
         origin="person",
@@ -382,7 +400,7 @@ async def consolidate(db: AsyncSession, *, organization_id: UUID, scope_key: str
         )
     groups: dict[tuple[UUID | None, str], list[MemoryClaim]] = {}
     for claim in candidates:
-        if claim.subject is not None and claim.origin != "consolidation":
+        if claim.subject is not None and claim.origin != "consolidation" and claim.episode is None:
             groups.setdefault((claim.agent_id, claim.subject), []).append(claim)
     for (agent_id, subject), claims in groups.items():
         people = [claim for claim in claims if claim.origin == "person"]

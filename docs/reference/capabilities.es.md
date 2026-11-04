@@ -1,5 +1,5 @@
 ---
-source_sha: "d11455969d48"
+source_sha: "48308a66e9e5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -3132,3 +3132,12 @@ hacer. Consulta [Añadir una capability](../howto/add-capability.md) para una nu
 cuando la capability ya existe.
 
 Para herramientas que nadie de aquí tiene que escribir, consulta [MCP](../mcp.md).
+
+
+### Episodios de decisiones e Improve { #decision-episodes-and-improve }
+
+Una decisión puede guardar pruebas estructuradas: situación, elección, alternativas, resultado esperado, resultado observado y corrección. El agente usa `remember` con `kind: decision` y `episode`; el mantenimiento de memoria puede capturar la misma información de una conversación admitida. Los resultados desconocidos quedan vacíos. El episodio permanece en el ámbito de la relación persona-agente o de la sala de origen. Compartir sigue requiriendo aprobación explícita de la audiencia.
+
+En **Ajustes → Memoria**, lee las pruebas y registra un resultado observado mediante una corrección. La corrección añade un registro; el episodio anterior y su procedencia permanecen en el historial. La consolidación determinista no convierte episodios en reglas generales. El borrado elimina su contenido junto con los registros; la exportación de datos personales lo incluye.
+
+**Preparar caso Improve** abre una entrada y una respuesta esperada editables. Revisa el texto, elimina lo que deba permanecer privado y aprueba expresamente la descarga de un registro JSONL. Los campos `input`, `reference_answer`, `tags` y `note` corresponden al importador de [Improve PR #2172](https://github.com/vstorm-co/agenticos/pull/2172). Importa el archivo en un conjunto Improve cuando esa función esté instalada, evalúalo y acepta/publica los cambios allí. Esta exportación no crea un conjunto, no ejecuta un optimizador ni publica instrucciones automáticamente.

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { Pencil, Undo2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { DecisionEvidence } from "./decision-evidence";
 import { ErrorState } from "@/components/states";
 import { Badge, Button, Input, Textarea } from "@/components/ui";
 import { useMyClaims } from "@/hooks/use-my-claims";
-import { CLAIMS_PAGE_SIZE, type MemoryClaim } from "@/lib/memory-api";
+import { CLAIMS_PAGE_SIZE, type MemoryClaim, type DecisionEpisode } from "@/lib/memory-api";
 
 /**
  * What is on record about you - facts, preferences and decisions - with where each
@@ -55,8 +56,9 @@ export function MyClaims() {
               <ClaimEditor
                 claim={claim}
                 onCancel={() => setEditing(null)}
-                onSave={async (statement, from) => {
-                  if (await correct(claim.id, statement, from)) setEditing(null);
+                onSave={async (statement, from, episode) => {
+                  if (await correct(claim.id, statement, from, ...(episode ? [episode] : [])))
+                    setEditing(null);
                 }}
               />
             ) : (
@@ -126,6 +128,7 @@ function ClaimRow({
         <p className={live ? "text-sm" : "text-muted-foreground text-sm line-through"}>
           {claim.statement}
         </p>
+        {claim.episode ? <DecisionEvidence claim={claim} /> : null}
         <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
           <span>
             {claim.scope === "profile"
@@ -163,12 +166,19 @@ function ClaimEditor({
 }: {
   claim: MemoryClaim;
   onCancel: () => void;
-  onSave: (statement: string, effectiveFrom: string | null) => Promise<void>;
+  onSave: (
+    statement: string,
+    effectiveFrom: string | null,
+    episode?: DecisionEpisode,
+  ) => Promise<void>;
 }) {
   const t = useTranslations("pages.memory.claims");
   const [statement, setStatement] = useState(claim.statement);
   const [from, setFrom] = useState("");
-  const changed = statement.trim() !== "" && statement.trim() !== claim.statement;
+  const [outcome, setOutcome] = useState(claim.episode?.actual_outcome ?? "");
+  const changed =
+    statement.trim() !== "" &&
+    (statement.trim() !== claim.statement || outcome !== (claim.episode?.actual_outcome ?? ""));
   return (
     <div className="space-y-2">
       <Textarea
@@ -177,6 +187,14 @@ function ClaimEditor({
         onChange={(event) => setStatement(event.target.value)}
         aria-label={t("statement")}
       />
+      {claim.episode ? (
+        <Textarea
+          aria-label={t("episode.actual")}
+          maxLength={1200}
+          value={outcome}
+          onChange={(event) => setOutcome(event.target.value)}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-muted-foreground flex items-center gap-2 text-xs">
           {t("effectiveFrom")}
@@ -189,7 +207,21 @@ function ClaimEditor({
           <Button
             size="sm"
             disabled={!changed}
-            onClick={() => onSave(statement.trim(), from ? `${from}T00:00:00Z` : null)}
+            onClick={() =>
+              onSave(
+                statement.trim(),
+                from ? `${from}T00:00:00Z` : null,
+                ...(claim.episode
+                  ? [
+                      {
+                        ...claim.episode,
+                        actual_outcome: outcome.trim() || null,
+                        correction: statement.trim(),
+                      },
+                    ]
+                  : []),
+              )
+            }
           >
             {t("save")}
           </Button>

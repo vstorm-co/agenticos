@@ -363,3 +363,22 @@ class TestSharingNeedsAHuman:
             "remember",
             "recall",
         }
+
+
+async def test_decision_episode_keeps_the_run_scope_and_real_provenance(ledger):
+    from app.schemas.decision_episode import DecisionEpisode
+
+    episode = DecisionEpisode(
+        situation="Overdue delivery", choice="Ask the owner", alternatives=["Wait"]
+    )
+    deps = _deps()
+    await _tools().remember(_ctx(deps), "Ask the owner", kind="decision", episode=episode)
+    supplied = ledger["remember"].call_args.kwargs
+    assert supplied["scope"] == ClaimScope(person_owner_key(PERSON), AGENT)
+    assert supplied["episode"] == episode and supplied["conversation_id"] == deps.conversation_id
+    ledger["remember"].reset_mock()
+    assert "without profile" in await _tools().remember(
+        _ctx(deps), "Ask", kind="decision", profile=True, episode=episode
+    )
+    assert "without profile" in await _tools().remember(_ctx(deps), "Ask", episode=episode)
+    ledger["remember"].assert_not_awaited()

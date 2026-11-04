@@ -26,6 +26,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, MemorySvc
+from app.schemas.decision_episode import ImproveCaseReview, ImproveDecisionCase
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimDetail,
@@ -99,6 +100,14 @@ async def my_claims(
 async def my_claim(claim_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
     """One of the caller's claims with the claims it was drawn from and the one it replaced."""
     return await service.claim_detail(ctx, claim_id)
+
+
+@router.post("/claims/mine/{claim_id}/improve-case", response_model=ImproveDecisionCase)
+async def reviewed_improve_case(
+    claim_id: UUID, data: ImproveCaseReview, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Prepare a personally reviewed decision episode for Improve's JSONL import."""
+    return await service.improve_case(ctx, claim_id, data)
 
 
 @router.post("/claims/mine/{claim_id}/correct", response_model=MemoryClaimRead)

@@ -66,6 +66,34 @@ export async function getPersonMemory(
 export type ClaimStatus = "current" | "disputed" | "superseded" | "merged" | "retracted";
 
 /** One recorded fact, preference or decision, with where it came from. */
+export interface DecisionEpisode {
+  situation: string;
+  choice: string;
+  alternatives: string[];
+  expected_outcome: string | null;
+  actual_outcome: string | null;
+  correction: string | null;
+}
+
+export interface ImproveDecisionCase {
+  input: string;
+  reference_answer: string;
+  tags: string[];
+  note: string;
+}
+
+export async function reviewDecisionCase(
+  id: string,
+  input: string,
+  referenceAnswer: string,
+): Promise<ImproveDecisionCase> {
+  return apiClient.post<ImproveDecisionCase>(`${ROOT}/claims/mine/${id}/improve-case`, {
+    confirmed: true,
+    input,
+    reference_answer: referenceAnswer,
+  });
+}
+
 export interface MemoryClaim {
   id: string;
   agent_id: string | null;
@@ -82,6 +110,7 @@ export interface MemoryClaim {
   effective_to: string | null;
   supersedes_id: string | null;
   derived_from_count: number;
+  episode?: DecisionEpisode | null;
 }
 
 export interface MemoryClaimPage {
@@ -102,10 +131,12 @@ export async function correctClaim(
   id: string,
   statement: string,
   effectiveFrom: string | null,
+  episode?: DecisionEpisode,
 ): Promise<MemoryClaim> {
   return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
     statement,
     effective_from: effectiveFrom,
+    ...(episode ? { episode } : {}),
   });
 }
 
