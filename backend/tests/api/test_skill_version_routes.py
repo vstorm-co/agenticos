@@ -266,6 +266,18 @@ async def test_a_used_skill_answers_its_deletion_as_in_use(client):
     assert response.json()["error"]["details"] == {"agents": [], "hidden": 2}
 
 
+@pytest.mark.parametrize(("query", "remove"), [("", False), ("?remove_from_agents=true", True)])
+async def test_removing_from_agents_is_asked_for_by_name(client, ctx, query, remove):
+    skills = MagicMock()
+    skills.delete = AsyncMock(return_value=None)
+    app.dependency_overrides[deps.get_skill_service] = lambda: skills
+
+    response = await client.delete(f"/api/v1/skills/{SKILL}{query}")
+
+    assert response.status_code == 204
+    skills.delete.assert_awaited_once_with(ctx, SKILL, remove_from_agents=remove)
+
+
 async def test_a_skills_agents_are_listed(client, ctx):
     agents = MagicMock()
     agents.agents = AsyncMock(

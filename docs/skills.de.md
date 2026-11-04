@@ -1,5 +1,5 @@
 ---
-source_sha: "ff0fec4ff4df"
+source_sha: "dbbdfc11b4bf"
 ---
 
 # Skills { #skills }
@@ -159,7 +159,8 @@ Shell zusammensetzt, ein Glob über mehrere Skills oder ein Skript, das die Date
 selbst liest, wird nicht erkannt.
 
 `GET /api/v1/skills/{id}/usage?days=30` liefert pro Agent, wie viele Runs den
-Skill in diesem Zeitraum verwendet haben, mit der Version, die jeder bekam. Runs
+Skill in diesem Zeitraum verwendet haben, mit der Version, die jeder bekam, und
+der Zahl für jeden Tag des Zeitraums in UTC, auch wenn sie null ist. Runs
 von Evals und vom Testbereich des Builders werden nicht gezählt. Die Zahlen werden
 aus Runs gelesen und brauchen daher `runs:view`; ein Agent, den der Aufrufer nicht
 sehen darf, wird gezählt, aber nie genannt.
@@ -540,6 +541,23 @@ den der Entwurf eines aktiven Agents bindet oder eine Version, die eine seiner
 Umgebungen ausliefert, beim Agent selbst oder bei einem Inline-Spezialisten. Die
 Ablehnung nennt die Agents, die Sie sehen können, und zählt die übrigen. Ein Skill,
 den niemand verwendet, wird mit seinen Versionen und Forks gelöscht.
+
+Sie können ihn auch in einem Schritt aus diesen Agents entfernen und löschen
+(`DELETE /api/v1/skills/{id}?remove_from_agents=true`). Jeder Agent verliert den
+Skill in seinem Entwurf, bei sich selbst und in jedem Inline-Spezialisten. Wo eine
+Umgebung, die Veröffentlichungen folgt, eine Version ausliefert, die ihn verwendet,
+wird die neueste veröffentlichte Version des Agents ohne ihn erneut veröffentlicht,
+wie es Version ändern tut.
+
+Entweder verliert jeder Agent ihn und der Skill wird gelöscht, oder nichts ändert
+sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
+
+- ein Agent, der ihn verwendet, für Sie verborgen ist;
+- Sie einen davon nicht bearbeiten oder einen, der veröffentlicht werden muss, nicht
+  veröffentlichen dürfen;
+- eine Umgebung, die auf eine Beförderung wartet, eine Version ausliefert, die ihn
+  verwendet. Eine solche Umgebung bewegt nur eine Beförderung, und das entscheidet
+  ihr Eigentümer.
 
 | Pfad | Was er tut |
 |---|---|

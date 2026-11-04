@@ -124,9 +124,13 @@ class SkillImprovementEstimate(BaseSchema):
     line: SkillLine
     base_version: SkillVersionRef
     proposal_usd: Decimal = Field(description="Grouping the problems, then one proposal")
+    check_usd: Decimal = Field(
+        description="At most what one quick check across the line's agents costs, priced on "
+        "the line as it is"
+    )
     per_round_usd: Decimal = Field(
-        description="About what one attempt's proposal costs; its check across the line's "
-        "agents is priced when a person takes that step"
+        description="About what one attempt costs - its proposal and its check - each priced "
+        "again when a person takes it"
     )
     total_usd: Decimal = Field(
         description="What the session spends before it first waits for a person: grouping "

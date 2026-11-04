@@ -1,7 +1,7 @@
 """Which skills runs used: written by the runner, read for a skill's evidence and statistics."""
 
 from collections.abc import Collection, Mapping, Sequence
-from datetime import datetime
+from datetime import date, datetime
 from typing import NamedTuple
 from uuid import UUID
 
@@ -29,6 +29,12 @@ class AgentUsage(NamedTuple):
 class VersionUsage(NamedTuple):
     agent_id: UUID
     skill_version_id: UUID | None
+    loads: int
+
+
+class DayUsage(NamedTuple):
+    agent_id: UUID
+    day: date
     loads: int
 
 
@@ -167,6 +173,28 @@ async def usage_by_version(
         .group_by(RunSkillUse.agent_id, RunSkillUse.skill_version_id)
     )
     return [VersionUsage(*row) for row in rows.all()]
+
+
+async def usage_by_day(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    skill_id: UUID,
+    since: datetime,
+    agent_ids: Collection[UUID],
+) -> list[DayUsage]:
+    """How many of those runs used the skill on each UTC day, per agent; days with none
+    are absent."""
+    if not agent_ids:
+        return []
+    day = func.date(func.timezone("UTC", RunSkillUse.created_at))
+    rows = await db.execute(
+        select(RunSkillUse.agent_id, day, func.count(func.distinct(RunSkillUse.run_id)))
+        .where(*_served(organization_id, skill_id, since))
+        .where(used(), RunSkillUse.agent_id.in_(list(agent_ids)))
+        .group_by(RunSkillUse.agent_id, day)
+    )
+    return [DayUsage(*row) for row in rows.all()]
 
 
 async def uses_in_runs(

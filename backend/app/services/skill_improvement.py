@@ -378,17 +378,32 @@ class SkillImprovementService:
         )
         fork_id = target.fork_id if seed is None else seed.fork_id
         line = await self._line(ctx, skill_id, fork_id, Perm.SKILLS_EDIT)
+        if line.archived:
+            raise refused_field("fork_id", "An archived fork cannot be improved")
         pack = await self._evidence(ctx, line, target.window_days)
         priced = await self.authoring.estimate_pack(
             ctx, pack, improver_agent_id=target.improver_agent_id
         )
         visible, hidden = await self._line_agents(ctx, line)
         base = await self._base(line)
+        # An attempt's text is not known yet, so its check is priced on the line as it
+        # is: the same agents and questions, at the most a quick check could cost.
+        check = await self.checks.estimate(
+            ctx,
+            skill_id,
+            SkillCheckStart(
+                fork_id=line.fork_id,
+                candidate=CandidateText(description=base.description, content=base.content),
+                mode=CheckMode.QUICK,
+            ),
+            exclude_conversations=pack.conversation_ids,
+        )
         estimate = SkillImprovementEstimate(
             line=SkillLine(fork_id=line.fork_id, name=line.name),
             base_version=SkillVersionRef(id=base.id, number=base.number),
             proposal_usd=priced.estimate_usd * 2,
-            per_round_usd=priced.estimate_usd,
+            check_usd=check.at_most_usd,
+            per_round_usd=priced.estimate_usd + check.at_most_usd,
             total_usd=priced.estimate_usd,
             max_iterations=target.max_iterations,
             evidence_runs=len(pack.runs),
@@ -417,8 +432,6 @@ class SkillImprovementService:
         """
         estimate, seed = await self._estimate(ctx, skill_id, data)
         line = await self._line(ctx, skill_id, estimate.line.fork_id, Perm.SKILLS_EDIT)
-        if line.archived:
-            raise refused_field("fork_id", "An archived fork cannot be improved")
         if estimate.reason == "no_evidence":
             raise BadRequestError(
                 message=(

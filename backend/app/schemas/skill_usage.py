@@ -1,5 +1,6 @@
 """Which skills runs used: what a run records, and how often an agent used a skill."""
 
+from datetime import date as CalendarDate
 from datetime import datetime
 from uuid import UUID
 
@@ -34,9 +35,17 @@ class SkillUsageVersion(BaseSchema):
     loads: int
 
 
+class SkillUsageDay(BaseSchema):
+    date: CalendarDate = Field(description="A day in UTC")
+    loads: int
+
+
 class SkillUsageAgent(BaseSchema):
     agent_id: UUID
     agent_name: str
+    slug: str
+    has_avatar: bool
+    avatar_color: int | None
     loads: int = Field(
         description="Runs that opened the skill or read one of its files with `read_skill_resource`"
     )
@@ -49,6 +58,9 @@ class SkillUsageAgent(BaseSchema):
     )
     last_loaded_at: datetime | None
     versions: list[SkillUsageVersion]
+    daily: list[SkillUsageDay] = Field(
+        description="`loads` per UTC day, every day of the window from the oldest, zeros included"
+    )
 
 
 class SkillUsageRead(BaseSchema):

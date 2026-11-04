@@ -8,7 +8,7 @@ read is the skills *capability*.
 
 import logging
 from collections.abc import Collection, Mapping, Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -56,7 +56,12 @@ from app.schemas.skill import (
     SkillUpdate,
     skill_name_refusal,
 )
-from app.schemas.skill_usage import SkillUsageAgent, SkillUsageRead, SkillUsageVersion
+from app.schemas.skill_usage import (
+    SkillUsageAgent,
+    SkillUsageDay,
+    SkillUsageRead,
+    SkillUsageVersion,
+)
 from app.services import skill_library
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access, visible_resource_ids
 from app.services.resource_usage import (
@@ -266,6 +271,17 @@ class SkillService:
             versions.setdefault(version.agent_id, []).append(
                 SkillUsageVersion(skill_version_id=version.skill_version_id, loads=version.loads)
             )
+        by_day: dict[UUID, dict[date, int]] = {}
+        for per_day in await skill_usage_repo.usage_by_day(
+            self.db,
+            organization_id=ctx.organization_id,
+            skill_id=skill.id,
+            since=since,
+            agent_ids=[row.agent_id for row in shown],
+        ):
+            by_day.setdefault(per_day.agent_id, {})[per_day.day] = per_day.loads
+        first = since.date()
+        window = [first + timedelta(days=offset) for offset in range(days + 1)]
         return SkillUsageRead(
             days=days,
             since=since,
@@ -274,11 +290,18 @@ class SkillService:
                 SkillUsageAgent(
                     agent_id=row.agent_id,
                     agent_name=agents[row.agent_id].name,
+                    slug=agents[row.agent_id].slug,
+                    has_avatar=agents[row.agent_id].has_avatar,
+                    avatar_color=agents[row.agent_id].avatar_color,
                     loads=row.loads,
                     resource_reads=row.resource_reads,
                     workspace_reads=row.workspace_reads,
                     last_loaded_at=row.last_loaded_at,
                     versions=versions.get(row.agent_id, []),
+                    daily=[
+                        SkillUsageDay(date=day, loads=by_day.get(row.agent_id, {}).get(day, 0))
+                        for day in window
+                    ],
                 )
                 for row in shown
             ],
@@ -1433,22 +1456,62 @@ class SkillService:
             }
         )
 
-    async def delete(self, ctx: AuthContext, skill_id: UUID) -> None:
+    async def delete(
+        self, ctx: AuthContext, skill_id: UUID, *, remove_from_agents: bool = False
+    ) -> None:
         """Delete a skill nobody uses, with every version and fork it has.
+
+        With `remove_from_agents`, the skill is first taken out of every agent that
+        uses it, as :meth:`SkillAgentService.remove_skill` says, in the same
+        transaction: either every agent loses it and it is deleted, or nothing
+        changes.
 
         Raises:
             InUseError: A live agent's draft or a version an environment serves
                 binds it. Those agents name the versions they run, which must not
                 disappear from under them; the caller is told which agents, and
-                how many more they may not see.
+                how many more they may not see. With `remove_from_agents`, also
+                which agents it could not be removed from, and why; or
+                `reason: agents_changed` when an agent started using it while the
+                agents were being locked.
         """
         skill = await self.get(ctx, skill_id, perm=Perm.SKILLS_EDIT)
+        locked: set[UUID] = set()
+        if remove_from_agents:
+            # A draft save or a publish locks its agent before it holds the skill, so the
+            # agents are locked in that order too, or the two wait on each other.
+            for agent in sorted(
+                await agents_using_skill(
+                    self.db, organization_id=ctx.organization_id, skill_id=skill.id
+                ),
+                key=lambda agent: agent.id,
+            ):
+                await agent_repo.get(
+                    self.db, agent.id, organization_id=ctx.organization_id, for_update=True
+                )
+                locked.add(agent.id)
         # Locked before the in-use check: an agent binding the skill holds it shared
         # (`skill_repo.hold`), so a binding is either seen here or written after it is gone.
         await skill_repo.lock_for_delete(self.db, skill.id)
         using = await agents_using_skill(
             self.db, organization_id=ctx.organization_id, skill_id=skill.id
         )
+        if using and remove_from_agents:
+            if {agent.id for agent in using} - locked:
+                raise InUseError(
+                    message=(
+                        f"Another agent started using '{skill.name}' while it was being "
+                        "removed. Nothing changed; try again."
+                    ),
+                    details={"reason": "agents_changed"},
+                )
+            # Imported here: the agent registry reads skills through this service.
+            from app.services.skill_agents import SkillAgentService
+
+            await SkillAgentService(self.db).remove_skill(ctx, skill, using)
+            using = await agents_using_skill(
+                self.db, organization_id=ctx.organization_id, skill_id=skill.id
+            )
         if using:
             visible = await accessible_ids(
                 self.db, ctx, using, Perm.AGENTS_VIEW, resource_type=AGENT
