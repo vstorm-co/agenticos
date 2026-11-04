@@ -973,6 +973,16 @@ describe("useChat - streaming a delegation", () => {
     expect(result.current.delegations[0]?.status).toBe("cancelled");
   });
 
+  it("keeps a background delegate running when only the reply could not be saved", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    startDelegation("t1", "researcher", "async");
+
+    receive("error", { code: "message_save_failed", message: "The reply could not be saved." });
+    receive("complete", {});
+
+    expect(result.current.delegations[0]?.status).toBe("running");
+  });
+
   it("closes an unfinished delegation when the person presses stop", () => {
     // Optimistic on purpose: the server's `complete` may never arrive, because the
     // socket can be what went away.
@@ -1195,6 +1205,32 @@ describe("useChat - the conversation a turn belongs to", () => {
     receive("complete", {});
     receive("session_ready", {});
     expect(result.current.lastUsage).toMatchObject({ input_tokens: 1200 });
+  });
+
+  it("keeps an unsaved reply, its warning and its usage when the turn completes", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    const warning =
+      "The assistant's reply could not be saved. " +
+      "Copy any text you need before leaving this conversation.";
+    const usage = {
+      input_tokens: 1200,
+      output_tokens: 300,
+      cost_usd: "0.0125",
+      budget_percent: null,
+      sandbox: null,
+    };
+
+    receive("model_request_start", {});
+    receive("text_delta", { content: "Two are open." });
+    receive("final_result", { output: "Two are open." });
+    receive("error", { code: "message_save_failed", message: warning });
+    receive("complete", { usage });
+
+    expect(streaming()?.content).toContain("Two are open.");
+    expect(streaming()?.content).toContain(warning);
+    expect(streaming()).toMatchObject({ isTemporaryId: true, isStreaming: false, usage });
+    expect(result.current.lastUsage).toEqual(usage);
+    expect(result.current.isProcessing).toBe(false);
   });
 
   it("still finds the message after it has been given its real id", () => {

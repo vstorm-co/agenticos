@@ -1041,7 +1041,7 @@ export function useChat(options: UseChatOptions = {}) {
           // An open that failed ends the turn here, with no `complete` after it.
           setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
-          const { message } = wsEvent.data as { message: string };
+          const { message, code } = wsEvent.data as { message: string; code?: string };
           const refused = unconfirmedRef.current;
           unconfirmedRef.current = null;
           if (refused) {
@@ -1073,7 +1073,8 @@ export function useChat(options: UseChatOptions = {}) {
           // The turn is over and no `subagent_complete` is coming for whatever was
           // still running. A panel left open past that spins forever - the state a
           // parked tool call used to sit in.
-          setDelegations(closeOpenDelegations);
+          // A lost transcript write does not stop background delegates.
+          if (code !== "message_save_failed") setDelegations(closeOpenDelegations);
           break;
         }
 
