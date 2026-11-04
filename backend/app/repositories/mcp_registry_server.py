@@ -8,32 +8,32 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import NOT_OFFERED, McpServerCheck
 
+_BAND_KEY_EXACT = -1
 _BAND_NAME_STARTS = 0
 _BAND_NAME_HOLDS = 1
 _BAND_ELSEWHERE = 2
 
 
-def _bands(needle: str) -> Any:
-    """The ranking, as SQL, so it survives paging.
+def _bands(needle: str) -> ColumnElement[int]:
+    """Rank exact keys before name prefixes, name substrings and description matches.
 
-    Three bands, and they have to be computed in the database rather than after
-    the fact: ranking a page is ranking whatever the page happened to contain,
-    which on page four of "stripe" is not the same as ranking the results. The
-    bands are what somebody typing a name means - the server *called* Linear,
-    then names merely containing it, then descriptions that mention it.
+    Ranking happens before pagination so bookmarks and subsequent pages use the
+    same ordering across the whole mirror.
     """
     return case(
+        (McpRegistryServer.id == needle, _BAND_KEY_EXACT),
         (McpRegistryServer.name.ilike(f"{needle}%"), _BAND_NAME_STARTS),
         (McpRegistryServer.name.ilike(f"%{needle}%"), _BAND_NAME_HOLDS),
         else_=_BAND_ELSEWHERE,
     )
 
 
-def _matching(query: str) -> Any:
+def _matching(query: str) -> ColumnElement[bool] | None:
     """The filter one query makes, or nothing for a blank one.
 
     A blank query is every row rather than none: unlike the in-memory version
@@ -94,7 +94,7 @@ async def search(
     order: list[Any] = []
     if needle:
         order.append(_bands(needle))
-    order += [func.length(McpRegistryServer.name), McpRegistryServer.name]
+    order += [func.length(McpRegistryServer.name), McpRegistryServer.name, McpRegistryServer.id]
 
     rows = (
         select(McpRegistryServer, McpServerCheck)

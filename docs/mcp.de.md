@@ -1,5 +1,5 @@
 ---
-source_sha: "d94ff30a47bf"
+source_sha: "d6575a8a0ef8"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -754,6 +754,8 @@ und keine Auflistung:
   ausblendet. Beim URL-Abgleich bleibt die Groß- und Kleinschreibung von Pfaden und
   Abfragewerten erhalten, sodass verschiedene Endpunkte getrennt bleiben. Eine
   erneute Autorisierung verwendet die gespeicherte URL des jeweiligen Kontos.
+
+  Exakte Serverschlüssel haben Vorrang vor verwandten Suchtreffern. Gespeicherte Links werden dadurch auch dann aufgelöst, wenn andere Beschreibungen denselben Schlüssel nennen. Registereinträge mit identischen Namen behalten eine stabile Reihenfolge über Seiten hinweg.
 
 - **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
   Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen

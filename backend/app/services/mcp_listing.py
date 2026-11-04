@@ -301,6 +301,11 @@ async def page(
         matched = [
             row for row in connected if _matches(row, query=query, category=category, auth=auth)
         ]
+        # Bookmarks resolve a key through a bounded search, even when many
+        # descriptions mention it. Keep that exact identity on the first page.
+        needle = query.strip().casefold()
+        if needle:
+            matched.sort(key=lambda row: row.key.casefold() != needle)
         return ServerPage(
             items=tuple(matched[skip : skip + limit]),
             total=len(matched),

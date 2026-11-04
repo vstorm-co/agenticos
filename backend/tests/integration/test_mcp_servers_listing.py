@@ -377,3 +377,52 @@ class TestConnectedRegistryIdentities:
 
         assert total == 1
         assert [server.id for server, _check in found] == ["mirror/available"]
+
+
+async def test_exact_registry_identity_ranks_before_related_names_in_a_bounded_lookup(
+    db: AsyncSession,
+) -> None:
+    target = "registry/target"
+    await repo.upsert_many(
+        db,
+        [
+            {
+                "id": target if index == 12 else f"related/{index}",
+                "name": "Z target" if index == 12 else f"{target} alternative {index}",
+                "description": "",
+                "url": f"https://server{index}.example.test/mcp",
+                "host": f"server{index}.example.test",
+            }
+            for index in range(13)
+        ],
+    )
+
+    rows, total = await repo.search(db, query=target, limit=10)
+
+    assert total == 13
+    assert rows[0][0].id == target
+    assert len(rows) == 10
+
+
+async def test_same_named_registry_servers_keep_a_stable_order_between_pages(
+    db: AsyncSession,
+) -> None:
+    ids = [f"same-name/{index:02}" for index in range(12)]
+    await repo.upsert_many(
+        db,
+        [
+            {
+                "id": key,
+                "name": "Same service",
+                "description": "",
+                "url": f"https://server{index}.example.test/mcp",
+                "host": f"server{index}.example.test",
+            }
+            for index, key in enumerate(reversed(ids))
+        ],
+    )
+    first, first_total = await repo.search(db, limit=7)
+    second, second_total = await repo.search(db, skip=7, limit=7)
+
+    assert first_total == second_total == 12
+    assert [row.id for row, _check in first + second] == ids

@@ -632,3 +632,29 @@ async def test_not_connected_excludes_curated_accounts_before_pagination_and_cou
     excluded = repositories.search.await_args.kwargs["excluded_ids"]
     assert {catalog[0].key, registry.id} <= excluded
     assert len(excluded) == 3
+
+
+async def test_a_saved_exact_key_precedes_related_results_in_a_bounded_bookmark_lookup(
+    caller: AuthContext,
+    catalog: tuple[CatalogEntry, ...],
+    repositories: ListingRepositories,
+    mock_db_session: AsyncSession,
+) -> None:
+    target = _mirrored(key="registry/target")
+    related = [_mirrored(key=f"registry/related-{index}") for index in range(12)]
+    for server in related:
+        server.description = f"Alternative to {target.id}"
+    repositories.registry.return_value = [*related, target]
+    accounts = [
+        _connection(caller, name=server.id, key=server.id, url=server.url)
+        for server in [*related, target]
+    ]
+    repositories.organization.return_value = accounts, len(accounts)
+
+    found = await mcp_listing.page(
+        mock_db_session, ctx=caller, query=target.id, state="connected", limit=10
+    )
+
+    assert found.total == 13
+    assert found.items[0].key == target.id
+    assert len(found.items) == 10
