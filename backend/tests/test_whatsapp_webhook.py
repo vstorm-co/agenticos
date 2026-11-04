@@ -122,7 +122,7 @@ async def _post(
 
 
 def _inbound() -> MagicMock:
-    return MagicMock(receive=AsyncMock())
+    return MagicMock(receive=AsyncMock(), route_others=AsyncMock(return_value=0))
 
 
 def _incoming(payload: dict[str, Any], bot: MagicMock, index: int = 0) -> IncomingMessage:
@@ -468,16 +468,31 @@ class TestMessages:
         ]
         assert not any(hasattr(r, "wamid") for r in failed)
 
-    async def test_another_numbers_changes_are_ignored(self, caplog):
+    async def test_another_numbers_changes_are_handed_to_the_service_once(self, caplog):
+        bot = _bot(whatsapp_phone_number_id="OTHER")
         with caplog.at_level("INFO"):
-            answered, inbound = await _post(
-                _payload("text"), bot=_bot(whatsapp_phone_number_id="OTHER")
-            )
+            answered, inbound = await _post(_payload("text"), bot=bot)
 
         assert answered.status_code == 200
         assert inbound.receive.await_args.args[1].messages == ()
+        inbound.route_others.assert_awaited_once()
+        args, kwargs = inbound.route_others.await_args
+        assert args[0] is bot and args[2].startswith("sha256=")
+        assert args[3]["entry"][0]["id"] == "WABA1"
+        assert args[4].others == (("WABA1", "PNID1"),)
+        assert isinstance(kwargs["now"], datetime)
         dropped = [r for r in caplog.records if r.message == "whatsapp_webhook_dropped"]
         assert dropped[0].levelname == "WARNING" and dropped[0].foreign == 1
+
+    async def test_a_routed_change_is_not_logged_as_dropped(self, caplog):
+        inbound = _inbound()
+        inbound.route_others.return_value = 1
+        with caplog.at_level("INFO"):
+            await _post(
+                _payload("text"), bot=_bot(whatsapp_phone_number_id="OTHER"), inbound=inbound
+            )
+
+        assert [r for r in caplog.records if r.message == "whatsapp_webhook_dropped"] == []
 
     async def test_stale_and_ignored_messages_are_counted_at_info(self, caplog):
         payload = _payload("text", ages=[8 * 24 * 3600])

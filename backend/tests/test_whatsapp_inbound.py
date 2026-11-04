@@ -1,5 +1,7 @@
 """What a verified WhatsApp batch does: record each customer's window, queue their messages (#2076)."""
 
+import hashlib
+import hmac
 import json
 import logging
 import time
@@ -1489,3 +1491,345 @@ class TestReclaim:
             created.return_value = claim.store([], window=False)
             await inbound.reclaim_after_refusal(BOT, ORG, CHAT, RUN, CLOSED_AT)
         created.assert_called_once_with()
+
+
+def _number(payload: dict[str, Any], number: str, user: str, wamid: str, text: str) -> None:
+    """Add a change for `number` (account `WABA1`) from `user` to the payload."""
+    change = json.loads(json.dumps(payload["entry"][0]["changes"][0]))
+    value = change["value"]
+    value["metadata"]["phone_number_id"] = number
+    value["contacts"][0]["user_id"] = user
+    value["messages"][0].update(
+        {"id": wamid, "from_user_id": user, "timestamp": str(NOW - 5), "text": {"body": text}}
+    )
+    payload["entry"][0]["changes"].append(change)
+
+
+def _signed(body: bytes, secret: str) -> str:
+    return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+
+class TestRoutingToTheNumbersOwner:
+    """A change for another number goes to the bot that owns it, and only on that bot's own secret."""
+
+    URL_SECRET = "secret-of-a"
+
+    @pytest.fixture
+    def world(self):
+        url_bot = _bot()
+        payload = _fixture("text")
+        payload["entry"][0]["changes"][0]["value"]["messages"][0]["timestamp"] = str(NOW - 5)
+        _number(payload, "PNID2", "US.222", "wamid.B1", "for b")
+        body = json.dumps(payload).encode()
+
+        class World:
+            def __init__(self) -> None:
+                self.url_bot = url_bot
+                self.payload = payload
+                self.body = body
+                self.signature = _signed(body, TestRoutingToTheNumbersOwner.URL_SECRET)
+                self.secrets: dict[uuid.UUID, str | Exception | None] = {}
+                self.found: list[MagicMock] = []
+                self.parsed: ParsedWebhook | None = None
+                self.service = WhatsAppInbound(MagicMock())
+                self.service.receive = AsyncMock()  # type: ignore[method-assign]
+
+            def owner(self, secret: str | Exception | None, **fields: Any) -> MagicMock:
+                bot = MagicMock(
+                    id=uuid.uuid4(),
+                    organization_id=fields.pop("organization_id", ORG),
+                    whatsapp_phone_number_id=fields.pop("number", "PNID2"),
+                    whatsapp_account_id="WABA1",
+                )
+                self.secrets[bot.id] = secret
+                self.found.append(bot)
+                return bot
+
+            async def route(self) -> int:
+                parsed = parse_webhook(
+                    self.payload,
+                    phone_number_id="PNID1",
+                    account_id="WABA1",
+                    now=datetime.fromtimestamp(NOW, UTC),
+                )
+                self.parsed = parsed
+
+                def unseal(bot: MagicMock) -> str | None:
+                    value = self.secrets[bot.id]
+                    if isinstance(value, Exception):
+                        raise value
+                    return value
+
+                with (
+                    patch(
+                        f"{MODULE}.channel_bot_repo.get_active_whatsapp_by_numbers",
+                        AsyncMock(return_value=[*self.found, self.url_bot]),
+                    ) as lookup,
+                    patch(f"{MODULE}.unseal_webhook_secret", unseal),
+                ):
+                    self.secrets[self.url_bot.id] = TestRoutingToTheNumbersOwner.URL_SECRET
+                    self.lookup = lookup
+                    return await self.service.route_others(
+                        self.url_bot,
+                        self.body,
+                        self.signature,
+                        self.payload,
+                        parsed,
+                        now=datetime.fromtimestamp(NOW, UTC),
+                    )
+
+            def received(self) -> list[tuple[Any, list[str]]]:
+                return [
+                    (call.args[0], [m.wamid for m in call.args[1].messages])
+                    for call in self.service.receive.await_args_list
+                ]
+
+        return World()
+
+    @pytest.mark.security
+    async def test_the_owner_receives_its_change_when_its_own_secret_verifies_the_body(self, world):
+        owner = world.owner(self.URL_SECRET)
+
+        routed = await world.route()
+
+        assert routed == 1
+        assert world.received() == [(owner, ["wamid.B1"])]
+        world.lookup.assert_awaited_once()
+        assert world.lookup.await_args.kwargs["pairs"] == (("WABA1", "PNID2"),)
+
+    @pytest.mark.security
+    async def test_a_bot_whose_own_secret_does_not_verify_the_body_gets_nothing(
+        self, world, caplog
+    ):
+        """The URL bot's signature alone never admits another bot's change."""
+        world.owner("another-secret")
+
+        with caplog.at_level(logging.WARNING):
+            routed = await world.route()
+
+        assert routed == 0
+        world.service.receive.assert_not_awaited()
+        [record] = [r for r in caplog.records if r.message == "whatsapp_number_unrouted"]
+        assert (record.bot_id, record.phone_number_id) == (str(world.url_bot.id), "PNID2")
+
+    @pytest.mark.security
+    async def test_a_bot_with_no_secret_is_never_admitted(self, world):
+        world.owner(None)
+
+        assert await world.route() == 0
+        world.service.receive.assert_not_awaited()
+
+    async def test_a_number_nobody_owns_is_logged_and_dropped(self, world, caplog):
+        with caplog.at_level(logging.WARNING):
+            assert await world.route() == 0
+
+        world.service.receive.assert_not_awaited()
+        assert [r.message for r in caplog.records].count("whatsapp_number_unrouted") == 1
+
+    @pytest.mark.security
+    async def test_two_bots_that_verify_the_body_get_nothing_and_it_is_logged(self, world, caplog):
+        world.owner(self.URL_SECRET)
+        world.owner(self.URL_SECRET)
+
+        with caplog.at_level(logging.WARNING):
+            routed = await world.route()
+
+        assert routed == 0
+        world.service.receive.assert_not_awaited()
+        [record] = [r for r in caplog.records if r.message == "whatsapp_number_ambiguous"]
+        assert (record.bot_id, record.phone_number_id, record.count) == (
+            str(world.url_bot.id),
+            "PNID2",
+            2,
+        )
+
+    async def test_one_verifying_bot_is_enough_when_another_candidate_does_not_verify(self, world):
+        wrong = world.owner("another-secret")
+        right = world.owner(self.URL_SECRET)
+
+        assert await world.route() == 1
+        assert [bot for bot, _ in world.received()] == [right]
+        assert wrong not in [bot for bot, _ in world.received()]
+
+    @pytest.mark.security
+    async def test_a_bot_of_another_organization_is_routed_when_its_secret_verifies(self, world):
+        owner = world.owner(self.URL_SECRET, organization_id=uuid.uuid4())
+
+        assert await world.route() == 1
+        assert world.received() == [(owner, ["wamid.B1"])]
+
+    @pytest.mark.security
+    async def test_a_bot_whose_secret_cannot_be_read_is_unrouted_and_the_rest_goes_on(
+        self, world, caplog
+    ):
+        world.owner(RuntimeError("sealed with a retired key"))
+        world.payload["entry"][0]["changes"].append(
+            json.loads(json.dumps(world.payload["entry"][0]["changes"][1]))
+        )
+        other = world.owner(self.URL_SECRET, number="PNID3")
+        world.payload["entry"][0]["changes"][-1]["value"]["metadata"]["phone_number_id"] = "PNID3"
+        world.payload["entry"][0]["changes"][-1]["value"]["messages"][0]["id"] = "wamid.C1"
+        world.body = json.dumps(world.payload).encode()
+        world.signature = _signed(world.body, self.URL_SECRET)
+
+        with caplog.at_level(logging.WARNING):
+            routed = await world.route()
+
+        assert routed == 1
+        assert world.received() == [(other, ["wamid.C1"])]
+        [record] = [r for r in caplog.records if r.message == "whatsapp_owner_secret_unreadable"]
+        assert record.error == "RuntimeError"
+        assert len([r for r in caplog.records if r.message == "whatsapp_number_unrouted"]) == 1
+        assert "retired" not in caplog.text
+
+    async def test_a_status_only_change_reaches_the_owner(self, world):
+        failed = _fixture("statuses")["entry"][0]["changes"][0]
+        failed["value"]["metadata"]["phone_number_id"] = "PNID7"
+        world.payload["entry"][0]["changes"] = [failed]
+        world.body = json.dumps(world.payload).encode()
+        world.signature = _signed(world.body, self.URL_SECRET)
+        owner = world.owner(self.URL_SECRET, number="PNID7")
+
+        assert await world.route() == 1
+
+        ((receiver, parsed),) = [
+            (call.args[0], call.args[1]) for call in world.service.receive.await_args_list
+        ]
+        assert receiver is owner
+        assert [
+            (s.status, s.error_codes, s.callback) for s in parsed.statuses if s.status == "failed"
+        ] == [("failed", (131047,), "5b1f3c6e-2f0a-4c55-9a43-0d1f6f0c1a11")]
+
+    async def test_a_batch_with_no_other_number_looks_nothing_up(self, world):
+        world.payload["entry"][0]["changes"].pop()
+        parsed = parse_webhook(
+            world.payload,
+            phone_number_id="PNID1",
+            account_id="WABA1",
+            now=datetime.fromtimestamp(NOW, UTC),
+        )
+        with patch(
+            f"{MODULE}.channel_bot_repo.get_active_whatsapp_by_numbers", AsyncMock()
+        ) as lookup:
+            routed = await world.service.route_others(
+                world.url_bot, world.body, world.signature, world.payload, parsed, now=_at(0)
+            )
+
+        assert routed == 0
+        lookup.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_the_url_bot_is_never_routed_a_change_even_if_the_lookup_returns_it(self, world):
+        """The URL bot's own secret verifies the body; that must not make it a candidate."""
+        world.url_bot.whatsapp_account_id = "WABA1"
+        world.url_bot.whatsapp_phone_number_id = "PNID2"
+
+        assert await world.route() == 0
+        world.service.receive.assert_not_awaited()
+
+    async def test_a_routed_bots_failure_to_record_fails_the_batch(self, world):
+        world.owner(self.URL_SECRET)
+        world.service.receive.side_effect = RuntimeError("could not record")
+
+        with pytest.raises(RuntimeError):
+            await world.route()
+
+    async def test_every_change_for_a_routed_number_is_counted_as_routed(self, world, caplog):
+        """Changes [A, B, B] with B routed: nothing was dropped, so the URL bot logs nothing."""
+        world.payload["entry"][0]["changes"].append(
+            json.loads(json.dumps(world.payload["entry"][0]["changes"][1]))
+        )
+        world.body = json.dumps(world.payload).encode()
+        world.signature = _signed(world.body, self.URL_SECRET)
+        world.owner(self.URL_SECRET)
+
+        routed = await world.route()
+
+        assert routed == 2
+        assert world.parsed is not None and world.parsed.foreign == 2
+        with caplog.at_level(logging.INFO):
+            inbound.log_parsed(world.url_bot, world.parsed, routed=routed)
+        assert caplog.records == []
+
+    @pytest.mark.security
+    async def test_a_candidate_whose_secret_cannot_be_read_is_logged_when_another_is_routed(
+        self, world, caplog
+    ):
+        broken = world.owner(RuntimeError("sealed with a retired key"))
+        right = world.owner(self.URL_SECRET)
+
+        with caplog.at_level(logging.WARNING):
+            routed = await world.route()
+
+        assert routed == 1
+        assert [bot for bot, _ in world.received()] == [right]
+        [record] = [r for r in caplog.records if r.message == "whatsapp_owner_secret_unreadable"]
+        assert (record.bot_id, record.owner_id, record.phone_number_id, record.error) == (
+            str(world.url_bot.id),
+            str(broken.id),
+            "PNID2",
+            "RuntimeError",
+        )
+        assert "retired" not in caplog.text
+
+    @pytest.mark.security
+    async def test_no_customer_id_number_or_text_is_logged_for_a_routed_or_refused_change(
+        self, world, caplog
+    ):
+        world.owner(self.URL_SECRET)
+        world.owner("another-secret", number="PNID3")
+        world.payload["entry"][0]["changes"].append(
+            json.loads(json.dumps(world.payload["entry"][0]["changes"][1]))
+        )
+        world.payload["entry"][0]["changes"][-1]["value"]["metadata"]["phone_number_id"] = "PNID3"
+        world.body = json.dumps(world.payload).encode()
+        world.signature = _signed(world.body, self.URL_SECRET)
+
+        with caplog.at_level(logging.DEBUG):
+            await world.route()
+
+        for record in caplog.records:
+            extra = " ".join(f"{k}={v}" for k, v in record.__dict__.items())
+            for leaked in ("US.111", "US.222", "wamid.", "for b", "4915112345678", "secret"):
+                assert leaked not in extra
+
+
+class TestLoggingAParsedBatch:
+    def _parsed(self, **counts: int) -> ParsedWebhook:
+        return ParsedWebhook(
+            messages=(),
+            statuses=(),
+            foreign=counts.get("foreign", 0),
+            stale=counts.get("stale", 0),
+            unidentified=counts.get("unidentified", 0),
+            ignored=counts.get("ignored", 0),
+            others=(),
+        )
+
+    def test_the_changes_that_were_routed_are_not_counted_foreign(self, caplog):
+        bot = _bot()
+        with caplog.at_level(logging.INFO):
+            inbound.log_parsed(bot, self._parsed(foreign=3), routed=2)
+
+        [record] = [r for r in caplog.records if r.message == "whatsapp_webhook_dropped"]
+        assert (record.levelname, record.foreign) == ("WARNING", 1)
+
+    def test_an_owners_record_counts_no_foreign_changes(self, caplog):
+        with caplog.at_level(logging.INFO):
+            inbound.log_parsed(_bot(), self._parsed(foreign=2, unidentified=1), owner=True)
+
+        [record] = caplog.records
+        assert (record.foreign, record.unidentified) == (0, 1)
+
+    def test_a_batch_whose_foreign_changes_were_all_routed_logs_no_warning(self, caplog):
+        with caplog.at_level(logging.INFO):
+            inbound.log_parsed(_bot(), self._parsed(foreign=2), routed=2)
+
+        assert caplog.records == []
+
+    def test_stale_and_ignored_are_counted_at_info(self, caplog):
+        with caplog.at_level(logging.INFO):
+            inbound.log_parsed(_bot(), self._parsed(stale=1, ignored=2))
+
+        [record] = caplog.records
+        assert (record.levelname, record.stale, record.ignored) == ("INFO", 1, 2)

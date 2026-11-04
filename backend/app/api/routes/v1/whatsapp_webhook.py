@@ -25,6 +25,7 @@ from fastapi.responses import PlainTextResponse
 
 from app.api.deps import ChannelBotSvc, WhatsAppInboundSvc
 from app.services.channel_bot import unseal_webhook_secret, unseal_whatsapp_verify_token
+from app.services.channels.whatsapp_inbound import log_parsed
 from app.services.channels.whatsapp_payload import parse_webhook, verify_signature
 from app.services.workflow_execution.exceptions import WorkflowRunInputTooLargeError
 from app.services.workflow_execution.resume import read_workflow_body
@@ -99,38 +100,17 @@ async def whatsapp_events(
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Not a WhatsApp webhook")
 
+    now = datetime.now(UTC)
     parsed = parse_webhook(
         payload,
         phone_number_id=bot.whatsapp_phone_number_id,
         account_id=bot.whatsapp_account_id,
-        now=datetime.now(UTC),
+        now=now,
     )
-    # Counts only: a dropped message's content can carry a customer's number.
-    if parsed.foreign or parsed.unidentified:
-        logger.warning(
-            "whatsapp_webhook_dropped",
-            extra={
-                "bot_id": str(bot.id),
-                "foreign": parsed.foreign,
-                "unidentified": parsed.unidentified,
-            },
-        )
-    if parsed.stale or parsed.ignored:
-        logger.info(
-            "whatsapp_webhook_dropped",
-            extra={"bot_id": str(bot.id), "stale": parsed.stale, "ignored": parsed.ignored},
-        )
-    for status in parsed.statuses:
-        if status.status == "failed":
-            # Never the wamid: it is base64 of ids that include the customer's number.
-            logger.info(
-                "whatsapp_status_failed",
-                extra={
-                    "bot_id": str(bot.id),
-                    "status": "failed",
-                    "codes": list(status.error_codes),
-                },
-            )
+    routed = await inbound.route_others(
+        bot, body, request.headers.get("x-hub-signature-256"), payload, parsed, now=now
+    )
+    log_parsed(bot, parsed, routed=routed)
 
     # A customer that cannot be recorded fails the whole batch with a 500 on purpose:
     # Meta retries it for days, and a message that was never queued would be lost.

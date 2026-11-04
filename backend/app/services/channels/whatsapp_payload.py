@@ -80,7 +80,10 @@ class ParsedWebhook:
     """What one webhook body held for one bot.
 
     `foreign` counts whole changes (another number or account); `stale`,
-    `unidentified` and `ignored` count messages.
+    `unidentified` and `ignored` count messages. `others` lists the distinct
+    `(account id, phone-number id)` pairs of the foreign changes, sorted; a change
+    that names no usable pair is counted and not listed. `own` counts the changes
+    read as the bot's own.
     """
 
     messages: tuple[WhatsAppMessage, ...]
@@ -89,6 +92,8 @@ class ParsedWebhook:
     stale: int
     unidentified: int
     ignored: int
+    others: tuple[tuple[str, str], ...] = ()
+    own: int = 0
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
@@ -220,7 +225,8 @@ def parse_webhook(
     """
     messages: list[WhatsAppMessage] = []
     statuses: list[WhatsAppStatus] = []
-    foreign = stale = unidentified = ignored = 0
+    foreign = stale = unidentified = ignored = own = 0
+    others: set[tuple[str, str]] = set()
     entries = payload.get("entry")
     for entry in entries if isinstance(entries, list) else []:
         changes = _mapping(entry).get("changes")
@@ -228,12 +234,14 @@ def parse_webhook(
             if _mapping(change).get("field") != "messages":
                 continue
             value = _mapping(_mapping(change).get("value"))
-            if (
-                _mapping(entry).get("id") != account_id
-                or _mapping(value.get("metadata")).get("phone_number_id") != phone_number_id
-            ):
+            entry_id = _mapping(entry).get("id")
+            number_id = _mapping(value.get("metadata")).get("phone_number_id")
+            if entry_id != account_id or number_id != phone_number_id:
                 foreign += 1
+                if isinstance(entry_id, str) and isinstance(number_id, str):
+                    others.add((entry_id, number_id))
                 continue
+            own += 1
             raw_contacts = value.get("contacts")
             contacts = {
                 uid: _mapping(contact)
@@ -264,6 +272,8 @@ def parse_webhook(
         stale=stale,
         unidentified=unidentified,
         ignored=ignored,
+        others=tuple(sorted(others)),
+        own=own,
     )
 
 

@@ -108,6 +108,31 @@ def test_changes_for_another_number_or_account_are_counted_foreign_and_dropped()
     assert parsed.foreign == 2
 
 
+def test_the_other_numbers_of_a_batch_are_listed_once_and_sorted():
+    payload = _load("mixed_numbers")
+    other = payload["entry"][2]["changes"][0]
+    payload["entry"][2]["changes"].append(json.loads(json.dumps(other)))
+    payload["entry"].append({"id": "WABA0", "changes": [json.loads(json.dumps(other))]})
+    payload["entry"][-1]["changes"][0]["value"]["metadata"]["phone_number_id"] = "PNID5"
+
+    parsed = parse_webhook(payload, phone_number_id="PNID1", account_id="WABA1", now=NOW)
+
+    assert parsed.others == (("WABA0", "PNID5"), ("WABA1", "PNID9"), ("WABA9", "PNID1"))
+    assert parsed.foreign == 4
+    assert parsed.own == 1
+
+
+def test_a_change_with_no_phone_number_id_is_counted_and_not_listed():
+    payload = _load("mixed_numbers")
+    del payload["entry"][1]["changes"][0]["value"]["metadata"]["phone_number_id"]
+    payload["entry"][2]["id"] = 7
+
+    parsed = parse_webhook(payload, phone_number_id="PNID1", account_id="WABA1", now=NOW)
+
+    assert parsed.others == ()
+    assert parsed.foreign == 2
+
+
 def test_a_message_older_than_seven_days_is_dropped():
     assert MAX_MESSAGE_AGE.days == 7
     parsed = _parse("text", now=NOW + timedelta(days=8))

@@ -16,8 +16,10 @@ under the chat's lock, which is released while the batch is routed because
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +36,7 @@ from app.repositories import (
     conversation_repo,
     whatsapp_customer_repo,
 )
-from app.services.channel_bot import unseal_bot_token
+from app.services.channel_bot import unseal_bot_token, unseal_webhook_secret
 from app.services.channels.base import OutgoingMessage
 from app.services.channels.dedupe import claim_delivery
 from app.services.channels.handback import NOTICES
@@ -48,8 +50,10 @@ from app.services.channels.whatsapp_payload import (
     ParsedWebhook,
     WhatsAppMessage,
     group_by_customer,
+    parse_webhook,
     to_event,
     to_incoming,
+    verify_signature,
 )
 from app.services.channels.whatsapp_window import FILES_NOT_DELIVERED
 from app.worker.background.channel import process_channel_events_in_order
@@ -72,9 +76,129 @@ def _run_id(callback: str | None) -> UUID | None:
         return None
 
 
+def log_parsed(
+    bot: ChannelBot, parsed: ParsedWebhook, *, routed: int = 0, owner: bool = False
+) -> None:
+    """Log what a parsed batch dropped for one bot.
+
+    `routed` is how many foreign changes were handed to the bots that own them: they
+    are not dropped. `owner` marks a bot that was handed its own changes: the other
+    changes in the body belong to the URL bot and are not its to report, so its
+    record counts no foreign changes. Counts only: a dropped message's content can
+    carry a customer's number.
+    """
+    foreign = 0 if owner else parsed.foreign - routed
+    if foreign or parsed.unidentified:
+        logger.warning(
+            "whatsapp_webhook_dropped",
+            extra={
+                "bot_id": str(bot.id),
+                "foreign": foreign,
+                "unidentified": parsed.unidentified,
+            },
+        )
+    if parsed.stale or parsed.ignored:
+        logger.info(
+            "whatsapp_webhook_dropped",
+            extra={"bot_id": str(bot.id), "stale": parsed.stale, "ignored": parsed.ignored},
+        )
+    for status in parsed.statuses:
+        if status.status == "failed":
+            # Never the wamid: it is base64 of ids that include the customer's number.
+            logger.info(
+                "whatsapp_status_failed",
+                extra={
+                    "bot_id": str(bot.id),
+                    "status": "failed",
+                    "codes": list(status.error_codes),
+                },
+            )
+
+
 class WhatsAppInbound:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def route_others(
+        self,
+        url_bot: ChannelBot,
+        body: bytes,
+        signature: str | None,
+        payload: Mapping[str, Any],
+        parsed: ParsedWebhook,
+        *,
+        now: datetime,
+    ) -> int:
+        """Hand each change for another number to the bot that owns it; returns the changes routed.
+
+        One Meta app serves several numbers through one callback URL, and each bot
+        keeps its own app secret. A bot is given a change only when *its own* secret
+        verifies the body, so the URL bot's signature never admits a change on its
+        own: routing takes bots on numbers of the same Meta app, which hold the same
+        app secret. Exactly one such bot may own a number: none, or several, and the
+        change is dropped and logged. A bot whose secret cannot be read is not
+        admitted, and does not fail the batch. The owner may belong to another
+        organization; the signature is the rule.
+
+        Raises:
+            Exception: Whatever `receive` raised for a routed bot. It fails the whole
+                batch, as for the URL bot, and Meta delivers it again.
+        """
+        if not parsed.others:
+            return 0
+        owners = await channel_bot_repo.get_active_whatsapp_by_numbers(self.db, pairs=parsed.others)
+        routed = 0
+        for account_id, phone_number_id in parsed.others:
+            candidates = [
+                bot
+                for bot in owners
+                if bot.id != url_bot.id
+                and (bot.whatsapp_account_id, bot.whatsapp_phone_number_id)
+                == (account_id, phone_number_id)
+            ]
+            admitted: list[ChannelBot] = []
+            for bot in candidates:
+                try:
+                    secret = unseal_webhook_secret(bot)
+                    if secret and verify_signature(body, signature, secret):
+                        admitted.append(bot)
+                except Exception as exc:
+                    logger.warning(
+                        "whatsapp_owner_secret_unreadable",
+                        extra={
+                            "bot_id": str(url_bot.id),
+                            "owner_id": str(bot.id),
+                            "phone_number_id": phone_number_id,
+                            "error": type(exc).__name__,
+                        },
+                    )
+            if len(admitted) > 1:
+                logger.warning(
+                    "whatsapp_number_ambiguous",
+                    extra={
+                        "bot_id": str(url_bot.id),
+                        "phone_number_id": phone_number_id,
+                        "count": len(admitted),
+                    },
+                )
+                continue
+            if not admitted:
+                logger.warning(
+                    "whatsapp_number_unrouted",
+                    extra={
+                        "bot_id": str(url_bot.id),
+                        "phone_number_id": phone_number_id,
+                    },
+                )
+                continue
+            (owner,) = admitted
+            for_owner = parse_webhook(
+                payload, phone_number_id=phone_number_id, account_id=account_id, now=now
+            )
+            log_parsed(owner, for_owner, owner=True)
+            await self.receive(owner, for_owner)
+            routed += for_owner.own
+        return routed
 
     async def receive(self, bot: ChannelBot, parsed: ParsedWebhook) -> None:
         """Record every customer's latest message time, then queue each customer's batch.
