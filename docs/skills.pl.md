@@ -1,5 +1,5 @@
 ---
-source_sha: "f6a650da99f7"
+source_sha: "164320c8c033"
 ---
 
 # Skille { #skills }
@@ -313,7 +313,10 @@ nie widzisz, jest liczbą, nigdy nazwą.
 ### Gdy agent wypadł gorzej { #when-an-agent-got-worse }
 
 **Check on agents** w zakładce Skille wycenia sprawdzenie, uruchamia je, pokazuje
-wynik każdego agenta, a potem stosuje albo odrzuca zmianę. Sprawdzenie, które
+wynik każdego agenta, a potem stosuje albo odrzuca zmianę. W trakcie pasek liczy
+sprawdzonych agentów, a przy każdym agencie widać, czy czeka, trwa, czy ma już
+wynik. Okno można zamknąć: strona skilla pokazuje wtedy **Sprawdzanie trwa**, a
+**Pokaż** otwiera sprawdzenie ponownie, dopóki o nim nie zdecydujesz. Sprawdzenie, które
 uruchomiła [sesja Popraw](#improving-a-skill), rozstrzyga się w tej sesji, a Check
 on agents prowadzi do niej. Na main osoba może nadal:
 
@@ -652,8 +655,9 @@ Każdy wiersz mówi, czy
 serwuje, i z jakim wynikiem; wersja nigdy na nim niesprawdzona jest **nieznana**.
 
 Pod tabelą osoba, która może przeglądać runy, widzi, jak często każdy agent
-otwierał skill w ostatnich 30 dniach i ile jego plików przeczytał. Runy ewaluacji i
-panelu testowego Buildera się nie liczą.
+otwierał skill w ostatnich 30 dniach: linię na agenta dzień po dniu, a pod nią
+tabelę z wczytaniami każdego agenta, przeczytanymi plikami i tym, kiedy ostatnio
+użył skilla. Runy ewaluacji i panelu testowego Buildera się nie liczą.
 
 **Zmień wersję** przenosi jednego agenta na main, na przypiętą wersję main albo na
 fork, tak jak opisuje [Którą wersję czyta agent](#which-version-an-agent-reads): co
@@ -673,10 +677,13 @@ na jej własnej linii, a agenci podążający za tą linią dostają ją od razu
 numeruje wersje od 1 tak jak main, więc noszą jego nazwę - „Returns v2” - a
 historia main zaznacza wersję, od której startuje każdy fork.
 
-**Drzewo wersji** rysuje main od najnowszej wersji w dół, każdy fork odchodzący od
-wersji, od której wystartował, i agentów przy wersji, której używają. Na linii z
-co najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijają się do
-jednego wiersza.
+**Drzewo wersji** rysuje main jako linię pól od lewej do prawej, kończącą się na
+najnowszej wersji. Każdy fork odchodzi na własnym torze od wersji, od której
+wystartował, a każdy agent siedzi w polu wersji, której używa. Na linii z co
+najmniej ośmioma wersjami odcinki, których nie używa żaden agent, zwijają się do
+jednego pola. **Porównaj** przy wersji dodaje ją do porównania pod diagramem.
+Wybierz dowolnie wiele wersji, z main i z forków, żeby zobaczyć obok siebie ich
+opisy, instrukcje i pliki.
 
 **Edytuj** zapisuje nową wersję na widocznej linii. Na main agenci podążający za
 main dostają ją od razu; przypięci agenci i forki zostają przy swojej wersji.
@@ -692,10 +699,13 @@ zmianę zrobić; pozostali otwierają skill tylko do odczytu.
 nazwą, i może od razu przenieść na niego agentów, każdego przez Zmień wersję. Fork
 czyta się tak samo jak jego baza, dopóki ktoś go nie edytuje.
 
-**Usuń**, w menu edytora, usuwa skill, którego nikt nie używa, razem z jego
-wersjami i forkami. Dopóki agenci go używają, okno ich wymienia i nie oferuje
-usunięcia: najpierw przenieś każdego na inny skill albo usuń z niego skill w
-Builderze.
+**Usuń**, obok Edytuj w nagłówku strony, usuwa skill razem z jego wersjami i
+forkami. Dopóki agenci go używają, okno ich wymienia. Jeśli możesz zmieniać każdego
+z nich, proponuje **Odepnij od N agentów i usuń**, które wymienia ich jeszcze raz do
+drugiego potwierdzenia. Potem odpina skill od każdego agenta i go usuwa. Jeśli
+wśród agentów są tacy, których nie możesz zmieniać albo nie widzisz, okno o tym
+mówi i nie proponuje usunięcia: najpierw odepnij skill od tych agentów w Builderze
+albo poproś kogoś, kto może.
 
 ### Poprawianie skilla { #improving-a-skill }
 
@@ -705,17 +715,25 @@ agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wyni
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
-Start mówi, ile odpowiedzi przeczyta i od ilu agentów. Zanim zmiany zostaną
+Start mówi, ile odpowiedzi przeczyta i od ilu agentów. Mówi też, ile kosztuje
+dojście do pierwszej propozycji i każda kolejna próba. Limit wydatków jest wypełniony
+tak, żeby pokrył pierwszą propozycję i każdą próbę, jaką sesja może zrobić, i
+obejmuje całą sesję. Zanim zmiany zostaną
 sprawdzone, następny krok wymienia każdego agenta linii, na którym ruszy
 sprawdzenie, i tych, których nie da się sprawdzić, z powodem - brak pytań
 testowych, brak prawa do uruchomienia, wyczerpany budget, brak opublikowanej wersji
 albo run, który nie ocenił wszystkich odpowiedzi. Agentów, których nie widzisz,
 liczy.
 
-Wynik ma wiersz dla każdego agenta: lepiej, bez zmian, w granicach szumu, gorzej
-albo nie wiadomo, z agentami do obejrzenia na górze, z pytaniami, które naprawił i
-zepsuł, i linkiem do runu. Agent sprawdzony tylko na własnych pytaniach skilla, bo
-nie miał swoich tam, gdzie wczytał skill, mówi o tym.
+Wynik zaczyna się od paska, który liczy agentów lepszych, bez zmian, gorszych i
+tych, o których nie wiadomo. Pod nim jest wiersz dla każdego agenta: lepiej, bez
+zmian, w granicach szumu, gorzej albo nie wiadomo, z agentami do obejrzenia na
+górze. Każdy wiersz ma mały pasek pytań naprawionych wobec zepsutych.
+
+Wiersz rozwija się do szczegółów: liczb, linku do runu i informacji, czy agenta sprawdzono
+tylko na własnych pytaniach skilla, bo nie miał swoich tam, gdzie wczytał skill.
+Otwarty wiersz dostaje znacznik **Obejrzany**, a linia nad wierszami liczy, ilu
+agentów już obejrzałeś, więc widać, kto został.
 
 To, co proponuje Akceptacja, wynika z wyniku:
 

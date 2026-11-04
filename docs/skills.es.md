@@ -1,5 +1,5 @@
 ---
-source_sha: "f6a650da99f7"
+source_sha: "164320c8c033"
 ---
 
 # Skills { #skills }
@@ -325,7 +325,11 @@ puedes ver es un número, nunca un nombre.
 ### Cuando un agent quedó peor { #when-an-agent-got-worse }
 
 **Check on agents** en Skills calcula el precio de la comprobación, la ejecuta,
-muestra el resultado de cada agent y luego aplica o descarta el cambio. Una
+muestra el resultado de cada agent y luego aplica o descarta el cambio. Mientras se
+ejecuta, una barra cuenta los agents terminados y cada agent muestra si espera, se
+está comprobando o ya tiene su resultado. Puedes cerrar el diálogo: la página del
+skill muestra entonces **Comprobación en curso**, y **Mostrar** vuelve a abrir la
+comprobación hasta que la decidas. Una
 comprobación que inició una [sesión de Improve](#improving-a-skill) se decide en
 esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
 
@@ -672,8 +676,9 @@ Cada fila dice si una
 con qué resultado; una versión nunca comprobada en él es **desconocida**.
 
 Debajo de la tabla, quien puede ver runs ve con qué frecuencia cada agent abrió el
-skill en los últimos 30 días y cuántos de sus archivos leyó. Los runs de evals y del
-panel de pruebas del Builder no cuentan.
+skill en los últimos 30 días: una línea por agent, día a día, y debajo una tabla con
+las cargas de cada agent, los archivos que leyó y cuándo usó el skill por última vez.
+Los runs de evals y del panel de pruebas del Builder no cuentan.
 
 **Cambiar versión** mueve un agent a main, a una versión fijada de main o a un fork,
 como describe [Qué versión lee un agent](#which-version-an-agent-reads): qué se
@@ -695,9 +700,13 @@ reciben de inmediato. Un fork numera sus versiones desde 1 como main, así que l
 su nombre - "Returns v2" - y el historial de main marca la versión desde la que
 empieza cada fork.
 
-**Árbol de versiones** dibuja main desde su versión más nueva hacia abajo, cada fork
-desde la versión en que empezó y los agents junto a la versión que usan. En una línea
-de ocho versiones o más, los tramos que ningún agent usa se pliegan en una sola fila.
+**Árbol de versiones** dibuja main como una línea de cajas de izquierda a derecha que
+termina en su versión más nueva. Cada fork sale, en un carril propio, de la versión
+en que empezó, y cada agent está en la caja de la versión que usa. En una línea de
+ocho versiones o más, los tramos que ningún agent usa se pliegan en una sola caja.
+**Comparar** en una versión la añade a una comparación debajo del diagrama. Elige
+tantas versiones como quieras, de main y de forks, para ver lado a lado sus
+descripciones, instrucciones y archivos.
 
 **Editar** guarda una versión nueva en la línea en pantalla. En main, los agents que
 siguen main la reciben de inmediato; los agents fijados y los forks conservan su
@@ -713,9 +722,13 @@ quien puede hacer ese cambio; los demás abren el skill en modo de solo lectura.
 des, y puede mover agents a él de inmediato, cada uno como un Cambiar versión. El fork
 se lee igual que su base hasta que se edita.
 
-**Eliminar**, en el menú del editor, elimina un skill que nadie usa, con sus versiones
-y forks. Mientras haya agents que lo usan, el diálogo los nombra y no ofrece eliminar:
-primero mueve cada uno a otro skill o quita el skill en el Builder.
+**Eliminar**, junto a Editar en la cabecera de la página, elimina el skill con sus
+versiones y forks. Mientras haya agents que lo usan, el diálogo los nombra. Si puedes
+cambiar cada uno de ellos, ofrece **Quitar de N agents y eliminar**, que los vuelve a
+listar para una segunda confirmación. Luego quita el skill de cada agent y lo
+elimina. Si entre ellos hay agents que no puedes cambiar o no ves, el diálogo lo dice
+y no ofrece eliminar: quita primero el skill de esos agents en el Builder, o pídeselo
+a alguien que pueda.
 
 ### Mejorar un skill { #improving-a-skill }
 
@@ -725,17 +738,25 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
-Al empezar dice cuántas respuestas lee y de cuántos agents. Antes de comprobar los
+Al empezar dice cuántas respuestas lee y de cuántos agents. También dice cuánto
+cuesta llegar a la primera propuesta y cada intento posterior. El límite de gasto
+viene rellenado para cubrir la primera propuesta y cada intento que la sesión puede
+hacer, y limita toda la sesión. Antes de comprobar los
 cambios, el siguiente paso nombra cada agent de la línea en el que se ejecuta la
 comprobación, y los que no puede comprobar, con el motivo - sin preguntas de
 prueba, sin permiso para ejecutarlo, sin budget, sin versión publicada o un run
 que no pudo calificar todas las respuestas. Los agents que no puedes ver se
 cuentan.
 
-El resultado tiene una fila por agent: mejor, sin cambios, dentro del ruido, peor
-o desconocido, con los que hay que mirar primero arriba, las preguntas que arregló
-y estropeó y un enlace a su run. Un agent comprobado solo con las preguntas propias
-del skill, porque no tenía las suyas donde cargó el skill, lo indica.
+El resultado empieza con una barra que cuenta los agents que salieron mejor, sin
+cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, sin cambios,
+dentro del ruido, peor o desconocido, con los que hay que mirar primero arriba. Cada
+fila tiene una pequeña barra de las preguntas que arregló frente a las que estropeó.
+
+Una fila se abre a sus detalles: los recuentos, un enlace a su run y si se comprobó
+solo con las preguntas propias del skill, porque no tenía las suyas donde cargó el
+skill. Una fila que has abierto queda marcada como **Vista**, y una línea encima
+cuenta cuántas has mirado, para que veas qué agents quedan.
 
 Lo que ofrece Aceptar depende del resultado:
 

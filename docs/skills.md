@@ -300,7 +300,10 @@ name.
 ### When an agent got worse { #when-an-agent-got-worse }
 
 **Check on agents** under Skills prices the check, runs it, shows each agent's
-result and then applies or discards the change. A check an
+result and then applies or discards the change. While it runs, a bar counts the
+agents done, and each agent shows whether it waits, runs or has its result. You can
+close the dialog: the skill's page then shows **Check running**, and **Show** opens
+the check again, until you decide it. A check an
 [Improve session](#improving-a-skill) started is decided in that session, and Check
 on agents links there instead. On main a person may still:
 
@@ -634,8 +637,9 @@ Each row says whether a
 and how it did; a version never checked on it is **unknown**.
 
 Under the table, a reader who may view runs sees how often each agent opened the
-skill in the last 30 days and how many of its files it read. Runs of evals and of
-the Builder's test panel are not counted.
+skill in the last 30 days: a line per agent by day, then a table of each agent's
+loads, the files it read and when it last used the skill. Runs of evals and of the
+Builder's test panel are not counted.
 
 **Change version** moves one agent to main, to a pinned main version, or to a fork,
 as [Which version an agent reads](#which-version-an-agent-reads) describes: what
@@ -655,9 +659,13 @@ the newest on its own line, and the agents following that line get it at once. A
 fork numbers its versions from 1 like main, so they carry its name - "Returns v2" -
 and main's history marks the version each fork starts from.
 
-**Version tree** draws main from its newest version down, each fork off the version
-it started from, and agents at the version they use. On a line of eight versions or
-more, stretches that no agent uses fold into one row.
+**Version tree** draws main as a line of boxes from left to right, ending at its
+newest version. Each fork branches off the version it started from on a lane of its
+own, and every agent sits in the box of the version it uses. On a line of eight
+versions or more, stretches that no agent uses fold into one box. **Compare** on a
+version puts it in a comparison under the diagram. Pick as many versions as you
+like, from main and forks alike, to see their descriptions, instructions and files
+side by side.
 
 **Edit** saves a new version on the line on screen. On main, the agents following
 main get it at once; pinned agents and forks keep their version. A changed text is
@@ -673,9 +681,13 @@ that change; anybody else opens the skill read-only.
 and can move agents onto it at once, each as a Change version. The fork reads the
 same as its base until it is edited.
 
-**Delete**, in the editor's menu, deletes a skill nobody uses, with its versions and
-forks. While agents use it, the dialog names them and offers no delete: move each
-to another skill, or remove the skill from it in the Builder, first.
+**Delete**, beside Edit in the page header, deletes the skill with its versions and
+forks. While agents use it, the dialog names them. If you may change every one of
+them, it offers **Remove from N agents and delete**, which lists them again for a
+second confirmation. It then takes the skill off each agent and deletes it. If some
+of the agents are ones you may not change or cannot see, it says so and offers no
+delete: remove the skill from those agents in the Builder first, or ask someone who
+may.
 
 ### Improving a skill { #improving-a-skill }
 
@@ -684,16 +696,24 @@ fork picked in the chips - in the same five steps as [improving an agent](author
 Understand, Changes, Check, Result and Accept. It stops for you after Understand,
 after Changes and at the result, and changes nothing until you accept.
 
-Its start says how many answers it reads, from how many agents. Before the changes
+Its start says how many answers it reads, from how many agents. It also says what
+it costs to the first proposal and each attempt after it. The spending limit is
+filled in to cover the first proposal and every attempt the session may make, and
+caps the whole session. Before the changes
 are checked, Next step names every agent of the line the check runs on, and the
 ones it cannot, with the reason - no test questions, no permission to run it, no
 budget left, no published version, or a run that could not grade every answer.
 Agents you cannot see are counted.
 
-The result has a row for each agent: better, no change, within noise, worse or
-unknown, the agents to look at first on top, with the questions it fixed and broke
-and a link to its run. An agent checked only on the skill's own questions, because
-it had none of its own where it loaded the skill, says so.
+The result opens with a bar that counts the agents that came out better, with no
+change, worse, or not known. Under it is a row for each agent: better, no change,
+within noise, worse or unknown, with the agents to look at first on top. Each row
+has a small bar of the questions it fixed against the ones it broke.
+
+A row opens to its details: the counts, a link to its run, and whether it was
+checked only on the skill's own questions because it had none of its own where it
+loaded the skill. A row you have opened is marked **Seen**, and a line above the rows counts how many
+you have looked at, so you can see which agents are left.
 
 What Accept offers comes from the result:
 

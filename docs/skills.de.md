@@ -1,5 +1,5 @@
 ---
-source_sha: "f6a650da99f7"
+source_sha: "164320c8c033"
 ---
 
 # Skills { #skills }
@@ -337,7 +337,11 @@ ein Name.
 ### Wenn ein Agent schlechter wurde { #when-an-agent-got-worse }
 
 **Check on agents** unter Skills schätzt die Prüfung, führt sie aus, zeigt das
-Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Eine
+Ergebnis jedes Agents und wendet die Änderung dann an oder verwirft sie. Während sie
+läuft, zählt ein Balken die fertigen Agents, und jeder Agent zeigt, ob er wartet,
+läuft oder sein Ergebnis hat. Sie können den Dialog schließen: Die Seite des Skills
+zeigt dann **Prüfung läuft**, und **Anzeigen** öffnet die Prüfung wieder, bis Sie
+entscheiden. Eine
 Prüfung, die eine [Verbessern-Sitzung](#improving-a-skill) gestartet hat, wird in
 dieser Sitzung entschieden, und Check on agents verweist dorthin. Auf main kann
 eine Person dennoch:
@@ -707,8 +711,9 @@ Version gemessen hat, die der Agent ausliefert, und mit welchem Ergebnis; eine n
 ihm geprüfte Version ist **unbekannt**.
 
 Unter der Tabelle sieht, wer Runs ansehen darf, wie oft jeder Agent den Skill in den
-letzten 30 Tagen geöffnet und wie viele seiner Dateien er gelesen hat. Runs von Evals
-und vom Testbereich des Builders zählen nicht.
+letzten 30 Tagen geöffnet hat: eine Linie pro Agent nach Tagen, darunter eine Tabelle
+mit den Ladevorgängen jedes Agents, den gelesenen Dateien und wann er den Skill
+zuletzt genutzt hat. Runs von Evals und vom Testbereich des Builders zählen nicht.
 
 **Version ändern** setzt einen Agent auf main, auf eine festgesetzte main-Version
 oder auf einen Fork, wie [Welche Version ein Agent
@@ -732,10 +737,13 @@ Linie folgen, bekommen sie sofort. Ein Fork nummeriert seine Versionen ab 1 wie
 main, deshalb tragen sie seinen Namen - „Returns v2“ -, und der Verlauf von main
 markiert die Version, bei der jeder Fork beginnt.
 
-**Versionsbaum** zeichnet main von der neuesten Version abwärts, jeden Fork von der
-Version, bei der er begann, und die Agents bei der Version, die sie nutzen. Auf einer
-Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu einer
-Zeile zusammengefaltet.
+**Versionsbaum** zeichnet main als Reihe von Feldern von links nach rechts, die bei
+der neuesten Version endet. Jeder Fork zweigt auf einer eigenen Spur von der Version
+ab, bei der er begann, und jeder Agent steht im Feld der Version, die er nutzt. Auf
+einer Linie mit acht oder mehr Versionen werden Abschnitte, die kein Agent nutzt, zu
+einem Feld zusammengefaltet. **Vergleichen** an einer Version legt sie in einen
+Vergleich unter dem Diagramm. Wählen Sie beliebig viele Versionen aus main und
+Forks, um ihre Beschreibungen, Anweisungen und Dateien nebeneinander zu sehen.
 
 **Bearbeiten** speichert eine neue Version auf der angezeigten Linie. Auf main
 bekommen die Agents, die main folgen, sie sofort; festgesetzte Agents und Forks
@@ -754,10 +762,13 @@ lesend.
 den Sie vergeben, und kann sofort Agents auf ihn verschieben, jeden als Version ändern.
 Der Fork liest sich wie seine Basis, bis er bearbeitet wird.
 
-**Löschen**, im Menü des Editors, löscht einen Skill, den niemand verwendet, mit
-seinen Versionen und Forks. Solange Agents ihn verwenden, nennt der Dialog sie und
-bietet kein Löschen an: Verschieben Sie zuerst jeden auf einen anderen Skill oder
-entfernen Sie den Skill im Builder.
+**Löschen**, neben Bearbeiten im Seitenkopf, löscht den Skill mit seinen Versionen
+und Forks. Solange Agents ihn verwenden, nennt der Dialog sie. Dürfen Sie jeden von
+ihnen ändern, bietet er **Von N Agents entfernen und löschen** an, das sie zur
+zweiten Bestätigung noch einmal aufführt. Dann entfernt er den Skill von jedem Agent
+und löscht ihn. Sind Agents darunter, die Sie nicht ändern dürfen oder nicht sehen,
+sagt der Dialog das und bietet kein Löschen an: Entfernen Sie den Skill zuerst im
+Builder von diesen Agents, oder bitten Sie jemanden, der es darf.
 
 ### Einen Skill verbessern { #improving-a-skill }
 
@@ -767,18 +778,27 @@ das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Ände
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
 
-Der Start sagt, wie viele Antworten sie liest und von wie vielen Agents. Bevor die
+Der Start sagt, wie viele Antworten sie liest und von wie vielen Agents. Er nennt
+auch, was der Weg bis zum ersten Vorschlag und jeder Versuch danach kostet. Das
+Ausgabenlimit ist so ausgefüllt, dass es den ersten Vorschlag und jeden Versuch der
+Sitzung deckt, und deckelt die ganze Sitzung. Bevor die
 Änderungen geprüft werden, nennt der nächste Schritt jeden Agent der Linie, auf dem
 die Prüfung läuft, und die, bei denen das nicht geht, mit Grund - keine Testfragen,
 kein Recht zum Ausführen, kein Budget mehr, keine veröffentlichte Version oder ein
 Run, der nicht jede Antwort bewerten konnte. Agents, die Sie nicht sehen, werden
 gezählt.
 
-Das Ergebnis hat eine Zeile pro Agent: besser, unverändert, im Rauschen, schlechter
-oder unbekannt, die wichtigsten zuerst, mit den behobenen und verschlechterten
-Fragen und einem Link zu seinem Run. Ein Agent, der nur auf den eigenen Fragen des
-Skills geprüft wurde, weil er keine eigenen hatte, bei denen er den Skill geladen
-hat, sagt das.
+Das Ergebnis beginnt mit einem Balken, der die Agents zählt, die besser,
+unverändert, schlechter oder unbekannt herauskamen. Darunter steht eine Zeile pro
+Agent: besser, unverändert, im Rauschen, schlechter oder unbekannt, die wichtigsten
+zuerst. Jede Zeile hat einen kleinen Balken der behobenen gegen die
+verschlechterten Fragen.
+
+Eine Zeile öffnet sich zu ihren Details: den Zahlen, einem
+Link zu ihrem Run und ob der Agent nur auf den eigenen Fragen des Skills geprüft
+wurde, weil er keine eigenen hatte, bei denen er den Skill geladen hat. Eine
+geöffnete Zeile ist als **Angesehen** markiert, und eine Zeile darüber zählt, wie
+viele Sie angesehen haben, damit Sie sehen, welche Agents noch fehlen.
 
 Was Annehmen anbietet, folgt aus dem Ergebnis:
 
