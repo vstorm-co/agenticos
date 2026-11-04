@@ -24,7 +24,7 @@ names no author is in the evidence column below.
 | Licence | Backend | Frontend |
 |---|---:|---:|
 | MIT | 102 | 253 |
-| Apache-2.0 | 71 | 24 |
+| Apache-2.0 | 72 | 24 |
 | BSD-3-Clause | 23 | 4 |
 | ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
@@ -50,7 +50,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-228 distributions.
+229 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -213,6 +213,7 @@ names no author is in the evidence column below.
 | pydantic | 2.14.1 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.39 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.64.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-ai-otari | 0.1.0 | Apache-2.0 | https://github.com/mozilla-ai/otari | License-Expression |
 | pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.64.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.50.1 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |

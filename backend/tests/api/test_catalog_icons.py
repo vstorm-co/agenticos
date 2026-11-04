@@ -61,3 +61,13 @@ async def test_a_traversal_shaped_name_is_404_not_a_file_read(client: AsyncClien
     any filesystem call, and the response must not distinguish why."""
     response = await client.get(f"{BASE}/..%2Fpyproject")
     assert response.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_otari_mark_is_bundled(client: AsyncClient) -> None:
+    listing = await client.get(BASE)
+    assert "otari" in listing.json()["items"]
+    response = await client.get(f"{BASE}/otari")
+    assert response.status_code == 200
+    assert 'aria-label="Otari"' in response.text
+    assert 'fill-rule="evenodd"' in response.text

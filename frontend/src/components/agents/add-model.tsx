@@ -121,11 +121,13 @@ export function soleKeyedProvider(
 export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
   if (providerId === undefined) return { key: "agents.pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
+  if (providerId === "otari") return "anthropic:claude-sonnet-4-6";
   return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
 
 /** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
+  if (providerId === "otari") return "agents.modelIdOtariHint";
   if (providerId === "openrouter") {
     return "agents.modelIdOpenRouterHint";
   }
@@ -307,12 +309,10 @@ export function AddModel({
     isLoading: loadingModels,
   } = useProviderModels(
     providerId,
-    // Only OpenRouter and Stav can be listed at an endpoint of the reader's: a
-    // regional or staging Stav serves its own catalogue, not the public one.
-    providerId === "openrouter" || providerId === "stav"
+    ["openrouter", "stav", "otari"].includes(providerId)
       ? baseUrl.trim().replace(/\/+$/, "") || undefined
       : undefined,
-    providerId === "stav" ? chosenKey || undefined : undefined,
+    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
   );
   // Stav.ai says per model which API it is served on, so nobody is asked.
   const apiFromModel = capabilities?.api_from_model ?? false;
@@ -683,9 +683,11 @@ export function AddModel({
               ? t("openRouterEndpointHint")
               : providerId === "stav"
                 ? t("stavEndpointHint")
-                : endpointRequired
-                  ? t("gatewayLitellmProxyModel")
-                  : t("optionalPointModelAt")
+                : providerId === "otari"
+                  ? t("otariEndpointHint")
+                  : endpointRequired
+                    ? t("gatewayLitellmProxyModel")
+                    : t("optionalPointModelAt")
           }
         >
           <Input

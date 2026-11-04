@@ -34,7 +34,8 @@ async def test_custom_listing_uses_the_endpoint_without_opening_a_vault_key():
     assert response.items[0].id == "vendor/chat"
 
 
-async def test_a_custom_stav_listing_sends_the_key_the_profile_will_send():
+@pytest.mark.parametrize("provider", ["stav", "otari"])
+async def test_a_custom_authenticated_listing_sends_the_selected_key(provider: str):
     secrets = MagicMock(spec=OrganizationSecretService)
     secrets.listing_key = AsyncMock(return_value="sk_stav_test")
     ctx, secret_id = context(), uuid4()
@@ -49,12 +50,12 @@ async def test_a_custom_stav_listing_sends_the_key_the_profile_will_send():
         ) as listing,
     ):
         await list_provider_models(
-            "stav", secrets, ctx, base_url="https://staging-api.stav.ai/v1", secret_id=secret_id
+            provider, secrets, ctx, base_url="https://staging-api.stav.ai/v1", secret_id=secret_id
         )
     listing.assert_awaited_once_with(
-        "stav", api_key="sk_stav_test", base_url="https://staging-api.stav.ai/v1"
+        provider, api_key="sk_stav_test", base_url="https://staging-api.stav.ai/v1"
     )
-    secrets.listing_key.assert_awaited_once_with(ctx, "stav", secret_id=secret_id)
+    secrets.listing_key.assert_awaited_once_with(ctx, provider, secret_id=secret_id)
 
 
 async def test_a_stav_listing_says_which_apis_each_model_is_served_on():
@@ -104,7 +105,8 @@ async def test_custom_listing_refuses_unsupported_provider_or_unsafe_url(
         )
 
 
-async def test_custom_stav_listing_cannot_use_an_implicit_organization_key() -> None:
+@pytest.mark.parametrize("provider", ["stav", "otari"])
+async def test_custom_listing_cannot_use_an_implicit_organization_key(provider: str) -> None:
     secrets = MagicMock(spec=OrganizationSecretService)
     with (
         patch(
@@ -115,7 +117,7 @@ async def test_custom_stav_listing_cannot_use_an_implicit_organization_key() -> 
         pytest.raises(BadRequestError),
     ):
         await list_provider_models(
-            "stav", secrets, context(), base_url="https://attacker.example/v1"
+            provider, secrets, context(), base_url="https://attacker.example/v1"
         )
     secrets.listing_key.assert_not_called()
     listing.assert_not_called()

@@ -290,15 +290,21 @@ body, so an `extra_body` in the profile's settings cannot replace it.
 
 Custom Stav catalogs use the vault key selected in the form. The caller must be able to see that key; the application never chooses a hidden organization key for a custom URL. Authenticated catalog caches are separated by credential. Request-level `extra_headers` cannot override the profile's EU or EEA restriction.
 
+### Otari gateway
+
+Select **Otari** when adding a model, save an Otari API key in the vault and select it for the profile. Leave **Endpoint** empty for `https://api.otari.ai/api/v1`. For an Otari EU account, set `https://eu.api.otari.ai/api/v1`; for a self-hosted gateway, use its API root ending in `/api/v1`, reachable from the API and workers.
+
+Model suggestions come from that gateway's authenticated `/models` endpoint using the selected key. A custom endpoint requires `connections:manage` and access to that key. Catalog caches are separated by endpoint and credential; a failed custom listing never substitutes the hosted catalog. The model field also accepts a model selector such as `anthropic:claude-sonnet-4-6`, or an alias/routing policy configured in Otari.
+
+The integration uses [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): its `OtariProvider` supplies the model-family profile to Pydantic AI's Chat Completions model, as `OtariModel` does. Requests always use Chat Completions; the form does not offer Responses or Stav's region controls. Keys and endpoints are passed explicitly from the profile, without an `OTARI_*` or `OPENAI_API_KEY` environment fallback. Otari's gateway budgets and routing are additional controls; AgenticOS still applies its own budgets and approvals.
+
+Models or routing aliases the bundled price catalog does not recognize remain explicitly partially priced in AgenticOS. Use Otari's usage view for gateway charges.
+
 ## Providers
 
-Twenty-nine: everything Pydantic AI ships that a chat profile can point at, and
-Stav, which is built here on Pydantic AI's OpenAI provider because it carries a
-region.
+Chat providers supported by Pydantic AI, plus Otari through its integration package and Stav with its regional routing.
 
-There is no per-provider builder here. Pydantic AI infers the provider class and
-the model wrapper from the id, and what this platform still has to know is the part
-inference cannot: **which credential shape a provider wants.**
+Standard providers use Pydantic AI's model and provider inference. The platform records credential shapes and integrates provider packages where needed.
 
 !!! info "What Custom URL means"
 
@@ -322,6 +328,7 @@ inference cannot: **which credential shape a provider wants.**
 | Anthropic | `anthropic` | API key | ✓ |
 | Google Gemini | `google` | API key | ✓ |
 | OpenRouter | `openrouter` | API key |  ✓ |
+| Otari | `otari` | API key | ✓ |
 | Alibaba Cloud | `alibaba` | API key | ✓ |
 | Cerebras | `cerebras` | API key | |
 | DeepSeek | `deepseek` | API key | |

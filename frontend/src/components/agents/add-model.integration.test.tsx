@@ -1684,3 +1684,31 @@ it("keeps an OpenRouter key and lists models at its selected regional endpoint",
     }),
   );
 });
+
+it("creates an Otari profile using its selected vault key and gateway model selector", async () => {
+  state.purposes = [...state.purposes, purpose("otari", "Otari")];
+  state.catalog = [...state.catalog, capabilities("otari", "Otari", { supports_base_url: true })];
+  state.secrets = [secret({ id: "s-otari", name: "Otari key", purpose: "otari" })];
+  state.models = [{ id: "anthropic:claude-sonnet-4-6", name: "Claude" }];
+  mount();
+  await pickProvider("Otari");
+  await userEvent.type(screen.getByLabelText("Endpoint"), "https://eu.api.otari.ai/api/v1");
+  expect(listingRequests).toHaveBeenLastCalledWith(
+    "otari",
+    "https://eu.api.otari.ai/api/v1",
+    "s-otari",
+  );
+  expect(screen.queryByLabelText("Region")).toBeNull();
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.click(screen.getByRole("option", { name: /anthropic:claude-sonnet-4-6/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      provider: "otari",
+      model: "anthropic:claude-sonnet-4-6",
+      secret_id: "s-otari",
+      base_url: "https://eu.api.otari.ai/api/v1",
+      api: null,
+    }),
+  );
+});

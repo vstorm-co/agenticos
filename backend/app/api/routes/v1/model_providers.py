@@ -400,7 +400,8 @@ async def list_provider_models(
     if base_url is not None:
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
-                "base_url", "Only OpenRouter and Stav support a custom model listing endpoint"
+                "base_url",
+                "Only OpenRouter, Stav and Otari support a custom model listing endpoint",
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(

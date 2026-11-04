@@ -233,6 +233,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
         _api_key("anthropic", "Anthropic", base_url_param="base_url"),
         _api_key("google", "Google Gemini", base_url_param="base_url"),
         _api_key("openrouter", "OpenRouter", base_url_param="base_url"),
+        _api_key("otari", "Otari", base_url_param="base_url", model_prefix="openai-chat"),
         _api_key("alibaba", "Alibaba Cloud", base_url_param="base_url"),
         _api_key("cerebras", "Cerebras"),
         _api_key("deepseek", "DeepSeek"),
@@ -417,6 +418,16 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
         return _google_cloud_provider(secret)
     if isinstance(secret, OpenAICodexSecret):
         return _openai_codex_provider(spec, credential.credential_source)
+
+    if spec.id == "otari":
+        from pydantic_ai_otari import DEFAULT_BASE_URL, OtariProvider
+
+        if not isinstance(secret, ApiKeySecret):
+            raise BadRequestError(message="Otari requires a vault API key")
+        return OtariProvider(
+            api_key=secret.api_key.get_secret_value(),
+            base_url=credential.base_url or DEFAULT_BASE_URL,
+        )
 
     endpoint: dict[str, str] = {}
     if credential.base_url is not None and spec.base_url_param is not None:

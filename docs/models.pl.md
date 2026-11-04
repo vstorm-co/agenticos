@@ -1,5 +1,5 @@
 ---
-source_sha: "26050af2d0e0"
+source_sha: "72049d249e6d"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -302,16 +302,21 @@ treści, więc `extra_body` w ustawieniach profilu nie może go zastąpić.
 
 Własny katalog Stav używa klucza wybranego w formularzu. Użytkownik musi mieć do niego dostęp; aplikacja nie wybiera ukrytego klucza organizacji dla własnego adresu URL. Cache uwierzytelnionych katalogów jest rozdzielony według poświadczeń. `extra_headers` w ustawieniach żądania nie może nadpisać ograniczenia profilu do EU lub EEA.
 
+### Bramka Otari { #otari-gateway }
+
+Wybierz **Otari** przy dodawaniu modelu, zapisz klucz API Otari w vaulcie i wybierz go w profilu. Puste **Endpoint** oznacza `https://api.otari.ai/api/v1`. Dla konta Otari w regionie UE ustaw `https://eu.api.otari.ai/api/v1`; dla własnej bramki podaj jej adres API zakończony `/api/v1`, dostępny z API i workerów.
+
+Podpowiedzi modeli pochodzą z uwierzytelnionego endpointu `/models` tej bramki i używają wybranego klucza. Własny endpoint wymaga `connections:manage` i dostępu do tego klucza. Cache katalogu jest rozdzielony według endpointu i poświadczeń; awaria własnego katalogu nie zastępuje go katalogiem hostowanym. Pole modelu przyjmuje też selektor, np. `anthropic:claude-sonnet-4-6`, lub alias/politykę routingu skonfigurowaną w Otari.
+
+Integracja używa [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): `OtariProvider` przekazuje profil rodziny modelu do modelu Chat Completions z Pydantic AI, tak jak `OtariModel`. Żądania zawsze używają Chat Completions; formularz nie oferuje Responses ani kontroli regionu Stav. Klucz i endpoint pochodzą jawnie z profilu, bez pobierania zastępczych wartości ze zmiennych `OTARI_*` lub `OPENAI_API_KEY`. Budżety i routing bramki Otari są dodatkową warstwą; AgenticOS nadal stosuje własne budżety i zatwierdzenia.
+
+Modele lub aliasy routingu nierozpoznane przez wbudowany katalog cen pozostają jawnie częściowo wycenione w AgenticOS. Opłaty bramki sprawdzaj w widoku użycia Otari.
+
 ## Providery { #providers }
 
-Dwadzieścia dziewięć: wszystko, co Pydantic AI dostarcza i na co profil
-czatowy może wskazać, oraz Stav, zbudowany tutaj na providerze OpenAI z
-Pydantic AI, bo niesie region.
+Providery czatu obsługiwane przez Pydantic AI oraz Otari przez jego pakiet integracyjny i Stav z routingiem regionalnym.
 
-Nie ma tutaj buildera per provider. Pydantic AI wnioskuje klasę providera i
-opakowanie modelu z id, a tym, co ta platforma wciąż musi wiedzieć, jest to,
-czego wnioskowanie wiedzieć nie może: **jakiego kształtu poświadczenia chce dany
-provider.**
+Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic AI. Platforma opisuje kształt poświadczeń i w razie potrzeby integruje pakiety providerów.
 
 !!! info "Co znaczy Custom URL"
 
@@ -335,6 +340,7 @@ provider.**
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
 | OpenRouter | `openrouter` | klucz API |  ✓ |
+| Otari | `otari` | klucz API | ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
 | Cerebras | `cerebras` | klucz API | |
 | DeepSeek | `deepseek` | klucz API | |

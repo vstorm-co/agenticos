@@ -627,8 +627,11 @@ it("isolates Stav catalogs by the selected vault key", async () => {
   );
 });
 
-it("does not list a custom authenticated endpoint before a key is selected", () => {
-  vi.mocked(apiClient.get).mockClear();
-  renderHook(() => useProviderModels("stav", "https://stav.example/v1"), { wrapper });
-  expect(apiClient.get).not.toHaveBeenCalled();
-});
+it.each(["stav", "otari"])(
+  "does not list a custom %s endpoint before a key is selected",
+  (provider) => {
+    vi.mocked(apiClient.get).mockClear();
+    renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  },
+);

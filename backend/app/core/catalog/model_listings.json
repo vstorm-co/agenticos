@@ -168,5 +168,12 @@
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}",
     "surfaces_path": "stav_surfaces"
+  },
+  "otari": {
+    "url": "https://api.otari.ai/api/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
   }
 }
