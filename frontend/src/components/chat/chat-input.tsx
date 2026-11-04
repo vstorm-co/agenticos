@@ -128,6 +128,8 @@ const ACCEPTED =
   "image/jpeg,image/png,image/gif,image/webp,image/tiff,.tiff,.tif,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.html,.css,.yaml,.yml,.toml,.xml,.sql,.sh,.pdf,.docx,.doc,.xlsx,.xlsm,.xls,.pptx,.odt,.ods,.odp,.msg,application/msword,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-outlook,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,application/xml";
 
 interface ChatInputProps {
+  /** Focus once the composer becomes writable on entry to the main chat. */
+  autoFocus?: boolean;
   onSend: (
     message: string,
     fileIds?: string[],
@@ -247,6 +249,7 @@ function touchKeyboard(): boolean {
 }
 
 export function ChatInput({
+  autoFocus = false,
   onSend,
   disabled,
   isProcessing,
@@ -297,6 +300,20 @@ export function ChatInput({
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
   const editorRef = useRef<ComposerEditorHandle>(null);
+  const entryFocusRequested = useRef(autoFocus);
+  const initialFocusAttempted = useRef(false);
+  useEffect(() => {
+    if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
+    initialFocusAttempted.current = true;
+    // A delayed connection must not take focus from a control already in use.
+    if (
+      document.activeElement?.matches(
+        "input, textarea, select, button, [contenteditable='true'], [role='combobox']",
+      )
+    )
+      return;
+    editorRef.current?.focus();
+  }, [disabled]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
     if (replyTo) editorRef.current?.focus();

@@ -888,12 +888,13 @@ it("keeps composing while focus moves to Send, and exits without losing an unsen
 });
 
 it("does not take touch-keyboard focus on arrival or when a reply finishes", async () => {
-  const original = window.matchMedia("");
-  const media = vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+  const originalMatchMedia = window.matchMedia;
+  const original = originalMatchMedia("");
+  window.matchMedia = (query) => ({
     ...original,
     media: query,
     matches: query === "(pointer: coarse)",
-  }));
+  });
   try {
     const onSend = vi.fn();
     const view = (processing: boolean) => (
@@ -913,6 +914,63 @@ it("does not take touch-keyboard focus on arrival or when a reply finishes", asy
     await userEvent.click(editor);
     expect(editor).toHaveFocus();
   } finally {
-    media.mockRestore();
+    window.matchMedia = originalMatchMedia;
   }
+});
+
+describe("chat entry focus", () => {
+  it("focuses the writable composer on entry without another click", () => {
+    render(<ChatInput autoFocus onSend={vi.fn()} />);
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("waits for readiness and does not steal focus again after reconnection", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus disabled onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("textbox")).not.toHaveFocus();
+    rerender(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("textbox")).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Other control" }));
+    rerender(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus disabled onSend={onSend} />
+      </>,
+    );
+    rerender(
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
+  });
+
+  it("leaves an actively used control alone while the connection becomes ready", async () => {
+    const onSend = vi.fn();
+    const { rerender } = render(
+      <>
+        <input aria-label="Another field" />
+        <ChatInput autoFocus disabled onSend={onSend} />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("textbox", { name: "Another field" }));
+    rerender(
+      <>
+        <input aria-label="Another field" />
+        <ChatInput autoFocus onSend={onSend} />
+      </>,
+    );
+    expect(screen.getByRole("textbox", { name: "Another field" })).toHaveFocus();
+  });
 });

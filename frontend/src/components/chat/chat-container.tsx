@@ -1642,6 +1642,7 @@ function ChatUI({
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
                           <ChatInput
+                            autoFocus={!compact && !onCall}
                             onSend={sendMessage}
                             // Mentions address the agent the thread is talking to -
                             // in a fixed window (the test panel, the Architect) the
