@@ -1,9 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { SlidersHorizontal } from "lucide-react";
+import { ListFilter, ChevronDown } from "lucide-react";
 
 import {
+  Button,
   Label,
   Popover,
   PopoverContent,
@@ -15,7 +16,6 @@ import {
   SelectValue,
   Switch,
 } from "@/components/ui";
-import { SEGMENTED_CLASS, segment } from "@/components/dashboard/segmented";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents } from "@/hooks";
 import type { ConversationSortDir, ConversationSortKey } from "@/hooks/use-conversations";
@@ -93,39 +93,46 @@ export function ConversationFilters({
 }: ConversationFiltersProps) {
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
-  const narrowed = agentId !== null || hideApi || sort !== DEFAULT_SORT || view === "archived";
+  const narrowed = agentId !== null || !hideApi || sort !== DEFAULT_SORT || view === "archived";
 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           aria-label={t("filters")}
           title={t("filters")}
-          className="text-foreground/85 hover:text-foreground hover:bg-accent touch:min-h-11 touch:min-w-11 relative inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+          className={beside ? "size-8 p-0" : "h-8 w-full justify-start gap-2 text-xs"}
         >
-          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          <ListFilter className="size-3.5" aria-hidden />
+          {!beside && <span className="min-w-0 flex-1 truncate text-left">{t("filters")}</span>}
           {narrowed && (
-            <span
-              aria-hidden
-              className="bg-foreground absolute top-1.5 right-1.5 size-1.5 rounded-full"
-            />
+            <span aria-hidden className="bg-foreground size-1.5 shrink-0 rounded-full" />
           )}
-        </button>
+          {!beside && <ChevronDown className="text-muted-foreground size-3.5" aria-hidden />}
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         side={beside ? "right" : "bottom"}
-        align={beside ? "start" : "end"}
-        className="w-72 space-y-4 p-4"
+        align="start"
+        sideOffset={8}
+        aria-label={t("filters")}
+        className="w-80 space-y-5 p-4"
       >
-        <div className={SEGMENTED_CLASS} role="group" aria-label={t("show")}>
+        <div className="flex gap-5 border-b" role="group" aria-label={t("show")}>
           {(["active", "archived"] as const).map((option) => (
             <button
               key={option}
               type="button"
               aria-pressed={view === option}
               onClick={() => onViewChange(option)}
-              className={segment(view === option)}
+              className={
+                view === option
+                  ? "border-foreground border-b-2 pb-2.5 text-sm font-medium"
+                  : "text-muted-foreground hover:text-foreground border-b-2 border-transparent pb-2.5 text-sm"
+              }
             >
               {t(option)}
             </button>
@@ -136,7 +143,9 @@ export function ConversationFilters({
                 mid-thread, so a thread can match two agents - which is why the
                 hint says what the filter means rather than leaving a reader to
                 infer ownership from a name. */}
-          <Label htmlFor="conversation-agent">{t("agentFilterLabel")}</Label>
+          <Label htmlFor="conversation-agent" className="text-muted-foreground text-xs">
+            {t("agentFilterLabel")}
+          </Label>
           <Select
             value={agentId ?? "all"}
             onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
@@ -167,7 +176,9 @@ export function ConversationFilters({
           )}
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="conversation-sort">{t("sortLabel")}</Label>
+          <Label htmlFor="conversation-sort" className="text-muted-foreground text-xs">
+            {t("sortLabel")}
+          </Label>
           <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
             <SelectTrigger id="conversation-sort" aria-label={t("sortLabel")}>
               <SelectValue />
@@ -183,8 +194,8 @@ export function ConversationFilters({
         </div>
         {/* A script's threads beside a person's: shown, labelled, and one
               switch from out of the way (#2122). */}
-        <label className="flex items-center justify-between gap-3 text-sm">
-          {t("hideApi")}
+        <label className="flex items-center justify-between gap-4 border-t pt-4 text-[13px]">
+          {t("apiFilterLabel")}
           <Switch checked={hideApi} onCheckedChange={onHideApiChange} aria-label={t("hideApi")} />
         </label>
       </PopoverContent>

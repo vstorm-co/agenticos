@@ -55,12 +55,7 @@ export function ChatWelcome({
     // A short window - a laptop zoomed in, a browser half the screen - keeps the
     // greeting and the suggestions and drops the mark, the shortcuts and the
     // air: all of it stacked put the cards under the composer.
-    <div
-      className={cn(
-        "@container mx-auto w-full",
-        compact ? "px-3 py-2" : "max-w-3xl px-5 py-6 md:py-8",
-      )}
-    >
+    <div className={cn("@container mx-auto w-full", compact ? "px-3 py-2" : "py-6 md:py-8")}>
       <div className={compact ? "text-center" : "text-left"}>
         <div
           className={cn(

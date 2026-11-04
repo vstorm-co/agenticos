@@ -793,11 +793,10 @@ function ConversationList({
 }
 
 interface ConversationSidebarProps {
-  embedded?: boolean;
   className?: string;
 }
 
-export function ConversationSidebar({ className, embedded = false }: ConversationSidebarProps) {
+export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const ts = useTranslations("chat.sidebar");
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -911,7 +910,20 @@ export function ConversationSidebar({ className, embedded = false }: Conversatio
   // button before that, sat between the title and the first conversation.
   // The rail stands the same three in a column, in the same order, so collapsing
   // the list changes its width and nothing a hand has learned.
-  const toolbar = (afterNewChat?: () => void, column = false, showNewChat = true) => (
+  const filters = (beside = false) => (
+    <ConversationFilters
+      agentId={agentId}
+      onAgentChange={changeAgent}
+      sort={sort}
+      onSortChange={changeSort}
+      hideApi={hideApi}
+      onHideApiChange={changeHideApi}
+      view={view}
+      onViewChange={changeView}
+      beside={beside}
+    />
+  );
+  const toolbar = (afterNewChat?: () => void, column = false) => (
     <div className={cn("flex shrink-0 items-center gap-0.5", column && "flex-col")}>
       <IconButton
         size="icon"
@@ -922,32 +934,20 @@ export function ConversationSidebar({ className, embedded = false }: Conversatio
       >
         <Search />
       </IconButton>
-      <ConversationFilters
-        agentId={agentId}
-        onAgentChange={changeAgent}
-        sort={sort}
-        onSortChange={changeSort}
-        hideApi={hideApi}
-        onHideApiChange={changeHideApi}
-        view={view}
-        onViewChange={changeView}
-        beside={column}
-      />
-      {showNewChat && (
-        <IconButton
-          size="icon"
-          data-tour="chat-start"
-          aria-label={ts("newChat")}
-          title={ts("newChat")}
-          onClick={() => {
-            startNewChat();
-            afterNewChat?.();
-          }}
-          className={HEADER_ICON}
-        >
-          <SquarePen />
-        </IconButton>
-      )}
+      {column && filters(true)}
+      <IconButton
+        size="icon"
+        data-tour="chat-start"
+        aria-label={ts("newChat")}
+        title={ts("newChat")}
+        onClick={() => {
+          startNewChat();
+          afterNewChat?.();
+        }}
+        className={HEADER_ICON}
+      >
+        <SquarePen />
+      </IconButton>
     </div>
   );
   const searchDialog = (
@@ -961,7 +961,7 @@ export function ConversationSidebar({ className, embedded = false }: Conversatio
     />
   );
 
-  if (isCollapsed && !embedded) {
+  if (isCollapsed) {
     return (
       <>
         {searchDialog}
@@ -979,41 +979,29 @@ export function ConversationSidebar({ className, embedded = false }: Conversatio
     <>
       <aside
         className={cn(
-          embedded
-            ? "hidden min-h-0 flex-1 flex-col md:flex"
-            : "bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col border-r md:flex",
+          "bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col border-r md:flex",
           className,
         )}
       >
         <div
-          className={cn(
-            "flex shrink-0 items-center gap-1 pr-2 pl-4",
-            embedded ? "h-9" : "h-12 border-b",
-          )}
+          className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4"
           data-tauri-drag-region="deep"
         >
-          <h2
-            data-tauri-drag-region
-            className={cn(
-              "min-w-0 flex-1 truncate",
-              embedded ? "text-muted-foreground text-xs font-medium" : "text-sm font-semibold",
-            )}
-          >
+          <h2 data-tauri-drag-region className="min-w-0 flex-1 truncate text-sm font-semibold">
             {ts("title")}
           </h2>
-          {toolbar(undefined, false, !embedded)}
-          {!embedded && (
-            <IconButton
-              size="icon"
-              onClick={collapse}
-              aria-label={ts("collapse")}
-              title={ts("collapse")}
-              className={HEADER_ICON}
-            >
-              <ChevronLeft />
-            </IconButton>
-          )}
+          {toolbar()}
+          <IconButton
+            size="icon"
+            onClick={collapse}
+            aria-label={ts("collapse")}
+            title={ts("collapse")}
+            className={HEADER_ICON}
+          >
+            <ChevronLeft />
+          </IconButton>
         </div>
+        <div className="shrink-0 px-3 py-2">{filters()}</div>
         <ConversationList {...listProps} />
       </aside>
 
@@ -1027,6 +1015,7 @@ export function ConversationSidebar({ className, embedded = false }: Conversatio
             <SheetClose onClick={close} />
           </SheetHeader>
           <div className="flex h-[calc(100%-48px)] flex-col">
+            <div className="shrink-0 px-3 py-2">{filters()}</div>
             <ConversationList {...listProps} onNavigate={close} />
           </div>
         </SheetContent>

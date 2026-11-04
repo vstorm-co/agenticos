@@ -24,7 +24,7 @@ export default function WorkPage() {
   const history = tasks.data?.filter((task) => !taskIsActive(task)) ?? [];
   const visible = view === "active" ? active : history;
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8">
+    <div className="flex w-full flex-1 flex-col gap-6">
       <PageHeader
         title={t("background")}
         description={t("backgroundDescription")}
@@ -40,8 +40,15 @@ export default function WorkPage() {
           ) : undefined
         }
       />
-      <section data-tour="workspace-background">
-        <div role="group" aria-label={t("background")} className="flex gap-6 border-b">
+      <section
+        data-tour="workspace-background"
+        className="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border"
+      >
+        <div
+          role="group"
+          aria-label={t("background")}
+          className="flex shrink-0 gap-6 border-b px-5 pt-4"
+        >
           {(["active", "history"] as const).map((tab) => (
             <button
               key={tab}
@@ -67,7 +74,7 @@ export default function WorkPage() {
         ) : tasks.error ? (
           <ErrorState cta={{ label: t("retry"), onClick: () => void tasks.refetch() }} />
         ) : visible.length ? (
-          <ul className="divide-y">
+          <ul className="divide-y px-5">
             {visible.map((task) => (
               <li key={task.id} className="group flex items-start gap-4 py-5">
                 <div className="bg-muted text-muted-foreground mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg">
@@ -116,7 +123,7 @@ export default function WorkPage() {
             ))}
           </ul>
         ) : (
-          <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-20 text-center">
+          <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-4 py-16 text-center">
             <div className="bg-muted text-muted-foreground mb-5 flex size-12 items-center justify-center rounded-2xl">
               <GitBranch className="size-5" aria-hidden />
             </div>

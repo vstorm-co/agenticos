@@ -54,10 +54,10 @@ beforeEach(() => {
 });
 
 describe("SuggestionRows", () => {
-  it("keeps the full selected detail and its actions available", async () => {
+  it("keeps full Inbox content and its actions available", async () => {
     render(
       <SuggestionRows
-        detail
+        expandedDetails
         items={[
           item("selected", {
             kind: "finding",

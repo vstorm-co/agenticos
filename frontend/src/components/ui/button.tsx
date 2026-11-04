@@ -5,13 +5,13 @@ import { Spinner } from "./spinner";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex touch:min-h-11 touch:min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[loading=true]:opacity-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex touch:min-h-11 touch:min-w-11 touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-[var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[loading=true]:opacity-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       // Raised neutral actions stay legible without introducing a second palette.
       variant: {
         default:
-          "border border-foreground/10 bg-action text-action-foreground shadow-sm hover:border-foreground/15 hover:bg-action-hover active:bg-action-active",
+          "border border-foreground/10 bg-action text-action-foreground hover:border-foreground/15 hover:bg-action-hover active:bg-action-active",
         destructive:
           "bg-destructive text-destructive-foreground shadow-card hover:bg-destructive/90 active:bg-destructive/80",
         // Quiet: a faint edge on whatever it sits on, and a fill only under the

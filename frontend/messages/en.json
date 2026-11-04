@@ -1538,7 +1538,8 @@
       "title": "Chats",
       "unread": "New answer",
       "unreadHeading": "Unread",
-      "unnamedProject": "A project"
+      "unnamedProject": "A project",
+      "apiFilterLabel": "Hide API conversations"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -13177,15 +13178,12 @@
     "backgroundEmpty": "Ask an agent to work on something in the background. You can follow its progress here and open the conversation whenever you need to.",
     "routines": "Routines & watches",
     "backToChat": "Start a conversation",
-    "details": "Details",
-    "urgent": "Urgent",
     "prompt": "What are we working on?",
     "lead": "Ask, create, or hand a task to your agents.",
     "active": "In progress",
     "history": "History",
     "stop": "Stop",
     "noHistory": "No background work yet",
-    "historyDescription": "Completed tasks and their results will appear here.",
-    "workspace": "Workspace"
+    "historyDescription": "Completed tasks and their results will appear here."
   }
 }

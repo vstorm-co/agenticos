@@ -36,7 +36,7 @@ export function WorkspacePulse() {
             {inbox.suggestions.slice(0, 2).map((item) => (
               <li key={item.id}>
                 <Link
-                  href={`/inbox?item=${encodeURIComponent(item.id)}`}
+                  href={`/inbox#suggestion-${encodeURIComponent(item.id)}`}
                   className="hover:bg-accent block truncate rounded-md py-1.5 text-sm"
                 >
                   {item.title}

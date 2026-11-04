@@ -579,7 +579,8 @@
       "title": "Czaty",
       "unread": "Nowa odpowiedź",
       "unreadHeading": "Nieprzeczytane",
-      "unnamedProject": "Projekt"
+      "unnamedProject": "Projekt",
+      "apiFilterLabel": "Ukryj rozmowy z API"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -12952,15 +12953,12 @@
     "backgroundEmpty": "Poproś agenta o wykonanie zadania w tle. Tutaj zobaczysz postęp i wrócisz do rozmowy, kiedy zechcesz.",
     "routines": "Rutyny i watches",
     "backToChat": "Rozpocznij rozmowę",
-    "details": "Szczegóły",
-    "urgent": "Pilne",
     "prompt": "Nad czym dzisiaj pracujemy?",
     "lead": "Zapytaj, stwórz coś lub powierz zadanie swoim agentom.",
     "active": "W toku",
     "history": "Historia",
     "stop": "Zatrzymaj",
     "noHistory": "Brak historii pracy w tle",
-    "historyDescription": "Tutaj pojawią się ukończone zadania i ich wyniki.",
-    "workspace": "Przestrzeń robocza"
+    "historyDescription": "Tutaj pojawią się ukończone zadania i ich wyniki."
   }
 }

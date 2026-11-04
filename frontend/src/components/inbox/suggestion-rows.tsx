@@ -23,13 +23,12 @@ import { cn, timeAgo } from "@/lib/utils";
 export function SuggestionRows({
   items,
   dense = false,
-  detail = false,
+  expandedDetails = false,
   className,
 }: {
   items: Suggestion[];
   dense?: boolean;
-  /** A selected Inbox item: full content, with actions below it. */
-  detail?: boolean;
+  expandedDetails?: boolean;
   className?: string;
 }) {
   const t = useTranslations("chat.suggestions");
@@ -48,15 +47,11 @@ export function SuggestionRows({
           return (
             <li
               key={suggestion.id}
+              id={`suggestion-${suggestion.id}`}
               aria-label={suggestion.title}
               className={cn(
-                "grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
-                detail ? "py-2" : "hover:bg-muted/40",
-                detail
-                  ? ""
-                  : dense
-                    ? "px-1 py-2.5"
-                    : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
+                "hover:bg-muted/40 grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 transition-colors",
+                dense ? "px-1 py-2.5" : "px-4 py-5 sm:px-5 md:grid-cols-[2rem_minmax(0,1fr)_auto]",
               )}
             >
               <SuggestionMark suggestion={suggestion} className="bg-muted shadow-none" />
@@ -64,8 +59,7 @@ export function SuggestionRows({
                 <div className="flex min-w-0 items-baseline gap-2">
                   <p
                     className={cn(
-                      "min-w-0 font-semibold",
-                      detail ? "text-lg leading-snug" : "text-sm",
+                      "min-w-0 text-sm font-semibold",
                       dense ? "truncate" : "text-pretty",
                     )}
                   >
@@ -107,7 +101,7 @@ export function SuggestionRows({
                   <p
                     className={cn(
                       "text-muted-foreground mt-1 max-w-3xl text-sm leading-relaxed",
-                      detail ? "mt-5 whitespace-pre-wrap" : dense ? "line-clamp-1" : "line-clamp-2",
+                      dense ? "line-clamp-1" : !expandedDetails && "line-clamp-2",
                     )}
                   >
                     {suggestion.detail}
@@ -117,11 +111,7 @@ export function SuggestionRows({
               <div
                 className={cn(
                   "col-start-2 flex flex-wrap items-center gap-1.5",
-                  detail
-                    ? "mt-5"
-                    : dense
-                      ? "mt-0.5"
-                      : "md:col-start-3 md:row-start-1 md:self-center",
+                  dense ? "mt-0.5" : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
                 <Button

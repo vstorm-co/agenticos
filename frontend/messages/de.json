@@ -1538,7 +1538,8 @@
       "title": "Chats",
       "unread": "Neue Antwort",
       "unreadHeading": "Ungelesen",
-      "unnamedProject": "Ein Projekt"
+      "unnamedProject": "Ein Projekt",
+      "apiFilterLabel": "API-Gespräche ausblenden"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -12849,15 +12850,12 @@
     "backgroundEmpty": "Bitte einen Agenten, eine Aufgabe im Hintergrund zu bearbeiten. Hier siehst du den Fortschritt und kannst jederzeit das Gespräch öffnen.",
     "routines": "Routinen und Watches",
     "backToChat": "Gespräch beginnen",
-    "details": "Details",
-    "urgent": "Dringend",
     "prompt": "Woran arbeiten wir heute?",
     "lead": "Stelle eine Frage, erstelle etwas oder übergib deinen Agenten eine Aufgabe.",
     "active": "In Bearbeitung",
     "history": "Verlauf",
     "stop": "Stoppen",
     "noHistory": "Noch keine Hintergrundarbeit",
-    "historyDescription": "Abgeschlossene Aufgaben und ihre Ergebnisse erscheinen hier.",
-    "workspace": "Arbeitsbereich"
+    "historyDescription": "Abgeschlossene Aufgaben und ihre Ergebnisse erscheinen hier."
   }
 }

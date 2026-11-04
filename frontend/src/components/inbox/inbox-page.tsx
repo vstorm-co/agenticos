@@ -32,7 +32,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Suggestion } from "@/lib/suggestions-api";
 import { timeAgo } from "@/lib/utils";
-import { InboxBrowser } from "./inbox-browser";
+import { SuggestionRows } from "./suggestion-rows";
 
 type Filter = "all" | "urgent" | "watches" | "suggestions" | "done";
 
@@ -149,7 +149,7 @@ export function InboxPage() {
         ) : open.length === 0 ? (
           <Nothing filter={filter} />
         ) : (
-          <InboxBrowser items={open} />
+          <SuggestionRows items={open} expandedDetails />
         )}
       </ListCard>
     </div>

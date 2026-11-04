@@ -73,7 +73,7 @@ describe("WorkspacePulse", () => {
     render(<WorkspacePulse />);
     expect(screen.getByRole("link", { name: "Decision one" })).toHaveAttribute(
       "href",
-      "/inbox?item=one",
+      "/inbox#suggestion-one",
     );
     expect(screen.getByRole("link", { name: "Task one" })).toHaveAttribute(
       "href",
