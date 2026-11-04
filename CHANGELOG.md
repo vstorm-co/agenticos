@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-11-04
+
 ### Added
 
 - A decision or an answer made in the console, the web chat or over a session API now continues a run asked in a chat, as the person who made it, and posts the answer in that chat. A key's decision is recorded and does not continue the run. (#2656)
@@ -19924,7 +19926,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...HEAD
+[1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...v1.41.0
