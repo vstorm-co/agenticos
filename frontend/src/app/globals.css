@@ -2916,6 +2916,26 @@ body .tour-spotlight {
     min-height: 44px;
     padding-block: 10px;
   }
+  /* Keep the scroll gesture, without a scrollbar beside the send action. */
+  .chat-input-form .composer-editor {
+    overflow-x: hidden;
+    overflow-wrap: anywhere;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  .chat-input-form .composer-editor::-webkit-scrollbar {
+    display: none;
+  }
+  /* The hit area stays 44px; only the visible action face is compact. */
+  .chat-input-form .chat-input-primary {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .chat-input-form .chat-input-primary-face {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
   .chat-input-form[data-editing] .chat-input-actions > button,
   .chat-input-form[data-editing] .chat-input-send > button {
     min-height: 44px;

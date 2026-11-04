@@ -243,6 +243,9 @@ export interface IncomingFiles {
   text?: string;
 }
 
+const PRIMARY_ACTION_FACE =
+  "chat-input-primary-face bg-action text-action-foreground border-foreground/10 group-hover:bg-action-hover group-active:bg-action-active flex size-9 items-center justify-center rounded-lg border";
+
 /** Whether typing happens on a touch keyboard - a phone or a tablet. */
 function touchKeyboard(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches === true;
@@ -1008,10 +1011,13 @@ export function ChatInput({
               size="icon"
               onClick={onStop}
               disabled={stopDisabled}
-              className="h-9 w-9 shrink-0 rounded-lg"
+              variant="ghost"
+              className="chat-input-primary group h-9 w-9 shrink-0 rounded-lg hover:bg-transparent active:bg-transparent"
               title={t("stopGenerating")}
             >
-              <span className="h-3 w-3 rounded-[3px] bg-current" aria-hidden="true" />
+              <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                <span className="size-3 rounded-[3px] bg-current" />
+              </span>
               <span className="sr-only">{t("stopGenerating")}</span>
             </Button>
           ) : idleSlot && !isProcessing && !message.trim() && attachedFiles.length === 0 ? (
@@ -1020,10 +1026,13 @@ export function ChatInput({
             <Button
               type="submit"
               size="icon"
-              className="shrink-0 transition-transform active:scale-90"
+              variant="ghost"
+              className="chat-input-primary group shrink-0 transition-transform hover:bg-transparent active:scale-90 active:bg-transparent"
               disabled={disabled || isUploading || (!message.trim() && attachedFiles.length === 0)}
             >
-              {isProcessing ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+              <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                {isProcessing ? <Spinner className="size-4" /> : <Send className="size-4" />}
+              </span>
               <span className="sr-only">{t("send")}</span>
             </Button>
           )}
