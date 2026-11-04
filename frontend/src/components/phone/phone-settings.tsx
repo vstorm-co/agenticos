@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useOrgStore } from "@/stores";
 import { useTranslations } from "next-intl";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
@@ -12,6 +13,10 @@ import { PhoneRouting } from "./phone-routing";
 import { PhoneDialer } from "./phone-dialer";
 import { PhoneReceiptCard } from "./phone-call-card";
 export function PhoneSettings({ administration = false }: { administration?: boolean }) {
+  const org = useOrgStore((state) => state.activeOrgId);
+  return <PhoneSettingsContent key={org ?? "current"} administration={administration} />;
+}
+function PhoneSettingsContent({ administration }: { administration: boolean }) {
   const t = useTranslations("phone");
   const { can } = usePermissions();
   const query = usePhoneSettings();

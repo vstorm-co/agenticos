@@ -141,20 +141,6 @@ async def contact_calls_today(
     )
 
 
-async def expired_calls(db: AsyncSession) -> list[PhoneCall]:
-    return list(
-        await db.scalars(
-            select(PhoneCall)
-            .where(
-                (PhoneCall.expires_at < datetime.now(UTC)) | (PhoneCall.status == "ending"),
-                PhoneCall.status.not_in(TERMINAL),
-            )
-            .order_by(PhoneCall.expires_at)
-            .limit(100)
-        )
-    )
-
-
 async def save[T: PhoneEndpoint | PhoneContact | PhoneCall](db: AsyncSession, row: T) -> T:
     db.add(row)
     await db.flush()
