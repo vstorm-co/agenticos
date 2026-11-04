@@ -19,4 +19,4 @@ The contract:
 
 ## Bundled sources
 
-- `keenable.svg`: the official [Keenable documentation favicon](https://docs.keenable.ai/favicon.svg), preserved with its original paths and transforms. The mark belongs to Keenable; the console renders it through the same theme-aware mask as other catalog icons.
+- `keenable.svg`: the official [Keenable documentation favicon](https://docs.keenable.ai/favicon.svg), adapted to a monochrome mask by retaining the original blue paths and transforms and removing the opaque white highlights from the transparent counters. The mark belongs to Keenable; the console renders it through the same theme-aware mask as other catalog icons.
