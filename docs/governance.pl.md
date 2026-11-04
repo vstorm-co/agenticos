@@ -1,5 +1,5 @@
 ---
-source_sha: "eea316378394"
+source_sha: "3a0e34f1da43"
 ---
 
 # Governance { #governance }
@@ -1010,7 +1010,7 @@ wierszu celowo nie ma żadnych kontrolek.
 | Parametr | |
 |---|---|
 | `status` | Powtarzalny. Brak oznacza oczekujące — kolejkę |
-| `triggered_by_user_id` | Czyje runy zaparkowały to wywołanie. Odczytywane z `agent_runs`: zatwierdzenie należy do runa, a run należy do osoby |
+| `triggered_by_user_id` | Czyje runy zaparkowały to wywołanie. Odczytywane z `agent_runs`: zatwierdzenie należy do runa, a run należy do osoby. Pomija runy, w których publikujący zastąpił niepowiązane konto czatu; takie wiersze niosą zamiast tego `asked_in_chat` (platforma, nazwa i bot), a ich pola `triggered_by_*` są puste |
 | `created_from`, `created_to` | Kiedy wywołanie zostało zaparkowane, włącznie z obiema granicami |
 | `oldest_first` | Domyślnie true, i ta wartość domyślna jest nośna — zobacz wyżej: nic nie wypycha wywołania z kolejki z powodu wieku, więc sortowanie od najnowszych pogrzebałoby wiersz, który najbardziej potrzebuje zobaczenia |
 
@@ -1225,7 +1225,7 @@ które route'y listujące odpowiadać nie muszą:
   nazwiskami to ta tabela per osoba, której odmówiła decyzja 3 projektu Activity,
   przybywająca jako plik do pobrania. Kolejka zatwierdzeń rozwiązuje już na
   ekranie adresy e-mail osoby wyzwalającej i decydującej, więc eksport
-  zatwierdzeń je zachowuje.
+  zatwierdzeń je zachowuje. Niesie też wyświetlaną nazwę albo uchwyt obcego z czatu, tak jak pokazuje je kolejka, w trzech kolumnach: `asked_in_chat_platform`, `asked_in_chat_account` i `asked_in_chat_bot`. W takim wierszu obie kolumny e-mail są puste, bo publikujący nie pytał.
 - **Audyt.** Każdy eksport zapisuje jeden wpis w `audit_log` — uprzywilejowany
   odczyt masowy, tani do zapisania teraz i niemożliwy do odtworzenia później.
   Nazywa okno, zastosowane filtry i liczbę wierszy, nigdy ciało żądania.
@@ -1378,7 +1378,7 @@ sequenceDiagram
     end
 ```
 
-Cztery właściwości, które warto znać:
+Pięć właściwości, które warto znać:
 
 - **Zaparkowany run da się wznowić.** Jego historia wiadomości jest
   przechowywana, więc decyzja jest stosowana do rozmowy, do której należy, a nie
@@ -1418,7 +1418,17 @@ Cztery właściwości, które warto znać:
   profil modelu, capability wyrzucona przy wdrożeniu, cofnięte współdzielenie
   połączenia MCP. Spec jest składany, zanim run opuści kolejkę zatwierdzeń, więc
   odmowa w tym miejscu odrzuca *próbę*: decyzja pozostaje w mocy, a wznawianie
-  znów działa, gdy zadziała spec.
+  znów działa, gdy zadziała spec. Run zadany na czacie, którego nikt nie kontynuował,
+  kończy siatka bezpieczeństwa około godziny po ostatniej decyzji.
+- **Kto kontynuuje run zadany na czacie.** Decyzja osoby w konsoli, w czacie webowym
+  albo przez API kontynuuje run na jego czacie, jako ona, i odpowiedź trafia tam;
+  decyzja klucza jest zapisywana i niczego nie kontynuuje. Kontynuacja może zginąć
+  albo zostać odrzucona, wtedy run czeka w `awaiting_approval` bez niczego
+  oczekującego. Cogodzinna siatka bezpieczeństwa kończy taki run kanałowy
+  `STRANDED_AFTER` (godzinę) po ostatniej decyzji i raz mówi o tym czatowi - nie,
+  gdy decyzja jest starsza niż 7 dni, ani gdy czat już o tym usłyszał. Obejmuje
+  tylko runy kanałowe. Zob.
+  [Rozstrzygnięte poza czatem](channels.md#decided-outside-the-chat).
 - **Rozstrzygniętego zatwierdzenia nie da się rozstrzygnąć drugi raz.** Druga
   decyzja zostaje odrzucona — łącznie z decyzją przychodzącą sekundę po tym, jak
   wywołanie zabrało przemiatanie wygasających.
@@ -1426,7 +1436,7 @@ Cztery właściwości, które warto znać:
   `APPROVAL_EXPIRY_HOURS`**, a stojący za nim run zostaje rozliczony, zamiast
   zostać zaparkowanym na zawsze. Status to `expired` z nullowym
   `decided_by_user_id`, i to właśnie odróżnia wygaśnięcie od odrzucenia w śladzie
-  odpowiedzialności. Strona Activity dalej pokazuje **wiek** najstarszego
+  odpowiedzialności. Run zadany na czacie raz mówi też czatowi, że prośba wygasła. Strona Activity dalej pokazuje **wiek** najstarszego
   oczekiwania, bo kolejka mieszcząca się w swoim oknie wygasania to ta, na której
   ktoś jeszcze może zadziałać.
 - **`required` działa na dowolnej capability**, nie tylko na tych ze skutkami

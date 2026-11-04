@@ -495,7 +495,7 @@ class TriggerCreate(BaseSchema):
         ),
     )
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=8
+        default=None, max_length=9
     )
     delivery_conversation_id: UUID | None = Field(
         default=None,
@@ -737,7 +737,7 @@ class TriggerUpdate(BaseSchema):
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
     )
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=8
+        default=None, max_length=9
     )
     delivery_conversation_id: UUID | None = Field(
         default=None,
@@ -829,7 +829,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     teams_conversation_id: UUID | None = None
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=8
+        default=None, max_length=9
     )
     delivery_conversation_id: UUID | None = None
     ends_at: datetime | None = None

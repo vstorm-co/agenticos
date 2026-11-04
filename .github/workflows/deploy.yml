@@ -1,18 +1,18 @@
 name: Deploy
 
-# Every merge to `main` offers itself for deployment; **somebody has to approve
+# Every published stable release offers itself for deployment; **somebody has to approve
 # it before anything reaches the server.** The gate is not in this file and
 # cannot be - it is the `production` environment's *required reviewers* rule,
 # configured in the repository's settings. Without that rule this workflow
-# deploys every merge unattended, which is the one failure mode worth knowing
+# deploys every published release unattended, which is the one failure mode worth knowing
 # about here: the safety is a setting, not a step.
 #
 # `workflow_dispatch` is the same job with a ref you pick - a rollback, or a
 # redeploy after changing something on the host - and it passes through the same
 # approval.
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       ref:
@@ -49,6 +49,7 @@ jobs:
   # digest this job has already checked.
   resolve:
     name: Resolve the commit
+    if: github.event_name != 'release' || (!github.event.release.prerelease && !github.event.release.draft)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -63,7 +64,7 @@ jobs:
       - name: Pin it
         id: pin
         env:
-          REF: ${{ inputs.ref || github.sha }}
+          REF: ${{ github.event.release.tag_name || inputs.ref || github.sha }}
         run: |
           set -euo pipefail
           sha=$(git rev-parse --verify "$REF^{commit}")

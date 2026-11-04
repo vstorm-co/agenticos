@@ -49,6 +49,7 @@ import {
 import { SlashCommandPalette } from "./slash-command-palette";
 import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
 import { ComposerHints } from "./composer-hints";
+import { LocalAgentChip } from "./local-agent-chip";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
 import {
@@ -284,6 +285,7 @@ export function ChatInput({
   const tDictation = useTranslations("chat.dictation");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
+  const [editing, setEditing] = useState(false);
   const drafting = message.trim().length > 0;
   useEffect(() => onDraftChange?.(drafting), [drafting, onDraftChange]);
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
@@ -438,7 +440,9 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading) editorRef.current?.focus();
+    // Phones enter writing deliberately, rather than reopening the keyboard
+    // on arrival or when a reply finishes while the person is reading.
+    if (!isProcessing && !isUploading && !touchKeyboard()) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
 
   const runSlashCommand = useCallback(
@@ -819,7 +823,22 @@ export function ChatInput({
           server?.actions.cancel();
         }
       }}
-      className="relative"
+      className="chat-input-form relative"
+      data-editing={editing || undefined}
+      onFocusCapture={(event) => {
+        if (
+          event.target instanceof HTMLElement &&
+          event.target.getAttribute("contenteditable") === "true"
+        )
+          setEditing(true);
+      }}
+      onBlurCapture={(event) => {
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setEditing(false);
+      }}
     >
       <span role="status" aria-live="polite" className="sr-only">
         {announcement}
@@ -868,7 +887,13 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
-      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+      {replyTo && (
+        <div className="chat-input-reply">
+          <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />
+        </div>
+      )}
+
+      <LocalAgentChip />
 
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
@@ -877,36 +902,37 @@ export function ChatInput({
       {/* Plain text with real chips in it: a picked mention and a settled
           address are drawn as what they name, and the message is still the
           one string it always was. */}
-      <ComposerEditor
-        ref={editorRef}
-        value={message}
-        mentions={mentions}
-        onChange={typed}
-        onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        placeholder={offline ? t("reconnecting") : t("placeholder")}
-        idle={
-          hints && !disabled ? (
-            <ComposerHints
-              offered={offered.items}
-              commands={allCommands.map((command) => command.name)}
-            />
-          ) : undefined
-        }
-        disabled={disabled}
-        readOnly={dictating}
-        // What a phone's keyboard offers: a return key that reads as a line
-        // break where Enter makes one. 16px text, never less: iOS zooms the
-        // page into any field smaller than that when it is focused (#2066).
-        enterKeyHint={touchKeyboard() ? "enter" : "send"}
-      />
-
+      <div className="chat-input-editor min-w-0">
+        <ComposerEditor
+          ref={editorRef}
+          value={message}
+          mentions={mentions}
+          onChange={typed}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={offline ? t("reconnecting") : t("placeholder")}
+          idle={
+            hints && !disabled ? (
+              <ComposerHints
+                offered={offered.items}
+                commands={allCommands.map((command) => command.name)}
+              />
+            ) : undefined
+          }
+          disabled={disabled}
+          readOnly={dictating}
+          // What a phone's keyboard offers: a return key that reads as a line
+          // break where Enter makes one. 16px text, never less: iOS zooms the
+          // page into any field smaller than that when it is focused (#2066).
+          enterKeyHint={touchKeyboard() ? "enter" : "send"}
+        />
+      </div>
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
           run 27px past the composer's own edge, measured on an iPhone 15. */}
       {/* Inert rather than hidden while dictating: the composer does not change
           under the page's dictation pill, and the agent the recording goes to
           must not change under it either. */}
-      <div className="flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
+      <div className="chat-input-actions flex items-center gap-1.5 pt-0.5 pb-1" inert={dictating}>
         <input
           ref={fileInputRef}
           type="file"
@@ -934,10 +960,10 @@ export function ChatInput({
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}
         {controlsSlot ? (
-          <div className="flex min-w-0 items-center gap-1">{controlsSlot}</div>
+          <div className="chat-input-selection flex min-w-0 items-center gap-1">{controlsSlot}</div>
         ) : null}
 
-        <div className="ml-auto flex shrink-0 items-center gap-1">
+        <div className="chat-input-send ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
           {/* Beside Send and the call, as in ChatGPT; the `+` offers it too. A
               server recording takes the box over with its own bar, so this
@@ -948,7 +974,7 @@ export function ChatInput({
             size="icon"
             onClick={server ? startDictation : toggleMic}
             disabled={disabled}
-            className="h-9 w-9 shrink-0"
+            className="chat-input-mic h-9 w-9 shrink-0"
             title={isListening ? t("stopRecording") : t("voiceInput")}
             aria-label={isListening ? t("stopRecording") : t("voiceInput")}
           >

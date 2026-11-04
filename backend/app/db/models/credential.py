@@ -85,6 +85,11 @@ class ModelProfile(Base, TimestampMixin):
     # because a stored choice cannot move under a profile when the default does.
     # Null for every provider that serves one API.
     api: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Where the requests may run, for a provider that takes a region (Stav):
+    # `eu`, `eea` or `global` (`ProviderSpec.regions`). Stored for the same
+    # reason as `api`: a later change of default must not move a profile out of
+    # the region it was saved in. Null for every provider without the choice.
+    region: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # How many tokens this model accepts, as the provider's own listing said when
     # the profile was created. Recorded rather than resolved at run time because
     # the request path may not call a provider, and the alternative source is
@@ -107,6 +112,7 @@ class ModelProfile(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "label", name="uq_model_profile_org_label"),
         CheckConstraint("api IN ('chat', 'responses')", name="ck_model_profile_api"),
+        CheckConstraint("region IN ('eu', 'eea', 'global')", name="ck_model_profile_region"),
     )
 
     def __repr__(self) -> str:

@@ -241,20 +241,22 @@ beforeEach(() => {
   get.mockImplementation((url: string) =>
     url.startsWith("/auth/me")
       ? Promise.resolve({ ...SIGNED_IN, access_token: "t-1" })
-      : url === "/me/permissions"
-        ? // A real shape, not the list fallback: `usePermissions` reads
-          // `data.permissions` off whatever this answers.
-          Promise.resolve({
-            organization_id: "org-1",
-            role: "member",
-            is_app_admin: false,
-            permissions: [],
-          })
-        : url === "/orgs" && organization.current !== null
-          ? Promise.resolve({ items: [organization.current], total: 1 })
-          : /^\/agents\/[^/]+\/dictation$/.test(url)
-            ? Promise.resolve(readiness.current)
-            : Promise.resolve({ items: [], total: 0 }),
+      : url === "/conversations/background-tasks"
+        ? Promise.resolve([])
+        : url === "/me/permissions"
+          ? // A real shape, not the list fallback: `usePermissions` reads
+            // `data.permissions` off whatever this answers.
+            Promise.resolve({
+              organization_id: "org-1",
+              role: "member",
+              is_app_admin: false,
+              permissions: [],
+            })
+          : url === "/orgs" && organization.current !== null
+            ? Promise.resolve({ items: [organization.current], total: 1 })
+            : /^\/agents\/[^/]+\/dictation$/.test(url)
+              ? Promise.resolve(readiness.current)
+              : Promise.resolve({ items: [], total: 0 }),
   );
   organization.current = null;
   readiness.current = {
@@ -1129,6 +1131,7 @@ describe("the chat container - an answer still being written after its person le
         const items = unsaved-- > 0 ? [question] : [question, answer];
         return Promise.resolve({ items, total: items.length, cost: null });
       }
+      if (url === "/conversations/background-tasks") return Promise.resolve([]);
       return Promise.resolve({ items: [], total: 0 });
     });
   });
@@ -1539,4 +1542,17 @@ describe("routine answers arriving in the open source conversation", () => {
     await waitFor(() => expect(screen.getAllByText("Approved routine result")).toHaveLength(1));
     expect(useConversationStore.getState().currentConversationId).toBe("source-chat");
   });
+});
+
+it("keeps the draft focused when tapping dock buttons while leaving keyboard focus available", async () => {
+  mount();
+  const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+  await userEvent.type(editor, "An unsent phone draft");
+  const send = screen.getByRole("button", { name: "Send message" });
+  expect(editor).toHaveFocus();
+  expect(fireEvent.mouseDown(send)).toBe(false);
+  expect(editor).toHaveFocus();
+  act(() => send.focus());
+  expect(send).toHaveFocus();
+  expect(messageOf(editor)).toBe("An unsent phone draft");
 });

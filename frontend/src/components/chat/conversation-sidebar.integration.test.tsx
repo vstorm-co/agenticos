@@ -16,6 +16,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
 import * as invalidation from "@/lib/coalesced-invalidation";
@@ -60,7 +61,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
 }));
 
-function conversation(id: string, title: string, favourite = false) {
+function conversation(id: string, title: string, favourite = false): Conversation {
   return {
     id,
     title,
@@ -818,4 +819,18 @@ it("lets the chat header drag the desktop window while keeping its actions acces
   expect(header).toHaveAttribute("data-tauri-drag-region", "deep");
   await userEvent.click(within(list()).getByRole("button", { name: "Search conversations" }));
   expect(await screen.findByRole("dialog", { name: "Search conversations" })).toBeVisible();
+});
+
+it("shows the coding harness kept by the list API after reopening the sidebar", async () => {
+  const saved: Conversation = {
+    ...conversation("coding-history", "Landing page"),
+    agents: [{ id: "assistant", slug: "assistant", name: "AgenticOS", has_avatar: false }],
+    coding_agents: ["claude_code"],
+  };
+  serve([saved]);
+  const view = mount();
+  expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
+  view.unmount();
+  mount();
+  expect(await screen.findByText(/AgenticOS · Claude Code/)).toBeVisible();
 });

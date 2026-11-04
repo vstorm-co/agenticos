@@ -299,7 +299,7 @@ def _job() -> IngestDocument:
     return IngestDocument(
         rag_document_id=uuid4(),
         collection_name="docs",
-        filepath="queued/a.md",
+        filepath="media/_rag_tmp/a-1.md",
         source_path="a.md",
         replace=False,
         attempt=1,
@@ -376,7 +376,33 @@ async def test_the_tracking_row_hold_is_scoped_and_uses_key_share(found: bool) -
     )
     statement = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
     assert str(statement).endswith("FOR KEY SHARE")
-    assert set(statement.params.values()) == {row_id, "docs", BASE}
+    # Only a row still being ingested takes chunks: a last holder's teardown fails
+    # another tenant's rows under the name, and a write that reaches its hold after
+    # that commits is refused rather than recreating the dropped table (#2568).
+    assert set(statement.params.values()) == {row_id, "docs", BASE, DocumentStatus.PROCESSING}
+
+
+@pytest.mark.security
+async def test_marking_rows_unindexed_waits_for_writes_and_supersedes_their_attempt() -> None:
+    """The teardown locks every unfiled row left under the name `FOR UPDATE`, which
+    waits out a chunk write holding one `FOR KEY SHARE`, clears the index metadata
+    of all of them - one already failed included - and bumps the attempt of those
+    not already failed, so a settlement of the attempt in flight is stale and
+    cannot mark the row done (#2568)."""
+    db = MagicMock(execute=AsyncMock(), flush=AsyncMock())
+
+    await rag_document_repo.mark_unindexed(db, "docs")
+
+    locked, updated = (
+        call.args[0].compile(dialect=postgresql.dialect()) for call in db.execute.await_args_list
+    )
+    assert str(locked).endswith("FOR UPDATE")
+    assert "rag_documents.knowledge_base_id IS NULL" in str(locked)
+    assert "rag_documents.status" not in str(locked)
+    assert "ingestion_attempt=CASE WHEN (rag_documents.status != " in str(updated)
+    assert "chunk_count=" in str(updated)
+    assert "vector_document_id=" in str(updated)
+    assert DocumentStatus.ERROR in updated.params.values()
 
 
 @pytest.mark.security
@@ -409,15 +435,21 @@ class TestASyncSettlesARowItsBaseTookWithIt:
         gone = NotFoundError(message="Document not found")
         documents = MagicMock(
             fail_ingestion=AsyncMock(side_effect=gone),
-            complete_ingestion=AsyncMock(side_effect=gone),
+            # A completion reports a row gone rather than raising (#2565).
+            complete_ingestion=AsyncMock(return_value=False),
+            discard_untracked=AsyncMock(),
         )
+        ingester = MagicMock()
 
         with (
             patch.object(rag_tasks, "get_worker_db_context", new=_session),
             patch("app.services.rag_document.RAGDocumentService", return_value=documents),
             caplog.at_level(logging.INFO, logger="app.worker.tasks.rag_tasks"),
         ):
-            await rag_tasks._settle_document_row(str(uuid4()), result)
+            settled = await rag_tasks._settle_document_row(
+                str(uuid4()), result, ingester=ingester, collection_name="docs"
+            )
 
+        assert settled is False
         assert max(r.levelno for r in caplog.records) == logging.INFO
         assert all(r.exc_info is None for r in caplog.records)

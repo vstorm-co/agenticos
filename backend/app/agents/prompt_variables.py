@@ -71,6 +71,7 @@ _CHANNELS = {
     "teams": "Microsoft Teams",
     "sms": "SMS",
     "email": "e-mail",
+    "discord": "Discord",
     "schedule": "a scheduled run",
 }
 

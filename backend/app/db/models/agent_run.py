@@ -118,6 +118,8 @@ class RunSurface(enum.StrEnum):
     SMS = "sms"
     EMAIL = "email"
     IMESSAGE = "imessage"
+
+    DISCORD = "discord"
     # A run nobody typed into: the agent-triggers heartbeat fired it on a
     # schedule. The one member here assigned by a machine rather than a surface a
     # person reached the agent through (agenticos#44).
@@ -131,6 +133,22 @@ class RunSurface(enum.StrEnum):
     FOLLOW_UPS = "follow_ups"
     """Optional next-step generation after a saved answer; never an active chat turn."""
     PROACTIVE = "proactive"
+
+
+# The chat platforms a person reaches an agent through. A run parked on one of
+# them can be continued in the chat it was asked in.
+CHANNEL_SURFACES = frozenset(
+    {
+        RunSurface.SLACK,
+        RunSurface.TELEGRAM,
+        RunSurface.MATTERMOST,
+        RunSurface.TEAMS,
+        RunSurface.DISCORD,
+        RunSurface.SMS,
+        RunSurface.EMAIL,
+        RunSurface.IMESSAGE,
+    }
+)
 
 
 class RunOrder(enum.StrEnum):
@@ -409,6 +427,15 @@ class AgentRun(Base, TimestampMixin):
     # from a slow one in minutes rather than hours. A raw UPDATE, not the ORM,
     # so it leaves `updated_at` - the run's last transition - alone.
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Set when the chat was told this park could not continue, so the safety net
+    # does not tell it a second time; cleared when the run leaves the queue. A
+    # column rather than a `paused_state` key: `PausedRunState` is
+    # `extra="forbid"`, so a key there would make the run unreadable to an older
+    # process on a rollback or a rolling deploy.
+    chat_notice_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     __table_args__ = (
         CheckConstraint(

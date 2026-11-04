@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Pause, Pencil, Play, Trash2 } from "lucide-react";
+import { Pause, Pencil, Play, Trash2, Users } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
@@ -21,6 +21,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   // i18n-exempt: the name of the protocol, written the same in every language
   email: "Email",
   imessage: "iMessage",
+
+  discord: "Discord",
 };
 
 interface ChannelBotsTableProps {
@@ -29,6 +31,11 @@ interface ChannelBotsTableProps {
   onEdit: (bot: ChannelBot) => void;
   onToggleActive: (bot: ChannelBot) => void;
   onDelete: (bot: ChannelBot) => void;
+  /**
+   * Opens a Discord bot's role mappings (#2569). Passed only to somebody holding
+   * `members:manage`, which every mapping call takes, so nobody else sees the button.
+   */
+  onMapRoles?: (bot: ChannelBot) => void;
 }
 
 /**
@@ -85,6 +92,7 @@ export function ChannelBotsTable({
   onEdit,
   onToggleActive,
   onDelete,
+  onMapRoles,
 }: ChannelBotsTableProps) {
   const t = useTranslations("pages.channels");
 
@@ -166,7 +174,7 @@ export function ChannelBotsTable({
         key: "actions",
         header: t("columnActions"),
         align: "right",
-        className: "w-32 pr-5",
+        className: "w-40 pr-5",
         cell: (bot) => (
           <div className={cn("flex justify-end gap-1", paused(bot))}>
             <Button
@@ -178,6 +186,18 @@ export function ChannelBotsTable({
             >
               <Pencil className="h-4 w-4" />
             </Button>
+            {onMapRoles && bot.platform === "discord" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={busy}
+                data-tour="channels-discord-roles"
+                aria-label={t("mapDiscordRoles", { bot: bot.name })}
+                onClick={() => onMapRoles(bot)}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -202,7 +222,7 @@ export function ChannelBotsTable({
         ),
       },
     ],
-    [busy, onEdit, onToggleActive, onDelete, t],
+    [busy, onEdit, onToggleActive, onDelete, onMapRoles, t],
   );
 
   return (

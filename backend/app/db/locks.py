@@ -29,6 +29,8 @@ class LockScope(IntEnum):
     """What a lock is about. The value is half of the advisory key."""
 
     #: How many organizations one account may own.
+    CONVERSATION_TURN = 23
+    CONVERSATION_TASKS = 24
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
@@ -91,7 +93,7 @@ class LockScope(IntEnum):
     #: Cumulative inline results across retained runs, before run-row locks.
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
     #: Telephone reservations, opt-in changes and endpoint admission share one order.
-    PHONE_CALLS_PER_ORG = 23
+    PHONE_CALLS_PER_ORG = 25
     #: One organization's generated-media quota (#2310). Each call read what was
     #: used before its paid generation and recorded its file only after it, so
     #: every call admitted at once passed the same check and together ran past it.

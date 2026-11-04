@@ -722,6 +722,7 @@ def load_builtins() -> None:
     from app.agents.capabilities import (  # noqa: F401 - imported for side effects
         artifacts,
         ask_user,
+        background_tasks,
         background_tools,
         browser_use,
         channel_tools,
@@ -739,6 +740,7 @@ def load_builtins() -> None:
         knowledge,
         media,
         memory_files,
+        monitor,
         phone_calls,
         planning,
         sandbox,

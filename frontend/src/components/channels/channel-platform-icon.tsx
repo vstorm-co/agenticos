@@ -12,6 +12,8 @@ const MARKS = {
   sms: Smartphone,
   email: Mail,
   imessage: MessageSquare,
+
+  discord: brandMark("discord"),
 } as const;
 
 /**

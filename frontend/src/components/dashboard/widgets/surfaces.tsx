@@ -22,6 +22,8 @@ const KNOWN_SURFACES = new Set([
   "teams",
   "sms",
   "email",
+
+  "discord",
   "schedule",
   "workflow",
   "follow_ups",

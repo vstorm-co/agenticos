@@ -179,7 +179,7 @@ export default function RunsPage() {
     // 900px viewport left a run history three rows deep inside its own scroll
     // box - a second scrollbar to reach what the page had room for all along.
     <div className="flex flex-1 flex-col">
-      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
+      <PageHeader className="mb-4" title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       {/* Not until the permission set has answered. The strip's *shape* depends
           on this permission - whether there is an Approvals tab at all - so

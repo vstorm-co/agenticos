@@ -66,6 +66,7 @@ from app.db.models.user import User
 from app.db.models.visual import Visual
 from app.db.models.workflow_file import WorkflowFile
 from app.db.session import get_db_context
+from app.services.rag_scratch import SCRATCH_DIRECTORY
 
 # Every column holding a path under `MEDIA_DIR`. The unreferenced-file scan is
 # only as good as this list: a column missing from it turns every file it names
@@ -89,11 +90,14 @@ MEDIA_PATH_COLUMNS: tuple[InstrumentedAttribute[str | None] | InstrumentedAttrib
 )
 
 # Directories under `MEDIA_DIR` that hold files no row points at, by design: the
-# parse scratch directory is cleared by the worker that wrote it. Generated media
+# parse scratch directory holds one copy per queued or running ingest, which its
+# job removes when it ends, a document delete removes after its commit, and the
+# hourly `sweep-rag-scratch` removes once its document is gone or settled
+# (`app.services.rag_scratch`, #2681). Generated media
 # is not one of them since `generated_media` records each file (#2310), so a
 # file generated before that table existed is counted here - it has no row, and
 # goes only with its organization.
-UNREFERENCED_BY_DESIGN = ("_rag_tmp",)
+UNREFERENCED_BY_DESIGN = (SCRATCH_DIRECTORY,)
 
 # Which capabilities send something out of the deployment when an agent runs
 # with them, and where. A capability reaches the network without any row in
@@ -138,7 +142,7 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "web_research": "DuckDuckGo by default, or the search provider the binding names",
 }
 
-# Capabilities whose work never leaves the process, so they own no destination.
+# Capabilities with no outbound destination of their own.
 CAPABILITIES_STAYING_INSIDE = frozenset(
     {
         # A published page goes to the deployment's own file storage. Who may then
@@ -149,9 +153,15 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # Questions go to the person running the agent, on the surface they are
         # already using.
         "ask_user",
+        # Runs a command in the run's own workspace and reads its output back from a
+        # file there; nothing leaves that workspace except through its own tools.
+        "monitor",
         # Runs the agent's own tools later in the same process; whatever a tool
         # reaches is that tool's capability's destination, listed under it.
         "background_tools",
+        # Delegation stays in this deployment; outbound destinations belong to
+        # the child model and tools, which this inventory already lists.
+        "background_tasks",
         "channel_tools",
         "charts",
         "clock",
@@ -510,6 +520,13 @@ async def _runnable_versions(db: AsyncSession) -> list[tuple[str, str, int, dict
     return runnable
 
 
+LOCAL_CODING_DESTINATION = (
+    "The provider or gateway configured in Claude Code or Codex on the person's "
+    "computer, directly from that computer, with the task and code the coding "
+    "agent reads. The deployment does not control its model, endpoint or sign-in."
+)
+
+
 async def _capability_destinations(db: AsyncSession) -> Section:
     """Where a capability sends something, with no row naming the address.
 
@@ -526,13 +543,30 @@ async def _capability_destinations(db: AsyncSession) -> Section:
             destination = OUTBOUND_CAPABILITIES.get(str(capability_id))
             if destination is None:
                 continue
+            config = binding.get("config") if isinstance(binding, dict) else None
+            if (
+                capability_id == "coding_agent"
+                and isinstance(config, dict)
+                and config.get("runs_on") == "this_computer"
+            ):
+                destination = LOCAL_CODING_DESTINATION
             rows.append([f"agent {slug}", f"{where} v{version}", str(capability_id), destination])
+    rows.append(
+        [
+            "desktop chat",
+            "per-conversation override",
+            "coding_agent (this computer)",
+            LOCAL_CODING_DESTINATION,
+        ]
+    )
     return Section(
         title="Capability destinations",
         note=(
             "A capability reaches its own address with nothing in the tables "
             "above naming it. Only the versions that can run are listed: the "
-            "default one, and each environment's pinned one."
+            "default one, and each environment's pinned one. The desktop chat row is a "
+            "selectable runtime path even without a published coding-agent binding, "
+            "not evidence that a conversation has used it."
         ),
         headers=("Agent", "Version", "Capability", "Reaches"),
         rows=rows,
@@ -687,7 +721,8 @@ async def _unreferenced_media(db: AsyncSession) -> Section:
     return Section(
         title=f"Files on disk with no row ({len(orphans)} under {media_dir})",
         note=(
-            "The parse scratch directory is excluded - it has no row by design. "
+            "The parse scratch directory is excluded - it has no row by design, "
+            "and an hourly sweep removes a copy whose document is gone or settled. "
             "Under generated_<organization> these are mostly files generated "
             "before generated_media recorded them, which go only with their "
             "organization; also a file whose unlink failed after its row was "

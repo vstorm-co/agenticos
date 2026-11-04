@@ -1,5 +1,5 @@
 ---
-source_sha: "eb62b561a0c7"
+source_sha: "62dda4f76c92"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -31,7 +31,7 @@ despliegues - está [Escalar más allá de un host](scaling.md).
 | | |
 |---|---|
 | **Un host** | 4 vCPU y 8 GB de RAM lo hacen funcionar. Ver [dimensionado](#sizing-the-host) |
-| **Docker** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR |
+| **Motor de contenedores** | Engine 24+ con el plugin Compose (2.24 o posterior), y tu usuario en el grupo `docker`. En el host no se construye nada: las imágenes se descargan de GHCR. Como alternativa, usa la [ruta manual de Podman](#podman-support). |
 | **Dos nombres de host** | uno para el sitio, otro para la API — ver [por qué dos](#why-two-hostnames) |
 | **Un proxy inverso** | [Traefik](#option-a-traefik) o [Nginx](#option-b-nginx). Termina el TLS |
 | **Ninguna clave de provider** | los modelos de chat y los embeds llevan ambos su clave por organización, en el vault del producto. El entorno no guarda credenciales para ninguno de los dos — consulta [Protección de datos](data-protection.md#nothing-leaves-by-default) |
@@ -49,6 +49,95 @@ certificado propio.
 `app.example.com` y `api.example.com` es la forma. Pueden ser dos nombres
 cualesquiera; lo que no pueden ser es un solo nombre con un prefijo de ruta,
 porque las cookies de la API y las del sitio están limitadas al host.
+
+### Compatibilidad con Podman { #podman-support }
+
+**Podman está soportado mediante la instalación manual con Docker Compose como
+proveedor.** Se probaron Podman 6.1.4 y Docker Compose v2.40.3 en Fedora CoreOS
+44 (VM de Podman en macOS, ARM64, cgroups v2, SELinux enforcing). El archivo
+distribuido requiere Compose 2.24 o posterior.
+
+**No uses `podman-compose` 1.6.0.** Arrancó el stack y un agente respondió, pero
+una migración que falló de forma controlada no impidió iniciar la app dependiente.
+Docker Compose rechazó correctamente ese inicio. Los proveedores tienen versiones
+independientes; `podman-compose` 1.6.0 no es Docker Compose 1.6.0.
+
+El inicio rápido sigue limitado a Docker y dirige Podman detectado a esta ruta
+manual, también con `--no-sandbox`. Desde la raíz del repositorio configurado,
+elige el ejecutable real de Docker Compose (binario independiente o plugin CLI):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Comprueba que `podman compose version` identifica Docker Compose. El `-f`
+explícito excluye el override local de compilación desde fuentes; esta
+instalación usa imágenes publicadas. Tras iniciar los servicios, sigue
+[Instalación](install.md) para configurar la organización y el modelo.
+
+**Sandbox opcional.** `pydantic-ai-backend` 0.2.39 funcionó con sockets Podman
+rootful y rootless. No necesita un backend ni una versión nuevos. Usa
+`docker-compose-podman.yml` para adaptar los montajes del socket y workspace;
+prepara sus permisos antes de activar el perfil.
+
+En Linux nativo con Podman rootless:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+Para Linux rootful, activa el `podman.socket` del sistema, establece
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock` y prepara el workspace con
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Dirige Compose a
+ese motor rootful. El grupo del socket suele ser 0; para un socket rootful
+personalizado, indica su grupo real en `DOCKER_GID`.
+
+En una VM Podman rootless en macOS, ambos orígenes bind pertenecen a la VM Linux,
+no a macOS. Prepáralos dentro de esa VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Conserva las claves existentes del despliegue. Configura un `SANDBOXD_TOKEN`
+no vacío y `SANDBOX_URL=http://sandboxd:8080` en el archivo env que lee el stack,
+como se describe en [configuración de sandbox](sandbox.md). Después, inicia con
+ambos archivos:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+El override desactiva el etiquetado SELinux solo para `sandboxd`, que ya posee
+el socket del motor. Comparte la etiqueta del workspace con `:z`, pues también
+lo montan las sandboxes hermanas. Los contenedores sandbox conservan sus etiquetas
+y `no-new-privileges`; no cambies la etiqueta del socket ni desactives SELinux
+globalmente. En rootless, la propiedad del socket se mapea al grupo 0 dentro
+del espacio de nombres de usuario.
+
+En un servidor usa una ruta persistente para el workspace: `/tmp` es solo un
+ejemplo local. Conserva los ajustes de socket, workspace y grupo en el entorno
+del operador para los siguientes comandos Compose. `DOCKER_HOST` en el host no
+cambia el montaje del socket dentro de `sandboxd`.
+
+Se verificaron un run por HTTP con finalización persistida, archivos de workspace,
+códigos de error, timeouts, límites RAM/CPU/PID efectivos y builds de runtimes.
+La imagen workbench distribuida leyó/escribió XLSX, generó un gráfico y ejecutó
+Node y LibreOffice. El modelo fue un servidor de prueba determinista compatible
+con OpenAI; no se probaron el runtime desktop ni todas las distribuciones Linux.
+El [informe de pruebas](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+registra versiones, alcance y reproducción del fallo de migración.
 
 ## Dimensionar el host { #sizing-the-host }
 
@@ -564,9 +653,9 @@ eso lleva.
 
 ### Desde GitHub, con una aprobación { #from-github-with-an-approval }
 
-`.github/workflows/deploy.yml` ofrece cada merge a `main` para desplegarlo y
+`.github/workflows/deploy.yml` ofrece cada release estable publicado para desplegarlo y
 espera a que alguien lo apruebe. Esa barrera es **un ajuste del repositorio, no
-un paso del archivo** — sin ella, el workflow despliega cada merge sin
+un paso del archivo** — sin ella, el workflow despliega cada release estable publicado sin
 supervisión.
 
 Configúralo una vez:
@@ -582,7 +671,7 @@ Configúralo una vez:
     Todas las ejecuciones comparten el grupo de concurrencia `deploy-production`,
     y una ejecución parada en la barrera de aprobación lo retiene. No caduca por
     sí sola — GitHub cancela una sin atender después de 30 días — así que hasta
-    que alguien la apruebe o la cancele, los merges posteriores hacen cola detrás
+    que alguien la apruebe o la cancele, los releases posteriores hacen cola detrás
     de una decisión que nadie va a tomar, y el servidor sigue ejecutando lo
     último que se desplegó.
 
@@ -594,8 +683,8 @@ Configúralo una vez:
     `deploy-queue.yml` es lo que ocurre cuando se deja de todos modos: cada seis
     horas cancela una ejecución de Deploy que lleve más de doce esperando una
     aprobación, y abre una incidencia que nombra esa ejecución y dice cuánto se ha
-    alejado `main` del último despliegue correcto. No aprueba nada ni despliega
-    nada — vacía la cola para que el siguiente merge llegue a la barrera, y dice
+    alejado el último release estable del último despliegue correcto. No aprueba nada ni despliega
+    nada — vacía la cola para que el siguiente release publicado llegue a la barrera, y dice
     que lo ha hecho. A mano, con `gh workflow run deploy-queue.yml`.
 
 !!! danger "Aprobar desde la cola del entorno aprueba la ejecución **más antigua**"
@@ -604,7 +693,7 @@ Configúralo una vez:
     momento en que la cola se atascó, no el que se acaba de empujar — así llegó a
     este servidor un commit de hace dos semanas. Aprueba desde la página de la
     ejecución del commit que quieres, o arranca una nueva con
-    `gh workflow run deploy.yml --ref main` y aprueba esa.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` y aprueba esa.
 
 | Secreto | Qué |
 |---|---|

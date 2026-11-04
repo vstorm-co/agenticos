@@ -17,9 +17,9 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 _CHANNELS = {
-    "notification_routes": "'slack', 'telegram', 'mattermost', 'teams', 'sms'",
-    "notification_deliveries": "'email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms'",
-    "notification_preferences": "'in_app', 'email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms'",
+    "notification_routes": "'slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms'",
+    "notification_deliveries": "'email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms'",
+    "notification_preferences": "'in_app', 'email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms'",
 }
 
 
@@ -37,7 +37,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_exposure_surface",
         "agent_exposures",
-        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'sms', 'email', 'imessage')",
+        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms', 'email', 'imessage')",
     )
 
 
@@ -47,7 +47,7 @@ def downgrade() -> None:
     op.create_check_constraint(
         "ck_exposure_surface",
         "agent_exposures",
-        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'sms', 'email')",
+        "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms', 'email')",
     )
     for table in ("notification_deliveries", "notification_preferences", "notification_routes"):
         op.execute(sa.text(f"DELETE FROM {table} WHERE channel = 'imessage'"))

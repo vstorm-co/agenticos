@@ -27,7 +27,7 @@ export default function RemoteAgentsPage() {
   const [registering, setRegistering] = useState(false);
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("title")}
         description={t("pageDescription")}

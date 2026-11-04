@@ -47,7 +47,15 @@ MODULE = "app.services.notifications"
 FRONTEND = "https://console.example"
 
 
-def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallback=False):
+def _run(
+    *,
+    org_id=None,
+    user_id=None,
+    cost="1.50",
+    initiated_by_publisher_fallback=False,
+    channel_identity_id=None,
+    exposure_id=None,
+):
     run = MagicMock()
     run.id = uuid.uuid4()
     run.routine_origin_id = None
@@ -57,6 +65,8 @@ def _run(*, org_id=None, user_id=None, cost="1.50", initiated_by_publisher_fallb
     run.user_id = user_id
     run.cost_usd = Decimal(cost)
     run.initiated_by_publisher_fallback = initiated_by_publisher_fallback
+    run.channel_identity_id = channel_identity_id
+    run.exposure_id = exposure_id
     return run
 
 
@@ -307,6 +317,184 @@ class TestBudgetExceeded:
             )
 
         assert written.calls[0]["occurrence_id"] == str(run.id)
+
+
+class TestAnApprovalAskedByAChatStranger:
+    """A group chat's unlinked speaker runs as the binding's publisher.
+
+    Only the wording names the chat account. Who is told stays what it was: the
+    publisher still owns the run, and a queue nobody is told about is a run that
+    sits parked.
+    """
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_chat_strangers_approval_still_reaches_the_publisher_named_as_asked_by_the_chat_account(
+        self, written
+    ):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+            exposure_id=uuid.uuid4(),
+        )
+        identity = MagicMock(
+            platform="slack",
+            platform_display_name="Ana",
+            platform_username=None,
+            platform_user_id="U9",
+        )
+        bot = MagicMock()
+        bot.name = "Support"
+        resolved = _members(publisher)
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=resolved),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=identity)
+            ),
+            patch(
+                f"{MODULE}.agent_exposure_repo.get",
+                new=AsyncMock(return_value=MagicMock(channel_bot_id=uuid.uuid4())),
+            ),
+            patch(f"{MODULE}.channel_bot_repo.get_for_org", new=AsyncMock(return_value=bot)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        call = written.calls[0]
+        assert call["recipients"] == [publisher]
+        assert resolved.await_args.kwargs["user_ids"] == [publisher]
+        assert (
+            call["render_context"]["asked_by"]
+            == "Asked in Slack by Ana (unverified), through Support."
+        )
+        assert "your" not in call["summary"]
+        assert call["summary"] == (
+            "Support is waiting on an approval asked in Slack by Ana (unverified)"
+        )
+
+    @pytest.mark.anyio
+    async def test_a_binding_that_is_gone_leaves_the_bot_out_of_the_line(self, written):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+            exposure_id=None,
+        )
+        identity = MagicMock(
+            platform="telegram",
+            platform_display_name=None,
+            platform_username="ana",
+            platform_user_id="7",
+        )
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=identity)
+            ),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        assert written.calls[0]["render_context"]["asked_by"] == (
+            "Asked in Telegram by @ana (unverified)."
+        )
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("exposure_gone", [True, False])
+    async def test_a_deleted_binding_or_bot_leaves_the_bot_out(self, written, exposure_gone):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+            exposure_id=uuid.uuid4(),
+        )
+        identity = MagicMock(
+            platform="slack",
+            platform_display_name="Ana",
+            platform_username=None,
+            platform_user_id="U9",
+        )
+        exposure = None if exposure_gone else MagicMock(channel_bot_id=uuid.uuid4())
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)),
+            patch(
+                f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=identity)
+            ),
+            patch(f"{MODULE}.agent_exposure_repo.get", new=AsyncMock(return_value=exposure)),
+            patch(f"{MODULE}.channel_bot_repo.get_for_org", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        assert written.calls[0]["render_context"]["asked_by"] == (
+            "Asked in Slack by Ana (unverified)."
+        )
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_deleted_identity_reads_as_an_ordinary_approval(self, written):
+        publisher = uuid.uuid4()
+        run = _run(
+            user_id=publisher,
+            initiated_by_publisher_fallback=True,
+            channel_identity_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(publisher)),
+            patch(f"{MODULE}.channel_identity_repo.get_by_id", new=AsyncMock(return_value=None)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        assert written.calls[0]["render_context"]["asked_by"] == ""
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_members_approval_reads_as_before(self, written):
+        member = uuid.uuid4()
+
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(member)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=member),
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(to=[AlertAudience.INITIATOR])),
+                approvals=_approvals("send_email"),
+            )
+
+        call = written.calls[0]
+        assert call["render_context"]["asked_by"] == ""
+        assert call["summary"] == "Support is waiting on your approval"
 
 
 class TestEveryPersonIsResolvedInsideTheOrganization:

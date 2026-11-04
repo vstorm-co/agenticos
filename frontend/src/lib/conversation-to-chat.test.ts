@@ -437,3 +437,14 @@ it("restores a phone receipt card without copying a private report into the time
     { id: expect.any(String), type: "phone_call", phoneCallId: "phone-intent" },
   ]);
 });
+
+it("restores the recorded turn workspace independently of current Work on", () => {
+  const message = conversationMessageToChatMessage(
+    raw({
+      parts: [
+        { type: "text", text: "Done", file_source: { kind: "local", id: "original-source" } },
+      ],
+    }),
+  );
+  expect(message.fileSource).toEqual({ kind: "local", id: "original-source" });
+});

@@ -2,6 +2,7 @@
 
 import { RoutinePermissions } from "./routine-permissions";
 
+import { LocalAgentSettings } from "./local-agent-settings";
 import { LocalServiceSettings } from "./local-service-settings";
 
 import { Laptop, Link2, Unlink } from "lucide-react";
@@ -57,6 +58,8 @@ export function DeviceSettings() {
             </div>
           </SectionCard>
           <RoutinePermissions />
+
+          <LocalAgentSettings />
           <LocalServiceSettings />
         </>
       )}

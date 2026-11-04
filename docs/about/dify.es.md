@@ -1,5 +1,5 @@
 ---
-source_sha: "08e887dac448"
+source_sha: "31d0a04c39bf"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: alternativa Apache-2.0 y multi-tenant"
 description: "Compara Dify y AgenticOS, dos plataformas de agents de IA autoalojadas: condiciones de licencia, multi-tenancy, SSO, budgets, aprobaciones, auditoría y precios."
@@ -11,11 +11,13 @@ Ambos productos son autoalojados y ambos hacen recuperación de documentos, así
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Dify: el repositorio público en la versión 1.17.1, su licencia, su documentación y su página de precios; no un plan cloud probado ni un despliegue fijado.
 
+Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | Dify Community Edition | AgenticOS |
 | --- | --- | --- |
-| Cómo construyes | Un lienzo visual de nodos de workflow, chatflow y agent | Instrucciones, un perfil de modelo, capabilities, colecciones y un budget, publicados como una versión |
+| Cómo construyes | Un lienzo visual de nodos de workflow, chatflow y agent | Agentes versionados y editor visual de workflows con pasos tipados, ramas y bucles |
 | Licencia | Dify Open Source License: Apache 2.0 con condiciones añadidas | Apache-2.0; consulta las [licencias de los componentes incluidos](../licenses.md) |
 | Multi-tenancy | Un workspace; varios workspaces son Enterprise | Muchas organizaciones en un despliegue |
 | Roles | Cuatro roles integrados; los roles personalizados son Enterprise | Seis roles, 33 permisos y grants por recurso para personas y grupos |
@@ -57,11 +59,11 @@ El nodo Human Input de Dify pausa un workflow y envía un formulario, y la solic
 
 ### Un cambio que puede hacer un equipo de negocio { #a-change-a-business-team-can-make }
 
-En Dify cambias un proceso editando el lienzo. En AgenticOS un responsable de negocio edita las instrucciones o activa una capability, y después publica. Cada [versión](../concepts.md#version) sigue siendo legible, los [entornos](../environments.md#the-workflow-it-is-for) promueven una versión probada, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) para revisarlo en una pull request. La configuración solo puede alcanzar lo que registraron los ingenieros, y eso mantiene seguro un builder no-code.
+En Dify cambias un proceso editando el lienzo. En AgenticOS un responsable de negocio edita las instrucciones o activa una capability, o edita un workflow visual y después publica. Cada [versión](../concepts.md#version) sigue siendo legible, los [entornos](../environments.md#the-workflow-it-is-for) promueven una versión probada, y el spec [se exporta como YAML](../features.md#exportable-into-your-own-repository) para revisarlo en una pull request. La configuración solo puede alcanzar lo que registraron los ingenieros.
 
 ## Cuándo encaja mejor Dify { #when-dify-is-the-better-fit }
 
-- Tu equipo piensa en diagramas de flujo y quiere un lienzo visual de nodos, bucles y ramas. AgenticOS no tiene lienzo de workflows.
+- Prefieres la biblioteca de nodos, integraciones y edición de workflows de este producto. AgenticOS también tiene un editor visual; los nodos disponibles y la semántica de ejecución difieren.
 - Necesitas los plugins de su marketplace, su búsqueda híbrida con rerank o sus numerosas integraciones de observabilidad. AgenticOS todavía no tiene reranker ni panel de trazas.
 - Te basta con un workspace, o te convienen los términos de la edición Enterprise.
 
@@ -83,7 +85,7 @@ La licencia de Dify exige permiso por escrito para operar un entorno multi-tenan
 
 ### ¿AgenticOS tiene un constructor visual de workflows como Dify? { #does-agenticos-have-a-visual-workflow-builder-like-dify }
 
-No. AgenticOS construye agents a partir de instrucciones, capabilities, conocimiento y un budget, y resuelve el trabajo de varios pasos con delegación, planificación y triggers. Si tu equipo trabaja con un lienzo de nodos, Dify encaja mejor.
+Sí. AgenticOS incluye un editor visual de workflows con pasos tipados, ramas, bucles y versiones publicadas. Dify tiene su propia biblioteca de nodos y ecosistema; compara los nodos que requiere tu tarea.
 
 ### ¿Cuál de los dos cuesta menos de operar? { #which-one-costs-less-to-run }
 

@@ -820,7 +820,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def set_my_language(locale: ConsoleLocale) -> dict[str, Any]:
-        """Switch the console's language for the person asking: `en`, `pl` or `de`.
+        """Switch the console's language for the person asking, using a supported locale from the input schema.
 
         Use it when they ask for the interface - or you - in another language. It
         holds on every device they sign in on, and the console they are looking at

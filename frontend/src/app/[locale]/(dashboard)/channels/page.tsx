@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { PhoneSettings } from "@/components/phone/phone-settings";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
+import { DiscordRoleMappingsDialog } from "@/components/channels/discord-role-mappings-dialog";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
 import { ErrorState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty, Skeleton } from "@/components/ui";
@@ -63,10 +64,11 @@ export default function ChannelsPage() {
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
   const [editing, setEditing] = useState<ChannelBot | null>(null);
+  const [mapping, setMapping] = useState<ChannelBot | null>(null);
 
   if (!canManage) {
     return (
-      <div className="flex flex-1 flex-col space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={0}>
           <p className="text-muted-foreground px-6 py-16 text-center text-sm">
@@ -81,7 +83,7 @@ export default function ChannelsPage() {
   // draws a different shape from what follows is a layout jump on every load.
   if (isLoading) {
     return (
-      <div className="flex flex-1 flex-col space-y-6">
+      <div className="flex flex-1 flex-col space-y-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
         <BotsCard count={null}>
           {[0, 1, 2].map((row) => (
@@ -102,7 +104,7 @@ export default function ChannelsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="flex flex-1 flex-col space-y-4">
       <PageHeader
         title={t("channels")}
         description={t("pageDescription")}
@@ -143,6 +145,7 @@ export default function ChannelsPage() {
             onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={(bot) => remove.mutate(bot.id)}
+            onMapRoles={can(Perm.membersManage) ? setMapping : undefined}
           />
         )}
       </BotsCard>
@@ -162,6 +165,8 @@ export default function ChannelsPage() {
         onSubmit={(botId, data) => update.mutateAsync({ botId, data })}
         isPending={update.isPending}
       />
+
+      {mapping && <DiscordRoleMappingsDialog bot={mapping} onClose={() => setMapping(null)} />}
     </div>
   );
 }

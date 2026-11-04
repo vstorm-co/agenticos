@@ -51,6 +51,11 @@ export interface MessageReply {
   agentName?: string;
 }
 
+/** The workspace selected for a turn, retained after Work on changes. */
+export type TurnFileSource =
+  | { readonly kind: "local"; readonly id: string }
+  | { readonly kind: "conversation"; readonly id: string };
+
 export interface ChatMessage {
   /** Submission correlation, retained when the persistence frame was lost. */
   clientMessageId?: string;
@@ -70,6 +75,8 @@ export interface ChatMessage {
   files?: ChatMessageFile[];
   /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
   mentions?: Mentionable[];
+  /** The source recorded when this turn ran. Absent on older transcripts. */
+  fileSource?: TurnFileSource;
   /** Conversation ID for this message */
   conversationId?: string;
   /** Who typed a user turn, when it was somebody signed in. In a project's chat
@@ -292,6 +299,7 @@ export type WSEventType =
   // Following a turn another socket is writing - the reader came back to a
   // conversation whose agent was still answering (`app/services/live_turn.py`).
   | "turn_attached"
+  | "background_task_turn"
   | "turn_prompt"
   | "presence"
   | "typing"

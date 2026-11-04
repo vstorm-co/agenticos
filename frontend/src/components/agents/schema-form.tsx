@@ -21,6 +21,7 @@ import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { BrandIcon, type BrandName } from "@/components/icons/brand-icon";
 import { useModelProviders } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
+import { useCustomIcons } from "@/components/icons/custom-icons";
 import { BRAND_GLYPHS } from "@/lib/brand-glyphs.generated";
 import type { FieldCopy, FieldCopyFor } from "@/components/agents/capability-field-copy";
 import { cn } from "@/lib/utils";
@@ -106,9 +107,19 @@ export function SchemaForm({
     // A choice that depended on this field and is no longer offered goes,
     // rather than staying selected where the form cannot show it.
     for (const [other, property] of Object.entries(schema.properties ?? {})) {
+      if (property["x-visible-when"]?.field === key && !visible(property, schema, next)) {
+        next[other] = undefined;
+        continue;
+      }
       const when = property["x-enum-when"];
-      if (when?.field !== key || next[other] === undefined) continue;
-      if (!(when.choices[String(fieldValue)] ?? []).includes(String(next[other]))) {
+      if (
+        when === undefined ||
+        (when.field !== key && when.unless?.field !== key) ||
+        next[other] === undefined
+      )
+        continue;
+      const allowed = conditionalChoices(property, schema, next);
+      if (allowed !== undefined && !allowed.includes(String(next[other]))) {
         next[other] = undefined;
       }
     }
@@ -158,10 +169,9 @@ function narrowed(
   schema: JsonSchema,
   value: Record<string, unknown>,
 ): JsonSchemaProperty {
-  const when = property["x-enum-when"];
-  if (when === undefined) return property;
-  const current = value[when.field] ?? schema.properties?.[when.field]?.default;
-  const allowed = new Set(when.choices[String(current)] ?? []);
+  const choices = conditionalChoices(property, schema, value);
+  if (choices === undefined) return property;
+  const allowed = new Set(choices);
   const keep = (values: unknown[] | undefined) =>
     values?.filter((choice) => allowed.has(String(choice)));
   return {
@@ -171,6 +181,18 @@ function narrowed(
       branch.enum ? { ...branch, enum: keep(branch.enum) } : branch,
     ),
   };
+}
+
+function conditionalChoices(
+  property: JsonSchemaProperty,
+  schema: JsonSchema,
+  value: Record<string, unknown>,
+): string[] | undefined {
+  const when = property["x-enum-when"];
+  if (when === undefined) return undefined;
+  const read = (field: string) => value[field] ?? schema.properties?.[field]?.default;
+  if (when.unless?.equals.includes(String(read(when.unless.field)))) return undefined;
+  return when.choices[String(read(when.field))] ?? [];
 }
 
 /**
@@ -238,7 +260,9 @@ function SchemaField({
   const label = copy?.title ?? property.title ?? humanise(name);
 
   const computerEnvironment = property["x-widget"] === "computer-environment";
-  const tiled = computerEnvironment || property["x-widget"] === "browser-connection";
+  const codingEnvironment = property["x-widget"] === "coding-environment";
+  const tiled =
+    computerEnvironment || codingEnvironment || property["x-widget"] === "browser-connection";
   const choices =
     enumChoices(property)?.filter((choice) => !computerEnvironment || choice !== "auto") ?? null;
   const kind = resolveKind(property);
@@ -382,7 +406,10 @@ function SchemaField({
                 )}
               >
                 <span className="flex items-center gap-2 font-medium">
-                  {choiceMark(choice, computerEnvironment ? "desktop" : "browser-connection")}
+                  {choiceMark(
+                    choice,
+                    computerEnvironment || codingEnvironment ? "desktop" : "browser-connection",
+                  )}
                   {enumLabel(property, choice, copy)}
                 </span>
                 {copy?.options?.[choice]?.summary && (
@@ -520,7 +547,7 @@ function SchemaField({
             disabled={disabled}
             spellCheck={false}
             className={cn(
-              "font-mono text-xs",
+              "font-mono text-base md:text-xs",
               masked && "pr-10",
               // No `type="password"` on a textarea, so the masking is the font.
               // It hides the value from a shoulder and from a screenshot, which
@@ -751,6 +778,11 @@ function numberText(value: unknown, fallback: unknown): string {
   return typeof shown === "number" || typeof shown === "string" ? String(shown) : "";
 }
 
+function CatalogChoiceMark({ name }: { name: string }) {
+  const icons = useCustomIcons();
+  return icons.has(name) ? <ProviderIcon provider={name} className="h-3.5 w-3.5 shrink-0" /> : null;
+}
+
 /**
  * Environment symbols are scoped to the desktop field; other enums keep provider marks.
  *
@@ -779,6 +811,7 @@ function choiceMark(choice: string, field: string) {
         );
       case "sandbox":
         return <Container className={className} aria-hidden />;
+      case "this_computer":
       case "local":
         return <Laptop className={className} aria-hidden />;
       case "daemon":
@@ -803,9 +836,7 @@ function choiceMark(choice: string, field: string) {
   }
   const [head] = choice.split(":");
   const provider = (head ?? "").replace(/-(responses|chat|vertex|gla)$/, "");
-  // Unequal only when there was a colon to split on: a value with none is a
-  // plain choice and wears nothing.
-  if (provider === choice) return null;
+  if (provider === choice) return <CatalogChoiceMark name={choice} />;
   return <ProviderIcon provider={provider} className="h-3.5 w-3.5" />;
 }
 

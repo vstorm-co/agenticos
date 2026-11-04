@@ -147,16 +147,19 @@ it("starts desktop glass before paint but respects an explicitly saved standard 
   expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
 });
 
-it("marks connection setup before paint even when the console preference is opaque", () => {
-  window.__AGENTICOS_SHELL__ = {
-    platform: "macos",
-    window: "main",
-    version: "test",
-    vibrancy: true,
-  };
-  localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { look: "standard" } }));
-  window.history.replaceState(null, "", "/pl/desktop/readiness?connection=1");
-  boot();
-  expect(root()).toHaveAttribute(DESKTOP_SETUP_ATTRIBUTE);
-  expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
-});
+it.each(["en", "pl", "de", "tr"])(
+  "marks %s connection setup before paint even when the console preference is opaque",
+  (locale) => {
+    window.__AGENTICOS_SHELL__ = {
+      platform: "macos",
+      window: "main",
+      version: "test",
+      vibrancy: true,
+    };
+    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ state: { look: "standard" } }));
+    window.history.replaceState(null, "", `/${locale}/desktop/readiness?connection=1`);
+    boot();
+    expect(root()).toHaveAttribute(DESKTOP_SETUP_ATTRIBUTE);
+    expect(root().hasAttribute(LOOK_ATTRIBUTE)).toBe(false);
+  },
+);

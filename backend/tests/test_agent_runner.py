@@ -9,7 +9,7 @@ it was parked on, with the spend it had already booked.
 import asyncio
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -105,6 +105,7 @@ from app.services.agent_runner import (
     run_failure_summary,
 )
 from app.services.approvals import ApprovalService
+from app.services.channels.handback import STOPPED_NOTICE
 from app.services.mcp_connection import (
     AccountNote,
     ResolvedMcpToolsets,
@@ -229,6 +230,7 @@ def _parked_run(**overrides):
         test_spec=None,
         # Started from a session; a run a key started records the key's scopes.
         key_scopes=None,
+        chat_notice_sent_at=None,
         trigger_id=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
@@ -693,7 +695,8 @@ class TestPrepare:
         assert opened.await_args.kwargs["identity"].user_id is None
 
     @pytest.mark.anyio
-    async def test_a_chat_in_a_project_works_in_the_projects_container(self):
+    @pytest.mark.parametrize("aside", [False, True])
+    async def test_a_chat_in_a_project_works_in_the_projects_container(self, aside: bool):
         """Whichever agent answers, and whatever scope its own binding asks for:
         the project's files are what the person put there for any agent to use."""
         ctx = _ctx()
@@ -734,11 +737,11 @@ class TestPrepare:
                 "app.services.agent_runner.ProjectService.for_run",
                 new=AsyncMock(return_value=project),
             ),
-            patch("app.services.agent_runner.build_agent"),
+            patch("app.services.agent_runner.build_agent") as build,
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
         ):
             await service.prepare(
-                ctx, agent.id, conversation_id=uuid.uuid4(), on_sandbox_wait=heard
+                ctx, agent.id, conversation_id=uuid.uuid4(), on_sandbox_wait=heard, aside=aside
             )
 
         assert opened.await_args.kwargs["scope_override"] == "project"
@@ -746,7 +749,12 @@ class TestPrepare:
         assert opened.await_args.kwargs["on_wait"] is heard
         assert opened.await_args.kwargs["identity"].project_id == project.id
         opened_spec = opened.await_args.args[0]
-        assert [binding.id for binding in opened_spec.capabilities] == ["sandbox"]
+        assert [binding.id for binding in opened_spec.capabilities] == (
+            [] if aside else ["sandbox"]
+        )
+        if aside:
+            assert build.call_args.args[0].capabilities == []
+            assert build.call_args.kwargs["extra_toolsets"] == []
         assert "Cite sources." in opened_spec.instructions
 
     @pytest.mark.anyio
@@ -2948,6 +2956,34 @@ class TestWhatANonStreamingRunRecords:
 
         assert record.await_args.kwargs["prompt"] == "summarise this"
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_blocked_turn_keeps_no_briefing_of_its_files(self):
+        """#2578: the briefing is replayed after the prompt on every later turn,
+        and the input edge screens only the newest prompt - so a file the edge
+        refused would have reached the model one follow-up later. The prompt row
+        is still written: the person said it, and the transcript shows it."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        prepared.built.agent.run = AsyncMock(
+            side_effect=GuardrailBlocked(edge="input", message="This request was blocked.")
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service, "_notify", new=AsyncMock()),
+            patch("app.services.agent_runner.AttachmentRouter") as router,
+            patch.object(service.transcript, "record", new=AsyncMock()) as record,
+        ):
+            router.return_value.build_prompt = AsyncMock(return_value="assembled")
+            router.return_value.context = "\n---\nFirst 20 lines:\nSECRETWORD"
+            await service.execute(_ctx(), uuid.uuid4(), "summarise this", attachments=[MagicMock()])
+
+        written = record.await_args.kwargs
+        assert written["prompt"] == "summarise this"
+        assert written["attachment_context"] is None
+
 
 class TestStoppingANonStreamingRun:
     """A cancelled run, through `execute`.
@@ -3813,6 +3849,35 @@ class TestResume:
             await service.resume(resumer, run.id, run_limit_usd=run_limit_usd)
 
         return build
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_approval_resume_restores_the_task_cancellation_identity(self):
+        from app.services import conversation_tasks as tasks
+
+        task_id, profile_id = uuid.uuid4(), uuid.uuid4()
+        with (
+            patch.object(
+                tasks, "_check_execution", new=AsyncMock(side_effect=tasks.ConversationTaskStopped)
+            ) as checked,
+            patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+        ):
+            build = await self._resumed(
+                paused_state={
+                    "messages": [],
+                    "tool_call_ids": {},
+                    "admitted_as": {
+                        "conversation_task_id": str(task_id),
+                        "model_profile_id": str(profile_id),
+                    },
+                }
+            )
+        checked.assert_awaited_once_with(
+            task_id, self.resumed_run.organization_id, self.resumed_run.id
+        )
+        assert build.return_value.deps.conversation_task_id == task_id
+        build.return_value.agent.run.assert_not_awaited()
+        assert self.resolve.call_args.kwargs["profile_id"] == profile_id
 
     @pytest.mark.anyio
     @pytest.mark.security
@@ -6988,6 +7053,7 @@ class TestAFailedRunOverTheApi:
 
 
 class TestPerRunLocalServices:
+    @pytest.mark.parametrize("aside", [False, True])
     @pytest.mark.anyio
     @pytest.mark.parametrize(
         "connected, voice_call, model_selected, browser_selected, browser_only, computer_selected",
@@ -7009,6 +7075,7 @@ class TestPerRunLocalServices:
         browser_selected: bool,
         browser_only: bool,
         computer_selected: bool,
+        aside: bool,
     ):
         from app.agents.voice import VoiceOptions
         from app.schemas.local_target import LocalTarget
@@ -7030,6 +7097,10 @@ class TestPerRunLocalServices:
         session = uuid.uuid4()
         target = LocalTarget(
             folder=None if browser_only else "/approved",
+            mode="full_access",
+            coding_agent="codex" if model_selected else None,
+            coding_model="selected-coder" if model_selected else None,
+            coding_effort="low" if model_selected else None,
             model_service="model" if model_selected else None,
             mcp_services=[] if browser_only else ["files", "files"],
             browser=browser_selected,
@@ -7106,12 +7177,12 @@ class TestPerRunLocalServices:
                     BadRequestError,
                     match="text conversations" if voice_call else "connected computer",
                 ):
-                    await service.prepare(ctx, agent.id, local=target, voice=voice)
+                    await service.prepare(ctx, agent.id, local=target, voice=voice, aside=aside)
                 describe.assert_not_called()
                 build.assert_not_called()
                 return
             async with asyncio.timeout(5):
-                await service.prepare(ctx, agent.id, local=target)
+                await service.prepare(ctx, agent.id, local=target, aside=aside)
         assert [call.args for call in describe.await_args_list] == [
             *([(session, "model", "model")] if model_selected else []),
             *([] if browser_only else [(session, "files", "mcp")]),
@@ -7134,10 +7205,112 @@ class TestPerRunLocalServices:
             assert build.call_args.kwargs["resources"]["local_computer_session"] == session
         if browser_only:
             tools.assert_not_called()
-        else:
+        if aside:
+            assert build.call_args.kwargs["extra_toolsets"] == []
+            assert build.call_args.args[0].capabilities == []
+        elif not browser_only:
             assert tools.return_value in build.call_args.kwargs["extra_toolsets"]
+        assert build.call_args.kwargs["resources"]["background_tasks.local"].device_id == session
         if model_selected:
             assert run.model_label == "Local model" and run.secret_id is None
+            from app.agents.capabilities.coding_agent import (
+                LOCAL_CODING_PREFERENCES,
+                CodingPreferences,
+            )
+
+            assert build.call_args.kwargs["resources"][
+                LOCAL_CODING_PREFERENCES
+            ] == CodingPreferences(model="selected-coder", effort="low")
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "with_folder,whole_computer", [(True, False), (False, False), (True, True)]
+    )
+    async def test_local_skills_reach_the_run_through_the_persons_own_session(
+        self, with_folder: bool, whole_computer: bool
+    ):
+        """Skills and AGENTS.md come from the initiator's paired computer, in a folder or not."""
+        from app.schemas.local_target import LocalTarget
+        from app.services import device_hub
+        from app.services.device_hub import LocalContext
+
+        ctx = _ctx()
+        session = uuid.uuid4()
+        conversation = uuid.uuid4()
+        grant = uuid.uuid4() if whole_computer else None
+        target = LocalTarget(
+            folder="/approved" if with_folder else None,
+            skills=["claude", "codex"],
+            mode="full_access" if whole_computer else "workspace_write",
+            computer_grant=grant,
+        )
+        assert ctx.user_id is not None
+        workspace = (
+            OpenWorkspace(
+                workspace=Workspace(
+                    device_hub.DeviceWorkspace(
+                        session, ctx.user_id, target, conversation_id=conversation
+                    )
+                ),
+                kind="service",
+                scope="run",
+                scope_key="local",
+                row_id=None,
+                local=True,
+            )
+            if with_folder
+            else None
+        )
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        spec = AgentSpec(name="Local", model_profile_id=uuid.uuid4())
+        toolset = MagicMock()
+        context = LocalContext(toolset=toolset, briefing="### From this person's computer\nUse it.")
+        skills = AsyncMock(return_value=context)
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(
+                service.models,
+                "resolve",
+                new=AsyncMock(return_value=MagicMock(label="Model", provider="x", secret_id=None)),
+            ),
+            patch.object(
+                service.models,
+                "profile_for_organization",
+                new=AsyncMock(return_value=MagicMock(id=spec.model_profile_id)),
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=workspace)),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch.object(
+                device_hub, "wait_for", AsyncMock(return_value=MagicMock(session_id=session))
+            ),
+            patch.object(device_hub, "local_skills_context", skills),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch("app.services.agent_runner.workspace_snapshot", AsyncMock(return_value=set())),
+            patch(
+                "app.services.agent_runner.find_earlier_attachments", AsyncMock(return_value=None)
+            ),
+        ):
+            async with asyncio.timeout(5):
+                await service.prepare(ctx, agent.id, local=target, conversation_id=conversation)
+        skills.assert_awaited_once_with(
+            session,
+            ["claude", "codex"],
+            folder="/approved" if with_folder else None,
+            computer_grant=grant,
+            conversation_id=conversation,
+        )
+        assert toolset in build.call_args.kwargs["extra_toolsets"]
+        assert build.call_args.kwargs["resources"]["background_tasks.local"].device_id == session
+        assert build.call_args.args[0].instructions.endswith("Use it.")
 
     @pytest.mark.anyio
     async def test_a_resumed_local_workspace_belongs_to_the_initiator(self):
@@ -7221,6 +7394,165 @@ class TestCancelParkedRun:
         assert finish.await_args.kwargs["cost_is_partial"] == run.cost_is_partial
         expire.assert_awaited_once()
         assert audit.await_args.kwargs["actor_user_id"] == ctx.user_id
+
+    @pytest.mark.parametrize("status", [RunStatus.AWAITING_ANSWER, RunStatus.AWAITING_APPROVAL])
+    async def test_stopping_a_chat_run_from_the_console_tells_its_chat_after_commit(self, status):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        destination = {
+            "bot_id": str(uuid.uuid4()),
+            "platform_chat_id": "C1",
+            "private_chat": False,
+        }
+        run = _parked_run(
+            user_id=ctx.user_id,
+            status=status.value,
+            surface="slack",
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "channel_destination": destination,
+            },
+        )
+        db = _db()
+        service = AgentRunnerService(db)
+        order: list[str] = []
+
+        async def settle(*_args, **_kwargs):
+            order.append("settle")
+
+        async def audit(*_args, **_kwargs):
+            order.append("audit")
+
+        async def finish(*_args, run, **_kwargs):
+            order.append("finish")
+            run.paused_state = None
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", side_effect=finish),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", side_effect=audit),
+            patch(
+                "app.services.agent_runner.channel_prompt_repo.settle_open", side_effect=settle
+            ) as settled,
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        settled.assert_called_once_with(db, run_id=run.id, by="stopped")
+        # Settled before the audit lock, which comes last.
+        assert order.index("settle") < order.index("audit")
+        post.assert_awaited_once()
+        assert post.call_args.args[0] is db
+        (notice,) = post.call_args.args[1]
+        assert notice.text == STOPPED_NOTICE
+        assert notice.organization_id == run.organization_id
+        assert notice.run_id == run.id
+        assert notice.destination.platform_chat_id == "C1"
+
+    async def test_stopping_a_run_whose_chat_was_already_told_posts_nothing_more(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        destination = {
+            "bot_id": str(uuid.uuid4()),
+            "platform_chat_id": "C1",
+            "private_chat": False,
+        }
+        run = _parked_run(
+            user_id=ctx.user_id,
+            surface="slack",
+            paused_state={"messages": [], "tool_call_ids": {}, "channel_destination": destination},
+            chat_notice_sent_at=datetime.now(UTC),
+        )
+        service = AgentRunnerService(_db())
+        with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", AsyncMock()),
+            patch(
+                "app.services.agent_runner.channel_prompt_repo.settle_open", AsyncMock()
+            ) as settled,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        settled.assert_awaited_once()
+        post.assert_not_awaited()
+
+    async def test_stopping_a_run_outside_any_chat_posts_nothing(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(user_id=ctx.user_id)
+        service = AgentRunnerService(_db())
+        with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()),
+            patch("app.services.agent_runner.record_audit", AsyncMock()),
+            patch("app.services.agent_runner.channel_prompt_repo.settle_open") as settled,
+        ):
+            await service.cancel_parked(ctx, run.id)
+        settled.assert_not_called()
+        post.assert_not_awaited()
+
+    async def test_a_second_stop_posts_nothing(self):
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        run = _parked_run(
+            user_id=ctx.user_id,
+            status=RunStatus.CANCELLED.value,
+            surface="slack",
+            paused_state=None,
+        )
+        with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+        ):
+            assert await AgentRunnerService(_db()).cancel_parked(ctx, run.id) is None
+        post.assert_not_awaited()
+
+    async def test_a_workflow_ending_stops_its_runs_without_a_notice(self):
+        destination = {
+            "bot_id": str(uuid.uuid4()),
+            "platform_chat_id": "C1",
+            "private_chat": False,
+        }
+        run = _parked_run(
+            surface="slack",
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "channel_destination": destination,
+            },
+        )
+        service = AgentRunnerService(_db())
+        with (
+            patch("app.services.agent_runner.queue_notices", new_callable=AsyncMock) as post,
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.expire_pending_approvals", AsyncMock()),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", AsyncMock()),
+            patch.object(service.transcript, "record", AsyncMock()),
+        ):
+            stops = await service.stop_parked_for_workflow(
+                [run.id], organization_id=run.organization_id
+            )
+        assert len(stops) == 1
+        post.assert_not_awaited()
 
     async def test_a_foreign_or_missing_run_is_not_found(self):
         ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
@@ -7750,6 +8082,9 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         action_consents=(),
         action_policy=AsyncMock(),
         routine_kind="watch",
+        source_policy=None,
+        require_project=MagicMock(),
+        require_local_target=MagicMock(),
         mcp_sources=None,
     )
     receipt = WatchReadReceipt(activation_at=datetime.now(UTC))
@@ -7794,6 +8129,217 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     assert any(
         isinstance(item, WatchSourceTools) for item in build.call_args.kwargs["extra_toolsets"]
     )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("enabled", [None, False, True])
+@pytest.mark.parametrize("harness", ["claude_code", "codex"])
+def test_local_coding_override_adds_or_enables_only_the_run_binding(
+    enabled: bool | None, harness: str
+) -> None:
+    from app.agents.capabilities.coding_agent import CodingAgentConfig
+    from app.agents.spec import CapabilityBindingSpec
+    from app.schemas.local_target import LocalTarget
+    from app.services.agent_runner import _with_execution_environment, _with_local_capabilities
+
+    bindings = (
+        []
+        if enabled is None
+        else [
+            CapabilityBindingSpec(
+                id="coding_agent",
+                enabled=enabled,
+                approval="required",
+                tool_approval={"run_coding_task": "required"},
+                secret_id=uuid.uuid4(),
+                config={
+                    "harness": "claude_code",
+                    "access": "read_only",
+                    "model": "anthropic:claude-sonnet-5-5",
+                },
+            )
+        ]
+    )
+    spec = AgentSpec(name="Local test", capabilities=bindings)
+    before = spec.model_dump()
+    local = LocalTarget.model_validate(
+        {"folder": "/approved", "mode": "full_access", "coding_agent": harness}
+    )
+    result = _with_local_capabilities(spec, local)
+    binding = next(item for item in result.capabilities if item.id == "coding_agent")
+    config = CodingAgentConfig.model_validate(binding.config)
+    assert binding.enabled
+    assert binding.secret_id is None
+    assert config.harness == harness
+    assert config.runs_on == "this_computer"
+    assert config.model is None
+    if enabled is not None:
+        assert binding.approval == "required"
+        assert binding.tool_approval == {"run_coding_task": "required"}
+        assert config.access == "read_only"
+    assert "Coding tasks use" in _with_execution_environment(result, local).instructions
+    assert spec.model_dump() == before
+    assert _with_local_capabilities(spec, None) is spec
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"mode": "full_access"},
+        {"folder": "/approved", "mode": "workspace_write"},
+        {"folder": "/approved", "mode": "read_only"},
+        {"folder": "/approved", "mode": "full_access", "computer_grant": str(uuid.uuid4())},
+    ],
+)
+def test_local_coding_override_requires_a_full_access_folder(target: dict[str, str]) -> None:
+    from pydantic import ValidationError
+
+    from app.schemas.local_target import LocalTarget
+
+    with pytest.raises(ValidationError, match="Choose a folder with full access"):
+        LocalTarget.model_validate({**target, "coding_agent": "codex"})
+
+
+def test_background_work_keeps_the_authenticated_device_through_workspace_wrappers() -> None:
+    from pydantic_ai.workspaces import Workspace
+
+    from app.schemas.local_target import LocalTarget
+    from app.services.agent_runner import _background_target
+    from app.services.device_hub import DeviceWorkspace
+
+    local = LocalTarget(
+        folder="/approved",
+        mode="full_access",
+        coding_agent="codex",
+        coding_model="fast",
+        coding_effort="low",
+    )
+    device_id = uuid.uuid4()
+    backend = DeviceWorkspace(device_id, uuid.uuid4(), local)
+    raw = Workspace(backend)
+    recorded = RecordingWorkspace(
+        raw, db=_db(), organization_id=uuid.uuid4(), session_key="local", agent_id=uuid.uuid4()
+    )
+    for workspace in [raw, recorded]:
+        target = _background_target(local, workspace, uuid.uuid4())
+        assert target.device_id == device_id
+        assert target.coding_model == "fast" and target.coding_effort == "low"
+    assert _background_target(local, document_workspace(), None) is local
+    assert _background_target(local, None, None) is local
+    browser = _background_target(LocalTarget(browser=True), None, device_id)
+    assert browser.device_id == device_id and browser.folder is None
+
+
+@pytest.mark.security
+def test_result_turns_keep_the_reasoning_setting_and_budget_but_no_action_capability() -> None:
+    from app.services.agent_runner import AdmittedAs
+
+    thinking = CapabilityBindingSpec(id="thinking", config={"effort": "low"})
+    spec = AgentSpec(
+        name="Ops",
+        capabilities=[
+            thinking,
+            CapabilityBindingSpec(id="background_tasks"),
+            CapabilityBindingSpec(id="coding_agent"),
+        ],
+        budget={"monthly_usd": "2"},
+    )
+    answer = _answer_only(spec)
+    assert answer.capabilities == [thinking] and answer.budget == spec.budget
+    profile_id = uuid.uuid4()
+    terms = AdmittedAs(model_profile_id=profile_id, conversation_task_id=uuid.uuid4())
+    assert AdmittedAs.model_validate(terms.model_dump(mode="json")).model_profile_id == profile_id
+    assert "model_profile_id" not in AdmittedAs().model_dump(mode="json")
+
+
+@pytest.mark.anyio
+async def test_task_result_execution_keeps_the_profile_without_becoming_a_user_aside() -> None:
+    service = AgentRunnerService(_db())
+    prepared = _prepared()
+    profile_id, task_id = uuid.uuid4(), uuid.uuid4()
+    opened = AsyncMock()
+    with (
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)) as prepare,
+        patch.object(
+            service,
+            "_run",
+            new=AsyncMock(return_value=SimpleNamespace(output="Summary", run=prepared.run)),
+        ) as run,
+    ):
+        await service.execute(
+            _ctx(),
+            uuid.uuid4(),
+            "Task result data",
+            said="",
+            result_only=True,
+            model_profile_id=profile_id,
+            conversation_task_id=task_id,
+            on_run_open=opened,
+        )
+    assert prepare.call_args.kwargs["aside"] is True
+    assert prepare.call_args.kwargs["model_profile_id"] == profile_id
+    assert prepared.admitted_as.conversation_task_id == task_id
+    assert run.call_args.kwargs["user_prompt"] == "Task result data"
+    assert run.call_args.kwargs["said"] == ""
+    assert run.call_args.kwargs["on_run_open"] is opened
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("refused", [False, True])
+async def test_background_run_is_linked_before_commit_and_model_and_settled_on_failure(
+    refused: bool,
+) -> None:
+    from app.core.exceptions import AlreadyExistsError
+    from app.db.models.agent_run import AgentRun
+    from app.services.conversation_tasks import ConversationTaskService
+
+    db = _db()
+    prepared = _prepared()
+    service = AgentRunnerService(db)
+    task_id = uuid.uuid4()
+    events: list[str] = []
+
+    async def commit() -> None:
+        events.append("commit")
+
+    async def opened(run: AgentRun) -> None:
+        assert run is prepared.run
+        events.append("linked")
+        if refused:
+            raise AlreadyExistsError(message="Stopped before opening")
+
+    async def model(*args: object, **kwargs: object) -> MagicMock:
+        assert events[:2] == ["linked", "commit"]
+        events.append("model")
+        return MagicMock(output="done")
+
+    db.commit.side_effect = commit
+    prepared.built.agent.run = AsyncMock(side_effect=model)
+    with (
+        patch("app.services.conversation_tasks._check_execution", new=AsyncMock()),
+        patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=prepared.run),
+        ) as finished,
+        patch.object(ConversationTaskService, "settle", new=AsyncMock()) as settle,
+    ):
+        if refused:
+            with pytest.raises(AlreadyExistsError, match="Stopped before opening"):
+                await service.execute(
+                    _ctx(), uuid.uuid4(), "work", on_run_open=opened, conversation_task_id=task_id
+                )
+        else:
+            output, _run = await service.execute(
+                _ctx(), uuid.uuid4(), "work", on_run_open=opened, conversation_task_id=task_id
+            )
+            assert output == "done"
+        settle.assert_awaited_once_with(prepared.run)
+        assert finished.call_args.kwargs["status"] == (
+            RunStatus.FAILED.value if refused else RunStatus.COMPLETED.value
+        )
+    assert events == (["linked", "commit"] if refused else ["linked", "commit", "model", "commit"])
+    assert prepared.built.agent.run.await_count == (0 if refused else 1)
 
 
 @pytest.mark.anyio
@@ -7900,3 +8446,161 @@ async def test_device_activation_is_admitted_only_after_workspace_readiness(offl
             assert prepared.ctx.routine_activation_id is None
             admission.assert_awaited_once_with(service.db, ctx)
     service.db.commit.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.security
+async def test_stopping_a_task_cancels_its_model_even_after_approval_resume(resumed: bool) -> None:
+    from contextlib import asynccontextmanager
+
+    from pydantic_ai import DeferredToolResults
+
+    from app.services import conversation_tasks as tasks
+
+    prepared = _prepared()
+    prepared.admitted_as.conversation_task_id = uuid.uuid4()
+    prepared.run.organization_id = uuid.uuid4()
+    row = SimpleNamespace(status="awaiting_approval" if resumed else "running", return_run_id=None)
+    closed = False
+    service = AgentRunnerService(_db())
+
+    @asynccontextmanager
+    async def database() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    async def answer(*_args: object, **_kwargs: object) -> None:
+        nonlocal closed
+        row.status = "cancelled"
+        try:
+            await asyncio.Event().wait()
+        finally:
+            closed = True
+
+    with (
+        patch.object(tasks, "get_db_context", database),
+        patch.object(tasks, "CANCEL_POLL_SECONDS", 0.001),
+        patch.object(tasks.task_repo, "get", new=AsyncMock(return_value=row)),
+        patch.object(service, "_answer", new=answer),
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=prepared.run),
+        ) as finish,
+        patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+    ):
+        async with asyncio.timeout(1):
+            segment = await service._run(
+                prepared,
+                user_prompt="work",
+                said="",
+                attachments=(),
+                attachment_context=None,
+                message_history=[],
+                deferred_tool_results=DeferredToolResults() if resumed else None,
+            )
+        assert segment.output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.CANCELLED.value
+    assert closed
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_a_background_tasks_budget_stop_retains_its_own_outcome() -> None:
+    from contextlib import asynccontextmanager
+
+    from app.services import conversation_tasks as tasks
+
+    prepared = _prepared()
+    prepared.admitted_as.conversation_task_id = uuid.uuid4()
+    prepared.run.organization_id = uuid.uuid4()
+    row = SimpleNamespace(status="running", return_run_id=None)
+    service = AgentRunnerService(_db())
+
+    @asynccontextmanager
+    async def database() -> AsyncGenerator[MagicMock]:
+        yield MagicMock()
+
+    with (
+        patch.object(tasks, "get_db_context", database),
+        patch.object(tasks.task_repo, "get", new=AsyncMock(return_value=row)),
+        patch.object(
+            service,
+            "_answer",
+            new=AsyncMock(
+                side_effect=BudgetExceeded(
+                    limit_usd=Decimal("1"), spent_usd=Decimal("1.2"), scope=BudgetScope.AGENT
+                )
+            ),
+        ),
+        patch(
+            "app.services.agent_runner.agent_run_repo.finish_run",
+            new=AsyncMock(return_value=prepared.run),
+        ) as finish,
+        patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+    ):
+        segment = await service._run(
+            prepared,
+            user_prompt="work",
+            said="",
+            attachments=(),
+            attachment_context=None,
+            message_history=[],
+            deferred_tool_results=None,
+        )
+        assert segment.output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.BUDGET_EXCEEDED.value
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("ending", ["answer", "failure", "cancel"])
+async def test_required_segment_handback_is_persisted_before_the_terminal_commit(
+    ending: str,
+) -> None:
+    db = _db()
+    service = AgentRunnerService(db)
+    prepared = _prepared()
+    if ending == "answer":
+        prepared.built.agent.run = AsyncMock(
+            return_value=MagicMock(output="Saved", new_messages=list)
+        )
+    else:
+        prepared.built.agent.run = AsyncMock(
+            side_effect=RuntimeError("provider secret")
+            if ending == "failure"
+            else asyncio.CancelledError()
+        )
+    seen: list[RunSegment] = []
+
+    async def persist(segment: RunSegment) -> None:
+        assert db.commit.await_count == 1  # only the opening commit, never the terminal one
+        record.assert_awaited_once()
+        seen.append(segment)
+
+    with (
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        patch.object(service.transcript, "record", new=AsyncMock()) as record,
+    ):
+        if ending == "answer":
+            await service._run(
+                prepared,
+                user_prompt=None,
+                said=None,
+                message_history=None,
+                deferred_tool_results=None,
+                on_segment=persist,
+            )
+        else:
+            with pytest.raises(RuntimeError if ending == "failure" else asyncio.CancelledError):
+                await service._run(
+                    prepared,
+                    user_prompt=None,
+                    said=None,
+                    message_history=None,
+                    deferred_tool_results=None,
+                    on_segment=persist,
+                )
+    assert len(seen) == 1
+    assert db.commit.await_count == 2
+    assert "provider secret" not in seen[0].output
+    if ending == "answer":
+        assert seen[0].output == "Saved"

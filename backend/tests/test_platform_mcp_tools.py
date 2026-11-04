@@ -1508,3 +1508,20 @@ async def test_delete_watch_uses_the_same_identity_and_requires_approval(api):
     api.request.assert_awaited_once_with("DELETE", f"/me/watches/{RUN}")
     definition = {tool.name: tool for tool in platform_tool_catalog()}["delete_watch"]
     assert definition.writes and not definition.ungated
+
+
+async def test_turkish_console_switch_uses_the_askers_own_account(
+    server: FastMCP, api: MagicMock
+) -> None:
+    api.request.return_value = {"locale": "tr"}
+    result = await server.call_tool("set_my_language", {"locale": "tr"})
+    api.request.assert_awaited_once_with("PUT", "/users/me/locale", json={"locale": "tr"})
+    assert result.structured_content == {"locale": "tr"}
+
+
+async def test_an_unsupported_console_language_is_refused_before_any_api_call(
+    server: FastMCP, api: MagicMock
+) -> None:
+    with pytest.raises(MCPValidationError):
+        await server.call_tool("set_my_language", {"locale": "xx"})
+    api.request.assert_not_called()

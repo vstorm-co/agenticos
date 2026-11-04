@@ -130,6 +130,7 @@ class FollowUpService:
                 RunSurface.TEAMS,
                 RunSurface.SMS,
                 RunSurface.EMAIL,
+                RunSurface.DISCORD,
             }
             and channel is None
         ):

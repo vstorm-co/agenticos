@@ -1,0 +1,2 @@
+# Stable AgenticOS release code-signing certificate; private material stays in apps-release.
+351ec21dde69acfb29f5d2661b27c0f6a517035a

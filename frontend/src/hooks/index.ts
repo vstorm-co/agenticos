@@ -51,6 +51,7 @@ export {
   useGroupsQuality,
 } from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
+export { useDiscordRoleMappings, useDiscordServers } from "./use-discord-role-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
 export {
@@ -190,3 +191,5 @@ export { useRoutineActions } from "./use-routine-actions";
 export { useNotificationRoutes } from "./use-notification-routes";
 
 export { useRoutineLocalWork } from "./use-routine-local-work";
+
+export { useWikiGraph } from "./use-wiki-graph";

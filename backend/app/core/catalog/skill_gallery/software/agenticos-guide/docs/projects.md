@@ -144,6 +144,60 @@ The desktop console passes file drags to the same drop targets as the web app. D
 onto a file to use its containing folder, or onto empty space in either pane to use
 the project root. Blobby and the Dock keep their separate drop-to-chat behavior.
 
+## Graph view
+
+In the file explorer, choose **Graph view** to browse linked Markdown notes.
+The same view works for shared project files, sandbox workspaces and an approved
+Desktop folder. Each location keeps its own graph; local notes are not uploaded.
+
+The graph opens full screen with coloured points, thin links and labels that appear
+when zooming in or selecting a note. Direction arrows and persistent labels are
+optional. Floating controls provide search, file browsing, note details and zoom.
+Groups colour notes by folder by default, or by their first tag. Hide individual
+groups or filter a folder and its descendants; reset filters to show all notes.
+
+The file browser uses the same folder tree and file icons as other workspaces.
+Only indexed Markdown notes become graph nodes; other files open in the shared
+viewer. Dragging points arranges this view without changing files or links.
+Use the expand/collapse control or Escape for an inline canvas, or the back arrow
+for the file explorer.
+
+Use `[[notes/topic|label]]`, inline Markdown links such as
+`[Topic](topic.md)`, or frontmatter relationships to connect notes:
+
+```yaml
+---
+title: Agent memory
+aliases: [Memory]
+tags: [agents, research]
+related: ["[[notes/retrieval]]"]
+sources: [sources/report.md]
+---
+```
+
+`links`, `related` and `sources` accept a string or a list of strings. External
+URLs remain citations rather than nodes. Wiki links resolve by exact path or a
+unique filename, title or alias; duplicate names remain unresolved. Markdown
+links are relative to their note. Examples in code and HTML comments are ignored.
+
+Search titles, paths, aliases or tags. Select a node to see its links, backlinks
+and unresolved references, then **Open note** to read it. Shared project files
+retain their existing **Edit file** control and permissions. Use the zoom controls
+and drag empty canvas space to move around; the note list also works by keyboard.
+
+The view rereads files every 30 seconds while open, on window focus or when you
+choose **Refresh**. Agents only update notes and their links; they do not regenerate
+HTML. Apps can already refresh table and workflow-log bindings, but have no
+workspace-file binding; this graph reads the notes directly. A graph refresh does
+not schedule an agent to verify facts or refresh sources.
+
+A scan includes up to 200 Markdown files, 256 KiB per file and 8 MiB total, within
+the source listing's own limits. Relationships are capped at 256 per note and 2048
+across the graph; reaching either cap also marks the graph incomplete. Aliases
+and tags share a budget of 128 entries per note and 4096 across the graph. The view identifies omitted or unreadable files,
+invalid YAML and incomplete listings. A missing reference can mean a skipped note,
+not just a broken link. Refresh is eventual; concurrent edits can span two scans.
+
 ## Local folders in the desktop app
 
 The **Files** tab separates **Shared project files** from **This computer**. A folder approved during project creation opens automatically on this installation; otherwise Shared project files opens first. Select This computer to connect a folder. Once connected, **Folder settings** changes or disconnects it; its path and access mode stay visible without repeating the setup form.

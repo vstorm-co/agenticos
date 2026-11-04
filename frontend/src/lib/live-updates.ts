@@ -35,7 +35,12 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   channel: () => [qk.channelBots.list(), qk.exposures.all()],
   notification: () => [qk.notifications.all()],
   secret: () => [qk.secrets.all(), qk.sharing.all()],
-  mcp_connection: () => [qk.mcpConnections.all(), qk.sharing.all()],
+  mcp_connection: () => [
+    qk.mcpConnections.all(),
+    qk.mcpServers.lists(),
+    qk.mcpServers.entries(),
+    qk.sharing.all(),
+  ],
   // Run history, the approvals inbox and spend all live under `runs`; the chat
   // list reads its running, unread and order state off runs too - a run started
   // by the API, a routine or another tab would otherwise leave it stale. The

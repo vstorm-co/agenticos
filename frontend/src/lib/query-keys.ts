@@ -17,6 +17,11 @@ export const qk = {
     call: (org: string, id: string) => ["phone", org, "call", id] as const,
     transfers: (org: string, id: string) => ["phone", org, "call", id, "transfers"] as const,
   },
+  conversationTasks: {
+    all: (tenant: string) => ["conversation-tasks", tenant] as const,
+    list: (tenant: string, conversationId: string | null | undefined) =>
+      ["conversation-tasks", tenant, conversationId] as const,
+  },
   auth: {
     me: () => ["auth", "me"] as const,
   },
@@ -187,6 +192,10 @@ export const qk = {
     detail: (botId: string) => ["channel-bots", botId] as const,
     /** The Teams channels and group chats a trigger can post into (#1985). */
     teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
+    // Outside the list's prefix on purpose: the servers are read from Discord on
+    // every fetch, and renaming a bot is no reason to ask Discord again (#2569).
+    discordRoleMappings: (botId: string) => ["discord-role-mappings", botId] as const,
+    discordServers: (botId: string) => ["discord-servers", botId] as const,
   },
   dictation: {
     // Whether the composer can dictate to one agent, and on which provider. Its
@@ -266,10 +275,12 @@ export const qk = {
     // What one provider offers, for the model field's suggestions. Keyed per
     // provider because that is what is fetched - a shared key would make
     // switching provider serve the previous one's list.
-    models: (providerId: string, baseUrl?: string) =>
-      baseUrl
-        ? (["providers", providerId, "models", baseUrl] as const)
-        : (["providers", providerId, "models"] as const),
+    models: (providerId: string, baseUrl?: string, secretId?: string) =>
+      secretId
+        ? (["providers", providerId, "models", baseUrl ?? "", secretId] as const)
+        : baseUrl
+          ? (["providers", providerId, "models", baseUrl] as const)
+          : (["providers", providerId, "models"] as const),
     // Which providers can draw an image and what each may be asked to draw with.
     // One request rather than the catalog plus a listing per provider: which
     // models qualify is a rule the SDK enforces, so the server answers it.
@@ -650,6 +661,9 @@ export const qk = {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
   },
+  wikiGraph: {
+    source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
+  },
   projects: {
     tracking: (id: string) => ["projects", id, "tracking"] as const,
     trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
@@ -705,9 +719,11 @@ export const qk = {
     platformTools: () => ["mcp-servers", "platform-tools"] as const,
     // Keyed on the query and the page: the list is a request now, so each page
     // of each query is its own resource rather than a filter over one blob.
-    listPage: (query: string, category: string, auth: string, page: number) =>
-      ["mcp-servers", "list", query, category, auth, page] as const,
+    lists: () => ["mcp-servers", "list"] as const,
+    listPage: (query: string, category: string, auth: string, page: number, state = "all") =>
+      ["mcp-servers", "list", query, category, auth, page, state] as const,
     // One server by its key, curated or mirrored - what a chat's connection card shows.
+    entries: () => ["mcp-servers", "entry"] as const,
     entry: (key: string) => ["mcp-servers", "entry", key] as const,
   },
   sessions: {
@@ -773,6 +789,9 @@ export const qk = {
       ["desktop", "routine-grants", org, user, device] as const,
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
+    agents: () => ["desktop", "agents"] as const,
+    codingOptions: (harness: string | null) => ["desktop", "coding-options", harness] as const,
+    skills: () => ["desktop", "skills"] as const,
     localFiles: (root: string) => ["desktop", "local", "files", root] as const,
     localFile: (root: string, path: string) => ["desktop", "local", "file", root, path] as const,
     /** The inbox's newest page as the desktop bridge reads it, once per unread count. */

@@ -285,6 +285,47 @@ describe("rendering an answer", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it.each([
+    ["a protocol-relative address", "//evil.example/login"],
+    ["another scheme with no slashes", "https:evil.example/login"],
+    ["an upper-case scheme with one slash", "HTTPS:/evil.example/login"],
+  ])("opens %s, which leaves the console, in a new tab (#2550)", (_, href) => {
+    // The test console is on http://localhost:3000; each of these resolves to
+    // evil.example, and a click without a target would take this tab there.
+    expect(new URL(href, window.location.origin).host).toBe("evil.example");
+    markdown(`Sign in [here](${href}).`);
+
+    const link = screen.getByRole("link", { name: /here/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("keeps a backslash from naming another host", () => {
+    // The parser reads `/\host` as `//host`, but Markdown percent-encodes the
+    // backslash first, so the link is a path on this console.
+    markdown("Sign in [here](/\\evil.example/login).");
+
+    const link = screen.getByRole("link", { name: "here" });
+    expect(link).toHaveAttribute("href", "/%5Cevil.example/login");
+    expect(link).not.toHaveAttribute("target");
+  });
+
+  it("knows the service behind an address written without its scheme", () => {
+    const { container } = markdown("See [the repo](//github.com/acme/ledgerly).");
+
+    const link = screen.getByRole("link", { name: "the repo" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(container.querySelector(".lucide-external-link")).toBeNull();
+  });
+
+  it("still opens an absolute address on this console in a new tab", () => {
+    markdown(`[settings](${window.location.origin}/settings/profile)`);
+
+    const link = screen.getByRole("link", { name: /settings/ });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
   it("leaves an in-app link in this tab", () => {
     markdown("See [settings](/settings/profile).");
 

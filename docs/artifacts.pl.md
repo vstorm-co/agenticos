@@ -1,5 +1,5 @@
 ---
-source_sha: "10cee0ec4f18"
+source_sha: "df184b376180"
 ---
 
 # Aplikacje { #artifacts }
@@ -821,6 +821,7 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/leaflet-1.9.4/leaflet.js`, `leaflet.css` | Leaflet 1.9.4, jako `window.L` - rysuje na [kafelkach map](#visuals) deploymentu, jeśli je ma |
 | `lib/agenticos-map-2.js` | `window.AOMap.itinerary`: ponumerowane pinezki pokazane po kolei i wbijane jedna po drugiej na życzenie, mapa w proporcji 16:9 do szerokości strony, linia między nimi oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków. `lib/agenticos-map-1.js`, który wbija pinezki przy ładowaniu i ma jedną wysokość, jest dalej serwowany stronom, które go wskazują |
 | `lib/agenticos-map-1.js` | `window.AOMap.itinerary`: ponumerowane pinezki wbijane po kolei, linia między nimi, pauza i powtórka oraz karty przystanków - na kafelkach map albo, bez nich, jako zarys przystanków |
+| `lib/topojson-client-3.1.0.min.js`, `lib/world-atlas-2.0.2-110m.js`, `lib/agenticos-worldmap-1.js` | `window.AOWorldMap.draw`: mapa świata w SVG - kraje cieniowane wartością, pinezki i trasy po wielkim kole - bez serwera kafelków; ładuj je po d3, w tej kolejności |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
 nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje,
@@ -910,6 +911,8 @@ raport, bez obrazu, i mówi, że wdrożenie nie ma renderera. Dla modelu, który
 czyta obrazów, wyłącz **Preview screenshot** w ustawieniach capability; raport
 nadal wraca. `agenticos cmd doctor` mówi, czy renderer odpowiada.
 
+Trzy kolejne dołączone skille budują **prezentację** jako aplikację: `presentation-decks` (gotowy szablon z kadrem slajdu 16:9, nawigacją klawiaturą i dotykiem, notatkami prelegenta pod `n` i jednym slajdem na stronę przy druku do PDF), `deck-storyline` (odbiorcy, decyzja i opowieść z tez, zanim powstanie jakikolwiek slajd) i `deck-review` (tytuły czytane jak argument, jedna myśl na slajd, każda liczba prześledzona, czytelność z daleka). Nie dodają biblioteki ani eksportu do PowerPointa.
+
 ## Wizualizacje { #visuals }
 
 [Wizual](reference/capabilities.md#visuals) to aplikacja, której jeszcze nie zapisano:
@@ -961,6 +964,8 @@ i tak samo mapa, której kafelki się nie ładują. Agent mówi o tym w odpowied
 nie podłączono serwera map i że administrator włącza prawdziwe mapy tym
 ustawieniem. Obraz mapy w aplikacji czatowej
 jest rysowany w stanie końcowym, ze wszystkimi pinezkami.
+
+**Mapy świata nie potrzebują żadnej.** Do wszystkiego, co dotyczy krajów - klienci według kraju, biura, trasa między dwoma miastami - `AOWorldMap` rysuje mapę w SVG z konturów krajów, które wdrożenie serwuje samo: bez serwera kafelków, sieci i dodatkowego kontenera. Agent woli ją od mapy z kafelkami, która zostaje na poziom ulic.
 
 **Wybór formy.** Skill `visual-design` mówi agentowi, kiedy rysunek w ogóle jest
 właściwą odpowiedzią: tekst dla faktu albo rady, tabela Markdown dla dokładnych

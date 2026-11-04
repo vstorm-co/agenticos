@@ -36,6 +36,8 @@ export const SURFACES = [
   "teams",
   "sms",
   "email",
+
+  "discord",
   "schedule",
   "workflow",
   "follow_ups",

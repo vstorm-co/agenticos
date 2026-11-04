@@ -253,6 +253,12 @@ class NotificationRouteService:
                 sms = SmsAdapter()
                 stack.push_async_callback(sms.aclose)
                 adapter = sms
+            elif bot.platform == "discord":
+                from app.services.channels.discord import DiscordAdapter
+
+                discord = DiscordAdapter()
+                stack.push_async_callback(discord.aclose)
+                adapter = discord
             elif bot.platform == "imessage":
                 from app.services.channels.imessage import ImessageAdapter
 

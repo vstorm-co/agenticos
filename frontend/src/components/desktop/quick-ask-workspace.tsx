@@ -24,6 +24,7 @@ export function QuickAskWorkspace() {
 }
 function Workspace() {
   const t = useTranslations("desktop.quickAsk");
+  const tHarness = useTranslations("chat.localAgent");
   const defaultAgent = useAgentSelectionStore((s) => s.selectedAgentId);
   const makeTab = (conversation?: Conversation): Tab => ({
     key: crypto.randomUUID(),
@@ -188,6 +189,7 @@ function Workspace() {
                 >
                   <ConversationAgents
                     agents={conversation.agents}
+                    codingAgents={conversation.coding_agents}
                     size="md"
                     showName={false}
                     className="shrink-0"
@@ -197,7 +199,12 @@ function Workspace() {
                       {conversation.title || t("newConversation")}
                     </span>
                     <span className="text-muted-foreground block truncate text-xs">
-                      {conversation.agents?.map((agent) => agent.name).join(", ")}
+                      {[
+                        ...(conversation.agents ?? []).map((agent) => agent.name),
+                        ...(conversation.coding_agents ?? []).map((harness) =>
+                          tHarness(harness === "codex" ? "codex" : "claudeCode"),
+                        ),
+                      ].join(", ")}
                     </span>
                   </span>
                 </button>

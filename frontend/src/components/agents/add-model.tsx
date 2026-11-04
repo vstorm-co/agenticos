@@ -28,7 +28,7 @@ import {
   useSecrets,
 } from "@/hooks";
 import { Perm } from "@/types/permissions";
-import type { ModelApi, ModelProfile, ProviderInfo } from "@/types/providers";
+import type { ModelApi, ModelProfile, ModelRegion, ProviderInfo } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface AddModelProps {
@@ -121,11 +121,13 @@ export function soleKeyedProvider(
 export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
   if (providerId === undefined) return { key: "agents.pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
+  if (providerId === "otari") return "anthropic:claude-sonnet-4-6";
   return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
 
 /** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
+  if (providerId === "otari") return "agents.modelIdOtariHint";
   if (providerId === "openrouter") {
     return "agents.modelIdOpenRouterHint";
   }
@@ -245,9 +247,14 @@ export function AddModel({
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
+  const [gatewayDiscovery, setGatewayDiscovery] = useState<{
+    endpoint: string;
+    secretId: string;
+  } | null>(null);
   // `null` until somebody picks, so the select follows the endpoint the way the
   // service's default does - typing a vLLM address moves it to Chat Completions.
   const [pickedApi, setPickedApi] = useState<ModelApi | null>(null);
+  const [pickedRegion, setPickedRegion] = useState<ModelRegion | null>(null);
   const [failure, setFailure] = useState(NO_FAILURE);
   const [naming, setNaming] = useState(false);
 
@@ -283,17 +290,8 @@ export function AddModel({
   const keyOptional = (capabilities?.keyless ?? false) && baseUrl.trim() !== "";
   // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
   // provider there is nothing to choose and the field is not drawn.
-  const choosesApi = (capabilities?.apis.length ?? 0) > 1;
-  // Before anybody picks: the model in use's own choice while its provider and
-  // endpoint are the ones on screen, and otherwise the default for what is - so
-  // pointing the model in use at a vLLM does not carry Responses there with it.
-  const startingApi =
-    selected?.api != null &&
-    providerId === selected.provider &&
-    baseUrl.trim() === (selected.base_url ?? "")
-      ? selected.api
-      : defaultApi(capabilities, baseUrl);
-  const api = choosesApi ? (pickedApi ?? startingApi) : null;
+  // What the provider publishes, where it publishes anything. Cached hard: a
+  // catalog changes when a provider ships a model, not while a form is open.
   // The keys already stored for this provider. A secret's purpose *is* the
   // provider id, which is what makes this a lookup rather than a convention.
   const keys = secrets.filter((secret) => secret.purpose === providerId);
@@ -307,8 +305,12 @@ export function AddModel({
     hasKey(selected) &&
     providerId === selected.provider;
   const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
-  // What the provider publishes, where it publishes anything. Cached hard: a
-  // catalog changes when a provider ships a model, not while a form is open.
+  const endpoint = baseUrl.trim().replace(/\/+$/, "");
+  const manualDiscovery = providerId === "otari" || (capabilities?.requires_base_url ?? false);
+  const confirmedGateway =
+    gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
+  const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
+
   const {
     models: suggestions,
     refused,
@@ -316,8 +318,46 @@ export function AddModel({
     isLoading: loadingModels,
   } = useProviderModels(
     providerId,
-    providerId === "openrouter" ? baseUrl.trim().replace(/\/+$/, "") || undefined : undefined,
+    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
+    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
   );
+  // Stav.ai says per model which API it is served on, so nobody is asked.
+  const apiFromModel = capabilities?.api_from_model ?? false;
+  const choosesApi = (capabilities?.apis.length ?? 0) > 1 && !apiFromModel;
+  // Before anybody picks: the model in use's own choice while its provider and
+  // endpoint are the ones on screen, and otherwise the default for what is - so
+  // pointing the model in use at a vLLM does not carry Responses there with it.
+  const startingApi =
+    selected?.api != null &&
+    providerId === selected.provider &&
+    baseUrl.trim() === (selected.base_url ?? "")
+      ? selected.api
+      : defaultApi(capabilities, baseUrl);
+  // Preserve stored API choices; derive new profiles from advertised surfaces.
+  const listedApis = suggestions.find((entry) => entry.id === model.trim())?.apis ?? [];
+  const modelApi: ModelApi | null = listedApis.includes("chat")
+    ? "chat"
+    : (listedApis.find((entry) => entry === "responses") ?? null);
+  const storedApi =
+    selected !== undefined &&
+    providerId === selected.provider &&
+    model.trim() === selected.model &&
+    chosenKey === (selected.secret_id ?? "") &&
+    baseUrl.trim().replace(/\/+$/, "") === (selected.base_url ?? "").replace(/\/+$/, "")
+      ? (selected.api ?? null)
+      : null;
+  const api = choosesApi
+    ? (pickedApi ?? startingApi)
+    : apiFromModel
+      ? (storedApi ?? modelApi)
+      : null;
+  // Existing profiles retain their region; new profiles use the provider default.
+  const regions = capabilities?.regions ?? [];
+  const startingRegion =
+    selected?.region != null && providerId === selected.provider
+      ? selected.region
+      : (regions[0] ?? null);
+  const region = regions.length > 0 ? (pickedRegion ?? startingRegion) : null;
   const derivedLabel =
     provider && model.trim() ? `${provider.label} · ${model.trim()}` : t("howAgentsReferModel");
 
@@ -340,6 +380,9 @@ export function AddModel({
     label.trim() === "" &&
     baseUrl.trim() === (selected.base_url ?? "") &&
     api === (selected.api ?? null) &&
+    // A Stav profile stored with no region runs in the default one, which is
+    // where the form starts, so that is not a change.
+    region === (selected.region ?? regions[0] ?? null) &&
     // The key is part of "changed" too: an organization with two keys for one
     // provider can re-point a model at the other, and a submit that ignored this
     // would select the old profile and silently drop the key just picked. A model
@@ -372,12 +415,15 @@ export function AddModel({
   // an example. `keyless` alone is true of OpenAI too, because OpenAI-compatible
   // servers exist - so an OpenAI model with a key showed `localhost:11434` in its
   // empty Endpoint field, which read as an address filled in for it (#2478).
-  const endpointRequired = (capabilities?.keyless ?? false) && chosenKey === "";
+  const endpointRequired =
+    (capabilities?.requires_base_url ?? false) ||
+    ((capabilities?.keyless ?? false) && chosenKey === "");
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
+    (!(capabilities?.requires_base_url ?? false) || baseUrl.trim() !== "") &&
     (!loadingModels || customEndpoint);
 
   // Both ways of choosing a key, because a refusal that outlives the value it
@@ -401,6 +447,8 @@ export function AddModel({
           secret_id: chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
           api,
+          // Only where the provider takes one; every other payload stays as it was.
+          ...(region !== null ? { region } : {}),
         },
       });
     } catch (error) {
@@ -453,6 +501,7 @@ export function AddModel({
         // Sent even when it is the default, so what the select shows is what is
         // stored - and a refusal, were there one, would be about this field.
         api,
+        ...(region !== null ? { region } : {}),
       });
       // An id the listing did not classify still reaches here; the server
       // classifies the profile it created, and that answer is final.
@@ -486,6 +535,7 @@ export function AddModel({
               setModel("");
               setBaseUrl("");
               setPickedApi(null);
+              setPickedRegion(null);
               setFailure(NO_FAILURE);
             }}
           >
@@ -634,33 +684,72 @@ export function AddModel({
           for the rest would collect a URL the client drops, and the API refuses
           it - which is the right refusal and a pointless one to walk into. */}
       {provider !== undefined && acceptsEndpoint && (
-        <FormField
-          htmlFor="add-model-endpoint"
-          label={t("endpoint")}
-          error={failure.fields.base_url}
-          description={
-            providerId === "openrouter"
-              ? t("openRouterEndpointHint")
-              : endpointRequired
-                ? t("gatewayLitellmProxyModel")
-                : t("optionalPointModelAt")
-          }
-        >
-          <Input
-            id="add-model-endpoint"
-            value={baseUrl}
-            onChange={(event) => {
-              setBaseUrl(event.target.value);
-              setFailure(NO_FAILURE);
-            }}
-            placeholder={endpointRequired ? "http://localhost:11434/v1" : t("leaveEmptyProviderS")}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </FormField>
+        <div className="space-y-2">
+          <FormField
+            htmlFor="add-model-endpoint"
+            label={t("endpoint")}
+            error={failure.fields.base_url}
+            description={
+              providerId === "openrouter"
+                ? t("openRouterEndpointHint")
+                : providerId === "stav"
+                  ? t("stavEndpointHint")
+                  : providerId === "otari"
+                    ? t("otariEndpointHint")
+                    : endpointRequired
+                      ? t("gatewayLitellmProxyModel")
+                      : t("optionalPointModelAt")
+            }
+          >
+            <Input
+              id="add-model-endpoint"
+              value={baseUrl}
+              onChange={(event) => {
+                setBaseUrl(event.target.value);
+                setFailure(NO_FAILURE);
+              }}
+              placeholder={
+                capabilities?.requires_base_url
+                  ? "https://gateway.example/api/v1"
+                  : endpointRequired
+                    ? "http://localhost:11434/v1"
+                    : t("leaveEmptyProviderS")
+              }
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </FormField>
+          {manualDiscovery && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!endpoint || !chosenKey || loadingModels}
+              onClick={() => setGatewayDiscovery({ endpoint, secretId: chosenKey })}
+            >
+              {t("loadGatewayModels")}
+            </Button>
+          )}
+        </div>
       )}
 
-      {provider !== undefined && api !== null && (
+      {provider !== undefined && apiFromModel && (
+        <div className="space-y-1.5">
+          <Label>{t("modelApi")}</Label>
+          <p className="text-sm">
+            {api === null
+              ? t("modelApiFromModelPending")
+              : // "chosen from the model" only when it is: a profile saved with
+                // another API through the API keeps it, and says only which.
+                t(api === modelApi ? "modelApiFromModel" : "modelApiStored", {
+                  api: api === "responses" ? t("modelApiResponses") : t("modelApiChat"),
+                })}
+          </p>
+          <p className="text-muted-foreground text-xs">{t("modelApiFromModelHint")}</p>
+        </div>
+      )}
+
+      {provider !== undefined && choosesApi && api !== null && (
         <FormField
           htmlFor="add-model-api"
           label={t("modelApi")}
@@ -680,6 +769,37 @@ export function AddModel({
               {capabilities?.apis.map((entry) => (
                 <SelectItem key={entry} value={entry}>
                   {entry === "responses" ? t("modelApiResponses") : t("modelApiChat")}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
+
+      {provider !== undefined && region !== null && (
+        <FormField
+          htmlFor="add-model-region"
+          label={t("modelRegion")}
+          description={t("modelRegionHint")}
+        >
+          <Select
+            value={region}
+            onValueChange={(value) => {
+              setPickedRegion(regions.find((entry) => entry === value) ?? null);
+              setFailure(NO_FAILURE);
+            }}
+          >
+            <SelectTrigger id="add-model-region">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {regions.map((entry) => (
+                <SelectItem key={entry} value={entry}>
+                  {entry === "eu"
+                    ? t("modelRegionEu")
+                    : entry === "eea"
+                      ? t("modelRegionEea")
+                      : t("modelRegionGlobal")}
                 </SelectItem>
               ))}
             </SelectContent>

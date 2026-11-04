@@ -601,3 +601,43 @@ it("keeps a regional OpenRouter listing separate from the global list", async ()
   rerender({ url: undefined });
   await waitFor(() => expect(result.current.models[0]?.id).toBe("vendor/global"));
 });
+
+it("isolates Stav catalogs by the selected vault key", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path) => ({
+    items: [
+      { id: String(path).includes("secret_id=key-b") ? "account/b" : "account/a", name: "Test" },
+    ],
+    total: 1,
+    source: "live",
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function localWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const { result, rerender } = renderHook(
+    ({ secretId }: { secretId: string }) =>
+      useProviderModels("stav", "https://stav.example/v1", secretId),
+    { wrapper: localWrapper, initialProps: { secretId: "key-a" } },
+  );
+  await waitFor(() => expect(result.current.models[0]?.id).toBe("account/a"));
+  rerender({ secretId: "key-b" });
+  await waitFor(() => expect(result.current.models[0]?.id).toBe("account/b"));
+  expect(apiClient.get).toHaveBeenCalledWith(
+    "/providers/stav/models?base_url=https%3A%2F%2Fstav.example%2Fv1&secret_id=key-b",
+  );
+});
+
+it.each(["stav", "otari"])(
+  "does not list a custom %s endpoint before a key is selected",
+  (provider) => {
+    vi.mocked(apiClient.get).mockClear();
+    renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+  },
+);
+
+it("does not send an Otari key anywhere before its destination is chosen", () => {
+  vi.mocked(apiClient.get).mockClear();
+  renderHook(() => useProviderModels("otari", undefined, "self-hosted-key"), { wrapper });
+  expect(apiClient.get).not.toHaveBeenCalled();
+});

@@ -44,7 +44,7 @@ export function LookPicker({ labelledBy, value, dark, onChange }: LookPickerProp
     <div
       role="radiogroup"
       aria-labelledby={labelledBy}
-      className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-3"
+      className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] sm:gap-3"
     >
       {LOOKS.map((look, index) => {
         const checked = look === value;
@@ -61,14 +61,14 @@ export function LookPicker({ labelledBy, value, dark, onChange }: LookPickerProp
             onClick={() => onChange(look)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "focus-visible:ring-ring flex flex-col gap-2.5 rounded-xl border p-2 text-left transition-colors outline-none focus-visible:ring-2",
+              "focus-visible:ring-ring flex items-center gap-3 rounded-xl border p-2 text-left transition-colors outline-none focus-visible:ring-2 sm:flex-col sm:items-stretch sm:gap-2.5",
               checked
                 ? "border-foreground/60 bg-accent/40"
                 : "hover:border-border hover:bg-accent/30 border-transparent",
             )}
           >
-            <LookPreview look={look} dark={dark} />
-            <span className="px-0.5">
+            <LookPreview look={look} dark={dark} className="w-20 shrink-0 sm:w-full" />
+            <span className="min-w-0 flex-1 px-0.5">
               <span className="text-foreground flex items-center justify-between gap-2 text-sm font-medium">
                 {t(`${look}.name`)}
                 {checked && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}

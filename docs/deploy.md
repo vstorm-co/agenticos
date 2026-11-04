@@ -24,7 +24,7 @@ Past one host - a managed Postgres, several API hosts, several deployments - is
 | | |
 |---|---|
 | **A host** | 4 vCPU and 8 GB of RAM runs it. See [sizing](#sizing-the-host) |
-| **Docker** | Engine 24+ with the Compose plugin (2.24 or later), and your user in the `docker` group. Nothing is built on the host: the images are pulled from GHCR |
+| **Container engine** | Engine 24+ with the Compose plugin (2.24 or later), and your user in the `docker` group. Nothing is built on the host: the images are pulled from GHCR. Alternatively, use the [manual Podman path](#podman-support). |
 | **Two hostnames** | one for the site, one for the API — see [why two](#why-two-hostnames) |
 | **A reverse proxy** | [Traefik](#option-a-traefik) or [Nginx](#option-b-nginx). It terminates TLS |
 | **No provider key** | chat models and embeddings are both keyed per organization, in the product's vault. The environment holds no credential for either — see [Data protection](data-protection.md#nothing-leaves-by-default) |
@@ -41,6 +41,93 @@ name a browser can resolve and a certificate of its own.
 `app.example.com` and `api.example.com` is the shape. They can be any two names;
 what they must not be is one name with a path prefix, because the API's cookies
 and the site's are scoped to the host.
+
+### Podman support
+
+**Podman is supported through the manual deployment path with Docker Compose
+as its provider.** The runtime checks used Podman 6.1.4 and Docker Compose
+v2.40.3 on Fedora CoreOS 44 (a macOS Podman machine, ARM64, cgroups v2,
+SELinux enforcing). The shipped file needs Compose 2.24 or later.
+
+**Do not use `podman-compose` 1.6.0.** It started the stack and an agent
+answered, but a controlled failed migration still started the dependent app.
+Docker Compose correctly refused that start. The providers' version numbers
+are independent; `podman-compose` 1.6.0 is not Docker Compose 1.6.0.
+
+The quickstart remains Docker-only and directs detected Podman to this manual
+path, including with `--no-sandbox`. From the configured repository root, choose
+the actual Docker Compose executable (a standalone binary or CLI plugin):
+
+```bash
+export PODMAN_COMPOSE_PROVIDER=/absolute/path/to/docker-compose
+podman compose version
+podman compose -f docker-compose.yml up -d
+```
+
+Check that `podman compose version` identifies Docker Compose. Using `-f`
+explicitly keeps the clone's source-build override out of this published-image
+installation. Follow [Install](install.md) to bootstrap the organization and
+model after the services start.
+
+**Optional sandbox.** `pydantic-ai-backend` 0.2.39 worked against both rootful
+and rootless Podman sockets. It does not need a new backend or release. Use
+`docker-compose-podman.yml` to adapt the socket and workspace mounts; prepare
+their permissions before enabling the profile.
+
+On native Linux with rootless Podman:
+
+```bash
+systemctl --user enable --now podman.socket
+export SANDBOX_DOCKER_SOCKET="$XDG_RUNTIME_DIR/podman/podman.sock"
+export SANDBOX_WORKSPACE_ROOT="$HOME/.local/share/agenticos/sandbox-workspaces"
+mkdir -p "$SANDBOX_WORKSPACE_ROOT"
+podman unshare chown 10001:10001 "$SANDBOX_WORKSPACE_ROOT"
+export DOCKER_GID=0
+```
+
+For rootful Linux, enable the system `podman.socket` instead, set
+`SANDBOX_DOCKER_SOCKET=/run/podman/podman.sock`, and prepare the workspace with
+`sudo install -d -o 10001 -g 10001 "$SANDBOX_WORKSPACE_ROOT"`. Run Compose
+against that rootful engine. Its socket group is normally 0; a customized
+rootful socket needs its actual group in `DOCKER_GID`.
+
+On a rootless macOS Podman machine, both bind sources belong to the Linux VM,
+not to macOS. Provision them inside that VM:
+
+```bash
+export SANDBOX_DOCKER_SOCKET="$(podman machine ssh 'printf "%s/podman/podman.sock" "$XDG_RUNTIME_DIR"')"
+export SANDBOX_WORKSPACE_ROOT=/tmp/agenticos-sandbox-workspaces
+podman machine ssh 'mkdir -p /tmp/agenticos-sandbox-workspaces && podman unshare chown 10001:10001 /tmp/agenticos-sandbox-workspaces'
+export DOCKER_GID=0
+```
+
+Keep the deployment's existing keys. Set a nonempty `SANDBOXD_TOKEN` and
+`SANDBOX_URL=http://sandboxd:8080` in the env file the stack reads, as described
+under [sandbox configuration](sandbox.md). Then start with both files:
+
+```bash
+podman compose -f docker-compose.yml -f docker-compose-podman.yml \
+  --profile sandbox up -d
+```
+
+The override disables SELinux labeling only for `sandboxd`, which already
+holds the engine socket. It shares the workspace label with `:z` because sibling
+sandboxes also mount it. Sandbox containers retain their own labels and
+`no-new-privileges`; do not relabel the socket or disable SELinux globally.
+Rootless socket ownership maps to group 0 inside the user namespace.
+
+Use a persistent workspace path on a server: `/tmp` is only a local example.
+Persist the socket, workspace and group settings in the operator's environment
+for subsequent Compose commands. A host `DOCKER_HOST` does not change the socket
+mounted inside `sandboxd`.
+
+Verified paths include an HTTP agent run, persisted completion, workspace files,
+nonzero exits, timeouts, enforced memory/CPU/PID limits and runtime image builds.
+The shipped workbench image also read/wrote XLSX, rendered a plot and ran Node
+and LibreOffice. The model was a deterministic OpenAI-compatible test server;
+the desktop runtime and every Linux distribution were not tested. See the
+[recorded checks](https://github.com/vstorm-co/agenticos/blob/main/docs/audits/podman-2026-11-03.md)
+for versions, scope and the migration failure reproduction.
 
 ## Sizing the host
 
@@ -529,9 +616,9 @@ the site is unavailable for the few seconds that takes.
 
 ### From GitHub, with an approval
 
-`.github/workflows/deploy.yml` offers every merge to `main` for deployment and
+`.github/workflows/deploy.yml` offers each published stable release for deployment and
 waits for somebody to approve it. That gate is **a repository setting, not a step
-in the file** — without it, the workflow deploys every merge unattended.
+in the file** — without it, the workflow deploys each published stable release unattended.
 
 Set it up once:
 
@@ -546,7 +633,7 @@ Set it up once:
     Every run shares the `deploy-production` concurrency group, and a run sitting
     at the approval gate holds it. It does not expire on its own — GitHub cancels
     an unactioned one after 30 days — so until somebody approves or cancels it,
-    later merges queue behind a decision nobody is going to make, and the server
+    later releases queue behind a decision nobody is going to make, and the server
     keeps running whatever was deployed last.
 
     So a deploy you have decided against is cancelled, not left. One left waiting
@@ -555,9 +642,9 @@ Set it up once:
 
     `deploy-queue.yml` is what happens when it is left anyway: every six hours it
     cancels a Deploy run that has waited more than twelve for an approval, and
-    opens an issue naming the run and how far `main` has drifted from the last
+    opens an issue naming the run and how far the latest stable release has advanced from the last
     successful deploy. It approves nothing and deploys nothing — it drains the
-    queue so the next merge reaches the gate, and says that it did. Run it by
+    queue so the next published release reaches the gate, and says that it did. Run it by
     hand with `gh workflow run deploy-queue.yml`.
 
 !!! danger "Approving from the environment's queue approves the **oldest** run"
@@ -566,7 +653,7 @@ Set it up once:
     whenever the queue jammed, not the commit that was just pushed — that is how
     a fortnight-old commit reached this server. Approve from the run page of the
     commit you mean, or start a fresh one with
-    `gh workflow run deploy.yml --ref main` and approve that.
+    `gh workflow run deploy.yml --ref main -f ref=v1.34.3` and approve that.
 
 | Secret | What |
 |---|---|

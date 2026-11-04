@@ -509,6 +509,10 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "leaflet-1.9.4/leaflet.css": "text/css; charset=utf-8",
     "agenticos-map-1.js": "text/javascript; charset=utf-8",
     "agenticos-map-2.js": "text/javascript; charset=utf-8",
+    # A world map from country outlines served here: no tile server, no network.
+    "topojson-client-3.1.0.min.js": "text/javascript; charset=utf-8",
+    "world-atlas-2.0.2-110m.js": "text/javascript; charset=utf-8",
+    "agenticos-worldmap-1.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 

@@ -920,6 +920,18 @@ class TestTheWelcome:
         # Teams looks people up only in the conversations its own bot is in.
         assert adapters["teams"].welcome.await_args.kwargs["places"] == ["k1"]
 
+    async def test_a_turkish_member_receives_the_localized_greeting_and_console_link(self):
+        adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
+        greeted = await self._welcome(
+            {"slack": [_bot("slack")]},
+            adapters,
+            user=SimpleNamespace(email="ada@acme.com", locale="tr", is_active=True),
+        )
+        assert greeted == 1
+        said = adapters["slack"].welcome.await_args.args[2]
+        assert said.startswith("Acme kuruluşuna hoş geldiniz! Ben slack bot")
+        assert "konsolu açabilirsiniz: http" in said
+
     async def test_nobody_is_greeted_where_the_organization_has_not_turned_it_on(self):
         adapters = {"slack": MagicMock(welcome=AsyncMock(return_value=True))}
 
@@ -1209,3 +1221,14 @@ class TestMemoryMaintenanceAllowance:
             )
 
         assert create_run.await_args.kwargs["system_role"] == "memory_maintenance"
+
+
+def test_turkish_briefing_text_keeps_the_count_and_console_link() -> None:
+    from app.services.proactive._briefing import _message
+
+    titles = [f"Finding {index}" for index in range(7)]
+    message = _message("tr", titles, "https://console.example/inbox")
+    assert message.startswith("Watch'larınızdan 7 yeni bulgu:")
+    assert "…ve 2 bulgu daha." in message
+    assert "https://console.example/inbox" in message
+    assert "Finding 4" in message and "Finding 5" not in message

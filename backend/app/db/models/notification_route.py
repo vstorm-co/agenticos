@@ -34,7 +34,7 @@ class NotificationRoute(Base, TimestampMixin):
             "organization_id", "user_id", "channel", name="uq_notification_route_owner"
         ),
         CheckConstraint(
-            "channel IN ('slack', 'telegram', 'mattermost', 'teams', 'sms', 'imessage')",
+            "channel IN ('slack', 'telegram', 'mattermost', 'teams', 'sms', 'imessage', 'discord')",
             name="ck_notification_routes_channel",
         ),
     )

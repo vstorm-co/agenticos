@@ -751,7 +751,7 @@ class TestApprovalQueue:
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OPERATOR
         )
-        waiting = MagicMock(id=uuid.uuid4())
+        waiting = MagicMock(id=uuid.uuid4(), parked_in_chat=False)
         db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
 
         with patch(

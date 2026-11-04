@@ -174,6 +174,21 @@ describe("WorkflowCanvas", () => {
     expect(container.querySelector('[data-node-id="u"] .react-flow__handle')).toBeNull();
   });
 
+  it("expands the same canvas and returns without losing its draft", () => {
+    seedTwoActions();
+    const { container, getByRole } = render(
+      <WorkflowCanvas workflow={workflow()} catalog={CATALOG} />,
+    );
+    const original = container.querySelector('[data-node-id="a"]');
+    const before = store.getState().graph;
+    fireEvent.click(getByRole("button", { name: "Full screen" }));
+    expect(container.querySelector("[data-workflow-id]")).toHaveClass("fixed");
+    expect(container.querySelector('[data-node-id="a"]')).toBe(original);
+    fireEvent.click(getByRole("button", { name: "Exit full screen" }));
+    expect(container.querySelector("[data-workflow-id]")).not.toHaveClass("fixed");
+    expect(store.getState().graph).toEqual(before);
+  });
+
   it("selects a step on a click and opens it on a double click", () => {
     seedTwoActions();
     const { container } = render(<WorkflowCanvas workflow={workflow()} catalog={CATALOG} />);

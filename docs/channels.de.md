@@ -1,5 +1,5 @@
 ---
-source_sha: "32f7642dc2cc"
+source_sha: "6316a161e13d"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1710,10 +1710,156 @@ Organisation nennen: Die Antwort jeder Ausführung wird dann dort als neue Nachr
 gepostet, unter dem Namen des Triggers. Ein persönlicher Chat wird nie angeboten — er
 gehört jemandem.
 
+## Discord { #discord }
+
+Ein Discord-Bot ist eine Anwendung im Discord Developer Portal, angesprochen über
+Discords eigenes Gateway und die REST-API, ohne Bibliothek dazwischen (#2079).
+Nachrichten, Slash-Befehle und Schaltflächen-Klicks kommen alle über die eine
+Gateway-Verbindung des Bots, sodass **ein Deployment für Discord keine öffentliche
+Adresse braucht** und ein Discord-Bot keinen Webhook-Modus hat.
+
+1. Erstellen Sie im [Developer Portal](https://discord.com/developers/applications)
+   eine Anwendung. Setzen Sie unter **Bot** das **Token** zurück, kopieren Sie es
+   und schalten Sie **Message Content Intent** ein. Ohne den lehnt Discord die
+   Verbindung ab, und die Zeile des Bots sagt, welcher Schalter fehlt. Setzen Sie
+   unter **Installation** den **Install Link** auf *None* und schalten Sie dann
+   unter **Bot** **Public Bot** aus. Einen öffentlichen Bot kann jeder zu seinem
+   eigenen Server hinzufügen, deshalb verweigert
+   der Bot die Verbindung, solange er öffentlich ist. Ein Bot, der während der
+   Verbindung öffentlich wird, hält an, sobald er das nächste Mal einem Server
+   hinzugefügt wird.
+2. Kreuzen Sie unter **OAuth2 → URL Generator** die Scopes `bot` und
+   `applications.commands` an sowie die Berechtigungen **View Channels**, **Send
+   Messages**, **Send Messages in Threads**, **Create Public Threads**, **Read
+   Message History** und **Attach Files**, und öffnen Sie dann die URL, um den Bot
+   einem Server hinzuzufügen. Ohne **Attach Files** wird eine Datei oder ein
+   Diagramm des Agenten abgelehnt, und der Text, der damit gesendet wurde, geht
+   ebenfalls verloren.
+3. Registrieren Sie ihn: **Channels → Channel hinzufügen**, Plattform `discord`,
+   mit dem Token.
+
+**Server ausdrücklich genehmigen.** Tragen Sie im Formular zum Hinzufügen oder Bearbeiten des Bots die **Genehmigten Discord-Server-IDs** ein. Aktivieren Sie Discords Entwicklermodus, kopieren Sie jede Server-ID und trennen Sie IDs durch Kommas oder Leerzeichen. Übergeben Sie in der CLI `--discord-guild 123456789012345678` an `channel-add-bot`; wiederholen Sie die Option für weitere Server. Eine leere Liste erlaubt nur Direktnachrichten. Von READY gemeldete Installationen sind keine Genehmigungen; Entfernen und erneutes Hinzufügen umgeht die Liste nicht.
+
+`/ask` bestätigt die Interaktion privat, bevor Kanalabfragen oder Datenbankprüfungen beginnen. Nur eine zugelassene Frage wird öffentlich gepostet; Ablehnungen und Einladungen zur Kontoverknüpfung bleiben privat. Einladungen verbrauchen das Limit des Absenders. Die Servergenehmigung bestimmt die Orte; `jwt_linked` oder `require_link` verlangt weiterhin ein Organisationskonto. Der Konsolenzugriff auf gespeicherte Unterhaltungen erfordert **View Channel** und **Read Message History**, bei privaten Threads zusätzlich die Mitgliedschaft.
+
+Der Bot registriert seine Befehle beim Verbinden: `/ask`, `/agents`, `/new`,
+`/link`, `/unlink` und `/help`, dazu **Ask the agent** unter *Apps* auf jeder
+Nachricht. Discord kann eine Weile brauchen, bis neue Befehle auf jedem Server
+erscheinen.
+
+| Wo | Wann er antwortet |
+|---|---|
+| Eine Direktnachricht | Auf jede Nachricht. Die Direktnachricht ist eine Unterhaltung, und `/new` beginnt sie neu |
+| Ein Serverkanal | Wenn er @erwähnt wird oder eine Nachricht auf ihn antwortet. Die Antwort öffnet einen Thread auf der Frage, und der Thread ist die Unterhaltung |
+| Ein Thread, den der Bot geöffnet hat | Auf jede Nachricht darin |
+| `/ask` | Überall: die Frage, bis zu 2.000 Zeichen, wird gepostet und die Antwort im Thread darunter gegeben |
+| *Apps → Ask the agent* | Auf jeder Nachricht: der Agent wird zu dieser Nachricht gefragt, in einem Thread darauf |
+
+`/agents`, `/link` und die anderen Befehle antworten privat, nur dem, der sie
+ausgeführt hat. `/new` beginnt die Unterhaltung eines Threads neu; in einem
+Server-Kanal, in dem jede Erwähnung ohnehin eine neue beginnt, sagt es das
+stattdessen. In einem Kanal, in dem der Bot keine Threads öffnen darf, ist die
+Antwort stattdessen eine Antwort auf die Frage, und wer darauf antwortet, setzt
+dieses Gespräch fort.
+
+**Die Antwort wird an Ort und Stelle geschrieben.** Der Bot postet eine Nachricht
+und bearbeitet sie, während die Antwort einströmt, und läuft nach 2.000 Zeichen in
+weitere Nachrichten über. Geschrieben wird nur Text, den die Guardrails schon
+geprüft haben, sodass ein geschwärztes Geheimnis nie zu sehen ist, auch nicht für
+einen Moment. Nichts, was der Bot postet, kann jemanden anpingen: `@everyone` und
+Rollenerwähnungen in einer Antwort bleiben einfacher Text.
+
+**Freigaben und Fragen sind Schaltflächen**, bei einer Frage mit mehr als 25
+Optionen Auswahllisten. Unter jeder Antwort stehen Daumen, und ein Daumen nach
+unten öffnet ein Discord-Formular, das fragt, was falsch war. Eine Reaktion auf die
+Frage gibt es auf Discord nicht.
+
+**Wer spricht**, ist die Discord-Benutzer-ID, mit `/link` wie auf jeder Plattform
+mit einem Mitglied verknüpft. Eine Unterhaltung aus einem Serverkanal wird in der
+Konsole denen gezeigt, die den Kanal noch sehen können, nach den Rollen des Servers
+und den Berechtigungsüberschreibungen des Kanals, denn das heißt auf Discord, in
+einem Kanal zu sein. Ein privater Thread ist nur auf Einladung zugänglich und
+daher ein eigener Raum: Eine Unterhaltung daraus wird nur denen gezeigt, die
+noch in diesem Thread sind, und die Notizen, die der Agent dort führt, werden
+nicht mit dem Kanal geteilt.
+
+**Ein Thread, in den der Bot mittendrin geholt wird, wird zuerst gelesen.** Die
+letzten Nachrichten darin, mit Autor und Zeit, und die Dateien, die Leute dort
+gepostet haben, erreichen den Agenten vor der Antwort, wie bei Slack und
+Mattermost; Dateien, die der Bot selbst gepostet hat, bleiben außen vor. Nötig
+ist **Read Message History**, und `read_channel_history` liest einen Thread oder
+einen Kanal genauso, wo die Anbindung es erlaubt.
+
+### Die Rollen eines Servers als Gruppen { #discord-roles }
+
+Ein Administrator kann eine Rolle auf einem der Server des Bots einer Gruppe der
+Organisation zuordnen (#2569). Öffne **Kanäle** und dann die Aktion
+**Discord-Rollen** in der Zeile des Bots. Server und Rolle werden aus dem gewählt,
+was der Bot selbst von Discord liest, daher werden `@everyone` und die Rollen, die
+Discord für einen Bot verwaltet, nicht angeboten. Eine Zuordnung anzulegen verlangt
+`members:manage`, und die Routen verlangen zusätzlich `channels:manage`.
+
+Ein verknüpftes Mitglied mit der Rolle kommt vor jeder Nachricht an einen der
+Discord-Bots der Organisation in die Gruppe, und erneut durch den Job
+`sync-discord-roles` alle 15 Minuten. Wird ihm die Rolle entzogen, verlässt es die
+Gruppe, und der Job bemerkt das auch bei jemandem, der dem Bot nicht mehr schreibt.
+Der Bot fragt Discord jeweils nach den Rollen eines Mitglieds, braucht also keinen
+privilegierten Intent, und eine neue Zuordnung erfasst Personen bei ihrer nächsten
+Nachricht statt sofort.
+
+Diese Prüfungen vor einer Nachricht zählen gegen das `rate_limit_rpm` des Absenders,
+in einem eigenen Kontingent, Befehle wie `/help` eingeschlossen. Wer es überschreitet,
+wird gebeten, langsamer zu schreiben, und Discord wird erst nach Ablauf der Minute
+wieder gefragt.
+
+Eine Zuordnung kann auch eine Rolle in der Organisation nennen. Eine verknüpfte
+Person mit der Discord-Rolle, die noch kein Mitglied ist, tritt der Organisation dann
+mit dieser Rolle bei. Das erspart es, jeden in einem Community-Server einzeln
+einzuladen. Eine Rolle zu nennen verlangt `roles:manage`, und nur eine Rolle, die die
+eigene Rolle des Aufrufers strikt übertrifft. Die Reihenfolge zwischen mehreren
+passenden Rollen und die Regeln dazu, was die Synchronisierung nie anfasst, sind die
+der [Verzeichnissynchronisierung](directory.md#what-the-sync-never-touches):
+
+- Nur ein verknüpftes Konto zählt. Ein Discord-Nutzer, der nie `/link` ausgeführt
+  hat, kommt nirgendwohin, welche Rollen er auch hat.
+- Eine Rolle passt nur auf dem Server, den die Zuordnung nennt, gelesen von dem Bot,
+  dem die Zuordnung gehört. Dieselbe Rollen-ID auf dem Server eines anderen Bots
+  passt auf nichts.
+- Die Synchronisierung ändert nur Zeilen, die sie selbst angelegt hat, auf der
+  Mitgliederseite und in einer Gruppe mit **Discord** markiert. Eine von Hand
+  hinzugefügte Gruppenmitgliedschaft bleibt, wenn die Rolle entzogen wird, eine
+  Mitgliedschaft, die ein Administrator angelegt hat, behält ihre Rolle, und ein
+  Eigentümer wird nie herabgestuft oder entfernt. Wen die Synchronisierung in die
+  Organisation aufgenommen hat, verlässt alle ihre Gruppen, wenn sie ihn wieder
+  entfernt, wie jemand, der von Hand entfernt wird.
+- Ist ein Server nicht lesbar, bleiben seine zugeordneten Gruppen erhalten. Mögliche Organisationsrollen erhalten nur bereits vorhandene Befugnisse; eine ungelesene `viewer`-Zuordnung erhält kein `admin`. Bestätigte Freigaben gelten weiterhin.
+
+Jeder Abgleich hat ein gemeinsames Netzwerkbudget von zehn Sekunden. REST-Abfragen teilen das `rate_limit_rpm` des Bots pro Benutzer über alle verknüpften Konten, getrennt vom Limit der Nachrichtenprüfungen. Das Löschen einer zugeordneten Gruppe erfordert ebenfalls `channels:manage`.
+
+Die Serverliste erlaubt eine gleichzeitige Anfrage pro Organisation. Seitennavigation und Rollenabfragen teilen ein Budget von zehn Sekunden; Rollen werden für höchstens acht Server gleichzeitig gelesen. Oberhalb der unterstützten 2.500 Server oder bei unvollständiger Antwort schlägt die Ermittlung ausdrücklich fehl.
+
+Wer die Verknüpfung des Discord-Kontos löst, verliert, was dessen Rollen gegeben
+haben, es sei denn, ein anderes verknüpftes Discord-Konto verdient es noch. Eine
+gelöschte Zuordnung nimmt zurück, was sie gegeben hat, bei der nächsten Nachricht
+der Person oder beim nächsten Lauf des Jobs. Den Bot oder eine zugeordnete Gruppe zu
+löschen oder dem Bot einen neuen Token zu geben, nimmt dasselbe zurück und verlangt
+deshalb, was das Löschen jeder dieser Zuordnungen verlangt. Jede Änderung steht im Audit-Log als
+`discord.member_added`, `discord.role_changed`, `discord.member_removed`,
+`discord.group_joined` oder `discord.group_left`, und das Anlegen oder Löschen einer
+Zuordnung als `discord.mapping_created` oder `discord.mapping_deleted`.
+
+Noch nicht: eine Verbindung bedient einen Bot auf höchstens 2.500 Servern, darüber
+verlangt Discord Sharding und der Bot hält mit diesem Grund an. Die Tools für
+Kanalmitglieder, Kanaldetails und Kanalsuche werden auf Discord nicht angeboten.
+
+Wenn beide Quellen Zugang gewähren, hat das Verzeichnis bei der Anmeldung Vorrang.
+Entfällt diese Freigabe, übernimmt eine verbleibende Discord-Rolle dieselbe
+Mitgliedschaft ohne Schlüssel zu widerrufen. Siehe [Mitgliedschaftsübergabe](directory.md#what-the-sync-never-touches).
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
-Telegram-Polling, Slack Socket Mode und der Mattermost-Event-Stream laufen alle
-unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
+Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream und das
+Discord-Gateway laufen alle unter einem Supervisor, der eine abgerissene Session neu verbindet. Ein fehlender
 oder zurückgewiesener Konfigurationswert ist keine abgerissene Session, und der
 Supervisor behandelt ihn anders: er vermerkt den Bot mit dem Grund als
 ausgefallen, protokolliert einmal und hört auf. Nichts, was er tut, würde die
@@ -1735,14 +1881,14 @@ Sekunden Wartezeit, verdoppelt bis zu einer Minute, sodass ein Server, der eine
 Stunde ausfällt, nicht von jedem Bot darauf 720-mal bearbeitet wird. Eine Session,
 die sauber endete, beginnt die Leiter von vorn. Die Zeile, die vor jedem Warten
 protokolliert wird, benennt die Verzögerung, die sie gleich abwartet, und dieselbe
-Schleife bedient alle drei Plattformen, sodass die Regel zwischen ihnen nicht
+Schleife bedient jede dieser Plattformen, sodass die Regel zwischen ihnen nicht
 auseinanderlaufen kann.
 
 ---
 
 ## Freigaben und Fragen als Schaltflächen { #approvals-and-questions-as-buttons }
 
-Ein in Slack, Teams, Telegram oder Mattermost gestarteter Run kann für einen Menschen
+Ein in Slack, Teams, Telegram, Mattermost oder Discord gestarteter Run kann für einen Menschen
 anhalten: Ein freigabepflichtiger Tool-Aufruf wartet auf eine Entscheidung, oder
 der Agent stellt eine `ask_user`-Frage. Der Chat bekommt die Auswahl dort, wo er
 ist — eine Nachricht pro Freigabe mit **Approve** und **Reject**, eine Nachricht
@@ -1776,7 +1922,7 @@ Anfrage mit dieser einen Zeile beginnt und den Rest hinter **Details** faltet.
 
 Ein Druck handelt als die Person, die gedrückt hat, über ihr verknüpftes Konto:
 Entscheiden braucht `approvals:decide`, und nur die gefragte Person kann eine
-Frage beantworten. Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
+Frage beantworten. Eine anderswo getroffene Entscheidung handelt als die Person, die sie getroffen hat, auch wenn es ein App-Admin ist ([unten](#decided-outside-the-chat)). Wer nicht verknüpft ist, wird um `/link` gebeten. Ein Run
 wartet `QUESTION_EXPIRY_HOURS` auf eine Antwort und `APPROVAL_EXPIRY_HOURS` auf
 eine Entscheidung, wie überall. Slack signiert seine Drucke; Mattermost signiert
 nichts, daher trägt jede Schaltfläche die eigene Signatur dieser Bereitstellung
@@ -1795,6 +1941,63 @@ Mattermost gleichermaßen. Braucht die Seite jemanden, eine Anmeldung oder ein C
 wechselt der Schritt zu *Needs you* und sagt, wofür, und nennt, wer den Browser hat,
 solange ein Mensch ihn hält. Der Link öffnet die Konsole, Übernehmen braucht also ein
 Konsolenkonto: die Person, für die der Run handelt, oder wer den Agent bearbeiten darf.
+
+### Außerhalb des Chats entschieden { #decided-outside-the-chat }
+
+Eine im Chat gestellte Anfrage lässt sich auch in den **Approvals** der Konsole,
+im Web-Chat oder über die HTTP-API entscheiden. Tut das eine Person und ist damit
+das Letzte erledigt, worauf der Run wartet, setzt der Server den Run als sie fort
+und postet die Antwort in den Chat, in dem gefragt wurde. Die Konsole sagt das,
+statt den Run selbst fortzusetzen, daher wird der Run einmal fortgesetzt. Eine
+Frage funktioniert genauso, wenn die gefragte Person sie in der Konsole beantwortet.
+
+Eine Entscheidung mit einem API-Schlüssel wird festgehalten und setzt den Run nicht
+fort: Einen Run, den eine Person gestartet hat, setzt nur eine Person fort. Über die
+API sagt `continues_in_chat` einem Client, welcher Fall vorliegt (siehe
+[Einen Agent ausführen](api.md#running-an-agent)).
+
+Drei Enden, die außerhalb des Chats passieren, posten dort je eine feste
+Nachricht, damit niemand auf Schaltflächen wartet, die nichts mehr bewirken. Die
+offenen Schaltflächen des Chats werden im selben Moment abgeschlossen.
+
+| Ende | Der Chat erfährt |
+|---|---|
+| Der Run läuft ab, nach `APPROVAL_EXPIRY_HOURS` bei einer Entscheidung oder `QUESTION_EXPIRY_HOURS` bei einer Frage | „This request expired without a decision." |
+| Jemand drückt in der Konsole **Stop** | „This run was stopped from the console." |
+| Ein Run wurde entschieden und nichts hat ihn etwa eine Stunde lang fortgesetzt | „A decision was recorded, but the run could not continue." |
+
+Das Letzte ist ein Sicherheitsnetz. Es bleibt in zwei Fällen still: wenn die
+Entscheidung mehr als 7 Tage alt ist und wenn der Chat bereits erfahren hat, dass
+der Run nicht fortgesetzt werden konnte. Ein Chat erhält höchstens eine Mitteilung
+je Parken eines Runs.
+
+Eine Schaltfläche, die gedrückt wird, nachdem die Anfrage anderswo beantwortet
+wurde, antwortet „That has already been answered." und ändert nichts.
+
+Eine Fortsetzung kann abgelehnt werden, etwa wenn der Chat seit der Frage neu
+begonnen hat, seine Zugriffsrichtlinie der fragenden Person jetzt den Zugang
+verweigert, die entscheidende Person Freigaben nicht mehr entscheiden darf, der Bot
+vom Agenten entfernt wurde oder der Agent nicht mehr gebaut werden kann. Der Chat
+erfährt es einmal: „That was decided outside the chat, but the run could not
+continue." **Resume** auf der Seite des Runs funktioniert weiterhin, bis etwa eine
+Stunde nach der letzten Entscheidung. Es läuft
+wie bisher, ohne die Raumprüfung, und postet die Antwort nur in einen Chat, der
+die fragende Person noch zulässt. Eine Mitgliedschaftsprüfung, die die Plattform
+nicht beantworten kann, hält eine Fortsetzung nicht auf.
+
+Ein vor 1.29.0 geparkter Run hat keinen gespeicherten Chat, daher setzt die Konsole
+ihn fort wie bisher. Setzt ihn niemand etwa eine Stunde nach der letzten Entscheidung
+fort, beendet ihn das Sicherheitsnetz ohne Nachricht.
+
+Der Worker sendet erforderliche Antworten und Abschlussmeldungen aus dauerhaften
+Jobs, die in derselben Transaktion wie das Ergebnis oder der Abschluss gespeichert
+werden. Nach einem Neustart oder vorübergehenden Sendefehler wird nur die Zustellung
+bis zu dreimal versucht; Agent und freigegebene Werkzeuge werden nicht erneut
+ausgeführt. Bot, Chat-Sitzung und Zugriffsrichtlinie werden vor dem Senden erneut
+geprüft. Ein Ziel mit widerrufenem Zugriff erhält nichts. Plattformen ohne
+idempotentes Senden können ein Duplikat anzeigen, wenn die Nachricht ankam, aber
+ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
+**Admin → Background jobs** (`deliver-channel-handback`).
 
 ### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
 
@@ -2151,6 +2354,8 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Nachtrag: die Runde zeigt auf das Chat-Konto, und das Konto gewinnt eine
     Person.
 
+    **Die `/chat`-Liste lässt Kanal-Threads standardmäßig weg.** `GET /conversations` nimmt `hide_channels` an, standardmäßig wahr, damit sich die Seitenleiste nicht mit Threads füllt, in denen ein Bot antwortet; sie öffnen sich weiter über ihren Link, und `hide_channels=false` listet sie wieder auf.
+
     **Sprechen ist ein Anspruch; die Plattform entscheidet, ob er noch gilt.** Der
     Runden-Eintrag sagt, wer *gesprochen* hat, und vor [#641][641] war das die
     ganze Prüfung — jemand, der aus dem Channel entfernt wurde, las den Thread
@@ -2256,7 +2461,7 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
 
 - **Wählen Sie, ob Gruppen-Erwähnungen einen Run starten.** *Auf Gruppen-Erwähnungen antworten* ist beim Erstellen und Bearbeiten eines Bots standardmäßig aus. Direkte Aufrufe funktionieren weiterhin. Eingeschaltet reagiert der Bot auch auf Mattermost `@all`, `@here` und `@channel`, native Slack-Gruppen-Erwähnungen und strukturierte Teams-Kanal- oder Team-Erwähnungen. Identität, Zugriff und Ratenlimits gelten weiterhin. Codebeispiele und Erwähnungen anderer Personen reichen nicht aus.
 
-    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft.
+    Teams benötigt das aktualisierte App-Paket im Zielteam oder Chat und die Zustimmung des Besitzers zu `ChannelMessage.Read.Group` und `ChatMessage.Read.Chat`. Das Paket fordert sie nur bei eingeschaltetem Schalter an. Telegram verwendet die Text-Aliase `@all`, `@here`, `@channel` und `@everyone`; diese benachrichtigen nicht die Gruppe. Der Bot muss Gruppennachrichten erhalten; prüfen Sie den Datenschutzmodus in BotFather. Eigene Erwähnungen, Befehle und Antworten werden anhand der tatsächlichen Telegram-Bot-Identität geprüft. Discord zählt `@everyone` und `@here` nur, wenn der Absender sie verwenden darf, also wenn Discord den Raum tatsächlich benachrichtigt.
 
 - **Auch der angeforderte Workspace-Dateiversand benötigt eine Genehmigung.** Die Freigabe von `send_channel_file` stellt das Tool bereit; das Posten der Datei wartet weiterhin auf eine ausdrückliche Bestätigung.
 - **MCP-Lesezugriffe verknüpfter Absender folgen der Genehmigungsrichtlinie der Bindung; Schreibzugriffe benötigen weiterhin eine Genehmigung.** Reine Lesewerkzeuge fragen nicht allein deshalb nach, weil der Lauf in einer Chat-App stattfindet. Werkzeuge ohne `readOnlyHint: true` fragen weiterhin; eine ausdrückliche `all`-Richtlinie umfasst auch Lesezugriffe. Dies gilt für persönliche, Organisations- und Plattformverbindungen, Delegierte und fortgesetzte Aufrufe. Persönliche Verbindungen gehören weiterhin dem aktuellen Absender, niemals dem Herausgeber oder anderen Teilnehmern.
@@ -2992,7 +3197,7 @@ Ein Downgrade stellt die gespeicherten Kanalvorgaben der vorherigen Version wied
 ## Benachrichtigungen über verknüpfte Kanäle { #linked-notifications }
 
 Unter **Einstellungen → Benachrichtigungen** ein privates Ziel pro Plattform
-und Organisation wählen: Slack, Telegram, Mattermost, Teams, SMS und iMessage verwenden
+und Organisation wählen: Slack, Telegram, Mattermost, Teams, Discord, SMS und iMessage verwenden
 den bestehenden verknüpften Bot. E-Mail und Push behalten ihre Einrichtung.
 Ereigniseinstellungen und Routine-Auswahl werden beim Versand zusammen mit
 Ressourcenrechten und aktuellem Fallstatus geprüft. Die Kontoverknüpfung allein

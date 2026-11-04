@@ -18,6 +18,7 @@ import { readConversationFile, readConversationFileBytes } from "./conversation-
 import { readLocalFile } from "./desktop/commands";
 import { saveBlob, type FileAccess, type FileText } from "./file-access";
 import { readProjectBytes, readProjectText } from "./projects-api";
+import { prepareHtmlFilePreview } from "./html-file-preview";
 import { qk } from "./query-keys";
 import { readWorkspaceBytes, readWorkspaceFile } from "./sandbox-workspaces-api";
 
@@ -107,6 +108,13 @@ export function workspaceFileAccess(source: FileSource, path: string): FileAcces
     textKey: textKey(source, path),
     bytesKey: bytesKey(source, path),
     readText: () => readFileText(source, path),
+    readPreview: async () =>
+      prepareHtmlFilePreview(
+        path,
+        await readFileText(source, path),
+        (asset) => readFileText(source, asset),
+        (asset) => readFileBytes(source, asset),
+      ),
     readBytes: () => readFileBytes(source, path),
     download: async () => {
       const blob = await readFileBytes(source, path, { download: true });

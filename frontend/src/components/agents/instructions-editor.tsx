@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
 import { MarkdownEditor, type MarkdownMode } from "@/components/ui";
@@ -29,6 +29,7 @@ interface InstructionsEditorProps {
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
   /** Source or preview, toggled from the card header that holds the editor. */
   mode: MarkdownMode;
+  toolbar?: ReactNode;
 }
 
 /**
@@ -48,6 +49,7 @@ export function InstructionsEditor({
   variables,
   textareaRef,
   mode,
+  toolbar,
 }: InstructionsEditorProps) {
   const t = useTranslations("agents");
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -104,32 +106,37 @@ export function InstructionsEditor({
         disabled={disabled}
         placeholder={placeholder}
         mode={mode}
+        toolbar={toolbar}
+        suggestions={
+          showing && (
+            <ul
+              role="listbox"
+              aria-label={t("variablesSuggestions")}
+              className="bg-popover border-border mt-1 max-h-60 overflow-y-auto rounded-lg border p-1 shadow-lg"
+            >
+              {options.map((option, index) => (
+                <li key={option.name} role="option" aria-selected={index === active}>
+                  <button
+                    type="button"
+                    // Keeps the focus, and with it the caret, in the textarea.
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => choose(option.name, open!)}
+                    className={cn(
+                      "flex w-full items-baseline gap-3 rounded-md px-2 py-1.5 text-left",
+                      index === active ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
+                    )}
+                  >
+                    <span className="font-mono text-xs">{`{{${option.name}}}`}</span>
+                    <span className="text-muted-foreground truncate text-xs">
+                      {option.description}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )
+        }
       />
-      {showing && (
-        <ul
-          role="listbox"
-          aria-label={t("variablesSuggestions")}
-          className="bg-popover border-border absolute inset-x-2 top-full z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border p-1 shadow-lg"
-        >
-          {options.map((option, index) => (
-            <li key={option.name} role="option" aria-selected={index === active}>
-              <button
-                type="button"
-                // Keeps the focus, and with it the caret, in the textarea.
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => choose(option.name, open!)}
-                className={cn(
-                  "flex w-full items-baseline gap-3 rounded-md px-2 py-1.5 text-left",
-                  index === active ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
-                )}
-              >
-                <span className="font-mono text-xs">{`{{${option.name}}}`}</span>
-                <span className="text-muted-foreground truncate text-xs">{option.description}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }

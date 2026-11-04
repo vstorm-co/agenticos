@@ -85,6 +85,7 @@ class NotificationChannel(enum.StrEnum):
     TEAMS = "teams"
     SMS = "sms"
     IMESSAGE = "imessage"
+    DISCORD = "discord"
 
 
 CHAT_NOTIFICATION_CHANNELS = frozenset(
@@ -95,6 +96,7 @@ CHAT_NOTIFICATION_CHANNELS = frozenset(
         NotificationChannel.TEAMS,
         NotificationChannel.SMS,
         NotificationChannel.IMESSAGE,
+        NotificationChannel.DISCORD,
     }
 )
 

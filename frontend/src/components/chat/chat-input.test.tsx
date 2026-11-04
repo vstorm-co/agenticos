@@ -862,3 +862,57 @@ describe("a run waiting for its person", () => {
     expect(screen.queryByRole("button", { name: "Call" })).not.toBeInTheDocument();
   });
 });
+
+it("keeps composing while focus moves to Send, and exits without losing an unsent draft", async () => {
+  const onSend = vi.fn();
+  render(
+    <>
+      <button>Outside</button>
+      <ChatInput onSend={onSend} />
+    </>,
+  );
+  const editor = screen.getByRole("textbox");
+  const form = editor.closest("form");
+  await userEvent.type(editor, "Phone draft");
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Outside" }));
+  expect(form).not.toHaveAttribute("data-editing");
+  expect(messageOf(editor)).toBe("Phone draft");
+  await userEvent.click(editor);
+  const send = screen.getByRole("button", { name: "Send message" });
+  fireEvent.blur(editor, { relatedTarget: send });
+  fireEvent.focus(send, { relatedTarget: editor });
+  expect(form).toHaveAttribute("data-editing", "true");
+  await userEvent.click(send);
+  expect(onSend).toHaveBeenCalledWith("Phone draft", undefined, undefined, undefined);
+});
+
+it("does not take touch-keyboard focus on arrival or when a reply finishes", async () => {
+  const original = window.matchMedia("");
+  const media = vi.spyOn(window, "matchMedia").mockImplementation((query) => ({
+    ...original,
+    media: query,
+    matches: query === "(pointer: coarse)",
+  }));
+  try {
+    const onSend = vi.fn();
+    const view = (processing: boolean) => (
+      <>
+        <button>Read here</button>
+        <ChatInput onSend={onSend} isProcessing={processing} />
+      </>
+    );
+    const { rerender } = render(view(false));
+    const editor = screen.getByRole("textbox");
+    expect(editor).not.toHaveFocus();
+    const outside = screen.getByRole("button", { name: "Read here" });
+    await userEvent.click(outside);
+    rerender(view(true));
+    rerender(view(false));
+    expect(outside).toHaveFocus();
+    await userEvent.click(editor);
+    expect(editor).toHaveFocus();
+  } finally {
+    media.mockRestore();
+  }
+});

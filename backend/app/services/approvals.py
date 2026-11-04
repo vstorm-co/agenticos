@@ -12,27 +12,50 @@ the model cannot change its mind between asking and acting.
 """
 
 import logging
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Final
 from uuid import UUID
 
 from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, ToolApproval
-from app.repositories import agent_run_repo, voice_call_repo
+from app.db.models.agent_run import (
+    CHANNEL_SURFACES,
+    AgentRun,
+    ApprovalStatus,
+    RunStatus,
+    ToolApproval,
+)
+from app.repositories import agent_run_repo, channel_prompt_repo, voice_call_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
+from app.services.channels.handback import (
+    EXPIRED_NOTICE,
+    STRANDED_NOTICE,
+    ChatNotice,
+    chat_destination,
+    decided_by_a_person,
+)
+from app.services.channels.handback_jobs import queue_notices
 from app.services.outcome import OutcomeService
 from app.services.transcript import TranscriptService
 from app.services.workflow_execution.approval_wake import wake_after_approval_decision
 
 logger = logging.getLogger(__name__)
+
+# A run decided on a channel surface is continued within seconds of the decision.
+# One still parked this long afterwards was never continued, and nothing else will.
+STRANDED_AFTER: Final = timedelta(hours=1)
+# Past this the chat is not told: a decision this old predates the safety net, and
+# announcing it would be noise nobody can act on.
+STRANDED_NOTICE_WITHIN: Final = timedelta(days=7)
 
 
 def _parked_tool_call_ids(run: AgentRun) -> list[str]:
@@ -46,6 +69,16 @@ def _parked_tool_call_ids(run: AgentRun) -> list[str]:
     state = run.paused_state or {}
     parked: dict[str, str] = state.get("tool_call_ids", {})
     return list(parked.values())
+
+
+def _notice(run: AgentRun, destination: ChannelDestination, text: str) -> ChatNotice:
+    return ChatNotice(
+        organization_id=run.organization_id, run_id=run.id, destination=destination, text=text
+    )
+
+
+def _hours(span: timedelta) -> str:
+    return f"{int(span.total_seconds() // 3600)}h"
 
 
 class ApprovalService:
@@ -149,7 +182,7 @@ class ApprovalService:
         trail - which is why it comes back with the decider's name and no way to
         decide again.
         """
-        return await agent_run_repo.list_approvals(
+        rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,
             filters=filters,
@@ -157,6 +190,11 @@ class ApprovalService:
             skip=skip,
             limit=limit,
         )
+        person = decided_by_a_person(ctx)
+        return [
+            replace(row, continues_in_chat=True) if person and row.parked_in_chat else row
+            for row in rows
+        ], total
 
     async def decide(
         self,
@@ -324,11 +362,12 @@ class ApprovalService:
             )
 
         settled = 0
+        notices: list[ChatNotice] = []
         for run_id, organization_id in {
             (approval.run_id, approval.organization_id) for approval in stale
         }:
             settled += await self._settle_expired_run(
-                run_id, organization_id=organization_id, at=now
+                run_id, organization_id=organization_id, at=now, notices=notices
             )
 
         # Audited last, after every row this sweep touches is already locked. The
@@ -342,6 +381,7 @@ class ApprovalService:
                 approval, ApprovalStatus.EXPIRED, actor_user_id=None, note=None
             )
 
+        await self._tell_chats(notices)
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)
         return len(stale)
 
@@ -358,10 +398,24 @@ class ApprovalService:
             How many runs were ended.
         """
         now = datetime.now(UTC)
-        stale = await agent_run_repo.list_unanswered_runs(
+        listed = await agent_run_repo.list_unanswered_runs(
             self.db, older_than=now - timedelta(hours=settings.QUESTION_EXPIRY_HOURS)
         )
-        for run in stale:
+        # The run before anything else, in id order, as a press and `expire_stale`
+        # take it: a press that continued the run since the list was read is
+        # waited for here, and the run is then left to it.
+        claimed = [
+            await agent_run_repo.claim_parked_run(self.db, run_id, organization_id=organization_id)
+            for run_id, organization_id in sorted({(run.id, run.organization_id) for run in listed})
+        ]
+        ended = 0
+        notices: list[ChatNotice] = []
+        for run in claimed:
+            if run is None or run.status != RunStatus.AWAITING_ANSWER.value:
+                continue
+            destination = chat_destination(run)
+            if destination is not None:
+                await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="expired")
             questions: list[str] = (run.paused_state or {}).get("questions", [])
             await TranscriptService(self.db).record(
                 run, prompt=None, answer="", settled=dict.fromkeys(questions, TIMED_OUT)
@@ -378,12 +432,118 @@ class ApprovalService:
                 error=f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired",
                 paused_state=None,
             )
-        if stale:
-            logger.info("Question sweep: ended %d unanswered run(s)", len(stale))
-        return len(stale)
+            if destination is not None:
+                notices.append(_notice(run, destination, EXPIRED_NOTICE))
+            ended += 1
+        await self._tell_chats(notices)
+        if ended:
+            logger.info("Question sweep: ended %d unanswered run(s)", ended)
+        return ended
+
+    async def end_stranded(self) -> int:
+        """End the channel runs a decision was recorded on and nothing continued (#2656).
+
+        A decision made outside the chat continues the run in the background, best
+        effort: a restart between the decision and the continuation loses it, and a
+        continuation that is refused leaves the run as it was. Either leaves a run in
+        `awaiting_approval` with nothing pending, which no expiry reaches. This ends
+        it, an hour after its last decision, and tells the chat once - unless the
+        chat was already told this park could not continue, or the decision is old
+        enough to predate this check.
+
+        Only channel surfaces: a web, API or workflow run is waited on by something
+        else, and a voice run is the call's.
+
+        Returns:
+            How many runs were ended.
+        """
+        now = datetime.now(UTC)
+        listed = await agent_run_repo.list_stranded_runs(
+            self.db,
+            decided_before=now - STRANDED_AFTER,
+            surfaces=[surface.value for surface in CHANNEL_SURFACES],
+        )
+        claimed = [
+            await agent_run_repo.claim_parked_run(self.db, run_id, organization_id=organization_id)
+            for run_id, organization_id in sorted(
+                {(run.id, run.organization_id) for run, _ in listed}
+            )
+        ]
+        ended: list[AgentRun] = []
+        notices: list[ChatNotice] = []
+        for run in claimed:
+            if run is None or run.status != RunStatus.AWAITING_APPROVAL.value:
+                continue
+            run_id = run.id
+            approvals = await agent_run_repo.list_approvals_for_run(
+                self.db, run_id=run_id, organization_id=run.organization_id
+            )
+            if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
+                continue
+            last_decided = max(
+                (approval.decided_at for approval in approvals if approval.decided_at is not None),
+                default=None,
+            )
+            # The run may have resumed and parked again since the candidate listing.
+            if last_decided is None or last_decided >= now - STRANDED_AFTER:
+                continue
+            destination = chat_destination(run)
+            already_told = run.chat_notice_sent_at is not None
+            recent = now - last_decided < STRANDED_NOTICE_WITHIN
+            if destination is not None:
+                await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="ended")
+            await TranscriptService(self.db).record(
+                run,
+                prompt=None,
+                answer="",
+                settled=dict.fromkeys(
+                    [*_parked_tool_call_ids(run), *(run.paused_state or {}).get("questions", [])],
+                    "Not performed: the decision was recorded, but the run did not continue.",
+                ),
+            )
+            await agent_run_repo.finish_run(
+                self.db,
+                run=run,
+                status=RunStatus.CANCELLED.value,
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
+                ended_at=now,
+                error=(
+                    f"Decided, but nothing continued the run within {_hours(STRANDED_AFTER)}"
+                    if recent
+                    else f"Decided over {STRANDED_NOTICE_WITHIN.days} days before this check "
+                    "and never continued; the chat was not told"
+                ),
+                paused_state=None,
+            )
+            if destination is not None and recent and not already_told:
+                notices.append(_notice(run, destination, STRANDED_NOTICE))
+            ended.append(run)
+
+        # Audited last, after every row this sweep locks, for the reason given in
+        # `expire_stale`.
+        for run in ended:
+            await record_audit(
+                self.db,
+                actor_user_id=None,
+                organization_id=run.organization_id,
+                action="run.cancelled",
+                target_type="agent_run",
+                target_id=str(run.id),
+                details={"previous_status": RunStatus.AWAITING_APPROVAL.value, "by": "stranded"},
+            )
+        await self._tell_chats(notices)
+        if ended:
+            logger.info("Stranded sweep: ended %d decided run(s) nothing continued", len(ended))
+        return len(ended)
+
+    async def _tell_chats(self, notices: list[ChatNotice]) -> None:
+        await queue_notices(self.db, notices)
 
     async def _settle_expired_run(
-        self, run_id: UUID, *, organization_id: UUID, at: datetime
+        self, run_id: UUID, *, organization_id: UUID, at: datetime, notices: list[ChatNotice]
     ) -> int:
         """End one parked run whose calls have all been decided one way or another.
 
@@ -408,7 +568,11 @@ class ApprovalService:
         if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
             return 0
 
-        # Before `finish_run`, which clears the state these ids come from.
+        # Both read before `finish_run`, which clears the state they live in. The
+        # buttons are settled ahead of the audits, which take the last lock.
+        destination = chat_destination(run)
+        if destination is not None:
+            await channel_prompt_repo.settle_open(self.db, run_id=run.id, by="expired")
         await TranscriptService(self.db).record(
             run,
             prompt=None,
@@ -438,6 +602,8 @@ class ApprovalService:
             # un-resumable: state left on an ended run is state somebody replays.
             paused_state=None,
         )
+        if destination is not None:
+            notices.append(_notice(run, destination, EXPIRED_NOTICE))
         # A workflow node parked on this run wakes the same way a decision
         # wakes it (#1788): its handler sees the run ended and fails the node,
         # instead of the node waiting for ever on a run nothing will resume.

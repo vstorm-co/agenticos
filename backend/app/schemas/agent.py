@@ -99,6 +99,13 @@ def normalize_labels_query(values: list[str], *, max_items: int) -> list[str] | 
     return kept[:max_items]
 
 
+class LocalCodingAgent(BaseSchema):
+    """A coding agent an agent's published version runs on the person's computer."""
+
+    harness: Literal["claude_code", "codex"]
+    access: Literal["edit", "read_only"]
+
+
 class PublishedModel(BaseSchema):
     """The model an agent's published version runs on.
 
@@ -224,6 +231,15 @@ class AgentRead(BaseSchema):
     published_capabilities: list[str] | None = Field(
         default=None,
         description="Enabled capability ids from the published version, filled by the listing. Null when unknown.",
+    )
+    local_coding_agent: LocalCodingAgent | None = Field(
+        default=None,
+        description=(
+            "The coding agent this agent's published version runs on the person's own "
+            "computer, or null when it runs none there. Read off the frozen spec, filled by "
+            "the listing, so the chat's composer can say which agent will work in which "
+            "folder before the person sends."
+        ),
     )
     published_model: PublishedModel | None = Field(
         default=None,
@@ -642,7 +658,7 @@ class McpCatalogCheck(BaseSchema):
 
 
 class McpCatalogEntry(BaseSchema):
-    """One connectable MCP server in the curated catalog."""
+    """One connectable MCP server, curated, mirrored or custom."""
 
     key: str
     name: str
@@ -678,6 +694,16 @@ class McpCatalogEntry(BaseSchema):
     )
     check: McpCatalogCheck | None = Field(
         default=None, description="What the last catalog check found; null if never checked"
+    )
+    custom: bool = Field(
+        default=False, description="A saved server with no catalog or registry entry"
+    )
+    connection_ids: list[UUID] | None = Field(
+        default=None,
+        description=(
+            "Accessible saved accounts grouped on this server in a paged listing. "
+            "Null on catalog metadata; an empty list means no accessible account."
+        ),
     )
 
 
@@ -930,6 +956,13 @@ class AgentRunResult(BaseSchema):
         description=(
             "The questions the run is now waiting on its person to answer, which is "
             "empty unless it stopped on one again - the same reason `parked` exists."
+        ),
+    )
+    continues_in_chat: bool = Field(
+        default=False,
+        description=(
+            "Only a continuation of a parked chat run sets it: its answer is also "
+            "posted to that chat. Always false for a run started here"
         ),
     )
 

@@ -210,22 +210,31 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
     }
   };
 
+  const currentSummary = current ? (
+    <>
+      <ProviderIcon provider={current.provider} />
+      <span className="min-w-0 flex-1 truncate">
+        <span className="font-medium">{current.label}</span>
+        {currentDetail !== null && (
+          <span className="text-muted-foreground block truncate font-mono">{currentDetail}</span>
+        )}
+      </span>
+      <span className="text-muted-foreground shrink-0 text-[11px]">
+        {value === null ? t("agentModel") : t("thisChat")}
+      </span>
+    </>
+  ) : (
+    t("changeModel")
+  );
+
   return (
     <div className="space-y-4">
-      {current && (
-        <p className="border-border bg-accent/40 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
-          <ProviderIcon provider={current.provider} />
-          <span className="min-w-0 flex-1 truncate">
-            <span className="font-medium">{current.label}</span>
-            {currentDetail !== null && (
-              <span className="text-muted-foreground block truncate font-mono">
-                {currentDetail}
-              </span>
-            )}
-          </span>
-          <span className="text-muted-foreground shrink-0 text-[11px]">
-            {value === null ? t("agentModel") : t("thisChat")}
-          </span>
+      {current && !can(Perm.connectionsManage) && (
+        <p
+          data-tour="chat-model-picker"
+          className="border-border bg-accent/40 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
+        >
+          {currentSummary}
         </p>
       )}
 
@@ -237,15 +246,17 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
             type="button"
             variant="ghost"
             size="sm"
-            className="-ml-2 gap-2"
+            className="border-border bg-accent/40 h-auto min-h-10 w-full justify-start gap-2 rounded-lg border px-3 py-2 text-left text-xs"
+            aria-label={t("changeModel")}
+            data-tour="chat-model-picker"
             aria-expanded={expanded}
             aria-controls={panelId}
             onClick={() => setExpanded((open) => !open)}
           >
-            {t("changeModel")}
+            {currentSummary}
             <ChevronDown
               aria-hidden
-              className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+              className={`ml-auto h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
             />
           </Button>
           {expanded && (

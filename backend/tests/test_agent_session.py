@@ -39,9 +39,10 @@ library's task cancellation, this platform's accounting sweep - runs while a
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections.abc import AsyncIterator, Iterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
@@ -261,10 +262,17 @@ def _chat(
             )
         )
     )
+    conversations.get_conversation = AsyncMock()
     conversations.keep_summary = AsyncMock()
     conversations.keep_overhead = AsyncMock()
     conversations.keep_plan = AsyncMock()
+
+    @asynccontextmanager
+    async def admitted(*_args, **_kwargs):
+        yield True
+
     with (
+        patch("app.services.conversation_turns.claim", new=admitted),
         patch("app.services.agent_session.persist_user_turn", new=prompt),
         patch("app.services.agent_session.persist_assistant_turn", new=answer),
         patch("app.services.agent_session.get_db_context") as db_context,
@@ -3657,3 +3665,95 @@ async def test_session_readiness_waits_for_cleanup_and_frees_the_admission_slot(
         assert next_task is not None
         await next_task
         assert _frame_types(session) == ["complete", "session_ready", "complete", "session_ready"]
+
+
+@pytest.mark.security
+async def test_local_file_origins_hide_private_paths_in_shared_frames() -> None:
+    session = _session()
+    run = AsyncMock(return_value=_finished_turn())
+    publish = AsyncMock()
+    with (
+        _chat(run),
+        patch("app.services.agent_session.live_turn.begin", AsyncMock(return_value=MagicMock())),
+        patch("app.services.agent_session.live_turn.publish", publish),
+        patch("app.services.agent_session.live_turn.end", AsyncMock()),
+    ):
+        await session.process_message(
+            _message(local={"folder": "/Users/alice/private", "mode": "full_access"})
+        )
+    frames = dict(_sent_events(session))
+    source = frames["user_prompt"]["file_source"]
+    assert source["kind"] == "local"
+    assert UUID(source["id"])
+    assert set(source) == {"kind", "id"}
+    shared = next(call.args[2] for call in publish.await_args_list if call.args[1] == "turn_prompt")
+    assert shared["file_source"] == source
+    assert "/Users/alice" not in json.dumps(shared)
+    assert run.await_args.kwargs["local"].folder == "/Users/alice/private"
+
+
+async def test_a_new_conversation_holds_admission_until_its_answer_has_been_saved() -> None:
+    session = _session()
+    held = False
+
+    @asynccontextmanager
+    async def admission(_conversation_id: UUID, *, background: bool):
+        nonlocal held
+        assert not background
+        held = True
+        try:
+            yield True
+        finally:
+            held = False
+
+    async def run(**_kwargs):
+        assert held
+        return _finished_turn()
+
+    with (
+        _chat(AsyncMock(side_effect=run), newly_created=True) as fake,
+        patch("app.services.conversation_turns.claim", new=admission),
+    ):
+
+        async def save(*_args, **_kwargs):
+            assert held
+            return str(uuid4())
+
+        fake.answer.side_effect = save
+        await session._run_turn(
+            {
+                "message": "Delegate the unrelated task",
+                "agent_id": str(uuid4()),
+                "conversation_id": None,
+            }
+        )
+    assert not held and session._admission_stack is None
+    assert "session_ready" in _frame_types(session)
+
+
+async def test_invalid_existing_conversation_ids_reach_the_normal_validation_without_claiming() -> (
+    None
+):
+    session = _session()
+    with (
+        patch.object(session, "process_message", new=AsyncMock()) as process,
+        patch("app.services.conversation_turns.claim") as claim,
+    ):
+        await session._run_turn({"conversation_id": "not-a-uuid"})
+        process.assert_awaited_once()
+        claim.assert_not_called()
+
+
+async def test_lost_conversation_access_is_reported_before_any_turn_is_written() -> None:
+    session = _session()
+    with _chat(AsyncMock(return_value=_finished_turn())) as fake:
+        fake.conversations.get_conversation.side_effect = AuthorizationError(
+            message="Project access was removed"
+        )
+        await session._run_turn(
+            {"message": "Question", "agent_id": str(uuid4()), "conversation_id": _CONVERSATION}
+        )
+        fake.prompt.assert_not_called()
+        fake.runner.run.assert_not_called()
+    assert ("error", {"message": "Project access was removed"}) in _sent_events(session)
+    assert session._admission_stack is None

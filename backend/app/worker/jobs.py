@@ -69,6 +69,25 @@ def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
     return uuid5(transfer_id, str(attempt))
 
 
+class ChannelHandbackCall(Payload):
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, JsonValue]
+    result: str | None = None
+
+
+class ChannelHandback(Payload):
+    organization_id: UUID
+    run_id: UUID
+    bot_id: UUID
+    platform_chat_id: str
+    private_chat: bool
+    output: str
+    tool_calls: list[ChannelHandbackCall] = Field(default_factory=list)
+    generated_files: frozenset[str] = frozenset()
+    notice: bool = False
+
+
 class NoPayload(Payload):
     """For a job whose work is to look at the current state."""
 
@@ -124,6 +143,11 @@ class FireTrigger(Payload):
 class DeliverRoutineAnswer(Payload):
     organization_id: UUID
     run_id: UUID
+
+
+class ConversationTaskJob(Payload):
+    task_id: UUID
+    organization_id: UUID
 
 
 class RunAgent(Payload):
@@ -229,6 +253,18 @@ class BasePurge(Payload):
     tenant: UUID | None = Field(default=None, exclude_if=lambda tenant: tenant is None)
     """The base's vector tenant, which an unfiled chunk is matched by - `None`
     for the deployment-wide one."""
+
+
+class DiscardVectorDocument(Payload):
+    """Chunks an ingest wrote for a document deleted while it indexed (#2565).
+
+    The tracking row is gone, so this is the only record of them. `tenant` and
+    `knowledge_base_id` are the scope the chunks were stamped with."""
+
+    collection: str
+    vector_document_id: str
+    tenant: UUID | None
+    knowledge_base_id: UUID | None
 
 
 class CleanupExternalState(Payload):
@@ -363,6 +399,24 @@ DELIVER_ROUTINE_ANSWER = Task(
     timeout=timedelta(minutes=2),
     priority=Priority.INTERACTIVE,
 )
+
+RUN_CONVERSATION_TASK = Task(
+    kind="run-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+RETURN_CONVERSATION_TASK = Task(
+    kind="return-conversation-task",
+    payload_type=ConversationTaskJob,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(hours=3),
+    priority=Priority.INTERACTIVE,
+)
+
 # One attempt: a run a worker died under has already spent, and a second would
 # run the agent again - its model calls and its tools' side effects with it. The
 # caller reads `failed` and decides; that is what idempotency keys are for.
@@ -466,6 +520,15 @@ CLEANUP_EXTERNAL_STATE = Task(
     timeout=timedelta(minutes=30),
     priority=Priority.SCHEDULED,
 )
+# Three: the delete is idempotent, and the chunks stay searchable until it runs.
+DISCARD_VECTOR_DOCUMENT = Task(
+    kind="discard-vector-document",
+    payload_type=DiscardVectorDocument,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=5),
+    priority=Priority.SCHEDULED,
+)
 
 CHECK_AGENT_TRIGGERS = _sweep("check-agent-triggers")
 POLL_PORTAL_GRANTS = _sweep("poll-portal-grants")
@@ -474,10 +537,12 @@ DISPATCH_DUE_SYNCS = _sweep("dispatch-due-syncs")
 RETRY_SANDBOX_DESTROYS = _sweep("retry-sandbox-destroys")
 SWEEP_SANDBOX_OPERATIONS = _sweep("sweep-sandbox-operations")
 SWEEP_MCP_CONNECTIONS = _sweep("sweep-mcp-connections")
+SYNC_DISCORD_ROLES = _sweep("sync-discord-roles")
 EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
+SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
@@ -489,6 +554,7 @@ WORKFLOW_SCHEDULES_CHECK = _sweep("workflow-schedules-check", timeout=timedelta(
 WORKFLOW_TABLE_TRIGGERS = _sweep("workflow-table-triggers", timeout=timedelta(minutes=5))
 WORKFLOW_RUN_RETENTION = _sweep("workflow-run-retention", timeout=timedelta(hours=2))
 WORKFLOW_LOG_ALERTS = _sweep("workflow-log-alerts", timeout=timedelta(minutes=5))
+RECONCILE_CONVERSATION_TASKS = _sweep("reconcile-conversation-tasks", timeout=timedelta(seconds=30))
 SWEEP_GENERATED_MEDIA = _sweep("sweep-generated-media")
 SEND_DIAGNOSTICS = _sweep("send-diagnostics", timeout=timedelta(seconds=60))
 PROACTIVE_SWEEP = _sweep("proactive-sweep")
@@ -509,9 +575,19 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+DELIVER_CHANNEL_HANDBACK = Task(
+    kind="deliver-channel-handback",
+    payload_type=ChannelHandback,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=2),
+    priority=Priority.INTERACTIVE,
+)
+
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,
         SYNC_COLLECTION,
@@ -520,6 +596,9 @@ TASKS: dict[str, TaskKind] = {
         DIAL_PHONE,
         DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,
+        RUN_CONVERSATION_TASK,
+        RETURN_CONVERSATION_TASK,
+        RECONCILE_CONVERSATION_TASKS,
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         EXTRACT_MEMORY,
@@ -528,6 +607,7 @@ TASKS: dict[str, TaskKind] = {
         INSTALL_ROLE_PACK,
         WELCOME_MEMBER,
         CLEANUP_EXTERNAL_STATE,
+        DISCARD_VECTOR_DOCUMENT,
         CHECK_AGENT_TRIGGERS,
         POLL_PORTAL_GRANTS,
         DELIVER_NOTIFICATIONS,
@@ -535,10 +615,12 @@ TASKS: dict[str, TaskKind] = {
         RETRY_SANDBOX_DESTROYS,
         SWEEP_SANDBOX_OPERATIONS,
         SWEEP_MCP_CONNECTIONS,
+        SYNC_DISCORD_ROLES,
         EXPIRE_APPROVALS,
         EXPIRE_INVITATIONS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
+        SWEEP_RAG_SCRATCH,
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,

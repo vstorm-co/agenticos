@@ -14,8 +14,8 @@ down_revision: str | None = "0251_primary_conversations"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_BEFORE = "surface IN ('slack', 'telegram', 'mattermost', 'teams')"
-_AFTER = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'sms')"
+_BEFORE = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord')"
+_AFTER = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms')"
 
 
 def upgrade() -> None:

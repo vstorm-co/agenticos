@@ -4,6 +4,7 @@ import contextlib
 import logging
 import time
 from collections.abc import Mapping
+from contextlib import AsyncExitStack
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
@@ -38,7 +39,12 @@ from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
-from app.schemas.conversation import ChatPerson, MessagePart
+from app.schemas.conversation import (
+    ChatPerson,
+    ConversationMessageFileSource,
+    LocalMessageFileSource,
+    MessagePart,
+)
 from app.services import chat_room, live_turn, redis_view
 from app.services.agent import (
     persist_assistant_turn,
@@ -193,6 +199,7 @@ class AgentSession:
         organization: Organization,
         auth_token: str | None = None,
     ) -> None:
+        self._admission_stack: AsyncExitStack | None = None
         self.websocket = websocket
         self.user = user
         self.organization_id = organization.id
@@ -447,7 +454,30 @@ class AgentSession:
     async def _run_turn(self, data: dict[str, Any]) -> None:
         """Run one turn, emitting a terminal `complete` even when stopped."""
         try:
-            await self.process_message(data)
+            async with AsyncExitStack() as admission:
+                self._admission_stack = admission
+                raw_id = data.get("conversation_id", self.current_conversation_id)
+                if isinstance(raw_id, str):
+                    try:
+                        conversation_id = UUID(raw_id)
+                    except ValueError:
+                        conversation_id = None
+                    if conversation_id is not None:
+                        from app.services.conversation_turns import claim
+
+                        async with get_db_context() as db:
+                            await ConversationService(db).get_conversation(
+                                conversation_id,
+                                organization_id=self.organization_id,
+                                user_id=self.user.id,
+                                for_write=True,
+                                turn=True,
+                                include_favourite=False,
+                            )
+                        await admission.enter_async_context(
+                            claim(conversation_id, background=False)
+                        )
+                await self.process_message(data)
         except asyncio.CancelledError:
             await self._emit(
                 "complete",
@@ -457,7 +487,10 @@ class AgentSession:
                 },
             )
             raise
+        except AppException as exc:
+            await self._emit("error", {"message": exc.message})
         finally:
+            self._admission_stack = None
             # `complete` precedes persistence/trace cleanup. Free the slot before
             # inviting another prompt, so receiving this frame is an admission guarantee.
             self._turn_task = None
@@ -609,6 +642,16 @@ class AgentSession:
             await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
+        if (
+            prompt.newly_created
+            and self.current_conversation_id
+            and self._admission_stack is not None
+        ):
+            from app.services.conversation_turns import claim
+
+            await self._admission_stack.enter_async_context(
+                claim(UUID(self.current_conversation_id), background=False)
+            )
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
         # the reasoning and where the tool calls sat between them. It is what gets
@@ -648,7 +691,19 @@ class AgentSession:
         # failure inside it - the history, the attachment lookup - must not turn
         # a lost answer into a `NameError`.
         try:
-            if self.current_conversation_id:
+            local_target = requested_local(data)
+            if local_target is not None and local_target.folder is not None:
+                timeline.file_source = LocalMessageFileSource(id=uuid4())
+            elif self.current_conversation_id is not None:
+                timeline.file_source = ConversationMessageFileSource(
+                    id=UUID(self.current_conversation_id)
+                )
+            source_wire = (
+                timeline.file_source.model_dump(mode="json")
+                if timeline.file_source is not None
+                else None
+            )
+            if self.current_conversation_id is not None:
                 self._live = self.current_conversation_id
                 self._live_turn = await live_turn.begin(self._live)
                 await self._enter_room(self._live)
@@ -674,6 +729,7 @@ class AgentSession:
                             # Which agent answers, so a follower draws its face and name
                             # on the answer from the first word rather than at the end.
                             "agent_id": str(agent_id),
+                            "file_source": source_wire,
                         },
                     )
                 await chat_room.turn_begun(self._live, self.user.id)
@@ -687,6 +743,7 @@ class AgentSession:
                 "user_prompt",
                 {
                     "content": user_message,
+                    "file_source": source_wire,
                     "message_id": None if prompt.message_id is None else str(prompt.message_id),
                 },
             )
@@ -753,7 +810,7 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
-                    local=requested_local(data),
+                    local=local_target,
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).

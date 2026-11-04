@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.ingestion_spend import IngestionSpend
+from app.db.models.organization import Organization
+from app.db.models.rag_document import RAGDocument
 
 
 async def record(
@@ -20,7 +22,38 @@ async def record(
     output_tokens: int,
     cost_usd: Decimal,
     cost_is_partial: bool,
-) -> IngestionSpend:
+) -> IngestionSpend | None:
+    """Write one window's spend, against its document if that is still there.
+
+    A document deleted while it was being indexed still spent what it spent, so
+    the row is written against no document rather than refused by the foreign
+    key - which failed the ingest after its chunks were written, before the
+    settlement that removes them could run (#2565). The row is held `FOR KEY
+    SHARE` to the insert's commit: a delete arriving after the check waits, then
+    sets this row's reference to `NULL` as it does every other's. The
+    organization is held first. An organization's purge, and an account
+    deletion (#2638), lock the two in that order; taken the other way round,
+    they and this insert deadlocked.
+
+    An organization deleted meanwhile is the one case that writes nothing and
+    returns `None`. Its spend rows `CASCADE` with it, so this row would have gone
+    had it been written a moment earlier, and the insert would otherwise fail the
+    foreign key and the ingest with it.
+    """
+    if organization_id is not None:
+        held = await db.scalar(
+            select(Organization.id)
+            .where(Organization.id == organization_id)
+            .with_for_update(read=True, key_share=True)
+        )
+        if held is None:
+            return None
+    if rag_document_id is not None:
+        rag_document_id = await db.scalar(
+            select(RAGDocument.id)
+            .where(RAGDocument.id == rag_document_id)
+            .with_for_update(read=True, key_share=True)
+        )
     spend = IngestionSpend(
         organization_id=organization_id,
         rag_document_id=rag_document_id,

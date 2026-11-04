@@ -362,3 +362,20 @@ def _frame(raw: str) -> dict[str, Any] | None:
     if not isinstance(frame, dict) or not isinstance(frame.get("seq"), int):
         return None
     return frame
+
+
+@contextlib.asynccontextmanager
+async def in_worker() -> AsyncGenerator[None]:
+    """Own the worker's live chat transport until its agent tasks have drained."""
+    from app.services import chat_room
+
+    client = RedisClient()
+    await client.connect()
+    configure(client)
+    chat_room.configure(client)
+    try:
+        yield
+    finally:
+        chat_room.configure(None)
+        configure(None)
+        await client.close()

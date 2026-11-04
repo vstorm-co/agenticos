@@ -84,7 +84,7 @@ class NotificationDelivery(Base, TimestampMixin):
             name="ck_notification_retry_safe",
         ),
         CheckConstraint(
-            "channel IN ('email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms', 'imessage')",
+            "channel IN ('email', 'push', 'slack', 'telegram', 'mattermost', 'teams', 'sms', 'imessage', 'discord')",
             name="ck_notification_deliveries_channel",
         ),
         CheckConstraint(

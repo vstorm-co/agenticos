@@ -73,8 +73,8 @@ const description = () => screen.getByLabelText("Description");
  * deliberate second step.
  */
 async function content() {
-  const source = screen.getByRole("button", { name: "Source" });
-  if (source.getAttribute("aria-pressed") !== "true") await userEvent.click(source);
+  const source = screen.queryByRole("button", { name: "Source" });
+  if (source) await userEvent.click(source);
   return screen.getByLabelText("SKILL.md source");
 }
 const save = () => screen.getByRole("button", { name: "Save" });
@@ -221,7 +221,7 @@ describe("the skill's files", () => {
   it("shows the body when nothing in the tree is selected", () => {
     renderWorkbench({ skill: withFile });
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -234,7 +234,6 @@ describe("the skill's files", () => {
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
 
     expect(screen.getByRole("treeitem", { selected: true })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
     expect(screen.getByLabelText("references/workflows.md source")).toHaveValue(
       "1. Ask. 2. Escalate.",
     );
@@ -248,7 +247,7 @@ describe("the skill's files", () => {
     await userEvent.type(await content(), "\n\nExcept gift cards.");
 
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^SKILL\.md$/ }));
 
     expect(await content()).toHaveValue(`${SKILL.content}\n\nExcept gift cards.`);
   });
@@ -257,7 +256,6 @@ describe("the skill's files", () => {
     skillHooks.loaded.resource = { content: "old" };
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
-    await userEvent.click(screen.getByRole("button", { name: "Source" }));
 
     await userEvent.type(screen.getByLabelText("references/workflows.md source"), "!");
     await userEvent.click(screen.getByRole("button", { name: "Save file" }));
@@ -274,7 +272,7 @@ describe("the skill's files", () => {
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
     expect(skillHooks.removeResource.mutateAsync).toHaveBeenCalledWith("r-1");
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -312,7 +310,7 @@ describe("the skill's files", () => {
     renderWorkbench({ skill: withFile });
     await userEvent.click(screen.getByRole("button", { name: "New" }));
 
-    await userEvent.click(screen.getByRole("button", { name: /SKILL\.md/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^SKILL\.md$/ }));
 
     expect(screen.queryByLabelText("Path")).toBeNull();
   });
@@ -356,7 +354,7 @@ describe("the skill's files", () => {
       new File(["a"], "huge.md", { type: "text/markdown" }),
     );
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toBeInTheDocument();
   });
 
   it("closes the pane even when the delete is refused", async () => {
@@ -370,7 +368,7 @@ describe("the skill's files", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Remove references/workflows.md" }));
 
-    expect(screen.getByRole("button", { name: /SKILL\.md/ })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^SKILL\.md$/ })).toHaveAttribute(
       "aria-current",
       "true",
     );
@@ -411,4 +409,38 @@ it("blocks deleting a skill while one of its files is being added", () => {
   skillHooks.addResource.isPending = true;
   renderWorkbench({ onDelete: vi.fn() });
   expect(screen.getByRole("button", { name: "More actions for refund-policy" })).toBeDisabled();
+});
+
+it("reveals skill metadata without resetting its edited description", async () => {
+  renderWorkbench();
+  const toggle = screen.getByRole("button", { name: /^Description / });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await userEvent.type(description(), " revised");
+  await userEvent.click(toggle);
+  await userEvent.click(toggle);
+  expect(description()).toHaveValue(SKILL.description + " revised");
+});
+
+it("shows only one auxiliary panel and closes files after choosing a document", async () => {
+  skillHooks.loaded.resource = { content: "reference" };
+  renderWorkbench({
+    skill: {
+      ...SKILL,
+      resources: [
+        { id: "r-1", name: "references/workflows.md", description: "Reference", size_bytes: 2048 },
+      ],
+    },
+  });
+  const metadata = screen.getByRole("button", { name: /^Description / });
+  const files = screen.getByRole("button", { name: "Files" });
+  expect(files).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(metadata);
+  await userEvent.click(files);
+  expect(metadata).toHaveAttribute("aria-expanded", "false");
+  expect(files).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(screen.getByRole("button", { name: "workflows.md" }));
+  expect(files).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByLabelText("references/workflows.md source")).toHaveValue("reference");
 });

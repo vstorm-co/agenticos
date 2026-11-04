@@ -11,7 +11,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
+import { Bot, Gauge, PhoneCall, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
@@ -55,6 +55,7 @@ import { ConnectAccountPrompt } from "./connect-account-prompt";
 import { ConnectServicesCard } from "./connect-services-card";
 import { PendingMessages } from "./pending-messages";
 import { PlanStrip } from "./plan-strip";
+import { BackgroundTasks } from "./background-tasks";
 import { ToolApprovalDialog } from "./tool-approval-dialog";
 import { QuestionPrompt } from "@/components/ui";
 import type {
@@ -1280,7 +1281,7 @@ function ChatUI({
     </span>
   );
   return (
-    <div className="relative flex h-full min-h-0 w-full overflow-hidden">
+    <div className="chat-surface relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
         {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
@@ -1336,7 +1337,7 @@ function ChatUI({
               {isLoadingConversation ? (
                 <ConversationSkeleton />
               ) : messages.length === 0 && voice.call.phase === "idle" ? (
-                <div className="flex h-full items-center">
+                <div className={cn("flex h-full items-center", !emptyState && "chat-empty-state")}>
                   {emptyState ? (
                     emptyState((picked) => sendMessage(picked))
                   ) : (
@@ -1437,13 +1438,23 @@ function ChatUI({
             column the composer sits in, so the gutters beside it stay clear. */}
           <div
             ref={dockRef}
+            onMouseDownCapture={(event) => {
+              // Keep the keyboard and caret while tapping Send or attachment
+              // actions. Menus manage their own focus after their click.
+              if (
+                document.activeElement?.getAttribute("contenteditable") === "true" &&
+                event.target instanceof Element &&
+                event.target.closest("button")
+              )
+                event.preventDefault();
+            }}
             className={cn(
               "pointer-events-none absolute inset-x-0 bottom-0 z-20",
               compact && "bg-background",
             )}
           >
             {personalGaps.length > 0 && (
-              <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
+              <div className="chat-composer-suggestions pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <ConnectServicesCard gaps={personalGaps} />
               </div>
             )}
@@ -1511,6 +1522,7 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
+              <BackgroundTasks conversationId={conversationId} />
               <PlanStrip plan={plan} live={isProcessing} />
               {/* Right over the box the reply is written in, where a messenger says it. */}
               <TypingIndicator people={typing} />
@@ -1602,7 +1614,12 @@ function ChatUI({
                           composerStrip !== null && "rounded-t-none",
                         )}
                       >
-                        <div className={cn("px-3 pt-3 pb-1", !compact && "sm:px-4 sm:pt-4")}>
+                        <div
+                          className={cn(
+                            "px-2.5 pt-1 pb-0.5",
+                            !compact && "sm:px-4 sm:pt-4 sm:pb-1",
+                          )}
+                        >
                           {isArchived && (
                             <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
                               {t("conversationArchived")}
@@ -1685,6 +1702,11 @@ function ChatUI({
                             // send; these move into its `+` sheet as rows.
                             phoneRows={
                               <>
+                                {!agentFixed && (
+                                  <SheetRow icon={Bot} label={t("rail.agent")}>
+                                    <AgentPicker />
+                                  </SheetRow>
+                                )}
                                 {offerCall && !onCall && (
                                   <SheetRow
                                     icon={PhoneCall}
@@ -1733,7 +1755,7 @@ function ChatUI({
                                   total={conversationCost}
                                   contextWindow={contextWindow}
                                 />
-                                <div data-tour="chat-model-picker">
+                                <div>
                                   <ChatControls
                                     onModelProfileChange={onModelProfileChange}
                                     onApprovalModeChange={onApprovalModeChange}

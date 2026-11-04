@@ -1,5 +1,5 @@
 ---
-source_sha: "eea316378394"
+source_sha: "3a0e34f1da43"
 ---
 
 # Governance { #governance }
@@ -1077,7 +1077,7 @@ gibt es bewusst keine Bedienelemente.
 | Parameter | |
 |---|---|
 | `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
-| `triggered_by_user_id` | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person |
+| `triggered_by_user_id` | Wessen Runs den Aufruf geparkt haben. Abgelesen an `agent_runs`: Eine Freigabe gehört zu einem Run und ein Run zu einer Person. Sie lässt Runs aus, in denen der Veröffentlicher für ein nicht verknüpftes Chat-Konto eingesprungen ist; solche Zeilen tragen stattdessen `asked_in_chat` (Plattform, Name und Bot), und ihre `triggered_by_*`-Felder sind leer |
 | `created_from`, `created_to` | Wann der Aufruf geparkt wurde, an beiden Enden einschließlich |
 | `oldest_first` | Voreingestellt wahr, und die Voreinstellung ist tragend — siehe oben: Nichts lässt einen Aufruf altern, also würde „neueste zuerst" die Zeile begraben, die am dringendsten gesehen werden muss |
 
@@ -1305,7 +1305,7 @@ sechs Fragen, die die Listen-Routen nicht beantworten müssen:
   aufgelösten Namen, ist die Tabelle je Person, die Entscheidung 3 des
   Activity-Designs abgelehnt hat, angekommen als Download. Die Freigabe-Queue löst
   die auslösenden und entscheidenden E-Mail-Adressen auf dem Bildschirm bereits
-  auf, also behält der Freigabe-Export sie.
+  auf, also behält der Freigabe-Export sie. Er enthält auch den Anzeigenamen oder das Handle eines Chat-Fremden, wie die Queue sie zeigt, in drei Spalten: `asked_in_chat_platform`, `asked_in_chat_account` und `asked_in_chat_bot`. In einer solchen Zeile sind beide E-Mail-Spalten leer, weil der Veröffentlicher nicht gefragt hat.
 - **Audit.** Jeder Export schreibt einen `audit_log`-Eintrag — ein privilegierter
   Massen-Lesevorgang, jetzt billig festzuhalten und später unmöglich zu
   rekonstruieren. Er nennt das Fenster, die angewendeten Filter und die
@@ -1470,7 +1470,7 @@ sequenceDiagram
     end
 ```
 
-Vier Eigenschaften, die man kennen sollte:
+Fünf Eigenschaften, die man kennen sollte:
 
 - **Ein geparkter Run ist fortsetzbar.** Seine Message-Historie ist gespeichert,
   sodass die Entscheidung auf die Unterhaltung angewendet wird, zu der sie
@@ -1513,7 +1513,19 @@ Vier Eigenschaften, die man kennen sollte:
   weggefallen, eine MCP-Verbindung nicht mehr geteilt. Der Spec wird
   zusammengesetzt, bevor der Run die Freigabe-Queue verlässt, sodass eine
   Ablehnung dort den *Versuch* ablehnt: Die Entscheidung steht, und das Fortsetzen
-  funktioniert wieder, sobald der Spec es tut.
+  funktioniert wieder, sobald der Spec es tut. Ein im Chat gestellter Run, den
+  niemand fortgesetzt hat, wird vom Sicherheitsnetz etwa eine Stunde nach seiner
+  letzten Entscheidung beendet.
+- **Wer einen im Chat gestellten Run fortsetzt.** Die Entscheidung einer Person in
+  der Konsole, im Web-Chat oder über die API setzt den Run in seinem Chat fort,
+  als sie, und die Antwort wird dort gepostet; die Entscheidung eines Schlüssels
+  wird festgehalten und setzt nichts fort. Eine Fortsetzung kann verloren gehen
+  oder abgelehnt werden, dann wartet der Run in `awaiting_approval` ohne etwas
+  Offenes. Das stündliche Sicherheitsnetz beendet einen solchen Kanal-Run
+  `STRANDED_AFTER` (eine Stunde) nach seiner letzten Entscheidung und sagt es dem
+  Chat einmal - nicht, wenn die Entscheidung mehr als 7 Tage alt ist, und nicht,
+  wenn der Chat es schon erfahren hat. Es betrachtet nur Kanal-Runs. Siehe
+  [Außerhalb des Chats entschieden](channels.md#decided-outside-the-chat).
 - **Eine entschiedene Freigabe kann nicht zweimal entschieden werden.** Die zweite
   Entscheidung wird abgelehnt — einschließlich einer Entscheidung, die eine
   Sekunde nach dem Ablauf-Sweep ankommt, der den Aufruf genommen hat.
@@ -1521,7 +1533,8 @@ Vier Eigenschaften, die man kennen sollte:
   `APPROVAL_EXPIRY_HOURS` überschreitet**, und der Run dahinter wird beendet statt
   für immer geparkt zu bleiben. Der Status ist `expired` mit einem
   `decided_by_user_id` von null, und das ist es, was in der Verantwortungsspur
-  einen Ablauf von einer Zurückweisung unterscheidet. Die Activity-Seite zeigt
+  einen Ablauf von einer Zurückweisung unterscheidet. Ein im Chat gestellter Run
+  sagt außerdem dem Chat einmal, dass die Anfrage abgelaufen ist. Die Activity-Seite zeigt
   weiterhin das **Alter** der ältesten Wartezeit, denn eine Queue innerhalb ihres
   Ablauffensters ist die, auf der jemand noch handeln kann.
 - **`required` funktioniert auf jeder Capability**, nicht nur auf

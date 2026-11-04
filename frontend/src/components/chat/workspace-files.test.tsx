@@ -123,9 +123,7 @@ describe("the workspace panel", () => {
     );
     await openPanel();
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Open report.csv" })).toBeVisible(),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: /report.csv/ })).toBeVisible());
     expect(screen.queryByText("month,total")).toBeNull();
   });
 
@@ -261,7 +259,7 @@ describe("the workspace panel", () => {
     await openPanel();
 
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
-    expect(screen.queryByText("out")).toBeNull();
+    expect(screen.getByRole("button", { name: "out" })).toBeVisible();
   });
 
   it("says the workspace is empty when it is, rather than showing nothing", async () => {
@@ -357,7 +355,6 @@ describe("the workspace panel", () => {
     // away. A CSV an agent wrote used to render as a wall of commas here and as
     // bytes-and-a-download for every other kind.
     expect(await screen.findByRole("dialog")).toBeVisible();
-    await userEvent.click(screen.getByRole("tab", { name: "Preview" }));
     await waitFor(() => expect(screen.getByRole("columnheader", { name: "month" })).toBeVisible());
 
     await userEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -849,4 +846,36 @@ it("lists the granted desktop folder rather than the server workspace", async ()
     delete window.__AGENTICOS_SHELL__;
     useWorkOnStore.setState({ byConversation: {}, draft: null });
   }
+});
+
+it("groups duplicate file names under their actual folders and opens the full path", async () => {
+  const entries = ["index.html", "site/index.html", "site/style.css"].map((path) => ({
+    path,
+    size: 12,
+    is_dir: false,
+    modified_at: null,
+    preview: null,
+    thumbnail: null,
+  }));
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.includes("/workspace/file?")
+      ? { content: "<h1>Hello</h1>", truncated: false }
+      : workspace({ items: entries }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+  );
+  await openPanel();
+  const folder = await screen.findByRole("button", { name: "site" });
+  const group = folder.closest("li")!;
+  expect(within(group).getByText("index.html")).toBeVisible();
+  await userEvent.click(folder);
+  expect(within(group).queryByText("index.html")).toBeNull();
+  await userEvent.click(folder);
+  await userEvent.click(within(group).getByRole("button", { name: /index.html/ }));
+  await waitFor(() =>
+    expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).toContain(
+      "/conversations/c1/workspace/file?path=site%2Findex.html",
+    ),
+  );
 });

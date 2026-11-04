@@ -14,16 +14,28 @@ still had the space in it.
 """
 
 import uuid
+from typing import Literal
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.spec import AgentSpec
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
 from app.db.models.conversation import Conversation, Message
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation as conversation_repo
-from app.schemas.conversation import MessagePart
+from app.schemas.conversation import (
+    ConversationMessageFileSource,
+    LocalMessageFileSource,
+    MessageCreate,
+    MessagePart,
+)
 from app.services.chat_timeline import TurnTimeline
+from app.services.conversation import ConversationService
 
 pytestmark = pytest.mark.anyio
 
@@ -68,7 +80,11 @@ async def _write(db, conversation: Conversation, parts: list[MessagePart] | None
         conversation_id=conversation.id,
         role="assistant",
         content="Done - three charts.",
-        parts=(None if parts is None else [part.model_dump(exclude_none=True) for part in parts]),
+        parts=(
+            None
+            if parts is None
+            else [part.model_dump(mode="json", exclude_none=True) for part in parts]
+        ),
     )
 
 
@@ -156,3 +172,59 @@ class TestATurnsOrderSurvivesTheDatabase:
         stored = (await db.execute(select(Message).where(Message.id == written.id))).scalar_one()
 
         assert stored.parts is None
+
+
+@pytest.mark.parametrize("kind", ["conversation", "local"])
+async def test_runner_file_origin_uuids_round_trip_through_the_service_and_jsonb(
+    db: AsyncSession, kind: Literal["conversation", "local"]
+) -> None:
+    conversation = await _conversation(db)
+    agent = Agent(
+        organization_id=conversation.organization_id,
+        owner_user_id=conversation.user_id,
+        name="File analyst",
+        slug=f"file-analyst-{uuid.uuid4().hex[:8]}",
+        draft_spec=AgentSpec(name="File analyst").model_dump(mode="json"),
+    )
+    db.add(agent)
+    await db.flush()
+    run = AgentRun(
+        organization_id=conversation.organization_id,
+        agent_id=agent.id,
+        conversation_id=conversation.id,
+        status="completed",
+    )
+    db.add(run)
+    await db.flush()
+    file_id = uuid.uuid4()
+    origin = (
+        ConversationMessageFileSource(id=file_id)
+        if kind == "conversation"
+        else LocalMessageFileSource(id=file_id)
+    )
+    parts = [
+        MessagePart(type="tool", tool_call_id="tool-1", file_source=origin),
+        MessagePart(type="text", text="Answer"),
+    ]
+    with patch("app.services.follow_ups.queue_next_steps"):
+        message = await ConversationService(db).add_message(
+            conversation.id,
+            MessageCreate(role="assistant", content="Answer", parts=parts),
+            organization_id=conversation.organization_id,
+            run_id=run.id,
+        )
+    message_id = message.id
+    db.expunge(message)
+    stored = (await db.execute(select(Message).where(Message.id == message_id))).scalar_one()
+
+    assert stored.parts == [
+        {
+            "type": "tool",
+            "tool_call_id": "tool-1",
+            "file_source": {"kind": kind, "id": str(file_id)},
+        },
+        {"type": "text", "text": "Answer"},
+    ]
+    parsed = [MessagePart.model_validate(part) for part in stored.parts]
+    assert parsed[0].file_source is not None and parsed[0].file_source.id == file_id
+    assert stored.run_id == run.id

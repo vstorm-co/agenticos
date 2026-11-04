@@ -86,7 +86,7 @@ export default function AdminOrganizationsPage() {
       {
         key: "name",
         header: t("name"),
-        className: "pl-5",
+        className: "w-full max-w-0 pl-3 sm:pl-5",
         sortable: true,
         cell: (org) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -101,7 +101,10 @@ export default function AdminOrganizationsPage() {
               className="shrink-0"
             />
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-foreground font-medium">{org.name}</span>
+              <span className="text-foreground truncate font-medium">{org.name}</span>
+              <span className="text-muted-foreground block w-full truncate font-mono text-xs sm:hidden">
+                {org.slug}
+              </span>
               {org.is_personal && (
                 <Badge variant="outline" className="text-xs">
                   {t("personal")}
@@ -113,12 +116,14 @@ export default function AdminOrganizationsPage() {
       },
       {
         key: "slug",
+        hideBelow: "sm",
         header: t("slug"),
         sortable: true,
         cell: (org) => <span className="text-muted-foreground font-mono text-xs">{org.slug}</span>,
       },
       {
         key: "members",
+        hideBelow: "md",
         header: t("members"),
         align: "right",
         sortable: true,
@@ -126,6 +131,7 @@ export default function AdminOrganizationsPage() {
       },
       {
         key: "agents",
+        hideBelow: "md",
         header: t("agents2"),
         align: "right",
         sortable: true,
@@ -133,6 +139,7 @@ export default function AdminOrganizationsPage() {
       },
       {
         key: "created_at",
+        hideBelow: "sm",
         header: t("created"),
         align: "right",
         className: "pr-5",

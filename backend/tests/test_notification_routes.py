@@ -90,6 +90,7 @@ class Transport:
         ("teams", "TeamsAdapter"),
         ("sms", "SmsAdapter"),
         ("imessage", "ImessageAdapter"),
+        ("discord", "DiscordAdapter"),
     ],
 )
 @pytest.mark.parametrize("fail", [False, True])
@@ -264,6 +265,7 @@ async def test_explicit_bot_authorization_changes_invalidate_notification_consen
     monkeypatch.setattr(service, "get", AsyncMock(return_value=bot))
     monkeypatch.setattr(service, "_seal_at", lambda value, *, key_version: "sealed")
     monkeypatch.setattr(service, "_reopen_stream", lambda row: None)
+    monkeypatch.setattr(service, "_refuse_unless_mappings_removable", AsyncMock())
     update = AsyncMock(return_value=bot)
     monkeypatch.setattr(channel_bot.channel_bot_repo, "update", update)
     fields = (
@@ -275,7 +277,11 @@ async def test_explicit_bot_authorization_changes_invalidate_notification_consen
         if change == "same_server"
         else {"name": "Renamed"}
     )
-    await service.update(bot.id, ChannelBotUpdate.model_validate(fields))
+    await service.update(
+        bot.id,
+        ChannelBotUpdate.model_validate(fields),
+        AuthContext(user_id=uuid4(), organization_id=bot.organization_id, role="owner"),
+    )
     written = update.await_args.kwargs["update_data"]
     assert ("authorization_generation" in written) is rotates
     if rotates:

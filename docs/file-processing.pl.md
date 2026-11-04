@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "ce58011288a1"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -985,6 +985,23 @@ co przy usuwaniu kolekcji ([#2560](https://github.com/vstorm-co/agenticos/issues
 zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal są
 listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają te same
+wiersze, razem z ich plikami, a zadanie porządkowe usuwa tabelę: wiersze samej bazy
+i nieprzypisane wiersze jej tenanta. Dla bazy organizacji albo bazy osobistej są to
+wiersze jej organizacji, dla bazy app-scoped wiersze bez organizacji (te, które
+zapisuje `rag-ingest`), a dla bazy osobistej poza organizacją żadne.
+
+Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
+wywołujący nie ma do nich uprawnień. Ich chunki znikają razem z tabelą, więc zostają
+oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je jako
+nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja ponownie
+indeksuje zsynchronizowany dokument.
+
+Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze tenanta za usuniętą
+tabelą, nadal listowane jako zaindeksowane, a usunięcie kolekcji kasowało każdy
+wiersz pod tą nazwą, niezależnie od tenanta
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 Przesłanie lub synchronizacja, która wciąż indeksuje plik dla bazy w chwili jej
 usunięcia, nie zostawia chunków. Zapis bierze blokadę wiersza bazy, która koliduje
 z blokadą usunięcia, w transakcji wstawiającej chunki: zapis, który przychodzi drugi, nie
@@ -992,6 +1009,15 @@ znajduje bazy, niczego nie zapisuje i kończy się błędem na etapie indeksowan
 zapis, który przychodzi pierwszy, zatwierdza się przed usunięciem, którego
 porządkowanie usuwa potem jego chunki
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Pojedynczy dokument usunięty w trakcie indeksowania również nie zostawia chunków.
+Jego wiersz nie ma identyfikatora dokumentu wektorowego, dopóki ingest go nie
+zapisze, więc usunięcie może nie mieć czego usunąć; worker, który przy zapisie
+wyniku nie znajduje wiersza, kolejkuje w tej samej transakcji zadanie, które usuwa
+chunki, które właśnie zapisał, i jest ponawiane, gdy usunięcie się nie powiedzie. Usunięcie, które
+odczyta nowo zapisany identyfikator, kolejkuje takie samo trwałe zadanie
+według identyfikatora z usuniętego wiersza
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Lokalna synchronizacja zakolejkowana dla bazy usuniętej przed jej uruchomieniem
 kończy się błędem i niczego nie zapisuje
@@ -1152,6 +1178,12 @@ pliku — sprzed czasu, gdy uploady zaczęły zachowywać swoje, albo wciągnię
 przez synchronizację — jest odrzucany z 400, zamiast być przestawiony na
 `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Ponowienie odrzuca też dokument organizacji nieprzypisany do żadnej bazy wiedzy: jego
+chunki zostałyby zapisane dla całego wdrożenia, gdzie baza organizacji, która go
+listuje, nie czyta, więc trzeba go przesłać jeszcze raz. Dokument bez organizacji
+należy do bazy app-scoped, która tam czyta, i jest ponawiany
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Co mówi nieudana ingestia { #what-a-failed-ingest-says }
 
@@ -1610,8 +1642,12 @@ wdrożenie bez żadnego profilu modelu nie jest ślepą uliczką. Czego nie ofer
 to usunięcie profilu: to należy tam, gdzie zarządza się modelami organizacji, a
 profilu, którego używają agenci, w ogóle nie da się usunąć.
 
-Wygenerowane opisy są dołączane do
-tekstu dokumentu dla lepszego wyszukiwania semantycznego.
+PyMuPDF pomija ekstrakcję osadzonych obrazów, gdy ich opisywanie jest wyłączone.
+Po włączeniu każdy xref obrazu jest wyodrębniany raz na dokument, powtórzone
+odwołania na stronie są scalane, a identyczne bajty obrazu są opisywane raz.
+Każda strona odwołująca się do obrazu nadal otrzymuje jego opis w tekście do
+wyszukiwania semantycznego. Chunki przenoszą ten tekst bez kopiowania osadzonych
+obrazów strony.
 
 ## Z kanału { #from-a-channel }
 

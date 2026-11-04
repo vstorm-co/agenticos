@@ -248,6 +248,7 @@ retranslated is how a stale translation stops being visible.
 | Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: the console, blobby, quick ask, local work and the screen | `docs/desktop.md` |
+| macOS Gatekeeper warnings, install verification and release signing | `docs/howto/macos-warning.md` |
 | The phone app: live activities, widgets, push, offline | `docs/mobile.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |
 | The console: dashboard widgets, chat, slash commands, the map | `docs/console.md` |
@@ -327,6 +328,10 @@ judged by someone running a deployment, not by the size of the diff:
   `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
   PRs write their changelog entries under `[Unreleased]`; the cut does not add new
   ones.
+- Prepare a release train with `make release-cut BUMP=patch` (or `minor`); add
+  `CREATE_PR=1` to create the cut PR from fresh `origin/main`. The default only
+  prints a plan. CI and CodeQL may reuse successful full runs for a proven
+  version-only cut; missing evidence runs full checks. See `docs/branching.md`.
 - After the cut merges, publish the release and its tag in one step:
   `gh release create vX.Y.Z --target <cut merge commit> --notes-file <its changelog
   section>`. Never push the tag first: it starts `images.yml` at once, and that

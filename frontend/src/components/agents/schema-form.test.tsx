@@ -7,6 +7,13 @@ import userEvent from "@testing-library/user-event";
 import { SchemaForm } from "./schema-form";
 import type { JsonSchema } from "@/types/agents";
 
+vi.mock("@/components/icons/custom-icons", async () => {
+  const actual = await vi.importActual<typeof import("@/components/icons/custom-icons")>(
+    "@/components/icons/custom-icons",
+  );
+  return { ...actual, useCustomIcons: () => new Set(["keenable"]) };
+});
+
 vi.mock("@/hooks", () => ({
   useModelProviders: () => ({ profiles: [{ id: "p-fast" }], profilesStatus: "ready" }),
 }));
@@ -264,7 +271,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Summary prompt/).tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("textbox", { name: "Summary prompt" }).tagName).toBe("TEXTAREA");
     expect(screen.getByLabelText(/Tool name/).tagName).toBe("INPUT");
     // The editor's own toggle, which is what distinguishes it from a textarea.
     expect(screen.getByRole("button", { name: /Preview/i })).toBeVisible();
@@ -286,7 +293,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    const field = screen.getByLabelText(/Summary prompt/);
+    const field = screen.getByRole("textbox", { name: "Summary prompt" });
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAccessibleDescription(/must contain/);
   });
@@ -307,7 +314,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    expect(screen.getByLabelText(/Summary prompt/)).toHaveValue("");
+    expect(screen.getByRole("textbox", { name: "Summary prompt" })).toHaveValue("");
   });
 
   it("clears a multiline field back to unset rather than to an empty string", async () => {
@@ -326,7 +333,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    await userEvent.clear(screen.getByLabelText(/Summary prompt/));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Summary prompt" }));
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: undefined });
   });
@@ -345,7 +352,7 @@ describe("SchemaForm", () => {
       />,
     );
 
-    await userEvent.type(screen.getByLabelText(/Summary prompt/), "!");
+    await userEvent.type(screen.getByRole("textbox", { name: "Summary prompt" }), "!");
 
     expect(onChange).toHaveBeenLastCalledWith({ summary_prompt: "Summarise!" });
   });
@@ -1423,4 +1430,103 @@ it("presents browser connections as one icon card choice and writes the selected
   for (const choice of choices) expect(choice.querySelector("svg")).not.toBeNull();
   await userEvent.click(choices[3]!);
   expect(change).toHaveBeenCalledWith(expect.objectContaining({ connection: "local" }));
+});
+
+it("offers local Codex read-only and clears it when returning to a sandbox", async () => {
+  const schema: JsonSchema = {
+    type: "object",
+    properties: {
+      harness: { type: "string", default: "codex" },
+      runs_on: {
+        type: "string",
+        enum: ["sandbox", "this_computer"],
+        title: "Where it runs",
+        "x-widget": "coding-environment",
+        default: "sandbox",
+      },
+      access: {
+        type: "string",
+        enum: ["edit", "read_only"],
+        title: "Access",
+        "x-enum-when": {
+          field: "harness",
+          choices: { codex: ["edit"] },
+          unless: { field: "runs_on", equals: ["this_computer"] },
+        },
+      },
+    },
+  };
+  const onChange = vi.fn();
+  render(
+    <SchemaForm
+      schema={schema}
+      value={{ runs_on: "this_computer", access: "read_only" }}
+      onChange={onChange}
+      idPrefix="local"
+    />,
+  );
+  await userEvent.click(screen.getByLabelText("Access"));
+  expect(screen.getByRole("option", { name: "read_only" })).toBeInTheDocument();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("radiogroup", { name: "Where it runs" })).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: "this_computer" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "sandbox" }));
+  expect(onChange).toHaveBeenLastCalledWith({ runs_on: "sandbox", access: undefined });
+});
+
+it("clears a sandbox model when switching to this computer", async () => {
+  const onChange = vi.fn();
+  render(
+    <SchemaForm
+      idPrefix="coding"
+      schema={{
+        type: "object",
+        properties: {
+          runs_on: {
+            type: "string",
+            enum: ["sandbox", "this_computer"],
+            default: "sandbox",
+            "x-widget": "coding-environment",
+          },
+          model: {
+            type: "string",
+            enum: ["anthropic:claude-sonnet-4-6"],
+            "x-visible-when": { field: "runs_on", equals: ["sandbox"] },
+          },
+        },
+      }}
+      value={{ runs_on: "sandbox", model: "anthropic:claude-sonnet-4-6" }}
+      onChange={onChange}
+    />,
+  );
+  await userEvent.click(screen.getByRole("radio", { name: "this_computer" }));
+  expect(onChange).toHaveBeenLastCalledWith({ runs_on: "this_computer", model: undefined });
+});
+
+it("renders the catalog logo for Keenable in a search-engine choice", () => {
+  const { container } = render(
+    <SchemaForm
+      schema={{
+        type: "object",
+        properties: {
+          method: {
+            type: "string",
+            enum: ["duckduckgo", "keenable"],
+            title: "Search engine",
+            "x-enum-labels": { duckduckgo: "DuckDuckGo", keenable: "Keenable" },
+          },
+        },
+      }}
+      value={{ method: "keenable" }}
+      onChange={vi.fn()}
+      idPrefix="search"
+    />,
+  );
+  const mark = container.querySelector<HTMLElement>('[style*="mask-image"]');
+  expect(mark?.style.maskImage).toBe('url("/api/catalog/icons/keenable")');
+  expect(mark?.style.backgroundColor).toBe("currentcolor");
+  expect(screen.getByRole("combobox")).toHaveTextContent("Keenable");
 });

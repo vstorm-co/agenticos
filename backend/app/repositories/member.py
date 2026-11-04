@@ -38,7 +38,7 @@ async def get(
         OrganizationMember.user_id == user_id,
     )
     if for_update:
-        query = query.with_for_update()
+        query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 

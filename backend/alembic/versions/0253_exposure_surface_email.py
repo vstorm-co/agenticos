@@ -14,8 +14,8 @@ down_revision: str | None = "0252_exposure_surface_sms"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_BEFORE = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'sms')"
-_AFTER = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'sms', 'email')"
+_BEFORE = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms')"
+_AFTER = "surface IN ('slack', 'telegram', 'mattermost', 'teams', 'discord', 'sms', 'email')"
 
 
 def upgrade() -> None:

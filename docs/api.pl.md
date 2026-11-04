@@ -1,5 +1,5 @@
 ---
-source_sha: "7298c6f9c182"
+source_sha: "b91e3f9da2ed"
 ---
 
 # API HTTP { #the-http-api }
@@ -200,6 +200,18 @@ z zaparkowanym przebiegiem: klucz wznawia albo odpowiada tylko na przebieg
 rozpoczęty kluczem, a ten rozpoczęty przez osobę dostaje `403`, bo kontynuacja
 działa w jej imieniu. Rozmowa trafia na listę czatów wystawcy z etykietą **API**
 i pozostaje ukryta, dopóki nie włączy tam takich rozmów przełącznikiem.
+
+Przebieg zadany na czacie jest wyjątkiem od samodzielnego wznawiania. Gdy osoba
+rozstrzygnie jego ostatnie oczekujące zatwierdzenie albo odpowie na jego pytania,
+serwer kontynuuje run jako ona i wysyła odpowiedź na czat. Decyzja klucza nie
+kontynuuje niczego: osoba musi wznowić ten run z konsoli w ciągu około godziny od
+ostatniej decyzji, inaczej zostanie zakończony.
+
+Mówi o tym `continues_in_chat`: jest na `ApprovalRead`, na `AgentRunRead` (pojedynczy odczyt)
+i w wyniku wznowienia oraz odpowiedzi. Na `POST /agents/{id}/run` zawsze jest false,
+podobnie dla klucza API. Gdy jest true, nie wołaj `/resume`. `/resume`, które
+przyjdzie jako drugie, dostaje istniejące `400` ze `status` runa. Zob.
+[Rozstrzygnięte poza czatem](channels.md#decided-outside-the-chat).
 
 `GET /api/v1/conversations/{id}/transcript` czyta jedną z rozmów wystawcy tura po
 turze, z narzędziami wywołanymi w każdej turze i kosztem, dla klucza z

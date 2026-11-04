@@ -327,6 +327,7 @@ const ME_SECTIONS: SectionDef[] = [
       // under three cards of history, which is the wrong way round.
       { widget: "approvals", span: "s6", rows: "r2" },
       { widget: "conversations", span: "s6", rows: "r2" },
+      { widget: "background-tasks", span: "s12", rows: "r2" },
       // Where their ongoing work is, a row of tiles under what they left open.
       { widget: "projects", span: "s12", rows: "r2" },
       { widget: "my-agents", span: "s6", rows: "r2" },
@@ -335,7 +336,7 @@ const ME_SECTIONS: SectionDef[] = [
       // under its figure and legend, which said nothing either.
       { widget: "my-quality", span: "s6", rows: "r3" },
       { widget: "shared-with-you", span: "s6", rows: "r3" },
-      { widget: "tables", span: "s6", rows: "r3" },
+      { widget: "tables", span: "s6", rows: "r4" },
       { widget: "workflows", span: "s6", rows: "r4" },
       // What agents drew for them lately, as pictures: the one card here that is
       // something to look at rather than a list to read. Four rows, so a

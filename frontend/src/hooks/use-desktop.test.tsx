@@ -11,7 +11,11 @@ import {
   useChangeServer,
   useDeviceStatus,
   useDeviceLink,
+  useLocalAgents,
+  useLocalCodingOptions,
   useLocalFolders,
+  useLocalServices,
+  useLocalSkills,
   useLocalWorkspace,
   useDesktopState,
   useSetBlobby,
@@ -32,6 +36,14 @@ const shell = vi.hoisted(() => ({
   listLocalFiles: vi.fn(),
   createPairingCode: vi.fn(),
   getDesktopState: vi.fn(),
+  getLocalSkills: vi.fn(),
+  getLocalAgents: vi.fn(),
+  getLocalCodingOptions: vi.fn(),
+  signInLocalAgent: vi.fn(),
+  signOutLocalAgent: vi.fn(),
+  getLocalServices: vi.fn(),
+  saveLocalService: vi.fn(),
+  removeLocalService: vi.fn(),
   setBlobby: vi.fn(),
   setShortcut: vi.fn(),
   setWindowPreferences: vi.fn(),
@@ -52,6 +64,14 @@ vi.mock("@/lib/desktop/commands", async (original) => ({
   revokeLocalFolder: shell.revokeLocalFolder,
   listLocalFiles: shell.listLocalFiles,
   getDesktopState: shell.getDesktopState,
+  getLocalSkills: shell.getLocalSkills,
+  getLocalAgents: shell.getLocalAgents,
+  getLocalCodingOptions: shell.getLocalCodingOptions,
+  signInLocalAgent: shell.signInLocalAgent,
+  signOutLocalAgent: shell.signOutLocalAgent,
+  getLocalServices: shell.getLocalServices,
+  saveLocalService: shell.saveLocalService,
+  removeLocalService: shell.removeLocalService,
   setBlobby: shell.setBlobby,
   setShortcut: shell.setShortcut,
   setWindowPreferences: shell.setWindowPreferences,
@@ -357,5 +377,105 @@ describe("paired devices and native folders", () => {
     const selected = renderHook(() => useLocalWorkspace("/missing", "This computer"), { wrapper });
     await waitFor(() => expect(selected.result.current.error).not.toBeNull());
     expect(selected.result.current.workspace).toBeNull();
+  });
+});
+
+describe("useLocalSkills", () => {
+  it("reads every skill source in place, only inside the desktop shell", async () => {
+    const skills = [{ name: "pdf", description: "d", source: "agents", shadowed_by: null }];
+    shell.getLocalSkills.mockResolvedValue(skills);
+    const { result } = renderHook(() => useLocalSkills(), { wrapper });
+    await waitFor(() => expect(result.current.data).toEqual(skills));
+    expect(shell.getLocalSkills).toHaveBeenCalledWith(["agents", "claude", "codex"]);
+
+    delete window.__AGENTICOS_SHELL__;
+    shell.getLocalSkills.mockClear();
+    client.clear();
+    renderHook(() => useLocalSkills(), { wrapper });
+    expect(shell.getLocalSkills).not.toHaveBeenCalled();
+  });
+});
+
+describe("useLocalServices", () => {
+  it("applies a saved or removed service to the cache and reports a failure", async () => {
+    const service = { name: "mine" };
+    shell.getLocalServices.mockResolvedValue([]);
+    shell.saveLocalService.mockResolvedValue([service]);
+    shell.removeLocalService.mockResolvedValue([]);
+    const { result } = renderHook(() => useLocalServices(), { wrapper });
+    await waitFor(() => expect(result.current.state.data).toEqual([]));
+
+    await act(() => result.current.save.mutateAsync(service as never));
+    await waitFor(() => expect(result.current.state.data).toEqual([service]));
+    await act(() => result.current.remove.mutateAsync("mine"));
+    await waitFor(() => expect(result.current.state.data).toEqual([]));
+
+    shell.saveLocalService.mockRejectedValue(new Error("refused"));
+    await act(() => result.current.save.mutateAsync(service as never).catch(() => undefined));
+    expect(shell.reportShellFailure).toHaveBeenCalledWith(
+      "changing local services",
+      expect.any(Error),
+    );
+  });
+});
+
+describe("useLocalAgents", () => {
+  it("keeps the cache current after a sign-out and reports a failed sign-in or sign-out", async () => {
+    const claude = { id: "claude_code", signed_in: true };
+    shell.getLocalAgents.mockResolvedValue([claude, { id: "codex", signed_in: null }]);
+    shell.signOutLocalAgent.mockResolvedValue({ ...claude, signed_in: false });
+    const { result } = renderHook(() => useLocalAgents(), { wrapper });
+    await waitFor(() => expect(result.current.state.data).toHaveLength(2));
+
+    await act(() => result.current.signOut.mutateAsync("claude_code" as never));
+    await waitFor(() =>
+      expect(result.current.state.data?.[0]).toEqual({ ...claude, signed_in: false }),
+    );
+
+    shell.signInLocalAgent.mockRejectedValue(new Error("no terminal"));
+    shell.signOutLocalAgent.mockRejectedValue(new Error("no answer"));
+    await act(() => result.current.signIn.mutateAsync("codex" as never).catch(() => undefined));
+    await act(() => result.current.signOut.mutateAsync("codex" as never).catch(() => undefined));
+    expect(shell.reportShellFailure).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useLocalCodingOptions", () => {
+  it("does not start native probes without a selected harness or outside the desktop", () => {
+    renderHook(() => useLocalCodingOptions(null), { wrapper });
+    delete window.__AGENTICOS_SHELL__;
+    renderHook(() => useLocalCodingOptions("codex"), { wrapper });
+    expect(shell.getLocalCodingOptions).not.toHaveBeenCalled();
+  });
+
+  it("caches each harness and never probes again on window focus", async () => {
+    shell.getLocalCodingOptions.mockResolvedValue({
+      models: [],
+      current_model: null,
+      current_effort: null,
+    });
+    const { result, rerender } = renderHook(
+      ({ harness }: { harness: "codex" | "claude_code" }) => useLocalCodingOptions(harness),
+      { wrapper, initialProps: { harness: "codex" } },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const query = client.getQueryCache().find({ queryKey: qk.desktop.codingOptions("codex") });
+    expect(query?.options).toMatchObject({ refetchOnWindowFocus: false });
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(1);
+    rerender({ harness: "claude_code" });
+    await waitFor(() => expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(2));
+    rerender({ harness: "codex" });
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports a startup refusal without automatically starting more probes", async () => {
+    shell.getLocalCodingOptions.mockRejectedValue(new Error("not signed in"));
+    const { result } = renderHook(() => useLocalCodingOptions("codex"), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(1);
   });
 });

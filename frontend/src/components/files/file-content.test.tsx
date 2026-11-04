@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FileContent } from "./file-content";
+import { HtmlPreviewAssetError } from "@/lib/html-file-preview";
 import type { FileAccess } from "@/lib/file-access";
 import type { FileKind } from "@/lib/file-kinds";
 
@@ -134,4 +135,47 @@ describe("while it is arriving, and when it does not", () => {
       await screen.findByText("This has been shortened. The agent reads the whole file."),
     ).toBeInTheDocument();
   });
+});
+
+it("uses prepared HTML only for preview and retains the original source", async () => {
+  const readText = vi.fn().mockResolvedValue({
+    content: '<link rel="stylesheet" href="style.css"><h1>Hello</h1>',
+    truncated: false,
+  });
+  const readPreview = vi.fn().mockResolvedValue({
+    content: "<style>h1{color:green}</style><h1>Hello</h1>",
+    truncated: false,
+  });
+  const file = access({ readText, readPreview });
+  const view = show("html", file, "index.html");
+  const frame = await screen.findByTitle("index.html, rendered");
+  expect(frame).toHaveAttribute("srcdoc", "<style>h1{color:green}</style><h1>Hello</h1>");
+  expect(frame).toHaveAttribute("sandbox", "");
+  expect(readText).not.toHaveBeenCalled();
+  view.rerender(<FileContent access={file} kind="html" name="index.html" asSource />);
+  await waitFor(() => expect(readText).toHaveBeenCalledOnce());
+});
+it("explains a linked stylesheet failure without reporting a blank successful preview", async () => {
+  show(
+    "html",
+    {
+      readPreview: async () => {
+        throw new HtmlPreviewAssetError("style.css");
+      },
+    },
+    "index.html",
+  );
+  expect(await screen.findByText(/Could not load the linked stylesheet style.css/)).toBeVisible();
+});
+
+it("keeps HTML previews available for file sources without linked-resource support", async () => {
+  show(
+    "html",
+    { readText: async () => ({ content: "<h1>Inline page</h1>", truncated: false }) },
+    "inline.html",
+  );
+  expect(await screen.findByTitle("inline.html, rendered")).toHaveAttribute(
+    "srcdoc",
+    "<h1>Inline page</h1>",
+  );
 });

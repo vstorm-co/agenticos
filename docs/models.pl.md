@@ -1,5 +1,5 @@
 ---
-source_sha: "8dff2cdc1c17"
+source_sha: "bfe431b65940"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -256,8 +256,8 @@ zmianie modelu.
 
 ### Responses czy Chat Completions { #responses-or-chat-completions }
 
-OpenAI publikuje dwa API dla tych samych modeli, a profil na `openai` lub `azure`
-zapisuje, do którego z nich idą jego żądania: `responses` albo `chat`. Każdy inny
+OpenAI publikuje dwa API dla tych samych modeli, a profil na `openai`, `azure`
+lub `stav` zapisuje, do którego z nich idą jego żądania: `responses` albo `chat`. Każdy inny
 provider obsługuje jedno API i nic tu nie zapisuje.
 
 Żadne nie jest właściwe wszędzie. Najnowsze modele OpenAI są serwowane wyłącznie
@@ -271,6 +271,7 @@ a formularz startuje od wartości domyślnej:
 | `openai` bez endpointu (własne API OpenAI) | `responses` |
 | `openai` z endpointem | `chat` |
 | `azure` | `chat`, bo Responses API wymaga nowej `api_version`, a sekret może przypinać starszą |
+| `stav` | z modelu: `chat`, gdzie jest obsługiwany, w przeciwnym razie `responses` |
 
 Wartość domyślna to tylko punkt startowy formularza. Regionalny endpoint OpenAI,
 taki jak `https://eu.api.openai.com/v1`, jest endpointem obsługującym Responses,
@@ -284,15 +285,40 @@ Completions domyślnie nie zapisuje niczego, więc model na Responses wysyła
 przez zapisany identyfikator odpowiedzi, więc nic nie potrzebuje zapisanej kopii.
 Profil, który jej chce, ustawia w swoich ustawieniach `openai_store` na `true`.
 
+### Gdzie działają żądania profilu Stav { #where-a-stav-profiles-requests-run }
+
+Profil na `stav` zapisuje region: `eu`, `eea` albo `global`. Stav odpowiada tylko
+z endpointów, które liczą w tym regionie, przełącza się awaryjnie tylko w jego
+obrębie i odrzuca żądanie, którego nie może tam obsłużyć. `global` nie ustawia
+własnego limitu. Region tylko zawęża to, na co pozwala polityka workspace'u w
+Stav.
+
+Ustawia się go w **Agents → add a model → Region**. Formularz startuje od `eu`, a
+pominięty region zapisywany jest jako `eu`, więc profil opuszcza UE tylko wtedy,
+gdy zapisano go z `eea` lub `global`.
+
+Region jest wysyłany przy każdym żądaniu jako nagłówek `X-Stav-Runs-In`, a nie w
+treści, więc `extra_body` w ustawieniach profilu nie może go zastąpić.
+
+Własny katalog Stav używa klucza wybranego w formularzu. Użytkownik musi mieć do niego dostęp; aplikacja nie wybiera ukrytego klucza organizacji dla własnego adresu URL. Cache uwierzytelnionych katalogów jest rozdzielony według poświadczeń. `extra_headers` w ustawieniach żądania nie może nadpisać ograniczenia profilu do EU lub EEA.
+
+### Bramka Otari { #otari-gateway }
+
+Wybierz **Otari** przy dodawaniu modelu, zapisz klucz API Otari w vaulcie i wybierz go w profilu. **Endpoint** jest wymagany: dla hostowanego Otari wpisz `https://api.otari.ai/api/v1`. Dla konta Otari w regionie UE ustaw `https://eu.api.otari.ai/api/v1`; dla własnej bramki podaj jej adres API zakończony `/api/v1`, dostępny z API i workerów.
+
+Po wybraniu endpointu i klucza kliknij **Pobierz modele**. Zmiana któregokolwiek z nich wymaga ponownego potwierdzenia; samo wpisywanie adresu nie wysyła klucza.
+
+Podpowiedzi modeli pochodzą z uwierzytelnionego endpointu `/models` tej bramki i używają wybranego klucza. Własny endpoint wymaga `connections:manage` i dostępu do tego klucza. Cache katalogu jest rozdzielony według endpointu i poświadczeń; awaria własnego katalogu nie zastępuje go katalogiem hostowanym. Pole modelu przyjmuje też selektor, np. `anthropic:claude-sonnet-4-6`, lub alias/politykę routingu skonfigurowaną w Otari.
+
+Integracja używa [`pydantic-ai-otari`](https://github.com/mozilla-ai/otari/tree/main/integrations/pydantic-ai-otari): `OtariProvider` przekazuje profil rodziny modelu do modelu Chat Completions z Pydantic AI, tak jak `OtariModel`. Żądania zawsze używają Chat Completions; formularz nie oferuje Responses ani kontroli regionu Stav. Klucz i endpoint pochodzą jawnie z profilu, bez pobierania zastępczych wartości ze zmiennych `OTARI_*` lub `OPENAI_API_KEY`. Budżety i routing bramki Otari są dodatkową warstwą; AgenticOS nadal stosuje własne budżety i zatwierdzenia.
+
+Bezpośrednie selektory `provider:model` korzystają w budżetach AgenticOS z katalogowej ceny modelu dostawcy; aliasy routingu bez prefiksu i nieznane modele pozostają jawnie częściowo wycenione. Są to szacunki według cen dostawcy: opłaty bramki sprawdzaj w widoku użycia Otari.
+
 ## Providery { #providers }
 
-Dwadzieścia osiem, czyli wszystko, co Pydantic AI dostarcza i na co profil
-czatowy może wskazać.
+Providery czatu obsługiwane przez Pydantic AI oraz Otari przez jego pakiet integracyjny i Stav z routingiem regionalnym.
 
-Nie ma tutaj buildera per provider. Pydantic AI wnioskuje klasę providera i
-opakowanie modelu z id, a tym, co ta platforma wciąż musi wiedzieć, jest to,
-czego wnioskowanie wiedzieć nie może: **jakiego kształtu poświadczenia chce dany
-provider.**
+Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic AI. Platforma opisuje kształt poświadczeń i w razie potrzeby integruje pakiety providerów.
 
 !!! info "Co znaczy Custom URL"
 
@@ -316,6 +342,7 @@ provider.**
 | Anthropic | `anthropic` | klucz API | ✓ |
 | Google Gemini | `google` | klucz API | ✓ |
 | OpenRouter | `openrouter` | klucz API |  ✓ |
+| Otari | `otari` | klucz API | ✓ |
 | Alibaba Cloud | `alibaba` | klucz API | ✓ |
 | Cerebras | `cerebras` | klucz API | |
 | DeepSeek | `deepseek` | klucz API | |
@@ -328,6 +355,7 @@ provider.**
 | Nebius AI Studio | `nebius` | klucz API | |
 | OVHcloud AI Endpoints | `ovhcloud` | klucz API | |
 | SambaNova | `sambanova` | klucz API | ✓ |
+| Stav.ai | `stav` | klucz API | ✓ |
 | Together AI | `together` | klucz API | |
 | Vercel AI Gateway | `vercel` | klucz API | |
 | Z.AI | `zai` | klucz API | |

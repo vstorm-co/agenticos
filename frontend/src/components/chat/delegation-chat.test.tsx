@@ -146,3 +146,18 @@ describe("the team at work", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });
+
+it("shows the entire multiline instruction to a coding worker without clipping", () => {
+  const prompt =
+    "Change the theme.\n" + "Keep every existing link intact. ".repeat(30) + "Run the tests.";
+  render(
+    <DelegationChat
+      parent={CHIEF}
+      agents={AGENTS}
+      delegations={[delegation({ prompt, harness: "claude_code" })]}
+    />,
+  );
+  const brief = screen.getByText(prompt, { normalizer: (value) => value });
+  expect(brief).not.toHaveClass("line-clamp-2");
+  expect(brief).toHaveClass("whitespace-pre-wrap");
+});

@@ -670,6 +670,26 @@ listing:
   the join — 99 curated rows against a page size of 50 — so the arithmetic lives
   in `mcp_listing.page` with a test on the boundary, because an off-by-one there
   skips a server or shows it twice on a list where nobody would notice which.
+
+  **Connected** includes every accessible service with a saved organization or
+  personal account, including custom servers and catalog or registry entries on
+  other pages. Multiple accounts share one server card. Disabled accounts and
+  accounts needing attention stay visible for management. Search, category,
+  sign-in and connection-state filters apply before counting and paging the
+  results.
+
+  Saved server links reopen the account dialog even when a failed or duplicate
+  registry check hides the server from **All**. URL matching preserves the case
+  of paths and query values, so distinct endpoints remain separate. Reauthorizing
+  an account uses that account's saved URL.
+
+  Connected and registry searches prioritize exact server keys over related results, so a
+  saved link resolves even when other descriptions mention the same key. Registry entries with
+  identical names keep a stable order across pages.
+
+  If a registry entry is removed during sync, its saved catalog key still opens the existing
+  accounts. Returning from popup sign-in refreshes both server pages and bookmarked accounts.
+
 - **A category reaches the mirror too.** The registry has no categories, so each
   listing is given one at sync from its own name and description, counting the
   words each category is known by; a listing that names none of them is filed

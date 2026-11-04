@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { McpServerList } from "./mcp-server-list";
 import { apiClient } from "@/lib/api-client";
-import type { McpCatalogEntry } from "@/types/mcp";
+import type { McpCatalog, McpCatalogEntry } from "@/types/mcp";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 
@@ -26,7 +26,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-const CATALOG = {
+const CATALOG: McpCatalog = {
   items: [
     {
       key: "github",
@@ -83,6 +83,7 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
 
 /** What the mirrored registry answers for the next search, set per test. */
 let registryResults: McpCatalogEntry[] = [];
+let catalogEntries = CATALOG.items;
 
 /** Every `/agents/mcp-servers` path the component asked for. */
 function listCalls(): string[] {
@@ -114,7 +115,8 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     // The unpaged curated catalog, which the category filter and the connection
     // dialogs read - a page cannot answer "which entry is this connection".
-    if (path === "/agents/mcp-catalog") return CATALOG;
+    if (path === "/agents/mcp-catalog")
+      return { items: catalogEntries, total: catalogEntries.length };
     // The paged list, which is the grid. The server joins the curated rows and
     // the registry mirror; here the mock plays both, in that order.
     if (path.startsWith("/agents/mcp-servers")) {
@@ -124,18 +126,70 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
       const params = new URLSearchParams(path.split("?")[1] ?? "");
       const needle = (params.get("q") ?? "").toLowerCase();
       const auth = params.get("auth") ?? "";
+      const category = params.get("category") ?? "";
+      const state = params.get("state") ?? "all";
       const skip = Number(params.get("skip") ?? 0);
       const limit = Number(params.get("limit") ?? 50);
-      const all = [...CATALOG.items, ...registryResults];
-      const matched = (
-        needle
-          ? all.filter(
-              (entry) =>
-                entry.name.toLowerCase().includes(needle) ||
-                (entry.description ?? "").toLowerCase().includes(needle),
-            )
-          : all
-      ).filter((entry) => !auth || entry.auth === auth);
+      const normalize = (url: string) => {
+        const parsed = new URL(url.trim());
+        return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}${parsed.search}${parsed.hash}`;
+      };
+      const accounts = [...org, ...own];
+      const claimed = new Set<string>();
+      const all: McpCatalogEntry[] = [...catalogEntries, ...registryResults].map((entry) => {
+        const ids = accounts
+          .filter(
+            (account) =>
+              account.catalog_key === entry.key ||
+              (entry.url !== null && normalize(account.url) === normalize(entry.url)) ||
+              account.name === entry.key,
+          )
+          .map((account) => account.id);
+        ids.forEach((id) => claimed.add(id));
+        return { ...entry, connection_ids: ids };
+      });
+      const customs = new Map<string, McpCatalogEntry>();
+      for (const account of accounts.filter((each) => !claimed.has(each.id))) {
+        const url = normalize(account.url);
+        const existing = customs.get(url);
+        if (existing) {
+          existing.connection_ids!.push(account.id);
+        } else {
+          customs.set(url, {
+            key: `custom:${url}`,
+            name: account.name,
+            description: "",
+            category: "custom",
+            auth:
+              account.auth_type === "oauth" ? "oauth" : account.has_auth_token ? "token" : "none",
+            url: account.url,
+            docs_url: null,
+            token_hint: null,
+            icon: null,
+            custom: true,
+            connection_ids: [account.id],
+          });
+        }
+      }
+      all.push(...customs.values());
+      const matched = all.filter((entry) => {
+        const connected = entry.connection_ids!.length > 0;
+        const hidden =
+          entry.reviewed === false &&
+          entry.check !== null &&
+          entry.check !== undefined &&
+          ["unreachable", "broken", "refused", "duplicate"].includes(entry.check.outcome);
+        return (
+          (state === "connected" || !hidden) &&
+          (!needle ||
+            [entry.key, entry.name, entry.description, entry.url ?? ""].some((value) =>
+              value.toLowerCase().includes(needle),
+            )) &&
+          (!auth || entry.auth === auth) &&
+          (!category || entry.category === category) &&
+          (state === "all" || (state === "connected" ? connected : !connected))
+        );
+      });
       return {
         items: matched.slice(skip, skip + limit),
         total: matched.length,
@@ -173,7 +227,11 @@ async function mount({
 
 // Opening a server writes `?server=` into jsdom's one URL, which every test
 // shares; the next would start with that server's accounts open over the page.
-beforeEach(() => window.history.replaceState({}, "", "/mcp-servers"));
+beforeEach(() => {
+  window.history.replaceState({}, "", "/mcp-servers");
+  catalogEntries = CATALOG.items;
+  registryResults = [];
+});
 
 describe("McpServerList", () => {
   beforeEach(() => {
@@ -291,6 +349,27 @@ describe("McpServerList", () => {
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
     expect(apiClient.post).not.toHaveBeenCalledWith("/me/mcp-connections", expect.anything());
+  });
+
+  it("reauthorizes the selected account at its saved URL rather than the card URL", async () => {
+    const saved = connection({
+      name: "github-finance",
+      url: "https://gateway.example/Finance/mcp?tenant=Finance",
+      auth_type: "oauth",
+      authorized: false,
+    });
+    await mount({ own: [saved] });
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+
+    const dialog = await openConnections();
+    await userEvent.click(dialog.getByRole("button", { name: "Authorize" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/me/mcp-connections/oauth/start",
+        expect.objectContaining({ name: saved.name, url: saved.url }),
+      ),
+    );
   });
 
   it("offers the client fields only once OAuth is chosen, and only for a new connection", async () => {
@@ -974,6 +1053,7 @@ describe("naming a connection something a person can read", () => {
     // hold, so the category is a request like the query.
     await mount();
 
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     await userEvent.click(screen.getByRole("combobox", { name: /Category/i }));
     await userEvent.click(await screen.findByRole("option", { name: /Development/i }));
 
@@ -1009,6 +1089,329 @@ describe("naming a connection something a person can read", () => {
 
     await waitFor(() => expect(screen.queryByText("GitHub")).toBeNull());
     expect(screen.queryByText(/not from the catalog/i)).toBeNull();
+  });
+});
+
+/** Grafana deliberately sits after the first 50 curated entries. */
+function multiPageCatalog(): McpCatalogEntry[] {
+  return [
+    ...CATALOG.items,
+    ...Array.from({ length: 54 }, (_, index) =>
+      registryEntry({
+        key: `server-${index}`,
+        name: `Server ${index}`,
+        url: `https://server-${index}.example/mcp`,
+        category: "development",
+        auth: "none",
+        reviewed: true,
+      }),
+    ),
+    registryEntry({
+      key: "grafana",
+      name: "Grafana",
+      url: "https://grafana.example/mcp",
+      category: "observability",
+      reviewed: true,
+    }),
+  ];
+}
+
+function accountFor(entry: McpCatalogEntry, id = entry.key): OrgMcpConnectionRecord {
+  return connection({ id, name: entry.key, catalog_key: entry.key, url: entry.url! });
+}
+
+async function filterBy(label: string, value: string) {
+  await userEvent.click(screen.getByLabelText(label));
+  await userEvent.click(screen.getByRole("option", { name: value }));
+}
+
+describe("connected servers across catalog pages", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    catalogEntries = multiPageCatalog();
+  });
+
+  it("finds custom, off-page curated and registry accounts without loading every registry page", async () => {
+    const grafana = catalogEntries.at(-1)!;
+    const linear = catalogEntries.find((entry) => entry.key === "linear")!;
+    registryResults = [registryEntry({ key: "com.example/remote", name: "Remote Registry" })];
+    await mount({
+      org: [
+        accountFor(grafana),
+        { ...accountFor(grafana, "grafana-admin"), name: "grafana-admin" },
+      ],
+      own: [
+        { ...accountFor(grafana, "grafana-personal"), name: "grafana-personal" },
+        accountFor(linear),
+        accountFor(registryResults[0]!),
+        connection({ id: "netbox", name: "NetBox", catalog_key: null, url: "https://netbox/mcp" }),
+      ],
+    });
+
+    expect(screen.queryByRole("group", { name: "Grafana" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "NetBox" })).toBeNull();
+    await filterBy("Connection state", "Connected");
+
+    expect(await screen.findByRole("group", { name: "Grafana" })).toBeVisible();
+    expect(screen.getAllByRole("group", { name: "Grafana" })).toHaveLength(1);
+    expect(
+      within(screen.getByRole("group", { name: "Grafana" })).getByRole("button", {
+        name: "Manage 3 connections on Grafana",
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("group", { name: "Linear" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "Remote Registry" })).toBeVisible();
+    expect(screen.getByRole("group", { name: "NetBox" })).toBeVisible();
+    expect(screen.getByText("4 servers")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+    expect(
+      listCalls().every((path) => new URLSearchParams(path.split("?")[1]).get("skip") === "0"),
+    ).toBe(true);
+    expect(listCalls().every((path) => path.includes("limit=50"))).toBe(true);
+
+    // Management uses the returned off-page metadata and the real owner account.
+    await userEvent.click(
+      within(screen.getByRole("group", { name: "Remote Registry" })).getByRole("button", {
+        name: "Manage 1 connection on Remote Registry",
+      }),
+    );
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "More for com.example/remote",
+      }),
+    ).toBeVisible();
+  });
+
+  it("groups multiple organization and personal accounts into one custom card and preserves permissions", async () => {
+    const netbox = { catalog_key: null, url: "https://netbox/mcp" };
+    await mount({
+      canManageOrganization: false,
+      org: [
+        connection({ ...netbox, id: "n1", name: "netbox", label: "Shared NetBox" }),
+        connection({ ...netbox, id: "n2", name: "netbox-admin", label: "Admin NetBox" }),
+      ],
+      own: [
+        connection({
+          ...netbox,
+          url: "https://NETBOX/mcp/",
+          id: "n3",
+          name: "mine",
+          label: "My NetBox",
+        }),
+      ],
+    });
+    await filterBy("Connection state", "Connected");
+
+    const card = await screen.findByRole("group", { name: "netbox" });
+    expect(screen.getAllByRole("group", { name: "netbox" })).toHaveLength(1);
+    expect(screen.getByText("1 server")).toBeVisible();
+    await userEvent.click(
+      within(card).getByRole("button", { name: "Manage 3 connections on netbox" }),
+    );
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByText("Shared NetBox")).toBeVisible();
+    expect(dialog.getByText("Admin NetBox")).toBeVisible();
+    expect(dialog.getByText("My NetBox")).toBeVisible();
+    expect(dialog.queryByRole("button", { name: "More for Shared NetBox" })).toBeNull();
+    expect(dialog.queryByRole("button", { name: "More for Admin NetBox" })).toBeNull();
+    expect(dialog.getByRole("button", { name: "More for My NetBox" })).toBeVisible();
+  });
+
+  it("paginates connected servers rather than accounts and clamps after the final page is removed", async () => {
+    const org = catalogEntries.slice(0, 51).map((entry) => accountFor(entry));
+    await mount({ org });
+    await filterBy("Connection state", "Connected");
+    await userEvent.click(await screen.findByRole("button", { name: "Next page" }));
+    const last = catalogEntries[50]!;
+    const card = await screen.findByRole("group", { name: last.name });
+    expect(screen.getAllByRole("group")).toHaveLength(1);
+    expect(screen.getByText("51 servers")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeEnabled();
+
+    await userEvent.click(
+      within(card).getByRole("button", { name: `Manage 1 connection on ${last.name}` }),
+    );
+    await userEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: `More for ${last.key}`,
+      }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
+    const confirm = (
+      await screen.findByText(`Disconnect "${last.key}"?`, { exact: false })
+    ).closest('[role="dialog"], [role="alertdialog"]') as HTMLElement;
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    serve(org.slice(0, 50), []);
+    await userEvent.click(within(confirm).getByRole("button", { name: "Disconnect" }));
+    await userEvent.keyboard("{Escape}");
+
+    expect(await screen.findByRole("group", { name: "GitHub" })).toBeVisible();
+    expect(screen.getAllByRole("group")).toHaveLength(50);
+    expect(screen.getByText("50 servers")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+    expect(screen.queryByRole("group", { name: last.name })).toBeNull();
+  });
+
+  it("keeps the remaining custom account open after its first account is disconnected", async () => {
+    const first = connection({
+      id: "netbox-first",
+      name: "netbox",
+      catalog_key: null,
+      url: "https://netbox/mcp",
+    });
+    const second = connection({ ...first, id: "netbox-second", name: "netbox-admin" });
+    await mount({ org: [first, second] });
+    await filterBy("Connection state", "Connected");
+    const card = await screen.findByRole("group", { name: "netbox" });
+    await userEvent.click(
+      within(card).getByRole("button", { name: "Manage 2 connections on netbox" }),
+    );
+    await userEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "More for netbox" }),
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
+    const confirm = (await screen.findByText('Disconnect "netbox"?', { exact: false })).closest(
+      '[role="dialog"], [role="alertdialog"]',
+    ) as HTMLElement;
+    serve([second], []);
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    await userEvent.click(within(confirm).getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() => expect(screen.getAllByRole("dialog")).toHaveLength(1));
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "More for netbox-admin" })).toBeVisible();
+    expect(dialog.queryByRole("button", { name: "More for netbox" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getAllByRole("group")).toHaveLength(1);
+    expect(screen.getByText("1 server")).toBeVisible();
+  });
+
+  it("opens an off-page custom bookmark and refreshes its account group after a disconnect", async () => {
+    const key = "custom:https://netbox/mcp";
+    window.history.replaceState({}, "", `/mcp-servers?server=${encodeURIComponent(key)}`);
+    const first = connection({
+      id: "netbox-first",
+      name: "netbox",
+      catalog_key: null,
+      url: "https://netbox/mcp",
+    });
+    const second = connection({ ...first, id: "netbox-second", name: "netbox-admin" });
+    await mount({ org: [first, second] });
+
+    expect(screen.queryByRole("group", { name: "netbox" })).toBeNull();
+    const accounts = within(await screen.findByRole("dialog"));
+    expect(accounts.getByRole("button", { name: "More for netbox" })).toBeVisible();
+    expect(accounts.getByText("netbox-admin")).toBeVisible();
+    expect(
+      listCalls().some((path) => {
+        const params = new URLSearchParams(path.split("?")[1]);
+        return params.get("q") === key && params.get("limit") === "10";
+      }),
+    ).toBe(true);
+    await userEvent.click(accounts.getByRole("button", { name: "More for netbox" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
+    const confirm = (await screen.findByText('Disconnect "netbox"?', { exact: false })).closest(
+      '[role="dialog"], [role="alertdialog"]',
+    ) as HTMLElement;
+    serve([second], []);
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    await userEvent.click(within(confirm).getByRole("button", { name: "Disconnect" }));
+
+    const remaining = within(await screen.findByRole("dialog"));
+    expect(await remaining.findByRole("heading", { name: "netbox-admin" })).toBeVisible();
+    expect(remaining.getByRole("button", { name: "More for netbox-admin" })).toBeVisible();
+    expect(remaining.queryByRole("button", { name: "More for netbox" })).toBeNull();
+    expect(window.location.search).toBe(`?server=${encodeURIComponent(key)}`);
+  });
+
+  it("does not open a stale custom bookmark when no account remains", async () => {
+    const key = "custom:https://removed.example/mcp";
+    window.history.replaceState({}, "", `/mcp-servers?server=${encodeURIComponent(key)}`);
+    await mount();
+
+    await waitFor(() =>
+      expect(
+        listCalls().some((path) => new URLSearchParams(path.split("?")[1]).get("q") === key),
+      ).toBe(true),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("group", { name: "GitHub" })).toBeVisible();
+  });
+
+  it.each(["unreachable", "broken", "refused", "duplicate"] as const)(
+    "reopens a bookmarked %s registry server even though All hides it",
+    async (outcome) => {
+      const saved = registryEntry({
+        key: "com.example/saved",
+        name: "Saved registry server",
+        check: { outcome, checked_at: "2026-11-03T00:00:00Z", tools: null, read_only_tools: null },
+      });
+      registryResults = [saved];
+      window.history.replaceState({}, "", `/mcp-servers?server=${encodeURIComponent(saved.key)}`);
+      const account = { ...accountFor(saved, "saved-account-id"), name: "saved-account" };
+
+      await mount({ own: [account] });
+
+      const dialog = within(await screen.findByRole("dialog"));
+      expect(dialog.getByRole("heading", { name: saved.name })).toBeVisible();
+      expect(dialog.getByRole("button", { name: "More for saved-account" })).toBeVisible();
+      expect(screen.queryByRole("group", { name: saved.name })).toBeNull();
+      expect(
+        listCalls().some((path) => {
+          const params = new URLSearchParams(path.split("?")[1]);
+          return params.get("q") === saved.key && params.get("state") === "connected";
+        }),
+      ).toBe(true);
+    },
+  );
+
+  it.each(["search", "category", "sign-in", "state"] as const)(
+    "resets a real second page when the %s filter changes",
+    async (filter) => {
+      await mount({ org: catalogEntries.map((entry) => accountFor(entry)) });
+      await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+      await screen.findByRole("group", { name: "Grafana" });
+      const previousCalls = listCalls().length;
+
+      if (filter === "search")
+        await userEvent.type(screen.getByLabelText("Search servers…"), "GitHub");
+      if (filter === "category") await filterBy("Category", "project management");
+      if (filter === "sign-in") await filterBy("Sign-in", "OAuth");
+      if (filter === "state") await filterBy("Connection state", "Connected");
+
+      await waitFor(() => {
+        const calls = listCalls().slice(previousCalls);
+        expect(calls.length).toBeGreaterThan(0);
+        expect(calls.every((path) => path.includes("skip=0"))).toBe(true);
+      });
+      expect(
+        await screen.findByRole("group", {
+          name: filter === "category" || filter === "sign-in" ? "Linear" : "GitHub",
+        }),
+      ).toBeVisible();
+      if (filter === "state")
+        expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+      else expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
+    },
+  );
+
+  it("combines Connected with search, category and sign-in and counts filtered servers", async () => {
+    await mount({
+      org: [accountFor(catalogEntries.at(-1)!)],
+      own: [connection({ id: "n1", name: "netbox", catalog_key: null, url: "https://netbox/mcp" })],
+    });
+    await filterBy("Connection state", "Connected");
+    await filterBy("Category", "custom");
+    await filterBy("Sign-in", "API token");
+    await userEvent.type(screen.getByLabelText("Search servers…"), "netbox");
+
+    expect(await screen.findByRole("group", { name: "netbox" })).toBeVisible();
+    expect(screen.getByText("1 server")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Grafana" })).toBeNull();
+    await filterBy("Connection state", "Not connected");
+    await waitFor(() => expect(screen.queryByRole("group", { name: "netbox" })).toBeNull());
+    expect(screen.getByText("0 servers")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Next page" })).toBeNull();
   });
 });
 

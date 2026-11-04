@@ -3,9 +3,10 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import type { ReactNode } from "react";
+import { useShell } from "./use-shell";
 import { useDesktopReadiness } from "./use-desktop-readiness";
 import { readDesktopReadiness, requestDesktopPermission } from "@/lib/desktop/readiness";
-vi.mock("./use-shell", () => ({ useShell: () => ({ platform: "macos" }) }));
+vi.mock("./use-shell", () => ({ useShell: vi.fn(() => ({ platform: "macos" })) }));
 vi.mock("@/lib/desktop/readiness", () => ({
   readDesktopReadiness: vi.fn(),
   requestDesktopPermission: vi.fn(),
@@ -39,4 +40,40 @@ it("preflights without prompting, refreshes after consent and surfaces refusal",
     await result.current.request.mutateAsync("notifications").catch(() => undefined);
   });
   expect(toast.error).toHaveBeenCalled();
+});
+
+it("rechecks on a native window focus even when the webview stays visible", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { unmount } = renderHook(useDesktopReadiness, { wrapper });
+  await waitFor(() => expect(client.isFetching()).toBe(0));
+  vi.mocked(readDesktopReadiness).mockClear();
+  act(() => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  await waitFor(() => expect(readDesktopReadiness).toHaveBeenCalledOnce());
+  unmount();
+  vi.mocked(readDesktopReadiness).mockClear();
+  act(() => {
+    window.dispatchEvent(new Event("focus"));
+  });
+  expect(readDesktopReadiness).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it("does not read native permissions or refresh them on focus in a browser", () => {
+  vi.mocked(useShell).mockReturnValueOnce(null);
+  vi.mocked(readDesktopReadiness).mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result, unmount } = renderHook(useDesktopReadiness, { wrapper });
+  act(() => window.dispatchEvent(new Event("focus")));
+  expect(result.current.status.fetchStatus).toBe("idle");
+  expect(readDesktopReadiness).not.toHaveBeenCalled();
+  unmount();
+  client.clear();
 });

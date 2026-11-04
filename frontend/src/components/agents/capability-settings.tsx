@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
+import { ContextHelp } from "@/components/ui/context-help";
 import {
   Badge,
   Button,
@@ -407,7 +408,7 @@ export function CapabilityDetail({
     // Grouped and named, so the tool rows are read as belonging to this
     // capability rather than to the page.
     <Card role="group" aria-label={definition.name}>
-      <CardContent className="space-y-4 p-5">
+      <CardContent className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium">{definition.name}</span>
           <span className="text-muted-foreground font-mono text-xs">{definition.id}</span>
@@ -435,8 +436,10 @@ export function CapabilityDetail({
           )}
         </div>
 
-        <p className="text-muted-foreground text-sm">{definition.description}</p>
-        <CapabilityGuideNotes capabilityId={definition.id} />
+        <div className="flex items-start gap-2">
+          <p className="text-muted-foreground flex-1 text-sm">{definition.description}</p>
+          <CapabilityGuideNotes capabilityId={definition.id} />
+        </div>
 
         {/* Always the tab shell, even for the capability whose Settings is one
             select: every panel then reads the same way, and "this one looks
@@ -1091,7 +1094,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
             aria-invalid={nameError !== null}
             aria-describedby={nameError === null ? undefined : `${fieldId("name")}-error`}
             onChange={(event) => edit("name", event.target.value)}
-            className="font-mono text-sm"
+            className="font-mono text-base md:text-sm"
           />
         </ToolField>
 
@@ -1143,7 +1146,7 @@ function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) 
           }
           disabled={disabled}
           rows={6}
-          className="text-xs leading-relaxed"
+          className="text-base leading-relaxed md:text-xs"
           onChange={(event) => edit("description", event.target.value)}
         />
       </ToolField>
@@ -1377,19 +1380,21 @@ function CapabilityGuideNotes({ capabilityId }: { capabilityId: string }) {
   const guide = useCapabilityGuide()(capabilityId);
   if (!guide) return null;
   return (
-    <dl className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
-      <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
-      <dd>
-        <ul className="list-disc space-y-0.5 pl-4">
-          {guide.examples.map((example) => (
-            <li key={example}>{example}</li>
-          ))}
-        </ul>
-      </dd>
-      <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
-      <dd>{guide.needs}</dd>
-      <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
-      <dd>{guide.never}</dd>
-    </dl>
+    <ContextHelp>
+      <dl className="grid gap-2 text-xs">
+        <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
+        <dd>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {guide.examples.map((example) => (
+              <li key={example}>{example}</li>
+            ))}
+          </ul>
+        </dd>
+        <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
+        <dd>{guide.needs}</dd>
+        <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
+        <dd>{guide.never}</dd>
+      </dl>
+    </ContextHelp>
   );
 }

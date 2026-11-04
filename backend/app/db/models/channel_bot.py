@@ -2,7 +2,17 @@
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, ForeignKey, Integer, String, text, true
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    text,
+    true,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -149,6 +159,7 @@ class ChannelBot(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_channel_bot_id_org"),
         CheckConstraint(
             "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
             name="ck_channel_bot_speech_pair",

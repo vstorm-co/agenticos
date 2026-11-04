@@ -5,7 +5,9 @@ from uuid import UUID
 
 from app.schemas.base import BaseSchema
 
-ChatNotificationChannel = Literal["slack", "telegram", "mattermost", "teams", "sms", "imessage"]
+ChatNotificationChannel = Literal[
+    "slack", "telegram", "mattermost", "teams", "sms", "imessage", "discord"
+]
 
 
 class NotificationDestinationRead(BaseSchema):

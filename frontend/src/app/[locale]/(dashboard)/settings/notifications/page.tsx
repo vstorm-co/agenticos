@@ -118,6 +118,7 @@ const CHANNEL_LABEL: Record<NotificationChannel, string> = {
   teams: "teamsChannel",
   sms: "smsChannel",
   imessage: "imessageChannel",
+  discord: "discordChannel",
 };
 
 const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [

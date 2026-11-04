@@ -73,6 +73,8 @@ class AgentDeps:
     # The thread the run answers in, where it has one. What a tool keeps between
     # turns is the conversation's, even in a sandbox several conversations share.
     conversation_id: UUID | None = None
+    # A durable delegation or its result, assigned by the runner and restored on resume.
+    conversation_task_id: UUID | None = None
 
     # Who will hear this run - one person, a whole channel, or nobody
     # identifiable - derived server-side in `app.agents.audience`. It decides which

@@ -6,6 +6,7 @@ from app.db.models.routine_delivery import RoutineDelivery
 from app.db.models.user import User
 from app.db.models.session import Session
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_task import ConversationTask, ConversationTurnClaim
 from app.db.models.chat_file import ChatFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.rag_document import RAGDocument
@@ -76,6 +77,8 @@ from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.group import Group, GroupMember
 from app.db.models.directory_mapping import DirectoryGroupMapping
 from app.db.models.outcome import Outcome, OutcomeStatus
+
+from app.db.models.discord_role_mapping import DiscordRoleMapping
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import DeliveryStatus, NotificationDelivery
 from app.db.models.notification_preference import NotificationChannelPreference
@@ -178,6 +181,8 @@ __all__ = [
     "User",
     "Session",
     "Conversation",
+    "ConversationTask",
+    "ConversationTurnClaim",
     "Message",
     "ToolCall",
     "ChatFile",
@@ -203,6 +208,7 @@ __all__ = [
     "UserSlashCommand",
     "DeploymentSettings",
     "DirectoryGroupMapping",
+    "DiscordRoleMapping",
     "DashboardLayout",
     "DashboardPreset",
     "McpConnection",

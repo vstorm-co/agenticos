@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Offer Discord private chats as opt-in notification destinations alongside the other supported chat channels.
+
 - Important-case telephone consent for selected agents, explicit criteria and optional delay after an unacknowledged notification; shared case settlement cancels pending calls and event deduplication survives receipt expiry.
 
 - Twilio telephone conversations and spoken reports, opt-in verified contacts, quiet hours, bounded rates/budgets, permitted transfers, call cards and private transcripts.
@@ -165,6 +167,340 @@ Two things are versioned separately from this file and worth knowing about:
 ### Removed
 
 - **mem0 is gone; native memory is the only store.** The `memory_mem0` capability, its secret kind, the `MEM0_ALLOWED_HOSTS` setting and the `mem0ai` dependency are removed. Migration `0248_drop_memory_mem0` strips the binding from every stored draft and published version so no agent fails to load; nothing is imported from mem0, and what it held stays in that service. Erasing a person no longer reports an external store, and the erase response gains `claims_deleted` (#2090). **Action:** an agent that relied on mem0 recall now uses the Memory capability's `remember` and `recall`. **Action:** memories a deployment kept in mem0 stay in that service and are no longer reached when a person is forgotten or an agent is cleared here; erase them in mem0 (docs/security.md).
+
+
+### Fixed
+
+- Show the same Architect avatar in the assistant widget and agent list after its stored picture is cleared, including its selected colour.
+
+## [1.47.2] - 2026-11-04
+
+### Security
+
+- An uploaded document's parse copy under `MEDIA_DIR/_rag_tmp` is now removed: by its ingest job when it ends (indexed, refused, its document gone, or failed on its last attempt - kept while a retry is still to come), after the commit that deletes the document, and by a new hourly `sweep-rag-scratch` job once its document is gone or no longer processing. Until now every copy stayed on the media volume for good, so the content of a deleted document, knowledge base or account was still on disk. **Operators:** nothing to run - the first sweep after the upgrade removes the copies earlier releases left, except those of documents still processing and any written in the last hour. A job queued for a document that is gone now ends at once instead of failing into a retry, and **Retry** on a dead document ingest in Background jobs is refused: retry the document from its knowledge base instead, which parses its stored file again. (#2681)
+
+## [1.47.1] - 2026-11-04
+
+### Fixed
+
+- Deleting an account no longer fails with 500 when the person writes in their personal organization at the same moment, for example creates a knowledge base, or when a failed ingest of their document is being recorded. While the account's rows stay busy the deletion keeps trying for about 10 seconds, then returns 409 and deletes nothing. (#2682)
+
+## [1.47.0] - 2026-11-04
+
+### Added
+
+- Add Turkish console translations, account language selection and Turkish voice previews.
+- Search the web through Keenable without an account, or select an optional vault key for account-backed requests. The Builder and vault show the official logo; query-relevant snippets are normalized into the existing cited search results.
+
+### Fixed
+
+- MCP connections with **Include instructions** enabled no longer abort agent
+  turns while Pydantic AI collects their instructions. Toolset IDs use the
+  connection’s safe tool prefix. (#2713)
+- Save assistant message parts containing local or conversation file origins without UUID serialization errors in JSONB, preserving their order and omitting unset fields. (#2709)
+
+## [1.46.0] - 2026-11-04
+
+### Added
+
+- Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
+
+## [1.45.1] - 2026-11-04
+
+### Fixed
+
+- The MCP servers Connected filter includes accessible organization and personal
+  accounts across catalog pages, including custom servers, with one card per
+  service and consistent filtering, result counts and pagination.
+- Saved MCP server links reopen accounts whose registry checks failed. URL grouping
+  preserves case-sensitive paths and query values, and reauthorization uses each
+  account's saved endpoint.
+
+## [1.45.0] - 2026-11-04
+
+### Added
+
+- Map a role in a Discord bot's server to a group of the organization, from the bot's row on **Channels** (#2569). A linked member who holds the role joins the group before each message to the bot and by a `sync-discord-roles` job every 15 minutes, and leaves it when the role is taken away. A mapping can also name an organization role, which admits linked holders who are not members yet. The sync changes only memberships it made, marked **Discord**: group memberships added by hand, directory memberships and owners are left alone, and Discord users who have not linked an account get nothing. Migration `0256_discord_role_mappings` adds the `discord_role_mappings` table and the `discord` membership source.
+
+### Fixed
+
+- Directory and Discord grants hand over the same organization membership instead of revoking API keys, connected-app consent and unrelated groups while the other source still grants access. The directory takes priority at sign-in; an unreadable Discord grant preserves the current membership. (#2674)
+
+## [1.44.0] - 2026-11-04
+
+### Added
+
+- A decision or an answer made in the console, the web chat or over a session API now continues a run asked in a chat, as the person who made it, and posts the answer in that chat. A key's decision is recorded and does not continue the run. (#2656)
+- `continues_in_chat` on approvals, on a run's single read and on the result of a resume or an answer. It is true when the server continues the run in its chat. (#2656)
+- A console **Stop**, an expiry and a decided run that nothing continued each tell the chat once, in one fixed message. (#2656)
+
+### Changed
+
+- **A session API client that decides a chat run no longer resumes it.** Read `continues_in_chat` and skip `POST /runs/{id}/resume` when it is true; a late resume answers 400 with the run's status. (#2656)
+- Chat runs whose approvals were all decided but never continued are now ended about an hour after the last decision. (#2656)
+- On the first sweep after upgrading, such runs decided more than 7 days ago are ended without a chat message. (#2656)
+- Schema: `agent_runs` gains a nullable `chat_notice_sent_at`, which records that a chat was told its run could not continue. No backfill. (#2656)
+
+### Fixed
+
+- Chat buttons answered elsewhere no longer act on a stale question. (#2656)
+- A Discord run parked before its server was removed from the bot's approved servers is no longer continued by a console decision; the server is read from Discord again and one that cannot be confirmed is refused. (#2656)
+- A chat button pressed at the moment the request is decided elsewhere is now closed instead of staying open. (#2656)
+- The question sweep no longer overwrites an answer pressed at the last moment. (#2656)
+- The approvals queue, the dashboard widget, the CSV export, the approval email and the in-app approval notification name the chat account instead of the publisher for an unlinked asker, and filtering the queue by the publisher no longer lists those calls. Who receives the email is unchanged. (#2656)
+
+## [1.43.0] - 2026-11-04
+
+### Added
+
+- Browse a live fullscreen graph of Markdown notes in project, sandbox and Desktop folder
+  file explorers. Wiki links, inline Markdown links and frontmatter relationships
+  supply the graph and backlinks, refreshed without an agent-generated App. Coloured
+  points, thin links and optional arrows fill the canvas, with floating panels,
+  folder/tag groups and the shared file tree for notes and attachments.
+
+## [1.42.0] - 2026-11-04
+
+### Added
+
+- Support manual Podman deployments through Docker Compose, add a sandbox override for socket and SELinux workspace access, and direct quickstart users to that path. Document the reproduced migration dependency failure in podman-compose 1.6.0.
+
+## [1.41.0] - 2026-11-04
+
+### Added
+
+- Connect Stav models with a vault API key and an EU (default), EEA or global region. Region restrictions remain enforced when request settings include custom headers; existing profiles retain their settings. Model catalogs choose Chat Completions or Responses from the model’s advertised surfaces. Custom Stav catalogs use the selected visible vault key, with credential-isolated caching.
+
+## [1.40.0] - 2026-11-03
+
+### Added
+
+- Delegate explicit work to durable background topics in the same project, keep talking in the source conversation, inspect or stop each task, and receive one source-bound result turn. Tasks retain pinned agent versions, ordinary budgets and approvals, the selected main model and exact local device; interrupted external actions are not automatically replayed.
+- Choose a local Claude Code/Codex model and reasoning level per conversation from the installed harness's reported choices, including resumed coding sessions. Reference recent accessible conversations in the `@` menu through the existing Past conversations capability.
+
+## [1.39.2] - 2026-11-03
+
+### Fixed
+
+- Deleting an account no longer deadlocks with an ingest that is recording the embedding spend of a document in that account's personal knowledge base. The deletion now locks the personal organization before it deletes the documents under it. An ingest whose organization is deleted while it runs no longer fails when it records its spend. In the rare case that a knowledge collection is created during the deletion and is busy, the deletion now returns 409 and deletes nothing, so it can be retried.
+
+## [1.39.1] - 2026-11-03
+
+### Changed
+
+- Deleting a document, reading its chunks and expanding a search hit to its neighbouring chunks no longer scan the collection. Each knowledge-base collection table now has an index on the document id: new collections get it when they are created, and migration `0252_index_rag_parent_doc_id` adds it to existing ones. On a 300k-chunk collection these operations went from 40–100 ms to under 1 ms.
+
+  **Upgrade action (optional, large deployments):** The migration builds the index inside the upgrade transaction. Searches keep working, but ingestion and deletes into a collection wait until the upgrade commits (the build takes about 0.2 s per 300k chunks). To avoid that pause, build the indexes online before you upgrade. Run this in `psql` connected to the application database:
+
+  ```sql
+  SELECT format('CREATE INDEX CONCURRENTLY IF NOT EXISTS %I ON %I (parent_doc_id)',
+                table_name || '_parent_idx', table_name)
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND column_name = 'metadata'
+    AND data_type = 'jsonb' AND table_name LIKE 'rag\_%' ESCAPE '\'
+  \gexec
+  ```
+
+  The migration then finds the indexes valid and leaves those collections alone. Let the statement finish before you upgrade: if the migration finds a build still running, it stops with an error, and you run the upgrade again after the build ends. If a concurrent build fails, it leaves an invalid index. Drop it with `DROP INDEX CONCURRENTLY <name>` and run the statement again. If you upgrade with an invalid index in place, the migration drops and rebuilds it, and searches in that collection also wait until the upgrade commits.
+
+
+## [1.39.0] - 2026-11-03
+
+### Added
+
+- Prepare private, checksummed coding runtimes and pinned Claude Code/Codex adapters without host developer tools. Coding-agent setup and browser sign-in are available in desktop settings.
+- Install the verified local runtime on Windows and supported Linux desktops, resume Windows setup after a required restart, show download progress and retry the same workspace. Pin new local instances to the packaged platform release and back up database, media and deployment keys before updates.
+
+### Fixed
+
+- Keep existing workspaces visible after starting the local runtime, repair incomplete macOS runtime installations and verify Docker Inc's signing identity before requesting installer elevation.
+- Remember native coding-agent startup consent per agent, folder, adapter version and connection; revoke it with folder/account access and stop affected agents. Preserve local grants on reconnect, avoid repeated credential probes on focus, hide background Windows console windows, wait for HTTP readiness and refuse remote Docker contexts or platform downgrades during local setup.
+
+- Prepare the local runtime from the macOS setup wizard and restart saved local workspaces when the desktop app opens. Pull public product images with a private anonymous configuration to avoid credential-helper and keychain prompts, and pass Docker helper paths to subprocesses launched from Finder.
+
+
+## [1.38.4] - 2026-11-03
+
+### Fixed
+
+- Deleting the last knowledge base on a collection name deletes the same rows on every path (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}` and `rag-drop`): the base's own document rows and its tenant's unfiled rows, with their files, before the vector table is dropped. A tenant is the base's organization, or, for an app-scoped base, the rows with no organization that `rag-ingest` writes. `DELETE /kb/{id}` used to leave the tenant's unfiled rows and files behind the dropped table, for its next base on the name to list again; for an app-scoped base it now deletes the `rag-ingest` rows under the name. The collection drop used to delete every row under the name whichever tenant it belonged to, including another organization's unfiled rows and files, which the caller had no authority over. Another tenant's rows now stay, marked as failed because their chunks went with the table: an upload has to be uploaded again, and a sync indexes a synced document again. `POST /rag/documents/{id}/retry` refuses an organization's document filed under no knowledge base, whose retry would index it where its base does not read. After a drop by an organization's base, `rag-drop` of the same name, which no base then holds, removes the `rag-ingest` rows left under it. The three paths run one teardown.
+
+## [1.38.3] - 2026-11-03
+
+### Fixed
+
+- Background-job audit and table-retention integration tests no longer depend on
+  PostgreSQL returning rows in insertion order.
+- Clearing the Architect's uploaded avatar restores its generated face, just as
+  it does for other agents. The special mark no longer overrides an empty avatar.
+
+## [1.38.2] - 2026-11-03
+
+### Fixed
+
+- Initialize the desktop TLS crypto provider before plugins and background connections start. Paired computers can connect to the server again instead of leaving local Claude Code or Codex chats waiting for the computer.
+
+## [1.38.1] - 2026-11-03
+
+### Fixed
+
+- Keep dashboard bar lists at their natural height so ranked agents and provider costs do not overlap idle-agent chips, monthly spend or other card content. Small cards scroll instead of compressing rows.
+
+## [1.38.0] - 2026-11-03
+
+### Added
+
+- Desktop chat controls can select local Claude Code or Codex for one conversation even when Coding agent is disabled or absent from the published agent. Existing approval and read-only rules remain active; a full-access folder and native task confirmation are still required.
+- Local coding tasks resume their conversation's harness session across process restarts. Mid-task corrections interrupt and continue the same session, with applied updates recorded in the transcript and report. Resume identifiers stay outside the repository and are isolated by account, agent, conversation, folder and access policy.
+- Local project instructions support both `AGENTS.md` and `CLAUDE.md`, with a tool to read the hierarchy inside the approved folder. Sign-in opens a native terminal on macOS, Windows and Linux.
+
+- The desktop app finds Claude Code and Codex on the computer, shows their version and whether they are signed in under Settings → Desktop app, and opens each agent's own sign-in in Terminal. AgenticOS never reads or copies the files an agent keeps its credentials in.
+- The `coding_agent` capability can run Claude Code or Codex on the person's own computer (**Where it runs: On this computer**), in a folder granted full access, over the Agent Client Protocol. The agent signs in with its own command, so no key is needed. Each start is confirmed in a native dialog; permission requests inside a task are answered from the binding's access, and the capability's approval stays once per task.
+- Chat controls → Work on → **My skills and instructions** lets a chat use the skills in `~/.agents`, `~/.claude` and `~/.codex` and your `AGENTS.md` (the newer of `~/.codex` and `~/.claude`, then the working folder's), read in place on the desktop and never copied. Off for every new chat and chosen per folder; a name clash goes to `.agents`, then `.claude`, then `.codex`.
+- Help → **Export Diagnostics…** in the desktop app writes one JSON file, to a place you choose, to attach to a bug report: version, operating system, permissions, coding agents installed and signed in, the server's origin and the last crashes - no credentials, tokens, conversations or home-folder paths, and nothing is sent. A panic is saved to `crash.log` as it happens.
+- A **Watch a command** capability (`monitor`): the agent starts a long-running command - a test watcher, a log tail, a CI poll - in its workspace and is told about its new output on its following steps, filtered by an optional pattern, without polling. At most four watches run at once and they all stop when the turn ends.
+- The composer shows which coding agent will work in which folder (`Claude Code · agenticos · can edit`) when the chosen agent runs one on this computer, or what is missing.
+- A world map in visuals and apps that needs no tile server or extra container: `AOWorldMap` draws countries shaded by a value, pins and routes as SVG from outlines the deployment serves itself.
+- Three bundled skills for building a slide deck as an app: `presentation-decks` (with a ready deck template), `deck-storyline` and `deck-review`.
+- A Homebrew tap, `vstorm-co/homebrew-agenticos`, published by the release workflow when `HOMEBREW_TAP_TOKEN` is set; `scripts/install_macos.sh` installs a release after checking its SHA-256.
+
+### Changed
+
+- **The first desktop window opens at 80% of the screen**, centred, until a size has been saved.
+- Releases are signed on macOS with one self-signed certificate when `MACOS_SELF_SIGNED_P12` is configured (`scripts/create_macos_signing_cert.sh` makes it), so macOS keeps Screen Recording and Microphone grants across updates. With the committed publisher pin, missing signing material stops the release; neither signing mode is notarized.
+- `GET /conversations` leaves out threads a bot answers in (Slack, Mattermost, Telegram, Teams) by default, so `/chat` no longer fills with them. Pass `hide_channels=false` to list them again; they stay reachable from Runs and the channel's page.
+
+### Fixed
+
+- Table, Kanban and List share one content background; local file-link origins use opaque identifiers with private desktop folder mappings.
+
+- Homebrew publication authenticates both Mac disk images against the pinned publisher before generating trusted tap checksums.
+
+- Bound the entire local ACP stream and close adapters on output overflow. Refuse monitors on desktop shells that cannot retain background processes. Require signing material when the publisher certificate is pinned. File links retain their original turn workspace, and HTML previews resolve nested CSS assets through that same authorized source.
+
+- The egress inventory includes per-chat local coding overrides; local launches recheck revoked grants after confirmation. Coding folder choices exclude incompatible grants, and file trees normalize current-directory path components.
+
+- Monitor starts reserve their limit before waiting, unfinished output stays bounded while matching full lines, and shutdown escalates unresponsive processes. Cancelled local coding-agent starts also reap sessions whose open replies were not observed; switching to local execution clears a sandbox-only model.
+
+- Coding-agent instructions remain fully readable, execution locations use icon cards, desktop readiness refreshes on native focus with guidance for macOS grants, and Tables uses consistent empty states across views without a large-screen catalog expansion button.
+
+- Conversation lists identify Claude Code and Codex used in a thread alongside its main agent, based on saved task reports and retained after refresh.
+
+- File viewers keep clear of macOS window controls, load directly linked workspace stylesheets and preserve original HTML in Source. Chat files retain their folder hierarchy, and files changed by a turn can be opened below its answer.
+
+- Live chat progress folds into an expandable line on small screens while answers and requests for attention stay visible.
+
+- Chat controls opens above the composer with direct coding-agent choices, compact tool switches and expandable folder and approval settings.
+
+- Tables and Workflows cards have the same default height on the dashboard.
+- Desktop chat settings open in a larger dialog with Tools & files and Preferences tabs. Selecting a local coding agent prepares an approved full-access folder automatically; cancelling preserves the previous choice. Finished coding tasks no longer leave a duplicate status panel below the answer.
+- The desktop console can list local coding agents and skills and open coding-agent sign-in. Their native commands are declared and granted to the main console, fixing the `Command not found` refusal.
+- Local Claude Code read-only tasks disable bypass permissions and expose reading tools only. Local Codex read-only is available in the Builder and selects its native read-only mode. Launch consent has a five-minute interaction timeout, and local skill counts follow the enabled sources.
+- Homebrew publishing supports a deploy key restricted to the tap repository, with temporary key cleanup on success and failure. The stable macOS publisher fingerprint is pinned for installer verification.
+
+- The desktop app can be allowed to use the microphone: the bundle now declares the audio-input and Apple Events entitlements it needs under the hardened runtime, and the setup wizard offers the microphone next to Screen Recording and Accessibility.
+- The cask attached to a release clears the download quarantine flag from the installed app, so Gatekeeper does not refuse an unnotarized build installed through Homebrew.
+## [1.37.0] - 2026-11-02
+
+### Added
+
+- Discord bots (#2079). A bot connects over Discord's Gateway, so a deployment
+  needs no public address for it. It answers direct messages, @mentions and
+  replies in a thread it opens on the question. It also answers `/ask` and
+  **Apps → Ask the agent** on any message. Answers stream by editing the
+  message in place, with text the guardrails have already screened.
+  Approvals and questions are buttons, or selects for more than 25 options.
+  `/link`, `/unlink`, `/agents`, `/new` and `/help` work as on the other
+  platforms. A thread the bot is brought into partway is read for its earlier
+  messages and files before it answers, and `read_channel_history` works there. Register one under **Channels → Add channel** with the bot token
+  and the Message Content Intent switched on. Explicitly approve server IDs in
+  the add/edit form, or pass `--discord-guild` to the CLI; an empty list permits
+  DMs only. Existing installations and removal/re-adds do not approve a server.
+  Console transcript access also requires Read Message History. `/ask` first
+  acknowledges privately, admits against the parent/thread key, rate-limits
+  link invitations and only then publishes the question. Signed attachment URL
+  queries are redacted from failure logs. A public bot, one anyone can add
+  to their own server, is refused until **Public Bot** is switched off; its
+  commands are offered only in servers it was added to. A Discord bot takes no
+  webhook, and setting one is refused. A bot in more than 2,500 servers stops and says
+  Discord requires sharding, which is not supported yet.
+
+### Fixed
+
+- A Microsoft Teams bot's form no longer offers a reaction to a question.
+  Teams never drew it, so the reaction chosen there was saved and ignored.
+
+## [1.36.1] - 2026-11-02
+
+### Fixed
+
+- Hide message action rows on phones until the More button beside the user or agent is tapped, saving room in the transcript. Keep desktop hover actions. Release the full-screen file reader when its listing fails and move focus into an auto-opened reader, restoring it to the file on return.
+
+- Move the phone Architect launcher into the header and reclaim its bottom clearance for lists and tables. Align the compact chat editor and actions to equal touch heights.
+
+- Make phone chat more comfortable while writing: keep attach, message and send in a compact row, offer agent selection and voice under the plus menu, hide welcome suggestions while composing and bound completion menus to the visible height. Preserve draft text and stable send targets as focus moves. Do not automatically focus touch-keyboard input on arrival or when a reply finishes.
+
+- Give agent and project instructions one compact toolbar, fold unused prompt variables, preserve preview when expanding Markdown, and align expanded-editor phone gutters. Keep phone text fields legible across authentication, files, integrations, tables and workflow forms while preserving desktop sizing. Keep floating App controls clear of the native status bar.
+
+- Reduce oversized desktop and phone spacing across headers, cards, settings, navigation, template categories and empty states. Capability cards open settings through one target, with explanations available on demand. Enable profile saving only for changed values and reset the email field after staging verification.
+
+- Keep phone dialog gutters consistent on all four edges, compact shared navigation and page headers, and move Context descriptions into the editor toolbar to leave more room for text.
+
+- Allow development assets from the hostname configured by `PUBLIC_SITE_URL`, so a console opened over Wi-Fi can initialize its login form.
+- Simplify phone navigation and editing: Inbox filters and MCP clients use selects, long settings navigation uses a section menu, secondary page commands fold away, project files open full screen and workflow step panels switch without losing edits. Keep administrative row actions visible on narrow screens and reduce dialog footer and run-summary height.
+- Improve phone layouts across page actions, app controls, skill and context editors, and file readers. Mobile editors fold descriptions and file management away while writing; project and workspace files have a dedicated reader. Source/preview controls use one button. Apps use floating back and options buttons, keeping more space for their content. Expanded editors preserve drafts and variable completion. Reduce the chat composer's height, align painted source text with its input, and open navigation without focusing its close button.
+
+## [1.36.0] - 2026-11-02
+
+### Security
+
+- The message of a turn a guardrail stopped is no longer replayed to the model in later turns' history. Each check reads only what is new in its own turn, so the message of a `guardrail_blocked` run was read back as history on the next turn, with the text that was typed and the head of each attached file (or the whole file for an agent without a workspace). A harmless follow-up could then get refused content past the input check. The history that web chat, the API, channels, the widget, workflows and a voice call's seed build now shows the model a short note in place of that message, whichever check stopped the turn, and a reply that quotes it quotes the note. A stopped turn also no longer keeps what its files added to the prompt. The person's own transcript still shows what they typed. The filter also applies to conversations from before the upgrade: migration `0248_drop_refused_turn_summaries` drops each stored conversation summary that reaches past such a message, so the next turn rebuilds its history from the transcript and pays for one new summary if it needs one; turns beyond the recent window that only the dropped summary recalled are no longer read back. The mark is kept on the message itself (`messages.guardrail_refused`, added by migration `0249_message_guardrail_refused`), so it holds after run retention deletes the run. The migration marks the messages of every `guardrail_blocked` run still stored; a message whose run retention deleted before the upgrade cannot be identified and stays unmarked. Search over past conversations (`conversation_search`) does not filter these messages yet.
+
+## [1.35.5] - 2026-11-02
+
+### Fixed
+
+- A document deleted while it was still being indexed no longer leaves its chunks searchable. The delete removed nothing because the document had no vector id yet: its chunks were written, or still being written, and the ingest had not recorded them. The ingest now queues a retried job that removes the chunks it wrote when it finds the document deleted, and a delete that discovers the newly recorded vector id queues the same durable removal. Recording the embedding spend of such a document no longer fails the ingest on the deleted row, which had left the chunks in place and retried the job until it died: the spend is kept against no document. A sync no longer counts such a document as ingested. Clearing a default knowledge base mid-ingest was already covered ([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
+
+## [1.35.4] - 2026-11-02
+
+### Fixed
+
+- The input guardrail no longer reads an attached picture's bytes. On a prompt with a picture it screened the prompt's whole representation, image data included, so PII redaction refused most pictures, a blocked keyword such as `png` matched the data, and a redaction ended the turn as `failed`. The edge now screens the prompt's text alone (a text file sent inline as text, and a link, where a match blocks because a link cannot be rewritten), a redaction rewrites that text and keeps the picture, and the check that runs before an attachment is written now predicts the edge for a turn with a picture too, so a blocked one no longer leaves its picture in the workspace. An inline text file is screened as the UTF-8 a model is sent, and one that declares another character set or is not valid UTF-8 blocks the turn instead of being screened as different text. The size limits of a resumed request count the text of all its prompt parts together (#2566).
+
+## [1.35.3] - 2026-11-02
+
+### Security
+
+- A link in an agent's answer that leads to another site now opens in a new tab, whatever its address looks like. A link written without `https://` - `//evil.example`, `https:evil.example`, `HTTPS:/evil.example` - was rendered as an in-page link, so a click took the console's own tab to that site. The chat decides a link is off-site by where the browser resolves it against the console, and opens it in a new tab with `rel="noopener noreferrer"`. Console links, including the Architect's links that point at a control, still open in place.
+
+## [1.35.2] - 2026-11-02
+
+### Changed
+
+- Run backend coverage once, shard frontend and E2E tests, reuse the production frontend build, and cache native builds. Build desktop release platforms in parallel and publish updater metadata only after every signed target is available.
+
+- Reuse successful checks for proven release-only cuts, prepare release train PRs from the CLI, reuse unchanged browser images, and retain scans and SBOMs when images are retagged. Offer production deployment only after a stable release is published, while keeping manual deployments and rollback.
+
+## [1.35.1] - 2026-11-02
+
+### Fixed
+
+- PyMuPDF ingestion skips embedded images when image description is off. With
+  descriptions on, shared images are extracted and described once per document,
+  while every referencing page keeps its description. Chunks no longer copy
+  embedded images, avoiding memory growth from repeated logos and diagrams in
+  large PDFs ([#2584](https://github.com/vstorm-co/agenticos/issues/2584)).
+
+## [1.35.0] - 2026-11-02
+
+### Changed
+
+- **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
+
+### Fixed
+
+- Declare the Harness tool argument repair extra so dependency upgrades retain `json-repair` and agent startup does not fail when importing `RepairToolArguments`. Update Harness and its matching Pydantic AI and graph packages to the compatible releases, preserve plan metadata and step IDs in structured tool returns, and keep goal reminders from repeating user text. Dependency freshness runs the whole suite with the same bounded parallel runner as CI so validation finishes within its job limit.
 
 ## [1.34.3] - 2026-11-02
 
@@ -1835,7 +2171,6 @@ Two things are versioned separately from this file and worth knowing about:
   history and the chat's tool row. The row says which kind of picture it
   was instead.
 
-
 ## [1.30.0] - 2026-10-30
 
 ### Added
@@ -1860,7 +2195,6 @@ Two things are versioned separately from this file and worth knowing about:
   Model** beside it, which opens the Model card on the Build tab.
 
 ### Fixed
-
 
 - Architect highlighting follows locale-cookie redirects and skips controls
   hidden by a responsive stylesheet.
@@ -19799,7 +20133,35 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...HEAD
+[1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
+[1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
+[1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
+[1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
+[1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
+[1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
+[1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
+[1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0
+[1.42.0]: https://github.com/vstorm-co/agenticos/compare/v1.41.0...v1.42.0
+[1.41.0]: https://github.com/vstorm-co/agenticos/compare/v1.40.0...v1.41.0
+[1.40.0]: https://github.com/vstorm-co/agenticos/compare/v1.39.2...v1.40.0
+[1.39.2]: https://github.com/vstorm-co/agenticos/compare/v1.39.1...v1.39.2
+[1.39.1]: https://github.com/vstorm-co/agenticos/compare/v1.39.0...v1.39.1
+[1.39.0]: https://github.com/vstorm-co/agenticos/compare/v1.38.4...v1.39.0
+[1.38.4]: https://github.com/vstorm-co/agenticos/compare/v1.38.3...v1.38.4
+[1.38.3]: https://github.com/vstorm-co/agenticos/compare/v1.38.2...v1.38.3
+[1.38.2]: https://github.com/vstorm-co/agenticos/compare/v1.38.1...v1.38.2
+[1.38.1]: https://github.com/vstorm-co/agenticos/compare/v1.38.0...v1.38.1
+[1.38.0]: https://github.com/vstorm-co/agenticos/compare/v1.37.0...v1.38.0
+[1.37.0]: https://github.com/vstorm-co/agenticos/compare/v1.36.1...v1.37.0
+[1.36.1]: https://github.com/vstorm-co/agenticos/compare/v1.36.0...v1.36.1
+[1.36.0]: https://github.com/vstorm-co/agenticos/compare/v1.35.5...v1.36.0
+[1.35.5]: https://github.com/vstorm-co/agenticos/compare/v1.35.4...v1.35.5
+[1.35.4]: https://github.com/vstorm-co/agenticos/compare/v1.35.3...v1.35.4
+[1.35.3]: https://github.com/vstorm-co/agenticos/compare/v1.35.2...v1.35.3
+[1.35.2]: https://github.com/vstorm-co/agenticos/compare/v1.35.1...v1.35.2
+[1.35.1]: https://github.com/vstorm-co/agenticos/compare/v1.35.0...v1.35.1
+[1.35.0]: https://github.com/vstorm-co/agenticos/compare/v1.34.3...v1.35.0
 [1.34.3]: https://github.com/vstorm-co/agenticos/compare/v1.34.2...v1.34.3
 [1.27.0]: https://github.com/vstorm-co/agenticos/compare/v1.26.0...v1.27.0
 [1.26.0]: https://github.com/vstorm-co/agenticos/compare/v1.25.0...v1.26.0

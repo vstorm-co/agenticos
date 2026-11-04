@@ -1,5 +1,5 @@
 ---
-source_sha: "eea316378394"
+source_sha: "3a0e34f1da43"
 ---
 
 # Governance { #governance }
@@ -1019,7 +1019,7 @@ controles en una fila ya resuelta.
 | Parámetro | |
 |---|---|
 | `status` | Se repite. Ausente significa pendientes — la cola |
-| `triggered_by_user_id` | De quién son los runs que aparcaron la llamada. Se lee de `agent_runs`: una aprobación pertenece a un run y un run pertenece a una persona |
+| `triggered_by_user_id` | De quién son los runs que aparcaron la llamada. Se lee de `agent_runs`: una aprobación pertenece a un run y un run pertenece a una persona. Deja fuera los runs en que el publicador sustituyó a una cuenta de chat sin enlazar; esas filas llevan en su lugar `asked_in_chat` (plataforma, nombre y bot), y sus campos `triggered_by_*` quedan vacíos |
 | `created_from`, `created_to` | Cuándo se aparcó la llamada, inclusive por ambos extremos |
 | `oldest_first` | Por defecto verdadero, y el valor por defecto es determinante — mira arriba: nada hace caducar una llamada, así que el orden inverso enterraría la fila que más necesita verse |
 
@@ -1226,7 +1226,7 @@ las rutas de listado no tienen por qué responder:
   nombres resueltos es la tabla por persona que rechazó la decisión 3 del diseño de
   actividad, llegando como descarga. La cola de aprobaciones ya resuelve en pantalla
   los correos de quien disparó y quien decidió, así que la exportación de aprobaciones
-  los conserva.
+  los conserva. También lleva el nombre visible o el handle de un desconocido del chat, tal como lo muestra la cola, en tres columnas: `asked_in_chat_platform`, `asked_in_chat_account` y `asked_in_chat_bot`. En esa fila las dos columnas de correo quedan vacías, porque el publicador no preguntó.
 - **Auditoría.** Cada exportación escribe una entrada de `audit_log` — una lectura
   masiva privilegiada, barata de registrar ahora e imposible de reconstruir después.
   Nombra la ventana, los filtros aplicados y el número de filas, nunca el cuerpo de la
@@ -1385,7 +1385,7 @@ sequenceDiagram
     end
 ```
 
-Cuatro propiedades que conviene conocer:
+Cinco propiedades que conviene conocer:
 
 - **Un run aparcado es reanudable.** Su historial de mensajes está guardado, así que
   la decisión se aplica a la conversación a la que pertenece en lugar de empezar de
@@ -1424,14 +1424,26 @@ Cuatro propiedades que conviene conocer:
   modelo eliminado, una capability caída en un despliegue, una conexión MCP dejada de
   compartir. El spec se ensambla antes de que el run salga de la cola de aprobaciones,
   así que un rechazo ahí rechaza el *intento*: la decisión se mantiene y reanudar
-  vuelve a funcionar en cuanto el spec funcione.
+  vuelve a funcionar en cuanto el spec funcione. Un run planteado en un chat que nadie
+  continuó lo termina la red de seguridad aproximadamente una hora después de su
+  última decisión.
+- **Quién continúa un run planteado en un chat.** La decisión de una persona en la
+  consola, en el chat web o por la API continúa el run en su chat, como ella, y la
+  respuesta se publica allí; la decisión de una clave se registra y no continúa
+  nada. Una continuación puede perderse o ser rechazada, y entonces el run espera en
+  `awaiting_approval` sin nada pendiente. La red de seguridad horaria termina un run
+  de canal así `STRANDED_AFTER` (una hora) después de su última decisión y se lo dice
+  al chat una vez - no cuando la decisión tiene más de 7 días, ni cuando el chat ya
+  lo supo. Solo mira runs de canal. Véase
+  [Decidido fuera del chat](channels.md#decided-outside-the-chat).
 - **Una aprobación resuelta no se puede decidir dos veces.** La segunda decisión se
   rechaza — incluida una decisión que llegue un segundo después de que el barrido de
   caducidad se llevara la llamada.
 - **Una llamada aparcada se deniega por tiempo en cuanto pasa de
   `APPROVAL_EXPIRY_HOURS`**, y el run que hay detrás se resuelve en vez de quedar
   aparcado para siempre. El estado es `expired` con un `decided_by_user_id` nulo, que
-  es lo que distingue una caducidad de un rechazo en el rastro de responsabilidad. La
+  es lo que distingue una caducidad de un rechazo en el rastro de responsabilidad. Un run planteado en un chat también le
+  dice una vez al chat que la petición caducó. La
   página Activity sigue mostrando la **edad** de la espera más antigua, porque una cola
   dentro de su ventana de caducidad es aquella sobre la que alguien todavía puede
   actuar.

@@ -18,6 +18,7 @@ export const CHAT_NOTIFICATION_CHANNELS = [
   "teams",
   "sms",
   "imessage",
+  "discord",
 ] as const;
 export type ChatNotificationChannel = (typeof CHAT_NOTIFICATION_CHANNELS)[number];
 export type NotificationChannel = "in_app" | "email" | "push" | ChatNotificationChannel;

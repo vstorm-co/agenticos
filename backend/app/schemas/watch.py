@@ -25,7 +25,7 @@ class WatchCreate(BaseSchema):
         description="Pause after this many consecutive unsuccessful executions; null disables this limit. Waiting and delivery failures do not count.",
     )
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=8
+        default=None, max_length=9
     )
     report_mode: WatchReportMode = "changes"
     agent_id: UUID = Field(
@@ -68,7 +68,7 @@ class WatchUpdate(BaseSchema):
     )
 
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=8
+        default=None, max_length=9
     )
     report_mode: WatchReportMode | None = None
     title: str | None = Field(default=None, min_length=1, max_length=120)
@@ -127,7 +127,7 @@ class WatchRead(BaseSchema):
     consecutive_failures: int = 0
     auto_stopped_at: datetime | None = None
     notification_channels: list[ExternalNotificationChannel] | None = Field(
-        default=None, max_length=8
+        default=None, max_length=9
     )
     report_mode: WatchReportMode = "changes"
     id: UUID

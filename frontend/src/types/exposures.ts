@@ -14,7 +14,7 @@ export type SessionScope = "run" | "conversation" | "channel" | "user" | "agent"
 
 /** A place an agent can be made available. Mirrors the backend's ExposureSurface. */
 export type ExposureSurface =
-  "slack" | "telegram" | "mattermost" | "teams" | "sms" | "email" | "imessage";
+  "slack" | "telegram" | "mattermost" | "teams" | "sms" | "email" | "discord" | "imessage";
 
 export interface Exposure {
   id: string;

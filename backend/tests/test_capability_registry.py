@@ -1055,8 +1055,10 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "computer_use",
             "subagents",
             "background_tools",
+            "background_tasks",
             "coding_agent",
             "video_generation",
+            "monitor",
         },
         "never": {"channel_tools", "follow_ups"},
     }

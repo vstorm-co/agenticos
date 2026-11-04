@@ -46,6 +46,8 @@ from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
+from app.agents.model_resolver import otari_price_identity
+
 logger = logging.getLogger(__name__)
 
 
@@ -169,6 +171,12 @@ def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str
     booked at $0 and no budget could stop the run. The vendor spells a version
     with dashes where the aggregator uses a dot, so both are tried.
     """
+    if provider == "otari":
+        identity = otari_price_identity(model_name)
+        if identity is None:
+            return []
+        vendor, bare = identity
+        return [(name, vendor) for name in dict.fromkeys((bare, bare.replace(".", "-")))]
     lookups: list[tuple[str, str | None]] = [(model_name, provider), (model_name, None)]
     vendor, slash, bare = model_name.partition("/")
     if slash:

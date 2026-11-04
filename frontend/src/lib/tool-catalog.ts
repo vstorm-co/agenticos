@@ -464,6 +464,27 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
 
+  // monitor - a long-running command watched while the agent works. Starting one is a
+  // shell step; what it matched so far and its state read as plain text.
+  start_monitor: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "startingMonitor",
+    displayNameKey: "startMonitor",
+  },
+  list_monitors: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingMonitors",
+    displayNameKey: "listMonitors",
+  },
+  stop_monitor: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "stoppingMonitor",
+    displayNameKey: "stopMonitor",
+  },
+
   // code_execution
   run_python: {
     kind: "code",
@@ -644,6 +665,24 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   // of its own, built from `subagent_*` frames rather than from these calls.
   // `task` is one agent asking another, and is drawn as that: the delegate's face
   // and name on the step, the brief and the answer under it.
+  start_background_task: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "startingBackgroundTask",
+    displayNameKey: "backgroundTaskStarted",
+  },
+  list_background_tasks: {
+    kind: "list",
+    render: "generic",
+    captionKey: "listingBackgroundTasks",
+    displayNameKey: "backgroundTasks",
+  },
+  stop_background_task: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "stoppingBackgroundTask",
+    displayNameKey: "backgroundTaskStopped",
+  },
   task: { kind: "delegate", render: "delegation", captionKey: "handingWork" },
   check_task: { kind: "delegate", render: "generic", captionKey: "checkingDelegate" },
   wait_tasks: { kind: "delegate", render: "generic", captionKey: "waitingDelegates" },

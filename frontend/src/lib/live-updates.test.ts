@@ -46,6 +46,8 @@ describe("staleQueries", () => {
     expect(staleQueries(change("secret"))).toEqual([qk.secrets.all(), qk.sharing.all()]);
     expect(staleQueries(change("mcp_connection"))).toEqual([
       qk.mcpConnections.all(),
+      qk.mcpServers.lists(),
+      qk.mcpServers.entries(),
       qk.sharing.all(),
     ]);
   });

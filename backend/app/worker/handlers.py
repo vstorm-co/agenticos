@@ -48,6 +48,8 @@ def production() -> Handlers:
     from app.services.sandbox_workspace import retry_pending_destroys
     from app.worker.tasks import (
         approval_tasks,
+        channel_tasks,
+        conversation_tasks,
         diagnostics_tasks,
         generated_media_tasks,
         invitation_tasks,
@@ -68,9 +70,15 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),
             Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
+            Handler(jobs.RUN_CONVERSATION_TASK, conversation_tasks.run_task),
+            Handler(jobs.RETURN_CONVERSATION_TASK, conversation_tasks.return_task),
+            Handler(
+                jobs.RECONCILE_CONVERSATION_TASKS, _each_tick(conversation_tasks.reconcile_tasks)
+            ),
             Handler(jobs.WORKFLOW_DISPATCH_NODE, workflow_tasks.dispatch_node),
             Handler(jobs.THINK_FOR_PERSON, proactive_tasks.think_for_person),
             Handler(jobs.LOOK_THROUGH_WATCH, proactive_tasks.look_through_watch),
@@ -78,6 +86,7 @@ def production() -> Handlers:
             Handler(jobs.INSTALL_ROLE_PACK, proactive_tasks.install_role_pack),
             Handler(jobs.WELCOME_MEMBER, proactive_tasks.welcome_member),
             Handler(jobs.CLEANUP_EXTERNAL_STATE, teardown_tasks.run_external_state_cleanup),
+            Handler(jobs.DISCARD_VECTOR_DOCUMENT, teardown_tasks.discard_vector_document),
             Handler(jobs.CHECK_AGENT_TRIGGERS, _each_tick(trigger_tasks.check_agent_triggers)),
             Handler(jobs.POLL_PORTAL_GRANTS, _each_tick(trigger_tasks.poll_portal_grants)),
             Handler(
@@ -89,6 +98,7 @@ def production() -> Handlers:
                 jobs.SWEEP_SANDBOX_OPERATIONS, _each_tick(trigger_tasks.sweep_sandbox_operations)
             ),
             Handler(jobs.SWEEP_MCP_CONNECTIONS, _each_tick(mcp_tasks.sweep_mcp_connections)),
+            Handler(jobs.SYNC_DISCORD_ROLES, _each_tick(channel_tasks.sync_discord_roles)),
             Handler(jobs.EXPIRE_APPROVALS, _each_tick(approval_tasks.expire_approvals)),
             Handler(jobs.EXPIRE_INVITATIONS, _each_tick(invitation_tasks.expire_invitations)),
             Handler(jobs.REAP_STALE_RUNS, _each_tick(run_tasks.reap_stale_runs)),
@@ -96,6 +106,7 @@ def production() -> Handlers:
                 jobs.SWEEP_TEARDOWN_RESERVATIONS,
                 _each_tick(teardown_tasks.sweep_teardown_reservations),
             ),
+            Handler(jobs.SWEEP_RAG_SCRATCH, _each_tick(teardown_tasks.sweep_rag_scratch)),
             Handler(jobs.APPLY_RETENTION, _each_tick(rag_tasks.apply_retention)),
             Handler(jobs.SWEEP_NOTIFICATIONS, _each_tick(notification_tasks.sweep_notifications)),
             Handler(jobs.SWEEP_BACKGROUND_JOBS, _each_tick(sweep_background_jobs)),
@@ -141,9 +152,15 @@ def _settler[P: Payload](task: Task[P], settle: Callable[[P, str], Awaitable[Non
 
 @cache
 def _settlers() -> dict[str, Settler]:
-    from app.worker.tasks import project_tasks, rag_tasks
+    from app.worker.tasks import conversation_tasks, project_tasks, rag_tasks
 
     return {
+        jobs.RUN_CONVERSATION_TASK.kind: _settler(
+            jobs.RUN_CONVERSATION_TASK, conversation_tasks.settle_lost_task
+        ),
+        jobs.RETURN_CONVERSATION_TASK.kind: _settler(
+            jobs.RETURN_CONVERSATION_TASK, conversation_tasks.settle_lost_return
+        ),
         jobs.MOVE_PROJECT_WORKSPACE.kind: _settler(
             jobs.MOVE_PROJECT_WORKSPACE, project_tasks.settle_project_copies
         ),

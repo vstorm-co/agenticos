@@ -3,11 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Expand in place: editors keep their DOM and unsaved input while the shell steps aside. */
-export function useWorkspaceFullscreen() {
+export function useWorkspaceFullscreen(initialExpanded = false) {
   const ref = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded);
   useEffect(() => {
     if (!expanded || ref.current === null) return;
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !ref.current.contains(focused)) {
+      const target = ref.current.querySelector<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
+      );
+      target?.focus();
+    }
     const previous: { element: HTMLElement; inert: boolean; visibility: string }[] = [];
     let current: HTMLElement = ref.current;
     while (current.parentElement !== null) {
@@ -44,6 +51,9 @@ export function useWorkspaceFullscreen() {
       for (const { element, inert, visibility } of previous) {
         element.inert = inert;
         element.style.visibility = visibility;
+      }
+      if (focused instanceof HTMLElement && focused.isConnected && !focused.closest("[inert]")) {
+        focused.focus();
       }
     };
   }, [expanded]);

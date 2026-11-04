@@ -1,5 +1,5 @@
 ---
-source_sha: "394883aa6fc7"
+source_sha: "54a1fafcd750"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -704,6 +704,28 @@ wyszukiwanie, a nie wyliczanka:
   50 — więc arytmetyka mieszka w `mcp_listing.page`, z testem na tej granicy, bo
   pomyłka o jeden pomija tam serwer albo pokazuje go dwa razy na liście, na
   której nikt by nie zauważył którego.
+
+  **Podłączony (Connected)** obejmuje każdy dostępny serwis z zapisanym kontem
+  organizacji lub osobistym, w tym własne serwery oraz wpisy katalogu lub rejestru
+  na innych stronach. Wiele kont mieści się na jednej karcie serwera. Konta
+  wyłączone i wymagające uwagi pozostają widoczne, aby można było nimi zarządzać.
+  Filtry wyszukiwania, kategorii, logowania i stanu połączenia działają przed
+  zliczaniem i stronicowaniem wyników.
+
+  Zapisane linki do serwerów ponownie otwierają okno kont, nawet gdy nieudany test
+  rejestru lub duplikat ukrywa serwer w widoku **Wszystkie (All)**. Porównywanie URL
+  zachowuje wielkość liter w ścieżkach i wartościach parametrów zapytania, dzięki
+  czemu różne punkty końcowe pozostają osobne. Ponowna autoryzacja konta korzysta
+  z adresu URL zapisanego dla tego konta.
+
+  W Connected i rejestrze dokładny klucz serwera ma pierwszeństwo przed powiązanymi wynikami,
+  więc zapisany link działa także wtedy, gdy inne opisy zawierają ten sam klucz. Wpisy
+  rejestru o identycznych nazwach zachowują stałą kolejność między stronami.
+
+  Gdy synchronizacja usunie wpis rejestru, zapisany klucz katalogu nadal otwiera istniejące
+  konta. Powrót z logowania w popupie odświeża zarówno strony listy, jak i zapisane zakładki
+  kont.
+
 - **Kategoria sięga też lustra.** Rejestr nie ma kategorii, więc każdy wpis
   dostaje ją przy synchronizacji z własnej nazwy i opisu, przez policzenie słów,
   po których rozpoznaje się każdą kategorię; wpis, który nie wymienia żadnego z

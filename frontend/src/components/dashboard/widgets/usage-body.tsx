@@ -76,11 +76,12 @@ export function UsageBody({
   // at once, and dims it so the numbers on screen are visibly the ones being
   // replaced. `aria-busy` says the same thing to a screen reader, which cannot
   // see the opacity.
+  // Preserve the content minimum so the frame scrolls the whole body, bottom padding included.
   return (
     <div
       aria-busy={isStale || undefined}
       className={cn(
-        "flex min-h-0 flex-1 flex-col transition-opacity",
+        "flex flex-1 flex-col transition-opacity",
         isStale && "pointer-events-none opacity-50",
       )}
     >

@@ -197,6 +197,8 @@ function respond(path: string, options?: { params?: Record<string, string> }): u
     };
   }
   switch (path) {
+    case "/conversations/background-tasks":
+      return [];
     case "/admin/background-jobs/activity":
       return {
         window: "day",

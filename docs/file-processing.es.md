@@ -1,5 +1,5 @@
 ---
-source_sha: "759491a1f3dc"
+source_sha: "ce58011288a1"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1006,6 +1006,24 @@ las liste: la misma regla que al eliminar una colección ([#2560](https://github
 los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
 documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
+Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran las mismas
+filas, con sus archivos, y el trabajo de limpieza elimina la tabla: las filas de la
+propia base y las filas sin asignar de su tenant. Para una base de organización o una
+base personal son las de su organización, para una base app-scoped las que no tienen
+organización (las que escribe `rag-ingest`), y para una base personal fuera de una
+organización ninguna.
+
+Las filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos,
+porque quien llama no tiene autoridad sobre ellas. Sus fragmentos se van con la
+tabla, así que se marcan como fallidas: la siguiente base de ese tenant con ese
+nombre las lista como fallidas, un documento subido hay que subirlo de nuevo y una
+sincronización vuelve a indexar un documento sincronizado.
+
+Antes, `DELETE /kb/{id}` dejaba las filas sin asignar del tenant detrás de la tabla
+eliminada, todavía listadas como indexadas, y eliminar una colección borraba todas
+las filas bajo el nombre, fuera del tenant que fuera
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
+
 Una subida o una sincronización que aún indexa un archivo para la base cuando se
 borra no deja fragmentos. La escritura toma un bloqueo sobre la fila de la base que
 choca con el del borrado, en la transacción que inserta los fragmentos: una escritura que llega segunda no
@@ -1013,6 +1031,15 @@ encuentra la base, no escribe nada y falla en el paso de indexación, y una escr
 que llega primera se confirma antes del borrado, cuya limpieza elimina después sus
 fragmentos
 ([#2561](https://github.com/vstorm-co/agenticos/issues/2561)).
+
+Tampoco deja fragmentos un documento suelto borrado mientras aún se indexa. Su
+fila no tiene identificador de documento vectorial hasta que la ingesta lo
+registra, así que el borrado puede no tener nada que eliminar; el worker que no
+encuentra la fila al registrar el resultado encola, en la misma transacción, un
+trabajo que elimina los fragmentos que acaba de escribir y se reintenta si la
+eliminación falla. Un borrado que descubre el identificador recién registrado encola la misma
+eliminación duradera con el identificador de la fila borrada
+([#2565](https://github.com/vstorm-co/agenticos/issues/2565)).
 
 Una sincronización local encolada para una base borrada antes de ejecutarse
 termina con un error y no escribe nada
@@ -1175,6 +1202,12 @@ Un documento que no falló, o que no tiene archivo guardado — uno anterior a q
 las subidas guardaran el suyo, o uno que ingirió una sincronización — se rechaza
 con un 400 en vez de pasar a `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+El reintento también rechaza un documento de una organización sin asignar a ninguna
+base de conocimiento: sus fragmentos se escribirían para todo el deployment, donde la
+base de la organización que lo lista no lee, así que hay que subirlo de nuevo. Uno
+sin organización es de una base app-scoped, que lee ahí, y se reintenta
+([#2568](https://github.com/vstorm-co/agenticos/issues/2568)).
 
 ### Qué dice una ingesta fallida { #what-a-failed-ingest-says }
 
@@ -1639,8 +1672,12 @@ callejón sin salida. Lo que no ofrece es borrar un perfil: eso va donde se
 gestionan los modelos de una organización, y un perfil que usan agents no se
 puede borrar.
 
-Las descripciones generadas se incluyen en el texto del documento, para
-mejor búsqueda semántica.
+PyMuPDF omite la extracción de imágenes incrustadas cuando su descripción está
+desactivada. Al activarla, cada xref de imagen se extrae una sola vez por
+documento, se agrupan las referencias repetidas en una página y los bytes de
+imagen idénticos se describen una sola vez. Cada página que referencia una imagen
+sigue recibiendo su descripción en el texto para la búsqueda semántica. Los chunks
+contienen ese texto sin copiar las imágenes incrustadas de la página.
 
 ## Desde un canal { #from-a-channel }
 

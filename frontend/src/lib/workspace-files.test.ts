@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { bytesKey, documentName, readFileBytes, readFileText, textKey } from "./workspace-files";
+import {
+  bytesKey,
+  documentName,
+  readFileBytes,
+  readFileText,
+  textKey,
+  workspaceFileAccess,
+} from "./workspace-files";
 import { apiClient } from "./api-client";
 import { readLocalFile } from "./desktop/commands";
 
@@ -104,4 +111,36 @@ describe("native file source", () => {
     expect(textKey(source, "a")).not.toEqual(textKey({ kind: "local", root: "/other" }, "a"));
     expect(bytesKey(source, "a")).not.toEqual(textKey(source, "a"));
   });
+});
+
+it("prepares linked local CSS through the same root and leaves Source unchanged", async () => {
+  const html = '<link rel="stylesheet" href="style.css"><h1>Hello</h1>';
+  vi.mocked(readLocalFile).mockImplementation(async (_root, path) =>
+    new TextEncoder().encode(path.endsWith(".css") ? "h1{color:green}" : html),
+  );
+  const access = workspaceFileAccess({ kind: "local", root: "/approved" }, "site/index.html");
+  await expect(access.readPreview?.()).resolves.toMatchObject({
+    content: expect.stringContaining("<style>h1{color:green}</style>"),
+  });
+  expect(readLocalFile).toHaveBeenCalledWith("/approved", "site/style.css");
+  await expect(access.readText()).resolves.toEqual({ content: html, truncated: false });
+});
+
+it("loads CSS image bytes through the original local root", async () => {
+  const html = '<link rel="stylesheet" href="style.css">';
+  vi.mocked(readLocalFile).mockImplementation(async (_root, path) =>
+    new TextEncoder().encode(
+      path.endsWith(".css")
+        ? 'body{background:url("image.png")}'
+        : path.endsWith(".png")
+          ? "image-bytes"
+          : html,
+    ),
+  );
+  const preview = await workspaceFileAccess(
+    { kind: "local", root: "/original" },
+    "site/index.html",
+  ).readPreview?.();
+  expect(preview?.content).toContain("data:image/png;base64,");
+  expect(readLocalFile).toHaveBeenCalledWith("/original", "site/image.png");
 });
