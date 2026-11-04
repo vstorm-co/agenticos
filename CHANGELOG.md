@@ -25,11 +25,14 @@ Two things are versioned separately from this file and worth knowing about:
 - Search the web through Keenable without an account, or select an optional vault key for account-backed requests. The Builder and vault show the official logo; query-relevant snippets are normalized into the existing cited search results.
 - Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
 
+### Fixed
+
+- Save assistant message parts containing local or conversation file origins without UUID serialization errors in JSONB, preserving their order and omitting unset fields. (#2709)
+
 ## [1.45.1] - 2026-11-04
 
 ### Fixed
 
-- Save assistant message parts containing local or conversation file origins without UUID serialization errors in JSONB, preserving their order and omitting unset fields. (#2709)
 - The MCP servers Connected filter includes accessible organization and personal
   accounts across catalog pages, including custom servers, with one card per
   service and consistent filtering, result counts and pagination.
