@@ -642,23 +642,30 @@ class TestInteractions:
             f"/channels/{CHANNEL}/messages",
             httpx.Response(200, json={"id": "q1"}),
         )
-        await adapter._on_interaction(
-            {
-                "type": 2,
-                "id": "i1",
-                "token": "itok",
-                "guild_id": GUILD,
-                "channel": {"id": CHANNEL, "type": 0},
-                "member": {"user": {"id": USER, "username": "ada"}},
-                "data": {"name": "ask", "type": 1, "options": [{"value": "refund window?"}]},
-            },
-            BOT,
-        )
+        checked = (BOT, "linked-user", "linked-identity")
+
+        async def admit(incoming: IncomingMessage) -> None:
+            incoming.discord_roles_checked_for = checked
+
+        with patch.object(discord, "refusal_before_publishing", side_effect=admit):
+            await adapter._on_interaction(
+                {
+                    "type": 2,
+                    "id": "i1",
+                    "token": "itok",
+                    "guild_id": GUILD,
+                    "channel": {"id": CHANNEL, "type": 0},
+                    "member": {"user": {"id": USER, "username": "ada"}},
+                    "data": {"name": "ask", "type": 1, "options": [{"value": "refund window?"}]},
+                },
+                BOT,
+            )
         [incoming] = spawned
         assert isinstance(incoming, IncomingMessage)
         assert incoming.platform_chat_id == f"{CHANNEL}:q1"
         assert incoming.text == "refund window?"
         assert incoming.addressed is True
+        assert incoming.discord_roles_checked_for == checked
         assert adapter._thread_names.get(f"{CHANNEL}:q1") == "refund window?"
         [body] = api.posted("/interactions/i1/itok/callback")
         assert body == {"type": 5, "data": {"flags": 64}}
