@@ -1240,15 +1240,9 @@ approval resume, including inside delegates. Remote credentials and service
 caches are not included. A folder for each personal account includes its stable
 account id, so similar email addresses cannot overwrite one another.
 
-**It is an optional install.** Install the `mirage` extra
-(`EXTRAS="--extra mirage"`). Mirage 0.0.8 no longer needs the previous shell
-parser's compiler step. Without the extra, the Builder says the terminal is not
-installed and publishing refuses a spec that binds it. The S3 family, Box,
-LanceDB backends are not mountable in this image; the Builder
-explains why. All effective configurable hosts, including backend defaults, must
-be permitted by `MIRAGE_ALLOWED_HOSTS`.
+**It is an optional install.** Install the `mirage` extra (`EXTRAS="--extra mirage"`). Mirage 0.0.8 no longer needs the previous shell parser's compiler step. Without the extra, the Builder says the terminal is not installed and publishing refuses a spec that binds it. The S3 family remains unavailable because its async SDK conflicts with the current AWS dependencies; the Builder explains why. All effective configurable hosts, including backend defaults, must be permitted by `MIRAGE_ALLOWED_HOSTS`.
 
-
+**Box and LanceDB.** Box uses a service account through Client Credentials: supply `client_id`, `enterprise_id` and a vault API-key secret (`custom` purpose) for `client_secret`. Developer tokens and rotating OAuth refresh tokens are not accepted. LanceDB is Cloud/Enterprise only: provide `uri: db://database-name`, a required `host_override` HTTPS endpoint permitted by `MIRAGE_ALLOWED_HOSTS`, and a vault API-key secret (`custom`) for `api_key`. Local paths, object-store URIs and `storage_options` are refused. The extra includes LanceDB and PyArrow, so an image built with it is larger.
 
 Qdrant and Langfuse are available with the extra. Qdrant supports file listing,
 reading and text grep; model-backed semantic search is not enabled. Connected-account

@@ -86,9 +86,7 @@ network work belongs to mounted services or the platform’s web capabilities.
   the per-folder approval possible without a parser of our own.
 - **Not available here:** the S3 family (S3, R2, GCS, OCI, MinIO and other
   S3-compatible stores) needs `aioboto3`, which pins `boto3` below the 1.43 this
-  project runs on; `lancedb` brings `pyarrow`; `box` rotates
-  its refresh token on every use, so a stored one stops working; `disk` reads the
-  server's own filesystem.
+  project runs on; `disk` reads the server's own filesystem.
 - **Isolation.** Mount modes, hidden paths and the command allowlist are enforced
   in-process by Mirage's dispatcher and shell. That is a policy boundary, not a
   security boundary against the process; the credential's scope is what bounds what
@@ -109,3 +107,25 @@ SSH is password-only through the vault, with an explicit username and pinned
 public host key. The adapter disables API-host SSH config, agent authentication
 and default private keys. It replaces only the connection setup of Mirage 0.0.8’s
 SSH accessor; real SFTP and cancellation tests pin its protected lifecycle fields.
+
+
+### Rechecked backends (2026-11-04)
+
+- Box is available through its existing Client Credentials service-account flow.
+  It requires a client ID, enterprise ID and vault client secret; developer tokens
+  and rotating OAuth grants are rejected. No extra dependency is needed.
+- LanceDB 0.41.0 and PyArrow 26.0.1 resolve with the current lock and have compatible
+  wheels for the tested Python 3.15 environment. They are included only through
+  the optional Mirage extra (and the test group). The downloaded macOS ARM64 wheels
+  total about 101 MiB compressed; ordinary images do not include this extra.
+- LanceDB accepts only `db://database-name`, a required vault API key and an
+  explicit HTTPS `host_override` checked at publish and runtime. Local paths,
+  object-store URIs and `storage_options` cannot inherit host credentials.
+- A fresh resolver check still rejects `aioboto3>=15.5.0` with
+  `boto3>=1.43.114`: the latest aioboto3 pins aiobotocore 2.25.1, whose boto3 extra
+  requires `boto3>=1.40.46,<1.40.62`. No pins are overridden or downgraded.
+
+Sources: [aioboto3 metadata](https://pypi.org/pypi/aioboto3/15.5.0/json),
+[aiobotocore metadata](https://pypi.org/pypi/aiobotocore/2.25.1/json),
+[LanceDB releases](https://pypi.org/project/lancedb/0.41.0/),
+[Box CCG](https://github.com/box/developer.box.com/blob/main/content/guides/authentication/client-credentials/index.md).

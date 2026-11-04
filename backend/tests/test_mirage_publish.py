@@ -231,3 +231,33 @@ async def test_a_mount_may_only_lend_a_secret_to_its_intended_service(purpose, a
     assert (problems == []) is accepted
     if not accepted:
         assert problems == ["/code/ needs a github secret for token, but 'key' is for openai"]
+
+
+@pytest.mark.parametrize("allowed", [False, True])
+async def test_lancedb_cloud_endpoint_must_be_allowlisted_before_publishing(allowed: bool) -> None:
+    endpoint = "company.us-east-1.api.lancedb.com"
+    config = MirageConfig.model_validate(
+        {
+            "mounts": [
+                {
+                    "path": "/data/",
+                    "backend": "lancedb",
+                    "options": {"uri": "db://company", "host_override": "https://" + endpoint},
+                    "secrets": {"api_key": str(TOKEN)},
+                }
+            ]
+        }
+    )
+    problems = await _problems(
+        _ctx(),
+        config,
+        secrets={
+            TOKEN: SimpleNamespace(purpose="custom", kind=SecretKind.API_KEY.value, name="LanceDB")
+        },
+        hosts=[endpoint] if allowed else [],
+    )
+    assert (problems == []) is allowed
+    if not allowed:
+        assert problems == [
+            "/data/: host_override names a host this deployment does not allow; an operator adds it to MIRAGE_ALLOWED_HOSTS"
+        ]

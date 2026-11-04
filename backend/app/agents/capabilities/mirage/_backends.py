@@ -83,6 +83,7 @@ ADDRESS_FIELDS: Mapping[str, tuple[str, ...]] = {
     "tidb_filesystem": ("host",),
     "qdrant": ("url", "host"),
     "langfuse": ("host",),
+    "lancedb": ("host_override",),
 }
 """Fields that name a host the deployment will connect to, by backend.
 
@@ -158,9 +159,7 @@ UNAVAILABLE: Mapping[str, str] = {
         _S3_FAMILY,
         "Needs aioboto3, which pins boto3 below the version this deployment runs on.",
     ),
-    "lancedb": "Not installed: it brings pyarrow, which is too heavy for the image.",
     "disk": "It reads the server's own filesystem.",
-    "box": "Box replaces its refresh token on every use, so a stored one stops working.",
 }
 """Backends this deployment does not offer, and the sentence an author reads."""
 
@@ -189,6 +188,7 @@ _TITLES: Mapping[str, str] = {
     "ram": "Scratch folder",
     "qdrant": "Qdrant",
     "langfuse": "Langfuse",
+    "lancedb": "LanceDB Cloud / Enterprise",
 }
 
 
@@ -247,6 +247,16 @@ def config_class(name: str) -> type[BaseModel] | None:
         from app.agents.capabilities.mirage._ssh import VaultSSHConfig
 
         return VaultSSHConfig
+    if name in {"box", "lancedb"}:
+        from mirage.vfs.registry import REGISTRY, resolve_class
+
+        from app.agents.capabilities.mirage._remote_configs import (
+            BoxServiceConfig,
+            CloudLanceDBConfig,
+        )
+
+        resolve_class(REGISTRY[name][0])
+        return BoxServiceConfig if name == "box" else CloudLanceDBConfig
     if name == "redis":
         return RedisConfig
     from mirage.vfs.registry import REGISTRY, resolve_class
@@ -275,6 +285,10 @@ def _hidden(name: str, credential: Credential) -> frozenset[str]:
     hidden = _HIDDEN_FIELDS - _EXPOSED_OVERRIDES.get(name, frozenset())
     if name == "ssh":
         hidden |= {"passphrase"}
+    if name == "box":
+        hidden |= {"access_token", "refresh_token"}
+    if name == "lancedb":
+        hidden |= {"storage_options"}
     if credential == "google":
         hidden |= _GOOGLE_FIELDS
     if credential == "microsoft":

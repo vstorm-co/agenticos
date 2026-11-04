@@ -32,7 +32,9 @@ Two things are versioned separately from this file and worth knowing about:
   the organization's or each person's own, connected on the vault page. Typed
   hosts must be on the new `MIRAGE_ALLOWED_HOSTS`. The terminal is the optional
   `mirage` extra (`EXTRAS="--extra mirage"`). See
-  [Virtual terminal](docs/reference/capabilities.md#mirage).
+  [Virtual terminal](docs/reference/capabilities.md#mirage). Box service accounts use Client Credentials;
+  LanceDB Cloud/Enterprise mounts require a vault key and an allowlisted HTTPS
+  endpoint. Local LanceDB storage and rotating Box grants are refused.
 ## [1.47.3] - 2026-11-04
 
 ### Fixed

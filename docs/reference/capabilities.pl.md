@@ -1,5 +1,5 @@
 ---
-source_sha: "51b4b90da79b"
+source_sha: "df3aa9f082d4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1300,14 +1300,9 @@ wiadomości zaparkowanego runu i odtwarzane po zatwierdzeniu, również u delega
 Nie obejmuje to poświadczeń ani cache usług zewnętrznych. Folder konta osobistego
 zawiera jego stały identyfikator, więc podobne adresy e-mail nie nadpisują kont.
 
-**To instalacja opcjonalna.** Zainstaluj extra `mirage`
-(`EXTRAS="--extra mirage"`). Mirage 0.0.8 nie wymaga już poprzedniego kroku
-kompilacji parsera powłoki. Bez extra Builder informuje o braku terminala,
-a publikacja odrzuca spec, który go wiąże. Backendów rodziny S3, Box i LanceDB nie można zamontować w tym obrazie; Builder wyjaśnia przyczynę.
-Wszystkie konfigurowalne hosty, także domyślne adresy backendów, muszą znajdować
-się na `MIRAGE_ALLOWED_HOSTS`.
+**To instalacja opcjonalna.** Zainstaluj extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 nie wymaga już poprzedniego kroku kompilacji parsera powłoki. Bez extra Builder informuje o braku terminala, a publikacja odrzuca spec, który go wiąże. Rodzina S3 pozostaje niedostępna: jej asynchroniczny SDK koliduje z obecnymi zależnościami AWS; Builder wyjaśnia przyczynę. Wszystkie konfigurowalne hosty, także domyślne adresy backendów, muszą znajdować się na `MIRAGE_ALLOWED_HOSTS`.
 
-
+**Box i LanceDB.** Box korzysta z konta serwisowego przez Client Credentials: podaj `client_id`, `enterprise_id` i sekret typu API key z vaulta (przeznaczenie `custom`) jako `client_secret`. Tokeny deweloperskie i rotujące tokeny odświeżania OAuth nie są obsługiwane. LanceDB działa wyłącznie jako Cloud/Enterprise: podaj `uri: db://database-name`, wymagany endpoint HTTPS `host_override` dopuszczony w `MIRAGE_ALLOWED_HOSTS` i sekret API key (`custom`) jako `api_key`. Lokalne ścieżki, URI magazynów obiektowych i `storage_options` są odrzucane. Extra zawiera LanceDB i PyArrow, więc obraz z tą opcją jest większy.
 
 Qdrant i Langfuse są dostępne w extra. Qdrant obsługuje listowanie i odczyt plików
 oraz tekstowy grep; semantyczne wyszukiwanie wymagające modelu nie jest włączone.

@@ -74,6 +74,18 @@ class ResolvedMount:
             from app.agents.capabilities.mirage._ssh import build_ssh
 
             vfs = build_ssh(self.config)
+        elif self.backend == "box":
+            from mirage.vfs.box import BoxVFS
+
+            from app.agents.capabilities.mirage._remote_configs import BoxServiceConfig
+
+            vfs = BoxVFS(BoxServiceConfig.model_validate(self.config))
+        elif self.backend == "lancedb":
+            from mirage.vfs.lancedb import LanceDBVFS
+
+            from app.agents.capabilities.mirage._remote_configs import CloudLanceDBConfig
+
+            vfs = LanceDBVFS(CloudLanceDBConfig.model_validate(self.config))
         else:
             vfs = build_vfs(self.backend, None if self.backend == "ram" else dict(self.config))
         return Mount(vfs, mode=MountMode.WRITE if self.mode == "write" else MountMode.READ)

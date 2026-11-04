@@ -1,5 +1,5 @@
 ---
-source_sha: "51b4b90da79b"
+source_sha: "df3aa9f082d4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1327,14 +1327,9 @@ delegados. No se incluyen credenciales ni cachés de servicios externos. La
 carpeta de cada cuenta personal incluye su ID estable para evitar que direcciones
 de correo similares sobrescriban otras cuentas.
 
-**Es una instalación opcional.** Instala el extra `mirage`
-(`EXTRAS="--extra mirage"`). Mirage 0.0.8 ya no requiere el antiguo paso de
-compilación del analizador de shell. Sin el extra, el Builder indica que falta
-el terminal y rechaza un spec que lo vincule. La familia S3, Box y LanceDB no se pueden montar en esta imagen; el Builder explica el motivo.
-Todos los hosts configurables, incluidos los valores predeterminados de los
-backends, deben estar permitidos en `MIRAGE_ALLOWED_HOSTS`.
+**Es una instalación opcional.** Instala el extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 ya no requiere el antiguo paso de compilación del analizador de shell. Sin el extra, el Builder indica que falta el terminal y rechaza un spec que lo vincule. La familia S3 sigue sin estar disponible porque su SDK asíncrono entra en conflicto con las dependencias AWS actuales; el Builder explica el motivo. Todos los hosts configurables, incluidos los valores predeterminados de los backends, deben estar permitidos en `MIRAGE_ALLOWED_HOSTS`.
 
-
+**Box y LanceDB.** Box utiliza una cuenta de servicio mediante Client Credentials: proporciona `client_id`, `enterprise_id` y un secreto API key del vault (propósito `custom`) para `client_secret`. No admite tokens de desarrollo ni refresh tokens OAuth rotatorios. LanceDB solo funciona como Cloud/Enterprise: requiere `uri: db://database-name`, un endpoint HTTPS `host_override` permitido en `MIRAGE_ALLOWED_HOSTS` y un secreto API key (`custom`) para `api_key`. Rechaza rutas locales, URI de almacenamiento de objetos y `storage_options`. El extra incluye LanceDB y PyArrow, lo que aumenta el tamaño de la imagen.
 
 Qdrant y Langfuse están disponibles con el extra. Qdrant permite listar y leer
 archivos y usar grep de texto; la búsqueda semántica con modelos no está habilitada.

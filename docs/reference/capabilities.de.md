@@ -1,5 +1,5 @@
 ---
-source_sha: "51b4b90da79b"
+source_sha: "df3aa9f082d4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1382,14 +1382,9 @@ Delegaten. Zugangsdaten und Caches externer Dienste gehören nicht dazu. Der Ord
 eines persönlichen Kontos enthält dessen stabile ID, damit ähnliche
 E-Mail-Adressen keine Konten überschreiben.
 
-**Die Installation ist optional.** Installieren Sie das Extra `mirage`
-(`EXTRAS="--extra mirage"`). Mirage 0.0.8 benötigt den früheren Compilerschritt
-für den Shell-Parser nicht mehr. Ohne Extra meldet der Builder das fehlende
-Terminal und lehnt einen Spec ab, der es bindet. Die S3-Familie, Box und LanceDB lassen sich in diesem Image nicht einbinden; der Builder
-nennt den Grund. Alle konfigurierbaren Hosts, auch Standardadressen der Backends,
-müssen durch `MIRAGE_ALLOWED_HOSTS` zugelassen sein.
+**Die Installation ist optional.** Installieren Sie das Extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 benötigt den früheren Compilerschritt für den Shell-Parser nicht mehr. Ohne Extra meldet der Builder das fehlende Terminal und lehnt einen Spec ab, der es bindet. Die S3-Familie bleibt wegen eines Konflikts zwischen ihrem asynchronen SDK und den aktuellen AWS-Abhängigkeiten nicht verfügbar; der Builder nennt den Grund. Alle konfigurierbaren Hosts, auch Standardadressen der Backends, müssen durch `MIRAGE_ALLOWED_HOSTS` zugelassen sein.
 
-
+**Box und LanceDB.** Box verwendet ein Dienstkonto über Client Credentials: `client_id`, `enterprise_id` und ein API-Key-Secret im Vault (Zweck `custom`) für `client_secret`. Entwicklertokens und rotierende OAuth-Refresh-Tokens werden abgelehnt. LanceDB unterstützt nur Cloud/Enterprise: `uri: db://database-name`, ein erforderlicher HTTPS-Endpunkt `host_override` aus `MIRAGE_ALLOWED_HOSTS` und ein API-Key-Secret (`custom`) für `api_key`. Lokale Pfade, Objektspeicher-URIs und `storage_options` sind nicht erlaubt. Das Extra enthält LanceDB und PyArrow und vergrößert daher das Image.
 
 Qdrant und Langfuse sind mit dem Extra verfügbar. Qdrant bietet Dateilisten,
 Lesezugriffe und Text-grep; modellgestützte semantische Suche ist nicht aktiviert.
