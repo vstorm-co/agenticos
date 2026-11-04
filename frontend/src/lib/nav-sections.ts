@@ -83,8 +83,8 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: null,
     domain: "use",
     items: [
+      { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
-      // What the platform brought each person on its own (#2301): theirs, so ungated.
       {
         labelKey: "inbox",
         href: ROUTES.INBOX,
@@ -92,7 +92,12 @@ export const NAV_GROUPS: NavGroup[] = [
         dataTour: "nav-inbox",
         count: "inbox",
       },
-      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
+    ],
+  },
+  {
+    labelKey: "build",
+    domain: "build",
+    items: [
       {
         labelKey: "agents",
         href: ROUTES.AGENTS,
@@ -101,17 +106,26 @@ export const NAV_GROUPS: NavGroup[] = [
         dataTour: "nav-agents",
       },
       {
+        labelKey: "workflows",
+        href: ROUTES.WORKFLOWS,
+        icon: Workflow,
+        permission: Perm.workflowsView,
+        dataTour: "nav-workflows",
+      },
+      {
+        labelKey: "routines",
+        href: ROUTES.ROUTINES,
+        icon: TimerReset,
+        permission: Perm.agentsView,
+      },
+      {
         labelKey: "artifacts",
         href: ROUTES.ARTIFACTS,
         icon: PanelsTopLeft,
         permission: Perm.artifactsView,
       },
-      { labelKey: "documents", href: ROUTES.DOCUMENTS, icon: Files },
     ],
   },
-  // Somebody's ongoing work: the projects they are in, most recent first, drawn
-  // above this entry by the sidebar itself (`ProjectRows`) - the list is data,
-  // not a table row. The entry is what every project's page belongs to.
   {
     labelKey: "projects",
     domain: "use",
@@ -126,33 +140,6 @@ export const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-  {
-    labelKey: "build",
-    domain: "build",
-    collapsible: true,
-    items: [
-      { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
-      {
-        labelKey: "workflows",
-        href: ROUTES.WORKFLOWS,
-        icon: Workflow,
-        permission: Perm.workflowsView,
-        dataTour: "nav-workflows",
-      },
-      // The org-wide create-and-manage home for triggers. Gated on `agents:view`,
-      // the floor for seeing an agent's schedule; the create controls inside gate
-      // further on `agents:run`, so a viewer sees the list without the buttons.
-      {
-        labelKey: "routines",
-        href: ROUTES.ROUTINES,
-        icon: TimerReset,
-        permission: Perm.agentsView,
-      },
-      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
-    ],
-  },
-  // What an agent knows: the documents it searches, the files it kept, the
-  // how-tos it follows and the standing context it is always given.
   {
     labelKey: "knowledge",
     domain: "knowledge",
@@ -178,6 +165,16 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: NotebookTabs,
         permission: Perm.contextView,
       },
+      { labelKey: "documents", href: ROUTES.DOCUMENTS, icon: Files },
+    ],
+  },
+  {
+    labelKey: "monitoring",
+    domain: "build",
+    collapsible: true,
+    items: [
+      { labelKey: "activity", href: ROUTES.RUNS, icon: Activity, permission: Perm.runsView },
+      { labelKey: "backgroundWork", href: ROUTES.WORK, icon: BackgroundIcon },
     ],
   },
   // What the organization is connected to. Set up once, revisited rarely, so

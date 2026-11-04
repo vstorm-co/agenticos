@@ -728,12 +728,16 @@ An agent with **Past conversations** offers your thirty most recent accessible c
 
 ## What each area is for
 
-The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
-**Knowledge** holds Knowledge bases, Documents, Skills and Context. Two groups
-fold to their heading until you open them, because they are set up once and
-visited rarely: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) and
-**Organization** (Organizations, Groups). A folded group opens by itself on any
-page inside it, and stays the way you left it.
+**Overview** (Dashboard), **Chat** and **Inbox** lead the sidebar. **Build & manage**
+keeps Agents, Workflows, Routines and Apps visible; Projects follow.
+
+**Knowledge** opens by default and holds Knowledge bases, Tables, Skills, Context
+and Documents. Its manually chosen open or closed state is remembered.
+**Monitoring** groups Activity and Background work and starts collapsed.
+
+**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) and
+**Organization** (Organizations, Groups) remain collapsible and remember your
+choice. A group containing the current page always opens to keep that page visible.
 
 | Area | It holds | Read |
 |---|---|---|

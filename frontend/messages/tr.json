@@ -208,6 +208,7 @@
     "releaseCheckUnavailable": "Yeni sürüm kontrol edilemedi. Daha sonra tekrar deneyin."
   },
   "nav": {
+    "monitoring": "İzleme",
     "memory": "Hafıza",
     "account": "Hesap",
     "activity": "Etkinlik",

@@ -170,6 +170,7 @@ function NavGroupBlock({
   const pathname = usePathname();
   const mounted = useMounted();
   const openGroups = useSidebarStore((state) => state.openGroups);
+  const closedGroups = useSidebarStore((state) => state.closedGroups);
   const toggleGroup = useSidebarStore((state) => state.toggleGroup);
   const key = group.labelKey ?? "main";
   // The page you are on is never hidden behind a folded heading. The stored
@@ -178,7 +179,10 @@ function NavGroupBlock({
   // The rail folds too: a group closed in the column is closed on the rail, so
   // the two show the same destinations rather than the rail every one of them.
   const folds = !!group.collapsible;
-  const open = !folds || holdsActive || (mounted && openGroups.includes(key));
+  const open =
+    !folds ||
+    holdsActive ||
+    (mounted && (openGroups.includes(key) || (key === "knowledge" && !closedGroups.includes(key))));
 
   return (
     <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center")}>

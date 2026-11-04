@@ -1,5 +1,5 @@
 ---
-source_sha: "3c6562c342e3"
+source_sha: "f8b0db6b7677"
 ---
 
 # Die Konsole { #the-console }
@@ -823,13 +823,18 @@ Ein Agent mit **Frühere Gespräche** bietet im `@`-Menü die dreißig jüngsten
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
-Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
-Activity; **Knowledge** enthält Knowledge bases, Documents, Skills und Context.
-Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
-einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
-Remote agents, Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
-Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
-verlassen haben.
+**Overview** (Dashboard), **Chat** und **Inbox** stehen oben in der Seitenleiste.
+**Build & manage** zeigt Agents, Workflows, Routines und Apps ohne Aufklappen;
+danach folgen Projects.
+
+**Knowledge** ist standardmäßig geöffnet und enthält Knowledge bases, Tables,
+Skills, Context und Documents. Die manuelle Wahl zwischen geöffnet und geschlossen
+wird gespeichert. **Monitoring** enthält Activity und Background work und ist
+standardmäßig eingeklappt.
+
+**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) und
+**Organization** (Organizations, Groups) bleiben einklappbar und speichern Ihre
+Wahl. Eine Gruppe mit der aktuellen Seite öffnet sich immer, damit diese sichtbar bleibt.
 
 | Bereich | Er hält | Lesen Sie |
 |---|---|---|

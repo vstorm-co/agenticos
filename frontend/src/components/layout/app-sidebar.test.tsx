@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NAV_GROUPS, SidebarNav, isActive } from "./app-sidebar";
 
@@ -23,11 +23,19 @@ vi.mock("@/hooks/use-projects", () => ({
 }));
 const waiting = vi.fn<() => { id: string }[]>(() => []);
 vi.mock("@/hooks/use-suggestions", () => ({ useSuggestions: () => ({ suggestions: waiting() }) }));
-const sidebar = { openGroups: [] as string[], toggleGroup: vi.fn<(key: string) => void>() };
+const sidebar = {
+  openGroups: [] as string[],
+  closedGroups: [] as string[],
+  toggleGroup: vi.fn<(key: string) => void>(),
+};
 vi.mock("@/stores", () => ({
   useAuthStore: () => ({ user: currentUser() }),
   useSidebarStore: <T,>(select: (state: typeof sidebar) => T) => select(sidebar),
 }));
+
+beforeEach(() => {
+  sidebar.closedGroups = [];
+});
 
 function renderNav() {
   return render(<SidebarNav />);
@@ -86,7 +94,7 @@ describe("isActive", () => {
 describe("SidebarNav", () => {
   it("shows every destination the caller is entitled to", () => {
     can.mockReturnValue(true);
-    sidebar.openGroups = ["build", "knowledge"];
+    sidebar.openGroups = ["knowledge", "monitoring"];
 
     renderNav();
 
@@ -345,5 +353,49 @@ describe("the inbox count (#2301)", () => {
     waiting.mockReturnValue([]);
     render(<SidebarNav />);
     expect(screen.queryByLabelText("inboxCount")).toBeNull();
+  });
+});
+
+describe("daily-work navigation", () => {
+  it("keeps the overview first and automation directly below agents", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/chat");
+    sidebar.openGroups = [];
+    renderNav();
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(hrefs.slice(0, 6)).toEqual([
+      "/dashboard",
+      "/chat",
+      "/inbox",
+      "/agents",
+      "/workflows",
+      "/routines",
+    ]);
+    expect(screen.queryByRole("link", { name: "backgroundWork" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "monitoring" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(hrefs.indexOf("/documents")).toBeGreaterThan(hrefs.indexOf("/rag"));
+    expect(screen.queryByRole("button", { name: "build" })).not.toBeInTheDocument();
+  });
+
+  it("opens knowledge by default but respects an explicit saved closure", () => {
+    can.mockReturnValue(true);
+    currentPath.mockReturnValue("/chat");
+    sidebar.openGroups = [];
+    const { rerender } = renderNav();
+    expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "skills" })).toBeInTheDocument();
+    sidebar.closedGroups = ["knowledge"];
+    rerender(<SidebarNav />);
+    expect(screen.getByRole("button", { name: "knowledge" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("link", { name: "skills" })).not.toBeInTheDocument();
   });
 });

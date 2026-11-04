@@ -1,5 +1,5 @@
 ---
-source_sha: "3c6562c342e3"
+source_sha: "f8b0db6b7677"
 ---
 
 # Konsola { #the-console }
@@ -754,12 +754,17 @@ Agent z funkcją **Poprzednie rozmowy** oferuje w menu `@` trzydzieści najnowsz
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
-Sidebar grupuje je. **Build** to Agents, Routines, Apps i Activity;
-**Knowledge** to Knowledge bases, Documents, Skills i Context. Dwie grupy są
-zwinięte do nagłówka, dopóki ich nie otworzysz, bo ustawia się je raz i odwiedza
-rzadko: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) i
-**Organization** (Organizations, Groups). Zwinięta grupa otwiera się sama na
-każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
+**Overview** (Dashboard), **Chat** i **Inbox** są na początku sidebara.
+**Build & manage** pokazuje Agents, Workflows, Routines i Apps bez rozwijania;
+następne są Projects.
+
+**Knowledge** jest domyślnie rozwinięte i zawiera Knowledge bases, Tables, Skills,
+Context i Documents. Ręczny wybór rozwinięcia lub zwinięcia jest zapamiętywany.
+**Monitoring** grupuje Activity i Background work i jest domyślnie zwinięte.
+
+**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) i
+**Organization** (Organizations, Groups) pozostają zwijane i zapamiętują wybór.
+Grupa zawierająca bieżącą stronę zawsze się otwiera, aby ta strona była widoczna.
 
 | Obszar | Zawiera | Przeczytaj |
 |---|---|---|

@@ -54,6 +54,7 @@
     "logout": "Wyloguj"
   },
   "nav": {
+    "monitoring": "Monitorowanie",
     "memory": "Pamięć",
     "dashboard": "Przegląd",
     "chat": "Czat",

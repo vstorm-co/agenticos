@@ -1,5 +1,5 @@
 ---
-source_sha: "3c6562c342e3"
+source_sha: "f8b0db6b7677"
 ---
 
 # La consola { #the-console }
@@ -777,12 +777,17 @@ Un agente con **Conversaciones anteriores** ofrece las treinta conversaciones ac
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 
-La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
-**Knowledge** reúne Knowledge bases, Documents, Skills y Context. Dos grupos se
-pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
-poco: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
-**Organization** (Organizations, Groups). Un grupo plegado se abre solo en
-cualquier página que le pertenezca, y se queda como lo dejaste.
+**Overview** (Dashboard), **Chat** e **Inbox** encabezan la barra lateral.
+**Build & manage** muestra Agents, Workflows, Routines y Apps sin desplegar;
+después aparecen los Projects.
+
+**Knowledge** está abierto por defecto e incluye Knowledge bases, Tables, Skills,
+Context y Documents. Se recuerda la elección manual de abrirlo o cerrarlo.
+**Monitoring** reúne Activity y Background work y comienza plegado.
+
+**Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
+**Organization** (Organizations, Groups) siguen siendo plegables y recuerdan la
+elección. Un grupo que contiene la página actual siempre se abre para mantenerla visible.
 
 | Área | Contiene | Lee |
 |---|---|---|
