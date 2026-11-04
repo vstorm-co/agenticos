@@ -1,5 +1,5 @@
 ---
-source_sha: "d422ef59b14f"
+source_sha: "4cc2cc247c7b"
 ---
 
 # Sicherheit { #security }
@@ -45,6 +45,26 @@ ist eine Mitgliedschaftszeile plus der Berechtigungskatalog
 (`app/core/permissions.py`), pro Ressource aufgelöst. Zwei Aufrufer mit derselben
 Rolle können unterschiedliche Zeilen erreichen, weil ein Grant auf einer Ressource
 erweitert, was eine Rolle erlaubt, ohne das Mitglied zu befördern.
+
+Ein WhatsApp-Bot lässt sich so schalten, dass er jedem antwortet, der schreibt (eine
+[öffentliche Leitung](channels.md#whatsapp-public-line)). Der Run des Fremden hat
+dann kein Mitglied hinter sich und läuft als der Agent, nur mit den
+Berechtigungen der veröffentlichten Spezifikation.
+
+Schreiben in eine Tabelle braucht unabhängig von der Bindung eine Genehmigung, das
+Veröffentlichen einer Seite und der eigene MCP-Server der Plattform sind ihm
+verschlossen, und die Leitung wird nicht geöffnet, gebunden, in eine andere Umgebung
+verschoben oder fortgesetzt, ohne dass ein Ausgabenlimit dahintersteht. Der Kunde
+hört bei jeder Ablehnung denselben neutralen Satz, eine Nachricht verrät also nichts
+über die Konfiguration.
+
+Die Person, die einen Schreibzugriff genehmigt hat, wird als dessen Akteur erfasst
+und der Agent als Quelle. Ein Workflow, den ein Tabellen-Trigger aus einem solchen
+Schreibzugriff startet, läuft als das eigene Subjekt des Triggers und ist als
+öffentlichen Ursprungs markiert. Eine Telefonnummer wird nur für einen solchen
+Absender gespeichert, nur Inhaber von `channels:manage` sehen sie vollständig, und
+Request-Traces enthalten sie nicht; siehe
+[Datenschutz](data-protection.md#whatsapp-customers).
 
 ## Was das Deployment verlässt { #what-leaves-the-deployment }
 
@@ -322,6 +342,7 @@ SOC 2 CC6–CC8.
 | Routen pro Ressource autorisieren im Service, nicht auf der Route | Eine Route, die auf einem Agent, Skill oder einer Collection arbeitet, trägt kein `require()`-Gate — ein Rollen-Gate würde einen Grant-Inhaber abweisen, bevor der Grant greift — und ruft stattdessen `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (jede Route ist gegated oder wird im Service entschieden) |
 | Ein Grant erweitert den Zugriff, ohne das Mitglied zu befördern | `resolve_access` pro Ressource nimmt `max(Rollen-Scope, Grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | Eine Seite startet einen Workflow nur als die Person, die ihn bestätigt | Die Allowlist beim Veröffentlichen (`app/services/artifact_actions.py`), die eigene Liste des Betrachters, die Origin- und Nonce-Prüfungen der Konsole und ihr Bestätigungsdialog (`frontend/src/hooks/use-artifact-actions.ts`), der `acts`-Claim, den nur die Adresse des Betrachters trägt (`app/core/security.py`), und eine Start-Route, die den Workflow als den Aufrufer ausführt und eine andere Version oder eine imitierte Session abweist. Siehe [eine Seite, die Workflows startet](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
+| Ein Fremder auf einer öffentlichen Leitung läuft als der Agent, nur mit dessen veröffentlichten Berechtigungen | Der Kontext trägt die Berechtigungen des Agenten und keine Rolle; Tabellenschreibzugriffe erzwingen eine Genehmigung, das Veröffentlichen einer Seite und der MCP-Server der Plattform werden abgelehnt, und das Ausgabenlimit wird beim Öffnen, Binden, Umgebungswechsel, Fortsetzen, Reaktivieren, Veröffentlichen und zur Laufzeit geprüft (`app/services/channels/public_line.py`) | `test_public_line.py` |
 | Eine Kanal-Erwähnung läuft als der Absender, nicht als der Bot | Der eigene `AuthContext` eines verknüpften, aktiven Absenders wird verwendet (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Authentifizierung · HIPAA §164.312(d) · SOC 2 CC6 { #authentication-hipaa-164312d-soc-2-cc6 }

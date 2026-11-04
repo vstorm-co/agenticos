@@ -48,12 +48,30 @@ Two things are versioned separately from this file and worth knowing about:
   "Keep me posted" message whose tap reopens the window. Several numbers on one Meta
   app can share its callback URL: each message reaches the bot registered for its
   number, and only when that bot's own app secret verifies the delivery.
+  A WhatsApp bot can answer anyone who messages it, with the new **Answer people who
+  are not linked** switch (a public line). A stranger's run acts as the agent, with
+  only its published grants, and needs a monthly budget on the bound agent or an
+  organization cap. **Accept files from customers** (`accept_customer_files`, off by
+  default) lets a stranger send files; voice notes need an organization cap. A
+  customer view lists who has written, with the phone number shown to
+  `channels:manage`, and **Forget this customer** (`channel-forget-customer`)
+  erases one across the organization's WhatsApp bots. `channel-public-line` shows
+  the switch's warning and toggles it. Switching the line off leaves a parked
+  stranger's run without a message.
+- **Binding requests.** A member who may edit a binding but not manage channels can
+  ask for an agent to be bound to, moved to another environment on, or resumed on a
+  public-line WhatsApp bot, with a note of up to 500 characters. Holders of
+  `channels:manage` are notified (`channel_binding_requested`), and the requester
+  hears the decision (`channel_binding_decided`).
 - A decision or an answer made in the console, the web chat or over a session API now continues a run asked in a chat, as the person who made it, and posts the answer in that chat. A key's decision is recorded and does not continue the run. (#2656)
 - `continues_in_chat` on approvals, on a run's single read and on the result of a resume or an answer. It is true when the server continues the run in its chat. (#2656)
 - A console **Stop**, an expiry and a decided run that nothing continued each tell the chat once, in one fixed message. (#2656)
 
 ### Changed
 
+- **Binding, rebinding or resuming an agent on a public-line WhatsApp bot needs `channels:manage` or an approved request.** The exposure routes answer `202` with a `request_id` for a request, and take `request_note`.
+- **A public line refuses to open, bind, change environment, resume, reactivate or delete an environment without a spending ceiling,** and a publish, rollback or promotion that would leave a stranger-answering binding without one.
+- Schema: `agent_runs.runs_as_agent`, `whatsapp_customers.phone` and a new `channel_binding_requests` table; two notification types. No backfill.
 - A conversation a Microsoft Teams bot starts is now titled "Microsoft Teams Chat"
   instead of "Teams Chat". Existing conversations keep their title.
 - **A session API client that decides a chat run no longer resumes it.** Read `continues_in_chat` and skip `POST /runs/{id}/resume` when it is true; a late resume answers 400 with the run's status. (#2656)

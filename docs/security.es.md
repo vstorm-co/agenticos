@@ -1,5 +1,5 @@
 ---
-source_sha: "d422ef59b14f"
+source_sha: "4cc2cc247c7b"
 ---
 
 # Seguridad { #security }
@@ -44,6 +44,24 @@ fila de membresía más el catálogo de permisos (`app/core/permissions.py`),
 resuelto por recurso. Dos llamantes con el mismo rol pueden alcanzar filas
 distintas, porque un grant sobre un recurso amplía lo que el rol permite sin
 ascender al miembro.
+
+Un bot de WhatsApp puede configurarse para responder a cualquiera que escriba (una
+[línea pública](channels.md#whatsapp-public-line)). El run del desconocido no tiene
+entonces un miembro detrás y actúa como el agente, solo con los permisos de la
+especificación publicada.
+
+Escribir en una tabla necesita aprobación diga lo que diga la vinculación, publicar
+una página y el servidor MCP propio de la plataforma le están cerrados, y la línea
+no se abre, vincula, mueve a otro entorno ni reanuda sin un límite de gasto detrás.
+El cliente oye la misma frase neutra ante cualquier negativa, así que un mensaje no
+revela nada de la configuración.
+
+La persona que aprobó una escritura queda registrada como su autora y el agente como
+origen. Un workflow que un disparador de tabla inicia a partir de esa escritura se
+ejecuta como el sujeto propio del disparador y se marca como de origen público. El
+número de teléfono se guarda solo para un remitente así, solo lo ven completo
+quienes tienen `channels:manage` y las trazas de petición no lo contienen; véase
+[Protección de datos](data-protection.md#whatsapp-customers).
 
 ## Qué sale del deployment { #what-leaves-the-deployment }
 
@@ -299,6 +317,7 @@ Encuadrado frente a las salvaguardas técnicas de HIPAA §164.312 y SOC 2 CC6–
 | Las rutas por recurso autorizan en el servicio, no en la ruta | Una ruta que actúa sobre un agent, un skill o una colección no lleva gate `require()` — un gate de rol rechazaría al portador de un grant antes de que el grant se aplicara — y en su lugar llama a `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (toda ruta está gateada o la decide el servicio) |
 | Un grant amplía el acceso sin ascender al miembro | El `resolve_access` por recurso toma `max(alcance del rol, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | Una página inicia un workflow solo como la persona que lo confirma | La lista permitida de la publicación (`app/services/artifact_actions.py`), la lista propia del lector, las comprobaciones de origen y nonce de la consola y su diálogo de confirmación (`frontend/src/hooks/use-artifact-actions.ts`), la claim `acts` que solo lleva la dirección del lector (`app/core/security.py`), y una ruta de inicio que ejecuta el workflow como el llamante y rechaza otra versión o una sesión suplantada. Consulta [una página que inicia workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
+| Un desconocido en una línea pública actúa como el agente, solo con sus permisos publicados | El contexto lleva los permisos del agente y ningún rol; las escrituras de tabla fuerzan aprobación, publicar una página y el servidor MCP de la plataforma se rechazan, y el límite de gasto se comprueba al abrir, vincular, cambiar de entorno, reanudar, reactivar, publicar y en tiempo de ejecución (`app/services/channels/public_line.py`) | `test_public_line.py` |
 | Una mención en un canal se ejecuta como el remitente, no como el bot | Se usa el `AuthContext` propio de un remitente vinculado y activo (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Autenticación · HIPAA §164.312(d) · SOC 2 CC6 { #authentication-hipaa-164312d-soc-2-cc6 }

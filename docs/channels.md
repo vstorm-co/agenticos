@@ -1233,7 +1233,8 @@ that one in too, or the bot keeps the access it had.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
-binding, and only in a channel. A direct message asks for the account first.
+binding, and only in a channel. A direct message asks for the account first, except on a
+[WhatsApp public line](#whatsapp-public-line).
 
 A linked account whose member has left the organization, or whose account has
 been deactivated, is treated as unlinked: refused in a direct message, run under
@@ -1705,6 +1706,90 @@ payment method.
   shown as **down** with what to do, and the next message that sends clears it. The
   status lapses after 15 minutes without traffic.
 
+### A public line { #whatsapp-public-line }
+
+By default a customer who has not linked an account is asked to link one. A
+business number that serves the public cannot ask that, so a WhatsApp bot has a
+switch, **Answer people who are not linked** (`answer_unlinked_direct` on the access
+policy; `channel-public-line --bot-id ... --on` from the CLI). It is off until
+somebody turns it on and it is offered on WhatsApp bots only. A new bot cannot start
+with it on, because the add dialog does not show it: a new bot has no agent yet, so
+bind one first. `mode=group_only` is refused while it is on.
+
+**The trade-off is the point.** With the switch on, anyone who has the number can
+message the bot, and the bot answers with whatever the bound agent's spec reaches:
+its instructions, its knowledge, its tools and its budget. Decide that before you
+bind the agent, and bind an agent written for strangers.
+
+- **A stranger's run acts as the agent, not as a member.** It has no role and no
+  member's reach, only the grants the agent's published spec carries. Writing to a
+  table and creating one always need an approval, even where the binding says never,
+  and publishing a page is refused. The platform's own MCP server is not offered to
+  such a run.
+- **A spending ceiling is required.** The line needs a monthly budget on the bound
+  agent or the organization's monthly cap. Without one, these are refused: turning
+  the switch on, binding an agent, changing its environment, resuming a paused
+  binding, reactivating the bot, and deleting an environment that would leave the
+  binding without one. A publish, rollback or promotion that would leave a binding
+  that answers strangers without a ceiling is refused too. Removing the
+  organization's cap is not refused. Instead the bot stops answering strangers while
+  no ceiling exists, and the bot's warning says so.
+- **A refusal is one neutral sentence to the customer.** A customer whose message is
+  refused, or whose turn fails, gets one plain line such as "Sorry, I could not
+  answer that. Please try again later." and never the reason, the limit or the name
+  of anything configured.
+- **Approvals arrive as plain text and are decided in the console.** The customer is
+  told the request is waiting and cannot approve it. The people who decide see the
+  chat's masked number or username beside the profile name, which is marked not
+  verified. An approved table write is recorded as the person who approved it, with
+  the agent as its source.
+- **Questions are declined.** When the agent would ask the customer a structured
+  question, the question is declined, and next-step buttons are not offered.
+- **Linking happens only on request.** The customer is not asked to link. If they
+  want to, they ask, and the usual [code](#linking-with-a-code) flow applies. Answers
+  carry no usage footer and no console address.
+- **Binding needs `channels:manage`, or a request.** Binding an agent to a bot
+  that answers strangers, changing the binding's environment and resuming a paused
+  binding are decided by a holder of `channels:manage`. Anyone else who may edit the
+  binding files a request instead, with a note of up to 500 characters. The route
+  answers `202` with a `request_id`, and holders are notified. Approving applies the
+  change as the approver. A new request from the same person replaces their pending
+  one, and a request is closed when the line stops answering strangers or another
+  agent takes the bot. Pausing and unbinding need no request.
+- **Customer files are off by default.** **Accept files from customers**
+  (`accept_customer_files`) lets a stranger send images and documents, up to
+  `EMBED_MAX_UPLOAD_SIZE_MB` (5 by default). The files belong to the member who
+  created the binding. With the setting off, or a binding with no creator, a file is
+  refused with a neutral sentence.
+- **Voice notes need an organization cap.** A voice note from a stranger is checked
+  before anything is downloaded: the line must have a ceiling, the organization must
+  have a monthly cap, the cap must not be reached, and the note may be at most 2 MB.
+  Transcription is not counted in an agent's own spend, so a budget on the agent
+  alone is not enough. A refused note, or one sent while transcription is off, gets "This line does
+  not accept voice messages."
+
+#### The customer view, and forgetting a customer { #the-customer-view-and-forgetting-a-customer }
+
+**Channels → the bot → Customers** lists the people who have written to a public
+line. Holders of `channels:manage` see the full phone number and can search by it.
+The number is stored only for a sender the bot admitted as a stranger, and it is
+cleared when the sender links an account.
+
+**Forget this customer** erases one customer across all of the organization's
+WhatsApp bots (`channel-forget-customer --bot-id ... --by bsuid|phone` from the CLI,
+which lists the matches and asks you to confirm). It refuses a customer who has
+linked an account. It cancels their parked runs, redacts the arguments, context and
+notes of their approvals, deletes their runs' manifests and approval notifications,
+deletes hand-back jobs that are not running and removes their sandboxes. One audit
+entry records the counts. What it does not reach is listed in
+[Data protection](data-protection.md#whatsapp-customers).
+
+!!! warning "Switching the line off does not message a parked run"
+
+    A stranger's run that is waiting for a decision when you switch the line off
+    stays parked, and the customer receives no message about it. Decide or cancel it
+    from the console.
+
 ## A bot that cannot start stops, rather than retrying
 
 Telegram polling, Slack Socket Mode, the Mattermost event stream and the Discord
@@ -2111,6 +2196,9 @@ surface, so a difference between the console and Mattermost remains visible.
 
     **A direct message asks for an account.** It is a conversation with one
     person, so an unlinked chat account is refused until it names one.
+    The exception is a WhatsApp bot with its
+    [public line](#whatsapp-public-line) switched on: there an unlinked sender is
+    answered as the agent itself, with only the grants of its published spec.
 
     **A channel answers anybody in it.** Whoever could invite the bot chose the
     audience, so a sender with no linked account is not refused: the turn runs

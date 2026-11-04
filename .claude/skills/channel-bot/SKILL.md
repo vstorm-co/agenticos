@@ -64,7 +64,10 @@ These are the ones worth testing and the ones easiest to break:
   carry whatever permissions it was registered with, which is how a channel becomes a
   privilege-escalation path.
 - **An unlinked identity is refused, not run with no role.** "No role" is not a safe
-  default; it is an unauthenticated run.
+  default; it is an unauthenticated run. The one exception is a direct chat on a
+  WhatsApp bot whose public line is on (`answer_unlinked_direct`): it runs *as the
+  agent*, with only the spec's grants, and needs a spending ceiling. See
+  `docs/channels.md#whatsapp-public-line`.
 
 `tests/test_channel_mentions.py` and `tests/test_channel_bot_org_scope.py` pin these.
 
@@ -77,6 +80,8 @@ uv run agenticos cmd channel-list-bots [--platform telegram]
 uv run agenticos cmd channel-test-message --bot-id <uuid> --chat-id <chat> --text ping
 uv run agenticos cmd channel-webhook-register --bot-id <uuid>
 uv run agenticos cmd channel-webhook-delete --bot-id <uuid>   # back to polling
+uv run agenticos cmd channel-public-line --bot-id <uuid> [--on|--off]   # WhatsApp public line
+uv run agenticos cmd channel-forget-customer --bot-id <uuid> --by bsuid|phone
 ```
 
 There is no `cmd channel` group — the commands are flat, hyphenated names.

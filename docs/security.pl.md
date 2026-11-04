@@ -1,5 +1,5 @@
 ---
-source_sha: "d422ef59b14f"
+source_sha: "4cc2cc247c7b"
 ---
 
 # Bezpieczeństwo { #security }
@@ -41,6 +41,24 @@ Władza wewnątrz tenanta nigdy nie jest nazwą roli na route'cie: to wiersz
 członkostwa plus katalog uprawnień (`app/core/permissions.py`), rozstrzygany per
 zasób. Dwóch wywołujących z tą samą rolą może sięgnąć do różnych wierszy, bo
 grant na jednym zasobie poszerza to, na co rola pozwala, nie awansując członka.
+
+Bota WhatsApp można przełączyć tak, by odpowiadał każdemu, kto napisze
+([linia publiczna](channels.md#whatsapp-public-line)). Run obcego nie ma wtedy
+członka za sobą i działa jako agent, z samymi uprawnieniami opublikowanej
+specyfikacji.
+
+Zapis do tabeli wymaga akceptacji niezależnie od powiązania, publikowanie strony
+i własny serwer MCP platformy są dla niego zamknięte, a linia nie jest otwierana,
+wiązana, przenoszona do innego środowiska ani wznawiana bez limitu wydatków za nią.
+Klient słyszy to samo neutralne zdanie przy każdej odmowie, więc wiadomość nic nie
+zdradza o konfiguracji.
+
+Osoba, która zatwierdziła zapis, jest zapisana jako jego wykonawca, a agent jako
+źródło. Workflow uruchomiony z takiego zapisu przez wyzwalacz tabeli działa jako
+własny podmiot wyzwalacza i jest oznaczony jako pochodzący z publicznego źródła.
+Numer telefonu jest przechowywany tylko dla takiego nadawcy, w całości widzą go
+tylko posiadacze `channels:manage`, a ślady żądań go nie zawierają; zob.
+[Ochrona danych](data-protection.md#whatsapp-customers).
 
 ## Co opuszcza wdrożenie { #what-leaves-the-deployment }
 
@@ -292,6 +310,7 @@ w mocy. Ujęte względem zabezpieczeń technicznych HIPAA §164.312 i SOC 2 CC6�
 | Route'y per zasób autoryzują w serwisie, nie na route'cie | Route działający na jednym agencie, skillu albo kolekcji nie niesie bramki `require()` — bramka roli odmówiłaby posiadaczowi grantu, zanim grant by zadziałał — i zamiast tego woła `resolve_access` (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (każdy route jest bramkowany albo rozstrzygany w serwisie) |
 | Grant poszerza dostęp, nie awansując członka | `resolve_access` per zasób bierze `max(zakres roli, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | Strona uruchamia workflow tylko jako osoba, która to potwierdza | Allowlista z publikacji (`app/services/artifact_actions.py`), własna lista oglądającego, kontrole origin i nonce w konsoli oraz okno potwierdzenia (`frontend/src/hooks/use-artifact-actions.ts`), claim `acts`, który niesie tylko adres oglądającego (`app/core/security.py`), oraz route startu, który uruchamia workflow jako wywołujący i odmawia innej wersji albo impersonowanej sesji. Zobacz [stronę, która uruchamia workflowy](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
+| Obcy na linii publicznej działa jako agent, z samymi jego opublikowanymi uprawnieniami | Kontekst niesie uprawnienia agenta i żadnej roli; zapisy do tabel wymuszają akceptację, publikowanie strony i serwer MCP platformy są odrzucane, a limit wydatków jest sprawdzany przy otwarciu, powiązaniu, zmianie środowiska, wznowieniu, reaktywacji, publikacji i w czasie runu (`app/services/channels/public_line.py`) | `test_public_line.py` |
 | Wzmianka w kanale uruchamia run jako nadawca, nie jako bot | Używany jest własny `AuthContext` powiązanego, aktywnego nadawcy (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Uwierzytelnianie · HIPAA §164.312(d) · SOC 2 CC6 { #authentication-hipaa-164312d-soc-2-cc6 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "70fdd78d5294"
+source_sha: "206f942941f4"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1297,7 +1297,7 @@ también, o el bot conserva el acceso que tenía.
 Funciona en canales y en DMs. Un mensaje de una cuenta vinculada se ejecuta como
 esa persona — nunca como el bot; uno de una cuenta que nadie ha vinculado se
 ejecuta bajo la vinculación, y solo en un canal. En un mensaje directo se pide la
-cuenta primero.
+cuenta primero, salvo en una [línea pública de WhatsApp](#whatsapp-public-line).
 
 Una cuenta vinculada cuyo miembro ha dejado la organización, o cuya cuenta ha sido
 desactivada, se trata como no vinculada: rechazada en un mensaje directo, ejecutada
@@ -1792,6 +1792,95 @@ prueba no necesita método de pago.
   como **caído** con lo que hay que hacer, y el siguiente mensaje enviado con éxito
   lo borra. El estado caduca tras 15 minutos sin tráfico.
 
+### Una línea pública { #whatsapp-public-line }
+
+Por defecto, a un cliente que no ha vinculado una cuenta se le pide que la vincule.
+Un número de empresa que atiende al público no puede pedirlo, así que un bot de
+WhatsApp tiene un interruptor, **Responder a personas sin cuenta vinculada**
+(`answer_unlinked_direct` en la política de acceso; desde la CLI
+`channel-public-line --bot-id ... --on`). Está apagado hasta que alguien lo
+enciende y solo existe en bots de WhatsApp. Un bot nuevo no puede arrancar con él
+encendido, porque el diálogo de alta no lo muestra: un bot nuevo aún no tiene
+agente, así que vincula uno primero. `mode=group_only` se rechaza mientras esté
+encendido.
+
+**La contrapartida es el punto.** Con el interruptor encendido, cualquiera que tenga
+el número puede escribir al bot, y el bot responde con todo lo que alcanza la
+especificación del agente vinculado: sus instrucciones, su conocimiento, sus
+herramientas y su presupuesto. Decídelo antes de vincular el agente, y vincula un
+agente escrito para desconocidos.
+
+- **El run de un desconocido actúa como el agente, no como un miembro.** No tiene rol
+  ni el alcance de un miembro, solo los permisos que lleva la especificación
+  publicada del agente. Escribir en una tabla y crear una siempre necesitan
+  aprobación, incluso cuando la vinculación dice nunca, y publicar una página se
+  rechaza. El servidor MCP propio de la plataforma no se ofrece a un run así.
+- **Se exige un límite de gasto.** La línea necesita un presupuesto mensual del
+  agente vinculado o el tope mensual de la organización. Sin uno se rechazan:
+  encender el interruptor, vincular un agente, cambiar su entorno, reanudar una
+  vinculación en pausa, reactivar el bot y borrar un entorno que dejaría la
+  vinculación sin límite. También se rechaza una publicación, un rollback o una
+  promoción que dejaría sin límite una vinculación que responde a desconocidos.
+  Quitar el tope de la organización no se rechaza. En su lugar, el bot deja de
+  responder a desconocidos mientras no exista límite, y el aviso del bot lo muestra.
+- **Una negativa es una frase neutra para el cliente.** Un cliente cuyo mensaje se
+  rechaza, o cuyo turno falla, recibe una línea simple como «Sorry, I could not
+  answer that. Please try again later.» y nunca el motivo, el límite ni el nombre de
+  nada configurado.
+- **Las aprobaciones llegan como texto plano y se deciden en la consola.** Al
+  cliente se le dice que la solicitud está esperando y no puede aprobarla. Quienes
+  deciden ven el número enmascarado o el nombre de usuario junto al nombre de
+  perfil, marcado como no verificado. Una escritura de tabla aprobada se registra
+  como la persona que la aprobó, con el agente como origen.
+- **Las preguntas se rechazan.** Cuando el agente quisiera hacerle al cliente una
+  pregunta estructurada, se rechaza, y no se ofrecen botones de siguientes pasos.
+- **Vincular solo si se pide.** No se pide al cliente que vincule. Si quiere, lo
+  solicita, y rige el flujo habitual con [código](#linking-with-a-code). Las
+  respuestas no llevan el pie de uso ni la dirección de la consola.
+- **Vincular exige `channels:manage` o una solicitud.** Quien tiene `channels:manage`
+  decide vincular un agente a un bot que responde a desconocidos, cambiar el entorno
+  de la vinculación y reanudar una en pausa. Cualquier otra persona que pueda
+  editar la vinculación presenta en su lugar una solicitud, con una nota de hasta
+  500 caracteres. La ruta responde `202` con un `request_id` y se notifica a quienes
+  tienen el permiso. La aprobación aplica el cambio como quien aprueba. Una
+  solicitud nueva de la misma persona sustituye a la pendiente, y una solicitud se
+  cierra cuando la línea deja de responder a desconocidos o cuando otro agente toma
+  el bot. Pausar y desvincular no necesitan solicitud.
+- **Los archivos de clientes están desactivados por defecto.** **Aceptar archivos de
+  clientes** (`accept_customer_files`) deja que un desconocido envíe imágenes y
+  documentos, hasta `EMBED_MAX_UPLOAD_SIZE_MB` (5 por defecto). Los archivos
+  pertenecen al miembro que creó la vinculación. Con el ajuste apagado, o con una
+  vinculación sin creador, el archivo se rechaza con una frase neutra.
+- **Las notas de voz necesitan un tope de la organización.** La nota de voz de un
+  desconocido se comprueba antes de descargar nada: la línea debe tener un límite, la
+  organización un tope mensual que no esté alcanzado, y la nota puede pesar como
+  máximo 2 MB. La transcripción no cuenta en el gasto propio del agente, así que un
+  presupuesto solo en el agente no basta. Una nota rechazada, también con la
+  transcripción desactivada, recibe «This line does not accept voice messages.»
+
+#### La vista de clientes y olvidar a un cliente { #the-customer-view-and-forgetting-a-customer }
+
+**Canales → el bot → Clientes** lista a las personas que han escrito a una línea
+pública. Quien tiene `channels:manage` ve el número de teléfono completo y puede
+buscar por él. El número se guarda solo para un remitente que el bot admitió como
+desconocido, y se borra cuando el remitente vincula una cuenta.
+
+**Olvidar a este cliente** borra a un cliente en todos los bots de WhatsApp de la
+organización (desde la CLI, `channel-forget-customer --bot-id ... --by bsuid|phone`,
+que lista las coincidencias y pide confirmación). Rechaza a un cliente que ha
+vinculado una cuenta. Cancela sus runs aparcados, oculta los argumentos, el
+contexto y las notas de sus aprobaciones, borra los manifiestos de sus runs y sus
+notificaciones de aprobación, borra los trabajos de devolución que no están en
+marcha y elimina sus sandboxes. Una entrada de auditoría registra los recuentos. Lo
+que no alcanza figura en
+[Protección de datos](data-protection.md#whatsapp-customers).
+
+!!! warning "Apagar la línea no avisa a un run aparcado"
+
+    El run de un desconocido que espera una decisión cuando apagas la línea queda
+    aparcado, y el cliente no recibe ningún mensaje sobre él. Decídelo o cancélalo
+    desde la consola.
+
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 El polling de Telegram, el Socket Mode de Slack, el stream de events de Mattermost
@@ -2226,6 +2315,10 @@ para mostrar diferencias entre la consola y Mattermost.
     **Un mensaje directo pide una cuenta.** Es una conversación con una sola
     persona, así que una cuenta de chat no vinculada se rechaza hasta que nombre
     una.
+
+    La excepción es un bot de WhatsApp con su [línea pública](#whatsapp-public-line)
+    activada: allí un remitente sin vincular recibe respuesta del propio agente, solo
+    con los permisos de su especificación publicada.
 
     **Un canal responde a cualquiera que esté en él.** Quien pudo invitar al bot
     eligió la audiencia, así que a un remitente sin cuenta vinculada no se le

@@ -37,6 +37,22 @@ plus the permission catalog (`app/core/permissions.py`), resolved per resource.
 Two callers who share a role can reach different rows, because a grant on one
 resource widens what a role allows without promoting the member.
 
+A WhatsApp bot can be switched to answer anyone who messages it (a
+[public line](channels.md#whatsapp-public-line)). The stranger's run then has no
+member behind it and acts as the agent, with only the grants of the published spec.
+
+Writes to a table need an approval whatever the binding says, publishing a page and
+the platform's own MCP server are closed to it, and the line is not opened, bound,
+moved to another environment or resumed unless a spending ceiling stands behind it.
+The customer is told the same neutral sentence for any refusal, so a message reveals
+nothing about the configuration.
+
+The person who approved a write is recorded as its actor and the agent as its
+source. A table-triggered workflow that write starts runs
+as the trigger's own principal and is marked as of public origin. A phone number is
+kept only for such a sender, shown in full only to holders of `channels:manage` and
+kept out of request traces; see [Data protection](data-protection.md#whatsapp-customers).
+
 ## What leaves the deployment
 
 Apart from [deployment diagnostics](configuration.md#diagnostics), which are on by
@@ -282,6 +298,7 @@ true. Framed against HIPAA §164.312 technical safeguards and SOC 2 CC6–CC8.
 | Per-resource routes authorize in the service, not on the route | A route acting on one agent, skill or collection carries no `require()` gate — a role gate would refuse a grant-holder before the grant applied — and calls `resolve_access` instead (`app/services/access.py`) | `test_platform_routes.py::TestEveryPlatformRouteIsGuarded` (every route is gated or service-decided) |
 | A grant widens access without promoting the member | Per-resource `resolve_access` takes `max(role scope, grant)` (`app/services/access.py`) | `test_resource_access.py::TestGrantsWidenAccess`, `::TestPermissionsGrantsCannotWiden` |
 | A page starts a workflow only as the person who confirms it | The publish allowlist (`app/services/artifact_actions.py`), the viewer's own list, the console's origin and nonce checks and confirmation dialog (`frontend/src/hooks/use-artifact-actions.ts`), the `acts` claim that only the viewer's address carries (`app/core/security.py`), and a start route that runs the workflow as the caller and refuses another version or an impersonated session. See [a page that starts workflows](#a-page-that-starts-workflows) | `tests/integration/test_artifact_actions.py`, `tests/integration/test_artifact_action_runs.py`, `src/components/artifacts/artifact-actions.test.tsx` |
+| A public-line stranger runs as the agent, with only its published grants | The context carries the agent's grants and no role; table writes are forced to approval, publishing a page and the platform MCP server are refused, and the ceiling is checked on opening, binding, environment change, resume, reactivation, publish and at run time (`app/services/channels/public_line.py`) | `test_public_line.py` |
 | A channel mention runs as the sender, not the bot | A linked, active sender's own `AuthContext` is used (`app/services/channels/mentions.py`) | `test_channel_mentions.py::TestAnswer::test_the_run_carries_the_senders_own_role` |
 
 ### Authentication · HIPAA §164.312(d) · SOC 2 CC6

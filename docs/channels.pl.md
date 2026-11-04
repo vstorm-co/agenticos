@@ -1,5 +1,5 @@
 ---
-source_sha: "70fdd78d5294"
+source_sha: "206f942941f4"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1275,7 +1275,7 @@ wklej i ten, bo inaczej bot zachowa dostęp, który miał.
 Działa na kanałach i w DM-ach. Wiadomość z powiązanego konta wykonuje się jako ta
 osoba — nigdy jako bot; wiadomość z konta, którego nikt nie powiązał, wykonuje
 się pod powiązaniem i tylko na kanale. Wiadomość bezpośrednia prosi najpierw
-o konto.
+o konto, z wyjątkiem [publicznej linii WhatsApp](#whatsapp-public-line).
 
 Powiązane konto, którego członek opuścił organizację albo którego konto zostało
 dezaktywowane, jest traktowane jak niepowiązane: odrzucone w wiadomości
@@ -1759,6 +1759,92 @@ na prawdziwym numerze. Numer testowy nie wymaga metody płatności.
   jako **niedziałający** wraz z tym, co zrobić, a następna wysłana wiadomość to
   czyści. Status wygasa po 15 minutach bez ruchu.
 
+### Linia publiczna { #whatsapp-public-line }
+
+Domyślnie klient, który nie powiązał konta, jest proszony o jego powiązanie.
+Numer firmowy obsługujący publiczność nie może o to prosić, więc bot WhatsApp ma
+przełącznik **Odpowiadaj osobom bez powiązanego konta** (`answer_unlinked_direct`
+w polityce dostępu; z CLI `channel-public-line --bot-id ... --on`). Jest wyłączony,
+dopóki ktoś go nie włączy, i dotyczy tylko botów WhatsApp. Nowy bot nie może
+wystartować z włączonym przełącznikiem, bo okno dodawania go nie pokazuje: nowy bot
+nie ma jeszcze agenta, więc najpierw go powiąż. `mode=group_only` jest odrzucany,
+gdy przełącznik jest włączony.
+
+**Ten kompromis jest sednem sprawy.** Przy włączonym przełączniku każdy, kto zna
+numer, może napisać do bota, a bot odpowiada tym, do czego sięga specyfikacja
+powiązanego agenta: jego instrukcjami, wiedzą, narzędziami i budżetem. Zdecyduj to
+przed powiązaniem agenta i powiąż agenta napisanego z myślą o obcych.
+
+- **Run obcego działa jako agent, nie jako członek.** Nie ma roli ani zasięgu
+  członka, tylko uprawnienia z opublikowanej specyfikacji agenta. Zapis do tabeli
+  i tworzenie tabeli zawsze wymagają akceptacji, nawet gdy powiązanie mówi „nigdy”,
+  a publikowanie strony jest odrzucane. Własny serwer MCP platformy nie jest
+  takiemu runowi oferowany.
+- **Wymagany jest limit wydatków.** Linia potrzebuje miesięcznego budżetu
+  powiązanego agenta albo miesięcznego limitu organizacji. Bez niego odrzucane są:
+  włączenie przełącznika, powiązanie agenta, zmiana jego środowiska, wznowienie
+  wstrzymanego powiązania, ponowna aktywacja bota i usunięcie środowiska, po którym
+  powiązanie zostałoby bez limitu. Odrzucana jest też publikacja, wycofanie lub
+  promocja, po której powiązanie odpowiadające obcym zostałoby bez limitu.
+  Usunięcie limitu organizacji nie jest odrzucane. Zamiast tego bot przestaje
+  odpowiadać obcym, dopóki limitu nie ma, a ostrzeżenie przy bocie to pokazuje.
+- **Odmowa to dla klienta jedno neutralne zdanie.** Klient, którego wiadomość
+  odrzucono albo którego tura się nie powiodła, dostaje jedną zwykłą linijkę, np.
+  „Sorry, I could not answer that. Please try again later.”, a nie powód, limit
+  ani nazwę czegokolwiek ze skonfigurowanych rzeczy.
+- **Akceptacje przychodzą jako zwykły tekst i zapadają w konsoli.** Klient
+  dowiaduje się, że prośba czeka, i nie może jej zatwierdzić. Osoby decydujące widzą
+  zamaskowany numer albo nazwę użytkownika obok nazwy profilu, oznaczonej jako
+  niezweryfikowana. Zatwierdzony zapis do tabeli jest zapisany jako osoba, która go
+  zatwierdziła, z agentem jako źródłem.
+- **Pytania są odrzucane.** Gdy agent chciałby zadać klientowi pytanie
+  strukturalne, pytanie jest odrzucane, a przyciski kolejnych kroków nie są
+  oferowane.
+- **Powiązanie tylko na prośbę.** Klient nie jest proszony o powiązanie konta.
+  Jeśli chce, sam o to prosi i działa zwykły przepływ z [kodem](#linking-with-a-code).
+  Odpowiedzi nie mają stopki zużycia ani adresu konsoli.
+- **Powiązanie wymaga `channels:manage` albo wniosku.** O powiązaniu agenta z botem
+  odpowiadającym obcym, zmianie środowiska powiązania i wznowieniu wstrzymanego
+  powiązania decyduje posiadacz `channels:manage`. Kto inny, kto może edytować
+  powiązanie, składa wniosek z notatką do 500 znaków. Trasa odpowiada `202`
+  z `request_id`, a posiadacze uprawnienia dostają powiadomienie. Zatwierdzenie
+  stosuje zmianę jako zatwierdzający. Nowy wniosek tej samej osoby zastępuje jej
+  oczekujący, a wniosek zamyka się, gdy linia przestaje odpowiadać obcym albo bota
+  przejmuje inny agent. Wstrzymanie i odpięcie nie wymagają wniosku.
+- **Pliki od klientów są domyślnie wyłączone.** **Przyjmuj pliki od klientów**
+  (`accept_customer_files`) pozwala obcemu wysyłać obrazy i dokumenty, do
+  `EMBED_MAX_UPLOAD_SIZE_MB` (domyślnie 5). Pliki należą do członka, który utworzył
+  powiązanie. Przy wyłączonym ustawieniu albo powiązaniu bez twórcy plik jest
+  odrzucany neutralnym zdaniem.
+- **Wiadomości głosowe wymagają limitu organizacji.** Wiadomość głosowa od obcego
+  jest sprawdzana przed pobraniem czegokolwiek: linia musi mieć limit, organizacja
+  miesięczny limit, który nie może być wyczerpany, a nagranie może mieć najwyżej
+  2 MB. Transkrypcja nie wlicza się do własnych wydatków agenta, więc sam budżet
+  agenta nie wystarcza. Odrzucone nagranie, także przy wyłączonej transkrypcji, dostaje
+  odpowiedź „This line does not accept voice messages.”
+
+#### Widok klientów i zapominanie klienta { #the-customer-view-and-forgetting-a-customer }
+
+**Kanały → bot → Klienci** wymienia osoby, które pisały na linię publiczną.
+Posiadacze `channels:manage` widzą pełny numer telefonu i mogą po nim szukać.
+Numer jest zapisywany tylko dla nadawcy, którego bot przyjął jako obcego, i znika,
+gdy nadawca powiąże konto.
+
+**Zapomnij tego klienta** usuwa jednego klienta we wszystkich botach WhatsApp
+organizacji (z CLI `channel-forget-customer --bot-id ... --by bsuid|phone`, które
+wypisuje dopasowania i prosi o potwierdzenie). Odmawia, gdy klient powiązał konto.
+Anuluje jego zaparkowane runy, zamazuje argumenty, kontekst i notatki jego
+akceptacji, usuwa manifesty jego runów i powiadomienia o akceptacjach, usuwa
+zadania zwrotne, które nie są uruchomione, i usuwa jego piaskownice. Jeden wpis
+audytu zapisuje liczby. To, czego nie obejmuje, opisuje
+[Ochrona danych](data-protection.md#whatsapp-customers).
+
+!!! warning "Wyłączenie linii nie wysyła wiadomości o zaparkowanym runie"
+
+    Run obcego, który czeka na decyzję w chwili wyłączenia linii, zostaje
+    zaparkowany, a klient nie dostaje o nim żadnej wiadomości. Rozstrzygnij go albo
+    anuluj w konsoli.
+
 ## Bot, który nie może wystartować, zatrzymuje się, zamiast ponawiać { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Polling Telegrama, Socket Mode Slacka, strumień eventów Mattermosta i Gateway
@@ -2181,6 +2267,10 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
 
     **Wiadomość bezpośrednia prosi o konto.** To rozmowa z jedną osobą, więc
     niepowiązane konto czatowe jest odrzucane, dopóki konta nie wskaże.
+
+    Wyjątkiem jest bot WhatsApp z włączoną [linią publiczną](#whatsapp-public-line):
+    tam niepowiązany nadawca dostaje odpowiedź od samego agenta, z samymi
+    uprawnieniami jego opublikowanej specyfikacji.
 
     **Kanał odpowiada każdemu, kto na nim jest.** Kto mógł zaprosić bota, ten
     wybrał publiczność, więc nadawca bez powiązanego konta nie jest odrzucany:

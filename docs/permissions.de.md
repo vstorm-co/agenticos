@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "aed1d013997a"
 ---
 
 # Berechtigungen { #permissions }
@@ -374,6 +374,13 @@ ein Konto, das sich nicht anmelden kann und trotzdem das Budget der Organisation
 ausgibt. Es ist ein verbundener Lesezugriff (`member_repo.get_active`) statt
 zweier, denn er wird bei jedem Zug einer öffentlichen Oberfläche beantwortet.
 
+Ein WhatsApp-Bot mit eingeschalteter [öffentlicher Leitung](channels.md#whatsapp-public-line)
+ist die Ausnahme von „ein Run braucht die Rolle eines Mitglieds“. Ein Fremder läuft
+dort **als der Agent**: Der Run hat gar keine Rolle, und was er erreicht, sind die
+Berechtigungen, die die veröffentlichte Spezifikation des Agenten trägt, nichts von
+dem, was ein Mitglied hat. Der Publisher-Fallback wird weiterhin am Run erfasst, und
+der Run ist als „läuft als Agent“ markiert, bleibt also später unterscheidbar.
+
 Wer **gefragt** hat, wird getrennt mitgeführt — `channel_identity_id`, das
 Chat-Konto, das gesprochen hat. Die beiden zu verschmelzen würde einen
 Channel-Run die Befugnis des Absenders beanspruchen lassen, und genau die hat ein
@@ -648,6 +655,23 @@ rechnet jene Runs einer Person zu, ohne umzuschreiben, als was sie liefen. Siehe
 
 Was ein solcher Run tun darf, kommt von der **Exposure**, die ihn eingelassen
 hat, angelegt von jemandem, der sehr wohl eine Rolle hatte.
+
+Ein Run, der als sein Agent läuft, ist der einzige Fall, in dem keine Mitgliedsrolle
+gelesen wird:
+
+- Er hält nur die veröffentlichten Berechtigungen des Agenten. Lesezugriffe laufen
+  als der Agent. Schreiben in eine Tabelle und Anlegen einer Tabelle brauchen immer
+  eine Genehmigung, und ein genehmigter Schreibzugriff wird als die genehmigende
+  Person erfasst, mit dem Agenten als Quelle des Datensatzes. Eine entscheidende
+  Person, die kein Mitglied mehr ist, wird abgelehnt.
+- Ein Workflow, den ein Tabellen-Trigger aus einem solchen Schreibzugriff startet,
+  läuft als das eigene Subjekt des Triggers und ist als öffentlichen Ursprungs
+  markiert.
+- Das Binden eines Agenten an einen Bot mit öffentlicher Leitung braucht
+  `channels:manage` oder eine Anfrage, die ein Berechtigter genehmigt. Ein Builder,
+  der eine breitere Version eines bereits an eine öffentliche Leitung gebundenen
+  Agenten veröffentlicht, braucht kein `channels:manage`; die Veröffentlichung wird
+  trotzdem abgelehnt, wenn sie die Leitung ohne Ausgabenlimit ließe.
 
 ## Was das Frontend liest { #what-the-frontend-reads }
 

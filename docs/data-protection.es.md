@@ -1,5 +1,5 @@
 ---
-source_sha: "a10ecb9bb456"
+source_sha: "30f4e6998948"
 ---
 
 # Protección de datos { #data-protection }
@@ -112,7 +112,7 @@ El límite total se comprueba en el savepoint de la modificación, bajo un bloqu
 | `notifications`, `notification_deliveries` | Cada notificación dirigida a alguien y su envío por correo. La fila se escribe incluso cuando el destinatario ha desactivado todos los canales para ese evento — es lo que impide escribir dos veces la misma ocurrencia — y simplemente no se muestra ni se envía nunca; solo la fila de envío es condicional | El destinatario, un resumen prerrenderizado (nunca un comentario en bruto ni un valor secreto) y las variables tipadas a partir de las cuales un correo se vuelve a renderizar; una fila de envío añade su canal, estado, intentos y un motivo de fallo depurado — nunca el texto de error del provider. Una aprobación pedida por una cuenta de chat sin enlazar conserva ese nombre visible o handle en el resumen y las variables, hasta que el barrido de retención de notificaciones elimina la fila; borrar la identidad no lo alcanza | Alertas que una persona lee una vez, sin supervisión. Consulta [Gobernanza](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Interruptores de canal por evento, y las difusiones propias del app admin | Un id de usuario por interruptor; el remitente de una difusión, su cuerpo y las organizaciones y el rol a los que iba dirigida — nunca la lista resuelta de destinatarios, que solo se puede reconstruir a partir de `notifications` hasta que esa fila caduca en [el barrido de retención de notificaciones](governance.md#alerts) — después de lo cual la entrada de audit detrás de ella conserva solo un recuento, nunca los destinatarios | Exclusión voluntaria, y el registro propio de quien la escribió |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Teams, Telegram, Mattermost, Discord o WhatsApp | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat. Para un remitente de WhatsApp: el business-scoped user ID, el nombre de perfil que eligió y, como etiqueta, el nombre de usuario de WhatsApp si lo tiene y, si no, su número de teléfono enmascarado como `•••• 1234` | Retomar el hilo correcto. Para quien pregunta sin cuenta enlazada, el nombre visible o el handle también se muestra en la cola de aprobaciones, su exportación CSV y el correo de aprobación, a las personas que deciden |
-| `whatsapp_customers`, `whatsapp_held_runs` | Clientes de WhatsApp que escribieron a un bot, y los runs cuyas respuestas los esperan | La business-scoped user ID, cuándo escribieron por última vez (hora de Meta), cuándo Meta rechazó por última vez un mensaje por estar fuera de la ventana de 24 horas, cuándo se les avisó por última vez de que una respuesta está en camino, y lo que les espera: los ids de los runs y de las respuestas guardadas y la clave de un aviso fijo (punteros y claves, nunca el texto). Sin número de teléfono y sin texto de mensajes. Desaparecen con su bot, su organización o su run | Saber si la [ventana de 24 horas](channels.md#whatsapp-late-answers) de WhatsApp está abierta y qué queda pendiente |
+| `whatsapp_customers`, `whatsapp_held_runs` | Clientes de WhatsApp que escribieron a un bot, y los runs cuyas respuestas los esperan | La business-scoped user ID, cuándo escribieron por última vez (hora de Meta), cuándo Meta rechazó por última vez un mensaje por estar fuera de la ventana de 24 horas, cuándo se les avisó por última vez de que una respuesta está en camino, y lo que les espera: los ids de los runs y de las respuestas guardadas y la clave de un aviso fijo (punteros y claves, nunca el texto). El número de teléfono se guarda solo para un remitente que el bot admitió como desconocido en una [línea pública](channels.md#whatsapp-public-line), como dígitos, y se borra cuando el remitente vincula una cuenta; un remitente vinculado no lo tiene. Sin texto de mensajes. Desaparecen con su bot, su organización o su run, o cuando alguien usa [Olvidar a este cliente](#whatsapp-customers) | Saber si la [ventana de 24 horas](channels.md#whatsapp-late-answers) de WhatsApp está abierta y qué queda pendiente |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
 | `suggestions` | Lo que el [trabajo por iniciativa propia](governance.md#proactive-work) propuso a una persona, y si lo aceptó | La persona, un título y una línea de detalle sacados de sus peticiones recientes, el prompt de rutina o el perfil que fijaría, y una clave que impide volver a proponer algo descartado | Propuestas sobre las que decide la persona |
 | `watches` | Lo que una persona pidió al [trabajo por iniciativa propia](governance.md#proactive-work) vigilar en sus propias conexiones | La persona, cuál de sus conexiones, qué buscar y qué omitir con sus propias palabras, cada cuánto y cuándo revisó por última vez | Vigilancias que configura la persona |
@@ -364,6 +364,48 @@ programada es [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Borrar una organización | Todo lo acotado a ella, con el mismo desmontaje diferido - sus medios generados por prefijo, incluidos los archivos escritos antes de que se registraran | Las colecciones personales que solo llevaban el id |
 
 Los mensajes de canal guardan solo el texto del remitente. Las etiquetas del autor se resuelven desde las identidades de canal justo antes de enviar la solicitud al modelo, fuera de las instrucciones del sistema. La consola y las acciones de copiar, fijar y crear atajos reciben el texto original. Los historiales guardados y las ejecuciones pausadas conservan referencias opacas; los manifiestos omiten las partes de referencia del canal añadidas. Al eliminar la cuenta se borran sus identidades, por lo que las solicitudes futuras no pueden resolver sus etiquetas; se conservan los mensajes compartidos.
+
+### Clientes de WhatsApp { #whatsapp-customers }
+
+Una [línea pública](channels.md#whatsapp-public-line) responde a personas que nadie
+ha vinculado a una cuenta, así que guarda datos personales de gente que no son
+miembros.
+
+- **El número de teléfono** (`whatsapp_customers.phone`) se escribe cuando un
+  remitente sin vincular es admitido como desconocido y se borra cuando vincula una
+  cuenta. Quien tiene `channels:manage` lo ve completo en la vista de clientes y
+  puede buscar por él. La búsqueda envía el número en el cuerpo de la petición, y
+  una traza de petición oculta cualquier campo del cuerpo llamado `phone`, así que
+  el número no llega a una traza.
+- **No hay retención automática.** Una fila de cliente se queda hasta que alguien
+  olvida al cliente o se borra el bot, la organización o el run al que pertenece.
+- **Los archivos de desconocidos** pertenecen al miembro que creó la vinculación y
+  siguen el borrado de su cuenta.
+
+**Olvidar a este cliente** (o `channel-forget-customer`) borra a un cliente en los
+bots de WhatsApp de la organización. Cancela sus runs aparcados, borra las
+notificaciones de aprobaciones pendientes y oculta los argumentos, el contexto y la
+nota de cada aprobación de sus runs. Borra los manifiestos de esos runs, algo que
+el borrado de cuenta no hace, y los trabajos de devolución que no están en marcha.
+Sus sandboxes se eliminan tras el commit. Las aprobaciones se marcan como caducadas
+sin una entrada de auditoría cada una; la única entrada de auditoría del borrado
+contiene solo recuentos.
+
+Lo que no alcanza:
+
+- **La cadena de auditoría** conserva las entradas escritas al pedir o decidir las
+  aprobaciones.
+- **Filas de tabla que un agente escribió** para el cliente: una fila no tiene
+  enlace al cliente, así que no se puede encontrar.
+- **Runs anteriores de un miembro** de un periodo en que la cuenta de chat estaba
+  vinculada.
+- **Un turno en curso** en el momento del borrado. Termina o falla contra la
+  conversación borrada, y el siguiente mensaje del cliente empieza de cero.
+- **Un trabajo de entrega en marcha**, que sobrevive hasta la limpieza de retención
+  de trabajos.
+- **Redis**, donde una clave de deduplicación vive 15 minutos.
+- **Logfire y Meta**, que conservan lo que recibieron según su propia retención, y
+  **las copias de seguridad**.
 
 Ninguno de estos alcanza una copia de seguridad. Una restauración devuelve lo
 que se había borrado, así que la caducidad de las copias forma parte de la

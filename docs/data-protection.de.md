@@ -1,5 +1,5 @@
 ---
-source_sha: "a10ecb9bb456"
+source_sha: "30f4e6998948"
 ---
 
 # Datenschutz { #data-protection }
@@ -114,7 +114,7 @@ Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre
 | `notifications`, `notification_deliveries` | Jede an jemanden adressierte Benachrichtigung und ihre E-Mail-Zustellung. Eine Zeile wird auch dann geschrieben, wenn der Empfänger für dieses Ereignis jeden Kanal abgeschaltet hat - sie ist es, die verhindert, dass dasselbe Vorkommnis zweimal geschrieben wird - und wird dann einfach nie gezeigt oder gesendet; nur die Zustellungszeile ist bedingt | Der Empfänger, eine vorgerenderte Zusammenfassung (nie ein roher Kommentar oder Secret-Wert) und die typisierten Variablen, aus denen eine E-Mail neu rendert; eine Zustellungszeile fügt ihren Kanal, Status, die Versuche und einen bereinigten Fehlgrund hinzu — nie den Fehlertext des Providers. Eine Freigabe, die ein nicht verknüpftes Chat-Konto angefragt hat, behält diesen Anzeigenamen oder das Handle in der Zusammenfassung und den Variablen, bis der Aufbewahrungs-Sweep der Benachrichtigungen die Zeile entfernt - das Löschen der Identität erreicht sie nicht | Warnungen, die eine Person einmal liest, unbeaufsichtigt. Siehe [Governance](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Kanal-Umschalter je Ereignis, und die eigenen Ankündigungen eines App-Administrators | Eine Benutzer-Id je Umschalter; der Absender einer Ankündigung, ihr Text sowie die Organisationen und die Rolle, an die sie adressiert war — nie die aufgelöste Empfängerliste, die aus `notifications` nur rekonstruierbar ist, solange diese Zeile nicht durch [den Retention-Sweep für Benachrichtigungen](governance.md#alerts) verfällt — danach hält der Audit-Eintrag dahinter nur noch eine Zahl, nie die Empfänger | Opt-out, und der eigene Nachweis des Verfassers |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Teams, Telegram, Mattermost, Discord oder WhatsApp | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id. Bei einem WhatsApp-Absender: die Business-scoped User ID, der von ihm gewählte Profilname und, als seine Bezeichnung, der WhatsApp-Benutzername, wenn er einen hat, andernfalls seine Telefonnummer maskiert als `•••• 1234` | Den richtigen Thread fortsetzen. Bei einer nicht verknüpften fragenden Person werden Anzeigename oder Handle außerdem in der Freigabe-Queue, ihrem CSV-Export und der Freigabe-E-Mail angezeigt, den Personen, die entscheiden |
-| `whatsapp_customers`, `whatsapp_held_runs` | WhatsApp-Kunden, die einem Bot geschrieben haben, und die Runs, deren Antworten auf sie warten | Die Business-scoped User ID, wann sie zuletzt geschrieben haben (Metas Zeit), wann Meta zuletzt eine Nachricht als außerhalb des 24-Stunden-Fensters abgelehnt hat, wann sie zuletzt erfahren haben, dass eine Antwort unterwegs ist, und was auf sie wartet: die Ids der Runs und der gespeicherten Antworten und der Schlüssel eines festen Hinweises (Verweise und Schlüssel, nie der Text). Keine Telefonnummer und kein Nachrichtentext. Sie verschwinden mit ihrem Bot, ihrer Organisation oder ihrem Run | Wissen, ob das [24-Stunden-Fenster](channels.md#whatsapp-late-answers) von WhatsApp offen ist und was noch aussteht |
+| `whatsapp_customers`, `whatsapp_held_runs` | WhatsApp-Kunden, die einem Bot geschrieben haben, und die Runs, deren Antworten auf sie warten | Die Business-scoped User ID, wann sie zuletzt geschrieben haben (Metas Zeit), wann Meta zuletzt eine Nachricht als außerhalb des 24-Stunden-Fensters abgelehnt hat, wann sie zuletzt erfahren haben, dass eine Antwort unterwegs ist, und was auf sie wartet: die Ids der Runs und der gespeicherten Antworten und der Schlüssel eines festen Hinweises (Verweise und Schlüssel, nie der Text). Die Telefonnummer wird nur für einen Absender gespeichert, den der Bot auf einer [öffentlichen Leitung](channels.md#whatsapp-public-line) als Fremden zugelassen hat, als Ziffern, und gelöscht, sobald der Absender ein Konto verknüpft; ein verknüpfter Absender hat keine. Kein Nachrichtentext. Sie verschwinden mit ihrem Bot, ihrer Organisation oder ihrem Run oder wenn jemand [Diesen Kunden vergessen](#whatsapp-customers) nutzt | Wissen, ob das [24-Stunden-Fenster](channels.md#whatsapp-late-answers) von WhatsApp offen ist und was noch aussteht |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
 | `suggestions` | Was die [Arbeit aus eigener Initiative](governance.md#proactive-work) einer Person vorgeschlagen hat, und ob sie es angenommen hat | Die Person, ein Titel und eine Zeile Detail aus ihren letzten Anfragen, der Routine-Prompt oder das Profil, das er setzen würde, und ein Schlüssel, der verhindert, dass ein verworfener Vorschlag wiederkommt | Vorschläge, über die die Person entscheidet |
 | `watches` | Was eine Person die [Arbeit aus eigener Initiative](governance.md#proactive-work) in ihren eigenen Verbindungen beobachten lässt | Die Person, welche ihrer Verbindungen, wonach gesucht und was ausgelassen wird in ihren eigenen Worten, wie oft und wann zuletzt nachgesehen wurde | Beobachtungen, die die Person einrichtet |
@@ -376,6 +376,47 @@ Aufbewahrung ist [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Eine Organisation löschen | Alles, was auf sie gescoped ist, mit demselben aufgeschobenen Abbau - ihre erzeugten Medien per Präfix, einschließlich der Dateien, die geschrieben wurden, bevor sie erfasst wurden | Persönliche Collections, die die Id lediglich mitführten |
 
 Kanalnachrichten speichern nur den Text des Absenders. Autorenbezeichnungen werden unmittelbar vor der Modellanfrage aus Kanalidentitäten aufgelöst, außerhalb der Systemanweisungen. Konsole, Kopieren, Anheften und Kurzbefehle erhalten den reinen Text. Gespeicherte Verläufe und pausierte Runs behalten opake Identitätsreferenzen; Manifeste lassen die eingefügten Kanalreferenzteile aus. Die Kontolöschung entfernt dessen Kanalidentitäten, sodass spätere Anfragen die Plattformbezeichnungen der Person nicht mehr auflösen können. Geteilte Nachrichtentexte bleiben erhalten.
+
+### WhatsApp-Kunden { #whatsapp-customers }
+
+Eine [öffentliche Leitung](channels.md#whatsapp-public-line) beantwortet Personen,
+die niemand mit einem Konto verknüpft hat, und hält deshalb personenbezogene Daten
+von Menschen, die keine Mitglieder sind.
+
+- **Die Telefonnummer** (`whatsapp_customers.phone`) wird geschrieben, wenn ein
+  nicht verknüpfter Absender als Fremder zugelassen wird, und gelöscht, wenn er ein
+  Konto verknüpft. Wer `channels:manage` hat, sieht sie in der Kundenansicht
+  vollständig und kann danach suchen. Die Suche sendet die Nummer im Request-Body,
+  und ein Request-Trace schwärzt jedes Body-Feld namens `phone`, die Nummer gelangt
+  also nicht in einen Trace.
+- **Es gibt keine automatische Aufbewahrungsfrist.** Eine Kundenzeile bleibt, bis
+  jemand den Kunden vergisst oder der Bot, die Organisation oder der Run, zu dem sie
+  gehört, gelöscht wird.
+- **Dateien von Fremden** gehören dem Mitglied, das die Bindung angelegt hat, und
+  folgen der Löschung seines Kontos.
+
+**Diesen Kunden vergessen** (oder `channel-forget-customer`) löscht einen Kunden
+über alle WhatsApp-Bots der Organisation. Es bricht seine geparkten Runs ab, löscht
+offene Genehmigungsbenachrichtigungen und schwärzt Argumente, Kontext und Notiz
+jeder Genehmigung seiner Runs. Es löscht die Manifeste dieser Runs, was die
+Kontolöschung nicht tut, und Rückgabe-Jobs, die nicht laufen. Ihre Sandboxes werden
+nach dem Commit entfernt. Die Genehmigungen werden ohne einzelnen Audit-Eintrag als
+abgelaufen markiert; der eine Audit-Eintrag zur Löschung enthält nur Zahlen.
+
+Was es nicht erreicht:
+
+- **Die Audit-Kette** behält die Einträge, die beim Anfragen oder Entscheiden von
+  Genehmigungen geschrieben wurden.
+- **Tabellenzeilen, die ein Agent** für den Kunden schrieb: Eine Zeile hat keinen
+  Verweis auf den Kunden, sie lässt sich also nicht finden.
+- **Frühere Runs eines Mitglieds** aus der Zeit, in der das Chat-Konto verknüpft war.
+- **Ein laufender Turn** im Moment der Löschung. Er endet oder scheitert gegen die
+  gelöschte Unterhaltung, und die nächste Nachricht des Kunden beginnt neu.
+- **Ein laufender Zustell-Job**, der bis zur Aufbewahrungsbereinigung der Jobs
+  überlebt.
+- **Redis**, wo ein Deduplizierungsschlüssel 15 Minuten lebt.
+- **Logfire und Meta**, die behalten, was sie erhalten haben, nach eigener
+  Aufbewahrung, sowie **Backups**.
 
 Keines davon erreicht ein Backup. Eine Wiederherstellung bringt zurück, was
 gelöscht wurde, der Backup-Ablauf gehört also zur Aufbewahrungsrichtlinie und

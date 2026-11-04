@@ -100,6 +100,10 @@ org-scoped goes through `Auth` (`AuthContext`) plus a permission.
   edits that agent and nothing else.
 - **A context with no subject** — API key, embed session, channel run. See
   `docs/permissions.md#contexts-with-no-subject`.
+- **The agent principal** — a public-line WhatsApp stranger runs as the agent: no
+  role, only the spec's grants (`AuthContext.agent_grants`). Reads act as the agent;
+  an approved table write acts as its decider. See
+  `docs/permissions.md#a-surface-with-nobody-in-front-of-it`.
 
 ## Depth
 

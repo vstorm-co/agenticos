@@ -1,5 +1,5 @@
 ---
-source_sha: "70fdd78d5294"
+source_sha: "206f942941f4"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1360,7 +1360,8 @@ Zugriff, den er hatte.
 Funktioniert in Channels und in DMs. Eine Nachricht von einem verknüpften Konto
 läuft als diese Person — nie als der Bot; eine von einem Konto, das niemand
 verknüpft hat, läuft unter der Bindung, und nur in einem Channel. Eine
-Direktnachricht fragt zuerst nach dem Konto.
+Direktnachricht fragt zuerst nach dem Konto, außer auf einer
+[öffentlichen WhatsApp-Leitung](#whatsapp-public-line).
 
 Ein verknüpftes Konto, dessen Mitglied die Organisation verlassen hat oder dessen
 Konto deaktiviert wurde, wird wie ein nicht verknüpftes behandelt: in einer
@@ -1893,6 +1894,102 @@ Testnummer braucht keine Zahlungsmethode.
   erfolgreich gesendete Nachricht hebt das auf. Der Status verfällt nach 15 Minuten
   ohne Verkehr.
 
+### Eine öffentliche Leitung { #whatsapp-public-line }
+
+Standardmäßig wird ein Kunde, der kein Konto verknüpft hat, gebeten, eines zu
+verknüpfen. Eine Geschäftsnummer, die die Öffentlichkeit bedient, kann das nicht
+verlangen, deshalb hat ein WhatsApp-Bot einen Schalter, **Personen ohne
+verknüpftes Konto beantworten** (`answer_unlinked_direct` in der Zugriffsrichtlinie;
+per CLI `channel-public-line --bot-id ... --on`). Er ist aus, bis ihn jemand
+einschaltet, und nur bei WhatsApp-Bots verfügbar. Ein neuer Bot kann nicht mit
+eingeschaltetem Schalter starten, weil der Hinzufügen-Dialog ihn nicht zeigt: Ein
+neuer Bot hat noch keinen Agenten, binden Sie also zuerst einen. `mode=group_only`
+wird abgelehnt, solange der Schalter an ist.
+
+**Der Zielkonflikt ist der Kern.** Bei eingeschaltetem Schalter kann jeder, der die
+Nummer kennt, dem Bot schreiben, und der Bot antwortet mit allem, was die
+Spezifikation des gebundenen Agenten erreicht: Anweisungen, Wissen, Werkzeuge und
+Budget. Entscheiden Sie das, bevor Sie den Agenten binden, und binden Sie einen
+Agenten, der für Fremde geschrieben ist.
+
+- **Der Run eines Fremden läuft als der Agent, nicht als Mitglied.** Er hat keine
+  Rolle und keine Reichweite eines Mitglieds, nur die Berechtigungen der
+  veröffentlichten Spezifikation des Agenten. Schreiben in eine Tabelle und
+  Anlegen einer Tabelle brauchen immer eine Genehmigung, auch wenn die Bindung
+  „nie“ sagt, und das Veröffentlichen einer Seite wird abgelehnt. Der eigene
+  MCP-Server der Plattform wird einem solchen Run nicht angeboten.
+- **Ein Ausgabenlimit ist Pflicht.** Die Leitung braucht ein Monatsbudget des
+  gebundenen Agenten oder das Monatslimit der Organisation. Ohne eines werden
+  abgelehnt: das Einschalten des Schalters, das Binden eines Agenten, der
+  Umgebungswechsel, das Fortsetzen einer pausierten Bindung, das Reaktivieren des
+  Bots und das Löschen einer Umgebung, nach dem die Bindung ohne Limit bliebe.
+  Abgelehnt wird auch eine Veröffentlichung, ein Rollback oder eine Promotion, nach
+  der eine Fremde beantwortende Bindung ohne Limit bliebe. Das Entfernen des
+  Organisationslimits wird nicht abgelehnt. Stattdessen antwortet der Bot Fremden
+  nicht mehr, solange kein Limit existiert, und die Warnung am Bot zeigt das.
+- **Eine Ablehnung ist für den Kunden ein neutraler Satz.** Ein Kunde, dessen
+  Nachricht abgelehnt wird oder dessen Turn scheitert, bekommt eine schlichte Zeile
+  wie „Sorry, I could not answer that. Please try again later.“ und nie den Grund,
+  das Limit oder den Namen von etwas Konfiguriertem.
+- **Genehmigungen kommen als Klartext und werden in der Konsole entschieden.** Der
+  Kunde erfährt, dass die Anfrage wartet, und kann sie nicht genehmigen. Wer
+  entscheidet, sieht die maskierte Nummer oder den Benutzernamen neben dem
+  Profilnamen, der als nicht verifiziert markiert ist. Ein genehmigter
+  Tabellenschreibzugriff wird als die genehmigende Person erfasst, mit dem Agenten
+  als Quelle.
+- **Fragen werden abgelehnt.** Wenn der Agent dem Kunden eine strukturierte Frage
+  stellen wollte, wird sie abgelehnt, und Schaltflächen für nächste Schritte werden
+  nicht angeboten.
+- **Verknüpft wird nur auf Wunsch.** Der Kunde wird nicht zum Verknüpfen
+  aufgefordert. Wenn er möchte, bittet er darum, und der übliche
+  [Code](#linking-with-a-code)-Ablauf gilt. Antworten tragen weder die
+  Nutzungsfußzeile noch die Adresse der Konsole.
+- **Binden braucht `channels:manage` oder eine Anfrage.** Über das Binden eines
+  Agenten an einen Bot, der Fremde beantwortet, den Umgebungswechsel der Bindung und
+  das Fortsetzen einer pausierten Bindung entscheidet, wer `channels:manage` hat.
+  Alle anderen, die die Bindung bearbeiten dürfen, stellen stattdessen eine Anfrage
+  mit einer Notiz von bis zu 500 Zeichen. Die Route antwortet mit `202` und einer
+  `request_id`, und die Berechtigten werden benachrichtigt. Die Genehmigung wendet
+  die Änderung als genehmigende Person an. Eine neue Anfrage derselben Person ersetzt
+  ihre offene, und eine Anfrage wird geschlossen, wenn die Leitung Fremde nicht mehr
+  beantwortet oder ein anderer Agent den Bot übernimmt. Pausieren und Lösen brauchen
+  keine Anfrage.
+- **Dateien von Kunden sind standardmäßig aus.** **Dateien von Kunden annehmen**
+  (`accept_customer_files`) lässt einen Fremden Bilder und Dokumente senden, bis zu
+  `EMBED_MAX_UPLOAD_SIZE_MB` (standardmäßig 5). Die Dateien gehören dem Mitglied,
+  das die Bindung angelegt hat. Bei ausgeschalteter Einstellung oder einer Bindung
+  ohne Ersteller wird eine Datei mit einem neutralen Satz abgelehnt.
+- **Sprachnachrichten brauchen ein Limit der Organisation.** Eine Sprachnachricht
+  eines Fremden wird geprüft, bevor etwas heruntergeladen wird: Die Leitung braucht
+  ein Limit, die Organisation ein Monatslimit, das nicht erreicht sein darf, und die
+  Nachricht darf höchstens 2 MB groß sein. Die Transkription zählt nicht zu den
+  eigenen Ausgaben des Agenten, ein Budget allein am Agenten genügt also nicht. Eine
+  abgelehnte Nachricht, auch bei ausgeschalteter Transkription, erhält „This line does
+  not accept voice messages.“
+
+#### Die Kundenansicht und das Vergessen eines Kunden { #the-customer-view-and-forgetting-a-customer }
+
+**Channels → der Bot → Kunden** listet die Personen auf, die einer öffentlichen
+Leitung geschrieben haben. Wer `channels:manage` hat, sieht die vollständige
+Telefonnummer und kann danach suchen. Die Nummer wird nur für einen Absender
+gespeichert, den der Bot als Fremden zugelassen hat, und gelöscht, sobald der
+Absender ein Konto verknüpft.
+
+**Diesen Kunden vergessen** löscht einen Kunden über alle WhatsApp-Bots der
+Organisation (per CLI `channel-forget-customer --bot-id ... --by bsuid|phone`, das
+die Treffer auflistet und um Bestätigung bittet). Es lehnt einen Kunden ab, der ein
+Konto verknüpft hat. Es bricht seine geparkten Runs ab, schwärzt Argumente, Kontext
+und Notizen seiner Genehmigungen, löscht die Manifeste seiner Runs und seine
+Genehmigungsbenachrichtigungen, löscht nicht laufende Rückgabe-Jobs und entfernt
+seine Sandboxes. Ein Audit-Eintrag hält die Zahlen fest. Was es nicht erreicht,
+steht unter [Datenschutz](data-protection.md#whatsapp-customers).
+
+!!! warning "Das Ausschalten der Leitung benachrichtigt einen geparkten Run nicht"
+
+    Der Run eines Fremden, der beim Ausschalten der Leitung auf eine Entscheidung
+    wartet, bleibt geparkt, und der Kunde erhält dazu keine Nachricht. Entscheiden
+    oder brechen Sie ihn in der Konsole ab.
+
 ## Ein Bot, der nicht starten kann, hört auf, statt es erneut zu versuchen { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 Telegram-Polling, Slack Socket Mode, der Mattermost-Event-Stream und das
@@ -2343,6 +2440,11 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     **Eine Direktnachricht fragt nach einem Konto.** Sie ist eine Unterhaltung mit
     einer Person, also wird ein nicht verknüpftes Chat-Konto abgelehnt, bis es
     eines benennt.
+
+    Die Ausnahme ist ein WhatsApp-Bot mit eingeschalteter
+    [öffentlicher Leitung](#whatsapp-public-line): Dort wird ein nicht verknüpfter
+    Absender vom Agenten selbst beantwortet, nur mit den Berechtigungen seiner
+    veröffentlichten Spezifikation.
 
     **Ein Channel beantwortet jeden darin.** Wer immer den Bot einladen konnte,
     hat das Publikum gewählt, also wird ein Absender ohne verknüpftes Konto nicht

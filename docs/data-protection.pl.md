@@ -1,5 +1,5 @@
 ---
-source_sha: "a10ecb9bb456"
+source_sha: "30f4e6998948"
 ---
 
 # Ochrona danych { #data-protection }
@@ -108,7 +108,7 @@ przez sprawdzenie rodzica.
 | `notifications`, `notification_deliveries` | Każde powiadomienie zaadresowane do kogoś oraz jego dostarczenie mailem. Wiersz powstaje nawet wtedy, gdy odbiorca wyłączył dla tego zdarzenia wszystkie kanały — to on nie pozwala zapisać tego samego wystąpienia dwa razy — i po prostu nigdy nie jest pokazywany ani wysyłany; warunkowy jest tylko wiersz dostawy | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera. Zatwierdzenie zadane przez niepowiązane konto czatu zachowuje tę nazwę wyświetlaną albo uchwyt w podsumowaniu i zmiennych, aż sweep retencji powiadomień usunie wiersz — usunięcie tożsamości go nie obejmuje | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą można odtworzyć z `notifications` tylko dopóki ten wiersz nie wypadnie w ramach [zamiatania retencji powiadomień](governance.md#alerts) — po czym wpis audytowy zachowuje tylko liczbę, nigdy odbiorców | Rezygnacja z powiadomień i własny zapis autora |
 | `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Teams, Telegramie, Mattermoście, Discordzie albo WhatsAppie | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu. Dla nadawcy z WhatsAppa: business-scoped user ID, wybrana przez niego nazwa profilu oraz, jako jego etykieta, nazwa użytkownika WhatsApp, jeśli ją ma, a w przeciwnym razie numer telefonu zamaskowany jako `•••• 1234` | Wznowienie właściwego wątku. Dla pytającego bez powiązanego konta nazwa wyświetlana albo uchwyt jest też pokazywana w kolejce zatwierdzeń, jej eksporcie CSV i e-mailu o zatwierdzeniu osobom, które decydują |
-| `whatsapp_customers`, `whatsapp_held_runs` | Klienci WhatsApp, którzy napisali do bota, i runy, których odpowiedzi na nich czekają | Business-scoped user ID, kiedy ostatnio pisali (czas Meta), kiedy Meta ostatnio odrzuciła wiadomość jako wysłaną poza 24-godzinnym oknem, kiedy ostatnio dostali informację, że odpowiedź jest w drodze, i co na nich czeka: identyfikatory runów i zapisanych odpowiedzi oraz klucz stałego komunikatu (wskaźniki i klucze, nigdy treść). Bez numeru telefonu i bez treści wiadomości. Znikają razem z botem, organizacją albo runem | Wiedza, czy [24-godzinne okno](channels.md#whatsapp-late-answers) WhatsApp jest otwarte i co jeszcze jest należne |
+| `whatsapp_customers`, `whatsapp_held_runs` | Klienci WhatsApp, którzy napisali do bota, i runy, których odpowiedzi na nich czekają | Business-scoped user ID, kiedy ostatnio pisali (czas Meta), kiedy Meta ostatnio odrzuciła wiadomość jako wysłaną poza 24-godzinnym oknem, kiedy ostatnio dostali informację, że odpowiedź jest w drodze, i co na nich czeka: identyfikatory runów i zapisanych odpowiedzi oraz klucz stałego komunikatu (wskaźniki i klucze, nigdy treść). Numer telefonu jest zapisywany tylko dla nadawcy, którego bot przyjął jako obcego na [linii publicznej](channels.md#whatsapp-public-line), jako cyfry, i znika, gdy nadawca powiąże konto; nadawca powiązany nie ma go wcale. Bez treści wiadomości. Znikają razem z botem, organizacją albo runem, albo gdy ktoś użyje [Zapomnij tego klienta](#whatsapp-customers) | Wiedza, czy [24-godzinne okno](channels.md#whatsapp-late-answers) WhatsApp jest otwarte i co jeszcze jest należne |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
 | `suggestions` | Co [praca z własnej inicjatywy](governance.md#proactive-work) zaproponowała osobie i czy to przyjęła | Osoba, tytuł i linijka opisu wzięte z jej ostatnich próśb, prompt rutyny albo profil, który by ustawiła, i klucz, który nie pozwala zaproponować ponownie czegoś odrzuconego | Propozycje, o których osoba decyduje |
 | `watches` | Co osoba kazała [pracy z własnej inicjatywy](governance.md#proactive-work) obserwować na swoich połączeniach | Osoba, które z jej połączeń, czego szukać i co pomijać jej własnymi słowami, jak często i kiedy ostatnio sprawdzono | Obserwacje, które osoba ustawia |
@@ -355,6 +355,44 @@ harmonogramu to [#1420](https://github.com/vstorm-co/agenticos/issues/1420).
 | Usunięcie organizacji | Wszystko do niej ograniczone, tym samym odroczonym rozmontowaniem - jej wygenerowane media po prefiksie, łącznie z plikami zapisanymi, zanim zaczęto je rejestrować | Kolekcje osobiste, które jedynie niosły to id |
 
 Wiadomości kanałowe zapisują wyłącznie tekst nadawcy. Etykiety autora są odczytywane z tożsamości kanałowych tuż przed wysłaniem zapytania do modelu, poza instrukcjami systemowymi. Konsola oraz kopiowanie, przypinanie i skróty otrzymują samą treść. Zapisana historia i wstrzymane runy przechowują niejawne odwołania do tożsamości, a manifesty pomijają dopisane części kontekstu kanałowego. Usunięcie konta usuwa jego tożsamości, więc kolejne zapytania nie odczytają etykiet tej osoby; treść wspólnych wiadomości zostaje.
+
+### Klienci WhatsApp { #whatsapp-customers }
+
+[Linia publiczna](channels.md#whatsapp-public-line) odpowiada osobom, których nikt
+nie powiązał z kontem, więc przechowuje dane osobowe ludzi, którzy nie są
+członkami.
+
+- **Numer telefonu** (`whatsapp_customers.phone`) jest zapisywany, gdy niepowiązany
+  nadawca zostaje przyjęty jako obcy, i czyszczony, gdy powiąże konto. Posiadacze
+  `channels:manage` widzą go w całości w widoku klientów i mogą po nim szukać.
+  Wyszukiwanie wysyła numer w treści żądania, a ślad żądania zamazuje każde pole
+  treści o nazwie `phone`, więc numer nie trafia do śladu.
+- **Nie ma automatycznego przechowywania z limitem czasu.** Wiersz klienta zostaje,
+  dopóki ktoś nie zapomni klienta albo nie zostanie usunięty bot, organizacja lub
+  run, do których należy.
+- **Pliki obcych** należą do członka, który utworzył powiązanie, i idą za usunięciem
+  jego konta.
+
+**Zapomnij tego klienta** (albo `channel-forget-customer`) usuwa klienta we
+wszystkich botach WhatsApp organizacji. Anuluje jego zaparkowane runy, usuwa
+powiadomienia o oczekujących akceptacjach i zamazuje argumenty, kontekst i notatkę
+każdej akceptacji w jego runach. Usuwa manifesty tych runów, czego usunięcie konta
+nie robi, oraz zadania zwrotne, które nie są uruchomione. Ich piaskownice są
+usuwane po zatwierdzeniu transakcji. Akceptacje dostają status wygasłych bez
+osobnego wpisu audytu; jeden wpis audytu o usunięciu zawiera tylko liczby.
+
+Czego to nie obejmuje:
+
+- **Łańcuch audytu** zachowuje wpisy z chwili pytania o akceptacje lub ich decyzji.
+- **Wiersze tabel zapisane przez agenta** dla klienta: wiersz nie ma odnośnika do
+  klienta, więc nie da się go znaleźć.
+- **Wcześniejsze runy członka** z okresu, gdy konto czatowe było powiązane.
+- **Tura w toku** w chwili usunięcia. Kończy się albo kończy błędem wobec usuniętej
+  rozmowy, a następna wiadomość klienta zaczyna od nowa.
+- **Działające zadanie dostarczenia**, które przeżywa do przeglądu retencji zadań.
+- **Redis**, gdzie klucz deduplikacji żyje 15 minut.
+- **Logfire i Meta**, które trzymają to, co dostały, zgodnie z własną retencją,
+  oraz **kopie zapasowe**.
 
 Żadne z tych nie sięga kopii zapasowej. Odtworzenie przywraca to, co usunięto,
 więc wygaśnięcie kopii jest częścią polityki retencji i jest spisane razem z nią.

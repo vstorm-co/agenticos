@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "aed1d013997a"
 ---
 
 # Uprawnienia { #permissions }
@@ -353,6 +353,13 @@ zalogować, a wciąż wydaje budżet organizacji. To jeden złączony odczyt
 (`member_repo.get_active`), a nie dwa, ponieważ odpowiada się na to w każdej
 turze, którą bierze publiczna powierzchnia.
 
+Bot WhatsApp z włączoną [linią publiczną](channels.md#whatsapp-public-line) jest
+wyjątkiem od zasady „run potrzebuje roli członka”. Obcy działa tam **jako agent**:
+run nie ma żadnej roli, a to, do czego sięga, to uprawnienia niesione przez
+opublikowaną specyfikację agenta, nic z tego, co ma członek. Zastępstwo
+publikującego jest nadal zapisane w runie, a run jest oznaczony jako działający
+jako agent, więc później da się go odróżnić.
+
 To, kto **zapytał**, niesione jest osobno — `channel_identity_id`, konto czatowe,
 które się odezwało. Zlanie obu w jedno sprawiłoby, że run z kanału rościłby sobie
 władzę nadawcy, a właśnie tego niepowiązany nadawca nie ma.
@@ -599,6 +606,20 @@ człowiekowi bez przepisywania tego, jako kto zostały uruchomione. Zobacz
 
 To, co takiemu runowi wolno zrobić, wynika z **ekspozycji** (exposure), która go
 wpuściła, stworzonej przez kogoś, kto rolę jednak miał.
+
+Run działający jako agent to jedyny przypadek, w którym nie czyta się roli żadnego
+członka:
+
+- Ma tylko opublikowane uprawnienia agenta. Odczyty działają jako agent. Zapis do
+  tabeli i tworzenie tabeli zawsze wymagają akceptacji, a zatwierdzony zapis jest
+  zapisany jako osoba, która go zatwierdziła, z agentem jako źródłem rekordu.
+  Zatwierdzający, który nie jest już członkiem, jest odrzucany.
+- Workflow uruchomiony z takiego zapisu przez wyzwalacz tabeli działa jako
+  własny podmiot wyzwalacza i jest oznaczony jako pochodzący z publicznego źródła.
+- Powiązanie agenta z botem linii publicznej wymaga `channels:manage` albo wniosku,
+  który zatwierdza posiadacz. Builder publikujący szerszą wersję agenta już
+  powiązanego z linią publiczną nie potrzebuje `channels:manage`; publikacja jest
+  nadal odrzucana, gdy zostawiłaby linię bez limitu wydatków.
 
 ## Co czyta frontend { #what-the-frontend-reads }
 
