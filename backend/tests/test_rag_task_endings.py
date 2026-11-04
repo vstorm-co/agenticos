@@ -55,6 +55,7 @@ async def test_a_lost_ingestion_fails_its_document_with_why() -> None:
         str(job.rag_document_id),
         error_message="Stopped before it finished: stopped by the memory watchdog",
         attempt=2,
+        settling=True,
     )
 
 
