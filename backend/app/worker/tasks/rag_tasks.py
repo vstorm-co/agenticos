@@ -806,7 +806,12 @@ async def _run_sync(
 
 
 async def _fail_document(
-    rag_document_id: str, *, error_message: str | None, attempt: int, final: bool = False
+    rag_document_id: str,
+    *,
+    error_message: str | None,
+    attempt: int,
+    final: bool = False,
+    settling: bool = False,
 ) -> None:
     """Put a failure on the document row, and let the first one keep it.
 
@@ -830,6 +835,11 @@ async def _fail_document(
     which returns rather than raising into a retry. A row already gone is what
     such a refusal usually finds, so it is noted at INFO rather than warned of.
 
+    `settling` is the queue's settler calling (`settle_lost_ingest`): a failure to
+    write the row is raised rather than logged, so the job's end stays owed and
+    the rescuer runs it again. Swallowed, the job was marked settled over a row
+    left `processing` for good, which the document's own retry refuses (#2681).
+
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
     `complete_ingestion` itself.
@@ -852,6 +862,8 @@ async def _fail_document(
     except NotFoundError:
         logger.info("Document %s is gone; no failure to record", rag_document_id)
     except Exception as e:
+        if settling:
+            raise
         logger.warning("Failed to record the ingestion failure: %s", e)
 
 
@@ -1871,7 +1883,10 @@ async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:
     """
     try:
         await _fail_document(
-            str(job.rag_document_id), error_message=_stopped(reason), attempt=job.attempt
+            str(job.rag_document_id),
+            error_message=_stopped(reason),
+            attempt=job.attempt,
+            settling=True,
         )
     finally:
         _discard_scratch(job.filepath)

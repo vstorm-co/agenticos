@@ -638,7 +638,7 @@ out of memory. Every owner is told in the app and by email, and the
 notification cannot be switched off - work of that kind piles up until one of
 them resumes it. A pause names the organization whose jobs caused it, and the
 kind keeps running for every other. Retry the dead jobs only once the cause is fixed, or they die
-the same way. The settings are in
+the same way - a dead document ingest from its knowledge base instead. The settings are in
 [Configuration](configuration.md#background-work).
 
 ## Recap

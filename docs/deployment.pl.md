@@ -1,5 +1,5 @@
 ---
-source_sha: "e21cd92c44c1"
+source_sha: "d6e3bf78d15a"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -677,7 +677,7 @@ parsowanie kończy się brakiem pamięci. Każdy właściciel dostaje powiadomie
 aplikacji i e-mailem, którego nie da się wyłączyć - praca tego rodzaju gromadzi
 się, dopóki któryś z nich jej nie wznowi. Pauza podaje organizację, której
 zadania ją wywołały, a dla pozostałych ten rodzaj działa dalej. Martwe zadania ponawiaj dopiero po
-usunięciu przyczyny, inaczej zginą tak samo. Ustawienia są w
+usunięciu przyczyny, inaczej zginą tak samo - martwy ingest dokumentu ponawiaj z jego bazy wiedzy. Ustawienia są w
 [Konfiguracji](configuration.md#background-work).
 
 ## Podsumowanie { #recap }

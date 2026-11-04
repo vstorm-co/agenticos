@@ -1,5 +1,5 @@
 ---
-source_sha: "e21cd92c44c1"
+source_sha: "d6e3bf78d15a"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -687,7 +687,7 @@ queda sin memoria. Cada propietario recibe un aviso en la aplicación y por
 correo, y la notificación no se puede desactivar: el trabajo de ese tipo se
 acumula hasta que uno de ellos lo reanuda. Una pausa nombra la organización
 cuyos jobs la provocaron, y para todas las demás el tipo sigue funcionando. Reintenta los jobs muertos solo
-cuando la causa esté resuelta, o morirán igual. Los ajustes están en
+cuando la causa esté resuelta, o morirán igual; un ingest de documento muerto, desde su base de conocimiento. Los ajustes están en
 [Configuración](configuration.md#background-work).
 
 ## Resumen { #recap }

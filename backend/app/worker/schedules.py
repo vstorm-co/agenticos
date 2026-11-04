@@ -233,8 +233,9 @@ async def _fire(db: AsyncSession, schedule: Schedule, occurrence: datetime) -> U
 def _spread(index: int, count: int) -> timedelta:
     """A share of a minute: spread enough to keep the sweeps apart, and no daily one waits a day.
 
-    In `count + 1` shares, not `count`: a schedule whose interval is shorter than
-    its share starts one interval out instead (`background_schedule.declare`), and
-    with thirty schedules a whole-second share landed a sweep on that same instant.
+    No two schedules may start at the same instant, and one whose interval is
+    shorter than its share starts one interval out instead
+    (`background_schedule.declare`). In `count + 1` shares, so no share of the
+    current set lands on such a clamped start; `test_background_schedules` checks it.
     """
     return _MINUTE * index / (count + 1)

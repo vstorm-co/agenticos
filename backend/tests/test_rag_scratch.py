@@ -27,10 +27,12 @@ from sqlalchemy.dialects import postgresql
 
 from app.core import background
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.rag_document import DocumentStatus
+from app.repositories import background_job as background_job_repo
 from app.repositories import rag_document_repo
 from app.services import rag_scratch
+from app.services.background_jobs import BackgroundJobService
 from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag_document import RAGDocumentService
 from app.worker import jobs
@@ -562,10 +564,6 @@ async def test_a_dead_ingest_is_retried_from_its_document_not_from_the_jobs_pane
 ) -> None:
     """Its copy went with it: requeuing the payload could only end it again. The
     document's own retry parses the stored file into a new copy."""
-    from app.core.exceptions import BadRequestError
-    from app.repositories import background_job as background_job_repo
-    from app.services.background_jobs import BackgroundJobService
-
     job = SimpleNamespace(id=uuid.uuid4(), kind=jobs.INGEST_DOCUMENT.kind, dedupe_key=None)
     monkeypatch.setattr(background_job_repo, "get", AsyncMock(return_value=job))
     requeue = AsyncMock()
@@ -575,3 +573,25 @@ async def test_a_dead_ingest_is_retried_from_its_document_not_from_the_jobs_pane
         await BackgroundJobService(MagicMock()).retry(job.id, actor_user_id=uuid.uuid4())
 
     requeue.assert_not_awaited()
+
+
+async def test_a_settlement_that_could_not_be_written_is_left_owed(
+    media: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The queue marks a written-off job settled only when its settler returns. One
+    that swallowed a database failure left an upload `processing` for good - which
+    the document's own retry refuses, and the jobs panel's Retry no longer reaches -
+    so the settler raises, and the rescuer runs it again. The copy goes either way."""
+    path = _copy(media, f"{uuid.uuid4()}-1.pdf")
+
+    @asynccontextmanager
+    async def unreachable() -> AsyncIterator[MagicMock]:
+        raise ConnectionError("database down")
+        yield MagicMock()  # pragma: no cover - the context never opens
+
+    monkeypatch.setattr(rag_tasks, "get_worker_db_context", unreachable)
+
+    with pytest.raises(ConnectionError):
+        await rag_tasks.settle_lost_ingest(_job(path), "killed")
+
+    assert not path.exists()
