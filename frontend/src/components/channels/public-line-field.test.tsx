@@ -9,6 +9,14 @@ vi.mock("@/hooks/use-channel-bots", () => ({
   usePublicLine: () => ({ data: line, isLoading: line === undefined }),
 }));
 
+function reach(
+  kind: PublicLine["reaches"][number]["kind"],
+  names: string[],
+  detail: "outside_ledger" | null = null,
+): PublicLine["reaches"][number] {
+  return { kind, names, detail, grants: [], may_create: false };
+}
+
 function warning(overrides: Partial<PublicLine> = {}): PublicLine {
   return {
     answers_unlinked: false,
@@ -24,16 +32,20 @@ function warning(overrides: Partial<PublicLine> = {}): PublicLine {
     recording_max_mb: 2,
     file_max_mb: 5,
     reaches: [
-      { kind: "knowledge", names: ["Handbook", "Returns"], detail: null },
-      { kind: "tables", names: ["Support"], detail: "Support: read, update; may create tables" },
-      { kind: "web", names: ["web_fetch"], detail: "not counted in the spending limit" },
-      { kind: "code", names: ["code_execution"], detail: "not counted in the spending limit" },
-      { kind: "context", names: ["Tone"], detail: null },
-      { kind: "skills", names: ["Refunds"], detail: null },
-      { kind: "generation", names: ["image_generation"], detail: null },
-      { kind: "delegates", names: ["Billing"], detail: null },
-      { kind: "mcp", names: ["CRM"], detail: null },
-      { kind: "files", names: [], detail: null },
+      reach("knowledge", ["Handbook", "Returns"]),
+      {
+        ...reach("tables", ["Support"]),
+        grants: [{ name: "Support", operations: ["read", "update"] }],
+        may_create: true,
+      },
+      reach("web", ["web_fetch"], "outside_ledger"),
+      reach("code", ["code_execution"], "outside_ledger"),
+      reach("context", ["Tone"]),
+      reach("skills", ["Refunds"]),
+      reach("generation", ["image_generation"]),
+      reach("delegates", ["Billing"]),
+      reach("mcp", ["CRM"]),
+      reach("files", []),
     ],
     refused: [
       "memory",
@@ -79,7 +91,11 @@ describe("the switch for answering people with no account", () => {
   });
 
   it("states the ceilings, the rate, the expiry, the file and voice caps and what is refused", () => {
-    line = warning({ organization_monthly_usd: "100.00", voice: "on" });
+    line = warning({
+      organization_monthly_usd: "100.00",
+      voice: "on",
+      accept_customer_files: true,
+    });
     show();
 
     expect(screen.getByText(/agent monthly budget.*\$5\.00/i)).toBeInTheDocument();
@@ -89,6 +105,23 @@ describe("the switch for answering people with no account", () => {
     expect(screen.getByText(/files up to 5 MB/i)).toBeInTheDocument();
     expect(screen.getByText(/voice notes up to 2 MB/i)).toBeInTheDocument();
     expect(screen.getByText(/never reach.*memory/i)).toBeInTheDocument();
+  });
+
+  it("does not mention a file cap while files are refused", () => {
+    line = warning({ accept_customer_files: false });
+    show();
+
+    expect(screen.queryByText(/files up to/i)).not.toBeInTheDocument();
+  });
+
+  it("clears the files choice when the line is switched off", () => {
+    line = warning();
+    const { onAnswers, onFiles } = show({ answers: true, files: true });
+
+    fireEvent.click(screen.getByRole("switch", { name: /answer people with no account/i }));
+
+    expect(onAnswers).toHaveBeenCalledWith(false);
+    expect(onFiles).toHaveBeenCalledWith(false);
   });
 
   it("says voice notes need an organization cap while there is none", () => {

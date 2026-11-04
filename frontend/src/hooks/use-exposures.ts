@@ -7,8 +7,11 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { UsageReporting } from "@/types/channels";
+import type { DeferredBinding, UsageReporting } from "@/types/channels";
 import type { Exposure, ExposureList, ExposureTarget, ExposureTargetList } from "@/types/exposures";
+
+const isDeferred = (answer: Exposure | DeferredBinding): answer is DeferredBinding =>
+  "request_id" in answer;
 
 /**
  * Where one agent is available, and where it could be.
@@ -26,30 +29,42 @@ export function useExposures(agentId: string | null) {
   const t = useTranslations("agents");
   const queryClient = useQueryClient();
   const base = `/agents/${agentId}/exposures`;
+  const id = agentId ?? "";
 
   const { data, isLoading } = useQuery({
-    queryKey: qk.exposures.list(agentId ?? ""),
+    queryKey: qk.exposures.list(id),
     queryFn: () => apiClient.get<ExposureList>(base),
     enabled: !!agentId,
   });
 
   const { data: targets } = useQuery({
-    queryKey: qk.exposures.targets(agentId ?? ""),
+    queryKey: qk.exposures.targets(id),
     queryFn: () => apiClient.get<ExposureTargetList>(`${base}/targets`),
     enabled: !!agentId,
   });
 
   const invalidate = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.exposures.list(agentId ?? "") }),
-    [queryClient, agentId],
+    () => queryClient.invalidateQueries({ queryKey: qk.exposures.list(id) }),
+    [queryClient, id],
   );
 
+  // A change on a public line may wait for an administrator: the server answers
+  // 202 with the request instead of the binding, and nothing is live to re-read.
+  const requested = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: qk.exposures.requests(id) });
+    toast.success(t("bindingRequested"));
+  }, [queryClient, id, t]);
+
   const expose = useMutation({
-    mutationFn: (channelBotId: string) =>
-      apiClient.post<Exposure>(base, { channel_bot_id: channelBotId }),
-    onSuccess: async (exposure) => {
+    mutationFn: ({ channelBotId, requestNote }: { channelBotId: string; requestNote?: string }) =>
+      apiClient.post<Exposure | DeferredBinding>(base, {
+        channel_bot_id: channelBotId,
+        ...(requestNote ? { request_note: requestNote } : {}),
+      }),
+    onSuccess: async (answer) => {
+      if (isDeferred(answer)) return requested();
       await invalidate();
-      toast.success(t("exposureLive", { bot: exposure.channel_bot_name }));
+      toast.success(t("exposureLive", { bot: answer.channel_bot_name }));
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
@@ -59,13 +74,16 @@ export function useExposures(agentId: string | null) {
       // Only `is_active`. The server applies exactly the fields it was sent, so
       // sending more here - even values just read back - would let a pause
       // overwrite an environment somebody rebound in between.
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, { is_active: isActive }),
-    onSuccess: async (exposure) => {
+      apiClient.patch<Exposure | DeferredBinding>(`${base}/${exposureId}`, {
+        is_active: isActive,
+      }),
+    onSuccess: async (answer) => {
+      if (isDeferred(answer)) return requested();
       await invalidate();
       toast.success(
-        exposure.is_active
-          ? t("exposureResumed", { bot: exposure.channel_bot_name })
-          : t("exposurePaused", { bot: exposure.channel_bot_name }),
+        answer.is_active
+          ? t("exposureResumed", { bot: answer.channel_bot_name })
+          : t("exposurePaused", { bot: answer.channel_bot_name }),
       );
     },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
@@ -81,8 +99,13 @@ export function useExposures(agentId: string | null) {
     }) =>
       // Explicit null returns the binding to the default environment - the
       // server reads the distinction off the request, so only this field goes.
-      apiClient.patch<Exposure>(`${base}/${exposureId}`, { environment_id: environmentId }),
-    onSuccess: invalidate,
+      apiClient.patch<Exposure | DeferredBinding>(`${base}/${exposureId}`, {
+        environment_id: environmentId,
+      }),
+    onSuccess: async (answer) => {
+      if (isDeferred(answer)) return requested();
+      await invalidate();
+    },
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 

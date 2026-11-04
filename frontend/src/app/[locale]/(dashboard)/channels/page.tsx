@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { MessagesSquare, Plus } from "lucide-react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { BindingRequestsCard } from "@/components/channels/binding-requests-card";
+import { WhatsAppCustomersSheet } from "@/components/channels/whatsapp-customers-sheet";
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelBotsTable } from "@/components/channels/channel-bots-table";
 import { EditChannelDialog } from "@/components/channels/edit-channel-dialog";
@@ -62,6 +64,7 @@ export default function ChannelsPage() {
   // The row being edited, which is also what opens the dialog: a bot and an
   // open flag can disagree, and the disagreement renders last row's answers.
   const [editing, setEditing] = useState<ChannelBot | null>(null);
+  const [customersOf, setCustomersOf] = useState<ChannelBot | null>(null);
 
   if (!canManage) {
     return (
@@ -113,6 +116,8 @@ export default function ChannelsPage() {
         }
       />
 
+      <BindingRequestsCard />
+
       <BotsCard count={error ? null : bots.length}>
         {error ? (
           // A failed read has no rows either, and "No channels yet" over a 502
@@ -142,6 +147,7 @@ export default function ChannelsPage() {
             onEdit={setEditing}
             onToggleActive={(bot) => setActive.mutate({ botId: bot.id, isActive: !bot.is_active })}
             onDelete={(bot) => remove.mutate(bot.id)}
+            onCustomers={setCustomersOf}
           />
         )}
       </BotsCard>
@@ -152,6 +158,8 @@ export default function ChannelsPage() {
         onSubmit={create.mutateAsync}
         isPending={create.isPending}
       />
+
+      <WhatsAppCustomersSheet bot={customersOf} onClose={() => setCustomersOf(null)} />
 
       <EditChannelDialog
         bot={editing}

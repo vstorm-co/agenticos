@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExposuresPanel } from "./exposures-panel";
 import { apiClient } from "@/lib/api-client";
 import type { AgentEnvironment } from "@/types/agents";
+import type { BindingRequest } from "@/types/channels";
 import type { Exposure, ExposureTarget } from "@/types/exposures";
 
 vi.mock("@/lib/api-client", async () => {
@@ -24,6 +25,7 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 
 const AGENT_ID = "a1";
+let bindingRequests: BindingRequest[] = [];
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -88,6 +90,9 @@ function serve(
     if (path === `/agents/${AGENT_ID}/environments`) {
       return { items: environments, total: environments.length };
     }
+    if (path === `/agents/${AGENT_ID}/binding-requests`) {
+      return { items: bindingRequests, total: bindingRequests.length };
+    }
     throw new Error(`unexpected GET ${path}`);
   });
 }
@@ -102,6 +107,7 @@ async function mount({ canManage = true, hasWorkspace = true } = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mayRegister = true;
+  bindingRequests = [];
 });
 
 describe("ExposuresPanel", () => {
@@ -497,5 +503,127 @@ describe("a binding on a public line", () => {
 
     await screen.findAllByText(/Acme Support/);
     expect(screen.queryByText(/not linked an account/i)).toBeNull();
+  });
+});
+
+describe("asking for a public line", () => {
+  const publicBot = () => target({ id: "b9", name: "Shop line", public_line: true });
+
+  it("tells somebody who cannot decide that an administrator has to", async () => {
+    mayRegister = false;
+    serve([], [publicBot()]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add on Slack/ }));
+
+    expect(await screen.findByRole("menuitem", { name: /Shop line/ })).toHaveTextContent(
+      "Ask an administrator",
+    );
+  });
+
+  it("sends the request with the note, and lists it as waiting", async () => {
+    mayRegister = false;
+    serve([], [publicBot()]);
+    vi.mocked(apiClient.post).mockImplementation(async () => {
+      bindingRequests = [
+        {
+          id: "r1",
+          kind: "bind",
+          status: "pending",
+          void_reason: null,
+          agent_id: AGENT_ID,
+          agent_name: "Front desk",
+          channel_bot_id: "b9",
+          channel_bot_name: "Shop line",
+          exposure_id: null,
+          environment_id: null,
+          session_scope: null,
+          requester_user_id: "u1",
+          requester_email: "me@example.com",
+          note: "For the shop",
+          decided_by_user_id: null,
+          decided_at: null,
+          created_at: "2026-11-04T09:00:00Z",
+        },
+      ];
+      return { status: "requested", request_id: "r1", waiting_for: null };
+    });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add on Slack/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Shop line/ }));
+    await userEvent.type(
+      await screen.findByLabelText("Note for the administrator"),
+      "For the shop",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures`, {
+      channel_bot_id: "b9",
+      request_note: "For the shop",
+    });
+    expect(await screen.findByText(/Waiting for an administrator/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Note for the administrator")).not.toBeInTheDocument();
+  });
+
+  it("sends no note when none was written", async () => {
+    mayRegister = false;
+    serve([], [publicBot()]);
+    vi.mocked(apiClient.post).mockResolvedValue({ request_id: "r1", waiting_for: "administrator" });
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add on Slack/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Shop line/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Send request" }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures`, {
+      channel_bot_id: "b9",
+    });
+  });
+
+  it("holds the note to 500 characters and can be dismissed", async () => {
+    mayRegister = false;
+    serve([], [publicBot()]);
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add on Slack/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Shop line/ }));
+    expect(await screen.findByLabelText("Note for the administrator")).toHaveAttribute(
+      "maxlength",
+      "500",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Note for the administrator")).not.toBeInTheDocument();
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it("binds a public line at once for somebody who can decide it", async () => {
+    serve([], [publicBot()]);
+    vi.mocked(apiClient.post).mockResolvedValue(exposure({ channel_bot_name: "Shop line" }));
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add on Slack/ }));
+    const item = await screen.findByRole("menuitem", { name: /Shop line/ });
+    expect(item).not.toHaveTextContent("Ask an administrator");
+    await userEvent.click(item);
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures`, {
+      channel_bot_id: "b9",
+    });
+  });
+
+  it("binds an ordinary bot at once, whoever asks", async () => {
+    mayRegister = false;
+    serve([], [target({ id: "b2", name: "Ops bot" })]);
+    vi.mocked(apiClient.post).mockResolvedValue(exposure({ channel_bot_name: "Ops bot" }));
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Add on Slack/ }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Ops bot/ }));
+
+    expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/exposures`, {
+      channel_bot_id: "b2",
+    });
   });
 });

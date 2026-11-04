@@ -999,7 +999,13 @@
     "backendComputerConsent": "Each person chooses a folder or Whole computer in chat settings. This setting grants no access and stores no personal path. A hosted chat must use the desktop app for this workspace.",
     "workflowTablesViaMcp": "Workflows and Tables are tools in the AgenticOS MCP server. Add it under MCP servers and select the tools this agent needs. Existing capability bindings keep their saved grants.",
     "publicLineBinding": "This bot answers customers who have not linked an account, so people outside the organization talk to this agent here.",
-    "publicLineReview": "Review the line"
+    "publicLineReview": "Review the line",
+    "bindingRequested": "Request sent - an administrator has to approve it",
+    "askAnAdministrator": "Ask an administrator",
+    "waitingForAdministrator": "Waiting for an administrator: {bot}",
+    "noteForAdministrator": "Note for the administrator",
+    "noteForAdministratorPlaceholder": "Why {bot} should answer customers with this agent",
+    "sendRequest": "Send request"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -2462,7 +2468,7 @@
         "description": "Runs paused on a tool call, waiting for a decision.",
         "someAgent": "An agent",
         "forPerson": "for {email} · waiting {ago}",
-        "forChatAccount": "for {name} (unverified) · waiting {ago}"
+        "forChatAccount": "for {name} (unverified{hasHandle, select, yes {, {handle}} other {}}) · waiting {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -2885,7 +2891,9 @@
           "title": "No channels yet",
           "description": "Register a bot and its agents become reachable from Slack, Telegram or Mattermost."
         },
-        "publicLine": "public line"
+        "publicLine": "public line",
+        "publicLinePill": "{mode} · {flag}",
+        "bindingRequests": "{count, plural, one {# binding request} other {# binding requests}}"
       },
       "knowledge": {
         "title": "Knowledge",
@@ -5122,6 +5130,14 @@
       "chat-background-tasks": {
         "title": "Background topics",
         "body": "Independent work opens a fresh topic in this project. Keep talking here; the agent returns with the result. Open or stop each task from this strip."
+      },
+      "channels-binding-requests": {
+        "title": "Decide who reaches customers",
+        "body": "When someone who builds agents asks to put an agent on a public line, the request waits here with their note. Approving applies it; declining tells them."
+      },
+      "channels-customers": {
+        "title": "The people who write in",
+        "body": "See who has written to a WhatsApp line without an account, search by number, and forget a customer across the organization's bots when asked to."
       }
     },
     "chooseLanguage": "Language",
@@ -6281,7 +6297,11 @@
       "publicLineReachDelegates": "Other agents: {names}",
       "publicLineReachMcp": "MCP servers: {names}",
       "publicLineReachFiles": "Files they send",
-      "publicLineReachVoice": "Voice notes",
+      "publicLineOutsideLedger": "not counted in the spending limit",
+      "publicLineTableGrant": "{name}: {operations}",
+      "publicLineMayCreate": "may create tables",
+      "customersLoadMore": "Load more",
+      "customersTotal": "{shown} of {total} customers",
       "publicLineAgentBudget": "Agent monthly budget: {amount}",
       "publicLineOrgCap": "Organization monthly cap: {amount}",
       "publicLineRate": "Each customer is held to {count, plural, one {# message a minute} other {# messages a minute}}",
@@ -6298,7 +6318,33 @@
       "publicLineRefusedPlatformMcp": "the platform's own MCP server",
       "publicLineFiles": "Accept files from customers",
       "publicLineFilesHint": "Stored under the person who bound the agent. Off, a file is declined politely.",
-      "publicLineBadge": "Public line"
+      "publicLineBadge": "Public line",
+      "bindingApproved": "Request approved",
+      "bindingDeclined": "Request declined",
+      "bindingRequests": "Binding requests",
+      "bindingRequestsHint": "People who build agents ask here before an agent answers customers on a public line. Approving applies the change as you.",
+      "bindingRequestLine": "{requester} asks to {kind, select, bind {bind {agent} to {bot}} environment {change the environment of {agent} on {bot}} resume {resume {agent} on {bot}} other {change {agent} on {bot}}}",
+      "someone": "Someone",
+      "bindingRequestNote": "Note: {note}",
+      "approve": "Approve",
+      "decline": "Decline",
+      "customersOf": "Customers of {bot}",
+      "customersTitle": "Customers of {bot}",
+      "customerSearch": "Search by phone number",
+      "customerSearchButton": "Search",
+      "customerShowAll": "Show all",
+      "customersNone": "No customers yet",
+      "customerNoMatch": "No customer has that number",
+      "customerUnverifiedName": "{name} (unverified)",
+      "customerLastMessage": "Last message {when}",
+      "customerNoMessages": "No messages yet",
+      "customerLinked": "Linked",
+      "customerLinkedWhy": "They have linked an account, so they are a member and not a customer to forget.",
+      "customerForget": "Forget {name}",
+      "customerForgetTitle": "Forget {name}?",
+      "customerForgetBody": "This erases the customer across all of the organization's WhatsApp bots: their number, name and messages, and the files and approvals from their chats. Their runs stay as accounting, without what they said. This cannot be undone.",
+      "customerForgetConfirm": "Forget customer",
+      "customerForgotten": "Customer forgotten"
     },
     "invitations": {
       "acceptInvitation": "Accept invitation",
@@ -6771,8 +6817,8 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
-      "askedInChat": "Asked in {platform} by {name} (unverified)",
-      "askedInChatThrough": "Asked in {platform} by {name} (unverified), through {bot}",
+      "askedInChat": "Asked in {platform} by {name} (unverified{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "Asked in {platform} by {name} (unverified{hasHandle, select, yes {, {handle}} other {}}), through {bot}",
       "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",
@@ -7032,7 +7078,11 @@
           "turnOff": "Turn off on this iPhone"
         }
       },
-      "whoReceivesThis": "Who receives this?"
+      "whoReceivesThis": "Who receives this?",
+      "prefChannelBindingRequested": "Binding requests",
+      "prefChannelBindingRequestedTrigger": "Someone asks to bind an agent to a public WhatsApp line, change its environment or lift its pause. Sent to people who manage channels.",
+      "prefChannelBindingDecided": "Binding decisions",
+      "prefChannelBindingDecidedTrigger": "An administrator approved or declined your request about a public line."
     },
     "skills": {
       "agentsBoundSkillWill": "Agents bound to this skill will run without it from their next run. This cannot be undone.",

@@ -158,7 +158,13 @@ describe("the notifications settings page", () => {
     ]) {
       expect(screen.getByRole("switch", { name: `${event} - Push` })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("switch")).toHaveLength(62);
+    // The two binding events offer all three channels: 62 + 6 = 68.
+    for (const event of ["Binding requests", "Binding decisions"]) {
+      for (const channel of ["In-app", "Email", "Push"]) {
+        expect(screen.getByRole("switch", { name: `${event} - ${channel}` })).toBeInTheDocument();
+      }
+    }
+    expect(screen.getAllByRole("switch")).toHaveLength(68);
   });
 
   it("renders the stored preference, not a hardcoded on", () => {

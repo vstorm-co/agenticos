@@ -916,6 +916,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "channels-list",
     permission: Perm.agentsView,
   },
+  // Only on a page with a request waiting, and only a WhatsApp row has the customers
+  // button, so neither is promised to a tour that has nothing to point at.
+  {
+    id: "channels-binding-requests",
+    page: ROUTES.CHANNELS,
+    target: "channels-binding-requests",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
+  {
+    id: "channels-customers",
+    page: ROUTES.CHANNELS,
+    target: "channels-customers",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
 
   {
     id: "sandboxes-connections",

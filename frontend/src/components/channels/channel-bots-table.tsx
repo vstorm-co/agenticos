@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Pause, Pencil, Play, Trash2 } from "lucide-react";
+import { Pause, Pencil, Play, Trash2, Users } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ChannelPlatformIcon } from "@/components/channels/channel-platform-icon";
@@ -27,6 +27,8 @@ interface ChannelBotsTableProps {
   onEdit: (bot: ChannelBot) => void;
   onToggleActive: (bot: ChannelBot) => void;
   onDelete: (bot: ChannelBot) => void;
+  /** Opens a WhatsApp bot's customers; offered on that platform's rows only. */
+  onCustomers?: (bot: ChannelBot) => void;
 }
 
 /**
@@ -83,6 +85,7 @@ export function ChannelBotsTable({
   onEdit,
   onToggleActive,
   onDelete,
+  onCustomers,
 }: ChannelBotsTableProps) {
   const t = useTranslations("pages.channels");
 
@@ -176,9 +179,20 @@ export function ChannelBotsTable({
         key: "actions",
         header: t("columnActions"),
         align: "right",
-        className: "w-32 pr-5",
+        className: "w-40 pr-5",
         cell: (bot) => (
           <div className={cn("flex justify-end gap-1", paused(bot))}>
+            {bot.platform === "whatsapp" && onCustomers && (
+              <Button
+                variant="ghost"
+                size="icon"
+                data-tour="channels-customers"
+                aria-label={t("customersOf", { bot: bot.name })}
+                onClick={() => onCustomers(bot)}
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -212,7 +226,7 @@ export function ChannelBotsTable({
         ),
       },
     ],
-    [busy, onEdit, onToggleActive, onDelete, t],
+    [busy, onEdit, onToggleActive, onDelete, onCustomers, t],
   );
 
   return (

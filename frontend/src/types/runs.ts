@@ -330,7 +330,13 @@ export interface ToolApproval {
    * ran as the binding's publisher, so `triggered_by_*` are null. Unverified: the
    * name is what the account's owner typed.
    */
-  asked_in_chat?: { platform: string; name: string; bot_name: string | null } | null;
+  asked_in_chat?: {
+    platform: string;
+    name: string;
+    bot_name: string | null;
+    /** The masked number or the username the account is known by, beside the unverified name. */
+    handle?: string | null;
+  } | null;
   /** Whose *run* this is - the agent the queue is scoped by, never who is acting. */
   agent_id: string;
   /**

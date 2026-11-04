@@ -65,10 +65,13 @@ export interface PublicLineReach {
     | "generation"
     | "delegates"
     | "mcp"
-    | "files"
-    | "voice";
+    | "files";
   names: string[];
-  detail: string | null;
+  /** `outside_ledger`: the use is not counted in the spending limit. */
+  detail: "outside_ledger" | null;
+  /** What may be done in each table, for a `tables` reach. */
+  grants: { name: string; operations: string[] }[];
+  may_create: boolean;
 }
 
 /** What a public line would answer with, and what bounds it - `GET /channels/bots/{id}/public-line`. */
@@ -340,4 +343,69 @@ export interface WhatsAppTemplate {
   name: string;
   language: string;
   body: string;
+}
+
+/**
+ * A request to change what a public line answers with, waiting for somebody with
+ * `channels:manage` - `GET /channels/binding-requests` and the per-agent listing.
+ */
+export interface BindingRequest {
+  id: string;
+  /** A new binding, a change of environment, or lifting a pause. */
+  kind: "bind" | "environment" | "resume";
+  status: "pending" | "approved" | "declined" | "voided";
+  void_reason: "replaced" | "line_closed" | "bot_taken" | null;
+  agent_id: string;
+  agent_name: string;
+  channel_bot_id: string;
+  channel_bot_name: string;
+  exposure_id: string | null;
+  environment_id: string | null;
+  session_scope: "run" | "conversation" | "channel" | "user" | "agent" | null;
+  requester_user_id: string;
+  requester_email: string | null;
+  /** Written by the requester for whoever decides; never in a notification. */
+  note: string | null;
+  decided_by_user_id: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+/** What `POST /agents/{id}/exposures` answers with when an administrator has to decide. */
+export interface DeferredBinding {
+  status: "requested";
+  request_id: string;
+  /** Who decides, by name, when it is one person; null when several may. */
+  waiting_for: string | null;
+}
+
+/** One person who wrote to a WhatsApp bot with no account - `channels:manage` sees the number. */
+export interface WhatsAppCustomer {
+  id: string;
+  bsuid: string;
+  phone: string | null;
+  /** What the sender typed as their name; unverified. */
+  profile_name: string | null;
+  username: string | null;
+  last_message_at: string | null;
+  /** A member linked this chat account, so it is not a customer to forget. */
+  linked: boolean;
+}
+
+/** What forgetting a customer removed, as counts; nothing in it names the customer. */
+export interface CustomerErasure {
+  identities: number;
+  sessions: number;
+  customers: number;
+  conversations: number;
+  workspaces: number;
+  link_requests: number;
+  prompts: number;
+  runs_ended: number;
+  approvals_ended: number;
+  approvals_redacted: number;
+  manifests: number;
+  notifications: number;
+  handback_jobs: number;
+  handback_jobs_running: number;
 }

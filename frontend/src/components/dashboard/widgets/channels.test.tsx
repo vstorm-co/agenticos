@@ -5,8 +5,10 @@ import { ChannelsWidget } from "./channels";
 import type { ChannelBot } from "@/types/channels";
 
 const useChannelBotsMock = vi.fn();
+const useBindingRequestsMock = vi.fn();
 vi.mock("@/hooks", () => ({
   useChannelBots: (...args: unknown[]) => useChannelBotsMock(...args),
+  useChannelBindingRequests: (...args: unknown[]) => useBindingRequestsMock(...args),
 }));
 
 function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
@@ -21,7 +23,10 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
   } as ChannelBot;
 }
 
-function show(bots: ChannelBot[]) {
+function show(bots: ChannelBot[], waiting = 0) {
+  useBindingRequestsMock.mockReturnValue({
+    requests: Array.from({ length: waiting }, (_, index) => ({ id: `r${index}` })),
+  });
   useChannelBotsMock.mockReturnValue({ bots, isLoading: false, error: null, refetch: vi.fn() });
   render(
     <ChannelsWidget
@@ -32,7 +37,10 @@ function show(bots: ChannelBot[]) {
   );
 }
 
-beforeEach(() => useChannelBotsMock.mockReset());
+beforeEach(() => {
+  useChannelBotsMock.mockReset();
+  useBindingRequestsMock.mockReset();
+});
 
 describe("the channels card", () => {
   it("marks a line that answers people with no account", () => {
@@ -74,5 +82,30 @@ describe("the channels card", () => {
     show([]);
 
     expect(screen.getByText("No channels yet")).toBeInTheDocument();
+  });
+
+  it("says how many binding requests wait, and links to them", () => {
+    show([bot()], 2);
+
+    const row = screen.getByRole("link", { name: "2 binding requests" });
+    expect(row).toHaveAttribute("href", "/channels?requests=open");
+  });
+
+  it("uses the singular for one", () => {
+    show([bot()], 1);
+
+    expect(screen.getByRole("link", { name: "1 binding request" })).toBeInTheDocument();
+  });
+
+  it("says nothing when none wait", () => {
+    show([bot()], 0);
+
+    expect(screen.queryByText(/binding request/)).not.toBeInTheDocument();
+  });
+
+  it("shows the requests even with no bot listed yet", () => {
+    show([], 1);
+
+    expect(screen.getByRole("link", { name: "1 binding request" })).toBeInTheDocument();
   });
 });

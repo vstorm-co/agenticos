@@ -18,7 +18,6 @@ const REACH_KEY = {
   delegates: "publicLineReachDelegates",
   mcp: "publicLineReachMcp",
   files: "publicLineReachFiles",
-  voice: "publicLineReachVoice",
 } as const satisfies Record<PublicLineReach["kind"], string>;
 
 const REFUSED_KEY = {
@@ -66,6 +65,14 @@ export function PublicLineField({
     format.number(Number(value), { style: "currency", currency: "USD" });
   const names = (reach: PublicLineReach) => format.list(reach.names, { type: "conjunction" });
 
+  const notes = (reach: PublicLineReach) => [
+    ...reach.grants.map((grant) =>
+      t("publicLineTableGrant", { name: grant.name, operations: grant.operations.join(", ") }),
+    ),
+    ...(reach.may_create ? [t("publicLineMayCreate")] : []),
+    ...(reach.detail === "outside_ledger" ? [t("publicLineOutsideLedger")] : []),
+  ];
+
   return (
     <div className="space-y-3">
       <FormField
@@ -78,7 +85,10 @@ export function PublicLineField({
           id="edit-channel-public-line"
           checked={answers}
           disabled={line === undefined || (!line.can_turn_on && !answers)}
-          onCheckedChange={onAnswers}
+          onCheckedChange={(next) => {
+            onAnswers(next);
+            if (!next) onFiles(false);
+          }}
         />
       </FormField>
 
@@ -100,8 +110,8 @@ export function PublicLineField({
                 {line.reaches.map((reach) => (
                   <li key={reach.kind}>
                     {t(REACH_KEY[reach.kind], { names: names(reach) })}
-                    {reach.detail !== null && (
-                      <span className="text-muted-foreground"> ({reach.detail})</span>
+                    {notes(reach).length > 0 && (
+                      <span className="text-muted-foreground"> ({notes(reach).join("; ")})</span>
                     )}
                   </li>
                 ))}
@@ -117,7 +127,9 @@ export function PublicLineField({
             )}
             <li>{t("publicLineRate", { count: line.rate_limit_rpm })}</li>
             <li>{t("publicLineApprovalExpiry", { hours: line.approval_expiry_hours })}</li>
-            <li>{t("publicLineFileCap", { mb: line.file_max_mb })}</li>
+            {line.accept_customer_files && (
+              <li>{t("publicLineFileCap", { mb: line.file_max_mb })}</li>
+            )}
             {line.voice === "on" && (
               <li>{t("publicLineVoiceCap", { mb: line.recording_max_mb })}</li>
             )}

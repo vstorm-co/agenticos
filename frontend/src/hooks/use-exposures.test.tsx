@@ -100,7 +100,7 @@ describe("useExposures", () => {
     vi.mocked(apiClient.post).mockResolvedValue(exposure({ channel_bot_name: "Ops bot" }));
     const result = await hook();
 
-    await result.current.expose.mutateAsync("b2");
+    await result.current.expose.mutateAsync({ channelBotId: "b2" });
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/exposures", { channel_bot_id: "b2" });
     expect(toast.success).toHaveBeenCalledWith("Now available on Ops bot");
@@ -160,7 +160,9 @@ describe("useExposures", () => {
     vi.mocked(apiClient.delete).mockRejectedValue(refused);
     const result = await hook();
 
-    await expect(result.current.expose.mutateAsync("b2")).rejects.toThrow(refused);
+    await expect(result.current.expose.mutateAsync({ channelBotId: "b2" })).rejects.toThrow(
+      refused,
+    );
     await expect(
       result.current.setActive.mutateAsync({ exposureId: "e1", isActive: false }),
     ).rejects.toThrow(refused);
@@ -227,6 +229,50 @@ describe("useExposures", () => {
 
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/exposures/e1", {
       prompt: "Be terse.",
+    });
+  });
+
+  describe("when an administrator has to decide", () => {
+    const deferred = { request_id: "r1", waiting_for: "administrator" };
+
+    it("sends the note with the request, and says it is waiting rather than live", async () => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.post).mockResolvedValue(deferred);
+      const result = await hook();
+      const listReads = () =>
+        vi.mocked(apiClient.get).mock.calls.filter(([path]) => path === "/agents/a1/exposures")
+          .length;
+      const before = listReads();
+
+      await result.current.expose.mutateAsync({
+        channelBotId: "b2",
+        requestNote: "Front desk for the shop",
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/exposures", {
+        channel_bot_id: "b2",
+        request_note: "Front desk for the shop",
+      });
+      expect(toast.success).toHaveBeenCalledWith(
+        "Request sent - an administrator has to approve it",
+      );
+      expect(toast.success).not.toHaveBeenCalledWith(expect.stringContaining("Now available"));
+      // The request moved, not the bindings: nothing is live to re-read.
+      expect(listReads()).toBe(before);
+    });
+
+    it("says so for a pause lifted and an environment changed too", async () => {
+      const { toast } = await import("sonner");
+      vi.mocked(apiClient.patch).mockResolvedValue(deferred);
+      const result = await hook();
+
+      await result.current.setActive.mutateAsync({ exposureId: "e1", isActive: true });
+      await result.current.setEnvironment.mutateAsync({ exposureId: "e1", environmentId: "env-1" });
+
+      expect(toast.success).toHaveBeenCalledTimes(2);
+      expect(toast.success).toHaveBeenCalledWith(
+        "Request sent - an administrator has to approve it",
+      );
     });
   });
 });

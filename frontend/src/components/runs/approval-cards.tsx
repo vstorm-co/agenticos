@@ -8,6 +8,7 @@ import { ApprovalDelegate } from "@/components/runs/approval-delegate";
 import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
 import { surfaceLabel } from "@/components/runs/surface-icon";
 import { Button, SwipeToDecide } from "@/components/ui";
+import { visibleHandle } from "@/lib/asked-in-chat";
 import { approvalSummary } from "@/lib/agent-step-captions";
 import { callSummary } from "@/lib/approval-view";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
@@ -38,6 +39,8 @@ function useAskedLine(approval: ToolApproval): string | null {
     return t(chat.bot_name ? "askedInChatThrough" : "askedInChat", {
       platform: surfaceLabel(chat.platform, t),
       name: chat.name,
+      hasHandle: visibleHandle(chat) ? "yes" : "no",
+      handle: visibleHandle(chat) ?? "",
       bot: chat.bot_name ?? "",
     });
   }

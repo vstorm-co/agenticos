@@ -2,7 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
-import { useChannelBots } from "@/hooks";
+import Link from "next/link";
+
+import { useChannelBindingRequests, useChannelBots } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import { SurfaceIcon } from "@/components/runs/surface-icon";
 import { StatusList } from "../primitives/status-list";
 import { WidgetFrame } from "../widget-frame";
@@ -27,6 +30,7 @@ import type { DashboardWidgetProps } from "./types";
 export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.channels");
   const { bots, isLoading, error, refetch } = useChannelBots(true);
+  const { requests } = useChannelBindingRequests(true);
 
   if (isLoading) {
     return (
@@ -38,6 +42,15 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
+      {requests.length > 0 && (
+        // Somebody is waiting on this card's reader: a decision, not a status.
+        <Link
+          href={`${ROUTES.CHANNELS}?requests=open`}
+          className="text-foreground mb-2 block text-sm underline underline-offset-4"
+        >
+          {t("bindingRequests", { count: requests.length })}
+        </Link>
+      )}
       {error ? (
         <WidgetErrorBody onRetry={() => refetch()} />
       ) : bots.length === 0 ? (
@@ -61,15 +74,15 @@ export function ChannelsWidget({ title, hint, seeAll, options }: DashboardWidget
             // "silent because nobody asked" and "silent because nothing is
             // listening", so the row says which.
             pill: bot.is_active
-              ? [
-                  bot.webhook_mode ? t("webhook") : t("polling"),
-                  // Only a live line answers anybody, so a paused one has nothing to flag.
-                  bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true
-                    ? t("publicLine")
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
+              ? // Only a live line answers anybody, so a paused one has nothing to flag.
+                bot.platform === "whatsapp" && bot.access_policy.answer_unlinked_direct === true
+                ? t("publicLinePill", {
+                    mode: bot.webhook_mode ? t("webhook") : t("polling"),
+                    flag: t("publicLine"),
+                  })
+                : bot.webhook_mode
+                  ? t("webhook")
+                  : t("polling")
               : t("switchedOff"),
             tone: bot.is_active ? "ok" : "neutral",
           }))}

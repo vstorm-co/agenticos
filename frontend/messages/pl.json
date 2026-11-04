@@ -2407,7 +2407,11 @@
       "publicLineReachDelegates": "Inni agenci: {names}",
       "publicLineReachMcp": "Serwery MCP: {names}",
       "publicLineReachFiles": "Pliki, które wysyła",
-      "publicLineReachVoice": "Wiadomości głosowe",
+      "publicLineOutsideLedger": "nie wlicza się do limitu wydatków",
+      "publicLineTableGrant": "{name}: {operations}",
+      "publicLineMayCreate": "może tworzyć tabele",
+      "customersLoadMore": "Wczytaj więcej",
+      "customersTotal": "{shown} z {total} klientów",
       "publicLineAgentBudget": "Miesięczny budżet agenta: {amount}",
       "publicLineOrgCap": "Miesięczny limit organizacji: {amount}",
       "publicLineRate": "Każdy klient ma limit {count, plural, one {# wiadomości na minutę} few {# wiadomości na minutę} many {# wiadomości na minutę} other {# wiadomości na minutę}}",
@@ -2424,7 +2428,33 @@
       "publicLineRefusedPlatformMcp": "własnego serwera MCP platformy",
       "publicLineFiles": "Przyjmuj pliki od klientów",
       "publicLineFilesHint": "Zapisywane na koncie osoby, która powiązała agenta. Gdy wyłączone, plik jest grzecznie odrzucany.",
-      "publicLineBadge": "Linia publiczna"
+      "publicLineBadge": "Linia publiczna",
+      "bindingApproved": "Prośba zatwierdzona",
+      "bindingDeclined": "Prośba odrzucona",
+      "bindingRequests": "Prośby o powiązanie",
+      "bindingRequestsHint": "Osoby budujące agentów pytają tu, zanim agent zacznie odpowiadać klientom na linii publicznej. Zatwierdzenie wprowadza zmianę w Twoim imieniu.",
+      "bindingRequestLine": "{requester} prosi o {kind, select, bind {powiązanie agenta {agent} z botem {bot}} environment {zmianę środowiska agenta {agent} na bocie {bot}} resume {wznowienie agenta {agent} na bocie {bot}} other {zmianę agenta {agent} na bocie {bot}}}",
+      "someone": "Ktoś",
+      "bindingRequestNote": "Uwaga: {note}",
+      "approve": "Zatwierdź",
+      "decline": "Odrzuć",
+      "customersOf": "Klienci bota {bot}",
+      "customersTitle": "Klienci bota {bot}",
+      "customerSearch": "Szukaj po numerze telefonu",
+      "customerSearchButton": "Szukaj",
+      "customerShowAll": "Pokaż wszystkich",
+      "customersNone": "Nie ma jeszcze klientów",
+      "customerNoMatch": "Żaden klient nie ma tego numeru",
+      "customerUnverifiedName": "{name} (niezweryfikowane)",
+      "customerLastMessage": "Ostatnia wiadomość: {when}",
+      "customerNoMessages": "Brak wiadomości",
+      "customerLinked": "Powiązany",
+      "customerLinkedWhy": "Ten klient powiązał konto, więc jest członkiem organizacji i nie można go zapomnieć.",
+      "customerForget": "Zapomnij: {name}",
+      "customerForgetTitle": "Zapomnieć: {name}?",
+      "customerForgetBody": "To usuwa klienta ze wszystkich botów WhatsApp organizacji: jego numer, imię i wiadomości oraz pliki i zatwierdzenia z jego czatów. Jego runy zostają jako ewidencja, bez tego, co napisał. Tej operacji nie można cofnąć.",
+      "customerForgetConfirm": "Zapomnij klienta",
+      "customerForgotten": "Klient zapomniany"
     },
     "invitations": {
       "acceptInvitation": "Przyjmij zaproszenie",
@@ -2896,8 +2926,8 @@
       "toolState": "{status, select, completed {Gotowe} error {Błąd} running {W toku} pending {W toku} unfinished {Nie dokończone} awaiting_approval {Czeka na zatwierdzenie} awaiting_answer {Czeka na odpowiedź} other {Nieznany}}",
       "wantsTo": "<strong>{actor}</strong> chce: <strong>{tool}</strong>",
       "askedFor": "Dla {email}",
-      "askedInChat": "{platform}: {name} (konto niezweryfikowane)",
-      "askedInChatThrough": "{platform}: {name} (konto niezweryfikowane), przez bota {bot}",
+      "askedInChat": "{platform}: {name} (konto niezweryfikowane{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "{platform}: {name} (konto niezweryfikowane{hasHandle, select, yes {, {handle}} other {}}), przez bota {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Otwórz run",
       "decidedByWhom": "przez {email}",
@@ -3158,7 +3188,11 @@
           "turnOff": "Wyłącz na tym iPhonie"
         }
       },
-      "whoReceivesThis": "Kto otrzymuje powiadomienie?"
+      "whoReceivesThis": "Kto otrzymuje powiadomienie?",
+      "prefChannelBindingRequested": "Prośby o powiązanie",
+      "prefChannelBindingRequestedTrigger": "Ktoś prosi o powiązanie agenta z publiczną linią WhatsApp, zmianę jego środowiska albo zdjęcie wstrzymania. Trafia do osób zarządzających kanałami.",
+      "prefChannelBindingDecided": "Decyzje o powiązaniach",
+      "prefChannelBindingDecidedTrigger": "Administrator zatwierdził lub odrzucił Twoją prośbę dotyczącą linii publicznej."
     },
     "tables": {
       "title": "Tabele",
@@ -4525,7 +4559,7 @@
         "description": "Uruchomienia wstrzymane na wywołaniu narzędzia, czekające na decyzję.",
         "someAgent": "Agent",
         "forPerson": "dla {email} · czeka {ago}",
-        "forChatAccount": "dla {name} (konto niezweryfikowane) · czeka {ago}"
+        "forChatAccount": "dla {name} (konto niezweryfikowane{hasHandle, select, yes {, {handle}} other {}}) · czeka {ago}"
       },
       "recent-failures": {
         "title": "Ostatnie niepowodzenia",
@@ -4747,7 +4781,9 @@
           "title": "Brak kanałów",
           "description": "Zarejestruj bota, a jego agenci staną się dostępni ze Slacka, Telegrama albo Mattermosta."
         },
-        "publicLine": "linia publiczna"
+        "publicLine": "linia publiczna",
+        "publicLinePill": "{mode} · {flag}",
+        "bindingRequests": "{count, plural, one {# prośba o powiązanie} few {# prośby o powiązanie} many {# próśb o powiązanie} other {# prośby o powiązanie}}"
       },
       "knowledge": {
         "title": "Wiedza",
@@ -6573,6 +6609,14 @@
       "workspace-graph": {
         "title": "Poznaj powiązane notatki",
         "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
+      },
+      "channels-binding-requests": {
+        "title": "Zdecyduj, kto trafia do klientów",
+        "body": "Gdy osoba budująca agentów prosi o umieszczenie agenta na linii publicznej, prośba czeka tutaj razem z jej uwagą. Zatwierdzenie ją wprowadza, odrzucenie informuje autora."
+      },
+      "channels-customers": {
+        "title": "Osoby, które piszą",
+        "body": "Zobacz, kto napisał na linię WhatsApp bez konta, szukaj po numerze i na prośbę zapomnij klienta we wszystkich botach organizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -8425,7 +8469,13 @@
     "backendComputerConsent": "Każda osoba wybiera folder lub Cały komputer w ustawieniach czatu. To ustawienie nie przyznaje dostępu i nie zapisuje prywatnej ścieżki. Ten obszar roboczy wymaga aplikacji desktopowej.",
     "workflowTablesViaMcp": "Workflows i Tables są narzędziami serwera AgenticOS MCP. Dodaj go w sekcji serwerów MCP i wybierz narzędzia potrzebne agentowi. Istniejące capabilities zachowują zapisane uprawnienia.",
     "publicLineBinding": "Ten bot odpowiada klientom bez powiązanego konta, więc z tym agentem rozmawiają tu osoby spoza organizacji.",
-    "publicLineReview": "Sprawdź linię"
+    "publicLineReview": "Sprawdź linię",
+    "bindingRequested": "Prośba wysłana - musi ją zatwierdzić administrator",
+    "askAnAdministrator": "Poproś administratora",
+    "waitingForAdministrator": "Czeka na administratora: {bot}",
+    "noteForAdministrator": "Uwaga dla administratora",
+    "noteForAdministratorPlaceholder": "Dlaczego {bot} ma odpowiadać klientom tym agentem",
+    "sendRequest": "Wyślij prośbę"
   },
   "steps": {
     "skills-gallery": {

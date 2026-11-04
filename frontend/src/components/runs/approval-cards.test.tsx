@@ -160,6 +160,50 @@ describe("PendingApproval - a call from an MCP server", () => {
     expect(screen.queryByText(/^For /)).toBeNull();
   });
 
+  it("adds the masked number or username a customer is known by", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          triggered_by_email: null,
+          asked_in_chat: {
+            platform: "whatsapp",
+            name: "Ana",
+            bot_name: "Support",
+            handle: "+48 *** *** 800",
+          },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Asked in WhatsApp by Ana (unverified, +48 *** *** 800), through Support"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not repeat a handle the name already is", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({
+          triggered_by_email: null,
+          asked_in_chat: {
+            platform: "whatsapp",
+            name: "@•••• 1234",
+            bot_name: "Support",
+            handle: "•••• 1234",
+          },
+        })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Asked in WhatsApp by @•••• 1234 (unverified), through Support"),
+    ).toBeInTheDocument();
+  });
+
   it("leaves the bot out when its binding is gone", () => {
     inIntl(
       <PendingApproval

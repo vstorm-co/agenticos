@@ -90,6 +90,27 @@ describe("the approvals card", () => {
     expect(row).not.toHaveTextContent("kacper@example.com");
   });
 
+  it("adds the masked handle beside a customer's unverified name", () => {
+    renderWidget({
+      approvals: [
+        approval({
+          triggered_by_email: null,
+          asked_in_chat: {
+            platform: "whatsapp",
+            name: "Ana",
+            bot_name: "Support",
+            handle: "+48 *** *** 800",
+          },
+        }),
+      ],
+      total: 1,
+    });
+
+    expect(screen.getByRole("listitem")).toHaveTextContent(
+      "for Ana (unverified, +48 *** *** 800) · waiting",
+    );
+  });
+
   it("names the delegate asking, an unnamed run's agent, and a tool nobody catalogued", () => {
     renderWidget({
       approvals: [

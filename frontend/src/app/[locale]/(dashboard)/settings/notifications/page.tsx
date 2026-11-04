@@ -13,6 +13,7 @@ import {
   Lightbulb,
   Mail,
   Megaphone,
+  MessageSquareShare,
   PieChart,
   Radar,
   ServerCrash,
@@ -236,6 +237,18 @@ const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "artifact_share_requested",
     words: "prefArtifactShareRequested",
     icon: GitPullRequest,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "channel_binding_requested",
+    words: "prefChannelBindingRequested",
+    icon: MessageSquareShare,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "channel_binding_decided",
+    words: "prefChannelBindingDecided",
+    icon: MessageSquareShare,
     channels: ["in_app", "email", "push"],
   },
 ];

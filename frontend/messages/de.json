@@ -999,7 +999,13 @@
     "backendComputerConsent": "Jede Person wählt einen Ordner oder Gesamter Computer in den Chat-Einstellungen. Diese Einstellung gewährt keinen Zugriff und speichert keinen persönlichen Pfad. Dieser Workspace benötigt die Desktop-App.",
     "workflowTablesViaMcp": "Workflows und Tables sind Werkzeuge des AgenticOS-MCP-Servers. Füge ihn unter MCP-Server hinzu und wähle die benötigten Werkzeuge. Bestehende Capability-Bindungen behalten ihre gespeicherten Freigaben.",
     "publicLineBinding": "Dieser Bot antwortet Kunden ohne verknüpftes Konto, hier sprechen also Personen außerhalb der Organisation mit diesem Agent.",
-    "publicLineReview": "Leitung prüfen"
+    "publicLineReview": "Leitung prüfen",
+    "bindingRequested": "Anfrage gesendet - ein Administrator muss sie freigeben",
+    "askAnAdministrator": "Administrator fragen",
+    "waitingForAdministrator": "Wartet auf einen Administrator: {bot}",
+    "noteForAdministrator": "Hinweis für den Administrator",
+    "noteForAdministratorPlaceholder": "Warum {bot} Kunden mit diesem Agent antworten soll",
+    "sendRequest": "Anfrage senden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2462,7 +2468,7 @@
         "description": "Runs, die bei einem Tool-Aufruf angehalten haben und auf eine Entscheidung warten.",
         "someAgent": "Ein Agent",
         "forPerson": "für {email} · wartet {ago}",
-        "forChatAccount": "für {name} (nicht verifiziert) · wartet {ago}"
+        "forChatAccount": "für {name} (nicht verifiziert{hasHandle, select, yes {, {handle}} other {}}) · wartet {ago}"
       },
       "budget-headroom": {
         "empty": {
@@ -2885,7 +2891,9 @@
           "title": "Noch keine Kanäle",
           "description": "Registrieren Sie einen Bot, und seine Agents werden aus Slack, Telegram oder Mattermost erreichbar."
         },
-        "publicLine": "öffentliche Leitung"
+        "publicLine": "öffentliche Leitung",
+        "publicLinePill": "{mode} · {flag}",
+        "bindingRequests": "{count, plural, one {# Bindungsanfrage} other {# Bindungsanfragen}}"
       },
       "knowledge": {
         "title": "Wissen",
@@ -5000,6 +5008,14 @@
       "workspace-graph": {
         "title": "Verknüpfte Notizen erkunden",
         "body": "Die Graphansicht ermittelt Links und Rückverweise aus Markdown und Frontmatter. Solange sie geöffnet ist, wird sie aktualisiert und verwendet nur Dateien, die Sie an diesem Ort lesen dürfen."
+      },
+      "channels-binding-requests": {
+        "title": "Entscheiden, wer Kunden erreicht",
+        "body": "Möchte jemand, der Agents baut, einen Agent auf eine öffentliche Leitung legen, wartet die Anfrage hier mit seinem Hinweis. Genehmigen setzt sie um, Ablehnen benachrichtigt die Person."
+      },
+      "channels-customers": {
+        "title": "Die Leute, die schreiben",
+        "body": "Sehen Sie, wer einer WhatsApp-Leitung ohne Konto geschrieben hat, suchen Sie nach Nummer und lassen Sie einen Kunden auf Wunsch bei allen Bots der Organisation vergessen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5582,7 +5598,11 @@
       "publicLineReachDelegates": "Andere Agents: {names}",
       "publicLineReachMcp": "MCP-Server: {names}",
       "publicLineReachFiles": "Dateien, die sie senden",
-      "publicLineReachVoice": "Sprachnachrichten",
+      "publicLineOutsideLedger": "nicht auf das Ausgabenlimit angerechnet",
+      "publicLineTableGrant": "{name}: {operations}",
+      "publicLineMayCreate": "darf Tabellen anlegen",
+      "customersLoadMore": "Mehr laden",
+      "customersTotal": "{shown} von {total} Kunden",
       "publicLineAgentBudget": "Monatsbudget des Agents: {amount}",
       "publicLineOrgCap": "Monatslimit der Organisation: {amount}",
       "publicLineRate": "Jeder Kunde ist auf {count, plural, one {# Nachricht pro Minute} other {# Nachrichten pro Minute}} begrenzt",
@@ -5599,7 +5619,33 @@
       "publicLineRefusedPlatformMcp": "den eigenen MCP-Server der Plattform",
       "publicLineFiles": "Dateien von Kunden annehmen",
       "publicLineFilesHint": "Werden unter der Person gespeichert, die den Agent gebunden hat. Ist es aus, wird eine Datei höflich abgelehnt.",
-      "publicLineBadge": "Öffentliche Leitung"
+      "publicLineBadge": "Öffentliche Leitung",
+      "bindingApproved": "Anfrage genehmigt",
+      "bindingDeclined": "Anfrage abgelehnt",
+      "bindingRequests": "Bindungsanfragen",
+      "bindingRequestsHint": "Wer Agents baut, fragt hier an, bevor ein Agent auf einer öffentlichen Leitung Kunden antwortet. Mit der Genehmigung wird die Änderung in Ihrem Namen vorgenommen.",
+      "bindingRequestLine": "{requester} möchte {kind, select, bind {{agent} an {bot} binden} environment {die Umgebung von {agent} auf {bot} ändern} resume {{agent} auf {bot} fortsetzen} other {{agent} auf {bot} ändern}}",
+      "someone": "Jemand",
+      "bindingRequestNote": "Hinweis: {note}",
+      "approve": "Genehmigen",
+      "decline": "Ablehnen",
+      "customersOf": "Kunden von {bot}",
+      "customersTitle": "Kunden von {bot}",
+      "customerSearch": "Nach Telefonnummer suchen",
+      "customerSearchButton": "Suchen",
+      "customerShowAll": "Alle anzeigen",
+      "customersNone": "Noch keine Kunden",
+      "customerNoMatch": "Kein Kunde hat diese Nummer",
+      "customerUnverifiedName": "{name} (nicht verifiziert)",
+      "customerLastMessage": "Letzte Nachricht {when}",
+      "customerNoMessages": "Noch keine Nachrichten",
+      "customerLinked": "Verknüpft",
+      "customerLinkedWhy": "Dieser Kunde hat ein Konto verknüpft, ist also Mitglied und kann nicht vergessen werden.",
+      "customerForget": "{name} vergessen",
+      "customerForgetTitle": "{name} vergessen?",
+      "customerForgetBody": "Das löscht den Kunden bei allen WhatsApp-Bots der Organisation: Nummer, Name und Nachrichten sowie die Dateien und Freigaben aus seinen Chats. Seine Runs bleiben als Buchhaltung erhalten, ohne das Gesagte. Das lässt sich nicht rückgängig machen.",
+      "customerForgetConfirm": "Kunden vergessen",
+      "customerForgotten": "Kunde vergessen"
     },
     "invitations": {
       "acceptInvitation": "Einladung annehmen",
@@ -6072,8 +6118,8 @@
       "toolState": "{status, select, completed {Fertig} error {Fehlgeschlagen} running {Läuft} pending {Läuft} unfinished {Nicht beendet} awaiting_approval {Wartet auf Freigabe} awaiting_answer {Wartet auf Antwort} other {Unbekannt}}",
       "wantsTo": "<strong>{actor}</strong> möchte: <strong>{tool}</strong>",
       "askedFor": "Für {email}",
-      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert)",
-      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert), über {bot}",
+      "askedInChat": "Angefragt in {platform} von {name} (nicht verifiziert{hasHandle, select, yes {, {handle}} other {}})",
+      "askedInChatThrough": "Angefragt in {platform} von {name} (nicht verifiziert{hasHandle, select, yes {, {handle}} other {}}), über {bot}",
       "account": "Konto: {account}",
       "openTheRun": "Run öffnen",
       "decidedByWhom": "von {email}",
@@ -6333,7 +6379,11 @@
           "turnOff": "Auf diesem iPhone ausschalten"
         }
       },
-      "whoReceivesThis": "Wer erhält diese Nachricht?"
+      "whoReceivesThis": "Wer erhält diese Nachricht?",
+      "prefChannelBindingRequested": "Bindungsanfragen",
+      "prefChannelBindingRequestedTrigger": "Jemand möchte einen Agent an eine öffentliche WhatsApp-Leitung binden, dessen Umgebung ändern oder die Pause aufheben. Geht an alle, die Kanäle verwalten.",
+      "prefChannelBindingDecided": "Entscheidungen zu Bindungen",
+      "prefChannelBindingDecidedTrigger": "Ein Administrator hat Ihre Anfrage zu einer öffentlichen Leitung genehmigt oder abgelehnt."
     },
     "skills": {
       "agentsBoundSkillWill": "An diesen Skill gebundene Agents laufen ab ihrem nächsten Run ohne ihn. Das lässt sich nicht rückgängig machen.",
