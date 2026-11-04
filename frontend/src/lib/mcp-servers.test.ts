@@ -7,10 +7,10 @@ import {
   CUSTOM_CATEGORY,
   connectionState,
   freePrefix,
-  matchingCustomRows,
   mcpToolCount,
   mergeServers,
   narrowedSelection,
+  rowsForEntries,
   slugForPrefix,
 } from "./mcp-servers";
 import type { McpServerRef } from "@/types/agents";
@@ -128,6 +128,34 @@ describe("mergeServers", () => {
     expect(rows.filter((row) => row.category === CUSTOM_CATEGORY)).toEqual([]);
   });
 
+  it.each([
+    ["/Finance/mcp", "/finance/mcp"],
+    ["/mcp?tenant=Finance", "/mcp?tenant=finance"],
+    ["/mcp?token=value/", "/mcp?token=value"],
+  ])("keeps distinct URL components %s and %s on separate servers", (first, second) => {
+    const server = { ...GITHUB, url: `https://gateway.example${first}` };
+    const account = personal({ name: "workspace", url: `https://gateway.example${second}` });
+
+    const rows = mergeServers([server], [], [account]);
+
+    expect(rows.map((row) => row.key)).toEqual(["github", "p1"]);
+    expect(rows[0]?.personals).toEqual([]);
+    expect(rows[1]?.url).toBe(account.url);
+  });
+
+  it("matches host case and trailing path slashes without changing the query", () => {
+    const server = { ...GITHUB, url: "https://gateway.example/Finance/mcp?tenant=Finance/" };
+    const account = personal({
+      name: "workspace",
+      url: " HTTPS://GATEWAY.EXAMPLE/Finance/mcp///?tenant=Finance/ ",
+    });
+
+    const rows = mergeServers([server], [], [account]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.personals).toEqual([account]);
+  });
+
   it("keeps catalog order and puts custom servers last", () => {
     // The list is a catalog, and a catalog that reorders itself as people
     // connect things is a list of what is in the database instead.
@@ -168,6 +196,45 @@ describe("mergeServers", () => {
     );
 
     expect(rows.map((row) => row.auth)).toEqual(["none", "token", "oauth"]);
+  });
+});
+
+describe("listing account groups", () => {
+  it("uses the API's account ids instead of guessing from a shared URL or name", () => {
+    const rows = rowsForEntries(
+      [{ ...GITHUB, connection_ids: ["o2", "p2"] }],
+      [organization(), organization({ id: "o2", name: "proxy", url: "https://proxy/mcp" })],
+      [personal(), personal({ id: "p2", name: "work", url: "https://work/mcp" })],
+    );
+
+    expect(rows[0]?.organizations.map((account) => account.id)).toEqual(["o2"]);
+    expect(rows[0]?.personals.map((account) => account.id)).toEqual(["p2"]);
+  });
+
+  it("keeps an explicitly unconnected listing entry unconnected", () => {
+    const rows = rowsForEntries(
+      [{ ...GITHUB, connection_ids: [] }],
+      [organization()],
+      [personal()],
+    );
+
+    expect(rows[0]?.organizations).toEqual([]);
+    expect(rows[0]?.personals).toEqual([]);
+  });
+
+  it("projects grouped custom servers with their owner description and no catalog binding", () => {
+    const custom = { ...GITHUB, key: "o1", custom: true, connection_ids: ["o1", "p1"] };
+    const [shared] = rowsForEntries([custom], [organization()], [personal()]);
+    const [mine] = rowsForEntries([custom], [], [personal()]);
+
+    expect(shared).toMatchObject({
+      entry: null,
+      description: null,
+      descriptionKey: "customAddedByOrg",
+      organizations: [{ id: "o1" }],
+      personals: [{ id: "p1" }],
+    });
+    expect(mine).toMatchObject({ entry: null, descriptionKey: "customAddedByYou" });
   });
 });
 
@@ -260,51 +327,6 @@ describe("several accounts on one server", () => {
     );
 
     expect(rows.at(-1)?.category).toBe(CUSTOM_CATEGORY);
-  });
-});
-
-describe("matchingCustomRows", () => {
-  const row = (name: string, url: string) => ({
-    key: name,
-    name,
-    description: null,
-    descriptionKey: "customAddedByYou",
-    category: CUSTOM_CATEGORY,
-    auth: "none" as const,
-    url,
-    docsUrl: null,
-    tokenHint: null,
-    entry: null,
-    organizations: [],
-    personals: [],
-  });
-  const rows = [
-    row("Ours", "https://ours.example/mcp"),
-    row("Theirs", "https://theirs.example/mcp"),
-  ];
-
-  it("keeps everything when nothing is being filtered", () => {
-    expect(matchingCustomRows(rows, "", "")).toHaveLength(2);
-  });
-
-  it("drops a custom row a search does not name", () => {
-    expect(matchingCustomRows(rows, "ours", "").map((r) => r.name)).toEqual(["Ours"]);
-  });
-
-  it("matches on the URL as well as the name, because a custom row has no description", () => {
-    expect(matchingCustomRows(rows, "theirs.example", "").map((r) => r.name)).toEqual(["Theirs"]);
-  });
-
-  it("ignores case and surrounding space in the query", () => {
-    expect(matchingCustomRows(rows, "  OURS  ", "")).toHaveLength(1);
-  });
-
-  it("hides every custom row while a curated category is selected", () => {
-    expect(matchingCustomRows(rows, "", "productivity")).toEqual([]);
-  });
-
-  it("shows them when the selected category is the custom one", () => {
-    expect(matchingCustomRows(rows, "", CUSTOM_CATEGORY)).toHaveLength(2);
   });
 });
 
