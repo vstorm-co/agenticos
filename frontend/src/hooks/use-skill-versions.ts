@@ -23,11 +23,11 @@ import {
 /** One page of a line's versions, newest first; `forkId` null is main. */
 export function useSkillVersions(skillId: string, forkId: string | null, page: number) {
   const skip = page * PAGE_SIZE;
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.skills.versions(skillId, forkId, skip),
     queryFn: () => listSkillVersions(skillId, { forkId, skip, limit: PAGE_SIZE }),
   });
-  return { versions: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
+  return { versions: data?.items ?? [], total: data?.total ?? 0, isLoading, error, refetch };
 }
 
 export function useSkillVersion(skillId: string, versionId: string | null) {

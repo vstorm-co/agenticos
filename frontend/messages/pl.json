@@ -8298,7 +8298,9 @@
         "description": "Opis",
         "instructions": "Instrukcje",
         "files": "Pliki",
-        "noFiles": "Brak plików."
+        "noFiles": "Brak plików.",
+        "unreadable": "Nie udało się wczytać tej wersji.",
+        "retry": "Spróbuj ponownie"
       },
       "edit": {
         "saved": "Zapisano jako v{number}.",

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -70,11 +70,17 @@ function Column({
   const t = useTranslations("skills.page.compare");
   const tErrors = useTranslations("errors");
   // Versions are listed newest first, so the page holding one follows from its number.
-  const page = Math.floor((item.newest - item.number) / PAGE_SIZE);
+  const [newest, setNewest] = useState(item.newest);
+  const page = Math.floor((newest - item.number) / PAGE_SIZE);
   const listed = useSkillVersions(skillId, item.fork, page);
   const id = listed.versions.find((version) => version.number === item.number)?.id ?? null;
-  const { version, error } = useSkillVersion(skillId, id);
-  const failed = listed.error ?? error;
+  const read = useSkillVersion(skillId, id);
+  const loaded = !listed.isLoading && !listed.error;
+  // A version saved since the diagram was drawn pushes this one down the list.
+  if (loaded && id === null && listed.total > newest) setNewest(listed.total);
+  const missing = loaded && id === null && listed.total <= newest;
+  const failed = listed.error ?? read.error;
+  const version = read.version;
   return (
     <section
       aria-label={item.name}
@@ -91,8 +97,23 @@ function Column({
           <X className="size-4" aria-hidden />
         </button>
       </header>
-      {failed ? (
-        <p className="text-destructive text-sm">{getErrorMessage(failed, tErrors)}</p>
+      {failed || missing ? (
+        <div role="alert" className="space-y-2 text-sm">
+          <p className="text-destructive">
+            {t("unreadable")}
+            {failed ? ` ${getErrorMessage(failed, tErrors)}` : ""}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void listed.refetch();
+              if (id !== null) void read.refetch();
+            }}
+          >
+            {t("retry")}
+          </Button>
+        </div>
       ) : version === undefined ? (
         <Skeleton className="h-40 w-full" aria-label={t("loading")} />
       ) : (

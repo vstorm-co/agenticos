@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render as renderBare, screen, within } from "@testing-library/react";
+import { render as renderBare, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -131,9 +131,54 @@ describe("VersionTree", () => {
     render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Compare v2" }));
-    expect(await screen.findByText("Versions are down")).toBeVisible();
+    expect(await screen.findByText("Couldn't load this version. Versions are down")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(screen.queryByText("Comparison")).toBeNull();
+  });
+
+  it("finds a compared version that versions saved since have pushed down the list", async () => {
+    const page = (from: number, to: number) =>
+      Array.from({ length: from - to + 1 }, (_, index) => ({
+        id: `m${from - index}`,
+        number: from - index,
+      }));
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url.includes("/versions?")) {
+        return { items: url.includes("skip=50") ? page(10, 1) : page(60, 11), total: 60 };
+      }
+      return { id: "m1", number: 1, description: "First", content: "Start.", resources: [] };
+    });
+    render(<VersionTree skillId="s1" mainLatest={7} forks={[]} agents={[]} error={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare v1" }));
+    const column = await screen.findByRole("region", { name: "v1" });
+    expect(await within(column).findByText("Start.")).toBeVisible();
+  });
+
+  it("says a compared version is not there any more, and looks again on Retry", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m3", number: 3 }], total: 3 });
+    render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare v2" }));
+    expect(await screen.findByText("Couldn't load this version.")).toBeVisible();
+    const calls = vi.mocked(apiClient.get).mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(calls));
+  });
+
+  it("reads a compared version again on Retry when it could not be fetched", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+      if (url.includes("/versions?")) return { items: [{ id: "m2", number: 2 }], total: 3 };
+      throw new Error("Version is down");
+    });
+    render(<VersionTree skillId="s1" mainLatest={3} forks={[]} agents={[]} error={null} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Compare v2" }));
+    expect(await screen.findByText(/Version is down/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith(expect.stringMatching(/versions\/m2$/)),
+    );
   });
 });
 

@@ -8416,7 +8416,9 @@
         "description": "Beschreibung",
         "instructions": "Anweisungen",
         "files": "Dateien",
-        "noFiles": "Keine Dateien."
+        "noFiles": "Keine Dateien.",
+        "unreadable": "Diese Version konnte nicht geladen werden.",
+        "retry": "Erneut versuchen"
       },
       "edit": {
         "saved": "Als v{number} gespeichert.",

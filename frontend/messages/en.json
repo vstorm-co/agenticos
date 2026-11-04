@@ -8538,7 +8538,9 @@
         "description": "Description",
         "instructions": "Instructions",
         "files": "Files",
-        "noFiles": "No files."
+        "noFiles": "No files.",
+        "unreadable": "Couldn't load this version.",
+        "retry": "Retry"
       },
       "edit": {
         "saved": "Saved as v{number}.",
