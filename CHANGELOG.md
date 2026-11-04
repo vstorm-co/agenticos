@@ -23,6 +23,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 - An uploaded document's parse copy under `MEDIA_DIR/_rag_tmp` is now removed: by its ingest job when it ends (indexed, refused, its document gone, or failed on its last attempt - kept while a retry is still to come), after the commit that deletes the document, and by a new hourly `sweep-rag-scratch` job once its document is gone or no longer processing. Until now every copy stayed on the media volume for good, so the content of a deleted document, knowledge base or account was still on disk. **Operators:** nothing to run - the first sweep after the upgrade removes the copies earlier releases left, except those of documents still processing and any written in the last hour. A job queued for a document that is gone now ends at once instead of failing into a retry, and **Retry** on a dead document ingest in Background jobs is refused: retry the document from its knowledge base instead, which parses its stored file again. (#2681)
 
+## [1.46.0] - 2026-11-04
+
+### Added
+
+- Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
+
+## [1.45.1] - 2026-11-04
+
 ### Fixed
 
 - The MCP servers Connected filter includes accessible organization and personal
@@ -19949,7 +19957,9 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...HEAD
+[1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
+[1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/vstorm-co/agenticos/compare/v1.44.0...v1.45.0
 [1.44.0]: https://github.com/vstorm-co/agenticos/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/vstorm-co/agenticos/compare/v1.42.0...v1.43.0

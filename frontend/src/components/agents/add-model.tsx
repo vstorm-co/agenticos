@@ -121,11 +121,13 @@ export function soleKeyedProvider(
 export function modelPlaceholder(providerId: string | undefined): { key: string } | string {
   if (providerId === undefined) return { key: "agents.pickProviderFirst" };
   if (providerId === "openrouter") return "openai/gpt-5";
+  if (providerId === "otari") return "anthropic:claude-sonnet-4-6";
   return "gpt-5, claude-opus-5, gemini-3-pro…"; // i18n-exempt: example model ids
 }
 
 /** Catalog key for the hint under the field. */
 export function modelHint(providerId: string | undefined): string {
+  if (providerId === "otari") return "agents.modelIdOtariHint";
   if (providerId === "openrouter") {
     return "agents.modelIdOpenRouterHint";
   }
@@ -245,6 +247,10 @@ export function AddModel({
   const [label, setLabel] = useState("");
   const [secretId, setSecretId] = useState(selected?.secret_id ?? "");
   const [baseUrl, setBaseUrl] = useState(selected?.base_url ?? "");
+  const [gatewayDiscovery, setGatewayDiscovery] = useState<{
+    endpoint: string;
+    secretId: string;
+  } | null>(null);
   // `null` until somebody picks, so the select follows the endpoint the way the
   // service's default does - typing a vLLM address moves it to Chat Completions.
   const [pickedApi, setPickedApi] = useState<ModelApi | null>(null);
@@ -299,6 +305,11 @@ export function AddModel({
     hasKey(selected) &&
     providerId === selected.provider;
   const chosenKey = secretId || (offersNoKey ? "" : (keys[0]?.id ?? ""));
+  const endpoint = baseUrl.trim().replace(/\/+$/, "");
+  const manualDiscovery = providerId === "otari" || (capabilities?.requires_base_url ?? false);
+  const confirmedGateway =
+    gatewayDiscovery?.endpoint === endpoint && gatewayDiscovery?.secretId === chosenKey;
+  const listingEndpoint = manualDiscovery && !confirmedGateway ? undefined : endpoint || undefined;
 
   const {
     models: suggestions,
@@ -307,12 +318,8 @@ export function AddModel({
     isLoading: loadingModels,
   } = useProviderModels(
     providerId,
-    // Only OpenRouter and Stav can be listed at an endpoint of the reader's: a
-    // regional or staging Stav serves its own catalogue, not the public one.
-    providerId === "openrouter" || providerId === "stav"
-      ? baseUrl.trim().replace(/\/+$/, "") || undefined
-      : undefined,
-    providerId === "stav" ? chosenKey || undefined : undefined,
+    ["openrouter", "stav", "otari"].includes(providerId) ? listingEndpoint : undefined,
+    ["stav", "otari"].includes(providerId) ? chosenKey || undefined : undefined,
   );
   // Stav.ai says per model which API it is served on, so nobody is asked.
   const apiFromModel = capabilities?.api_from_model ?? false;
@@ -408,12 +415,15 @@ export function AddModel({
   // an example. `keyless` alone is true of OpenAI too, because OpenAI-compatible
   // servers exist - so an OpenAI model with a key showed `localhost:11434` in its
   // empty Endpoint field, which read as an address filled in for it (#2478).
-  const endpointRequired = (capabilities?.keyless ?? false) && chosenKey === "";
+  const endpointRequired =
+    (capabilities?.requires_base_url ?? false) ||
+    ((capabilities?.keyless ?? false) && chosenKey === "");
   const canSubmit =
     provider !== undefined &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
+    (!(capabilities?.requires_base_url ?? false) || baseUrl.trim() !== "") &&
     (!loadingModels || customEndpoint);
 
   // Both ways of choosing a key, because a refusal that outlives the value it
@@ -674,32 +684,53 @@ export function AddModel({
           for the rest would collect a URL the client drops, and the API refuses
           it - which is the right refusal and a pointless one to walk into. */}
       {provider !== undefined && acceptsEndpoint && (
-        <FormField
-          htmlFor="add-model-endpoint"
-          label={t("endpoint")}
-          error={failure.fields.base_url}
-          description={
-            providerId === "openrouter"
-              ? t("openRouterEndpointHint")
-              : providerId === "stav"
-                ? t("stavEndpointHint")
-                : endpointRequired
-                  ? t("gatewayLitellmProxyModel")
-                  : t("optionalPointModelAt")
-          }
-        >
-          <Input
-            id="add-model-endpoint"
-            value={baseUrl}
-            onChange={(event) => {
-              setBaseUrl(event.target.value);
-              setFailure(NO_FAILURE);
-            }}
-            placeholder={endpointRequired ? "http://localhost:11434/v1" : t("leaveEmptyProviderS")}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </FormField>
+        <div className="space-y-2">
+          <FormField
+            htmlFor="add-model-endpoint"
+            label={t("endpoint")}
+            error={failure.fields.base_url}
+            description={
+              providerId === "openrouter"
+                ? t("openRouterEndpointHint")
+                : providerId === "stav"
+                  ? t("stavEndpointHint")
+                  : providerId === "otari"
+                    ? t("otariEndpointHint")
+                    : endpointRequired
+                      ? t("gatewayLitellmProxyModel")
+                      : t("optionalPointModelAt")
+            }
+          >
+            <Input
+              id="add-model-endpoint"
+              value={baseUrl}
+              onChange={(event) => {
+                setBaseUrl(event.target.value);
+                setFailure(NO_FAILURE);
+              }}
+              placeholder={
+                capabilities?.requires_base_url
+                  ? "https://gateway.example/api/v1"
+                  : endpointRequired
+                    ? "http://localhost:11434/v1"
+                    : t("leaveEmptyProviderS")
+              }
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </FormField>
+          {manualDiscovery && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!endpoint || !chosenKey || loadingModels}
+              onClick={() => setGatewayDiscovery({ endpoint, secretId: chosenKey })}
+            >
+              {t("loadGatewayModels")}
+            </Button>
+          )}
+        </div>
       )}
 
       {provider !== undefined && apiFromModel && (
