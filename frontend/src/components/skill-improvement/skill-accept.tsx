@@ -7,27 +7,39 @@ import { ContinueSession } from "@/components/improvement/continue-session";
 import { useReadOnly } from "@/components/improvement/read-only";
 import { Button, Checkbox, Input, Label } from "@/components/ui";
 import { useSkillAccept } from "@/hooks/use-skill-improvement";
+import { useReturnToMain } from "@/hooks/use-skill-merge";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
+import { isMerge } from "@/lib/improvement-steps";
 import type { CheckOutcome, SkillCheck } from "@/types/skill-checks";
-import type { SkillImprovement } from "@/types/skill-improvement";
+import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
+import type { ReturnedToMain } from "@/types/skill-merge";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
+import { MainAloneAcknowledge, unmeasured } from "./main-alone";
+import { MergeAgain } from "./merge-again";
 
 /**
  * Whether a decision was refused because the line got a newer version or new agents
- * since the check - the refusals Check again answers. Other 409s, such as a check
- * decided elsewhere, are only said.
+ * since the check - the refusals Check again answers, or for a merge, starting it again.
+ * Other 409s, such as a check decided elsewhere, are only said.
  */
 function movedLine(failure: unknown): boolean {
   return (
     failure instanceof ApiError &&
-    failure.code === "CONCURRENT_CHANGE" &&
-    (failure.details?.version !== undefined || failure.details?.agents !== undefined)
+    (failure.code === "LINE_MOVED" ||
+      (failure.code === "CONCURRENT_CHANGE" &&
+        (failure.details?.version !== undefined || failure.details?.agents !== undefined)))
   );
 }
 
 /** The outcomes that change the skill, each held until the person confirms it. */
-const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
+const WRITES: (CheckOutcome | MergeOutcome)[] = [
+  "apply",
+  "apply_and_pin",
+  "fork_for_helped",
+  "catch_up",
+  "return_to_main",
+];
 
 /**
  * What to do with a measured attempt. The check decides what may be done: applying
@@ -35,16 +47,20 @@ const WRITES: CheckOutcome[] = ["apply", "apply_and_pin", "fork_for_helped"];
  * it helped when somebody is, improving further, or discarding it. A reader who may
  * not edit the skill sees the verdict and none of the decisions. A result whose line or
  * agents moved since its check offers Check again in place of the decisions it no longer
- * backs.
+ * backs. A catch-up takes the merge into the fork, or - when main alone made nobody worse
+ * - returns the fork's agents to main instead.
  */
 export function SkillAccept({
   session,
   check,
   onStarted,
+  onReturned,
 }: {
   session: SkillImprovement;
   check: SkillCheck;
   onStarted: () => void;
+  /** What returning the fork's agents to main did, which outlives this view. */
+  onReturned?: (returned: ReturnedToMain) => void;
 }) {
   const t = useTranslations("skillImprovement.accept");
   const tErrors = useTranslations("errors");
@@ -52,7 +68,9 @@ export function SkillAccept({
   const locale = useLocale();
   const readOnly = useReadOnly();
   const { apply, fork } = useSkillAccept(session.skill_id, session.id);
-  const busy = apply.isPending || fork.isPending;
+  const returnToMain = useReturnToMain(session.skill_id, session.id);
+  const busy = apply.isPending || fork.isPending || returnToMain.isPending;
+  const catchUp = session.purpose === "catch_up";
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
   const names = (state: string) =>
     list.format(check.agents.filter((row) => row.state === state).map((row) => row.agent.name));
@@ -61,6 +79,8 @@ export function SkillAccept({
   const unknownNames = names("unknown");
   const helped = check.agents.find((row) => row.state === "better");
   const [acknowledged, setAcknowledged] = useState(false);
+  const [aloneAcknowledged, setAloneAcknowledged] = useState(false);
+  const aloneUnknown = unmeasured(session.main_alone_check);
   const [confirmed, setConfirmed] = useState(false);
   const [forkName, setForkName] = useState(helped?.agent.name ?? "");
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -98,13 +118,35 @@ export function SkillAccept({
           {t("applyAndPin", { names: names("worse") })}
         </Button>
       )}
+      {session.outcomes.includes("catch_up") && (
+        <Button disabled={held} loading={busy} onClick={() => void applyIt(false)}>
+          {t("catchUp", { line: session.line_name })}
+        </Button>
+      )}
+      {session.outcomes.includes("return_to_main") && (
+        <Button
+          variant="outline"
+          disabled={!confirmed || (aloneUnknown > 0 && !aloneAcknowledged)}
+          loading={busy}
+          onClick={() =>
+            void decide(async () => {
+              const done = await returnToMain.mutateAsync(aloneAcknowledged);
+              onReturned?.(done.returned);
+            })
+          }
+        >
+          {t("returnToMain", { line: session.line_name })}
+        </Button>
+      )}
     </>
   );
 
   return (
     <section className="space-y-4 rounded-xl border p-6" data-tour="skill-improvement-accept">
       <h2 className="font-medium">{t("title")}</h2>
-      {check.verdict !== null && <p className="text-sm">{t(`verdict.${check.verdict}`)}</p>}
+      {check.verdict !== null && (
+        <p className="text-sm">{t(`${catchUp ? "catchUpVerdict" : "verdict"}.${check.verdict}`)}</p>
+      )}
       {check.warnings.map((warning) => (
         <p key={warning} className="text-warning text-sm">
           {t(`warning.${warning}`)}
@@ -132,6 +174,16 @@ export function SkillAccept({
               <AddTestQuestions skillId={session.skill_id} />
             </div>
           )}
+          {!recheck &&
+            aloneUnknown > 0 &&
+            session.main_alone_check &&
+            session.outcomes.includes("return_to_main") && (
+              <MainAloneAcknowledge
+                check={session.main_alone_check}
+                checked={aloneAcknowledged}
+                onChange={setAloneAcknowledged}
+              />
+            )}
           {!recheck && writes && (
             <div className="flex items-start gap-2">
               <Checkbox
@@ -172,7 +224,12 @@ export function SkillAccept({
               {refusal}
             </p>
           )}
-          {recheck && <CheckAgain session={session} onStarted={onStarted} />}
+          {recheck &&
+            (isMerge(session) ? (
+              <MergeAgain session={session} />
+            ) : (
+              <CheckAgain session={session} onStarted={onStarted} />
+            ))}
           <ContinueSession
             session={session}
             lead={recheck ? undefined : decisions}

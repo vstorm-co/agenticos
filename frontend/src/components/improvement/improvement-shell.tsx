@@ -18,6 +18,7 @@ import {
   currentImprovementStep,
   improvementSteps,
   isActive,
+  isMerge,
   isReachable,
   stopOf,
   type ImprovementStep as Step,
@@ -33,6 +34,19 @@ import { StepDecisions } from "./step-decisions";
 
 /** Steps the wizard used to have, and the one that holds what they showed. */
 const RETIRED_STEPS: Record<string, Step> = { today: "check", testSet: "understand" };
+
+/**
+ * Next step at a stop, as a session that does not choose proposed changes words it: a
+ * merge says what to settle first and what its check also asks.
+ */
+export interface NextStepTerms {
+  hint?: string;
+  /** Why the step waits; it is not priced until this clears, since it changes what is measured. */
+  blocked?: string;
+  body?: Record<string, unknown>;
+  /** Changes with each edit of what the step measures, so it is priced again. */
+  revision?: string | null;
+}
 
 /** What a step's panel can do to the frame around it. */
 export interface ShellNav {
@@ -59,6 +73,7 @@ export function ImprovementShell({
   panel,
   wordingOpen = false,
   nextStepDetail,
+  nextStep,
   footer,
   onRestart,
 }: {
@@ -71,6 +86,8 @@ export function ImprovementShell({
   wordingOpen?: boolean;
   /** What a priced next step will do, under its price. */
   nextStepDetail?: (quote: ContinuationEstimate) => ReactNode;
+  /** In place of the hint and the hold that read the proposed changes, for a merge. */
+  nextStep?: NextStepTerms;
   /** Said under the step's panel, above Try again. */
   footer?: ReactNode;
   /** After a new attempt starts from Try again or a result. */
@@ -99,7 +116,7 @@ export function ImprovementShell({
     heading.focus();
   }, [moves]);
   const [error, setError] = useState<string | null>(null);
-  const atChanges = stopOf(session) === "changes";
+  const atChanges = stopOf(session) === "changes" && !isMerge(session);
   const proposed = useAttemptChanges(subjectOf(session), session.id, session.iteration, {
     enabled: atChanges,
   });
@@ -181,21 +198,29 @@ export function ImprovementShell({
               session={session}
               detail={nextStepDetail}
               hint={
-                step === "changes" &&
-                proposed.changes.filter((hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id))
-                  .length === 1
-                  ? t("nextUp.hintSingle")
-                  : undefined
+                nextStep
+                  ? nextStep.hint
+                  : step === "changes" &&
+                      proposed.changes.filter(
+                        (hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id),
+                      ).length === 1
+                    ? t("nextUp.hintSingle")
+                    : undefined
               }
               blocked={
-                step !== "changes"
-                  ? undefined
-                  : wordingOpen
-                    ? t("nextUp.saveWordingFirst")
-                    : !attempt?.included_hunk_ids?.length
-                      ? t("selectSomeChanges")
-                      : undefined
+                nextStep
+                  ? nextStep.blocked
+                  : step !== "changes"
+                    ? undefined
+                    : wordingOpen
+                      ? t("nextUp.saveWordingFirst")
+                      : !attempt?.included_hunk_ids?.length
+                        ? t("selectSomeChanges")
+                        : undefined
               }
+              body={nextStep?.body}
+              hold={Boolean(nextStep?.blocked)}
+              revision={nextStep?.revision}
               onStarted={followCurrent}
             />
           )}

@@ -66,7 +66,10 @@ version each agent serves now in its default environment: publishing a fix
 clears the signal until the new version earns its own. Both need `runs:view`.
 
 Below it, **Improvements waiting for you** lists the [Improve](authoring.md#the-improve-wizard)
-sessions stopped for your next step or decision, each opening at its stop.
+sessions stopped for your next step or decision, each opening at its stop. After
+them come the pinned agents and the forks that main has
+[moved past](skills.md#which-version-an-agent-reads). A fork is caught up from
+there, and a pinned agent is moved on its skill's page.
 
 The organization's view shows the cards that answer with data, grouped into
 bands. The rest - integrations, channels, routines, knowledge sync, departments,

@@ -323,6 +323,35 @@ describe("SkillPage's lines and writes", () => {
     expect(screen.getByRole("button", { name: "Edit fork “Returns”" })).toBeInTheDocument();
   });
 
+  it("offers catching the fork shown up with main and moving it to main", async () => {
+    state.show = "fork:f1";
+    await mount();
+
+    expect(
+      await screen.findByRole("link", { name: "Catch “Returns” up with main" }),
+    ).toHaveAttribute("href", "/skills/s1/improve/new?fork=f1&merge=catch_up");
+    expect(screen.getByRole("link", { name: "Move “Returns” to main" })).toHaveAttribute(
+      "href",
+      "/skills/s1/improve/new?fork=f1&merge=to_main",
+    );
+  });
+
+  it("returns a fork with nothing of its own to main from its page", async () => {
+    state.show = "fork:f1";
+    const empty = { ...RETURNS, latest: null, changes: 0 };
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/forks") ? { items: [empty], total: 1 } : serveOnce(path),
+    );
+    await mount();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Return “Returns” to main" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      "Return the agents of “Returns” to main",
+    );
+    expect(screen.queryByRole("link", { name: /up with main/ })).not.toBeInTheDocument();
+  });
+
   it("reads a link to a fork that is gone as everyone, on main", async () => {
     state.show = "fork:gone";
     await mount();

@@ -1,5 +1,5 @@
 ---
-source_sha: "3820fd68b6d0"
+source_sha: "27f6f240aeee"
 ---
 
 # Konsola { #the-console }
@@ -75,7 +75,10 @@ teraz w domyślnym środowisku: opublikowanie poprawki czyści sygnał, dopóki 
 wersja nie zbierze własnych. Oba wymagają `runs:view`.
 
 Pod nią karta **Poprawki czekające na Ciebie** wymienia sesje [Ulepsz](authoring.md#the-improve-wizard)
-zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju.
+zatrzymane na Twój następny krok albo decyzję, każdą otwierając na jej postoju. Po
+nich są przypięci agenci i forki, które main
+[wyprzedził](skills.md#which-version-an-agent-reads). Fork dogania się stamtąd,
+a przypiętego agenta przenosi się na stronie jego skilla.
 
 Widok organizacji pokazuje karty, które odpowiadają danymi, pogrupowane w pasy.
 Reszta - integracje, kanały, rutyny, synchronizacja wiedzy, działy, członkowie,

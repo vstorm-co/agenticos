@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { DeleteSkillDialog } from "@/components/skills/delete-skill-dialog";
 import { EditSkillDialog } from "@/components/skills/edit-skill-dialog";
 import { NewForkDialog } from "@/components/skills/new-fork-dialog";
+import { ReturnForkDialog } from "@/components/skills/return-fork-dialog";
 import { SkillAgents } from "@/components/skills/skill-agents";
 import { SkillHistory } from "@/components/skills/skill-history";
 import {
@@ -29,6 +30,7 @@ import { useUrlState } from "@/hooks/use-url-state";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
+import type { SkillFork } from "@/types/skill-versions";
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
 const TABS = ["agents", "history", "tree"];
@@ -55,6 +57,7 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
   const [opening, startOpening] = useTransition();
   const [deleting, setDeleting] = useState(false);
   const [forkFrom, setForkFrom] = useState<string | null>(null);
+  const [returning, setReturning] = useState<SkillFork | null>(null);
   const { skill, error, remove } = useSkill(id);
   const lines = useSkillForks(id);
   const agents = useSkillAgents(id);
@@ -87,6 +90,12 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
         skill={skill}
         line={fork?.name ?? null}
         improveHref={`${ROUTES.SKILL_DETAIL(id)}/improve/new${fork === null ? "" : `?fork=${fork.id}`}`}
+        merges={mergesOf(id, fork)}
+        onReturn={
+          fork !== null && fork.latest === null && fork.agents > 0
+            ? { fork: fork.name, open: () => setReturning(fork) }
+            : null
+        }
         onEdit={() => startOpening(() => setEditing(true))}
         opening={opening}
         onFork={skill.can_edit && base !== null ? () => setForkFrom(base) : null}
@@ -177,6 +186,9 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
           }}
         />
       )}
+      {returning !== null && (
+        <ReturnForkDialog skillId={id} fork={returning} onClose={() => setReturning(null)} />
+      )}
       {forkFrom !== null && (
         <NewForkDialog
           skill={skill}
@@ -191,4 +203,20 @@ export default function SkillPage({ params }: { params: Promise<{ id: string }> 
       )}
     </div>
   );
+}
+
+/**
+ * Where the fork shown merges with main: catching up while main has moved past it, and
+ * moving to main once it has a version of its own. A fork without one has nothing to
+ * merge - its agents return to main instead.
+ */
+function mergesOf(skillId: string, fork: SkillFork | null) {
+  if (fork === null || fork.latest === null) return null;
+  const href = (merge: string) =>
+    `${ROUTES.SKILL_DETAIL(skillId)}/improve/new?fork=${fork.id}&merge=${merge}`;
+  return {
+    fork: fork.name,
+    catchUp: fork.behind_main > 0 ? href("catch_up") : null,
+    toMain: href("to_main"),
+  };
 }

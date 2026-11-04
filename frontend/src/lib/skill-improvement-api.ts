@@ -27,12 +27,13 @@ const originBody = ({ forkId, fromRun }: SkillImprovementOrigin) => ({
   ...(fromRun === null ? {} : { from_run: fromRun }),
 });
 
+/** One line's sessions: a fork's, or with `forkId` null main's alone - never every line's. */
 export function listSkillImprovements(
   skillId: string,
   forkId: string | null,
 ): Promise<SkillImprovement[]> {
   return apiClient.get<SkillImprovement[]>(root(skillId), {
-    params: forkId === null ? {} : { fork_id: forkId },
+    params: forkId === null ? { main: "true" } : { fork_id: forkId },
   });
 }
 

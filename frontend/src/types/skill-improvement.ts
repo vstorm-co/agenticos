@@ -20,6 +20,12 @@ import type {
 } from "@/types/skill-checks";
 import type { SkillVersionRef } from "@/types/skill-versions";
 
+/** What a session is for: improving its line, or merging a fork with main. */
+export type SkillImprovementPurpose = "improve" | "catch_up" | "to_main";
+
+/** What a merge session's result offers beside a check's own outcomes. */
+export type MergeOutcome = "catch_up" | "return_to_main";
+
 export interface SkillImprovementIteration extends ImprovementIteration {
   /** The check that measured this attempt on the line's agents. */
   check_id: string | null;
@@ -38,10 +44,23 @@ export interface SkillImprovement extends Omit<Improvement, "iterations"> {
   /** The current attempt's check on the line's agents. */
   check: SkillCheck | null;
   /** What may be done with the measured attempt, as its check decided. */
-  outcomes: CheckOutcome[];
+  outcomes: (CheckOutcome | MergeOutcome)[];
   /** The line moved past the version the result was checked on: check again before deciding. */
   stale?: boolean;
-  outcome: "applied" | "applied_pinned" | "forked" | "discarded" | null;
+  outcome:
+    "applied" | "applied_pinned" | "forked" | "discarded" | "caught_up" | "returned_to_main" | null;
+  /** Absent from sessions read before merging existed, which all improve. */
+  purpose?: SkillImprovementPurpose;
+  /** For a move to main, the fork whose changes it takes. */
+  source_fork_id?: string | null;
+  /** For a catch-up or a move to main, the merge Changes shows and edits. */
+  merge_id?: string | null;
+  /**
+   * A catch-up's second check, of main's newest version alone: `off` when it was not
+   * asked for, `same` when the merge is main anyway, `checked` when it ran.
+   */
+  main_alone?: "off" | "same" | "checked" | null;
+  main_alone_check?: SkillCheck | null;
   applied_version_id: string | null;
   agents: number;
   hidden_agents: number;
@@ -71,6 +90,9 @@ export interface SkillImprovementEstimate {
 /** A next step's price; for a check, the agents it runs on and the ones it cannot. */
 export interface SkillContinuationEstimate extends ContinuationEstimate {
   check_estimate?: SkillCheckEstimate | null;
+  /** For a catch-up, what checking main alone adds; included in the total. */
+  main_alone_usd?: string | null;
+  main_alone_estimate?: SkillCheckEstimate | null;
 }
 
 /** A problem found in answers where the line's versions were loaded, and where it occurs. */

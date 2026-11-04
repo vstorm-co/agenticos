@@ -3172,7 +3172,7 @@
         "description": "Improvement sessions stopped for your next step or decision.",
         "empty": {
           "title": "Nothing waiting",
-          "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready."
+          "description": "An improvement stops here after it reads what went wrong, after it writes changes and when its result is ready. Pinned agents and forks that main has moved past are listed here too."
         },
         "open": "Open",
         "what": {
@@ -3182,7 +3182,13 @@
           "blocked": "Blocked: end it and start a new one"
         },
         "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
-        "partial": "{failed, select, skills {Skill sessions could not be read.} other {Agent sessions could not be read.}}"
+        "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} other {Agent sessions could not be read.}}",
+        "catchUp": "Catch up",
+        "behindName": "{name} · {kind, select, fork {fork “{line}”} other {pinned in {line}}}",
+        "behind": {
+          "pinned": "On v{version} · {count, plural, =1 {1 change behind main} other {# changes behind main}}",
+          "fork": "From v{version} · {agents, plural, =1 {1 agent} other {# agents}} · {count, plural, =1 {1 change behind main} other {# changes behind main}}"
+        }
       }
     },
     "edit": {
@@ -5562,6 +5568,18 @@
       "skill-usage": {
         "title": "How much it is used",
         "body": "How often each agent opened the skill in the last 30 days, and the files it read. Eval and test-panel runs are left out."
+      },
+      "skill-catch-up": {
+        "title": "Catch the fork up",
+        "body": "Merges what main changed since the fork started into the fork. The fork's agents check the merge before anything changes."
+      },
+      "skill-merge-start": {
+        "title": "Merge a fork with main",
+        "body": "Shows how many parts both sides changed and what proposing their texts costs. The check is priced later, at Changes."
+      },
+      "skill-merge-changes": {
+        "title": "Settle the merge",
+        "body": "Each part says which side it comes from. A conflict shows both sides and the merged text; rewrite it if it is wrong."
       }
     },
     "chooseLanguage": "Language",
@@ -8565,6 +8583,15 @@
         "none": "No agent opened this skill in the last {days} days. Runs of evals and the test panel are not counted.",
         "agent": "{loads, plural, =1 {opened once} other {opened # times}}{files, plural, =0 {} =1 { · 1 file read} other { · # files read}}{seen, select, yes { · last {last}} other {}}",
         "hidden": "{count, plural, =1 {1 agent you can't see} other {# agents you can't see}} opened it {loads, plural, =1 {once} other {# times}}."
+      },
+      "catchUp": "Catch “{name}” up with main",
+      "toMain": "Move “{name}” to main",
+      "returnFork": {
+        "button": "Return “{name}” to main",
+        "title": "Return the agents of “{name}” to main",
+        "body": "{count, plural, =0 {Nobody reads this fork, so it is archived.} =1 {The 1 agent reading this fork moves to main's newest version, published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.} other {The # agents reading this fork move to main's newest version, each published where you may publish it and in its draft otherwise. The fork is archived once nobody reads it.}}",
+        "confirm": "Return to main",
+        "done": "Done"
       }
     },
     "checkOnAgents": "Check on agents",
@@ -15516,7 +15543,15 @@
       "apply": "Apply as the next version of {line}",
       "applyAndPin": "Apply, and keep {names} on the version it has",
       "forkName": "Name of the new fork",
-      "forkForHelped": "Make a fork with this change for {names}"
+      "forkForHelped": "Make a fork with this change for {names}",
+      "catchUpVerdict": {
+        "passed": "No agent got worse with the merge, and at least one got better.",
+        "no_better": "No agent got worse with the merge.",
+        "blocked": "At least one agent got worse with the merge, so it is not taken in. Discard it, or catch up again later.",
+        "needs_ack": "No agent got worse with the merge, but some agents could not be checked."
+      },
+      "catchUp": "Make the merge the next version of {line}",
+      "returnToMain": "Return the agents of {line} to main instead"
     },
     "start": {
       "title": "Start improving",
@@ -15556,6 +15591,106 @@
       "goUnpriced": "Check again",
       "raise": "Use this limit"
     },
-    "staleChanges": "The line got a newer version since these changes were written. Next step checks them on the newest version."
+    "staleChanges": "The line got a newer version since these changes were written. Next step checks them on the newest version.",
+    "mergeHint": {
+      "catch_up": "Check the merged skill on the fork's agents before it becomes the fork's next version.",
+      "to_main": "Check the merged skill on main's agents before it becomes main's next version."
+    },
+    "settleFirst": "{count, plural, =1 {Settle the 1 open part first.} other {Settle the # open parts first.}}",
+    "mergeWorking": "The assistant is writing a combined text for each conflict.",
+    "merge": {
+      "sides": {
+        "catch_up": "Takes main v{main} into “{line}” v{fork}. Both started from main v{base}.",
+        "to_main": "Takes the fork's v{fork} into main v{main}. The fork started from main v{base}."
+      },
+      "unresolved": "{count, plural, =1 {1 part waits for you. The check starts once it is settled.} other {# parts wait for you. The check starts once they are settled.}}",
+      "leftForYou": "{count, plural, =1 {The assistant could not write a text for 1 conflict, so it is left for you.} other {The assistant could not write a text for # conflicts, so they are left for you.}}",
+      "settledAll": "{conflicts, plural, =0 {Nothing conflicts: each part takes the side that changed it.} =1 {The 1 conflict is settled. Read it before you check the merge.} other {All # conflicts are settled. Read them before you check the merge.}}",
+      "descriptionSame": "The description is the same on both sides.",
+      "description": "Description",
+      "part": "Part {number}",
+      "unchangedLines": "{count, plural, =1 {1 line neither side changed} other {# lines neither side changed}}",
+      "files": "Files",
+      "state": {
+        "same": "Unchanged",
+        "fork": "From the fork",
+        "main": "From main",
+        "both": "Same change on both",
+        "conflict": "Conflict"
+      },
+      "settled": {
+        "open": "Waits for you",
+        "proposed": "The assistant's text",
+        "edited": "Your text"
+      },
+      "forkSide": "Fork",
+      "mainSide": "Main",
+      "resultSide": "Merged",
+      "resultOf": "Merged text of {label}",
+      "save": "Save",
+      "unsettled": "Not settled yet.",
+      "fileOpen": "Both sides changed it. Keep one side.",
+      "kept": {
+        "fork": "The fork's version is kept",
+        "forkDropped": "Dropped, as on the fork",
+        "main": "Main's version is kept",
+        "mainDropped": "Dropped, as on main"
+      },
+      "take": {
+        "fork": "Keep the fork's",
+        "forkDropped": "Drop it, as the fork did",
+        "main": "Keep main's",
+        "mainDropped": "Drop it, as main did"
+      }
+    },
+    "mainAlone": {
+      "title": "Main alone",
+      "choice": "Also check main's newest version alone on the fork's agents",
+      "choicePriced": "Also check main's newest version alone on the fork's agents (+{cost})",
+      "choiceWhy": "Only this check can show that the fork is no longer needed. Without it, the result does not offer to return the fork's agents to main.",
+      "none": {
+        "off": "Main alone was not checked, so returning the fork's agents to main is not offered.",
+        "same": "The merge is main's newest version, so it was checked once.",
+        "checked": "Main alone is being checked."
+      },
+      "acknowledge": "{count, plural, =1 {I know main alone could not be checked on 1 agent{named, select, yes { ({names})} other {}}, and it returns to main all the same.} other {I know main alone could not be checked on # agents{named, select, yes { ({names})} other {}}, and they return to main all the same.}}"
+    },
+    "mergeStart": {
+      "openSession": "This line already has an open session.",
+      "continue": "Continue it",
+      "title": {
+        "catch_up": "Catch “{fork}” up with main",
+        "to_main": "Move “{fork}” to main"
+      },
+      "what": {
+        "catch_up": "Main's changes since the version the fork is based on are merged into the fork, and the fork keeps its own. Then the fork's agents check the result.",
+        "to_main": "The fork's changes are merged into main v{version}, and main keeps its own. Then main's agents check the result."
+      },
+      "conflicts": "{count, plural, =0 {Nothing conflicts: each part takes the side that changed it.} =1 {1 part was changed on both sides. The assistant proposes a text for it, and you can change it.} other {# parts were changed on both sides. The assistant proposes a text for each, and you can change them.}}",
+      "agents": "{count, plural, =0 {No agent you can see reads this line.} =1 {1 agent checks the result.} other {# agents check the result.}}",
+      "hidden": "{count, plural, =1 {1 more agent you cannot see reads this line.} other {# more agents you cannot see read this line.}}",
+      "price": "Proposing the conflicts' texts costs about {cost}. The check is priced at Changes.",
+      "limit": "Spending limit for the session (USD)",
+      "limitHint": "You can raise it at Changes, when the check is priced.",
+      "unaffordable": "The organization's budget does not cover this.",
+      "start": {
+        "catch_up": "Start the catch-up",
+        "to_main": "Start the move"
+      }
+    },
+    "mergeReading": "Reading the merge…",
+    "mergeAgain": {
+      "moved": "The fork or main has a newer version than this merge read, so it is not checked again.",
+      "start": "Discard this merge and start again"
+    },
+    "returned": {
+      "title": "What returning to main did",
+      "live": "Moved to main and published: {names}.",
+      "drafts": "{count, plural, =1 {Moved to main in its draft, which waits to be published: {names}.} other {Moved to main in their drafts, which wait to be published: {names}.}}",
+      "refused": "{name} stays on the fork: {reason}",
+      "hidden": "{count, plural, =1 {1 agent you cannot see was left as it was.} other {# agents you cannot see were left as they were.}}",
+      "archived": "Nobody reads the fork any more, so it was archived.",
+      "remaining": "{count, plural, =0 {The fork was left as it was.} =1 {1 agent still reads the fork, so it was not archived.} other {# agents still read the fork, so it was not archived.}}"
+    }
   }
 }

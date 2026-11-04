@@ -1,5 +1,5 @@
 ---
-source_sha: "5a19b1da6d71"
+source_sha: "f6a650da99f7"
 ---
 
 # Skills { #skills }
@@ -470,7 +470,8 @@ Main-Version, alle oder die ausgewählten, jeden so, wie Change version ihn
 verschiebt. Einer, der sich nicht verschieben lässt, bleibt mit dem Grund auf dem
 Fork. Sobald niemand den Fork mehr liest, wird er archiviert. Ein Agent, dessen
 Umgebung auf eine Beförderung wartet, liest den Fork bis dahin weiter, daher bleibt
-der Fork bis dahin bestehen.
+der Fork bis dahin bestehen. Auf der Seite des Skills bietet ein Fork ohne eigene
+Version das an und sagt danach, wer gewechselt hat und wer geblieben ist.
 
 **Auf main aktualisieren.** Ein festgesetzter Agent hinter main wird erst nach
 einer Prüfung nachgezogen: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`
@@ -488,7 +489,10 @@ Prüfung zu verschieben bleibt möglich, wie jeder Versionswechsel: Der Agent ze
 dann auf der neuen Version „unbekannt“, und dafür steht ein, wer ihn verschoben hat.
 
 **Einen Fork aufholen lassen.** Die Änderungen von main erreichen einen Fork in einer
-Sitzung: `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, vorher bepreist mit
+Sitzung. Auf der Seite des Skills bietet ein angezeigter Fork das Nachziehen an,
+solange main an ihm vorbeigezogen ist, und die Übernahme nach main, sobald er eine
+eigene Version hat; die Karte im Dashboard listet die Forks, die main zurückgelassen
+hat. Über die API: `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, vorher bepreist mit
 `…/catch-up/estimate`. Die Sitzung führt drei Versionen zusammen: die main-Version,
 auf der der Fork basiert, die neueste des Forks und die neueste von main. Ein Teil,
 den nur eine Seite geändert hat, nimmt den Text dieser Seite, und ein Teil, den beide
@@ -507,7 +511,8 @@ Zusammenführung ohnehin die neueste Version von main ist. Annehmen
 erzeugt eine Fork-Version (`catch_up`), die die übernommene main-Version nennt. Ab
 dann basiert der Fork auf dieser main-Version und ist nicht mehr hinter main. Hat
 main allein keinen Agent verschlechtert, bietet das Ergebnis außerdem an, den Fork
-aufzugeben und seine Agents zu main zurückzuholen.
+aufzugeben und seine Agents zu main zurückzuholen; Agents, an denen main allein nicht
+geprüft werden konnte, kehren erst nach einer Bestätigung zurück (`acknowledge_unknown`).
 
 **Einen Fork nach main übernehmen.** Dieselbe Zusammenführung in die andere Richtung,
 über `…/forks/{fork_id}/to-main`. Die Prüfung fragt die Agents von main nach der

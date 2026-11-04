@@ -1,5 +1,5 @@
 ---
-source_sha: "5a19b1da6d71"
+source_sha: "f6a650da99f7"
 ---
 
 # Skills { #skills }
@@ -443,7 +443,8 @@ agents fijados que no ves se cuentan, sin nombrarlos.
 main, todos o los que elijas, cada uno como lo mueve Change version. El que no se
 puede mover se queda en el fork con el motivo. Cuando nadie lee ya el fork, se
 archiva. Un agent cuyo entorno espera una promoción sigue leyendo el fork hasta que
-se promueve, así que hasta entonces el fork se queda.
+se promueve, así que hasta entonces el fork se queda. En la página del skill, un fork
+sin versión propia lo ofrece y dice después quién se movió y quién se quedó.
 
 **Actualizar a main.** Un agent fijado que va por detrás de main se sube tras una
 comprobación: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` pregunta solo a
@@ -459,7 +460,10 @@ comprobado en esa versión. Mover un agent sin comprobación sigue siendo posibl
 cualquier cambio de versión: el agent queda entonces como «desconocido» en su nueva
 versión, y responde de ello quien lo movió.
 
-**Poner al día un fork.** Los cambios de main llegan a un fork en una sesión:
+**Poner al día un fork.** Los cambios de main llegan a un fork en una sesión. En la
+página del skill, un fork mostrado ofrece ponerse al día mientras main lo ha dejado
+atrás y llevarlo a main en cuanto tiene una versión propia, y la tarjeta del
+dashboard lista los forks que main ha dejado atrás. Por la API:
 `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, con el precio antes en
 `…/catch-up/estimate`. La sesión combina tres versiones: la versión de main en la que
 se basa el fork, la más reciente del fork y la más reciente de main. Una parte que
@@ -478,7 +482,9 @@ una línea propia (`main_alone_usd`). Se omite cuando la combinación ya es la v
 más reciente de main. Aceptar crea una versión del fork (`catch_up`)
 que nombra la versión de main que tomó. Desde entonces el fork se basa en esa versión
 de main, así que ya no va por detrás. Si main sola no empeoró a ningún agent, el
-resultado también ofrece abandonar el fork y devolver sus agents a main.
+resultado también ofrece abandonar el fork y devolver sus agents a main; los agents en
+los que main sola no se pudo comprobar vuelven solo tras confirmarlo
+(`acknowledge_unknown`).
 
 **Llevar un fork a main.** La misma combinación en el otro sentido, por
 `…/forks/{fork_id}/to-main`. La comprobación pregunta a los agents de main con la

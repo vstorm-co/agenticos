@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
@@ -18,12 +18,26 @@ import { useImprovement } from "@/hooks/use-improvements";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { isActive, isClosed, isReachable, stopOf } from "@/lib/improvement-steps";
+import { useSkillMerge } from "@/hooks/use-skill-merge";
+import {
+  isActive,
+  isClosed,
+  isMerge,
+  isReachable,
+  standing,
+  stopOf,
+} from "@/lib/improvement-steps";
 import { Perm } from "@/types/permissions";
 import type { SkillImprovement } from "@/types/skill-improvement";
+import type { MergeKind, ReturnedToMain } from "@/types/skill-merge";
 import { CheckAgain } from "./check-again";
 import { CheckAgents } from "./check-agents";
 import { CheckEstimate } from "./check-estimate";
+import { MainAloneChoice, MainAloneResult } from "./main-alone";
+import { MergeAgain } from "./merge-again";
+import { MergeChanges } from "./merge-changes";
+import { MergeStart } from "./merge-start";
+import { ReturnedSummary } from "./returned-summary";
 import { SkillAccept } from "./skill-accept";
 import { SkillStart } from "./skill-start";
 import { SkillUnderstand } from "./skill-understand";
@@ -37,6 +51,7 @@ export function SkillImprovementPage({
   sessionId,
   forkId,
   fromRun = null,
+  merge = null,
 }: {
   skillId: string;
   sessionId: string;
@@ -44,6 +59,8 @@ export function SkillImprovementPage({
   forkId: string | null;
   /** For a new session, the agent session that handed its skill problems over. */
   fromRun?: string | null;
+  /** For a new session on a fork, merging it with main instead of improving it. */
+  merge?: MergeKind | null;
 }) {
   const t = useTranslations("skillImprovement");
   const tErrors = useTranslations("errors");
@@ -75,7 +92,9 @@ export function SkillImprovementPage({
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 pb-16">
       {header}
-      {sessionId === "new" ? (
+      {sessionId === "new" && merge !== null && forkId !== null ? (
+        <MergeStart skillId={skillId} forkId={forkId} kind={merge} />
+      ) : sessionId === "new" ? (
         <SkillStart skillId={skillId} forkId={forkId} fromRun={fromRun} />
       ) : (
         <SkillSession skillId={skillId} sessionId={sessionId} canEdit={skill.can_edit === true} />
@@ -98,7 +117,21 @@ function SkillSession({
   const tErrors = useTranslations("errors");
   const actions = useImprovement({ skillId }, sessionId);
   const [wordingOpen, setWordingOpen] = useState(false);
+  const [mainAlone, setMainAlone] = useState(true);
+  // Kept here: returning to main closes the session, which takes Accept off the screen.
+  const [returned, setReturned] = useState<ReturnedToMain | null>(null);
   const session = actions.session as SkillImprovement | undefined;
+  const merging = session !== undefined && isMerge(session);
+  // Read once the session stops at Changes; while it works, the model is still writing.
+  const { merge } = useSkillMerge(skillId, sessionId, {
+    at: session ? standing(session) : "",
+    enabled: merging && !isActive(session),
+  });
+  const catchUp = session?.purpose === "catch_up";
+  const body = useMemo(
+    () => (catchUp ? { main_alone: mainAlone } : undefined),
+    [catchUp, mainAlone],
+  );
   if (actions.isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (actions.error || !session)
     return (
@@ -124,7 +157,28 @@ function SkillSession({
       readOnly={readOnly}
       closeHref={ROUTES.SKILL_DETAIL(skillId)}
       wordingOpen={wordingOpen}
-      nextStepDetail={(quote) => <CheckEstimate quote={quote} />}
+      nextStepDetail={(quote) => (
+        <>
+          <CheckEstimate quote={quote} />
+          {catchUp && <MainAloneChoice quote={quote} checked={mainAlone} onChange={setMainAlone} />}
+        </>
+      )}
+      nextStep={
+        merging
+          ? {
+              hint: t(`mergeHint.${session.purpose}`),
+              blocked: session.stale
+                ? t("mergeAgain.moved")
+                : !merge
+                  ? t("mergeReading")
+                  : merge.unresolved
+                    ? t("settleFirst", { count: merge.unresolved })
+                    : undefined,
+              body,
+              revision: merge?.updated_at ?? null,
+            }
+          : undefined
+      }
       panel={({ step, views, goTo, followCurrent }) => (
         <>
           <p className="text-muted-foreground text-sm">{t("line", { line: session.line_name })}</p>
@@ -134,7 +188,20 @@ function SkillSession({
             ) : (
               <SkillUnderstand session={session} />
             ))}
-          {step === "changes" &&
+          {step === "changes" && merging ? (
+            isActive(session) && views.changes.content === "working" ? (
+              <WorkingNote>{t("mergeWorking")}</WorkingNote>
+            ) : (
+              <>
+                {session.stale && readOnly === null && <MergeAgain session={session} />}
+                <MergeChanges
+                  session={session}
+                  editable={readOnly === null && stopOf(session) === "changes" && !session.stale}
+                />
+              </>
+            )
+          ) : (
+            step === "changes" &&
             (stopOf(session) === "changes" ? (
               <section className="space-y-4">
                 {session.stale && (
@@ -159,20 +226,27 @@ function SkillSession({
               <WorkingNote>{tImprovement("changesWorking")}</WorkingNote>
             ) : (
               <TriedChanges session={session} />
-            ))}
+            ))
+          )}
           {step === "check" && (
             <section className="space-y-4 rounded-xl border p-6">
               <h2 className="font-medium">{t("checkTitle")}</h2>
               {measured}
+              <MainAloneResult session={session} />
             </section>
           )}
           {step === "result" && (
             <section className="space-y-4 rounded-xl border p-6">
               <h2 className="font-medium">{t("resultTitle")}</h2>
               {measured}
-              {session.stale && readOnly === null && (
-                <CheckAgain session={session} onStarted={followCurrent} />
-              )}
+              <MainAloneResult session={session} />
+              {session.stale &&
+                readOnly === null &&
+                (merging ? (
+                  <MergeAgain session={session} />
+                ) : (
+                  <CheckAgain session={session} onStarted={followCurrent} />
+                ))}
               {isReachable(views.accept) ? (
                 <Button onClick={() => goTo("accept")}>{t("toAccept")}</Button>
               ) : (
@@ -188,9 +262,17 @@ function SkillSession({
           )}
           {step === "accept" &&
             (check && !isClosed(session) ? (
-              <SkillAccept session={session} check={check} onStarted={followCurrent} />
+              <SkillAccept
+                session={session}
+                check={check}
+                onStarted={followCurrent}
+                onReturned={setReturned}
+              />
             ) : (
-              <p className="text-sm">{t("acceptClosed")}</p>
+              <>
+                <p className="text-sm">{t("acceptClosed")}</p>
+                {returned && <ReturnedSummary returned={returned} />}
+              </>
             ))}
         </>
       )}

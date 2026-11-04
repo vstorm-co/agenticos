@@ -414,7 +414,8 @@ are counted, not named.
 or the ones you pick, each as Change version moves it. One that cannot be moved
 stays on the fork with the reason. Once nobody reads the fork, it is archived. An
 agent whose environment waits for a promotion still reads the fork until it is
-promoted, so the fork stays until then.
+promoted, so the fork stays until then. On the skill page, a fork with no version of
+its own offers it, and says afterwards who moved and who stayed.
 
 **Update to main.** A pinned agent behind main is moved up with a check first:
 `POST /api/v1/skills/{id}/agents/{agent_id}/update-check` asks that one agent, on its
@@ -429,7 +430,10 @@ check and marks the agent checked on that version. Moving an agent without a che
 stays possible, as any change of version is: the agent then reads "unknown" on its
 new version, and the person who moved it answers for that.
 
-**Catch up a fork.** Main's changes reach a fork in a session:
+**Catch up a fork.** Main's changes reach a fork in a session. On the skill page,
+a fork the page shows offers **Catch up** while main has moved past it and **Move
+to main** once it has a version of its own, and the dashboard card lists the forks
+main has left behind. Through the API:
 `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, priced first by
 `…/catch-up/estimate`. The session merges three versions: the main version the fork
 is based on, the fork's newest and main's newest. A part only one side changed
@@ -447,7 +451,8 @@ merge is main's newest anyway.
 Accepting makes a fork version (`catch_up`) that names the main version it took in.
 From then on the fork is based on that main version, so it is no longer behind.
 When main alone made no agent worse, the result also offers to drop the fork and
-return its agents to main.
+return its agents to main; agents main alone could not be checked on go only once you
+acknowledge them (`acknowledge_unknown`).
 
 **Move a fork to main.** The same merge goes the other way at
 `…/forks/{fork_id}/to-main`. The check asks main's agents, by the

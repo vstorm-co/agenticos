@@ -434,6 +434,10 @@ export const qk = {
     problems: (skillId: string, sessionId: string) =>
       ["skills", skillId, "problems", sessionId] as const,
     awaiting: () => ["skills", "improvements-awaiting"] as const,
+    behindMain: () => ["skills", "behind-main"] as const,
+    /** `at` is where the session stands, so a merge the model filled is read again. */
+    merge: (skillId: string, sessionId: string, at: string) =>
+      ["skills", skillId, "merge", sessionId, at] as const,
     testSet: (skillId: string) => ["skills", skillId, "test-set"] as const,
     usage: (skillId: string, days: number) => ["skills", skillId, "usage", days] as const,
   },

@@ -19,6 +19,19 @@ const PROPOSING: readonly string[] = ["proposing", "filtering", "drafting"];
 const CHECKING: readonly string[] = ["evaluating", "judging"];
 const ANALYZED: readonly string[] = ["analyzing", "classifying"];
 
+/**
+ * Whether a skill session merges a fork with main instead of improving its line. Such a
+ * session has no Understand: it starts from the merge, at Changes.
+ */
+export function isMerge(session: object): boolean {
+  return "purpose" in session && session.purpose !== undefined && session.purpose !== "improve";
+}
+
+/** Where a session stands: what is read for it is read again once this changes. */
+export function standing(session: Pick<Improvement, "status" | "stage">): string {
+  return `${session.status}:${session.stage}`;
+}
+
 export function isActive(session: Pick<Improvement, "status">): boolean {
   return session.status === "queued" || session.status === "running";
 }
@@ -53,7 +66,7 @@ export function currentImprovementStep(session: Improvement): ImprovementStep {
   if (stop) return stop;
   if (!isActive(session)) return "result";
   if (CHECKING.includes(session.stage ?? "")) return "check";
-  if (PROPOSING.includes(session.stage ?? "")) return "changes";
+  if (PROPOSING.includes(session.stage ?? "") || isMerge(session)) return "changes";
   return "understand";
 }
 
@@ -79,9 +92,11 @@ export function improvementSteps(
   const groupingFailed = session.timeline.some(
     (event) => event.action === "improvement.classification_failed",
   );
+  const merge = isMerge(session);
   const states: Record<ImprovementStep, ImprovementStepState> = {
-    understand:
-      active && (!session.stage || ANALYZED.includes(stage))
+    understand: merge
+      ? "skipped"
+      : active && (!session.stage || ANALYZED.includes(stage))
         ? "running"
         : stop === "understand" || noData || (!decided && groupingFailed)
           ? "needs_you"
@@ -99,15 +114,21 @@ export function improvementSteps(
               ? "skipped"
               : active && PROPOSING.includes(stage)
                 ? "running"
-                : session.stop_reason === "knowledge_only"
-                  ? "needs_you"
-                  : active
-                    ? attempt?.batch_id
-                      ? "done"
-                      : "pending"
-                    : session.iterations.some((round) => round.batch_id !== null)
-                      ? "done"
-                      : "skipped",
+                : merge
+                  ? CHECKING.includes(stage) || session.iterations.some((round) => round.verdict)
+                    ? "done"
+                    : active
+                      ? "pending"
+                      : "skipped"
+                  : session.stop_reason === "knowledge_only"
+                    ? "needs_you"
+                    : active
+                      ? attempt?.batch_id
+                        ? "done"
+                        : "pending"
+                      : session.iterations.some((round) => round.batch_id !== null)
+                        ? "done"
+                        : "skipped",
     check:
       active && CHECKING.includes(stage)
         ? "running"

@@ -1,5 +1,5 @@
 ---
-source_sha: "5a19b1da6d71"
+source_sha: "f6a650da99f7"
 ---
 
 # Skille { #skills }
@@ -429,7 +429,8 @@ przypięci agenci, których nie widzisz, są policzeni, a nie nazwani.
 wszystkich albo wybranych, każdego tak, jak robi to Change version. Agent, którego
 nie da się przesunąć, zostaje na forku z podanym powodem. Gdy nikt już nie czyta
 forka, fork jest archiwizowany. Agent, którego środowisko czeka na promocję, czyta
-fork do czasu promocji, więc do tego czasu fork zostaje.
+fork do czasu promocji, więc do tego czasu fork zostaje. Na stronie skilla fork bez
+własnej wersji ma ten przycisk i potem mówi, kto przeszedł, a kto został.
 
 **Aktualizacja do main.** Przypiętego agenta, który jest za main, przenosi się
 w górę po sprawdzeniu: `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`
@@ -445,7 +446,10 @@ sprawdzenie i oznacza agenta jako sprawdzonego na tej wersji. Przeniesienie bez
 sprawdzenia pozostaje możliwe, jak każda zmiana wersji: agent ma wtedy na nowej
 wersji stan „nie wiadomo”, a odpowiada za to osoba, która go przeniosła.
 
-**Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji:
+**Doganianie main przez fork.** Zmiany z main trafiają do forka w sesji. Na stronie
+skilla pokazany fork ma przycisk doganiania, gdy main go wyprzedził, i przycisk
+przeniesienia do main, gdy ma własną wersję, a karta na pulpicie wymienia forki,
+które main zostawił w tyle. Przez API:
 `POST /api/v1/skills/{id}/forks/{fork_id}/catch-up`, z ceną podaną najpierw przez
 `…/catch-up/estimate`. Sesja scala trzy wersje: wersję main, na której fork się
 opiera, najnowszą wersję forka i najnowszą wersję main. Fragment zmieniony tylko po
@@ -463,7 +467,9 @@ w osobnej pozycji (`main_alone_usd`). Jest pomijane, gdy scalenie i tak jest
 najnowszą wersją main. Akceptacja tworzy wersję forka
 (`catch_up`), która wskazuje wersję main, którą przyjęła. Od tej chwili fork opiera
 się na tej wersji main, więc nie jest już za main. Gdy sama main nie pogorszyła
-żadnego agenta, wynik proponuje też porzucenie forka i powrót jego agentów do main.
+żadnego agenta, wynik proponuje też porzucenie forka i powrót jego agentów do main;
+agenci, na których samej main nie dało się sprawdzić, wracają dopiero po
+potwierdzeniu (`acknowledge_unknown`).
 
 **Przeniesienie forka do main.** To samo scalenie w drugą stronę, przez
 `…/forks/{fork_id}/to-main`. Sprawdzenie pyta agentów main według

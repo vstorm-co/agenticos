@@ -26,6 +26,9 @@ export function NextStep({
   hint,
   detail,
   blocked,
+  hold = false,
+  revision = null,
+  body,
   onStarted,
 }: {
   session: Improvement;
@@ -35,6 +38,15 @@ export function NextStep({
   detail?: (quote: ContinuationEstimate) => ReactNode;
   /** Why the step cannot start yet, said beside the button. */
   blocked?: string;
+  /** What blocks the step also changes what it would measure, so it is not priced yet. */
+  hold?: boolean;
+  /** Changes when what the step measures changed without the session moving; it is priced again. */
+  revision?: string | null;
+  /**
+   * What the step is priced and started with beside the limit. A new value prices it
+   * again, so the caller keeps it stable between renders.
+   */
+  body?: Record<string, unknown>;
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement.nextUp");
@@ -50,60 +62,71 @@ export function NextStep({
   // A skill's line can get a newer version under a stop; the step is then priced on it.
   const [moved, setMoved] = useState<"price" | "line" | null>(null);
   const [stuck, setStuck] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // A refusal belongs to the price it answered, so pricing again clears it.
+  const [said, setSaid] = useState<{ key: string; text: string } | null>(null);
   // Choosing or rewording a change changes what the check measures, and so its price.
   const candidate = currentAttempt(session)?.candidate_spec_hash;
-  const key = JSON.stringify([asked, session.status, session.stage, session.iteration, candidate]);
+  const key = JSON.stringify([
+    asked,
+    session.status,
+    session.stage,
+    session.iteration,
+    candidate,
+    body,
+    hold,
+    revision,
+  ]);
   const priced = quote?.key === key ? quote.value : null;
+  const error = said?.key === key ? said.text : null;
   const estimate = actions.estimateContinuation.mutateAsync;
   // Too few questions kept aside is final for this session: it keeps the questions it began with.
   const refusal = useCallback(
-    (failure: unknown) => {
-      const missing = failure instanceof ApiError ? failure.details?.missing_holdout : undefined;
+    (cause: unknown) => {
+      const missing = cause instanceof ApiError ? cause.details?.missing_holdout : undefined;
       return typeof missing === "number"
         ? t("unmeasurable", { count: missing })
-        : getErrorMessage(failure, tErrors);
+        : getErrorMessage(cause, tErrors);
     },
     [t, tErrors],
   );
   const blockedBy = session.next_step_blocked;
   const allowed = mayContinue(session);
   useEffect(() => {
-    if (!stop || readOnly || !allowed || blockedBy) return;
+    if (!stop || readOnly || !allowed || blockedBy || hold) return;
     let current = true;
-    estimate(asked).then(
+    estimate({ budget: asked, body }).then(
       (value) => {
         if (current) setQuote({ key, value });
       },
-      (failure: unknown) => {
-        if (current) setError(refusal(failure));
+      (refused: unknown) => {
+        if (current) setSaid({ key, text: refusal(refused) });
       },
     );
     return () => {
       current = false;
     };
-  }, [stop, readOnly, allowed, blockedBy, asked, key, estimate, refusal]);
+  }, [stop, readOnly, allowed, blockedBy, hold, asked, body, key, estimate, refusal]);
   if (!stop || readOnly || !allowed) return null;
   const refused = blockedBy ? t("unmeasurable", { count: blockedBy.needed }) : error;
   async function start(value: ContinuationEstimate) {
-    setError(null);
+    setSaid(null);
     try {
-      await actions.continueSession.mutateAsync(value);
+      await actions.continueSession.mutateAsync({ ...value, body });
       setMoved(null);
       setStuck(false);
       onStarted();
-    } catch (failure) {
-      if (!(failure instanceof ApiError && failure.status === 409)) {
-        setError(getErrorMessage(failure, tErrors));
+    } catch (cause) {
+      if (!(cause instanceof ApiError && cause.status === 409)) {
+        setSaid({ key, text: getErrorMessage(cause, tErrors) });
         return;
       }
-      const line = failure.code === "LINE_MOVED";
+      const line = cause.code === "LINE_MOVED";
       try {
-        setQuote({ key, value: await estimate(asked) });
+        setQuote({ key, value: await estimate({ budget: asked, body }) });
         setMoved(line ? "line" : "price");
         setStuck(false);
       } catch (again) {
-        setError(refusal(again));
+        setSaid({ key, text: refusal(again) });
         setStuck(line);
       }
     }
@@ -115,7 +138,7 @@ export function NextStep({
       data-tour="improvement-next-step"
     >
       <p className="text-sm">{hint ?? t(`hint.${stop}`)}</p>
-      {!priced && !refused && (
+      {!priced && !refused && !hold && (
         <p role="status" className="text-muted-foreground text-sm">
           {t("pricing")}
         </p>

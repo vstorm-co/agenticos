@@ -3170,7 +3170,7 @@
         "description": "Sesje poprawy zatrzymane na Twój następny krok albo decyzję.",
         "empty": {
           "title": "Nic nie czeka",
-          "description": "Poprawa zatrzymuje się tu, gdy przeczyta, co poszło nie tak, gdy napisze zmiany i gdy jej wynik jest gotowy."
+          "description": "Poprawa zatrzymuje się tu, gdy przeczyta, co poszło nie tak, gdy napisze zmiany i gdy jej wynik jest gotowy. Są tu też przypięci agenci i forki, które main wyprzedził."
         },
         "open": "Otwórz",
         "what": {
@@ -3180,7 +3180,13 @@
           "blocked": "Zablokowane: zakończ i zacznij nową"
         },
         "skill": "{name} · {kind, select, main {main} other {fork „{line}”}}",
-        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} other {Nie udało się odczytać sesji agentów.}}"
+        "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} behind {Nie udało się odczytać, co zostało za main.} other {Nie udało się odczytać sesji agentów.}}",
+        "catchUp": "Dogoń",
+        "behindName": "{name} · {kind, select, fork {fork „{line}”} other {przypięty w {line}}}",
+        "behind": {
+          "pinned": "Na v{version} · {count, plural, one {# zmiana za main} few {# zmiany za main} many {# zmian za main} other {# zmiany za main}}",
+          "fork": "Od v{version} · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}} · {count, plural, one {# zmiana za main} few {# zmiany za main} many {# zmian za main} other {# zmiany za main}}"
+        }
       }
     },
     "edit": {
@@ -5330,6 +5336,18 @@
       "skill-usage": {
         "title": "Jak często jest używany",
         "body": "Jak często każdy agent otwierał skill w ostatnich 30 dniach i jakie pliki z niego czytał. Runy ewaluacji i panelu testowego się nie liczą."
+      },
+      "skill-catch-up": {
+        "title": "Dogoń main w forku",
+        "body": "Scala z forkiem to, co main zmienił od startu forka. Agenci forka sprawdzają scalenie, zanim cokolwiek się zmieni."
+      },
+      "skill-merge-start": {
+        "title": "Scal fork z main",
+        "body": "Pokazuje, ile fragmentów zmieniły obie strony i ile kosztują propozycje ich tekstów. Sprawdzenie jest wyceniane później, na kroku Changes."
+      },
+      "skill-merge-changes": {
+        "title": "Rozstrzygnij scalenie",
+        "body": "Każdy fragment mówi, z której strony pochodzi. Konflikt pokazuje obie strony i scalony tekst; przepisz go, jeśli jest zły."
       }
     },
     "chooseLanguage": "Język",
@@ -8325,6 +8343,15 @@
         "none": "Żaden agent nie otworzył tego skilla w ostatnich {days} dniach. Runy ewaluacji i panelu testowego się nie liczą.",
         "agent": "{loads, plural, one {otwarty raz} few {otwarty # razy} many {otwarty # razy} other {otwarty # razy}}{files, plural, =0 {} one { · przeczytany 1 plik} few { · przeczytane # pliki} many { · przeczytanych # plików} other { · przeczytano # pliku}}{seen, select, yes { · ostatnio {last}} other {}}",
         "hidden": "{count, plural, one {1 agent, którego nie widzisz,} few {# agentów, których nie widzisz,} many {# agentów, których nie widzisz,} other {# agenta, którego nie widzisz,}} {count, plural, one {otworzył} other {otworzyło}} go {loads, plural, one {raz} few {# razy} many {# razy} other {# razy}}."
+      },
+      "catchUp": "Dogoń main w forku „{name}”",
+      "toMain": "Przenieś „{name}” do main",
+      "returnFork": {
+        "button": "Przenieś „{name}” z powrotem do main",
+        "title": "Przenieś agentów „{name}” z powrotem do main",
+        "body": "{count, plural, =0 {Nikt nie czyta tego forka, więc zostanie zarchiwizowany.} one {# agent czytający ten fork przejdzie na najnowszą wersję main, opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} few {# agenty czytające ten fork przejdą na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} many {# agentów czytających ten fork przejdzie na najnowszą wersję main, każdy opublikowany tam, gdzie możesz publikować, a w szkicu w pozostałych przypadkach. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.} other {# agenta czytającego ten fork przejdzie na najnowszą wersję main. Fork zostanie zarchiwizowany, gdy nikt go już nie czyta.}}",
+        "confirm": "Przenieś do main",
+        "done": "Gotowe"
       }
     },
     "checkOnAgents": "Sprawdź na agentach",
@@ -15290,7 +15317,15 @@
       "apply": "Zastosuj jako następną wersję: {line}",
       "applyAndPin": "Zastosuj i zostaw {names} na obecnej wersji",
       "forkName": "Nazwa nowego forka",
-      "forkForHelped": "Zrób fork z tą zmianą dla {names}"
+      "forkForHelped": "Zrób fork z tą zmianą dla {names}",
+      "catchUpVerdict": {
+        "passed": "Żaden agent nie wypadł gorzej ze scaleniem, a co najmniej jeden wypadł lepiej.",
+        "no_better": "Żaden agent nie wypadł gorzej ze scaleniem.",
+        "blocked": "Co najmniej jeden agent wypadł gorzej ze scaleniem, więc nie zostanie przyjęte. Odrzuć je albo dogoń main później.",
+        "needs_ack": "Żaden agent nie wypadł gorzej ze scaleniem, ale części agentów nie dało się sprawdzić."
+      },
+      "catchUp": "Zrób ze scalenia następną wersję: {line}",
+      "returnToMain": "Zamiast tego przenieś agentów {line} do main"
     },
     "start": {
       "title": "Zacznij poprawianie",
@@ -15330,6 +15365,106 @@
       "goUnpriced": "Sprawdź ponownie",
       "raise": "Użyj tego limitu"
     },
-    "staleChanges": "Linia dostała nowszą wersję, odkąd te zmiany powstały. Następny krok sprawdzi je na najnowszej wersji."
+    "staleChanges": "Linia dostała nowszą wersję, odkąd te zmiany powstały. Następny krok sprawdzi je na najnowszej wersji.",
+    "mergeHint": {
+      "catch_up": "Sprawdź scalony skill na agentach forka, zanim stanie się następną wersją forka.",
+      "to_main": "Sprawdź scalony skill na agentach main, zanim stanie się następną wersją main."
+    },
+    "settleFirst": "{count, plural, one {Najpierw rozstrzygnij # otwarty fragment.} few {Najpierw rozstrzygnij # otwarte fragmenty.} many {Najpierw rozstrzygnij # otwartych fragmentów.} other {Najpierw rozstrzygnij # otwartego fragmentu.}}",
+    "mergeWorking": "Asystent pisze wspólny tekst dla każdego konfliktu.",
+    "merge": {
+      "sides": {
+        "catch_up": "Bierze main v{main} do „{line}” v{fork}. Oba zaczęły się od main v{base}.",
+        "to_main": "Bierze v{fork} forka do main v{main}. Fork zaczął się od main v{base}."
+      },
+      "unresolved": "{count, plural, one {# fragment czeka na Ciebie. Sprawdzenie zacznie się, gdy go rozstrzygniesz.} few {# fragmenty czekają na Ciebie. Sprawdzenie zacznie się, gdy je rozstrzygniesz.} many {# fragmentów czeka na Ciebie. Sprawdzenie zacznie się, gdy je rozstrzygniesz.} other {# fragmentu czeka na Ciebie. Sprawdzenie zacznie się, gdy je rozstrzygniesz.}}",
+      "leftForYou": "{count, plural, one {Asystent nie napisał tekstu dla # konfliktu, więc zostaje dla Ciebie.} few {Asystent nie napisał tekstu dla # konfliktów, więc zostają dla Ciebie.} many {Asystent nie napisał tekstu dla # konfliktów, więc zostają dla Ciebie.} other {Asystent nie napisał tekstu dla # konfliktu, więc zostaje dla Ciebie.}}",
+      "settledAll": "{conflicts, plural, =0 {Nic się nie gryzie: każdy fragment bierze stronę, która go zmieniła.} one {Konflikt jest rozstrzygnięty. Przeczytaj go, zanim sprawdzisz scalenie.} few {Wszystkie # konflikty są rozstrzygnięte. Przeczytaj je, zanim sprawdzisz scalenie.} many {Wszystkie # konfliktów jest rozstrzygniętych. Przeczytaj je, zanim sprawdzisz scalenie.} other {Wszystkie # konfliktu są rozstrzygnięte. Przeczytaj je, zanim sprawdzisz scalenie.}}",
+      "descriptionSame": "Opis jest taki sam po obu stronach.",
+      "description": "Opis",
+      "part": "Fragment {number}",
+      "unchangedLines": "{count, plural, one {# linia bez zmian po obu stronach} few {# linie bez zmian po obu stronach} many {# linii bez zmian po obu stronach} other {# linii bez zmian po obu stronach}}",
+      "files": "Pliki",
+      "state": {
+        "same": "Bez zmian",
+        "fork": "Z forka",
+        "main": "Z main",
+        "both": "Ta sama zmiana po obu stronach",
+        "conflict": "Konflikt"
+      },
+      "settled": {
+        "open": "Czeka na Ciebie",
+        "proposed": "Tekst asystenta",
+        "edited": "Twój tekst"
+      },
+      "forkSide": "Fork",
+      "mainSide": "Main",
+      "resultSide": "Scalone",
+      "resultOf": "Scalony tekst: {label}",
+      "save": "Zapisz",
+      "unsettled": "Jeszcze nierozstrzygnięte.",
+      "fileOpen": "Obie strony go zmieniły. Zostaw jedną stronę.",
+      "kept": {
+        "fork": "Zostaje wersja forka",
+        "forkDropped": "Usunięty, jak w forku",
+        "main": "Zostaje wersja main",
+        "mainDropped": "Usunięty, jak w main"
+      },
+      "take": {
+        "fork": "Zostaw wersję forka",
+        "forkDropped": "Usuń, jak fork",
+        "main": "Zostaw wersję main",
+        "mainDropped": "Usuń, jak main"
+      }
+    },
+    "mainAlone": {
+      "title": "Sama main",
+      "choice": "Sprawdź też samą najnowszą wersję main na agentach forka",
+      "choicePriced": "Sprawdź też samą najnowszą wersję main na agentach forka (+{cost})",
+      "choiceWhy": "Tylko to sprawdzenie może pokazać, że fork nie jest już potrzebny. Bez niego wynik nie zaproponuje powrotu agentów forka do main.",
+      "none": {
+        "off": "Sama main nie była sprawdzana, więc powrót agentów forka do main nie jest proponowany.",
+        "same": "Scalenie jest najnowszą wersją main, więc sprawdzono je raz.",
+        "checked": "Sama main jest sprawdzana."
+      },
+      "acknowledge": "{count, plural, one {Wiem, że samej main nie dało się sprawdzić na # agencie{named, select, yes { ({names})} other {}}, i mimo to wraca on do main.} few {Wiem, że samej main nie dało się sprawdzić na # agentach{named, select, yes { ({names})} other {}}, i mimo to wracają one do main.} many {Wiem, że samej main nie dało się sprawdzić na # agentach{named, select, yes { ({names})} other {}}, i mimo to wracają one do main.} other {Wiem, że samej main nie dało się sprawdzić na # agenta{named, select, yes { ({names})} other {}}, i mimo to wraca do main.}}"
+    },
+    "mergeStart": {
+      "openSession": "Ta linia ma już otwartą sesję.",
+      "continue": "Kontynuuj ją",
+      "title": {
+        "catch_up": "Dogoń main w forku „{fork}”",
+        "to_main": "Przenieś „{fork}” do main"
+      },
+      "what": {
+        "catch_up": "Zmiany z main od wersji, na której opiera się fork, zostaną scalone z forkiem, a fork zachowa swoje. Potem agenci forka sprawdzą wynik.",
+        "to_main": "Zmiany forka zostaną scalone z main v{version}, a main zachowa swoje. Potem agenci main sprawdzą wynik."
+      },
+      "conflicts": "{count, plural, =0 {Nic się nie gryzie: każdy fragment bierze stronę, która go zmieniła.} one {# fragment zmieniono po obu stronach. Asystent zaproponuje dla niego tekst, a Ty możesz go zmienić.} few {# fragmenty zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.} many {# fragmentów zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.} other {# fragmentu zmieniono po obu stronach. Asystent zaproponuje tekst dla każdego, a Ty możesz je zmienić.}}",
+      "agents": "{count, plural, =0 {Żaden agent, którego widzisz, nie czyta tej linii.} one {# agent sprawdzi wynik.} few {# agenty sprawdzą wynik.} many {# agentów sprawdzi wynik.} other {# agenta sprawdzi wynik.}}",
+      "hidden": "{count, plural, one {Tej linii używa jeszcze # agent, którego nie widzisz.} few {Tej linii używają jeszcze # agenty, których nie widzisz.} many {Tej linii używa jeszcze # agentów, których nie widzisz.} other {Tej linii używa jeszcze # agenta, którego nie widzisz.}}",
+      "price": "Propozycje tekstów dla konfliktów kosztują około {cost}. Sprawdzenie zostanie wycenione na kroku Changes.",
+      "limit": "Limit wydatków na sesję (USD)",
+      "limitHint": "Możesz go podnieść na kroku Changes, gdy sprawdzenie będzie wycenione.",
+      "unaffordable": "Budżet organizacji tego nie pokrywa.",
+      "start": {
+        "catch_up": "Zacznij doganianie",
+        "to_main": "Zacznij przenoszenie"
+      }
+    },
+    "mergeReading": "Odczytywanie scalenia…",
+    "mergeAgain": {
+      "moved": "Fork albo main ma nowszą wersję niż ta, którą odczytało to scalenie, więc nie jest sprawdzane ponownie.",
+      "start": "Odrzuć to scalenie i zacznij od nowa"
+    },
+    "returned": {
+      "title": "Co zrobił powrót do main",
+      "live": "Przeniesieni na main i opublikowani: {names}.",
+      "drafts": "Przeniesieni na main w szkicu, który czeka na publikację: {names}.",
+      "refused": "{name} zostaje na forku: {reason}",
+      "hidden": "{count, plural, one {# agent, którego nie widzisz, został bez zmian.} few {# agenty, których nie widzisz, zostały bez zmian.} many {# agentów, których nie widzisz, zostało bez zmian.} other {# agenta, którego nie widzisz, zostało bez zmian.}}",
+      "archived": "Nikt już nie czyta forka, więc został zarchiwizowany.",
+      "remaining": "{count, plural, =0 {Fork został bez zmian.} one {# agent nadal czyta fork, więc nie został zarchiwizowany.} few {# agenty nadal czytają fork, więc nie został zarchiwizowany.} many {# agentów nadal czyta fork, więc nie został zarchiwizowany.} other {# agenta nadal czyta fork, więc nie został zarchiwizowany.}}"
+    }
   }
 }

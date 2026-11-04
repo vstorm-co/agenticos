@@ -9,6 +9,7 @@ import {
   improvementStepStates,
   improvementSteps,
   isClosed,
+  isMerge,
   isReachable,
   openImprovement,
   stopOf,
@@ -304,4 +305,42 @@ it("takes the stop from what Next step would start, before the stage", () => {
   expect(stopOf({ ...waiting, stage: "classifying", next_step: "check" })).toBe("changes");
   expect(stopOf({ ...waiting, stage: "filtering", next_step: "propose" })).toBe("understand");
   expect(stopOf({ ...waiting, stage: "filtering", next_step: null })).toBe("changes");
+});
+
+describe("a session merging a fork with main", () => {
+  const merge = (overrides: Partial<Improvement>) =>
+    ({ ...SESSION, iterations: unmeasured, purpose: "catch_up", ...overrides }) as Improvement;
+
+  it("is told apart from a session that improves", () => {
+    expect(isMerge(merge({}))).toBe(true);
+    expect(isMerge({ ...SESSION, purpose: "improve" })).toBe(false);
+    expect(isMerge(SESSION)).toBe(false);
+  });
+
+  it("starts at Changes and never has an Understand", () => {
+    const queued = merge({ status: "queued", stage: null, iterations: [] });
+    expect(currentImprovementStep(queued)).toBe("changes");
+    const states = improvementStepStates(queued);
+    expect([states.understand, states.changes]).toEqual(["skipped", "pending"]);
+    expect(improvementStepStates(merge({ status: "running", stage: "proposing" })).changes).toBe(
+      "running",
+    );
+  });
+
+  it("waits at Changes, and counts them done once the merge is checked", () => {
+    expect(improvementStepStates(merge({ status: "waiting", stage: "filtering" })).changes).toBe(
+      "needs_you",
+    );
+    expect(improvementStepStates(merge({ status: "running", stage: "evaluating" })).changes).toBe(
+      "done",
+    );
+    expect(
+      improvementStepStates(
+        merge({ status: "ready", stage: "judging", iterations: SESSION.iterations }),
+      ).changes,
+    ).toBe("done");
+    expect(improvementStepStates(merge({ status: "failed", stage: "filtering" })).changes).toBe(
+      "skipped",
+    );
+  });
 });

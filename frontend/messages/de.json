@@ -3172,7 +3172,7 @@
         "description": "Verbesserungssitzungen, die für Ihren nächsten Schritt oder Ihre Entscheidung angehalten haben.",
         "empty": {
           "title": "Nichts wartet",
-          "description": "Eine Verbesserung hält hier an, nachdem sie gelesen hat, was schiefging, nachdem sie Änderungen geschrieben hat und wenn ihr Ergebnis bereit ist."
+          "description": "Eine Verbesserung hält hier an, nachdem sie gelesen hat, was schiefging, nachdem sie Änderungen geschrieben hat und wenn ihr Ergebnis bereit ist. Auch festgesetzte Agents und Forks, an denen main vorbeigezogen ist, stehen hier."
         },
         "open": "Öffnen",
         "what": {
@@ -3182,7 +3182,13 @@
           "blocked": "Blockiert: beenden und neu starten"
         },
         "skill": "{name} · {kind, select, main {main} other {Fork „{line}“}}",
-        "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}"
+        "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} behind {Was main zurückgelassen hat, konnte nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}",
+        "catchUp": "Nachziehen",
+        "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}}}",
+        "behind": {
+          "pinned": "Auf v{version} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}",
+          "fork": "Ab v{version} · {agents, plural, =1 {1 Agent} other {# Agents}} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}"
+        }
       }
     },
     "edit": {
@@ -5440,6 +5446,18 @@
       "skill-usage": {
         "title": "Wie oft er genutzt wird",
         "body": "Wie oft jeder Agent den Skill in den letzten 30 Tagen geöffnet hat und welche Dateien er gelesen hat. Runs von Evals und dem Testbereich zählen nicht."
+      },
+      "skill-catch-up": {
+        "title": "Den Fork nachziehen",
+        "body": "Übernimmt in den Fork, was main seit dem Start des Forks geändert hat. Die Agents des Forks prüfen die Zusammenführung, bevor sich etwas ändert."
+      },
+      "skill-merge-start": {
+        "title": "Einen Fork mit main zusammenführen",
+        "body": "Zeigt, wie viele Teile beide Seiten geändert haben und was die Textvorschläge kosten. Die Prüfung wird später bei Changes bepreist."
+      },
+      "skill-merge-changes": {
+        "title": "Die Zusammenführung klären",
+        "body": "Jeder Teil sagt, von welcher Seite er stammt. Ein Konflikt zeigt beide Seiten und den zusammengeführten Text; schreiben Sie ihn um, wenn er nicht stimmt."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8443,6 +8461,15 @@
         "none": "Kein Agent hat diesen Skill in den letzten {days} Tagen geöffnet. Runs von Evals und dem Testbereich zählen nicht.",
         "agent": "{loads, plural, =1 {einmal geöffnet} other {# Mal geöffnet}}{files, plural, =0 {} =1 { · 1 Datei gelesen} other { · # Dateien gelesen}}{seen, select, yes { · zuletzt {last}} other {}}",
         "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, hat ihn} other {# Agents, die Sie nicht sehen, haben ihn}} {loads, plural, =1 {einmal} other {# Mal}} geöffnet."
+      },
+      "catchUp": "„{name}“ auf main nachziehen",
+      "toMain": "„{name}“ nach main übernehmen",
+      "returnFork": {
+        "button": "„{name}“ zu main zurückholen",
+        "title": "Die Agents von „{name}“ zu main zurückholen",
+        "body": "{count, plural, =0 {Niemand liest diesen Fork, daher wird er archiviert.} =1 {Der 1 Agent, der diesen Fork liest, wechselt auf die neueste Version von main, veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.} other {Die # Agents, die diesen Fork lesen, wechseln auf die neueste Version von main, jeder veröffentlicht, wo Sie veröffentlichen dürfen, sonst in seinem Entwurf. Der Fork wird archiviert, sobald niemand ihn liest.}}",
+        "confirm": "Zu main zurückholen",
+        "done": "Fertig"
       }
     },
     "checkOnAgents": "Auf Agents prüfen",
@@ -15188,7 +15215,15 @@
       "apply": "Als nächste Version von {line} anwenden",
       "applyAndPin": "Anwenden und {names} auf ihrer Version lassen",
       "forkName": "Name des neuen Forks",
-      "forkForHelped": "Einen Fork mit dieser Änderung für {names} anlegen"
+      "forkForHelped": "Einen Fork mit dieser Änderung für {names} anlegen",
+      "catchUpVerdict": {
+        "passed": "Kein Agent wurde mit der Zusammenführung schlechter, und mindestens einer wurde besser.",
+        "no_better": "Kein Agent wurde mit der Zusammenführung schlechter.",
+        "blocked": "Mindestens ein Agent wurde mit der Zusammenführung schlechter, daher wird sie nicht übernommen. Verwerfen Sie sie, oder ziehen Sie später erneut nach.",
+        "needs_ack": "Kein Agent wurde mit der Zusammenführung schlechter, aber einige Agents konnten nicht geprüft werden."
+      },
+      "catchUp": "Die Zusammenführung zur nächsten Version von {line} machen",
+      "returnToMain": "Stattdessen die Agents von {line} zu main zurückholen"
     },
     "start": {
       "title": "Verbessern starten",
@@ -15228,6 +15263,106 @@
       "goUnpriced": "Erneut prüfen",
       "raise": "Dieses Limit verwenden"
     },
-    "staleChanges": "Die Linie hat eine neuere Version, seit diese Änderungen geschrieben wurden. Der nächste Schritt prüft sie auf der neuesten Version."
+    "staleChanges": "Die Linie hat eine neuere Version, seit diese Änderungen geschrieben wurden. Der nächste Schritt prüft sie auf der neuesten Version.",
+    "mergeHint": {
+      "catch_up": "Prüfen Sie den zusammengeführten Skill an den Agents des Forks, bevor er die nächste Version des Forks wird.",
+      "to_main": "Prüfen Sie den zusammengeführten Skill an den Agents von main, bevor er die nächste Version von main wird."
+    },
+    "settleFirst": "{count, plural, =1 {Klären Sie zuerst den 1 offenen Teil.} other {Klären Sie zuerst die # offenen Teile.}}",
+    "mergeWorking": "Der Assistent schreibt für jeden Konflikt einen gemeinsamen Text.",
+    "merge": {
+      "sides": {
+        "catch_up": "Übernimmt main v{main} in „{line}“ v{fork}. Beide begannen bei main v{base}.",
+        "to_main": "Übernimmt v{fork} des Forks in main v{main}. Der Fork begann bei main v{base}."
+      },
+      "unresolved": "{count, plural, =1 {1 Teil wartet auf Sie. Die Prüfung startet, sobald er geklärt ist.} other {# Teile warten auf Sie. Die Prüfung startet, sobald sie geklärt sind.}}",
+      "leftForYou": "{count, plural, =1 {Der Assistent konnte für 1 Konflikt keinen Text schreiben, er bleibt Ihnen.} other {Der Assistent konnte für # Konflikte keinen Text schreiben, sie bleiben Ihnen.}}",
+      "settledAll": "{conflicts, plural, =0 {Nichts steht im Konflikt: Jeder Teil nimmt die Seite, die ihn geändert hat.} =1 {Der 1 Konflikt ist geklärt. Lesen Sie ihn, bevor Sie die Zusammenführung prüfen.} other {Alle # Konflikte sind geklärt. Lesen Sie sie, bevor Sie die Zusammenführung prüfen.}}",
+      "descriptionSame": "Die Beschreibung ist auf beiden Seiten gleich.",
+      "description": "Beschreibung",
+      "part": "Teil {number}",
+      "unchangedLines": "{count, plural, =1 {1 Zeile, die keine Seite geändert hat} other {# Zeilen, die keine Seite geändert hat}}",
+      "files": "Dateien",
+      "state": {
+        "same": "Unverändert",
+        "fork": "Vom Fork",
+        "main": "Von main",
+        "both": "Gleiche Änderung auf beiden Seiten",
+        "conflict": "Konflikt"
+      },
+      "settled": {
+        "open": "Wartet auf Sie",
+        "proposed": "Text des Assistenten",
+        "edited": "Ihr Text"
+      },
+      "forkSide": "Fork",
+      "mainSide": "Main",
+      "resultSide": "Zusammengeführt",
+      "resultOf": "Zusammengeführter Text: {label}",
+      "save": "Speichern",
+      "unsettled": "Noch nicht geklärt.",
+      "fileOpen": "Beide Seiten haben sie geändert. Behalten Sie eine Seite.",
+      "kept": {
+        "fork": "Die Version des Forks bleibt",
+        "forkDropped": "Entfernt, wie im Fork",
+        "main": "Die Version von main bleibt",
+        "mainDropped": "Entfernt, wie in main"
+      },
+      "take": {
+        "fork": "Die des Forks behalten",
+        "forkDropped": "Entfernen, wie der Fork",
+        "main": "Die von main behalten",
+        "mainDropped": "Entfernen, wie main"
+      }
+    },
+    "mainAlone": {
+      "title": "Nur main",
+      "choice": "Auch die neueste Version von main allein an den Agents des Forks prüfen",
+      "choicePriced": "Auch die neueste Version von main allein an den Agents des Forks prüfen (+{cost})",
+      "choiceWhy": "Nur diese Prüfung kann zeigen, dass der Fork nicht mehr gebraucht wird. Ohne sie bietet das Ergebnis nicht an, die Agents des Forks zu main zurückzuholen.",
+      "none": {
+        "off": "main allein wurde nicht geprüft, daher wird die Rückkehr der Agents des Forks zu main nicht angeboten.",
+        "same": "Die Zusammenführung ist die neueste Version von main, daher wurde sie einmal geprüft.",
+        "checked": "main allein wird geprüft."
+      },
+      "acknowledge": "{count, plural, =1 {Ich weiß, dass main allein an 1 Agent{named, select, yes { ({names})} other {}} nicht geprüft werden konnte, und er kehrt trotzdem zu main zurück.} other {Ich weiß, dass main allein an # Agents{named, select, yes { ({names})} other {}} nicht geprüft werden konnte, und sie kehren trotzdem zu main zurück.}}"
+    },
+    "mergeStart": {
+      "openSession": "Diese Linie hat bereits eine offene Sitzung.",
+      "continue": "Fortsetzen",
+      "title": {
+        "catch_up": "„{fork}“ auf main nachziehen",
+        "to_main": "„{fork}“ nach main übernehmen"
+      },
+      "what": {
+        "catch_up": "Die Änderungen von main seit der Version, auf der der Fork basiert, werden in den Fork übernommen, und der Fork behält seine eigenen. Danach prüfen die Agents des Forks das Ergebnis.",
+        "to_main": "Die Änderungen des Forks werden in main v{version} übernommen, und main behält seine eigenen. Danach prüfen die Agents von main das Ergebnis."
+      },
+      "conflicts": "{count, plural, =0 {Nichts steht im Konflikt: Jeder Teil nimmt die Seite, die ihn geändert hat.} =1 {1 Teil wurde auf beiden Seiten geändert. Der Assistent schlägt einen Text dafür vor, und Sie können ihn ändern.} other {# Teile wurden auf beiden Seiten geändert. Der Assistent schlägt für jeden einen Text vor, und Sie können sie ändern.}}",
+      "agents": "{count, plural, =0 {Kein Agent, den Sie sehen, liest diese Linie.} =1 {1 Agent prüft das Ergebnis.} other {# Agents prüfen das Ergebnis.}}",
+      "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
+      "price": "Die Textvorschläge für die Konflikte kosten etwa {cost}. Die Prüfung wird bei Changes bepreist.",
+      "limit": "Ausgabenlimit für die Sitzung (USD)",
+      "limitHint": "Sie können es bei Changes erhöhen, wenn die Prüfung bepreist ist.",
+      "unaffordable": "Das Budget der Organisation deckt das nicht.",
+      "start": {
+        "catch_up": "Nachziehen starten",
+        "to_main": "Übernahme starten"
+      }
+    },
+    "mergeReading": "Die Zusammenführung wird gelesen…",
+    "mergeAgain": {
+      "moved": "Der Fork oder main hat eine neuere Version als die, die diese Zusammenführung gelesen hat, daher wird sie nicht erneut geprüft.",
+      "start": "Diese Zusammenführung verwerfen und neu starten"
+    },
+    "returned": {
+      "title": "Was die Rückkehr zu main bewirkt hat",
+      "live": "Zu main verschoben und veröffentlicht: {names}.",
+      "drafts": "Im Entwurf zu main verschoben, der auf die Veröffentlichung wartet: {names}.",
+      "refused": "{name} bleibt auf dem Fork: {reason}",
+      "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, blieb unverändert.} other {# Agents, die Sie nicht sehen, blieben unverändert.}}",
+      "archived": "Niemand liest den Fork mehr, daher wurde er archiviert.",
+      "remaining": "{count, plural, =0 {Der Fork blieb unverändert.} =1 {1 Agent liest den Fork noch, daher wurde er nicht archiviert.} other {# Agents lesen den Fork noch, daher wurde er nicht archiviert.}}"
+    }
   }
 }

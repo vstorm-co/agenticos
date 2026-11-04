@@ -167,6 +167,23 @@ it("requires the continuation quote and confirms discarding explicitly", async (
   expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/discard", {
     confirmed: true,
   });
+  // A catch-up prices and starts its check with whether main alone is checked too.
+  await result.current.estimateContinuation.mutateAsync({
+    budget: "1",
+    body: { main_alone: false },
+  });
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/continue/estimate", {
+    main_alone: false,
+    budget_usd: "1",
+  });
+  await result.current.continueSession.mutateAsync({ ...quote, body: { main_alone: false } });
+  expect(apiClient.post).toHaveBeenLastCalledWith("/agents/a1/improvements/s1/continue", {
+    main_alone: false,
+    confirmed: true,
+    budget_usd: "1",
+    estimate_usd: "0.04",
+    candidate_hash: "hash",
+  });
 });
 
 it("sets a knowledge document aside for the session and brings it back", async () => {
