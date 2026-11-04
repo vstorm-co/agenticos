@@ -1,5 +1,5 @@
 ---
-source_sha: "3e65608f88b3"
+source_sha: "eea316378394"
 ---
 
 # Governance { #governance }
@@ -2313,3 +2313,9 @@ Al crear una rutina se fija la configuración publicada de sus fuentes, las cuen
 Las activaciones en cola, las esperas de dispositivos y las ejecuciones aparcadas conservan la identidad de su revisión original. Una revisión posterior no amplía los permisos del trabajo anterior. El sondeo del buzón comprueba la cuenta de entrada antes de leer; los eventos conservan el consentimiento admitido antes de esa lectura. Las llamadas MCP usan alias revisados y excluyen herramientas no aprobadas. Las fuentes revisadas no disponibles provocan un rechazo explícito. Una revisión necesaria antes de ejecutar aparece en el caso de atención existente del propietario y no cuenta como un fallo del modelo.
 
 La migración `0276_routine_sources.py` no concede consentimiento a rutinas existentes. Drena los workers antiguos, actualiza API y workers conjuntamente y revisa explícitamente las rutinas antiguas antes de ejecutarlas. Solo el propietario en la consola puede sustituir el consentimiento; no pueden hacerlo las claves API, la suplantación ni los agentes desatendidos.
+
+
+Las rutinas con presupuesto comparten una clave de concurrencia de la cola para evitar que eventos simultáneos admitan varios modelos sobre el mismo gasto completado. La extracción de memoria también se ejecuta en serie por organización y rol de mantenimiento. Cada trabajo comprueba el presupuesto actual; una llamada ya admitida todavía puede terminar por encima del límite.
+
+
+Las alertas de trabajos pausados de todo el despliegue conservan el estado normal de lectura y descarte de notificaciones; no se presentan como casos de una organización.

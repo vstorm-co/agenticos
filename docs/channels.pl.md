@@ -1,5 +1,5 @@
 ---
-source_sha: "969691a25578"
+source_sha: "32f7642dc2cc"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -2836,3 +2836,6 @@ W **Ustawienia → Powiadomienia** wybierz powiązaną rozmowę prywatną, aby w
 
 
 Formularz webhooka SMS ma limit 64 KiB i dziesięciosekundowy czas odczytu przed weryfikacją podpisu. Odpowiedzi numeryczne SMS i iMessage rezerwują identyfikator wiadomości operatora przed obsługą, aby duplikat nie przełączał ponownie wyboru w otwartym pytaniu.
+
+
+Przychodzący e-mail jest odczytywany strumieniowo z limitem 25 MiB przed sprawdzeniem podpisu, również bez wiarygodnego Content-Length.

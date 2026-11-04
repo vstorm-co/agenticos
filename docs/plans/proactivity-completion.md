@@ -100,3 +100,7 @@ claim export rows and deduplicate numbered SMS/iMessage presses. Vault credentia
 generations now invalidate reviewed remote-agent accounts on replacement.
 The SMS webhook also bounds reads before signature work. Further rounds are deferred at the maintainer’s explicit request. Start the
 local application and provide hands-on acceptance instructions instead.
+
+Existing earlier review findings also receive bounded streamed e-mail admission
+and queue-level serialization for budgeted routine fires and memory extraction.
+Focused verification: 148 checks including real queue concurrency contracts.

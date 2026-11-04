@@ -236,6 +236,7 @@ async def test_a_finished_chat_is_queued_for_extraction_only_where_the_role_is_o
         await db.execute(select(BackgroundJob).where(BackgroundJob.kind == "extract-memory"))
     ).all()
     assert len(jobs) == 1
+    assert jobs[0][0].concurrency_key == f"memory-maintenance:{org.id}"
 
 
 @pytest.mark.parametrize(

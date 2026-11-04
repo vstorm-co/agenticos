@@ -2724,3 +2724,6 @@ Select the linked private conversation in **Settings → Notifications** to opt 
 
 
 SMS webhook forms are capped at 64 KiB and a ten-second read deadline before signature verification. Numbered SMS and iMessage replies claim the provider message ID before dispatch, so a duplicate delivery cannot toggle a pending selection twice.
+
+
+Inbound email is read as a bounded stream (25 MiB maximum) before signature verification, including requests without an honest Content-Length.

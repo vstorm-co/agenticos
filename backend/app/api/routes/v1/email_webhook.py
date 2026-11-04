@@ -18,6 +18,7 @@ from app.services.channels.email import (
     SIGNATURE_HEADER,
     TIMESTAMP_HEADER,
     keep_inbound,
+    read_webhook_body,
 )
 from app.worker.background.channel import process_channel_event, process_channel_press
 
@@ -45,8 +46,8 @@ async def email_inbound(bot_id: UUID, request: Request, bot_service: ChannelBotS
     declared = request.headers.get("content-length")
     if declared is not None and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="Message too large")
-    raw = await request.body()
-    if len(raw) > MAX_BODY_BYTES:
+    raw = await read_webhook_body(request.stream(), max_bytes=MAX_BODY_BYTES)
+    if raw is None:
         raise HTTPException(status_code=413, detail="Message too large")
     body = raw.decode("utf-8", errors="replace")
     adapter = get_adapter(PLATFORM)

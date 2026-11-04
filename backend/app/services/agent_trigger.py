@@ -2222,6 +2222,9 @@ class AgentTriggerService:
             organization_id=organization_id,
             dedupe_key=dedupe_key,
             dedupe_active=dedupe_key is not None,
+            concurrency_key=f"routine-budget:{trigger.id}"
+            if trigger.monthly_budget_usd is not None
+            else None,
         )
         if dedupe_key is not None and job_id is not None:
             wait = await device_wait_repo.get(self.db, activation_id)

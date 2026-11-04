@@ -1,5 +1,5 @@
 ---
-source_sha: "3e65608f88b3"
+source_sha: "eea316378394"
 ---
 
 # Governance { #governance }
@@ -2458,3 +2458,9 @@ Beim Erstellen hält eine Routine ihre veröffentlichte Quellenkonfiguration, ko
 Eingereihte Aktivierungen, auf Computer wartende Arbeit und geparkte Läufe behalten ihre ursprüngliche Prüfungsidentität. Eine spätere Prüfung erweitert alte Arbeit nicht. Der Postfach-Poll prüft das Eingangskonto vor dem Lesen; Ereignisse behalten die davor gültige Zustimmung. MCP-Aufrufe verwenden geprüfte Aliase und schließen ungeprüfte Werkzeuge aus. Nicht verfügbare geprüfte Quellen führen zu einer ausdrücklichen Ablehnung. Eine vor der Ausführung erforderliche Prüfung erscheint im bestehenden Aufmerksamkeitsfall des Eigentümers und zählt nicht als Modellfehler.
 
 Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.
+
+
+Routinen mit Budget verwenden einen gemeinsamen Nebenläufigkeitsschlüssel der Warteschlange, damit gleichzeitige Ereignisse nicht mehrere Modellaufrufe gegen denselben abgeschlossenen Ausgabenstand zulassen. Speicherextraktion läuft ebenfalls nacheinander pro Wartungsrolle einer Organisation. Jeder Auftrag prüft das aktuelle Budget erneut; ein bereits zugelassener Aufruf darf noch über die Grenze hinaus enden.
+
+
+Bereitstellungsweite Meldungen über pausierte Jobs behalten den normalen Gelesen-/Verworfen-Status einer Benachrichtigung; sie werden nicht als Organisationsfälle dargestellt.

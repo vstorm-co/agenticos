@@ -474,6 +474,18 @@ class TestTheWebhook:
         assert (not_json.status_code, not_object.status_code, empty.status_code) == (400, 400, 200)
         assert spawned == []
 
+    async def test_a_chunked_oversized_message_is_refused_without_content_length(self) -> None:
+        bot = self._bot()
+
+        async def chunks():
+            yield b"x" * 8
+            yield b"x" * 8
+
+        with patch("app.api.routes.v1.email_webhook.MAX_BODY_BYTES", 10):
+            async with self._wired(bot), _client(bot) as client:
+                response = await client.post(f"{self.ROOT}/{bot.id}/inbound", content=chunks())
+        assert response.status_code == 413
+
     async def test_an_oversized_message_is_refused_before_it_is_read(self) -> None:
         bot = self._bot()
         with patch("app.api.routes.v1.email_webhook.MAX_BODY_BYTES", 10):

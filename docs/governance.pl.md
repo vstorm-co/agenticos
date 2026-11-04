@@ -1,5 +1,5 @@
 ---
-source_sha: "3e65608f88b3"
+source_sha: "eea316378394"
 ---
 
 # Governance { #governance }
@@ -2309,3 +2309,9 @@ Podczas tworzenia rutyna utrwala opublikowaną konfigurację źródeł, konkretn
 Zakolejkowane uruchomienia, oczekiwanie na komputer i zaparkowane przebiegi zachowują identyfikator pierwotnego przeglądu. Późniejszy przegląd nie rozszerza uprawnień starej pracy. Polling skrzynki sprawdza konto wejściowe przed odczytem, a zdarzenia zachowują zgodę obowiązującą przed nim. Wywołania MCP używają zatwierdzonych aliasów i wykluczają niezatwierdzone narzędzia; niedostępne źródła powodują jawną odmowę. Konieczność przeglądu przed wykonaniem pojawia się w istniejącej sprawie właściciela i nie jest błędem modelu.
 
 Migracja `0276_routine_sources.py` nie nadaje zgód istniejącym rutynom. Opróżnij starą kolejkę workerów, zaktualizuj API i workery razem, a przed uruchomieniem jawnie przejrzyj stare rutyny. Zgodę może zastąpić tylko właściciel w konsoli; nie mogą tego zrobić klucze API, podszywanie się ani agenci działający bez nadzoru.
+
+
+Uruchomienia rutyny z budżetem współdzielą klucz współbieżności kolejki, aby równoczesne zdarzenia nie dopuszczały wielu wywołań modelu na podstawie tego samego zakończonego wydatku. Ekstrakcja pamięci również jest wykonywana kolejno dla roli konserwacji organizacji. Każde zadanie ponownie sprawdza budżet; jedno dopuszczone wywołanie nadal może zakończyć się ponad limitem.
+
+
+Alerty o wstrzymanych zadaniach całego wdrożenia zachowują zwykły stan odczytu i odrzucenia powiadomienia; nie są przedstawiane jako sprawy organizacji.

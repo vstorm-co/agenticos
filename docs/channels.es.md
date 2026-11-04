@@ -1,5 +1,5 @@
 ---
-source_sha: "969691a25578"
+source_sha: "32f7642dc2cc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -2864,3 +2864,6 @@ Seleccione la conversación privada vinculada en **Ajustes → Notificaciones** 
 
 
 Los formularios del webhook SMS tienen un límite de 64 KiB y diez segundos de lectura antes de verificar la firma. Las respuestas numéricas SMS e iMessage reservan el identificador del proveedor antes de procesarse para que un duplicado no alterne dos veces una selección pendiente.
+
+
+El correo entrante se lee como un flujo limitado a 25 MiB antes de verificar la firma, incluso sin un Content-Length fiable.

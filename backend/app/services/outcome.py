@@ -34,10 +34,8 @@ _TARGET: dict[str, OutcomeStatus] = {
     "mute": OutcomeStatus.MUTED,
 }
 
-OUTCOME_EVENTS = frozenset(
-    {"approval_requested", "run_failed", "finding", "background_task_paused"}
-)
-"""The notification events that are somebody's to act on, rather than news."""
+OUTCOME_EVENTS = frozenset({"approval_requested", "run_failed", "finding"})
+"""Tenant-bound actionable cases. Deployment-wide job alerts retain notification read/dismiss state."""
 
 
 def cause_of(event_type: str, occurrence_id: str, render_context: dict[str, object] | None) -> str:

@@ -1,5 +1,5 @@
 ---
-source_sha: "969691a25578"
+source_sha: "32f7642dc2cc"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -3024,3 +3024,6 @@ Wählen Sie die verknüpfte private Unterhaltung unter **Einstellungen → Benac
 
 
 SMS-Webhookformulare haben vor der Signaturprüfung ein Limit von 64 KiB und zehn Sekunden Lesezeit. Nummerierte SMS- und iMessage-Antworten beanspruchen die Providernachrichten-ID vor der Verarbeitung, damit eine doppelte Zustellung eine Auswahl nicht zweimal umschaltet.
+
+
+Eingehende E-Mails werden vor der Signaturprüfung als begrenzter Stream mit höchstens 25 MiB gelesen, auch ohne verlässlichen Content-Length.

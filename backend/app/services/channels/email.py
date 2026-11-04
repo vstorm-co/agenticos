@@ -29,6 +29,7 @@ line - a lone number - turns back into the press it stands for (`sms_prompts`, w
 both channels share).
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -36,6 +37,7 @@ import html
 import logging
 import re
 import time
+from collections.abc import AsyncIterable
 from typing import Any
 
 from app.services.channels import email_state, sms_prompts
@@ -277,3 +279,19 @@ async def keep_inbound(bot_token: str, incoming: IncomingMessage, payload: dict[
         await email_state.stash_attachment(
             attachment.handle, payload["attachments"][index]["content_base64"]
         )
+
+
+async def read_webhook_body(chunks: AsyncIterable[bytes], *, max_bytes: int) -> bytes | None:
+    """Read the bounded relay form; None is an oversized delivery, never partial mail."""
+    from app.core.exceptions import BadRequestError
+
+    content = bytearray()
+    try:
+        async with asyncio.timeout(10):
+            async for chunk in chunks:
+                if len(content) + len(chunk) > max_bytes:
+                    return None
+                content.extend(chunk)
+    except TimeoutError as exc:
+        raise BadRequestError(message="The email webhook body timed out") from exc
+    return bytes(content)

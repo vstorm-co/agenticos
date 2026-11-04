@@ -2177,3 +2177,9 @@ A routine freezes its published source configuration, exact MCP accounts, creden
 Queued activations, offline waits and parked runs keep their original review identity. A later review never lends new authority to old work. The mailbox poll checks the input account before reading, and its events retain the review admitted before that read. MCP calls use reviewed aliases and exclude unreviewed tools; unavailable reviewed sources produce an explicit refusal. A review needed before an execution appears in the owner's existing attention case and does not count as a model failure.
 
 Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.
+
+
+Budgeted routine fires share a queue concurrency key, so simultaneous events cannot all admit a model call against the same completed-spend balance. Memory extraction likewise serializes per organization’s maintenance role. Each admitted job rechecks the current budget; a single admitted call can still finish across the ceiling.
+
+
+Deployment-wide paused-job alerts retain ordinary notification read/dismiss state; they do not claim to be organization outcomes.

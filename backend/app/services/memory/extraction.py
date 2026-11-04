@@ -159,6 +159,7 @@ async def queue_extraction(
         ),
         organization_id=run.organization_id,
         dedupe_key=f"extract-memory:{run.id}",
+        concurrency_key=f"memory-maintenance:{run.organization_id}",
     )
     return job is not None
 

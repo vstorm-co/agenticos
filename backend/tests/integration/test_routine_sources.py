@@ -789,3 +789,28 @@ async def test_remote_source_review_fences_credential_rotation_but_not_label_cha
         await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
     reviewed = await RoutineSourceService(db).initial(ctx, trigger)
     await require_bound_sources(db, organization_id=ctx.organization_id, policy=reviewed)
+
+
+async def test_budgeted_event_fires_share_one_worker_concurrency_key(db: AsyncSession):
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.db.models.background_job import BackgroundJob
+
+    ctx, trigger, _, _ = await world(db)
+    trigger.monthly_budget_usd = Decimal("1")
+    await db.flush()
+    service = AgentTriggerService(db)
+    first = await service.queue_fire(
+        trigger.id, organization_id=ctx.organization_id, event_context="first"
+    )
+    second = await service.queue_fire(
+        trigger.id, organization_id=ctx.organization_id, event_context="second"
+    )
+    jobs = list(
+        await db.scalars(select(BackgroundJob).where(BackgroundJob.id.in_([first, second])))
+    )
+    assert len(jobs) == 2 and all(
+        job.concurrency_key == f"routine-budget:{trigger.id}" for job in jobs
+    )
