@@ -89,11 +89,15 @@ class TestRemovingOneCopy:
     def test_a_copy_is_removed(self, media: Path) -> None:
         path = _copy(media, f"{uuid.uuid4()}-1.pdf")
 
-        assert rag_scratch.discard(path) is True
+        removed = rag_scratch.discard(path)
+
+        assert removed is True
         assert not path.exists()
 
     def test_a_copy_already_gone_is_not_an_error(self, media: Path) -> None:
-        assert rag_scratch.discard(media / f"{uuid.uuid4()}-1.pdf") is False
+        removed = rag_scratch.discard(media / f"{uuid.uuid4()}-1.pdf")
+
+        assert removed is False
 
     @pytest.mark.security
     def test_a_path_outside_the_scratch_directory_is_never_removed(
@@ -106,8 +110,9 @@ class TestRemovingOneCopy:
         stored.write_bytes(b"the permanent copy")
 
         with caplog.at_level(logging.WARNING, logger="app.services.rag_scratch"):
-            assert rag_scratch.discard(stored) is False
+            removed = rag_scratch.discard(stored)
 
+        assert removed is False
         assert stored.exists()
         assert "not a parse scratch copy" in caplog.text
 
@@ -118,8 +123,9 @@ class TestRemovingOneCopy:
         monkeypatch.setattr(Path, "unlink", MagicMock(side_effect=PermissionError("read-only")))
 
         with caplog.at_level(logging.WARNING, logger="app.services.rag_scratch"):
-            assert rag_scratch.discard(path) is False
+            removed = rag_scratch.discard(path)
 
+        assert removed is False
         assert "read-only" in caplog.text
 
     async def test_every_name_a_documents_dispatches_had_is_removed(self, media: Path) -> None:
@@ -200,9 +206,9 @@ class TestTheSweep:
         monkeypatch.setattr(Path, "stat", stat)
         monkeypatch.setattr(rag_document_repo, "processing_among", self._processing())
 
-        assert await rag_scratch.sweep_stale(MagicMock(), now=NOW) == rag_scratch.ScratchSweep(
-            removed=0, kept=0
-        )
+        swept = await rag_scratch.sweep_stale(MagicMock(), now=NOW)
+
+        assert swept == rag_scratch.ScratchSweep(removed=0, kept=0)
 
     async def test_no_scratch_directory_is_nothing_to_sweep(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -222,7 +228,9 @@ class TestTheSweep:
         result.scalars.return_value.all.return_value = [found]
         db = MagicMock(execute=AsyncMock(return_value=result))
 
-        assert await rag_document_repo.processing_among(db, [found, uuid.uuid4()]) == {found}
+        processing = await rag_document_repo.processing_among(db, [found, uuid.uuid4()])
+
+        assert processing == {found}
         sql = str(db.execute.await_args.args[0].compile(dialect=postgresql.dialect()))
         assert sql.startswith("SELECT rag_documents.id")
         assert "rag_documents.id IN" in sql
@@ -241,7 +249,9 @@ class TestTheSweep:
         monkeypatch.setattr("app.db.session.get_worker_db_context", worker_db)
         monkeypatch.setattr(rag_scratch, "sweep_stale", sweep)
 
-        assert await teardown_tasks.sweep_rag_scratch() == {"removed": 3, "kept": 1}
+        counts = await teardown_tasks.sweep_rag_scratch()
+
+        assert counts == {"removed": 3, "kept": 1}
         assert sweep.await_args.args == (session,)
         [schedule] = [s for s in SCHEDULES if s.task is jobs.SWEEP_RAG_SCRATCH]
         assert schedule.every == timedelta(hours=1)
@@ -267,8 +277,9 @@ class TestTheIngestJob:
         monkeypatch.setattr(rag_tasks, "_run_ingestion", AsyncMock(return_value=outcome))
 
         with running(Attempt(1, 2)):
-            assert await rag_tasks.ingest_document(_job(path)) == outcome
+            result = await rag_tasks.ingest_document(_job(path))
 
+        assert result == outcome
         assert not path.exists()
 
     async def test_a_failure_on_the_last_attempt_removes_it(
@@ -319,7 +330,9 @@ class TestTheIngestJob:
         monkeypatch.setattr(rag_tasks, "_run_ingestion", AsyncMock(return_value=outcome))
         monkeypatch.setattr(Path, "unlink", MagicMock(side_effect=PermissionError("read-only")))
 
-        assert await rag_tasks.ingest_document(_job(path)) == outcome
+        result = await rag_tasks.ingest_document(_job(path))
+
+        assert result == outcome
 
     async def test_a_job_the_queue_wrote_off_removes_it(
         self, media: Path, monkeypatch: pytest.MonkeyPatch
