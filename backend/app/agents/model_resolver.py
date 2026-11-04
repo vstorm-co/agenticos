@@ -76,13 +76,7 @@ ModelApi = Literal["chat", "responses"]
 
 
 def api_for_model(surfaces: tuple[str, ...]) -> ModelApi | None:
-    """The API a model's own listing says it is served on.
-
-    Chat Completions wherever it is served, because that is the API every
-    provider behind a gateway implements; Responses where it is the only one (a
-    few OpenAI models answer nothing else). None when the listing names neither,
-    and the caller keeps its default.
-    """
+    """Prefer Chat Completions, then Responses; leave unknown surfaces unspecified."""
     if "chat" in surfaces:
         return "chat"
     if "responses" in surfaces:
@@ -91,17 +85,11 @@ def api_for_model(surfaces: tuple[str, ...]) -> ModelApi | None:
 
 
 ModelRegion = Literal["eu", "eea", "global"]
-"""Where a provider that takes a region may run a profile's requests.
-
-Only Stav takes one today. `eu` and `eea` are narrowed by the provider itself:
-it answers only from endpoints that compute there and fails over only inside
-it, or refuses. `global` places no limit beyond the account's own policy.
-"""
+"""Allowed execution scopes for providers with regional routing."""
 
 STAV_BASE_URL = "https://api.stav.ai/v1"
 STAV_REGION_HEADER = "X-Stav-Runs-In"
 STAV_DEFAULT_REGION: ModelRegion = "eu"
-"""A Stav profile's region when it names none - at creation and at run time alike."""
 
 
 @dataclass(frozen=True)
