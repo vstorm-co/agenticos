@@ -394,6 +394,72 @@ class TestUnpackingIntoAWorkspace:
             await task
         assert not document.exists("uploads/x-repo")
 
+    async def test_a_stop_during_the_clean_up_of_a_failed_write_is_still_a_stop(self):
+        """The write's error is what the caller handles and carries on from, so
+        raising it in place of an absorbed stop would let the turn go on."""
+        document = CappedStateBackend(max_bytes=1024 * 1024)
+        workspace = document_workspace(document)
+        removing = asyncio.Event()
+        original_remove = workspace.remove
+
+        async def failing_write(path: str, data: bytes) -> None:
+            raise OSError("the host went away")
+
+        async def slow_remove(path: str) -> None:
+            removing.set()
+            await asyncio.sleep(0.05)
+            await original_remove(path)
+
+        workspace.write_bytes = failing_write
+        workspace.remove = slow_remove
+        task = asyncio.ensure_future(
+            unpack_into(workspace, "uploads/x-repo", _zip(("a.txt", b"1")), "zip")
+        )
+        await removing.wait()
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert not document.exists("uploads/x-repo")
+
+    async def test_a_cancelled_scope_does_not_spin_the_clean_up(self, monkeypatch):
+        """An anyio scope delivers its cancellation again at every await; the
+        clean-up waits once rather than once per delivery."""
+        waits = 0
+        real_wait = asyncio.wait
+
+        async def counting_wait(*args, **kwargs):
+            nonlocal waits
+            waits += 1
+            return await real_wait(*args, **kwargs)
+
+        monkeypatch.setattr(workspace_archive.asyncio, "wait", counting_wait)
+        document = CappedStateBackend(max_bytes=1024 * 1024)
+        workspace = document_workspace(document)
+        written = asyncio.Event()
+        original_write = workspace.write_bytes
+        original_remove = workspace.remove
+
+        async def stuck_write(path: str, data: bytes) -> None:
+            await original_write(path, data)
+            written.set()
+            await asyncio.sleep(10)
+
+        async def slow_remove(path: str) -> None:
+            await asyncio.sleep(0.1)
+            await original_remove(path)
+
+        workspace.write_bytes = stuck_write
+        workspace.remove = slow_remove
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(unpack_into, workspace, "uploads/x-repo", _zip(("a.txt", b"1")), "zip")
+            await written.wait()
+            group.cancel_scope.cancel()
+
+        assert not document.exists("uploads/x-repo")
+        assert waits <= 3
+
     async def test_an_unsafe_archive_writes_nothing_at_all(self):
         document = CappedStateBackend(max_bytes=1024 * 1024)
 

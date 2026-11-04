@@ -25,7 +25,6 @@ Both directions share one set of bounds: `WORKSPACE_ARCHIVE_MAX_ENTRIES` and
 """
 
 import asyncio
-import contextlib
 import gzip
 import io
 import logging
@@ -48,6 +47,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import IO
 
+import anyio
 from pydantic_ai.workspaces import Workspace
 
 from app.core.blocking import run_blocking, run_blocking_settled
@@ -389,24 +389,40 @@ async def unpack_into(workspace: Workspace, root: str, data: bytes, fmt: str) ->
                 await workspace.write_bytes(target, member.data)
             elif member.path in empty:
                 await workspace.make_dir(target)
-    except BaseException:
-        await _discard_partial(workspace, root)
+    except BaseException as failure:
+        stopped = await _discard_partial(workspace, root)
         reader.close()
+        if stopped and not isinstance(failure, asyncio.CancelledError):
+            # A stop that arrived while a failed write was being cleaned up is
+            # still a stop: raising the write's error instead would let the
+            # caller, which handles that error, carry the turn on.
+            raise asyncio.CancelledError from failure
         raise
 
 
-async def _discard_partial(workspace: Workspace, root: str) -> None:
+async def _discard_partial(workspace: Workspace, root: str) -> bool:
     """Remove a half-written unpack, whatever else is being cancelled meanwhile.
 
     The removal is a task of its own, and cancellations arriving while it runs
     are absorbed until it finishes: a stopped turn whose loop then begins
     shutting down cancels twice, and a shield alone lets the second through -
-    the pattern `create_cancel_safe` uses for the same reason.
+    the pattern `create_cancel_safe` uses for the same reason. The shield is
+    there as well: an anyio scope delivers its cancellation again at every
+    await, and without it the loop spun on `asyncio.wait` until the removal
+    was done.
+
+    Returns:
+        Whether a cancellation was absorbed, for the caller to re-raise.
     """
     cleanup = asyncio.ensure_future(_remove_quietly(workspace, root))
-    while not cleanup.done():
-        with contextlib.suppress(asyncio.CancelledError):
-            await asyncio.wait({cleanup})
+    stopped = False
+    with anyio.CancelScope(shield=True):
+        while not cleanup.done():
+            try:
+                await asyncio.wait({cleanup})
+            except asyncio.CancelledError:
+                stopped = True
+    return stopped
 
 
 async def _remove_quietly(workspace: Workspace, root: str) -> None:
