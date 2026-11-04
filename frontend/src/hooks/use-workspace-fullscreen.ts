@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Expand in place: editors keep their DOM and unsaved input while the shell steps aside. */
-export function useWorkspaceFullscreen() {
+export function useWorkspaceFullscreen(initialExpanded = false) {
   const ref = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded);
   useEffect(() => {
     if (!expanded || ref.current === null) return;
     const focused = document.activeElement;

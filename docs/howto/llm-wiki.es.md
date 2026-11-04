@@ -1,5 +1,5 @@
 ---
-source_sha: "3e585eb46567"
+source_sha: "4d5b6f999378"
 title: "Construye un wiki de LLM que el agent mantiene"
 description: "Dale a un agent un workspace que sobrevive entre conversaciones y un archivo de esquema, y deja que convierta notas en bruto en un pequeño wiki de Markdown enlazado."
 ---
@@ -141,4 +141,15 @@ Responden a necesidades distintas. [La búsqueda en el conocimiento](../referenc
 
 ## Siguientes pasos { #next-steps }
 
-Prueba a incorporar a propósito una fuente que contradiga a otra anterior, y comprueba que el paso de lint nombra ambas páginas en lugar de elegir un lado en silencio. Para un wiki que varias personas deban poder leer y ampliar, compara el alcance de sesión `agent` con dar a cada colaborador su propio agent vinculado a un [archivo de contexto](../context.md) compartido.
+Incorpora a propósito una fuente que contradiga a otra anterior y comprueba
+que el paso de lint nombra ambas páginas en lugar de elegir una en silencio.
+
+Para un wiki de equipo, usa un [proyecto](../projects.md): varios agents comparten
+sus archivos e instrucciones según los permisos de sus miembros. Para un vault
+personal en Desktop, conecta una carpeta local autorizada; no se sincroniza con
+los archivos compartidos del proyecto.
+
+Abre la [vista de grafo](../projects.md#graph-view) en el explorador para ver enlaces
+y enlaces entrantes. Relee las notas Markdown automáticamente; el agent mantiene
+las notas y sus conexiones sin generar una HTML App. Actualizar el grafo no
+realiza las comprobaciones de hechos descritas en este tutorial.

@@ -6483,6 +6483,14 @@
       "chat-background-tasks": {
         "title": "Tematy w tle",
         "body": "Niezależne zadanie otwiera nowy temat w tym projekcie. Kontynuuj rozmowę tutaj; agent wróci z wynikiem. Z tego paska otworzysz lub zatrzymasz zadanie."
+      },
+      "project-graph": {
+        "title": "Poznaj powiązane notatki",
+        "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
+      },
+      "workspace-graph": {
+        "title": "Poznaj powiązane notatki",
+        "body": "Widok grafu wyznacza linki i odnośniki zwrotne z Markdown i metadanych. Odświeża się, gdy jest otwarty, korzystając wyłącznie z plików, które możesz odczytać w tej lokalizacji."
       }
     },
     "chooseLanguage": "Język",
@@ -12340,5 +12348,52 @@
         }
       }
     }
+  },
+  "wikiGraph": {
+    "title": "Widok grafu",
+    "files": "Widok plików",
+    "search": "Znajdź notatkę, alias lub tag",
+    "refresh": "Odśwież",
+    "loading": "Odczytywanie notatek Markdown…",
+    "automatic": "Odświeża się co 30 sekund, gdy jest widoczny",
+    "failed": "Nie udało się odczytać workspace. Spróbuj ponownie lub sprawdź dostęp.",
+    "counts": "{pages, plural, one {# notatka} few {# notatki} many {# notatek} other {# notatki}} · {links, plural, one {# link} few {# linki} many {# linków} other {# linku}}",
+    "partial": "Ten graf jest niekompletny",
+    "limits": "Skanowanie obejmuje do 200 notatek, 256 KiB na plik i 8 MiB łącznie. Limit relacji to 256 na notatkę i 2048 na graf. Odśwież po edycji lub zawęź zestaw plików. Aliasy i tagi mają wspólny limit 128 wpisów na notatkę i 4096 na cały graf.",
+    "skipped": "Pominięto: {path}",
+    "unreadable": "Nie można odczytać: {path}",
+    "invalidFrontmatter": "Niepoprawny frontmatter YAML. Metadane tych notatek pominięto: {paths}",
+    "empty": "Dodaj notatki Markdown z wikilinkami, linkami Markdown lub relacjami we frontmatter, aby utworzyć graf.",
+    "open": "Otwórz notatkę",
+    "notes": "Notatki",
+    "noMatches": "Brak pasujących notatek",
+    "outgoing": "Linki do",
+    "backlinks": "Linki przychodzące",
+    "none": "Brak",
+    "unresolved": "Nierozwiązane linki",
+    "missing": "{target} — brak w tym skanie",
+    "ambiguous": "{target} — więcej niż jedna pasująca notatka",
+    "zoomIn": "Przybliż",
+    "zoomOut": "Oddal",
+    "reset": "Resetuj widok",
+    "overview": "Podgląd grafu",
+    "details": "Szczegóły notatki",
+    "closeDetails": "Zamknij szczegóły notatki",
+    "showLabels": "Pokaż wszystkie etykiety",
+    "showArrows": "Pokaż kierunek połączeń",
+    "fileBrowser": "Pliki",
+    "allFiles": "Wszystkie pliki",
+    "clearFolder": "Wyczyść filtr folderu",
+    "filterFolder": "Filtruj graf do {path}",
+    "fileBrowserHint": "Na grafie są tylko zindeksowane notatki Markdown. Pozostałe pliki otwierają się w podglądzie.",
+    "groups": "Grupy",
+    "resetFilters": "Resetuj filtry",
+    "groupBy": "Grupuj według",
+    "folders": "Foldery",
+    "tags": "Tagi",
+    "toggleGroup": "Przełącz grupę {group}",
+    "rootFolder": "Folder główny",
+    "untagged": "Bez tagów",
+    "visibleNotes": "Widoczne notatki: {visible} z {total}"
   }
 }
