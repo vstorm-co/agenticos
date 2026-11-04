@@ -28,6 +28,12 @@ Two things are versioned separately from this file and worth knowing about:
   - add `--knowledge-base` to `rag-source-add` scripts whose organization holds the collection name twice.
   - When downgrading: it drops the column and does not reactivate those sources. Before it does, it deactivates and logs, with the reason, every active source that names a collection but records no base, or a base other than the single one its collection name resolves to, since the earlier code would sync either of them by name. That stops their scheduled syncs only: the earlier code's manual sync does not check `is_active`, so do not sync them by hand until they are re-pointed.
 
+## [1.47.1] - 2026-11-04
+
+### Fixed
+
+- Deleting an account no longer fails with 500 when the person writes in their personal organization at the same moment, for example creates a knowledge base, or when a failed ingest of their document is being recorded. While the account's rows stay busy the deletion keeps trying for about 10 seconds, then returns 409 and deletes nothing. (#2682)
+
 ## [1.47.0] - 2026-11-04
 
 ### Added
@@ -47,10 +53,6 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Select Otari as an LLM provider with a vault API key, hosted or self-hosted endpoint, authenticated model discovery and model-family profiles from `pydantic-ai-otari`.
-
-### Fixed
-
-- Deleting an account no longer fails with 500 when the person writes in their personal organization at the same moment, for example creates a knowledge base, or when a failed ingest of their document is being recorded. While the account's rows stay busy the deletion keeps trying for about 10 seconds, then returns 409 and deletes nothing. (#2682)
 
 ## [1.45.1] - 2026-11-04
 
@@ -19980,7 +19982,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...HEAD
+[1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
 [1.47.0]: https://github.com/vstorm-co/agenticos/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/vstorm-co/agenticos/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/vstorm-co/agenticos/compare/v1.45.0...v1.45.1
