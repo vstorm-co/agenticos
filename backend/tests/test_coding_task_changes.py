@@ -247,13 +247,32 @@ def _raw(status: str, *paths: str) -> str:
     return f":100644 100644 {_SHA} {_SHA} {status}\0" + "".join(f"{path}\0" for path in paths)
 
 
-def _finish_output(listing: str, patch: str) -> str:
+def _halves(listing: str) -> tuple[str, str]:
+    """A listing written as git's `--raw` records followed by its `--numstat` ones, split in two."""
+    fields = listing.split("\0")
+    position = 0
+    while position < len(fields) and fields[position].startswith(":"):
+        position += 3 if fields[position].rsplit(" ", 1)[-1][:1] in "RC" else 2
+    return "".join(f"{field}\0" for field in fields[:position]), "\0".join(fields[position:])
+
+
+def _finish_output(listing: str, patch: str, *, size: int | None = None) -> str:
     """What `FINISH` prints for a listing and a patch, cut where the shell would cut them."""
-    listed, patched = listing.encode(), patch.encode()
-    shown = base64.b64encode(listed[: _changes.MAX_LIST_BYTES]).decode()
-    kept = patched[: _changes.MAX_PATCH_BYTES].decode("utf-8", errors="replace")
+    raw, counts = (half.encode() for half in _halves(listing))
+    patched = patch.encode()
+    cap = _changes.MAX_LIST_BYTES
+    # `size` stands for bytes git wrote that the sandbox decoded into `patch` as given.
+    kept = (
+        patched[: _changes.MAX_PATCH_BYTES].decode("utf-8", errors="replace")
+        if size is None
+        else patch
+    )
+    written = min(len(patched), _changes.MAX_PATCH_BYTES + 1) if size is None else size
     files = listing.count(":100644 ")
-    return f"{len(listed)}\n{len(patched)}\n{files}\n{shown}\n{kept}"
+    return (
+        f"{len(raw)}\n{len(counts)}\n{written}\n{files}\n"
+        f"{base64.b64encode(raw[:cap]).decode()}\n{base64.b64encode(counts[:cap]).decode()}\n{kept}"
+    )
 
 
 def _patch(path: str, lines: int) -> str:
@@ -300,10 +319,7 @@ class TestTheBounds:
         listing = _raw("A", "l.txt") + _raw("A", "z.txt") + "1\t0\tl.txt\0" + "1\t0\tz.txt\0"
         # 150 raw bytes of Latin-1 - well under the ceiling, as git wrote them.
         raw_size = len(latin.encode()) - 150 * 2 + len(small.encode())
-        output = (
-            f"{len(listing.encode())}\n{raw_size}\n2\n"
-            f"{base64.b64encode(listing.encode()).decode()}\n{latin}{small}"
-        )
+        output = _finish_output(listing, latin + small, size=raw_size)
 
         changes = _changes.parse(output)
 
@@ -327,16 +343,75 @@ class TestTheBounds:
         assert changes.files[0].patch is not None and not changes.files[0].truncated
         assert (changes.omitted, changes.truncated) == (1, True)
 
-    def test_a_list_too_long_to_read_back_is_only_counted(
+    def test_a_list_too_long_to_read_back_still_lists_its_first_files(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(_changes, "MAX_LIST_BYTES", 60)
-        listing = "".join(_raw("A", f"f{index}.txt") for index in range(3))
-        listing += "".join(f"1\t0\tf{index}.txt\0" for index in range(3))
+        """A build that writes thousands of files must not hide the one edit made by hand."""
+        monkeypatch.setattr(_changes, "MAX_LIST_BYTES", 140)
+        names = ["src/main.rs", *(f"target/f{index}.o" for index in range(5))]
+        listing = "".join(_raw("M", name) for name in names)
+        listing += "".join(f"1\t1\t{name}\0" for name in names)
+        patch = "".join(f"diff --git a/{name} b/{name}\n-a\n+b\n" for name in names)
 
-        changes = _changes.parse(_finish_output(listing, ""))
+        changes = _changes.parse(_finish_output(listing, patch))
 
-        assert changes == ChangeSet(omitted=3, truncated=True)
+        assert changes is not None and changes.truncated
+        assert changes.files[0].path == "src/main.rs"
+        assert changes.files[0].patch == "diff --git a/src/main.rs b/src/main.rs\n-a\n+b\n"
+        assert len(changes.files) + changes.omitted == 6
+
+    def test_a_record_the_list_cut_part_way_is_left_out_not_misread(self) -> None:
+        meta = f":100644 100644 {_SHA} {_SHA} M"
+        # A record whose path the cut fell before, and a file whose counts it fell before.
+        assert _changes._entries([meta], [], complete=False) == []
+        assert _changes._entries([meta], [], complete=True) is None
+        listed = _changes._entries([meta, "a.txt", meta, "b.txt"], ["1\t1\ta.txt"], complete=False)
+        assert listed is not None and [entry.path for entry, _ in listed] == ["a.txt"]
+
+    def test_a_cut_inside_the_last_listed_file_marks_the_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_changes, "MAX_PATCH_BYTES", 120)
+        output = _finish_output(_raw("A", "big.txt") + "40\t0\tbig.txt\0", _patch("big.txt", 40))
+
+        changes = _changes.parse(output)
+
+        assert changes is not None and changes.files[0].truncated
+        assert changes.truncated
+
+    def test_output_bigger_than_the_shell_sends_is_bounded_anyway(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Whatever the task left running in the sandbox can write into the script's output."""
+        monkeypatch.setattr(_changes, "MAX_PATCH_BYTES", 100)
+        listing = _raw("A", "a.txt") + "500\t0\ta.txt\0"
+        raw, counts = (half.encode() for half in _halves(listing))
+        forged = (
+            f"{len(raw)}\n{len(counts)}\n10\n1\n"
+            f"{base64.b64encode(raw).decode()}\n{base64.b64encode(counts).decode()}\n"
+            + _patch("a.txt", 500)
+        )
+
+        changes = _changes.parse(forged)
+
+        assert changes is not None and changes.truncated
+        patch = changes.files[0].patch
+        assert patch is not None
+        assert len(patch) <= 100 + len(_changes.TRUNCATED_MARKER)
+
+    @pytest.mark.parametrize(
+        "forged",
+        [
+            "9" * 5000 + "\n0\n0\n0\n\n\n",
+            "0\n0\n0\n0\n" + "A" * 1_000_000 + "\n\n",
+        ],
+        ids=["a-size-no-wc-prints", "a-list-longer-than-head-sends"],
+    )
+    def test_output_no_honest_script_prints_is_none(
+        self, forged: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_changes, "MAX_LIST_BYTES", 1000)
+        assert _changes.parse(forged) is None
 
     def test_a_renamed_files_counts_line_up_with_the_file_after_it(self) -> None:
         output = _finish_output(
@@ -377,12 +452,21 @@ class TestTheBounds:
     @pytest.mark.parametrize(
         "output",
         [
-            "x\n0\n0\n\n",
-            "0\n0\n0\nnot base64!\n",
+            "x\n0\n0\n0\n\n\n",
+            "0\n0\n0\n0\nnot base64!\n\n",
+            "0\n0\n0\n0\n\n",
+            "17\n0\n0\n0\n" + base64.b64encode(b"not a raw record\0").decode() + "\n\n",
             _finish_output(":100644 100644 a b M\0", ""),
             _finish_output(_raw("M", "a.txt"), ""),
         ],
-        ids=["no-sizes", "garbled", "a-status-with-no-path", "a-file-with-no-counts"],
+        ids=[
+            "no-sizes",
+            "garbled",
+            "too-few-lines",
+            "a-raw-list-that-is-not-one",
+            "a-status-with-no-path",
+            "a-file-with-no-counts",
+        ],
     )
     def test_output_that_is_not_a_change_set_is_none(self, output: str) -> None:
         assert _changes.parse(output) is None

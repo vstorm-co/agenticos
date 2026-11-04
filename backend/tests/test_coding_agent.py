@@ -1016,19 +1016,19 @@ class TestRunningATask:
 
 TREE = "a" * 40
 _SHA = "0" * 40
-_LISTING = (
+_RAW = (
     f":100644 100644 {_SHA} {_SHA} M\0src/app.py\0".encode()
     + f":000000 100644 {_SHA} {_SHA} A\0README.md\0".encode()
-    + b"1\t1\tsrc/app.py\0"
-    + b"2\t0\tREADME.md\0"
 )
+_COUNTS = b"1\t1\tsrc/app.py\0" + b"2\t0\tREADME.md\0"
 _PATCH = (
     "diff --git a/src/app.py b/src/app.py\n@@ -1 +1 @@\n-a - b\n+a + b\n"
     "diff --git a/README.md b/README.md\nnew file mode 100644\n@@ -0,0 +1,2 @@\n+# Demo\n+\n"
 )
-# What `FINISH` prints: the list's and the patch's sizes, the file count, the list, the patch.
+# What `FINISH` prints: the sizes, the file count, both lists, the patch.
 _TWO_FILES = (
-    f"{len(_LISTING)}\n{len(_PATCH.encode())}\n2\n{base64.b64encode(_LISTING).decode()}\n{_PATCH}"
+    f"{len(_RAW)}\n{len(_COUNTS)}\n{len(_PATCH.encode())}\n2\n"
+    f"{base64.b64encode(_RAW).decode()}\n{base64.b64encode(_COUNTS).decode()}\n{_PATCH}"
 )
 
 
@@ -1085,8 +1085,12 @@ def recorder(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
     recorder = _Recorder()
 
     @contextlib.asynccontextmanager
+    async def savepoint() -> Any:
+        yield
+
+    @contextlib.asynccontextmanager
     async def no_database() -> Any:
-        yield None
+        yield SimpleNamespace(begin_nested=savepoint)
 
     monkeypatch.setattr(_toolset, "get_db_context", no_database)
     monkeypatch.setattr(_toolset, "CodingTaskChangeService", recorder)

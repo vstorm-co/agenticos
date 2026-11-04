@@ -1480,7 +1480,8 @@ untouched. The panel then lists the files the task added, changed, removed or
 renamed, then each file's hunks, with **Copy patch**; a task that changed nothing
 says so. A failed or timed-out task keeps its diff too. Left out: the platform's own
 `.agenticos/`, `skills/` and `tool_output/`, toolchain folders such as `.git`,
-`.venv` and `node_modules`, and files already over 1 MiB when the task starts.
+`.venv` and `node_modules`, and files over 1 MiB, unless they were smaller when the task
+started.
 The patch is kept up to 256 KiB and 500 files, and marked where it was cut.
 
 **Who reads the diff.** It is stored with the conversation and read with the

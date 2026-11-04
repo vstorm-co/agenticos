@@ -6,11 +6,15 @@ can show.
 """
 
 import uuid
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from app.agents.capabilities.coding_agent import _changes, _toolset
+from app.agents.capabilities.coding_agent._harness import CodingReport
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.coding_task_change import CodingTaskChange
@@ -149,3 +153,34 @@ async def test_deleting_the_conversation_deletes_its_change_sets(db: AsyncSessio
 
     remaining = await db.execute(select(CodingTaskChange).where(CodingTaskChange.id == recorded.id))
     assert remaining.scalar_one_or_none() is None
+
+
+async def test_a_change_set_that_cannot_be_kept_leaves_its_code_out_of_the_logs(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A conversation deleted mid-task fails the insert on its foreign key, and the
+    database error's text carries the INSERT's parameters - the workspace's code."""
+    secret = "OPENAI_API_KEY=sk-live-do-not-log"
+    changes = ChangeSet(
+        files=[ChangedFile(path=".env", status="added", additions=1, patch=f"+{secret}\n")]
+    )
+
+    async def finished(*_: object) -> ChangeSet:
+        return changes
+
+    monkeypatch.setattr(_toolset._changes, "finish", finished)
+    ctx = SimpleNamespace(
+        deps=SimpleNamespace(organization_id=uuid.uuid4(), conversation_id=uuid.uuid4()),
+        tool_call_id="call-1",
+    )
+    report = CodingReport(harness="claude_code", access="edit", outcome="completed", answer="Done")
+
+    kept = await _toolset._with_changes(
+        cast(Any, ctx),
+        report,
+        _changes.Baseline(store="/tmp/x", tree="a" * 40),  # noqa: S108
+    )
+
+    assert kept.changes_id is None
+    assert "could not be recorded: IntegrityError" in caplog.text
+    assert secret not in caplog.text
