@@ -20,7 +20,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         description={isMemory ? memory("description") : t("manageYourAccountIntegrations")}
       />
       <div data-tour="settings-tabs">
-        <PageTabs tabs={SETTINGS_TABS} />
+        <PageTabs tabs={SETTINGS_TABS} overflow="scroll" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">{children}</div>
     </div>
