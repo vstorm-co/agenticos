@@ -19,7 +19,7 @@ import logging
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Final, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ValidationError
@@ -82,6 +82,7 @@ _NO_AGENT = (
     "Publishing is not available here: this run has no saved agent to publish under. "
     "Tell the user the page could not be published, and give them the content instead."
 )
+_NO_PUBLISHER: Final = "Pages cannot be published from this conversation."
 _NO_READER = (
     "Reading a published page is not available here: nobody is signed in on this "
     "surface, so there is no one the page could be opened for."
@@ -447,6 +448,8 @@ def build_artifacts_toolset(
         deps = ctx.deps
         if deps.organization_id is None or deps.agent_id is None:
             return _NO_AGENT
+        if deps.acts_as_agent:
+            return _NO_PUBLISHER
         if sum(source is not None for source in (path, content, edits)) > 1:
             return steer(ctx, _ONE_SOURCE)
         owner_user_id = UUID(deps.user_id) if deps.user_id else None

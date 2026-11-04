@@ -26,12 +26,13 @@ from app.agents.capabilities.virtual_tables._access import (
     Mistake,
     Refused,
     TableOperation,
-    acting_as,
     as_json,
     cell_values,
     is_mistake,
     refusal_text,
     require,
+    run_authority,
+    schema_authority,
 )
 from app.agents.deps import AgentDeps
 from app.core.exceptions import AppException, NotFoundError
@@ -73,11 +74,14 @@ def _operation_key(ctx: RunContext[AgentDeps]) -> str | None:
 async def _call(
     ctx: RunContext[AgentDeps],
     work: Callable[[VirtualTableService, AuthContext], Awaitable[str]],
+    grants: Grants,
+    *,
+    tool: str,
 ) -> str:
-    """Run `work` as the run's member, in a session of its own, and say how it went."""
+    """Run `work` as whoever `run_authority` names, in a session of its own, and say how it went."""
     try:
         async with get_db_context() as db:
-            auth = await acting_as(db, ctx.deps.organization_id, ctx.deps.user_id)
+            auth = await run_authority(db, ctx, grants, tool=tool)
             with from_agent(ctx.deps.agent_id):
                 return await work(VirtualTableService(db), auth)
     except Refused as refused:
@@ -88,6 +92,15 @@ async def _call(
         if is_mistake(exc):
             return steer(ctx, refusal_text(exc))
         return refusal_text(exc)
+
+
+def _echoes_nothing_stored(ctx: RunContext[AgentDeps], grants: Grants, table_id: UUID) -> bool:
+    """Whether a write's answer must leave out the record's cells.
+
+    An update or upsert of an existing record returns what is stored, which a run that is
+    its agent may not read unless its spec grants `read` on the table.
+    """
+    return ctx.deps.acts_as_agent and TableOperation.READ not in grants.get(table_id, frozenset())
 
 
 async def _call_as_person(
@@ -140,10 +153,11 @@ def _view_json(
 def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionToolset[AgentDeps]:
     """The table tools for one binding's grants.
 
-    `grants` is mutated when `create_table` succeeds, so the table it made is
-    usable for the rest of this run - under every operation, since its creator
-    owns it. The binding's stored config is never changed: the next run starts
-    from the grants the spec was published with.
+    `grants` is mutated when `create_table` succeeds in a member run, so the table it
+    made is usable for the rest of this run - under every operation, since its creator
+    owns it. A run that is its agent keeps to the tables the spec granted. The binding's
+    stored config is never changed: the next run starts from the grants the spec was
+    published with.
     """
     toolset: FunctionToolset[AgentDeps] = FunctionToolset()
 
@@ -164,7 +178,9 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             found: list[dict[str, Any]] = []
             for table_id, operations in grants.items():
                 try:
-                    table = await service.describe_table(auth, table_id)
+                    table = await service.describe_table(
+                        schema_authority(auth, grants, table_id), table_id
+                    )
                 except AppException:
                     continue
                 if table.archived_at is not None:
@@ -179,7 +195,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 )
             return as_json(found)
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="list_tables")
 
     @toolset.tool
     async def table_exists(ctx: RunContext[AgentDeps], table_id: UUID) -> str:
@@ -201,7 +217,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 return "false"
             return "true" if table.archived_at is None else "false"
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="table_exists")
 
     @toolset.tool
     async def describe_table(ctx: RunContext[AgentDeps], table_id: UUID) -> str:
@@ -218,10 +234,16 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
         """
 
         async def work(service: VirtualTableService, auth: AuthContext) -> str:
-            require(grants, table_id, TableOperation.READ)
-            return as_json(schema(await service.describe_table(auth, table_id)))
+            # An agent principal may describe a table granted for writing only: the
+            # schema is what lets it write. Its reads stay on `read` grants.
+            require(grants, table_id, *(() if auth.principal_agent_id else (TableOperation.READ,)))
+            return as_json(
+                schema(
+                    await service.describe_table(schema_authority(auth, grants, table_id), table_id)
+                )
+            )
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="describe_table")
 
     @toolset.tool
     async def list_views(ctx: RunContext[AgentDeps], table_id: UUID) -> str:
@@ -270,7 +292,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             require(grants, table_id, TableOperation.READ)
             return "true" if await service.record_exists(auth, table_id, external_id) else "false"
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="record_exists")
 
     @toolset.tool
     async def list_records(
@@ -321,7 +343,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 }
             )
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="list_records")
 
     @toolset.tool
     async def get_record(
@@ -354,7 +376,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             )
             return as_json(labelled(table, record))
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="get_record")
 
     @toolset.tool
     async def create_record(
@@ -389,7 +411,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             )
             return as_json(labelled(table, written.record))
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="create_record")
 
     @toolset.tool
     async def upsert_record(
@@ -425,9 +447,17 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 ),
                 operation_key=_operation_key(ctx),
             )
+            if _echoes_nothing_stored(ctx, grants, table_id):
+                return as_json(
+                    {
+                        "created": written.created,
+                        "id": str(written.record.id),
+                        "revision": written.record.revision,
+                    }
+                )
             return as_json({"created": written.created, **labelled(table, written.record)})
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="upsert_record")
 
     @toolset.tool
     async def update_record(
@@ -463,9 +493,11 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 ),
                 operation_key=_operation_key(ctx),
             )
+            if _echoes_nothing_stored(ctx, grants, table_id):
+                return as_json({"id": str(written.record.id), "revision": written.record.revision})
             return as_json(labelled(table, written.record))
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="update_record")
 
     @toolset.tool
     async def delete_record(
@@ -493,7 +525,7 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
             )
             return f"Deleted record {record_id}."
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="delete_record")
 
     async def create_table(
         ctx: RunContext[AgentDeps],
@@ -504,7 +536,8 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
         """Create a new table with the given columns.
 
         Only for making a table that does not exist yet - to add rows, use
-        create_record. The table is private to the member this agent acts for.
+        create_record. The table is private to whoever creates it: the member this
+        agent acts for, or the person who approved the call.
 
         Args:
             name: Unique among the organization's live tables, at most 64 characters.
@@ -525,14 +558,17 @@ def build_tables_toolset(*, grants: Grants, allow_create: bool) -> FunctionTools
                 TableCreate(name=name, description=description, columns=columns),
                 operation_key=_operation_key(ctx),
             )
-            grants[table.id] = frozenset(TableOperation)
+            if not ctx.deps.acts_as_agent:
+                # Only a member run keeps the table it made: an agent run reads the tables its
+                # spec granted and no others, whatever a person approved creating.
+                grants[table.id] = frozenset(TableOperation)
             return as_json(schema(table))
 
-        return await _call(ctx, work)
+        return await _call(ctx, work, grants, tool="create_table")
 
     if allow_create:
         # Offered only where the binding enables it, so an agent that may not
-        # create tables never sees the tool. The service still requires the
-        # member's own `tables:create` when it runs.
+        # create tables never sees the tool. The service still requires `tables:create`
+        # of whoever the call acts as when it runs.
         toolset.add_function(create_table)
     return toolset

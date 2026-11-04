@@ -1,7 +1,8 @@
 """Letting an agent read and write the Virtual Tables its binding grants."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -9,7 +10,9 @@ from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
+from app.agents.capabilities._registry import ApprovalDescriber
 from app.agents.capabilities.virtual_tables._access import TableOperation
+from app.agents.capabilities.virtual_tables._describe import describers_for
 from app.agents.capabilities.virtual_tables._toolset import Grants, build_tables_toolset
 
 if TYPE_CHECKING:
@@ -81,8 +84,12 @@ class VirtualTables(AbstractCapability[AgentDepsT]):
     Which tables, and which operations, are the binding's configuration - part of
     the published spec, which the model cannot rewrite. A tool call naming any
     other table is refused before the service runs, and the service's own access
-    check still runs on every call, as the member the run acts for.
+    check still runs on every call - as the member the run acts for, or for a run that is
+    its agent, as the agent reading its granted tables (a write acts as the person who
+    approved it).
     """
+
+    capability_id: ClassVar[str] = "virtual_tables"
 
     grants: Grants = field(default_factory=dict)
     allow_create: bool = False
@@ -96,3 +103,12 @@ class VirtualTables(AbstractCapability[AgentDepsT]):
         if self._toolset is None:
             self._toolset = build_tables_toolset(grants=self.grants, allow_create=self.allow_create)
         return self._toolset
+
+    def describers(self) -> Mapping[str, ApprovalDescriber]:
+        """The parked-call describers for this run, by tool id.
+
+        Closed over `grants` - which `create_table` grows - so a table is named on an
+        approval card only when this run may use it. Takes the place of the registry's
+        describers, which name any table the person deciding can see.
+        """
+        return describers_for(self.grants)

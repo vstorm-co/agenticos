@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+from uuid import UUID
 
 
 class ApprovalMode(StrEnum):
@@ -99,6 +100,10 @@ class ApprovalGranted:
     """A human authorised the call, against these arguments."""
 
     tool_args: dict[str, Any]
+
+    decided_by: UUID | None = None
+    """The member who decided it, for a run that acts as its agent: an approved table
+    write runs as them. `None` for a standing consent, which no member decided."""
 
 
 @dataclass(frozen=True)

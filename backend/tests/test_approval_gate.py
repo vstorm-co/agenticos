@@ -36,6 +36,7 @@ from pydantic_ai.tools import (
 )
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
+from app.agents.audience import decider_for
 from app.agents.capabilities import (
     REGISTRY,
     CapabilityBuildContext,
@@ -1047,3 +1048,90 @@ class TestTheFrameThatCarriesTheMode:
         a run they think is running."""
         with pytest.raises(BadRequestError):
             requested_approval_mode({"approval_mode": "yolo"})
+
+
+DECIDER = uuid.uuid4()
+
+
+def _agent_ctx(decision: ApprovalDecision, *, acts_as_agent: bool) -> MagicMock:
+    ctx = _ctx(decision)
+    ctx.deps = AgentDeps(
+        run_id=uuid.uuid4(), request_approval=ctx.deps.request_approval, acts_as_agent=acts_as_agent
+    )
+    return ctx
+
+
+class _Spy:
+    """A handler that notes who the decider is for two call ids while it runs."""
+
+    def __init__(self, *, raises: bool = False) -> None:
+        self.seen: dict[str, uuid.UUID | None] = {}
+        self.raises = raises
+
+    async def __call__(self, args: dict[str, Any]) -> str:
+        self.seen = {"c1": decider_for("c1"), "c2": decider_for("c2")}
+        if self.raises:
+            raise RuntimeError("the tool failed")
+        return "done"
+
+
+async def _run_gated(ctx: MagicMock, handler: _Spy) -> None:
+    await ApprovalGate(required_tool_names=GATED).wrap_tool_execute(
+        ctx,
+        call=ToolCallPart(tool_name="send_email", args={}, tool_call_id="c1"),
+        tool_def=_tool_def(),
+        args={},
+        handler=handler,
+    )
+
+
+class TestTheDecider:
+    @pytest.mark.anyio
+    async def test_a_granted_call_in_an_agent_run_carries_its_decider(self):
+        spy = _Spy()
+
+        await _run_gated(
+            _agent_ctx(ApprovalGranted(tool_args={}, decided_by=DECIDER), acts_as_agent=True), spy
+        )
+
+        assert spy.seen == {"c1": DECIDER, "c2": None}
+        assert decider_for("c1") is None
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_member_run_never_carries_a_decider(self):
+        spy = _Spy()
+
+        await _run_gated(
+            _agent_ctx(ApprovalGranted(tool_args={}, decided_by=DECIDER), acts_as_agent=False), spy
+        )
+
+        assert spy.seen == {"c1": None, "c2": None}
+
+    @pytest.mark.anyio
+    async def test_an_ungated_call_carries_no_decider(self):
+        spy = _Spy()
+
+        await ApprovalGate(required_tool_names=frozenset()).wrap_tool_execute(
+            _agent_ctx(ApprovalGranted(tool_args={}, decided_by=DECIDER), acts_as_agent=True),
+            call=ToolCallPart(tool_name="send_email", args={}, tool_call_id="c1"),
+            tool_def=_tool_def(),
+            args={},
+            handler=spy,
+        )
+
+        assert spy.seen == {"c1": None, "c2": None}
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_decider_is_cleared_when_the_handler_raises(self):
+        spy = _Spy(raises=True)
+
+        with pytest.raises(RuntimeError):
+            await _run_gated(
+                _agent_ctx(ApprovalGranted(tool_args={}, decided_by=DECIDER), acts_as_agent=True),
+                spy,
+            )
+
+        assert spy.seen["c1"] == DECIDER
+        assert decider_for("c1") is None

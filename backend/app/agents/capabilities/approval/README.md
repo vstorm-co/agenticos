@@ -140,7 +140,7 @@ tools sharing a name.
 
 | Decision | What the gate does |
 |---|---|
-| `ApprovalGranted(tool_args)` | Executes **the approved arguments**, not the ones the model just produced |
+| `ApprovalGranted(tool_args, decided_by)` | Executes **the approved arguments**, not the ones the model just produced. In a run that is its agent, `decided_by` is the member who approved; a table write acts as them for that one call |
 | `ApprovalRejected(note)` | Returns a refusal as the tool's result - the model responds, the run lives |
 | `ApprovalPending()` | Raises `ApprovalRequired`, ending the run with the call parked |
 

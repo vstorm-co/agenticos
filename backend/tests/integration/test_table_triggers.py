@@ -26,7 +26,7 @@ from pydantic_ai.usage import RunUsage
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.agents.audience import acting_for_no_person, acting_impersonated
+from app.agents.audience import acting_decider, acting_for_no_person, acting_impersonated
 from app.agents.capabilities.virtual_tables import VirtualTables
 from app.agents.capabilities.virtual_tables._access import TableOperation
 from app.agents.deps import AgentDeps
@@ -36,7 +36,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.organization import Organization, OrganizationMember
-from app.db.models.resource_grant import Visibility
+from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.user import User
 from app.db.models.virtual_table import (
     VirtualTableOutbox,
@@ -51,6 +51,7 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.workflow import Workflow, WorkflowStatus, WorkflowVersion
 from app.db.models.workflow_run import WorkflowRun, WorkflowRunStatus, WorkflowRunTrigger
 from app.main import app
+from app.repositories import resource_grant_repo
 from app.schemas.virtual_table import (
     ColumnInput,
     OptionInput,
@@ -63,6 +64,7 @@ from app.schemas.virtual_table import (
 )
 from app.schemas.virtual_table_trigger import TableTriggerUpdate
 from app.schemas.workflow import WorkflowPublish
+from app.services.access import TABLE
 from app.services.virtual_tables import triggers
 from app.services.virtual_tables.exceptions import SchemaDependencyError
 from app.services.virtual_tables.facade import VirtualTableService
@@ -665,6 +667,76 @@ class TestThePublicOrigin:
 
         run = await world.run(run_id)
         assert (run.root_run_id, run.public_origin) == (root.run.id, True)
+
+    @pytest.mark.security
+    async def test_a_triggered_workflow_runs_as_the_triggers_principal(self, world: _World):
+        """An agent's approved write is made by the person who approved it, but the workflow
+        it starts runs as whoever switched the trigger on - and as an outsider's run."""
+        await world.trigger()
+        async with world.factory() as db:
+            decider = User(
+                id=uuid.uuid4(),
+                email=f"{uuid.uuid4().hex}@example.com",
+                hashed_password="x",
+                is_active=True,
+            )
+            db.add(decider)
+            await db.flush()
+            db.add(
+                OrganizationMember(
+                    id=uuid.uuid4(),
+                    organization_id=world.org.id,
+                    user_id=decider.id,
+                    role="admin",
+                )
+            )
+            await resource_grant_repo.upsert(
+                db,
+                organization_id=world.org.id,
+                subject_user_id=decider.id,
+                resource_type=TABLE.key,
+                resource_id=world.leads.id,
+                level=GrantLevel.EDIT,
+            )
+            await db.commit()
+        capability: VirtualTables[AgentDeps] = VirtualTables(
+            grants={world.leads.id: frozenset({TableOperation.READ, TableOperation.CREATE})}
+        )
+        tool = capability.get_toolset().tools["create_record"].function
+        run_ctx = RunContext(
+            deps=AgentDeps(
+                organization_id=world.org.id,
+                user_id=None,
+                agent_id=uuid.uuid4(),
+                acts_as_agent=True,
+                run_id=uuid.uuid4(),
+            ),
+            model=TestModel(),
+            usage=RunUsage(),
+            retry=0,
+            max_retries=1,
+            tool_call_id="call-1",
+        )
+
+        with (
+            patch(
+                "app.agents.capabilities.virtual_tables._toolset.get_db_context",
+                side_effect=lambda: world.factory.begin(),
+            ),
+            acting_for_no_person(True),
+            acting_decider("call-1", decider.id),
+        ):
+            answer = await tool(run_ctx, table_id=world.leads.id, values={"Email": "agent@x"})
+
+        assert "agent@x" in answer
+        async with world.factory() as db:
+            record = (await db.execute(select(VirtualTableRecord))).scalar_one()
+        assert record.created_by == decider.id
+        ((run_id, _entry),) = await world.consume()
+        run = await world.run(run_id)
+        assert run.execution_principal_user_id == world.owner.id
+        assert run.execution_principal_user_id != decider.id
+        assert run.public_origin is True
 
     @pytest.mark.security
     async def test_a_table_write_by_a_widget_run_starts_a_public_run(self, world: _World):

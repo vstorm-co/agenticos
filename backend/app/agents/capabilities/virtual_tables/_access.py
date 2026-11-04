@@ -6,7 +6,10 @@ what the model may reach is resolved here from what it cannot write.
 - **Who.** The member the run acts for, rebuilt from their *current* membership
   on every call - `AgentDeps` carries only the organization and user ids, and a
   role narrowed, or a membership removed, while a run waits hours on an approval
-  must stop the next call rather than riding the role the run started with.
+  must stop the next call rather than riding the role the run started with. A run
+  that is its agent has no member: it acts as the agent, holding `read` on the
+  tables its spec grants, and an approved write acts as the person who approved it
+  (`run_authority`).
 - **Which table.** The binding's grants, frozen in the spec: a table id the model
   names that is not granted, or an operation the grant does not include, is
   refused before the service runs. The service's own access check still runs on
@@ -21,15 +24,19 @@ Refusals come back as text the model reasons about; a malformed call steers it.
 import json
 from collections.abc import Mapping
 from enum import StrEnum
-from typing import Any
+from typing import Any, Final
 from uuid import UUID
 
+from pydantic_ai import RunContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.audience import decider_for
+from app.agents.deps import AgentDeps
 from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
+from app.db.models.resource_grant import GrantLevel
 from app.schemas.virtual_table import TableRead
-from app.services.access import acting_member
+from app.services.access import TABLE, acting_member, agent_context, decider_context
 from app.services.virtual_tables.presentation import UnknownColumnError, column_keyed
 
 
@@ -71,6 +78,53 @@ async def acting_as(
     if auth is None:
         raise Refused("The member this agent acts for is no longer in the organization.")
     return auth
+
+
+WRITE_TOOLS: Final = frozenset(
+    {"create_record", "upsert_record", "update_record", "delete_record", "create_table"}
+)
+"""The tools whose call a person approves, and so the only ones that run as that person."""
+
+
+async def run_authority(
+    db: AsyncSession,
+    ctx: RunContext[AgentDeps],
+    grants: Mapping[UUID, frozenset[TableOperation]],
+    *,
+    tool: str,
+) -> AuthContext:
+    """Who a tool call acts as: its member, or - for a run that is its agent - the agent.
+
+    A run with no member behind it reads as the agent, holding `read` on exactly the
+    tables its spec grants, so a linked table the spec does not name stays hidden
+    and a write it attempts unapproved is refused by the service. An approved write
+    acts as the person who approved it, but only for that one call and only for a
+    write tool: the decider travels bound to the call id, so another call - a nested
+    one, a delegate's - finds none and falls back to the agent.
+
+    Raises:
+        Refused: The run has no member and is not its agent, a member is gone, or
+            the person who approved the write is no longer a member.
+    """
+    deps = ctx.deps
+    if not deps.acts_as_agent:
+        return await acting_as(db, deps.organization_id, deps.user_id)
+    if deps.organization_id is None or deps.agent_id is None:
+        raise Refused("Tables can only be used by a run acting for an agent of an organization.")
+    if tool in WRITE_TOOLS and (decider := decider_for(ctx.tool_call_id)) is not None:
+        approved = await decider_context(db, organization_id=deps.organization_id, user_id=decider)
+        if approved is None:
+            raise Refused("The person who approved this is no longer a member.")
+        return approved
+    return agent_context(
+        organization_id=deps.organization_id,
+        agent_id=deps.agent_id,
+        grants=[
+            (TABLE, table_id, GrantLevel.READ)
+            for table_id, operations in grants.items()
+            if TableOperation.READ in operations
+        ],
+    )
 
 
 def require(
@@ -122,3 +176,23 @@ def is_mistake(exc: AppException) -> bool:
 
 def as_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def schema_authority(
+    auth: AuthContext, grants: Mapping[UUID, frozenset[TableOperation]], table_id: UUID
+) -> AuthContext:
+    """`auth`, or for an agent principal one that can read the schema of a table its spec grants.
+
+    A table granted for writing only is still one the agent has to find and understand,
+    so its name and columns are read through this: one `read` grant on that one table,
+    used for the schema call and never for records, lookups or any other table, which
+    `run_authority` keeps to the tables the spec grants `read` on. A table id the spec
+    does not grant at all gets nothing here, whatever the model passed.
+    """
+    if auth.principal_agent_id is None or table_id not in grants:
+        return auth
+    return agent_context(
+        organization_id=auth.organization_id,
+        agent_id=auth.principal_agent_id,
+        grants=[(TABLE, table_id, GrantLevel.READ)],
+    )

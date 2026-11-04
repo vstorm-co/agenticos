@@ -31,6 +31,7 @@ from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
+from app.agents.capabilities.virtual_tables._describe import describe_record_write
 from app.agents.code_mode import CodeCalls
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import (
@@ -1364,3 +1365,33 @@ def test_browser_history_pruning_runs_after_compaction_and_before_reminders(
     )
     assert isinstance(browser, WebBrowser)
     assert ("press" in browser.report_tool_names) is (override == "name")
+
+
+class TestTheGatesDescribers:
+    """What the factory hands the gate to word a parked table write with."""
+
+    @pytest.mark.security
+    def test_the_gate_words_a_table_write_from_the_runs_own_grants(self):
+        granted = uuid.uuid4()
+        spec = AgentSpec(
+            name="Clerk",
+            capabilities=[
+                {
+                    "id": "virtual_tables",
+                    "config": {"tables": [{"table_id": str(granted), "operations": ["create"]}]},
+                }
+            ],
+        )
+        built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4(), acts_as_agent=True)
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        gate = next(one for one in attached if isinstance(one, ApprovalGate))
+
+        # Not the registry's, which names any table the person deciding can see.
+        assert gate.describers["create_record"] is not describe_record_write
+        assert set(gate.describers) == {
+            "create_record",
+            "upsert_record",
+            "update_record",
+            "delete_record",
+        }

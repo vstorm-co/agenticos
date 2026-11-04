@@ -25,25 +25,33 @@ from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.agents.capabilities.workflows import _toolset as workflows_toolset
 from app.agents.capabilities.workflows._toolset import build_workflows_toolset
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
-from app.core.exceptions import NoSpendingLimitError
+from app.core.exceptions import NoSpendingLimitError, NotFoundError
+from app.core.permissions import OrgRoleName
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.background_job import BackgroundJob
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.conversation import Conversation
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
+from app.db.models.resource_grant import GrantLevel
+from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import agent_run as agent_run_repo
-from app.services.access import agent_context, publisher_context
+from app.repositories import resource_grant_repo
+from app.schemas.virtual_table import ColumnInput, RecordCreate, TableCreate
+from app.services.access import AGENT, TABLE, agent_context, publisher_context
 from app.services.agent_runner import AgentRunnerService
+from app.services.approvals import ApprovalService
 from app.services.channel_bot import seal_bot_token
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import REFUSED_NOTICE
 from app.services.channels.router import Admission
+from app.services.virtual_tables import VirtualTableService
 from app.worker.jobs import DELIVER_CHANNEL_HANDBACK
 from tests.integration.test_decisions_reach_chat import _context_on
 from tests.integration.test_platform_flows import (
     Tenant,
     _answer,
+    _join,
     _keyed_model_profile,
     _published_agent,
     _tenant,
@@ -383,3 +391,128 @@ class TestAContinuationInChatWithNoLimitLeft:
         )
         assert len(jobs) == 1
         assert jobs[0].payload["output"] == REFUSED_NOTICE
+
+
+class TestAnApprovedTableWrite:
+    @pytest.mark.security
+    async def test_a_stranger_write_parks_then_runs_as_its_decider(self, db) -> None:
+        """The whole seam: a run with no member parks its write, a console decision releases it,
+        and the continuation writes as the person who decided while the record names the agent."""
+        tenant = await _tenant(db, name="Leads", monthly_budget_usd=Decimal("50"))
+        decider = await _join(db, tenant, OrgRoleName.MEMBER)
+        table = await VirtualTableService(db).create_table(
+            tenant.ctx,
+            TableCreate(
+                name="Leads", visibility="org", columns=[ColumnInput(label="Name", type="text")]
+            ),
+        )
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=tenant.organization.id,
+            subject_user_id=decider.user_id,
+            resource_type=TABLE.key,
+            resource_id=table.id,
+            level=GrantLevel.EDIT,
+        )
+        notes = await VirtualTableService(db).create_table(
+            tenant.ctx, TableCreate(name="Notes", columns=[ColumnInput(label="Text", type="text")])
+        )
+        note = await VirtualTableService(db).create_record(
+            tenant.ctx, notes.id, RecordCreate(values={str(notes.columns[0].id): "Call back"})
+        )
+        # A private table the spec grants `read` on: the agent reads it by its grant, which
+        # the person who decides cannot do as a member.
+        with pytest.raises(NotFoundError):
+            await VirtualTableService(db).get_record(decider, notes.id, note.record.id)
+        spec = AgentSpec(
+            name="Support",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="virtual_tables",
+                    approval="never",
+                    config={
+                        "tables": [
+                            {"table_id": str(table.id), "operations": ["create"]},
+                            {"table_id": str(notes.id), "operations": ["read"]},
+                        ]
+                    },
+                )
+            ],
+        )
+        agent, ctx = await _agent_under(db, tenant, spec=spec)
+        await resource_grant_repo.upsert(
+            db,
+            organization_id=tenant.organization.id,
+            subject_user_id=decider.user_id,
+            resource_type=AGENT.key,
+            resource_id=agent.id,
+            level=GrantLevel.USE,
+        )
+        await db.commit()
+        read_back: list[str] = []
+
+        async def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            returned = {
+                part.tool_call_id: str(part.content)
+                for message in messages
+                for part in message.parts
+                if isinstance(part, ToolReturnPart)
+            }
+            if "read-1" in returned:
+                read_back.append(returned["read-1"])
+                return ModelResponse(parts=[TextPart("added")])
+            if "write-1" in returned:
+                return ModelResponse(
+                    parts=[
+                        ToolCallPart(
+                            "get_record",
+                            {"table_id": str(notes.id), "record_id": str(note.record.id)},
+                            tool_call_id="read-1",
+                        )
+                    ]
+                )
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        "create_record",
+                        {"table_id": str(table.id), "values": {"Name": "Ada"}},
+                        tool_call_id="write-1",
+                    )
+                ]
+            )
+
+        with patch("app.agents.model_resolver.build_model", lambda *_args: FunctionModel(respond)):
+            _said, run = await AgentRunnerService(db).execute(
+                ctx, agent.id, "add Ada", surface=RunSurface.WHATSAPP, acts_for_sender=True
+            )
+            await db.refresh(run)
+
+            assert run.status == RunStatus.AWAITING_APPROVAL.value
+            assert run.user_id is None
+            [approval] = (
+                (await db.execute(select(ToolApproval).where(ToolApproval.run_id == run.id)))
+                .scalars()
+                .all()
+            )
+            assert approval.status == ApprovalStatus.PENDING.value
+            assert await _records(db, table.id) == []
+
+            await ApprovalService(db).decide(decider, approval.id, approved=True)
+            await db.commit()
+            segment = await AgentRunnerService(db).resume(decider, run.id)
+
+        assert segment.output == "added"
+        assert "Call back" in read_back[0]
+        [record] = await _records(db, table.id)
+        assert record.created_by == decider.user_id
+        assert record.created_source is not None
+        assert record.created_source["kind"] == "agent"
+        assert record.created_source["id"] == str(agent.id)
+        assert run.user_id is None
+
+
+async def _records(db, table_id: uuid.UUID) -> list[VirtualTableRecord]:
+    result = await db.execute(
+        select(VirtualTableRecord).where(VirtualTableRecord.table_id == table_id)
+    )
+    return list(result.scalars())

@@ -7,19 +7,27 @@ service would prove only that the mock was asked.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.agents.capabilities.approval import ApprovalGate
+from app.agents.capabilities.virtual_tables import VirtualTables
+from app.agents.capabilities.virtual_tables._access import TableOperation
 from app.agents.capabilities.virtual_tables._describe import describe_record_write
 from app.agents.deps import AgentDeps
+from app.agents.factory import build_agent
+from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+from app.agents.spec import AgentSpec
+from app.core.secret_kinds import ApiKeySecret
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.schemas.virtual_table import RecordCreate, TableRead
+from app.schemas.virtual_table import RecordCreate, TableCreate, TableRead
 from app.services.virtual_tables.facade import VirtualTableService
 from tests.integration.virtual_table_support import (
     cid,
+    column,
     ctx_for,
     make_org,
     make_user,
@@ -118,3 +126,151 @@ async def test_a_record_write_names_its_table_and_nothing_of_the_record(world: _
     )
 
     assert new == by_id == {"table": "Orders"}
+
+
+def _agent_deps(world: _World) -> AgentDeps:
+    return AgentDeps(
+        organization_id=world.org.id,
+        user_id=None,
+        agent_id=uuid.uuid4(),
+        acts_as_agent=True,
+        run_id=uuid.uuid4(),
+    )
+
+
+@pytest.mark.security
+async def test_an_agent_runs_table_write_is_described_by_name(world: _World):
+    describers = VirtualTables(
+        grants={world.orders.id: frozenset({TableOperation.CREATE})}
+    ).describers()
+
+    context = await describers["create_record"](
+        _agent_deps(world), {"table_id": world.orders.id, "values": {"Customer": "Ada"}}
+    )
+
+    assert context == {"table": "Orders"}
+
+
+@pytest.mark.security
+async def test_an_ungranted_table_is_not_named(world: _World):
+    """An org-visible table the spec does not grant: any member may see it, the agent's
+    card must still not name it."""
+    async with world.factory() as db:
+        invoices = await VirtualTableService(db).create_table(
+            ctx_for(world.owner, world.org),
+            TableCreate(name="Invoices", visibility="org", columns=[column("Customer", "text")]),
+        )
+        await db.commit()
+    describers = VirtualTables(
+        grants={world.orders.id: frozenset({TableOperation.CREATE})}
+    ).describers()
+
+    named = await describers["update_record"](_agent_deps(world), {"table_id": invoices.id})
+    as_member = await describers["update_record"](
+        _deps(world, world.owner), {"table_id": invoices.id}
+    )
+
+    assert named is None
+    assert as_member is None
+
+
+@pytest.mark.security
+async def test_a_run_with_no_agent_names_nothing(world: _World):
+    describers = VirtualTables(
+        grants={world.orders.id: frozenset({TableOperation.UPDATE})}
+    ).describers()
+    deps = replace(_agent_deps(world), agent_id=None)
+
+    assert await describers["delete_record"](deps, {"table_id": world.orders.id}) is None
+
+
+@pytest.mark.security
+async def test_a_members_run_names_a_granted_table_as_that_member(world: _World):
+    describers = VirtualTables(
+        grants={world.orders.id: frozenset({TableOperation.UPDATE})}
+    ).describers()
+
+    named = await describers["update_record"](
+        _deps(world, world.owner), {"table_id": world.orders.id}
+    )
+    unseen = await describers["update_record"](
+        _deps(world, await _member(world, "member")), {"table_id": world.orders.id}
+    )
+
+    assert named == {"table": "Orders"}
+    assert unseen is None
+
+
+@pytest.mark.security
+async def test_a_granted_table_that_is_gone_is_not_named(world: _World):
+    gone = uuid.uuid4()
+    describers = VirtualTables(grants={gone: frozenset({TableOperation.UPDATE})}).describers()
+
+    assert await describers["update_record"](_agent_deps(world), {"table_id": gone}) is None
+
+
+def _gate_describers(world: _World, grants: dict[uuid.UUID, list[str]]):
+    """The describers the factory installs on a gate for a spec that renames `update_record`."""
+    spec = AgentSpec(
+        name="Clerk",
+        capabilities=[
+            {
+                "id": "virtual_tables",
+                "config": {
+                    "tables": [
+                        {"table_id": str(table_id), "operations": operations}
+                        for table_id, operations in grants.items()
+                    ]
+                },
+                "tool_overrides": {"update_record": {"name": "change_record"}},
+            }
+        ],
+    )
+    built = build_agent(
+        spec,
+        ModelRequestSpec(
+            profile_id=uuid.uuid4(),
+            label="GPT-4.1",
+            provider="openai",
+            model="gpt-4.1",
+            params={},
+            credential=ResolvedCredential(
+                provider="openai", secret=ApiKeySecret(api_key="sk-test-key")
+            ),
+            fallbacks=[],
+        ),
+        organization_id=world.org.id,
+    )
+    attached: list[object] = []
+    built.agent.root_capability.apply(attached.append)
+    return next(one for one in attached if isinstance(one, ApprovalGate)).describers
+
+
+@pytest.mark.security
+async def test_a_renamed_tools_card_names_only_a_granted_table_in_a_member_run(world: _World):
+    async with world.factory() as db:
+        invoices = await VirtualTableService(db).create_table(
+            ctx_for(world.owner, world.org),
+            TableCreate(name="Invoices", visibility="org", columns=[column("Customer", "text")]),
+        )
+        await db.commit()
+    describers = _gate_describers(world, {world.orders.id: ["update"]})
+
+    granted = await describers["change_record"](
+        _deps(world, world.owner), {"table_id": world.orders.id}
+    )
+    ungranted = await describers["change_record"](
+        _deps(world, world.owner), {"table_id": invoices.id}
+    )
+
+    assert granted == {"table": "Orders"}
+    assert ungranted is None
+
+
+@pytest.mark.security
+async def test_a_renamed_tools_card_names_the_granted_table_in_an_agent_run(world: _World):
+    describers = _gate_describers(world, {world.orders.id: ["update"]})
+
+    named = await describers["change_record"](_agent_deps(world), {"table_id": world.orders.id})
+
+    assert named == {"table": "Orders"}

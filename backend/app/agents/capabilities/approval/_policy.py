@@ -7,6 +7,9 @@ the rule here means a surface never re-derives it from the registry and the spec
 and gets a different answer.
 """
 
+from collections.abc import Iterable, Mapping
+from typing import ClassVar, Protocol, runtime_checkable
+
 from pydantic import BaseModel
 
 from app.agents.capabilities import ApprovalDescriber, CapabilityDef, CapabilityToolInfo
@@ -74,13 +77,48 @@ def approval_required_tools(spec: AgentSpec) -> frozenset[str]:
     return frozenset(required)
 
 
-def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:
+@runtime_checkable
+class DescribesApprovals(Protocol):
+    """A built capability that words its own parked calls, for the run it was built for.
+
+    Where the registry's describers are fixed for every agent that binds the
+    capability, an instance knows what this run was given - the tables its spec
+    grants - and so can decline to name anything else. `capability_id` says which
+    registered capability's describers it replaces.
+    """
+
+    capability_id: ClassVar[str]
+
+    def describers(self) -> Mapping[str, ApprovalDescriber]: ...
+
+
+def _describing(instance: object) -> DescribesApprovals | None:
+    """The capability that words its own approvals, looking through tool-override wrappers."""
+    while not isinstance(instance, DescribesApprovals):
+        inner = getattr(instance, "wrapped", None)
+        if inner is None:
+            return None
+        instance = inner
+    return instance
+
+
+def approval_describers(
+    spec: AgentSpec, instances: Iterable[object] = ()
+) -> dict[str, ApprovalDescriber]:
     """The describer for every tool in a spec that has one, by the name the model calls.
 
     Keyed like :func:`approval_required_tools` and for the same reason: the gate
     sees the effective name, while a capability declares its describer against the
     stable id - so a renamed `update_record` is still described.
+
+    A built capability in `instances` that provides its own describers
+    (:class:`DescribesApprovals`) replaces the registry's for the tools it describes,
+    whether or not a binding's tool overrides wrap it.
     """
+    own: dict[str, Mapping[str, ApprovalDescriber]] = {}
+    for instance in instances:
+        if (describing := _describing(instance)) is not None:
+            own[describing.capability_id] = describing.describers()
     describers: dict[str, ApprovalDescriber] = {}
     for binding in spec.capabilities:
         if not binding.enabled:
@@ -90,7 +128,9 @@ def approval_describers(spec: AgentSpec) -> dict[str, ApprovalDescriber]:
             continue
         for tool in definition.effective_tools(binding.tool_overrides):
             if (describe := definition.describers.get(tool.id)) is not None:
-                describers[tool.name] = describe
+                # Only a tool the registry already describes is replaced, and only by
+                # the instance of the same capability.
+                describers[tool.name] = own.get(binding.id, {}).get(tool.id, describe)
     return describers
 
 

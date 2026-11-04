@@ -250,3 +250,34 @@ def for_no_person() -> bool:
     attributed by its own caller, not by this flag.
     """
     return _for_no_person.get()
+
+
+_decider: ContextVar[tuple[str, UUID] | None] = ContextVar("run_decider", default=None)
+
+
+@contextmanager
+def acting_decider(tool_call_id: str, user_id: UUID | None) -> Generator[None]:
+    """Say, for the block's duration, who approved the one tool call it executes.
+
+    Opened by the approval gate around an approved call in a run that acts as its
+    agent and as no member. The pair is bound to the call: a tool honours it only
+    when its own `tool_call_id` matches, so a call made inside this one - another
+    tool a child task reaches, a delegate's - never borrows the decider's standing.
+    With no `user_id` nothing is set. Reset on the way out however the block ends.
+    """
+    if user_id is None:
+        yield
+        return
+    token = _decider.set((tool_call_id, user_id))
+    try:
+        yield
+    finally:
+        _decider.reset(token)
+
+
+def decider_for(tool_call_id: str | None) -> UUID | None:
+    """The member who approved this tool call, or `None` for any other call."""
+    held = _decider.get()
+    if held is None or tool_call_id is None or held[0] != tool_call_id:
+        return None
+    return held[1]

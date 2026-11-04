@@ -485,7 +485,7 @@ def build_agent(
         ApprovalGate(
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
-            describers=approval_describers(spec),
+            describers=approval_describers(spec, configured),
             tool_ids=approval_tool_ids(spec),
             asking_tool_names=asking,
         ),

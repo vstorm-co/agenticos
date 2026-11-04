@@ -59,7 +59,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -2349,6 +2349,34 @@ def _with_channel_mcp_approval(
     )
 
 
+def _with_agent_principal_approval(spec: AgentSpec) -> AgentSpec:
+    """Require a person's approval for every table write of a run that is its agent.
+
+    The run has no member behind it, so a write is only ever made by the person who
+    approved it, and an agent that was published with `never` on its tables must not
+    release one on its own. Applied to the turn and to a delegate, and the resume
+    rebuild reaches the same line as the turn, so a continuation is gated exactly as
+    the turn was. Reads are left as the binding has them.
+    """
+    if not any(binding.id == "virtual_tables" and binding.enabled for binding in spec.capabilities):
+        return spec
+    writes: dict[str, Literal["required"]] = {
+        tool.id: "required"
+        for tool in capability_def("virtual_tables").tools
+        if tool.side_effecting
+    }
+    return spec.model_copy(
+        update={
+            "capabilities": [
+                binding.model_copy(update={"tool_approval": {**binding.tool_approval, **writes}})
+                if binding.id == "virtual_tables" and binding.enabled
+                else binding
+                for binding in spec.capabilities
+            ]
+        }
+    )
+
+
 def _with_channel_tools(spec: AgentSpec, exposure: AgentExposure | None) -> AgentSpec:
     """The spec with the lookups *this* binding grants, if it grants any.
 
@@ -3611,6 +3639,8 @@ class AgentRunnerService:
         spec = _with_channel_mcp_approval(
             spec, surface, linked_sender=personal_mcp_user_id is not None
         )
+        if runs_as_agent:
+            spec = _with_agent_principal_approval(spec)
         # Whether a signed-in person is behind this run even where a personal
         # binding may not speak through their account - true on the API, where a
         # bearer token identifies the caller but their own connections are
@@ -4880,6 +4910,8 @@ class AgentRunnerService:
         runnable = _with_channel_mcp_approval(
             runnable, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
         )
+        if delegation.runs_as_agent:
+            runnable = _with_agent_principal_approval(runnable)
         model = await self.models.resolve(
             delegation.models_ctx, profile_id=runnable.model_profile_id
         )
@@ -6576,7 +6608,9 @@ class AgentRunnerService:
                 # replayed. Answering it again would repeat the side effect.
                 continue
             decided[tool_call_id] = (
-                ApprovalGranted(tool_args=approval.tool_args)
+                ApprovalGranted(
+                    tool_args=approval.tool_args, decided_by=approval.decided_by_user_id
+                )
                 if approval.status == ApprovalStatus.APPROVED.value
                 else ApprovalRejected(note=approval.note)
             )

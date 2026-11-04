@@ -41,6 +41,7 @@ from app.agents.approval import (
     ApprovalRequest,
     refusal,
 )
+from app.agents.audience import acting_decider
 from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES, ApprovalDescriber
 from app.agents.deps import AgentDeps
 from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
@@ -198,4 +199,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         # The arguments approved are what runs. When they are this call's own, run
         # them as the tool validated them, so an id is a `UUID` again and not its text.
         approved = decision.tool_args
-        return await handler(args if approved == asked else approved)
+        # Only an agent run acts as the person who approved, and only for this call.
+        decider = decision.decided_by if ctx.deps.acts_as_agent else None
+        with acting_decider(call.tool_call_id, decider):
+            return await handler(args if approved == asked else approved)

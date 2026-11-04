@@ -41,7 +41,11 @@ from pydantic_ai_harness.planning import PlanItem, TaskStatus
 
 from app.agents.ask_user import park_the_question
 from app.agents.audience import RunAudience, for_no_person, run_impersonated
-from app.agents.capabilities.approval import ApprovalGranted, ApprovalRejected
+from app.agents.capabilities.approval import (
+    ApprovalGranted,
+    ApprovalRejected,
+    approval_required_tools,
+)
 from app.agents.capabilities.browser_use import BROWSER_STEP_MODEL_RESOURCE
 from app.agents.capabilities.budget import (
     BudgetExceeded,
@@ -104,6 +108,7 @@ from app.services.agent_runner import (
     _spend_already_booked,
     _start_turn_on_first_use,
     _with_account_notes,
+    _with_agent_principal_approval,
     _with_personal_service_gaps,
     month_start,
     run_failure_summary,
@@ -3762,8 +3767,50 @@ class TestResume:
         version.spec = {"name": "Clerk"}
         return version
 
-    def _approval(self, *, status: str, tool_args: dict, note: str | None = None):
-        return MagicMock(id=uuid.uuid4(), status=status, tool_args=tool_args, note=note)
+    def _approval(
+        self,
+        *,
+        status: str,
+        tool_args: dict,
+        note: str | None = None,
+        decided_by_user_id: uuid.UUID | None = None,
+    ):
+        return MagicMock(
+            id=uuid.uuid4(),
+            status=status,
+            tool_args=tool_args,
+            note=note,
+            decided_by_user_id=decided_by_user_id,
+        )
+
+    @pytest.mark.anyio
+    async def test_each_decision_names_who_made_it(self):
+        first, second = uuid.uuid4(), uuid.uuid4()
+        a = self._approval(
+            status=ApprovalStatus.APPROVED.value, tool_args={"n": 1}, decided_by_user_id=first
+        )
+        b = self._approval(
+            status=ApprovalStatus.APPROVED.value, tool_args={"n": 2}, decided_by_user_id=second
+        )
+        c = self._approval(
+            status=ApprovalStatus.REJECTED.value, tool_args={}, note="no", decided_by_user_id=first
+        )
+        state = PausedRunState(
+            messages=[],
+            tool_call_ids={str(a.id): "call-a", str(b.id): "call-b", str(c.id): "call-c"},
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
+            new=AsyncMock(return_value=[a, b, c]),
+        ):
+            decided, _plan = await AgentRunnerService(_db())._decisions(
+                _ctx(), run=_parked_run(paused_state={}), state=state
+            )
+
+        assert decided["call-a"] == ApprovalGranted(tool_args={"n": 1}, decided_by=first)
+        assert decided["call-b"] == ApprovalGranted(tool_args={"n": 2}, decided_by=second)
+        assert decided["call-c"] == ApprovalRejected(note="no")
 
     @pytest.mark.anyio
     async def test_an_approved_run_continues_from_the_arguments_that_were_approved(self):
@@ -6613,6 +6660,11 @@ class TestThePersonBehindTheRun:
         assert AgentDeps().clone_for_subagent().run_person is None
 
 
+_TABLE_WRITES = frozenset(
+    {"create_record", "upsert_record", "update_record", "delete_record", "create_table"}
+)
+
+
 class TestARunActingAsItsAgent:
     """A run that is its agent carries no member: not on the turn, nor on its continuation.
 
@@ -6669,7 +6721,11 @@ class TestARunActingAsItsAgent:
         ):
             prepared = await service.prepare(ctx, agent.id, **kwargs)
 
-        return prepared, build.call_args.kwargs, create_run.call_args.kwargs
+        return (
+            prepared,
+            {**build.call_args.kwargs, "spec": build.call_args.args[0]},
+            create_run.call_args.kwargs,
+        )
 
     @pytest.mark.anyio
     async def test_a_run_acting_as_its_agent_records_it_and_no_member(self):
@@ -6839,11 +6895,26 @@ class TestARunActingAsItsAgent:
         assert seen["runs_as_agent"] is True
         assert seen["workspace_open"].await_args.kwargs["identity"].user_id is None
 
-    @pytest.mark.security
-    @pytest.mark.anyio
-    async def test_a_continuations_agent_is_built_with_no_member(self):
-        """Not only the delegation: the run's own deps, which a NULL owner used to fill
-        from whoever resumed it."""
+    def _tables_spec(self, approval: str = "never") -> AgentSpec:
+        return AgentSpec(
+            name="Support",
+            capabilities=[
+                CapabilityBindingSpec(
+                    id="virtual_tables",
+                    approval=approval,
+                    config={
+                        "tables": [
+                            {"table_id": str(uuid.uuid4()), "operations": ["read", "create"]}
+                        ],
+                        "allow_create": True,
+                    },
+                )
+            ],
+        )
+
+    @staticmethod
+    async def _resume_built(spec: AgentSpec) -> MagicMock:
+        """Resume a parked agent run for a decider, all the way to `build_agent`; return that mock."""
         service = AgentRunnerService(_db(monthly_budget_usd=Decimal("50")))
         decider = _ctx()
         approval = MagicMock(
@@ -6854,14 +6925,14 @@ class TestARunActingAsItsAgent:
             decided_by_user_id=decider.user_id,
         )
         run = _parked_run(
-            paused_state=self._terms(),
+            paused_state=TestARunActingAsItsAgent._terms(),
             user_id=None,
             initiated_by_publisher_fallback=True,
             surface=RunSurface.WHATSAPP.value,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
         version = MagicMock()
-        version.spec = {"name": "Clerk"}
+        version.spec = spec.model_dump(mode="json")
         built = MagicMock()
         built.ledger = SpendLedger()
         built.context = ContextGauge()
@@ -6889,10 +6960,119 @@ class TestARunActingAsItsAgent:
             patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)),
         ):
             await service.resume(decider, run.id)
+        return build
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_continuations_agent_is_built_with_no_member(self):
+        """Not only the delegation: the run's own deps, which a NULL owner used to fill
+        from whoever resumed it."""
+        build = await self._resume_built(AgentSpec(name="Clerk"))
 
         assert build.call_args.kwargs["user_id"] is None
         assert build.call_args.kwargs["run_person"] is None
         assert build.call_args.kwargs["acts_as_agent"] is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_the_resume_rebuild_is_gated_too(self):
+        build = await self._resume_built(self._tables_spec("never"))
+
+        required = approval_required_tools(build.call_args.args[0])
+        assert required == _TABLE_WRITES
+
+    @pytest.mark.security
+    def test_table_writes_wait_for_a_person_in_an_agent_run(self):
+        spec = self._tables_spec("never")
+        assert approval_required_tools(spec) == frozenset()
+
+        gated = _with_agent_principal_approval(spec)
+
+        required = approval_required_tools(gated)
+        assert required == _TABLE_WRITES
+        assert "list_records" not in required
+        assert _with_agent_principal_approval(AgentSpec(name="Clerk")) == AgentSpec(name="Clerk")
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_stranger_turn_gates_table_writes(self):
+        _prepared_run, built_with, _opened = await self._prepare(
+            self._agent_ctx(), spec=self._tables_spec("never"), surface=RunSurface.WHATSAPP
+        )
+
+        assert approval_required_tools(self._built_spec(built_with)) == _TABLE_WRITES
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_member_runs_spec_keeps_its_approvals(self):
+        spec = self._tables_spec("never")
+
+        _prepared_run, built_with, _opened = await self._prepare(_ctx(), spec=spec)
+
+        assert approval_required_tools(self._built_spec(built_with)) == frozenset()
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("as_agent", [True, False])
+    async def test_a_delegate_in_an_agent_run_is_gated_too(self, as_agent: bool):
+        service = AgentRunnerService(_db())
+        delegate_id = uuid.uuid4()
+        delegation = MagicMock(
+            ctx=_ctx(),
+            runs_as_agent=as_agent,
+            run=MagicMock(user_id=None, agent_id=uuid.uuid4()),
+            personal_mcp_user_id=None,
+        )
+        version = MagicMock(agent_id=delegate_id)
+        version.spec = self._tables_spec("never").model_dump(mode="json")
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_repo.get",
+                new=AsyncMock(return_value=MagicMock(status="active", slug="helper")),
+            ),
+            patch(
+                "app.services.agent_runner.agent_repo.get_version",
+                new=AsyncMock(return_value=version),
+            ),
+            patch.object(
+                service.registry,
+                "with_assistant_guidance",
+                new=AsyncMock(side_effect=lambda _agent, spec: spec),
+            ),
+            patch.object(
+                service,
+                "_delegate_resources",
+                new=AsyncMock(return_value={"kb_collection_names": [], "kb_vector_scopes": {}}),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),
+            patch("app.services.agent_runner._delegate_builder") as builder,
+        ):
+            await service._resolve_delegate(
+                delegation,
+                ref=MagicMock(agent_id=delegate_id, agent_version_id=uuid.uuid4()),
+                shared=[],
+                resources={},
+                depth_remaining=0,
+                depth=1,
+                ancestors=frozenset(),
+            )
+
+        required = approval_required_tools(builder.call_args.kwargs["spec"])
+        assert required == (_TABLE_WRITES if as_agent else frozenset())
+
+    @staticmethod
+    def _built_spec(built_with: dict[str, Any]) -> AgentSpec:
+        spec = built_with["spec"]
+        assert isinstance(spec, AgentSpec)
+        return spec
 
     @pytest.mark.security
     @pytest.mark.anyio

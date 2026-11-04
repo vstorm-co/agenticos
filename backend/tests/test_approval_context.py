@@ -273,6 +273,29 @@ class TestWhichToolsAreDescribed:
         # Reads are never parked by the spec, so nothing describes them.
         assert "list_records" not in describers
 
+    def test_a_built_capability_describes_its_own_tools_in_place_of_the_registry(self):
+        spec = AgentSpec(name="Clerk", capabilities=[{"id": "virtual_tables"}, {"id": "clock"}])
+        mine = AsyncMock()
+
+        class _Describing:
+            capability_id = "virtual_tables"
+
+            def describers(self) -> dict[str, Any]:
+                return {"update_record": mine}
+
+        instance = _Describing()
+
+        class _Other:
+            capability_id = "clock"
+
+            def describers(self) -> dict[str, Any]:
+                return {"create_record": AsyncMock()}
+
+        describers = approval_describers(spec, [instance, _Other(), object()])
+
+        assert describers["update_record"] is mine
+        assert describers["create_record"] is describe_record_write
+
     def test_a_disabled_binding_describes_nothing(self):
         spec = AgentSpec(name="Clerk", capabilities=[{"id": "virtual_tables", "enabled": False}])
 
