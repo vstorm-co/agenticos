@@ -196,32 +196,41 @@ turn or prevent its status and spend from being recorded.
 
 **Write one.** Skills → New, in the UI. This is the normal path.
 
-**The bundled ones are already there.** The repository ships four: three worked
-examples — `refund-policy`, `code-review` and `incident-report` — and
-`artifact-pages`, which teaches an agent to build a page for the
-[Apps](artifacts.md#the-library-set) capability. Every organization starts
-with them. Creating an organization copies the whole shipped library in as
-ordinary skills, owned by the organization's owner and visible to the
-organization.
+**The bundled library arrives automatically.** New organizations receive the
+whole library, including platform-building procedures, durable work, research,
+visual design, Apps and presentation skills. The Skills page marks these copies
+`built-in`. They are ordinary organization-owned skills, not remote registry links.
 
-The skills page shows one list, with a `built-in` badge on anything whose name
-matches the shipped library. Those four are not chosen — they arrive once, at
-creation.
+Existing installations receive new built-ins when their shipped agents refresh
+on opening the console; creating an agent from the default starter also performs
+this synchronization. No manual seed command is required. Untouched copies are
+updated with their resources; edited or untracked differing copies stay unchanged.
+Installation receipts preserve deliberate deletion, so automatic refresh does not
+restore retired skills. The explicit seed command can restore them when requested.
+The skills listing itself remains read-only.
 
-**And they are yours from then on.** A seeded skill is an ordinary row: edit it or delete it. Nothing puts a deleted one back.
+AgenticOS, Architect and new default agents bind the platform skills by default:
+`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+They also bind the App, visual and presentation procedures, including storyline
+and review. Skills load progressively: names and descriptions first, bodies and
+resources only when relevant. Skills teach methods; they do not grant tools,
+accounts or a local compiler. Architect also ships with Apps and Charts tools.
 
-That is a change. The listing used to top itself up — copying in any bundled name
-the organization did not have, every time anyone opened the page — so a deleted
-built-in returned on the next visit and disabling was the only way to retire one.
-It also meant a page that wrote rows while it read. The gallery is where a skill
-is chosen, and the seed command below is how a deployment pushes a new bundled
-one out on purpose.
+Default-agent refresh preserves customized fields independently, including prompt,
+tools and skill bindings. Changing only a model does not prevent the remaining
+untouched defaults from updating. New defaults apply to newly created agents;
+existing user-authored agents are not rewritten.
 
-!!! info "An organization created before a new bundled skill does not get it by itself"
+Platform MCP can discover/create/edit Context files, bind their `context_ids` to
+an agent draft, and read/edit skills or add text resources. Context supports
+`inject` for standing prompt material and `link` for on-demand reading. Editing a
+bound file takes effect on the next run; changing a draft binding still requires
+publication. Resource writes keep normal permissions and approval gates.
 
-    Run `seed-skills` for that organization, or install the skill from the
-    gallery. Both are deliberate, which is the point: nothing arrives on a page
-    load.
+The document-production skill includes LaTeX starter sources and a build/render
+procedure. HTML Apps and browser decks remain distinct from compiled PDF or
+editable PPTX files. The agent must verify the actual compiler, generator and
+renderer available, and report a missing build or visual check honestly.
 
 The seed command does the same from a terminal, for scripted setups:
 
@@ -261,7 +270,7 @@ is an ordinary skill the organization owns and edits, exactly like a bundled one
 
 !!! info "The gallery is opt-in, and that is the whole difference"
 
-    The bundled four live in `app/core/catalog/skills/` and are copied into
+    The bundled library lives in `app/core/catalog/skills/` and are copied into
     **every** organization automatically. The gallery lives in
     `app/core/catalog/skill_gallery/` and is copied into **none** — it is read by
     the same parser, from a second directory, and never seeded.
@@ -377,4 +386,4 @@ after publish is skipped with a warning rather than failing the run.
 - Binding a skill **lends** it, so the publisher must be able to see it — and
   nothing is re-checked at run time.
 - The **gallery** is seventy ready-made skills by industry, installed on request —
-  unlike the bundled three, which arrive on their own.
+  unlike the bundled library, which arrive on their own.

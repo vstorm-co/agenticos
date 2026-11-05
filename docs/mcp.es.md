@@ -1,5 +1,5 @@
 ---
-source_sha: "f32976288eb9"
+source_sha: "3d67fb3646b4"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1120,6 +1120,10 @@ permiso que faltaba.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `get_skill` | `skills:view` |
+| `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_context_files`, `get_context_file` | `context:view` |
+| `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
 | `get_project` | acceso al proyecto |
 | `create_project` | `projects:edit` |
@@ -1251,3 +1255,16 @@ Workflows y Tables usan el servidor AgenticOS MCP como interfaz común de herram
 Los rechazos esperados de la API devuelven un objeto `error` explícito con estado HTTP, código, mensaje y detalles seguros de los campos. Es una operación rechazada, nunca una escritura exitosa. El objeto queda visible en el historial; los errores inesperados del servidor siguen enmascarados. `prepare_workflow_draft` agrupa tabla y grafo en una aprobación; `check_workflow_draft` los comprueba sin acciones. Actualizar un Architect sin modificaciones también instala y vincula los skills workflow-builder y virtual-tables, conserva los vínculos existentes y no sobrescribe cambios pendientes del borrador.
 
 Para un Architect existente con cambios propios, ejecuta `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+
+## Crear Context y skills { #context-and-skill-authoring }
+
+Lee `get_skill` antes de `update_skill`; los campos omitidos conservan sus valores.
+`add_skill_resource` guarda una plantilla o referencia de texto, sin ejecutar scripts.
+Descubre Context con `list_context_files`, inspecciona cuerpo y modo con
+`get_context_file` y guarda mediante `create_context_file` o `update_context_file`.
+Usa `inject` para contexto permanente y `link` para lectura bajo demanda. Las dos
+herramientas de borrador aceptan `context_ids`; la lista sustituye todos los
+vínculos Context. Editar un archivo vinculado afecta al próximo uso; cambiar
+el vínculo del borrador requiere publicación. Se mantienen permisos y
+aprobaciones de escritura.

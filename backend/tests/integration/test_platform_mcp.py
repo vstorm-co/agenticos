@@ -42,6 +42,117 @@ def _run_context() -> RunContext[None]:
 pytestmark = pytest.mark.anyio
 
 
+async def test_context_and_skill_resources_are_saved_and_bound_through_mcp(
+    db: AsyncSession, served: None
+) -> None:
+    key, _org = await _owner_key(
+        db,
+        Perm.CONTEXT_VIEW,
+        Perm.CONTEXT_EDIT,
+        Perm.SKILLS_VIEW,
+        Perm.SKILLS_EDIT,
+        Perm.AGENTS_VIEW,
+        Perm.AGENTS_EDIT,
+    )
+    async with _connected(key) as session:
+        context = _content(
+            await session.call_tool(
+                "create_context_file",
+                {
+                    "context": {
+                        "name": "supplier-conventions",
+                        "content": "Business days exclude weekends.",
+                        "mode": "link",
+                        "visibility": "private",
+                    }
+                },
+            )
+        )
+        context_id = context["id"]
+        listed = _content(await session.call_tool("list_context_files", {"q": "supplier"}))
+        assert [row["id"] for row in listed["items"]] == [context_id]
+        edited = _content(
+            await session.call_tool(
+                "update_context_file",
+                {
+                    "context_id": context_id,
+                    "changes": {"description": "Working-day definitions"},
+                },
+            )
+        )
+        assert edited["content"] == context["content"] and edited["mode"] == "link"
+        assert (
+            _content(await session.call_tool("get_context_file", {"context_id": context_id}))[
+                "content"
+            ]
+            == context["content"]
+        )
+        skill = _content(
+            await session.call_tool(
+                "create_skill",
+                {
+                    "name": "supplier-brief",
+                    "description": "Prepare a supplier brief.",
+                    "content": "Read the status table and flag missing evidence.",
+                },
+            )
+        )
+        resource = await session.call_tool(
+            "add_skill_resource",
+            {
+                "skill_id": skill["id"],
+                "resource": {"name": "report.md", "content": "# Blockers\n\n# Next actions"},
+            },
+        )
+        assert not resource.is_error
+        updated = _content(
+            await session.call_tool(
+                "update_skill",
+                {
+                    "skill_id": skill["id"],
+                    "changes": {"content": "Read report.md for the output shape."},
+                },
+            )
+        )
+        assert updated["description"] == skill["description"]
+        saved = _content(await session.call_tool("get_skill", {"skill_id": skill["id"]}))
+        assert [row["name"] for row in saved["resources"]] == ["report.md"]
+        agent = _content(
+            await session.call_tool(
+                "create_agent_draft",
+                {
+                    "name": "Supplier assistant",
+                    "instructions": "Prepare evidence-backed briefs.",
+                    "context_ids": [context_id],
+                    "skill_ids": [skill["id"]],
+                },
+            )
+        )
+        assert agent.get("id") is not None
+        saved_agent = _content(await session.call_tool("get_agent", {"agent_id": agent["id"]}))
+        assert saved_agent["draft_spec"]["context_ids"] == [context_id]
+        changed = _content(
+            await session.call_tool(
+                "update_agent_draft",
+                {
+                    "agent_id": agent["id"],
+                    "description": "Supplier operations",
+                },
+            )
+        )
+        assert changed.get("id") == agent["id"]
+        saved_agent = _content(await session.call_tool("get_agent", {"agent_id": agent["id"]}))
+        assert saved_agent["draft_spec"]["context_ids"] == [context_id]
+
+    other, _other_org = await _owner_key(db, Perm.CONTEXT_VIEW, Perm.SKILLS_VIEW)
+    async with _connected(other) as session:
+        assert (await session.call_tool("get_context_file", {"context_id": context_id})).is_error
+        assert (await session.call_tool("get_skill", {"skill_id": skill["id"]})).is_error
+        assert (
+            await session.call_tool("create_context_file", {"context": {"name": "refused"}})
+        ).is_error
+
+
 @pytest.fixture
 async def served(db: AsyncSession) -> AsyncIterator[None]:
     async def session() -> AsyncIterator[AsyncSession]:

@@ -97,5 +97,6 @@ def template_release(key: str, deployment: str) -> str:
             ).read_text(),
             "deployment": deployment,
             "skills": skills,
+            "library": {entry.key: entry.fingerprint for entry in skill_library.library()},
         }
     )

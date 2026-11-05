@@ -22,6 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Show pulsing setup indicators on organization tabs and configuration cards, with permission-aware explanations for missing Voice, memory, Architect and iPhone-push setup or disabled nightly suggestions.
+- Nine built-in platform and production skills, automatically delivered to existing organizations with edit/deletion protection; AgenticOS, Architect and new default agents bind them alongside presentation skills. Stronger completion, questions, delegation and document-quality guidance; Architect gains Apps and Charts.
+- Platform MCP operations for standing Context, agent context bindings, skill editing and text resources.
 
 - Choose a shared saved view as the table default, with explicit URL overrides; start task boards in Kanban and use rich-text notes plus linked Person/Agent references and an explicit next-step actor.
 

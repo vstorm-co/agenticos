@@ -1047,12 +1047,18 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `get_skill` | `skills:view` |
+| `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_context_files`, `get_context_file` | `context:view` |
+| `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
 | `get_project` | access to that project |
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_watches`, `delete_watch` | the caller’s own watches |
+| `create_watch`, `update_watch` | private-human consent; `agents:run` when selecting an agent |
 
 Project discovery with `list_projects` returns only project ids and names,
 excluding descriptions, instructions and other authored labels. Reading one chosen
@@ -1106,15 +1112,13 @@ named after this deployment; switching it on binds it as
   holding that person's permissions, so a Viewer's agent can read what the Viewer
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
-- **Changes wait for approval.** `writes`, the default, holds every tool that
-  changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
-  `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
-  reading too. `none` is not offered: these tools act with a person's authority.
-  The one write that never waits is `set_my_language`: it changes the asker's
-  own console language, on their word, and an approval card for "switch to
-  English" would be the whole conversation. `set_my_profile` waits like the
-  rest, because what it saves is told to every agent the person runs, and a page
-  an agent read must not be able to write it unseen.
+- **Changes follow the binding's approval policy.** `writes`, the default, holds
+  publishing, inviting, deletion, running now, and creation or editing of personal
+  routines and watches; `all` also holds reads. Only `set_my_language` bypasses
+  this gate. Private-human identity, ownership and permissions remain necessary,
+  but do not replace confirmation of a persistent automation call.
+  `set_my_profile` also waits because its content reaches future agent runs.
+
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 
@@ -1168,3 +1172,16 @@ Workflows and Tables use the AgenticOS platform MCP server as their common tool 
 Expected API refusals return an explicit `error` envelope with HTTP status, code, message and safe field details. This is a refused operation, never a successful write. The envelope stays visible in chat history; unexpected server failures still use masked MCP errors. New workflow drafts can use `prepare_workflow_draft` to review their table and graph together. The read-only `check_workflow_draft` validates without executing actions. Refreshing an unmodified Architect also installs and binds its workflow-builder and virtual-tables skills, preserving existing bindings and refusing to overwrite pending draft changes.
 
 For existing customized Architects, run `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+
+## Context and skill authoring { #context-and-skill-authoring }
+
+Use `get_skill` before `update_skill`; omitted fields retain their values.
+`add_skill_resource` attaches a text reference or template, not an executed script.
+Discover Context with `list_context_files`, inspect its body and mode with
+`get_context_file`, and use `create_context_file` or `update_context_file` to save
+focused standing material. Choose `inject` for every-run prompt context and `link`
+for on-demand access. Both agent draft tools accept `context_ids`; the supplied
+list replaces the complete binding list. Editing a bound Context file affects the
+next run; changing a draft binding requires publication. Normal permissions and
+write approvals remain in force.

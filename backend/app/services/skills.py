@@ -24,7 +24,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
 from app.db.updates import writable
-from app.repositories import resource_grant_repo, skill_repo
+from app.repositories import audit_log_repo, resource_grant_repo, skill_repo
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryIndustryRead,
@@ -504,6 +504,24 @@ class SkillService:
         """
         bundled, existing = await self._library_pair(ctx, key)
         return await self._refresh_bundled(ctx, bundled, existing, replace_edited=replace_edited)
+
+    async def synchronize_library(self, ctx: AuthContext) -> None:
+        """Deliver new built-ins and untouched updates under the organization install lock.
+
+        Called by the trusted shipped-agent installer as the organization's owner.
+        Installation receipts distinguish a never-delivered skill from one somebody
+        deleted. Edited and untracked copies retain the normal refresh protection.
+        """
+        installed = await audit_log_repo.installed_skill_keys(
+            self.db, organization_id=ctx.organization_id
+        )
+        for bundled in skill_library.library():
+            existing = await skill_repo.get_by_name(
+                self.db, bundled.name, organization_id=ctx.organization_id
+            )
+            if existing is None and bundled.key in installed:
+                continue
+            await self._refresh_bundled(ctx, bundled, existing, replace_edited=False)
 
     async def refresh_gallery(
         self, ctx: AuthContext, key: str, *, dry_run: bool = False, replace_edited: bool = False

@@ -1,5 +1,5 @@
 ---
-source_sha: "45b8ddef8277"
+source_sha: "9f7b92f805e7"
 ---
 
 # Skills { #skills }
@@ -213,35 +213,43 @@ ein abgelehnter Vorschlag verhindert weder Status- noch Kostenaufzeichnung.
 
 **Schreiben Sie einen.** Skills → New, in der UI. Das ist der normale Weg.
 
-**Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
-ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
-und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
-[Apps](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
-ihnen. Das Anlegen einer Organisation kopiert
-die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
-Owners der Organisation und für die Organisation sichtbar.
+**Die mitgelieferte Bibliothek wird automatisch installiert.** Neue
+Organisationen erhalten Verfahren für Plattformaufbau, längere Arbeit, Recherche,
+Visualisierung, Apps und Präsentationen. Skills kennzeichnet die Kopien als
+`built-in`. Es sind gewöhnliche Skills der Organisation, keine Registry-Verweise.
 
-Die Skill-Seite zeigt eine Liste, mit einem `built-in`-Abzeichen an allem, dessen
-Name zur mitgelieferten Bibliothek passt. Diese vier werden nicht gewählt — sie
-kommen an, einmal, beim Anlegen.
+Bestehende Installationen erhalten neue Built-ins beim Aktualisieren der
+mitgelieferten Agenten nach dem Öffnen der Konsole. Auch ein neuer Agent aus der
+Standardvorlage synchronisiert die Bibliothek. Ein manueller Seed ist nicht nötig.
+Unveränderte Kopien samt Ressourcen werden aktualisiert; bearbeitete und
+abweichende unprotokollierte Kopien bleiben erhalten. Installationsbelege erkennen
+bewusst gelöschte Skills, die automatische Aktualisierung stellt sie nicht wieder
+her. Der ausdrückliche Seed-Befehl kann sie zurückbringen. Die Skill-Liste selbst
+bleibt schreibgeschützt.
 
-**Und von da an gehören sie Ihnen.** Ein geseedeter Skill ist eine gewöhnliche
-Zeile: bearbeiten oder löschen. Nichts holt einen gelöschten
-zurück.
+AgenticOS, Architect und neue Standardagenten binden:
+`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+Dazu kommen App-, Visualisierungs- und Präsentationsverfahren einschließlich
+Storyline und Review. Zunächst laden nur Namen und Beschreibungen, bei Bedarf
+Inhalte und Ressourcen. Skills gewähren weder Tools noch Konten oder Compiler.
+Architect erhält auch Apps und Charts.
 
-Das ist eine Änderung. Die Liste füllte sich früher selbst auf — sie kopierte
-jeden mitgelieferten Namen hinein, den die Organisation nicht hatte, bei jedem
-Öffnen der Seite —, sodass ein gelöschter Built-in beim nächsten Besuch
-zurückkam und Deaktivieren der einzige Weg war, einen außer Dienst zu stellen.
-Es bedeutete außerdem eine Seite, die beim Lesen Zeilen schreibt. Die Galerie ist
-der Ort, an dem ein Skill gewählt wird, und der Seed-Befehl unten ist der Weg,
-auf dem ein Deployment einen neuen mitgelieferten Skill absichtlich ausrollt.
+Die Aktualisierung schützt angepasste Felder für Prompt, Tools und Skill-Bindungen
+getrennt. Eine reine Modelländerung verhindert keine Aktualisierung anderer
+unveränderter Vorgaben. Neue Vorgaben gelten für neue Agenten; bestehende eigene
+Agenten werden nicht umgeschrieben.
 
-!!! info "Eine vor einem neuen mitgelieferten Skill angelegte Organisation bekommt ihn nicht von selbst"
+Plattform-MCP kann Context-Dateien suchen, anlegen und bearbeiten, `context_ids`
+an Agentenentwürfe binden sowie Skills lesen, bearbeiten und Textressourcen
+hinzufügen. Context verwendet `inject` für ständige Prompt-Inhalte und `link` zum
+Lesen bei Bedarf. Änderungen einer gebundenen Datei gelten beim nächsten Lauf;
+eine geänderte Entwurfsbindung muss veröffentlicht werden. Berechtigungen und
+Freigaben gelten weiterhin.
 
-    Führen Sie `seed-skills` für sie aus oder installieren Sie den Skill aus der
-    Galerie. Beides ist eine Entscheidung, und genau darum geht es: nichts kommt
-    beim Laden einer Seite an.
+Der Dokument-Skill enthält LaTeX-Ausgangsdateien und ein Build-/Render-Verfahren.
+HTML-Apps und Browserfolien sind keine kompilierten PDFs oder editierbaren PPTX.
+Der Agent prüft verfügbare Compiler, Generatoren und Renderer und nennt fehlende
+Builds oder visuelle Prüfungen ausdrücklich.
 
 Der Seed-Befehl tut dasselbe vom Terminal aus, für skriptgesteuerte Installationen:
 
@@ -284,7 +292,7 @@ und bearbeitet, genau wie ein mitgelieferter.
 
 !!! info "Die Gallery ist opt-in, und das ist der ganze Unterschied"
 
-    Die mitgelieferten vier liegen in `app/core/catalog/skills/` und werden
+    Die mitgelieferte Bibliothek liegt in `app/core/catalog/skills/` und werden
     automatisch in **jede** Organisation kopiert. Die Gallery liegt in
     `app/core/catalog/skill_gallery/` und wird in **keine** kopiert — sie wird vom
     selben Parser gelesen, aus einem zweiten Verzeichnis, und nie geseedet.
@@ -411,4 +419,4 @@ Skill wird mit einer Warnung übersprungen, ohne den Run abzubrechen.
 - Einen Skill zu binden heißt, ihn zu **verleihen**, die veröffentlichende Person
   muss ihn also sehen können — und zur Laufzeit wird nichts erneut geprüft.
 - Die **Gallery** sind siebzig fertige Skills nach Branche, auf Anfrage
-  installiert — anders als die mitgelieferten drei, die von allein ankommen.
+  installiert — anders als die mitgelieferte Bibliothek, die von allein ankommen.

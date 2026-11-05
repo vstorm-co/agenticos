@@ -1,5 +1,5 @@
 ---
-source_sha: "f32976288eb9"
+source_sha: "3d67fb3646b4"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1089,6 +1089,10 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `get_skill` | `skills:view` |
+| `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_context_files`, `get_context_file` | `context:view` |
+| `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
 | `get_project` | dostęp do projektu |
 | `create_project` | `projects:edit` |
@@ -1215,3 +1219,16 @@ Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu na
 Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala zaakceptować tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
 
 Dla istniejącego Architekta z własnymi zmianami uruchom `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+
+## Tworzenie Context i skilli { #context-and-skill-authoring }
+
+Przed `update_skill` odczytaj `get_skill`; pominięte pola zachowują wartości.
+`add_skill_resource` dodaje tekstowy szablon lub materiał, nie uruchamia skryptu.
+Znajdź Context przez `list_context_files`, odczytaj treść i tryb przez
+`get_context_file`, a zapisuj przez `create_context_file` i `update_context_file`.
+Wybierz `inject` dla kontekstu każdego uruchomienia albo `link` dla odczytu na
+żądanie. Oba narzędzia draftów agentów przyjmują `context_ids`; podana lista
+zastępuje cały zestaw powiązań. Edycja podpiętego pliku działa przy kolejnym
+uruchomieniu; zmiana powiązania draftu wymaga publikacji. Nadal obowiązują
+uprawnienia i zatwierdzenia zapisów.

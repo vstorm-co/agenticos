@@ -6,14 +6,16 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, BudgetSpec
+from app.agents.spec import AgentSpec, BudgetSpec, CapabilityBindingSpec
 from app.db.models.credential import ModelProfile
-from app.repositories import agent_repo
+from app.repositories import agent_repo, skill_repo
+from app.schemas.skill import SkillUpdate
 from app.services.agent_defaults import STARTER, baseline
 from app.services.agent_registry import AgentRegistryService
 from app.services.assistant import AssistantService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.shipped_agents import ShippedAgentService
+from app.services.skills import SkillService
 from tests.integration._keys import provider_key
 from tests.integration.test_bootstrap_starters import _agents, _owner
 
@@ -39,6 +41,73 @@ async def test_opening_an_old_organization_installs_both_with_memory(db: AsyncSe
         assert agent.shipped_template is not None
     await AssistantService(db).state(ctx)
     assert len(await _agents(db, ctx)) == 2
+
+
+async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
+    db: AsyncSession,
+) -> None:
+    from app.services import skill_library
+    from tests.integration.test_skill_library_refresh import _as_an_earlier_release
+
+    ctx = await _owner(db)
+    service = SkillService(db)
+    review = await _as_an_earlier_release(db, ctx)
+    review_version = review.version
+    pages = await service.install_from_library(ctx, "artifact-pages")
+    await service.update(ctx, pages.id, SkillUpdate(content="Our own publishing conventions."))
+    retired = await service.install_from_library(ctx, "visual-design")
+    await service.delete(ctx, retired.id)
+    old = AgentSpec(
+        name="AgenticOS",
+        instructions="Earlier shipped instructions",
+        capabilities=[CapabilityBindingSpec(id="ask_user"), CapabilityBindingSpec(id="skills")],
+        skill_ids=[review.id, pages.id],
+    )
+    agent = await AgentRegistryService(db).create(ctx, old, choose_model=False)
+    await agent_repo.update(
+        db, agent=agent, update_data={"shipped_template": baseline(STARTER, old)}
+    )
+
+    await AssistantService(db).state(ctx)
+
+    required = {
+        "platform-agents",
+        "platform-workflows",
+        "platform-automation",
+        "platform-skills",
+        "platform-context",
+        "platform-tables",
+        "durable-work",
+        "document-production",
+        "research-and-evidence",
+        "presentation-decks",
+        "deck-storyline",
+        "deck-review",
+    }
+    for installed in (await _agents(db, ctx)).values():
+        spec = AgentSpec.model_validate(installed.draft_spec)
+        names = {
+            skill.name
+            for skill in (
+                await skill_repo.get_many(db, spec.skill_ids, organization_id=ctx.organization_id)
+            ).values()
+        }
+        assert required <= names
+        assert "visual-design" not in names
+    refreshed = await skill_repo.get_by_name(db, "code-review", organization_id=ctx.organization_id)
+    assert refreshed is not None
+    assert refreshed.version == review_version + 1
+    assert refreshed.content == skill_library.get("code-review").content
+    assert (await skill_repo.get(db, pages.id, organization_id=ctx.organization_id)).content == (
+        "Our own publishing conventions."
+    )
+    assert (
+        await skill_repo.get_by_name(db, "visual-design", organization_id=ctx.organization_id)
+        is None
+    )
+    before = refreshed.version
+    await AssistantService(db).state(ctx)
+    assert refreshed.version == before
 
 
 async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSession) -> None:
@@ -112,6 +181,7 @@ async def test_custom_prompt_and_removed_tools_are_preserved(db: AsyncSession) -
         old.model_copy(
             update={
                 "instructions": "Only answer invoice questions",
+                "skill_ids": [],
                 "capabilities": [],
                 "mcp_servers": [],
             }
@@ -120,7 +190,7 @@ async def test_custom_prompt_and_removed_tools_are_preserved(db: AsyncSession) -
     refreshed = await ShippedAgentService(db).refresh(ctx, agent, STARTER)
     spec = AgentSpec.model_validate(refreshed.draft_spec)
     assert spec.instructions == "Only answer invoice questions"
-    assert spec.capabilities == spec.mcp_servers == []
+    assert spec.capabilities == spec.mcp_servers == spec.skill_ids == []
 
 
 async def test_a_familiar_name_is_not_proof_an_agent_is_shipped(db: AsyncSession) -> None:
@@ -418,3 +488,11 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
     } <= bindings.keys()
     assert not (bindings.keys() & {"coding_agent", "computer_use", "browser_use"})
     assert bindings["subagents"].config["allow_dynamic"] is True
+    names = {
+        skill.name
+        for skill in (
+            await skill_repo.get_many(db, spec.skill_ids, organization_id=ctx.organization_id)
+        ).values()
+    }
+    assert {"platform-agents", "platform-tables", "durable-work", "document-production"} <= names
+    assert "ask_user_question" in spec.instructions

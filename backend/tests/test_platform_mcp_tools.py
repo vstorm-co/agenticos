@@ -732,6 +732,58 @@ CALLS.extend(
 )
 
 
+CALLS.extend(
+    [
+        ("get_skill", {"skill_id": str(KB)}, ("GET", f"/skills/{KB}", {})),
+        (
+            "update_skill",
+            {"skill_id": str(KB), "changes": {"content": "Revised"}},
+            ("PATCH", f"/skills/{KB}", {"json": {"content": "Revised"}}),
+        ),
+        (
+            "add_skill_resource",
+            {"skill_id": str(KB), "resource": {"name": "example.md", "content": "Example"}},
+            (
+                "POST",
+                f"/skills/{KB}/resources",
+                {"json": {"name": "example.md", "content": "Example", "description": None}},
+            ),
+        ),
+        (
+            "list_context_files",
+            {"q": "glossary"},
+            ("GET", "/context", {"params": {"q": "glossary", "skip": 0, "limit": 50}}),
+        ),
+        ("get_context_file", {"context_id": str(KB)}, ("GET", f"/context/{KB}", {})),
+        (
+            "create_context_file",
+            {"context": {"name": "glossary", "visibility": "private", "mode": "link"}},
+            (
+                "POST",
+                "/context",
+                {
+                    "json": {
+                        "name": "glossary",
+                        "description": None,
+                        "content": "",
+                        "format": "md",
+                        "mode": "link",
+                        "visibility": "private",
+                        "group_ids": [],
+                        "user_ids": [],
+                    }
+                },
+            ),
+        ),
+        (
+            "update_context_file",
+            {"context_id": str(KB), "changes": {"content": "Updated"}},
+            ("PATCH", f"/context/{KB}", {"json": {"content": "Updated"}}),
+        ),
+    ]
+)
+
+
 @pytest.mark.parametrize(("tool", "arguments", "call"), CALLS)
 async def test_each_tool_is_one_public_api_call(
     server: FastMCP, api: MagicMock, tool: str, arguments: dict[str, Any], call: tuple[Any, ...]

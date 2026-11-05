@@ -1,5 +1,5 @@
 ---
-source_sha: "f32976288eb9"
+source_sha: "3d67fb3646b4"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1139,6 +1139,10 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `get_skill` | `skills:view` |
+| `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_context_files`, `get_context_file` | `context:view` |
+| `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
 | `get_project` | Zugriff auf das Projekt |
 | `create_project` | `projects:edit` |
@@ -1270,3 +1274,16 @@ Workflows und Tables nutzen den AgenticOS-MCP-Server als gemeinsame Werkzeugschn
 Erwartete API-Ablehnungen liefern ein explizites `error`-Objekt mit HTTP-Status, Code, Meldung und sicheren Felddetails. Dies bedeutet eine abgelehnte Operation, keinen erfolgreichen Schreibvorgang. Das Objekt bleibt im Chatverlauf sichtbar; unerwartete Serverfehler bleiben maskiert. `prepare_workflow_draft` bündelt Tabelle und Graph für eine Freigabe; `check_workflow_draft` prüft ohne Aktionen. Beim Aktualisieren eines unveränderten Architect werden auch workflow-builder und virtual-tables installiert und eingebunden. Bestehende Bindungen bleiben erhalten; offene Entwurfsänderungen werden nicht überschrieben.
 
 Für bestehende angepasste Architects verwende `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+
+## Context und Skills erstellen { #context-and-skill-authoring }
+
+Vor `update_skill` lesen Sie `get_skill`; ausgelassene Felder bleiben erhalten.
+`add_skill_resource` speichert eine Textvorlage oder Referenz und führt kein Skript
+aus. Entdecken Sie Context mit `list_context_files`, lesen Sie Inhalt und Modus
+mit `get_context_file` und speichern Sie über `create_context_file` oder
+`update_context_file`. `inject` liefert ständigen Prompt-Kontext, `link` Inhalt
+bei Bedarf. Beide Agentenentwurfs-Tools akzeptieren `context_ids`; die Liste
+ersetzt alle Context-Bindungen. Änderungen gebundener Dateien gelten beim
+nächsten Lauf; neue Entwurfsbindungen müssen veröffentlicht werden. Berechtigungen
+und Schreibfreigaben bleiben bestehen.

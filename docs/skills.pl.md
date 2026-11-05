@@ -1,5 +1,5 @@
 ---
-source_sha: "45b8ddef8277"
+source_sha: "9f7b92f805e7"
 ---
 
 # Skille { #skills }
@@ -202,32 +202,41 @@ jej statusu i kosztu.
 
 **Napisz go.** Skills → New, w UI. To zwykła droga.
 
-**Te dołączone już tam są.** Repozytorium dostarcza cztery: trzy przykłady z
-rozwiązaniem — `refund-policy`, `code-review` i `incident-report` — oraz
-`artifact-pages`, który uczy agenta budować stronę dla capability
-[Aplikacje](artifacts.md#the-library-set). Każda organizacja zaczyna z nimi. Utworzenie organizacji kopiuje całą dostarczoną
-bibliotekę jako zwykłe skille, należące do właściciela (owner) organizacji i
-widoczne dla organizacji.
+**Wbudowana biblioteka instaluje się automatycznie.** Nowe organizacje dostają
+procedury budowania platformy, długiej pracy, researchu, wizualizacji, Apps i
+prezentacji. Lista Skills oznacza te kopie jako `built-in`. To zwykłe skille
+organizacji, a nie odwołania do zewnętrznego rejestru.
 
-Strona skilli pokazuje jedną listę, z odznaką `built-in` przy wszystkim, czego
-nazwa pasuje do dostarczonej biblioteki. Tych czterech się nie wybiera — one po
-prostu przychodzą, raz, przy tworzeniu organizacji.
+Istniejące instalacje dostają nowe skille przy odświeżaniu dostarczonych agentów
+po otwarciu konsoli; tworzenie agenta z domyślnego wzorca również uruchamia
+synchronizację. Nie trzeba ręcznie wywoływać seed. Niezmienione kopie aktualizują
+się wraz z zasobami; edytowane i różniące się kopie bez historii zostają zachowane.
+Potwierdzenia instalacji pozwalają rozpoznać celowe usunięcie: automatyczna
+aktualizacja nie przywraca wycofanego skilla. Jawna komenda seed może go przywrócić.
+Sama lista skilli nie zapisuje danych.
 
-**I od tej chwili są wasze.** Zaseedowany skill to zwykły wiersz: można go
-edytować albo usunąć. Nic nie przywraca usuniętego.
+AgenticOS, Architect i nowi domyślni agenci mają podpięte:
+`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+Dostają też procedury Apps, wizualizacji i prezentacji, w tym planowanie narracji
+i review. Skille ładują się stopniowo: najpierw nazwy i opisy, następnie potrzebne
+treści i zasoby. Nie nadają narzędzi, kont ani kompilatora. Architect ma też
+capabilities Apps i Charts.
 
-To jest zmiana. Lista wcześniej sama się uzupełniała — dokopiowywała każdą
-dołączoną nazwę, której organizacja nie miała, przy każdym otwarciu strony —
-więc usunięty built-in wracał przy następnej wizycie, a wyłączenie było jedynym
-sposobem na jego wycofanie. Oznaczało to też stronę, która zapisuje wiersze
-w trakcie czytania. Galeria jest miejscem, w którym wybiera się skill, a komenda
-seed poniżej jest sposobem, w jaki deployment rozsyła nowy dołączony skill
-świadomie.
+Odświeżanie domyślnych agentów chroni osobno zmienione pola promptu, narzędzi i
+powiązań skilli. Zmiana samego modelu nie blokuje aktualizacji pozostałych
+niezmienionych ustawień. Nowe domyślne ustawienia dotyczą nowo tworzonych agentów;
+istniejący agenci napisani przez użytkownika nie są przepisywani.
 
-!!! info "Organizacja utworzona przed nowym dołączonym skillem nie dostanie go sama"
+Platform MCP pozwala wyszukiwać, tworzyć i edytować Context, podpinać `context_ids`
+do draftu oraz czytać i edytować skille i dodawać zasoby tekstowe. Context ma tryb
+`inject` dla stałego kontekstu i `link` dla odczytu na żądanie. Edycja podpiętego
+pliku działa od kolejnego uruchomienia; zmiana powiązania draftu wymaga publikacji.
+Zapisy nadal podlegają uprawnieniom i zatwierdzeniom.
 
-    Uruchom dla niej `seed-skills` albo zainstaluj skill z galerii. Obie drogi są
-    świadome i o to chodzi: nic nie pojawia się przy wczytaniu strony.
+Skill dokumentowy zawiera źródła startowe LaTeX oraz procedurę budowania i oceny
+renderów. HTML Apps i prezentacje przeglądarkowe różnią się od skompilowanego PDF
+czy edytowalnego PPTX. Agent sprawdza dostępny kompilator, generator i renderer;
+brak wykonanej kompilacji lub oceny wizualnej musi jasno wskazać.
 
 Komenda seed robi to samo z terminala, na potrzeby skryptowanych instalacji:
 
@@ -385,4 +394,4 @@ usunięty po publikacji jest pomijany z ostrzeżeniem, zamiast przerywać run.
 - Podpięcie skilla **wypożycza** go, więc publikujący musi móc go zobaczyć — a w
   czasie runa nic nie jest sprawdzane ponownie.
 - **Galeria** to siedemdziesiąt gotowych skilli według branż, instalowanych na
-  życzenie — w odróżnieniu od dołączonej trójki, która przychodzi sama.
+  życzenie — w odróżnieniu od wbudowanej biblioteki, która przychodzi sama.

@@ -1,5 +1,5 @@
 ---
-source_sha: "45b8ddef8277"
+source_sha: "9f7b92f805e7"
 ---
 
 # Skills { #skills }
@@ -207,33 +207,41 @@ propuesta rechazada no impida guardar el estado y el coste del turno.
 
 **Escribe uno.** Skills → New, en la UI. Este es el camino normal.
 
-**Los incluidos ya están ahí.** El repositorio trae cuatro: tres ejemplos
-trabajados — `refund-policy`, `code-review` e `incident-report` — y
-`artifact-pages`, que enseña a un agent a construir una página para la
-capability [Apps](artifacts.md#the-library-set). Toda organización empieza
-con ellos. Crear una organización copia dentro la biblioteca
-entera que se distribuye, como skills normales, cuyo dueño es el owner de la
-organización y visibles para la organización.
+**La biblioteca incluida se instala automáticamente.** Las organizaciones
+nuevas reciben procedimientos de construcción de plataforma, trabajo prolongado,
+investigación, visualización, Apps y presentaciones. Skills marca las copias como
+`built-in`: son skills normales de la organización, no enlaces a un registro.
 
-La página de skills muestra una sola lista, con una insignia `built-in` sobre
-cualquiera cuyo nombre coincida con la biblioteca distribuida. Esos cuatro no se
-eligen — llegan solos, una vez, al crear la organización.
+Las instalaciones existentes reciben nuevos skills al actualizar sus agentes
+incluidos después de abrir la consola. Crear un agente desde la plantilla
+predeterminada también sincroniza la biblioteca. No hace falta un seed manual.
+Las copias intactas se actualizan con sus recursos; se conservan las editadas o
+las distintas sin historial. Los recibos de instalación identifican una retirada
+voluntaria: la actualización automática no restaura esos skills. El comando seed
+explícito puede restaurarlos. El listado de skills sigue siendo de solo lectura.
 
-**Y desde ese momento son vuestros.** Un skill sembrado es una fila corriente:
-se edita o se borra. Nada devuelve uno borrado.
+AgenticOS, Architect y los nuevos agentes predeterminados incluyen:
+`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+También incluyen procedimientos de Apps, visualización y presentaciones, con
+narrativa y revisión. Primero se cargan nombres y descripciones; los cuerpos y
+recursos solo cuando hacen falta. Los skills no conceden herramientas, cuentas
+ni compiladores. Architect también recibe Apps y Charts.
 
-Esto es un cambio. El listado se rellenaba solo — copiaba dentro cualquier nombre
-incluido que la organización no tuviera, cada vez que alguien abría la página —,
-así que un built-in borrado volvía en la visita siguiente y deshabilitarlo era la
-única forma de retirarlo. También significaba una página que escribía filas
-mientras leía. La galería es donde se elige un skill, y el comando de seed de
-abajo es como un deployment reparte a propósito uno nuevo de los incluidos.
+La actualización protege por separado los campos personalizados de prompt,
+herramientas y skills. Cambiar solo el modelo no impide actualizar las otras
+opciones intactas. Los nuevos valores se aplican a agentes nuevos; no se
+reescriben los agentes existentes creados por el usuario.
 
-!!! info "Una organización creada antes de un nuevo skill incluido no lo recibe sola"
+El MCP de plataforma permite buscar, crear y editar Context, vincular
+`context_ids` a un borrador y leer/editar skills o añadir recursos de texto.
+Context admite `inject` para material permanente y `link` para lectura bajo
+demanda. Editar un archivo vinculado afecta al siguiente uso; cambiar el vínculo
+del borrador requiere publicación. Se mantienen permisos y aprobaciones.
 
-    Ejecutad `seed-skills` para ella, o instalad el skill desde la galería. Las
-    dos vías son deliberadas, y de eso se trata: nada llega al cargar una
-    página.
+El skill documental incluye fuentes iniciales LaTeX y un proceso de compilación,
+renderizado y revisión. Apps HTML y diapositivas web no equivalen a PDF compilado
+ni PPTX editable. El agente verifica compilador, generador y renderizador reales
+y declara cualquier compilación o revisión visual pendiente.
 
 El comando de seed hace lo mismo desde un terminal, para instalaciones con
 scripts:
@@ -276,7 +284,7 @@ incluido.
 
 !!! info "La galería es opcional, y esa es toda la diferencia"
 
-    Los cuatro incluidos viven en `app/core/catalog/skills/` y se copian
+    La biblioteca incluida vive en `app/core/catalog/skills/` y se copian
     automáticamente en **todas** las organizaciones. La galería vive en
     `app/core/catalog/skill_gallery/` y no se copia en **ninguna** — la lee el
     mismo parser, desde un segundo directorio, y nunca se siembra.
@@ -399,4 +407,4 @@ aviso en lugar de interrumpir el run.
 - Vincular un skill lo **presta**, así que el publicador tiene que poder verlo — y
   no se vuelve a comprobar nada en tiempo de ejecución.
 - La **galería** son setenta skills listos para usar por sector, instalados a
-  petición — a diferencia de los tres incluidos, que llegan solos.
+  petición — a diferencia de la biblioteca incluida, que llegan solos.

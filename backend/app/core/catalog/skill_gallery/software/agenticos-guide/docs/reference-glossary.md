@@ -64,6 +64,7 @@ in [Capabilities](capabilities.md).
 | Ask the user | `ask_user` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Telephone calls | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |

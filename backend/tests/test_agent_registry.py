@@ -4172,6 +4172,7 @@ class TestWhatANewAgentOpensWith:
             patch.object(
                 AgentRegistryService, "template_skills", new=AsyncMock(return_value=skills)
             ),
+            patch("app.services.shipped_agents.ShippedAgentService.ensure_skills", new=AsyncMock()),
         ):
             await AgentRegistryService(_db()).create(_ctx(), spec, from_starter=from_starter)
         return create.call_args.kwargs["draft_spec"]
@@ -4192,7 +4193,9 @@ class TestWhatANewAgentOpensWith:
         assert written["name"] == "Support"
         assert written["instructions"] == starter.instructions
         assert [binding["id"] for binding in written["capabilities"]] == [
-            binding["id"] for binding in agent_templates.for_this_deployment(starter.capabilities)
+            binding["id"]
+            for binding in agent_templates.for_this_deployment(starter.capabilities)
+            if binding["id"] not in {"computer_use", "browser_use", "coding_agent"}
         ]
         assert written["mcp_servers"] == [
             {"account": "platform", "allowed_tools": None, "approval": "writes"}

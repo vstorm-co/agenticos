@@ -1539,6 +1539,9 @@ class AgentRegistryService:
         if not spec.mcp_servers:
             update["mcp_servers"] = list(template.mcp_servers)
         if not spec.skill_ids:
+            from app.services.shipped_agents import ShippedAgentService
+
+            await ShippedAgentService(self.db).ensure_skills(ctx.organization_id)
             update["skill_ids"] = [row.id for row in await self.template_skills(ctx, template)]
         if not spec.starters:
             update["starters"] = list(template.starters)

@@ -112,6 +112,7 @@ async def test_architect_gets_execution_only_when_a_sandbox_is_available(
 ) -> None:
     ctx, _, _, service = installed
     service.registry.template_skills = AsyncMock(return_value=[])
+    service.ensure_skills = AsyncMock()
     monkeypatch.setattr(
         shipped_agents.SandboxConnectionService,
         "ensure_local_connection",
@@ -121,6 +122,40 @@ async def test_architect_gets_execution_only_when_a_sandbox_is_available(
     target = await service._target(ctx, template)
     sandbox = next(cap for cap in target.capabilities if cap.id == "sandbox")
     assert sandbox.config == {"backend": "service", "include_execute": True}
+
+
+async def test_skill_installation_requires_an_actual_organization_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(shipped_agents.organization_assistant_repo, "lock_for_install", AsyncMock())
+    monkeypatch.setattr(shipped_agents.member_repo, "first_owner_id", AsyncMock(return_value=None))
+    with pytest.raises(NotFoundError, match="no owner"):
+        await ShippedAgentService(MagicMock()).ensure_skills(uuid4())
+
+
+def test_a_library_update_changes_the_release_even_when_the_skill_is_not_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services import skill_library
+
+    entries = skill_library.library()
+    template_release.cache_clear()
+    try:
+        before = template_release(STARTER, "deployment")
+        monkeypatch.setattr(
+            skill_library,
+            "library",
+            lambda: tuple(
+                replace(entry, content=entry.content + "\nUpdated policy.")
+                if entry.key == "refund-policy"
+                else entry
+                for entry in entries
+            ),
+        )
+        template_release.cache_clear()
+        assert template_release(STARTER, "deployment") != before
+    finally:
+        template_release.cache_clear()
 
 
 async def test_missing_templates_fail_instead_of_adopting_empty_defaults(

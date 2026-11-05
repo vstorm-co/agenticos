@@ -1,14 +1,15 @@
 """Install and refresh platform agents without taking ownership of people's edits."""
 
 from dataclasses import replace
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, SubagentRef
 from app.core.exceptions import NotFoundError
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentStatus
-from app.repositories import agent_repo, organization_assistant_repo
+from app.repositories import agent_repo, member_repo, organization_assistant_repo
 from app.services import agent_templates, skill_library
 from app.services.agent_defaults import (
     ARCHITECT,
@@ -31,6 +32,16 @@ class ShippedAgentService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.registry = AgentRegistryService(db)
+
+    async def ensure_skills(self, organization_id: UUID) -> None:
+        """Seed deployment-owned know-how without borrowing the current member's rights."""
+        await organization_assistant_repo.lock_for_install(self.db, organization_id)
+        owner = await member_repo.first_owner_id(self.db, organization_id=organization_id)
+        if owner is None:
+            raise NotFoundError(message="This organization has no owner")
+        await SkillService(self.db).synchronize_library(
+            AuthContext(user_id=owner, organization_id=organization_id, role=OrgRoleName.OWNER)
+        )
 
     async def starter(self, ctx: AuthContext) -> Agent:
         """Find the installed starter by provenance, falling back to its legacy slug."""
@@ -143,6 +154,7 @@ class ShippedAgentService:
         )
 
     async def _target(self, ctx: AuthContext, template: agent_templates.AgentTemplate) -> AgentSpec:
+        await self.ensure_skills(ctx.organization_id)
         skills = await self.registry.template_skills(ctx, template)
         for skill_key in template.skills:
             entry = skill_library.gallery_get(skill_key)

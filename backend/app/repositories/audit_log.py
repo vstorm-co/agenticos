@@ -10,6 +10,19 @@ from app.db.models.audit_checkpoint import AppAdminAuditCheckpoint
 from app.db.models.audit_log import AppAdminAuditLog
 
 
+async def installed_skill_keys(db: AsyncSession, *, organization_id: UUID) -> set[str]:
+    """Installation receipts survive skill deletion, so upgrades respect retirement."""
+    keys = await db.scalars(
+        select(AppAdminAuditLog.details["key"].astext)
+        .where(
+            AppAdminAuditLog.organization_id == organization_id,
+            AppAdminAuditLog.action == "skill.installed",
+        )
+        .distinct()
+    )
+    return {key for key in keys if key is not None}
+
+
 async def list_for_org(
     db: AsyncSession,
     *,
