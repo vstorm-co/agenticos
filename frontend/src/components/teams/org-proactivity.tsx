@@ -201,7 +201,7 @@ function NightlyForm({ org }: { org: Organization }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
         <FeaturePanel
           title={t("nightly")}
           description={t("nightlyHint")}
@@ -262,7 +262,7 @@ function NightlyForm({ org }: { org: Organization }) {
         </div>
       )}
       {(form.enabled || form.watches) && (
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <SettingsSection title={t("budgetTitle")}>
             <div className="mb-3 flex items-center gap-2 text-sm">
               <Wallet aria-hidden className="text-muted-foreground size-4 shrink-0" />
