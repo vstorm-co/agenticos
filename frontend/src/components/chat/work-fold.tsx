@@ -69,7 +69,7 @@ export function WorkingLine({
           "text-muted-foreground hover:text-foreground min-h-9 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2",
       )}
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+      <span className="flex size-5 shrink-0 items-center justify-center">
         <ThinkingOrb state="breathing" size={20} className="h-6 w-6 opacity-80" />
       </span>
       <span className="shimmer-text font-medium">
@@ -145,7 +145,7 @@ export function WorkFold({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 max-w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 max-w-full items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
           {waiting === "awaiting_approval" ? (
@@ -176,7 +176,7 @@ export function WorkFold({
           </span>
         )}
       </button>
-      {open && <div className="mt-2 space-y-2 pl-0.5">{children}</div>}
+      {open && <div className="mt-2 space-y-2">{children}</div>}
     </div>
   );
 }

@@ -338,7 +338,9 @@ export function AskUserBlock({
   return (
     <details className="group text-muted-foreground text-[13px]">
       <summary className="hover:text-foreground flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2">
-        <MessageCircleQuestion className="size-3.5 shrink-0" aria-hidden />
+        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
+          <MessageCircleQuestion className="size-3.5" />
+        </span>
         <span className="shrink-0 font-medium">
           {askedBy ? t("askUserAskedBy", { name: askedBy }) : t("askUserAsked")}
         </span>
