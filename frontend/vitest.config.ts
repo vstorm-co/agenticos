@@ -239,6 +239,7 @@ export default defineConfig({
         // level meter, the controls and the status line. New, so inside the gate.
         "src/components/voice/**/*.tsx",
         "src/components/chat/draft-card.tsx",
+        "src/components/chat/draft-segment.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",

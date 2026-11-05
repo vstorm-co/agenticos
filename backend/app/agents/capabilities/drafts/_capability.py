@@ -34,8 +34,9 @@ def _where_the_card_shows(ctx: RunContext[AgentDeps], _tool_def: ToolDefinition)
 class Drafts(AbstractCapability[AgentDeps]):
     """Lets an agent put text for somebody to send into a card with a copy button.
 
-    The one instruction is the rule against writing the draft out again in the
-    answer; like the tool, it is given only where the card shows.
+    The one instruction (`DRAFT_RULE`) says not to write the draft out again in the
+    answer and to leave a bracketed placeholder for a detail the model lacks; like
+    the tool, it is given only where the card shows.
     """
 
     _toolset: AbstractToolset[AgentDeps] | None = field(

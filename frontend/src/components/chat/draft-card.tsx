@@ -4,55 +4,14 @@ import { useId, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
-import {
-  copyableText,
-  draftsOf,
-  placeholderParts,
-  type DraftCard,
-  type DraftField,
-} from "@/lib/drafts";
+import { draftsOf, type DraftCard } from "@/lib/drafts";
 import type { ToolCall } from "@/types";
-import { CopyButton } from "./copy-button";
+import { DraftSegment } from "./draft-segment";
 
-/** One part of a draft: its text as typed, a copy icon, and a hint of its format. */
-function DraftSegment({ field, named }: { field: DraftField; named: boolean }) {
-  const prose = field.format === "text" || field.format === "markdown";
-  return (
-    <div
-      data-draft-segment
-      className="border-foreground/10 relative min-w-0 border-t px-3.5 py-2.5"
-    >
-      <CopyButton text={copyableText(field.text)} className="absolute top-2 right-2 opacity-100" />
-      {named && field.name !== null && (
-        <p className="text-muted-foreground mb-1 pr-8 text-xs">{field.name}</p>
-      )}
-      <p
-        className={cn(
-          "pr-8 pb-4 text-sm break-words whitespace-pre-wrap",
-          !prose && "font-mono text-xs",
-        )}
-      >
-        {placeholderParts(field.text, field.format).map((part, index) =>
-          part.placeholder ? (
-            <mark
-              key={index}
-              className="bg-transparent font-medium text-[var(--draft-placeholder-ink)] underline decoration-dotted underline-offset-2"
-            >
-              {part.text}
-            </mark>
-          ) : (
-            part.text
-          ),
-        )}
-      </p>
-      <span className="text-muted-foreground absolute right-3.5 bottom-1.5 font-mono text-[10px]">
-        {field.format}
-      </span>
-    </div>
-  );
-}
-
-/** A draft the agent wrote: parts to copy, versions as tabs. Text is never rendered as markup. */
+/**
+ * A draft the agent wrote: parts to copy, versions as tabs. Text is shown as
+ * typed; a markdown part can be previewed, raw HTML is never interpreted.
+ */
 export function DraftCardView({ card }: { card: DraftCard }) {
   const t = useTranslations("chat.drafts");
   const [open, setOpen] = useState(0);
@@ -110,7 +69,7 @@ export function DraftCardView({ card }: { card: DraftCard }) {
         aria-labelledby={tabbed ? `${id}-tab-${open}` : undefined}
       >
         {version.fields.map((field, index) => (
-          <DraftSegment key={index} field={field} named={version.fields.length > 1} />
+          <DraftSegment key={`${open}:${index}`} field={field} named={version.fields.length > 1} />
         ))}
       </div>
     </div>

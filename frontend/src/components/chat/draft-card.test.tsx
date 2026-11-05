@@ -154,7 +154,7 @@ describe("a draft card", () => {
     expect(screen.getByText("python")).toBeVisible();
   });
 
-  it("shows markup as typed and never renders it", () => {
+  it("shows markup as typed in a text field", () => {
     const text = "**bold** <b>hi</b>";
     const { container } = render(<DraftCardView card={card([field({ text })])} />);
 
@@ -233,5 +233,114 @@ describe("the drafts of a turn", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("previewing a markdown part", () => {
+  const md = "# Title\n\n**bold** text";
+  const mdCard = (text = md) => card([field({ text, format: "markdown" })]);
+
+  it("shows the source first, renders on Preview and returns on Source", async () => {
+    const { container } = render(<DraftCardView card={mdCard()} />);
+    expect(container.querySelector("h1, strong")).toBeNull();
+    expect(screen.getByText(/# Title/)).toBeVisible();
+
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Title" })).toBeVisible();
+    expect(container.querySelector("strong")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Preview" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Source" }));
+    expect(container.querySelector("h1, strong")).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview" })).toBeVisible();
+  });
+
+  it("copies the source in both views, with one copy button in a code fence", async () => {
+    render(<DraftCardView card={mdCard("# Title\n\n```\ncode\n```")} />);
+    await userEvent.click(screen.getAllByRole("button", { name: "Copy to clipboard" })[0]!);
+    expect(writeText).toHaveBeenLastCalledWith("# Title\n\n```\ncode\n```");
+    writeText.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByRole("heading", { level: 1 });
+
+    const copy = screen.getAllByRole("button", { name: /^Cop/ });
+    expect(copy).toHaveLength(1);
+    await userEvent.click(copy[0]!);
+    expect(writeText).toHaveBeenCalledWith("# Title\n\n```\ncode\n```");
+  });
+
+  it("clears the toggle by the name when named, by top padding when not", async () => {
+    const { container } = render(
+      <DraftCardView
+        card={card([
+          field({ name: "Subject", text: "Hi", format: "markdown" }),
+          field({ text: "Body", format: "markdown" }),
+        ])}
+      />,
+    );
+    const [named, bare] = Array.from(container.querySelectorAll("[data-draft-segment]"));
+    expect(screen.getByText("Subject").className).toContain("pr-36");
+    expect(named!.querySelector("p:not(.text-muted-foreground)")!.className).not.toContain("pt-8");
+    expect(bare!.querySelector("p")!.className).toContain("pt-8");
+    for (const button of screen.getAllByRole("button", { name: "Preview" })) {
+      await userEvent.click(button);
+    }
+    expect(named!.querySelector("div.min-w-0")!.className).not.toContain("pt-8");
+    expect(bare!.querySelector("div.min-w-0")!.className).toContain("pt-8");
+  });
+
+  it("loads no image and interprets no raw HTML in the preview", async () => {
+    const { container } = render(
+      <DraftCardView card={mdCard("# Hi\n\n![x](https://tracker.example/p.png) <b>hi</b>")} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByRole("heading", { level: 1 });
+
+    expect(container.querySelector("img, b")).toBeNull();
+    expect(screen.getByText(/<b>hi<\/b>/)).toBeVisible();
+    expect(screen.getByRole("link", { name: /x/ })).toHaveAttribute(
+      "href",
+      "https://tracker.example/p.png",
+    );
+  });
+
+  it("offers no toggle on a text or a python part", () => {
+    render(<DraftCardView card={card([field(), field({ text: "x = 1", format: "python" })])} />);
+
+    expect(screen.queryByRole("button", { name: "Preview" })).toBeNull();
+  });
+
+  it("previews one part at a time", async () => {
+    render(
+      <DraftCardView
+        card={card([
+          field({ name: "A", text: "# One", format: "markdown" }),
+          field({ name: "B", text: "# Two", format: "markdown" }),
+        ])}
+      />,
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Preview" })[0]!);
+
+    await screen.findByRole("heading", { level: 1, name: "One" });
+    expect(screen.getByText("# Two")).toBeVisible();
+  });
+
+  it("returns to the source when another version is opened", async () => {
+    render(
+      <DraftCardView
+        card={card([], {
+          versions: [
+            { label: "A", fields: [field({ text: "# One", format: "markdown" })] },
+            { label: "B", fields: [field({ text: "# Two", format: "markdown" })] },
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByRole("heading", { level: 1, name: "One" });
+
+    await userEvent.click(screen.getByRole("tab", { name: "B" }));
+    expect(screen.getByText("# Two")).toBeVisible();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 });

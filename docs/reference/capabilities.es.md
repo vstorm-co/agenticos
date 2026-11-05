@@ -1,5 +1,5 @@
 ---
-source_sha: "feffd37533b1"
+source_sha: "cadc79967b48"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2971,10 +2971,16 @@ lleva consigo.
 Copiar pone **texto plano** en el portapapeles: exactamente el texto del segmento,
 sin su nombre y sin líneas en blanco al principio ni al final. Nunca HTML ni texto
 enriquecido, así que se pega con la fuente y los colores del destino. Un campo se
-muestra tal como se escribió - el markdown no se renderiza, `<b>` no se interpreta -
-y se copia igual.
+muestra tal como se escribió y `<b>` nunca se interpreta. Una parte `markdown` tiene un
+botón Preview que la muestra renderizada: los enlaces funcionan y las imágenes
+aparecen como enlaces, sin cargarse; Source vuelve al texto. Copiar siempre da la fuente.
 
-Cuando la persona debe aportar un dato que el agente no conoce, este escribe un marcador breve entre corchetes, como `[Tu nombre]` o `[fecha]`, en lugar de inventarlo. La tarjeta muestra en rojo todo lo que va entre corchetes y contiene una letra, para que no se envíe sin rellenar, salvo enlaces, notas al pie y código; copiar conserva los corchetes.
+Cuando la persona debe aportar un dato que el agente no conoce, este escribe un
+marcador breve entre corchetes, como `[Tu nombre]` o `[fecha]`, en lugar de
+inventarlo. La tarjeta muestra en rojo todo texto entre corchetes que contenga una
+letra, salvo enlaces, notas al pie, líneas citadas y código, para que nada se envíe
+sin rellenar, salvo en la vista previa de una parte markdown. Copiar conserva los
+corchetes.
 
 De dos a cinco variantes del mismo borrador («dame dos versiones») van en una sola
 llamada como **variantes** y se muestran como pestañas con un nombre de una o dos

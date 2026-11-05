@@ -1,5 +1,5 @@
 ---
-source_sha: "feffd37533b1"
+source_sha: "cadc79967b48"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3120,10 +3120,17 @@ das der Text mitbringt.
 Kopieren legt **reinen Text** in die Zwischenablage: genau den Text des Segments,
 ohne dessen Namen und ohne Leerzeilen am Anfang und Ende. Nie HTML oder
 formatierten Text, er wird also in der Schrift und den Farben des Ziels eingefügt.
-Ein Feld wird so gezeigt, wie es getippt wurde - Markdown wird nicht gerendert,
-`<b>` nicht interpretiert - und so kopiert.
+Ein Feld wird so gezeigt, wie es getippt wurde, und `<b>` wird nie interpretiert.
+Ein `markdown`-Teil hat eine Schaltfläche Vorschau, die ihn gerendert zeigt: Links
+funktionieren, Bilder erscheinen als Links und werden nicht geladen; Quelle führt
+zum Text zurück. Kopieren liefert immer die Quelle.
 
-Muss die Person eine Angabe selbst ergänzen, die der Agent nicht kennt, schreibt er statt einer Erfindung einen kurzen Platzhalter in eckigen Klammern, etwa `[Ihr Name]` oder `[Datum]`. Die Karte zeigt alles in eckigen Klammern, das einen Buchstaben enthält, rot an, damit nichts unausgefüllt verschickt wird, außer Links, Fußnoten und Code; Kopieren behält die Klammern.
+Muss die Person eine Angabe selbst ergänzen, die der Agent nicht kennt, schreibt er
+statt einer Erfindung einen kurzen Platzhalter in eckigen Klammern, etwa `[Ihr Name]`
+oder `[Datum]`. Die Karte zeigt jeden Text in eckigen Klammern, der einen Buchstaben
+enthält, rot an, außer Links, Fußnoten, zitierte Zeilen und Code, damit nichts
+unausgefüllt verschickt wird, außer in der Vorschau eines Markdown-Teils. Kopieren
+behält die Klammern.
 
 Zwei bis fünf Varianten desselben Entwurfs („gib mir zwei Versionen") kommen in einem
 Aufruf als **Varianten** und erscheinen als Tabs mit ein bis zwei Wörtern als Name

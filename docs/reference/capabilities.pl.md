@@ -1,5 +1,5 @@
 ---
-source_sha: "feffd37533b1"
+source_sha: "cadc79967b48"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2895,10 +2895,16 @@ to poprosiła, albo nazwę języka dla fragmentu kodu, który niesie tekst.
 Kopiowanie wkłada do schowka **zwykły tekst**: dokładnie tekst segmentu, bez jego
 nazwy i bez pustych linii na początku i końcu. Nigdy HTML ani tekst sformatowany,
 więc wkleja się w czcionce i kolorach miejsca docelowego. Pole jest pokazywane tak,
-jak zostało wpisane - markdown nie jest renderowany, `<b>` nie jest interpretowane -
-i tak samo kopiowane.
+jak zostało wpisane, a `<b>` nigdy nie jest interpretowane. Część `markdown` ma przycisk
+Podgląd, który pokazuje ją zrenderowaną: linki działają, a obrazy są pokazane jako
+linki i nie są ładowane; Źródło wraca do tekstu. Kopiowanie zawsze daje źródło.
 
-Gdy osoba musi sama uzupełnić szczegół, którego agent nie zna, agent zamiast go zmyślać wpisuje krótki symbol zastępczy w nawiasach kwadratowych, na przykład `[Twoje imię]` lub `[data]`. Karta pokazuje na czerwono wszystko, co jest w nawiasach kwadratowych i zawiera literę, aby nie wysłać wersji nieuzupełnionej, z wyjątkiem linków, przypisów i kodu; kopiowanie zachowuje nawiasy.
+Gdy osoba musi sama uzupełnić szczegół, którego agent nie zna, agent zamiast go
+zmyślać wpisuje krótki symbol zastępczy w nawiasach kwadratowych, na przykład
+`[Twoje imię]` lub `[data]`. Karta pokazuje na czerwono każdy tekst w nawiasach
+kwadratowych z literą, z wyjątkiem linków, przypisów, cytowanych wierszy i kodu,
+aby nic nie poszło nieuzupełnione, poza podglądem części markdown. Kopiowanie
+zachowuje nawiasy.
 
 Od dwóch do pięciu wariantów tej samej wersji roboczej („daj mi dwie wersje")
 trafia do jednego wywołania jako **warianty** i jest pokazywane jako zakładki w

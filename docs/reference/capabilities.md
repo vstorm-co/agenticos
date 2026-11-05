@@ -2774,10 +2774,16 @@ asked for it, or a language for a snippet the draft carries.
 
 Copy puts **plain text** on the clipboard: exactly the segment's text, without
 its name, trimmed of blank lines at either end. Never HTML or rich text, so it
-pastes in the destination's own font and colours. A field is shown as typed -
-markdown is not rendered, `<b>` is not interpreted - and copied as typed.
+pastes in the destination's own font and colours. A field is shown as typed, and `<b>` is
+never interpreted. A `markdown` part has a Preview button that shows it rendered, with
+links that work and images shown as links, not loaded; Source returns to the text.
+Copy always gives the source.
 
-Where the person has to supply a detail the agent does not know, it writes a short placeholder in square brackets such as `[Your Name]` or `[date]` instead of inventing one. The card shows anything in square brackets with a letter in it in red, so it is not sent unfilled, except links, footnotes and code; copy keeps the brackets.
+Where the person has to supply a detail the agent does not know, it writes a short
+placeholder in square brackets such as `[Your Name]` or `[date]` instead of inventing
+one. The card shows in red any text in square brackets that has a letter in it, except
+links, footnotes, quoted lines and code, so nothing is sent unfilled, except in a
+markdown part's preview. Copy keeps the brackets.
 
 Two to five takes on the same draft ("give me two versions") go in one call as
 **versions**, shown as tabs named by a word or two ("Short", "With details").
