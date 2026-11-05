@@ -426,6 +426,8 @@ Thinking and tool calls are collapsed by default on every screen size, including
 
 Chat approvals stay in one compact card beside the composer: the operation, its icon and the task or object title, with extra arguments behind Details. Approve and Reject sit beside the request, or below it on narrow screens. Completed activity uses a quiet completion mark, waiting steps keep a distinct status, and running steps retain their operation icon instead of animating a separate orb for every call.
 
+Reopening a chat also restores approvals and questions for delegated tools absent from the parent timeline. A paused delegate is shown as working during its approved HTTP continuation. A finished published delegate keeps its own outcome when the parent stops on another decision.
+
 Outcome notices also sit beside the composer. Approval notices are hidden while a decision panel is visible or the chat is working, including notices from older runs. Otherwise they link to the approval queue. They never offer Seen, Done or Stop asking: only approving or rejecting the actual request decides the operation. The Inbox and bell retain their own approval notifications.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)

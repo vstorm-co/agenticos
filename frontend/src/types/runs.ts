@@ -548,7 +548,14 @@ export interface SettledCall {
   result: string;
 }
 
+export interface SettledDelegation {
+  task_id: string;
+  status: RunStatus;
+}
+
 export interface ResumedRun {
+  /** Published delegates settled independently of the parent continuation. */
+  delegations?: SettledDelegation[];
   run_id: string;
   /** The run goes on in the chat it was asked in, which also gets its answer. */
   continues_in_chat?: boolean;

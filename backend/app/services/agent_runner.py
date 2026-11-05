@@ -2853,6 +2853,8 @@ class RunSegment:
     tool_calls: list[RecordedToolCall]
     settled: dict[str, str]
     structured: dict[str, Any] | None = None
+    delegations: tuple[RecordedDelegation, ...] = ()
+    """Published delegates settled in this segment, independent of the parent pause."""
     generated_files: frozenset[str] = frozenset()
     """Leaf names actually stored by this run, never inferred from tool result text."""
 
@@ -7233,6 +7235,7 @@ class AgentRunnerService:
                             tool_calls=called,
                             settled=settled,
                             structured=structured,
+                            delegations=tuple(prepared.delegations),
                             generated_files=frozenset(prepared.built.deps.generated_files),
                         )
                     )
@@ -7249,6 +7252,7 @@ class AgentRunnerService:
             tool_calls=called,
             settled=settled,
             structured=structured,
+            delegations=tuple(prepared.delegations),
             generated_files=frozenset(prepared.built.deps.generated_files),
         )
 

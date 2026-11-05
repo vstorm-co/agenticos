@@ -1,5 +1,5 @@
 ---
-source_sha: "0d454ca53532"
+source_sha: "03e8f564a7e3"
 ---
 
 # La consola { #the-console }
@@ -455,6 +455,8 @@ El panel Files agrupa los archivos por carpetas y distingue nombres iguales en d
 El razonamiento y las llamadas a herramientas se contraen por defecto en todos los tamaños de pantalla, también después de un mensaje del agente. La actividad consecutiva comparte un desplegable; los mensajes separan los grupos. Abre un grupo para revisar los pasos, errores y detalles opcionales. Las respuestas, tarjetas de aprobación y resultados visuales permanecen visibles fuera de los grupos. Las preguntas ya respondidas tienen su propio desplegable cerrado; ábrelo para leer la respuesta. Una pregunta o aprobación pendiente muestra un estado de espera en lugar del contador de trabajo. Al salir de un chat con una pregunta sin responder, se guarda para responder al volver.
 
 Las aprobaciones del chat siguen siendo una tarjeta compacta junto al editor: operación, icono y título de la tarea u objeto, con argumentos adicionales bajo Details. Approve y Reject están al lado de la solicitud o debajo en pantallas estrechas. La actividad terminada muestra una marca discreta, los pasos en espera un estado propio y los pasos activos conservan su icono en lugar de una esfera animada por llamada.
+
+Al volver a abrir un chat también se restauran las aprobaciones y preguntas de herramientas delegadas ausentes de la cronología del agente principal. Un subagente pausado se muestra trabajando durante su continuación HTTP aprobada. Un subagente publicado que ha terminado conserva su propio resultado cuando el agente principal se detiene ante otra decisión.
 
 Los avisos de resultados también están junto al editor. Mientras hay un panel de decisión visible o el chat está trabajando, se ocultan los avisos de aprobación incluso de ejecuciones anteriores. En los demás casos, enlazan a la cola de aprobaciones. Nunca ofrecen Visto, Hecho ni No volver a preguntar: solo aprobar o rechazar la solicitud real decide la operación. Inbox y la campana conservan sus notificaciones.
 

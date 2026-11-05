@@ -67,6 +67,8 @@ export interface ChatMessage {
   timestamp: Date;
   toolCalls?: ToolCall[];
   isStreaming?: boolean;
+  /** Run-level pause, including gated delegate tools absent from this message. */
+  runWaitingFor?: "approval" | "answer";
   /** Group ID for related messages in a multi-agent chain. */
   groupId?: string;
   /** IDs of attached files - kept for sending. Use `files` for rendering. */

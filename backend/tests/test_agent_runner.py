@@ -8604,3 +8604,64 @@ async def test_required_segment_handback_is_persisted_before_the_terminal_commit
     assert "provider secret" not in seen[0].output
     if ending == "answer":
         assert seen[0].output == "Saved"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "delegate_status", [RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED]
+)
+async def test_http_continuation_keeps_the_delegate_outcome_when_the_parent_parks_again(
+    delegate_status: RunStatus,
+) -> None:
+    from app.api.routes.v1._run_results import run_result
+
+    prepared = _prepared()
+    moment = datetime.now(UTC)
+    delegation = RecordedDelegation(
+        id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        agent_version_id=uuid.uuid4(),
+        task_id="architect-task",
+        status=delegate_status,
+        model_label=None,
+        provider=None,
+        secret_id=None,
+        input_tokens=0,
+        output_tokens=0,
+        cost_usd=Decimal("0"),
+        cost_is_partial=False,
+        started_at=moment,
+        ended_at=moment,
+    )
+    prepared.delegations = [delegation]
+    prepared.built.agent.run = AsyncMock(return_value=MagicMock(output="Continue with the parent"))
+    service = AgentRunnerService(_db())
+    with (
+        patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+        patch("app.services.agent_runner.agent_run_repo.record_delegated_run", new=AsyncMock()),
+    ):
+        segment = await service._run(
+            prepared,
+            user_prompt="work",
+            said=None,
+            message_history=None,
+            deferred_tool_results=None,
+        )
+    assert segment.delegations == (delegation,)
+    # The parent can now be waiting on an unrelated operation of its own.
+    segment.run.status = RunStatus.AWAITING_APPROVAL
+    segment.run.cost_usd = Decimal("0")
+    segment.run.cost_is_partial = False
+    segment.run.input_tokens = 0
+    segment.run.output_tokens = 0
+    segment.run.cache_read_tokens = 0
+    segment.run.cache_write_tokens = 0
+    with (
+        patch.object(service, "parked_calls", new=AsyncMock(return_value=[])),
+        patch.object(service, "parked_questions", new=AsyncMock(return_value=[])),
+    ):
+        response = await run_result(service, _ctx(), segment)
+    assert response.status == "awaiting_approval"
+    assert response.model_dump(mode="json")["delegations"] == [
+        {"task_id": "architect-task", "status": delegate_status.value}
+    ]

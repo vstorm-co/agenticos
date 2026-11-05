@@ -1,5 +1,5 @@
 ---
-source_sha: "0d454ca53532"
+source_sha: "03e8f564a7e3"
 ---
 
 # Die Konsole { #the-console }
@@ -475,6 +475,8 @@ Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen i
 Überlegungen und Werkzeugaufrufe sind auf allen Bildschirmgrößen standardmäßig eingeklappt, auch nach einer Agentennachricht. Aufeinanderfolgende Aktivität teilt einen aufklappbaren Bereich; Nachrichten trennen die Gruppen. Öffne eine Gruppe, um Schritte, Fehler und optionale Werkzeugdetails zu prüfen. Antworten, Freigabekarten und visuelle Ergebnisse bleiben außerhalb der Gruppen sichtbar. Bereits beantwortete Fragen sind separat eingeklappt; öffne eine Frage, um die Antwort zu lesen. Ausstehende Fragen oder Freigaben zeigen einen Wartestatus statt einer laufenden Zeitanzeige. Verlässt du einen Chat mit einer unbeantworteten Frage, wird sie gespeichert und bei der Rückkehr wieder zur Beantwortung angeboten.
 
 Chat-Freigaben bleiben eine kompakte Karte neben dem Eingabefeld: Operation, Symbol und Aufgaben- oder Objekttitel, weitere Argumente unter Details. Approve und Reject stehen daneben, auf schmalen Bildschirmen darunter. Abgeschlossene Aktivität erhält ein dezentes Abschlusszeichen, wartende Schritte einen eigenen Status. Laufende Schritte behalten ihr Operationssymbol statt einer animierten Kugel pro Aufruf.
+
+Beim erneuten Öffnen eines Chats werden auch Freigaben und Fragen delegierter Werkzeuge wiederhergestellt, die in der Zeitleiste des übergeordneten Agenten fehlen. Während seiner genehmigten HTTP-Fortsetzung wird ein pausierter Subagent als arbeitend angezeigt. Ein abgeschlossener veröffentlichter Unteragent behält sein eigenes Ergebnis, wenn der übergeordnete Agent auf eine weitere Entscheidung wartet.
 
 Auch Ergebnisbenachrichtigungen stehen neben dem Eingabefeld. Solange ein Entscheidungspanel sichtbar ist oder der Chat arbeitet, werden Freigabebenachrichtigungen auch älterer Läufe ausgeblendet. Andernfalls führen sie zur Freigabewarteschlange. Sie bieten niemals Gesehen, Erledigt oder Nicht mehr fragen: Nur die eigentliche Genehmigung oder Ablehnung entscheidet über die Operation. Inbox und Glocke behalten ihre Benachrichtigungen.
 

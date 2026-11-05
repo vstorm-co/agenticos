@@ -1,5 +1,5 @@
 ---
-source_sha: "0d454ca53532"
+source_sha: "03e8f564a7e3"
 ---
 
 # Konsola { #the-console }
@@ -439,6 +439,8 @@ Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w 
 Rozumowanie i wywołania narzędzi są domyślnie zwinięte na każdym rozmiarze ekranu, także po wiadomości agenta. Sąsiadujące kroki tworzą jedną rozwijaną grupę; wiadomości oddzielają grupy aktywności. Rozwiń grupę, aby przejrzeć kroki, błędy i opcjonalne szczegóły narzędzi. Odpowiedzi, karty zatwierdzania i wyniki wizualne pozostają widoczne poza grupami. Historia pytań ma osobne, domyślnie zwinięte sekcje; rozwiń pytanie, aby przeczytać odpowiedź. Oczekujące pytanie lub zatwierdzenie pokazuje stan oczekiwania zamiast licznika pracy. Wyjście z czatu z pytaniem bez odpowiedzi zapisuje je do udzielenia odpowiedzi po powrocie.
 
 Zatwierdzenia w czacie pozostają jedną prostą kartą przy polu wiadomości: operacja, jej ikona i tytuł zadania lub obiektu, a dodatkowe argumenty pod Details. Przyciski Approve i Reject są obok żądania, a na wąskim ekranie pod nim. Zakończona aktywność ma spokojny znacznik ukończenia, oczekujące kroki osobny status, a działające kroki zachowują ikonę operacji zamiast osobnej animowanej kuli przy każdym wywołaniu.
+
+Ponowne otwarcie czatu odtwarza też zatwierdzenia i pytania narzędzi subagenta, których nie ma na osi głównego agenta. W trakcie zatwierdzonego wznowienia przez HTTP wstrzymany subagent jest pokazywany jako pracujący. Zakończony opublikowany subagent zachowuje własny wynik, gdy agent nadrzędny zatrzyma się na kolejnej decyzji.
 
 Powiadomienia o wynikach również są przy polu wiadomości. Powiadomienia o zatwierdzeniu są ukryte, gdy widoczny jest panel decyzji lub agent pracuje, także dla starszych przebiegów. W pozostałych przypadkach prowadzą do kolejki zatwierdzeń. Nie mają przycisków Widziane, Zrobione ani Nie pytaj więcej: operację rozstrzyga wyłącznie zatwierdzenie lub odrzucenie właściwego żądania. Inbox i dzwonek zachowują własne powiadomienia.
 

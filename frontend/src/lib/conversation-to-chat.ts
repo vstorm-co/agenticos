@@ -241,6 +241,12 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
+    runWaitingFor:
+      msg.run_status === "awaiting_approval"
+        ? "approval"
+        : msg.run_status === "awaiting_answer"
+          ? "answer"
+          : undefined,
     // Only the one worth drawing. A completed run needs no marker, and a run
     // still going has no answer on screen to mark.
     wasStopped: msg.run_status === "cancelled",

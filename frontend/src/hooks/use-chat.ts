@@ -315,6 +315,9 @@ export function useChat(options: UseChatOptions = {}) {
   // effect reads as "a reloaded parked run".
   const offeredApprovalBatchesRef = useRef<Set<string>>(new Set());
   const decidingApprovalRef = useRef<object | null>(null);
+  const [resumingDelegations, setResumingDelegations] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // Set when those questions belong to a run parked on them - asked of somebody
   // who left before answering - so the answer continues the run over HTTP
@@ -1717,6 +1720,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingConnection(null);
     offeredApprovalBatchesRef.current = new Set();
     decidingApprovalRef.current = null;
+    setResumingDelegations(new Set());
     questionOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
@@ -1804,6 +1808,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPersonalGaps([]);
     offeredApprovalBatchesRef.current = new Set();
     decidingApprovalRef.current = null;
+    setResumingDelegations(new Set());
     // Both, or a question read for this conversation and dropped because the
     // person had moved on is never offered when they come back to it.
     questionOfferedForRef.current = new Set();
@@ -1843,8 +1848,16 @@ export function useChat(options: UseChatOptions = {}) {
     if (pendingApproval !== null || !canDecide || decidingApprovalRef.current) return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
-      if (message.role !== "assistant" || !message.runId || calls.length === 0) return [];
-      const key = JSON.stringify([message.runId, calls.map((call) => call.id).sort()]);
+      if (
+        message.role !== "assistant" ||
+        !message.runId ||
+        (calls.length === 0 && message.runWaitingFor !== "approval")
+      )
+        return [];
+      const key = JSON.stringify([
+        message.runId,
+        calls.length ? calls.map((call) => call.id).sort() : ["run", message.id],
+      ]);
       return offeredApprovalBatchesRef.current.has(key)
         ? []
         : [{ message, key, runId: message.runId }];
@@ -1933,13 +1946,11 @@ export function useChat(options: UseChatOptions = {}) {
    */
   const showContinuation = useCallback(
     (resumed: ResumedRun, runId: string, settledIds: Set<string>) => {
-      // Close whatever delegate parked here. The resume ran over HTTP and its
-      // frames went nowhere this socket can see, so a delegation panel left
-      // `awaiting_approval` never got its `subagent_complete` and would read
-      // "waiting for approval" forever - the answer above it, the panel below it
-      // frozen. The resumed run's own status is the outcome those panels take;
-      // a resume that parks again leaves them waiting. See `resolveAwaitingOnResume`.
-      setDelegations((current) => resolveAwaitingOnResume(current, resumed.status));
+      // A delegate can settle before its parent reaches a new approval. HTTP
+      // resumes carry those outcomes explicitly because no completion frame arrives.
+      setDelegations((current) =>
+        resolveAwaitingOnResume(current, resumed.status, resumed.delegations),
+      );
       // A continuation can stop again: the agent reaches a second gated call and
       // parks on it. Nothing announces that here - the resume ran over HTTP, so
       // no `tool_approval_required` frame arrives - so the panel used to close on
@@ -2078,7 +2089,8 @@ export function useChat(options: UseChatOptions = {}) {
       .find(
         (message) =>
           message.role === "assistant" &&
-          (message.toolCalls ?? []).some((call) => call.status === "awaiting_answer"),
+          (message.runWaitingFor === "answer" ||
+            (message.toolCalls ?? []).some((call) => call.status === "awaiting_answer")),
       );
     if (askedMessage === undefined || askedMessage.runId === undefined) return;
     const runId = askedMessage.runId;
@@ -2111,6 +2123,7 @@ export function useChat(options: UseChatOptions = {}) {
     for (const message of [...messages].reverse()) {
       if (message.runId === undefined || candidates.has(message.runId)) continue;
       if (
+        message.runWaitingFor !== undefined ||
         (message.toolCalls ?? []).some(
           (call) => call.status === "awaiting_approval" || call.status === "awaiting_answer",
         )
@@ -2196,10 +2209,26 @@ export function useChat(options: UseChatOptions = {}) {
         // Once, after all of them: the run continues when nothing is left
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
+        if (decidingApprovalRef.current === decisionToken) {
+          setResumingDelegations(
+            new Set(
+              delegations
+                .filter(
+                  (delegation) =>
+                    delegation.status === "awaiting_approval" && delegation.mode === "sync",
+                )
+                .map((delegation) => delegation.taskId),
+            ),
+          );
+        }
         // HTTP resumes do not stream frames to this socket. Keep the turn live
         // so transcript refreshes cannot replace it with its old parked snapshot.
         if (decidingApprovalRef.current === decisionToken && parked.messageId !== null) {
-          updateMessage(parked.messageId, (message) => ({ ...message, isStreaming: true }));
+          updateMessage(parked.messageId, (message) => ({
+            ...message,
+            isStreaming: true,
+            runWaitingFor: undefined,
+          }));
         }
         const resumed = await resumeRun(parked.runId);
         // Approved calls are marked finished here rather than left `running`. The
@@ -2257,12 +2286,14 @@ export function useChat(options: UseChatOptions = {}) {
             updateMessage(parked.messageId, (message) => ({ ...message, isStreaming: false }));
           }
           decidingApprovalRef.current = null;
+          setResumingDelegations(new Set());
           setDrainTick((tick) => tick + 1);
         }
       }
     },
     [
       pendingApproval,
+      delegations,
       updateToolCallPart,
       updateMessage,
       decideApproval,
@@ -2756,6 +2787,18 @@ export function useChat(options: UseChatOptions = {}) {
     setInterruptedFor(null);
   }, [finishedTurns, activeConversationId]);
 
+  const displayedDelegations = useMemo(
+    () =>
+      resumingDelegations.size === 0
+        ? delegations
+        : delegations.map((delegation) =>
+            resumingDelegations.has(delegation.taskId) && delegation.status === "awaiting_approval"
+              ? { ...delegation, status: "running" as const }
+              : delegation,
+          ),
+    [delegations, resumingDelegations],
+  );
+
   const desktopTurnState = pendingQuestions?.length
     ? "question"
     : pendingApproval
@@ -2823,7 +2866,7 @@ export function useChat(options: UseChatOptions = {}) {
     personalGaps,
     lastUsage: onThisConversation ? liveUsage.usage : null,
     /** The turn's delegations, in the order they started. See `DelegationPanels`. */
-    delegations,
+    delegations: displayedDelegations,
     /** The turn's browses, in the order they started. See `BrowserPanel`. */
     browses,
     connect,

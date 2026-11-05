@@ -5527,3 +5527,108 @@ it("finds an older pending run when the latest parked-looking run has no approva
   const { result } = renderHook(() => useChat(), { wrapper: decider });
   await waitFor(() => expect(result.current.pendingApproval?.runId).toBe("older-run"));
 });
+
+describe("human decisions inside delegated tasks", () => {
+  it("restores a child approval when the parent only records a running task call", async () => {
+    get.mockImplementation(async (url: string) =>
+      url.endsWith("/parked")
+        ? [
+            {
+              id: "child-approval",
+              tool_call_id: "child-tool",
+              tool_name: "execute",
+              tool_args: { cmd: "review" },
+            },
+          ]
+        : false,
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...parkedTurn(),
+      runWaitingFor: "approval",
+      toolCalls: [{ id: "parent-task", name: "task", args: {}, status: "running" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await waitFor(() =>
+      expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("child-approval"),
+    );
+    expect(result.current.pendingApproval?.messageId).toBe("m-1");
+    expect(get).toHaveBeenCalledWith("/runs/r-1/parked");
+  });
+
+  it("does not expose a child decision to a non-decider", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore
+      .getState()
+      .addMessage({ ...parkedTurn(), runWaitingFor: "approval", toolCalls: [] });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    expect(result.current.pendingApproval).toBeNull();
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(0);
+  });
+
+  it("restores a child question absent from the parent's task timeline", async () => {
+    get.mockImplementation(async (url: string) => (url.endsWith("/questions") ? ASKED : false));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...askedTurn(),
+      runWaitingFor: "answer",
+      toolCalls: [{ id: "parent-task", name: "task", args: {}, status: "running" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions");
+  });
+
+  it.each(["completed", "awaiting_approval"] as const)(
+    "shows a delegate working during resume and settled when its parent is %s",
+    async (status) => {
+      let finish!: (value: object) => void;
+      const continued = new Promise<object>((resolve) => {
+        finish = resolve;
+      });
+      post.mockImplementation((url: string) =>
+        url.endsWith("/resume") ? continued : Promise.resolve({}),
+      );
+      const { result } = renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("subagent_start", {
+        kind: "subagent_start",
+        task_id: "architect-task",
+        subagent: "Architect",
+        depth: 0,
+        mode: "sync",
+        prompt: "Review",
+        parent_task_id: null,
+      });
+      receive("subagent_awaiting_approval", {
+        kind: "subagent_awaiting_approval",
+        task_id: "architect-task",
+        subagent: "Architect",
+        depth: 0,
+      });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [
+          { id: "child-approval", tool_call_id: "child-tool", tool_name: "execute", args: {} },
+        ],
+        review_configs: [],
+      });
+      receive("complete", {});
+      let submitting!: Promise<void>;
+      await act(async () => {
+        submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+      });
+      expect(result.current.delegations[0]?.status).toBe("running");
+      await act(async () => {
+        finish({
+          status,
+          output: "Reviewed.",
+          delegations: [{ task_id: "architect-task", status: "completed" }],
+        });
+        await submitting;
+      });
+      expect(result.current.delegations[0]?.status).toBe("completed");
+    },
+  );
+});

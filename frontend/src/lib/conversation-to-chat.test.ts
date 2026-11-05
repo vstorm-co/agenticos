@@ -448,3 +448,16 @@ it("restores the recorded turn workspace independently of current Work on", () =
   );
   expect(message.fileSource).toEqual({ kind: "local", id: "original-source" });
 });
+
+describe("a pause inside a delegated task", () => {
+  it.each([
+    ["awaiting_approval", "approval"],
+    ["awaiting_answer", "answer"],
+    ["running", undefined],
+    ["completed", undefined],
+  ])("retains %s at the run level", (status, expected) => {
+    expect(conversationMessageToChatMessage(raw({ run_status: status })).runWaitingFor).toBe(
+      expected,
+    );
+  });
+});

@@ -19,6 +19,7 @@ from app.agents.spec import (
     StarterTitles,
 )
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.agent_run import RunStatus
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import AudienceChoice
 
@@ -897,6 +898,15 @@ class SettledCall(BaseSchema):
     result: str
 
 
+class SettledDelegation(BaseSchema):
+    """A published delegate that reached its own outcome in this execution."""
+
+    task_id: str = Field(description="Stable delegation task ID, shared with subagent frames")
+    status: RunStatus = Field(
+        description="The delegate's outcome, independent of the parent run status"
+    )
+
+
 class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
@@ -954,6 +964,14 @@ class AgentRunResult(BaseSchema):
             "call somebody approved. It was made by the previous execution, so it is not "
             "in `steps`; it belongs to a step the caller already drew. Empty on a run "
             "that inherited nothing."
+        ),
+    )
+    delegations: list[SettledDelegation] = Field(
+        default_factory=list,
+        description=(
+            "Published delegates settled by this execution. A delegate may finish while "
+            "the parent parks on a new approval; HTTP continuations carry no socket "
+            "completion frames, so clients reconcile each task by its own outcome."
         ),
     )
     parked: list[ParkedCall] = Field(
