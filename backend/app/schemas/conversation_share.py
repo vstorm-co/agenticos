@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import ConversationAgent
@@ -29,6 +29,33 @@ class SharedVisual(BaseSchema):
     title: str
     kind: Literal["svg", "html", "mermaid"]
     content: str = Field(description="The drawing, revisions applied and pictures inlined")
+
+
+class SharedDraftField(BaseSchema):
+    """One part of a shared draft, with the indentation and line breaks it was written with."""
+
+    # BaseSchema strips whitespace; a field's text is shown and copied as typed.
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    name: str | None = None
+    text: str
+    format: str
+
+
+class SharedDraftVersion(BaseSchema):
+    """One take on a shared draft; its label is the tab when there are several."""
+
+    label: str | None = None
+    fields: list[SharedDraftField]
+
+
+class SharedDraft(BaseSchema):
+    """A draft in a shared thread, rebuilt from the call that wrote it - never the call."""
+
+    id: str
+    title: str
+    kind: str
+    versions: list[SharedDraftVersion]
 
 
 class ConversationShareCreate(BaseSchema):
@@ -101,6 +128,7 @@ class SharedMessageRead(BaseSchema):
     content: str | None = None
     created_at: datetime | None = None
     visuals: list[SharedVisual] = Field(default_factory=list)
+    drafts: list[SharedDraft] = Field(default_factory=list)
 
 
 class SharedConversationBody(BaseSchema):

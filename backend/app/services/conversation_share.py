@@ -6,23 +6,72 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.drafts._spec import DRAFTED, WRITE_DRAFT, parse_draft_card
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
 )
+from app.db.models.conversation import Conversation
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
 from app.schemas.conversation_share import (
     SharedConversationBody,
     SharedConversationRead,
     SharedConversationShare,
+    SharedDraft,
     SharedMessageRead,
     SharedVisual,
 )
 from app.services import visual as visuals
 
 logger = logging.getLogger(__name__)
+
+
+SHARED_MAX_DRAFTS = 50
+"""How many drafts a thread shared by link shows - the newest ones."""
+
+SHARED_MAX_DRAFT_CHARS = 500_000
+"""How much draft text one view of a shared thread carries."""
+
+
+def shared_drafts(conversation: Conversation) -> dict[UUID, list[SharedDraft]]:
+    """Each message's drafts, rebuilt from the calls that wrote them, for a thread shared by link.
+
+    A shared thread shows the text of its turns and never their tool calls, so a
+    draft is rebuilt here from the arguments of its completed call. A refused
+    call, or one whose arguments no longer parse, is left out.
+
+    Bounded, because anybody holding the link can ask for it as often as they
+    like: the newest :data:`SHARED_MAX_DRAFTS`, and no more than
+    :data:`SHARED_MAX_DRAFT_CHARS` of field text between them. A turn past either
+    keeps its text and shows no card.
+    """
+    placed = [
+        (message.id, call)
+        for message in conversation.messages or []
+        for call in message.tool_calls or []
+        if call.tool_name == WRITE_DRAFT
+        and call.status == "completed"
+        and (call.result or "").startswith(DRAFTED)
+    ]
+    shared: dict[UUID, list[SharedDraft]] = {}
+    budget = SHARED_MAX_DRAFT_CHARS
+    for message_id, call in reversed(placed[-SHARED_MAX_DRAFTS:]):
+        card = parse_draft_card(call.args)
+        if card is None:
+            continue
+        size = sum(len(f.text) for v in card.versions for f in v.fields)
+        if size > budget:
+            continue
+        budget -= size
+        shared.setdefault(message_id, []).insert(
+            0,
+            SharedDraft.model_validate(
+                {"id": call.tool_call_id, **card.model_dump()},
+            ),
+        )
+    return shared
 
 
 class ConversationShareService:
@@ -186,6 +235,7 @@ class ConversationShareService:
         if not conv or conv.project_id is not None:
             raise NotFoundError(message="Conversation not found")
         drawn = await visuals.shared_visuals(conv)
+        drafted = shared_drafts(conv)
         return SharedConversationRead(
             conversation=SharedConversationBody(
                 id=conv.id,
@@ -197,6 +247,7 @@ class ConversationShareService:
                         content=m.content,
                         created_at=m.created_at,
                         visuals=[SharedVisual.model_validate(v) for v in drawn.get(m.id, [])],
+                        drafts=drafted.get(m.id, []),
                     )
                     for m in (conv.messages or [])
                 ],
