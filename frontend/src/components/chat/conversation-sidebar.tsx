@@ -144,7 +144,7 @@ function ConversationItem({
         // The open row is a fill, as the main sidebar's is - a hairline border
         // and a bar at its edge read as two thin lines around one choice.
         "group relative flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1 transition-colors",
-        isActive ? "bg-accent" : "hover:bg-accent/60",
+        isActive ? "bg-foreground/8" : "hover:bg-foreground/5",
       )}
       onClick={onSelect}
     >
@@ -970,14 +970,9 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
 
   return (
     <>
-      <aside
-        className={cn(
-          "bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col border-r md:flex",
-          className,
-        )}
-      >
+      <aside className={cn("bg-sidebar hidden min-h-0 w-64 shrink-0 flex-col md:flex", className)}>
         <div
-          className="flex h-12 shrink-0 items-center gap-1 border-b pr-2 pl-4"
+          className="flex h-12 shrink-0 items-center gap-1 pr-2 pl-4"
           data-tauri-drag-region="deep"
         >
           <h2 data-tauri-drag-region className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -1061,12 +1056,9 @@ function CollapsedSidebar({
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
-    <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col border-r md:flex", className)}>
+    <div className={cn("bg-sidebar hidden w-12 shrink-0 flex-col md:flex", className)}>
       {/* The same 48px header the list has, with its chevron where the list's is. */}
-      <div
-        className="flex h-12 shrink-0 items-center justify-center border-b"
-        data-tauri-drag-region="deep"
-      >
+      <div className="flex h-12 shrink-0 items-center justify-center" data-tauri-drag-region="deep">
         <IconButton
           size="icon"
           onClick={onExpand}
@@ -1147,7 +1139,7 @@ function CollapsedSidebar({
                       aria-current={isActive ? "true" : undefined}
                       className={cn(
                         "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
-                        isActive ? "bg-accent" : "hover:bg-accent/60",
+                        isActive ? "bg-foreground/8" : "hover:bg-foreground/5",
                       )}
                     >
                       <span className="relative">

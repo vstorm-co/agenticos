@@ -63,7 +63,7 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
     <button
       type="button"
       onClick={open}
-      className="text-foreground/85 bg-background/60 hover:bg-card hover:text-foreground focus-visible:ring-ring touch:min-h-11 border-foreground/10 flex min-h-9 w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-2"
+      className="text-muted-foreground hover:bg-foreground/5 hover:text-foreground focus-visible:ring-ring touch:min-h-11 flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
     >
       <Search className="h-4 w-4 shrink-0" aria-hidden />
       <span className="flex-1 text-left">{t("search")}</span>

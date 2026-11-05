@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Quiet the console navigation with borderless sidebar sections, understated search and filter controls, and soft selected-row fills while retaining keyboard focus indicators.
+
 - Keep completed and nested agent exchanges visible, show the latest live step, combine activity-only chat segments and use the actual run start time. Render confirmed MCP writes as linked resource cards, anchor newly sent messages near the top, and restore scrolling in record Person/Agent pickers.
 - Preserve question support after HTTP approval continuations and allow project task creation from a private source chat without linking its transcript; guide agents toward managed task tools and stable console links.
 

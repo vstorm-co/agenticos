@@ -33,7 +33,7 @@ export function SidebarShell({
           <Link
             href="/chat?new=workspace"
             onClick={onNavigate}
-            className="bg-primary text-primary-foreground hover:bg-primary-hover flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-medium"
+            className="text-foreground/90 hover:bg-foreground/6 focus-visible:ring-ring flex h-10 items-center gap-2.5 rounded-xl px-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
             data-tour="chat-start"
           >
             <SquarePen className="size-4" aria-hidden />
@@ -47,12 +47,7 @@ export function SidebarShell({
       </div>
 
       {!collapsed && <DesktopInstallPrompt />}
-      <div
-        className={cn(
-          "flex flex-col gap-1 border-t py-2",
-          collapsed ? "items-center px-1" : "px-3",
-        )}
-      >
+      <div className={cn("flex flex-col gap-1 py-2", collapsed ? "items-center px-1" : "px-3")}>
         {/* The language and the theme used to be
             here too, which filed "set this once" beside "find something" under
             four unlabelled glyphs; they are named rows in the account menu

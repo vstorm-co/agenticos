@@ -100,11 +100,15 @@ export function ConversationFilters({
       <PopoverTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="sm"
           aria-label={t("filters")}
           title={t("filters")}
-          className={beside ? "size-8 p-0" : "h-8 w-full justify-start gap-2 text-xs"}
+          className={
+            beside
+              ? "size-8 p-0"
+              : "text-muted-foreground hover:text-foreground h-8 w-full justify-start gap-2 rounded-lg text-xs"
+          }
         >
           <ListFilter className="size-3.5" aria-hidden />
           {!beside && <span className="min-w-0 flex-1 truncate text-left">{t("filters")}</span>}
