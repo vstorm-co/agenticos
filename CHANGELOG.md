@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Workflow trigger input fields support **List of text**: validated JSON arrays of strings through the API, one item per line in run and public forms, and typed array bindings for downstream steps.
+
 ### Fixed
 
 - Web chat now warns when an assistant reply cannot be saved, including partial replies from interrupted runs, while keeping the streamed text visible. (#2732)

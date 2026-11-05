@@ -88,6 +88,28 @@ describe("the payload a trigger with fields hands on", () => {
 });
 
 describe("runInputFrom", () => {
+  it("reads text lists as ordered lines, trimming and dropping blank lines", () => {
+    const list = field({ name: "devices", type: "string_list" });
+    expect(inputFieldsOf({ fields: [list] })).toEqual([list]);
+    expect(initialValues([list])).toEqual({ devices: "" });
+    expect(runInputFrom([list], { devices: " leaf-01 \r\n\n leaf-02\nleaf-01\n" })).toEqual({
+      input: { devices: ["leaf-01", "leaf-02", "leaf-01"] },
+    });
+    expect(runInputFrom([list], { devices: " \n " })).toEqual({
+      problems: { devices: "required" },
+    });
+    expect(runInputFrom([{ ...list, required: false }], {})).toEqual({ input: {} });
+    const array = { type: "array", items: { type: "string" } };
+    expect(payloadSchema([list]).properties).toEqual({ devices: { ...array, title: "devices" } });
+    expect(payloadSchema([{ ...list, required: false }]).properties).toEqual({
+      devices: { anyOf: [array, { type: "null" }], default: null, title: "devices" },
+    });
+    expect(serverFieldProblems([{ field: "devices.1", type: "string_type" }], [list])).toEqual({
+      problems: { devices: "invalid" },
+      changed: false,
+    });
+  });
+
   const fields = [
     field(),
     field({ name: "n", type: "number", required: false }),

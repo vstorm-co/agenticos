@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MAX_OPTIONS = 50
 
-InputFieldType = Literal["text", "number", "integer", "boolean", "date", "choice"]
+InputFieldType = Literal["text", "string_list", "number", "integer", "boolean", "date", "choice"]
 
 
 class InputField(BaseModel):

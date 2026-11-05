@@ -1,5 +1,5 @@
 ---
-source_sha: "7e54b3f5be8a"
+source_sha: "a380a5b5a5cd"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -53,12 +53,24 @@ hat, und nennt die Oberfläche in `triggered_by`.
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
 Seine **Eingabefelder** machen die Eingabe zu einem Vertrag. Ein Feld hat einen
-Namen, einen Typ - Text, Zahl, ganze Zahl, ja oder nein, Datum oder Auswahl - und ob
+Namen, einen Typ - Text, Liste von Texten, Zahl, ganze Zahl, ja oder nein, Datum oder Auswahl - und ob
 es Pflicht ist. Ohne Felder nimmt ein Run jedes JSON-Objekt. Mit Feldern fragt
 **Start a run** jedes beim Namen ab, ein Run, dessen Eingabe eines fehlt, eines vom
 falschen Typ oder ein nicht deklariertes sendet, wird vor dem Start mit
 `WORKFLOW_RUN_INPUT_INVALID` abgelehnt, und ein Binding an `payload.<feld>` wird beim
 Veröffentlichen auf seinen Typ geprüft.
+
+**Liste von Texten** (`string_list`) akzeptiert ein JSON-Array aus Zeichenfolgen, zum Beispiel
+`{"devices": ["leaf-01", "leaf-02"]}`. Skalare Werte und Elemente, die keine Zeichenfolgen sind, werden abgelehnt.
+Die API akzeptiert ein leeres Array; ein Pflichtfeld muss vorhanden sein und darf nicht
+`null` sein, während ein optionales Feld fehlen oder `null` sein darf. Nachfolgende Schritte lesen
+`payload.devices` als Array aus Zeichenfolgen.
+
+In **Start a run**, **Test draft** und öffentlichen Formularen geben Sie einen Eintrag pro Zeile ein.
+Das Formular entfernt Leerraum an beiden Enden jeder Zeile und überspringt leere Zeilen; Reihenfolge und Duplikate bleiben erhalten.
+Eine leere Pflichtliste benötigt einen Eintrag; eine leere optionale Liste wird weggelassen. API-Werte
+bleiben exakt erhalten, einschließlich Leerraum und leerer Zeichenfolgen. Derselbe Feldtyp
+ist bei den Triggern Manual, Form und Called by a workflow verfügbar.
 
 ::: app.workflows.contracts.fields.InputField
 

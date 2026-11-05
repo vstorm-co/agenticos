@@ -24,7 +24,7 @@ value that does not fit fails the run with `INVALID_BINDING` instead of reaching
 the handler as the wrong type.
 
 Declared `fields` (`TriggerInputConfig`) make the payload a contract. Each has
-a `name`, a `type` - `text`, `number`, `integer`, `boolean`, `date` (ISO
+a `name`, a `type` - `text`, `string_list` (a JSON array of strings), `number`, `integer`, `boolean`, `date` (ISO
 `YYYY-MM-DD`) or `choice` among its `options` - and whether it is `required`.
 `input_problems` checks a run's input against them strictly before the run is
 admitted, and `WorkflowExecutionService.start` refuses one that misses a field,
