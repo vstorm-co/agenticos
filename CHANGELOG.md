@@ -31,10 +31,16 @@ Two things are versioned separately from this file and worth knowing about:
 - Workflow trigger input fields support **List of text**: validated JSON arrays of strings through the API, one item per line in run and public forms, and typed array bindings for downstream steps.
 - Web chat now warns when an assistant reply cannot be saved, including partial replies from interrupted runs, while keeping the streamed text visible. (#2732)
 - Keep PDF chat uploads working when extracted text contains NUL characters.
+- Book Stav's billed request cost from response bodies or headers, including
+  streamed Chat Completions and Responses, so models absent from the price
+  snapshot count towards budget caps. USD is used directly; **operators using
+  NOK billing must set `STAV_NOK_PER_USD`** (NOK per dollar) in the backend
+  environment. No rate is guessed or fetched; without conversion and without a
+  catalog price, costs remain visibly partial. (#2729)
 
 ### Security
 
-- The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403. (#2619)
+- The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403, and an API key issued for edit without view can still change the sharing of a resource it may edit. (#2619)
 
 ## [1.47.3] - 2026-11-04
 
