@@ -1,5 +1,5 @@
 ---
-source_sha: "64c14327dcb0"
+source_sha: "f1c78f3faf56"
 ---
 
 # Governance { #governance }
@@ -1521,7 +1521,7 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
   sprawdzenia uprawnienia codzienny użytkownik czatu przyznaje sobie, jednym
   kliknięciem, władzę, której API odmawia mu jeden endpoint dalej. Pułapem jest
   własny przełącznik organizacji (`chat_may_waive_approvals`, domyślnie
-  wyłączony, zmieniany przez kogoś z `approvals:decide`): bez niego świadomie
+  włączony dla nowych organizacji, zmieniany przez kogoś z `approvals:decide`): bez niego świadomie
   postawiona przez Buildera bramka na `send_email` jest jedno kliknięcie od
   zniknięcia w każdej rozmowie, a model per narzędzie staje się doradczy.
 - **Brak kanału dalej znaczy nie.** Zrzec się pytań może wyłącznie sesja czatu w

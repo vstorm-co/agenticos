@@ -225,7 +225,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     welcome_dm_enabled: bool = False
     welcome_dm_text: str | None = None
     chat_may_waive_approvals: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Whether a chat session here may grant standing consent to gated tool "
             "calls. The chat reads it to decide whether to offer the control at "

@@ -9,7 +9,7 @@ key's `ON DELETE SET NULL`, not anything this code does.
 import uuid
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 
 from app.db.models.organization import Organization
 from app.db.models.user import User
@@ -67,3 +67,33 @@ async def test_deleting_the_default_organization_clears_the_setting(db) -> None:
     await db.refresh(row)
 
     assert row.default_organization_id is None
+
+
+async def test_new_organizations_allow_chat_approval_waivers_from_orm_and_database(db) -> None:
+    founder = await _person(db, "founder@acme.com")
+    company = await _company(db, founder)
+    assert company.chat_may_waive_approvals is True
+    value = await db.scalar(
+        text(
+            "INSERT INTO organizations (id, name, slug, created_by_user_id, is_personal) "
+            "VALUES (:id, 'Raw organization', :slug, :creator, false) "
+            "RETURNING chat_may_waive_approvals"
+        ),
+        {"id": uuid.uuid4(), "slug": f"raw-{uuid.uuid4().hex}", "creator": founder.id},
+    )
+    assert value is True
+
+
+async def test_explicit_organization_approval_waiver_opt_out_is_preserved(db) -> None:
+    founder = await _person(db, "founder@acme.com")
+    company = Organization(
+        id=uuid.uuid4(),
+        name="Opted out",
+        slug=f"opt-out-{uuid.uuid4().hex}",
+        created_by_user_id=founder.id,
+        chat_may_waive_approvals=False,
+    )
+    db.add(company)
+    await db.flush()
+    await db.refresh(company)
+    assert company.chat_may_waive_approvals is False

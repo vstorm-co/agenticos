@@ -1,5 +1,5 @@
 ---
-source_sha: "64c14327dcb0"
+source_sha: "f1c78f3faf56"
 ---
 
 # Governance { #governance }
@@ -1621,7 +1621,7 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
   zu halten — ohne die Berechtigungsprüfung gewährte sich also der alltägliche
   Chat-Nutzer mit einem Klick die Autorität, die die API ihm einen Endpunkt weiter
   verweigert. Der eigene Schalter der Organisation (`chat_may_waive_approvals`,
-  voreingestellt aus, geändert von jemandem, der `approvals:decide` hält) ist die
+  für neue Organisationen voreingestellt ein, geändert von jemandem, der `approvals:decide` hält) ist die
   Obergrenze: Ohne ihn ist das bewusste Gate eines Builders auf `send_email` in
   jeder Unterhaltung einen Klick von nichts entfernt und das Modell je Tool nur
   beratend.

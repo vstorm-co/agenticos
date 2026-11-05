@@ -1430,7 +1430,7 @@ Four things make it a session setting rather than a hole in the model:
   `builder` run agents without holding it — so without the permission check the
   everyday chat user grants themselves, in one click, the authority the API
   refuses them one endpoint over. The organization's own switch
-  (`chat_may_waive_approvals`, off by default, changed by somebody holding
+  (`chat_may_waive_approvals`, on by default for new organizations, changed by somebody holding
   `approvals:decide`) is the ceiling: without one, a Builder's deliberate gate on
   `send_email` is one click from nothing in every conversation and the per-tool
   model is advisory.

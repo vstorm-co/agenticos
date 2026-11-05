@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Allow chat approval waivers by default in new organizations while preserving existing organization choices and per-conversation consent.
+
 - Remove scratch planning tools from AgenticOS, Architect and new-agent defaults; keep progress guidance in messages and durable commitments in managed Tasks.
 
 - Restore approvals and questions for delegated tools from the parent run pause even when the parent timeline only contains a task call; show paused delegates as working during an approved HTTP continuation and reconcile finished published delegates independently when the parent pauses again.

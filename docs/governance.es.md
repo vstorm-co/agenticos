@@ -1,5 +1,5 @@
 ---
-source_sha: "64c14327dcb0"
+source_sha: "f1c78f3faf56"
 ---
 
 # Governance { #governance }
@@ -1527,7 +1527,7 @@ Cuatro cosas hacen de esto un ajuste de sesión y no un agujero en el modelo:
   registrar, y `member` y `builder` ejecutan agents sin tenerlo — así que sin la
   comprobación de permiso quien usa el chat a diario se concede a sí mismo, en un
   clic, la autoridad que la API le niega un endpoint más allá. El interruptor propio de
-  la organización (`chat_may_waive_approvals`, apagado por defecto, cambiado por
+  la organización (`chat_may_waive_approvals`, activado por defecto para las organizaciones nuevas, cambiado por
   alguien con `approvals:decide`) es el techo: sin él, la puerta deliberada de un
   Builder sobre `send_email` está a un clic de nada en cada conversación y el modelo
   por herramienta es orientativo.
