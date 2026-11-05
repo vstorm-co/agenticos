@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep PDF chat uploads working when extracted text contains NUL characters.
+
 ## [1.47.3] - 2026-11-04
 
 ### Fixed

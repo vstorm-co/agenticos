@@ -1,5 +1,5 @@
 ---
-source_sha: "ce58011288a1"
+source_sha: "dc20a9ef4ddc"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -279,7 +279,9 @@ ejecutado cuando una superficie está montando su prompt.
 
 Los adjuntos del chat se leen con **PyMuPDF**, y eso no es configurable. Un
 adjunto no pertenece a ninguna colección, así que no hay configuración guardada
-de la que leer una elección de parser.
+de la que leer una elección de parser. Los caracteres NUL se eliminan del texto
+extraído antes de guardarlo para que PostgreSQL acepte la subida. Se conservan
+los bytes originales del PDF.
 
 La variable `CHAT_PDF_PARSER` que antes elegía entre tres parsers ya no existe.
 Las dos alternativas estaban envueltas en `except Exception: return

@@ -1,5 +1,5 @@
 ---
-source_sha: "ce58011288a1"
+source_sha: "dc20a9ef4ddc"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -270,7 +270,9 @@ gdy powierzchnia składa swój prompt.
 
 Załączniki z czatu czyta **PyMuPDF** i nie da się tego skonfigurować. Załącznik
 nie należy do żadnej kolekcji, więc nie ma zapisanej konfiguracji, z której
-dałoby się odczytać wybór parsera.
+dałoby się odczytać wybór parsera. Znaki NUL są usuwane z wyodrębnionego
+tekstu przed zapisem, aby PostgreSQL mógł przyjąć przesłany plik. Oryginalne
+bajty pliku PDF pozostają bez zmian.
 
 Zmiennej `CHAT_PDF_PARSER`, która kiedyś wybierała między trzema parserami, już
 nie ma. Obie alternatywy były opakowane w `except Exception: return
