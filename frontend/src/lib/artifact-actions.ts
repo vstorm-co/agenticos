@@ -73,7 +73,15 @@ export function resolveAction(
 
 /** Why one value does not fit the field it was given for. */
 export type ProblemKind =
-  "required" | "unknown" | "text" | "number" | "integer" | "boolean" | "date" | "choice";
+  | "required"
+  | "unknown"
+  | "text"
+  | "string_list"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "date"
+  | "choice";
 
 export interface InputProblem {
   /** The field's name, as the workflow declares it. */
@@ -87,6 +95,10 @@ function fits(field: ArtifactActionField, value: unknown): ProblemKind | null {
   switch (field.type) {
     case "text":
       return typeof value === "string" ? null : "text";
+    case "string_list":
+      return Array.isArray(value) && value.every((item: unknown) => typeof item === "string")
+        ? null
+        : "string_list";
     case "number":
       return typeof value === "number" && Number.isFinite(value) ? null : "number";
     case "integer":

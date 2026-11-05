@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Workflow trigger input fields support **List of text**: validated JSON arrays of strings through the API, one item per line in run and public forms, and typed array bindings for downstream steps.
+
 ## [1.47.3] - 2026-11-04
 
 ### Fixed

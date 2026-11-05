@@ -3499,6 +3499,7 @@
       },
       "startRunOptional": "opcjonalne",
       "startRunChoose": "Wybierz…",
+      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane.",
       "startRunFieldProblem": {
         "required": "Uzupełnij to pole.",
         "number": "To musi być liczba.",
@@ -9592,6 +9593,7 @@
       "add": "Dodaj pole",
       "types": {
         "text": "Tekst",
+        "string_list": "Lista tekstów",
         "number": "Liczba",
         "integer": "Całkowita",
         "boolean": "Tak lub nie",

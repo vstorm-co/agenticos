@@ -1,5 +1,5 @@
 ---
-source_sha: "7e54b3f5be8a"
+source_sha: "a380a5b5a5cd"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -51,12 +51,24 @@ superficie en `triggered_by`.
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
 Sus **campos de entrada** convierten la entrada en un contrato. Un campo tiene un
-nombre, un tipo - texto, número, número entero, sí o no, fecha u opción - y si es
+nombre, un tipo - texto, lista de textos, número, número entero, sí o no, fecha u opción - y si es
 obligatorio. Sin campos, un run acepta cualquier objeto JSON. Con campos, **Start a
 run** pide cada uno por su nombre, un run cuya entrada omite uno, envía uno del tipo
 equivocado o uno no declarado se rechaza antes de empezar con
 `WORKFLOW_RUN_INPUT_INVALID`, y un binding a `payload.<campo>` se comprueba por tipo
 al publicar.
+
+**Lista de textos** (`string_list`) acepta un array JSON de cadenas, por ejemplo
+`{"devices": ["leaf-01", "leaf-02"]}`. Se rechazan los valores escalares y los elementos que no sean cadenas.
+La API acepta un array vacío; un campo obligatorio debe estar presente y no puede ser
+`null`, mientras que uno opcional puede omitirse o ser `null`. Los pasos posteriores leen
+`payload.devices` como un array de cadenas.
+
+En **Start a run**, **Test draft** y los formularios públicos, introduce un elemento por línea.
+El formulario elimina los espacios en blanco de los extremos de cada línea y descarta las líneas vacías, conservando el orden y los duplicados.
+Una lista obligatoria vacía necesita un elemento; una lista opcional vacía se omite. Los valores de la API
+se conservan exactamente, incluidos los espacios en blanco y las cadenas vacías. El mismo tipo de campo
+está disponible en los triggers Manual, Form y Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 
