@@ -4800,6 +4800,67 @@ describe("useChat - the outbox (#2097)", () => {
     vi.useRealTimers();
   });
 
+  it.each(["saved-question", null])(
+    "does not requeue an accepted prompt when its replay with id %s reports a save failure",
+    async (messageId) => {
+      vi.useFakeTimers();
+      useAuthStore.setState({
+        user: {
+          id: "me",
+          email: "me@example.com",
+          full_name: "Me",
+          is_active: true,
+          created_at: "2026-10-01",
+        },
+      });
+      const { result, rerender } = renderHook(() => useChat({ conversationId: "c-1" }), {
+        wrapper,
+      });
+      await act(async () => {});
+      await drainOne(result, "second");
+      const prompt = useChatStore
+        .getState()
+        .messages.find((message) => message.content === "second")!;
+      act(() => result.current.sendMessage("third"));
+
+      // The server accepted the queued prompt, but its acknowledgement was lost.
+      socket.isConnected = false;
+      rerender();
+      socket.isConnected = true;
+      rerender();
+      receive("turn_attached", { conversation_id: "c-1" });
+      receive("turn_prompt", {
+        conversation_id: "c-1",
+        message_id: messageId,
+        client_message_id: prompt.clientMessageId,
+        content: "second",
+        sender: prompt.sender,
+      });
+      receive("model_request_start", {});
+      receive("text_delta", { content: "The answer to second." });
+      receive("error", { code: "message_save_failed", message: "The reply could not be saved." });
+      receive("complete", {});
+
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({ content: "third" }),
+      ]);
+      const prompts = useChatStore
+        .getState()
+        .messages.filter((message) => message.content === "second");
+      expect(prompts).toHaveLength(1);
+      expect(prompts[0]).toMatchObject({ id: messageId ?? prompt.id, renderKey: prompt.id });
+      expect(streaming()?.content).toContain("The answer to second.");
+      expect(streaming()?.content).toContain("The reply could not be saved.");
+
+      receive("turn_followed_to_end", { conversation_id: "c-1" });
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(result.current.queuedMessages).toEqual([]);
+      expect(
+        sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+      ).toEqual(["first", "second", "third"]);
+    },
+  );
+
   it("does not take a message typed straight in for a queued one", () => {
     const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     act(() => result.current.sendMessage("typed"));

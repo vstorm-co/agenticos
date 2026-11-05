@@ -1046,7 +1046,9 @@ export function useChat(options: UseChatOptions = {}) {
           setSandboxPreparing(false);
           awaitingConnectionRef.current = false;
           const { message, code } = wsEvent.data as { message: string; code?: string };
-          const refused = unconfirmedRef.current;
+          // A reply save failure means the prompt already ran, even if reconnecting
+          // lost its acknowledgement. Offering Retry would execute it again.
+          const refused = code === "message_save_failed" ? null : unconfirmedRef.current;
           unconfirmedRef.current = null;
           if (refused) {
             chatApi.getState().removeMessage(refused.bubbleId);
