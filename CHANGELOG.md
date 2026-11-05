@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Rebalance organization tabs: combine profile and voice settings in Workspace, and move background services beside the Architect under AI & services. Preserve drafts, permission gates and existing Voice links.
+
 - Organize deployment settings into focused sections with persistent drafts, a visible save/discard toolbar, and responsive form layouts.
 
 - Show the Inbox and background-work overview in every agent’s empty chat, while retaining agent-specific greetings and opening messages.

@@ -102,6 +102,22 @@ function serve(role: string, extraPermissions: MyPermissions["permissions"] = []
         ...permissionsOf(role),
         permissions: [...permissionsOf(role).permissions, ...extraPermissions],
       });
+    if (url === "/system-agents")
+      return Promise.resolve({
+        items: [
+          {
+            role: "memory_maintenance",
+            enabled: false,
+            model_profile_id: null,
+            model_label: null,
+            monthly_budget_usd: null,
+            spent_this_month: "0",
+            unavailable: null,
+            managed_in: null,
+            runs: [],
+          },
+        ],
+      });
     if (url === "/orgs")
       return Promise.resolve({
         items: [{ id: "org-1", name: "Acme", avatar_color: null }],
@@ -226,6 +242,22 @@ describe("the members table's role control", () => {
         const asked = useOrgStore.getState().activeOrgId;
         return Promise.resolve(permissionsOf(asked === URL_ORG ? "owner" : "admin"));
       }
+      if (url === "/system-agents")
+        return Promise.resolve({
+          items: [
+            {
+              role: "memory_maintenance",
+              enabled: false,
+              model_profile_id: null,
+              model_label: null,
+              monthly_budget_usd: null,
+              spent_this_month: "0",
+              unavailable: null,
+              managed_in: null,
+              runs: [],
+            },
+          ],
+        });
       if (url === "/orgs")
         return Promise.resolve({
           items: [
@@ -269,6 +301,22 @@ describe("the members table's role control", () => {
     vi.mocked(apiClient.get).mockImplementation((url: string) => {
       if (url === "/roles/catalog") return Promise.reject(new Error("nope"));
       if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf("admin"));
+      if (url === "/system-agents")
+        return Promise.resolve({
+          items: [
+            {
+              role: "memory_maintenance",
+              enabled: false,
+              model_profile_id: null,
+              model_label: null,
+              monthly_budget_usd: null,
+              spent_this_month: "0",
+              unavailable: null,
+              managed_in: null,
+              runs: [],
+            },
+          ],
+        });
       if (url === "/orgs")
         return Promise.resolve({
           items: [{ id: "org-1", name: "Acme", avatar_color: null }],
@@ -347,7 +395,7 @@ describe("organization settings tabs", () => {
     );
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     window.history.replaceState({}, "", "?tab=voice#org-voice");
-    await userEvent.click(screen.getByRole("tab", { name: "Profile" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Workspace" }));
     expect(window.location.hash).toBe("");
     expect(screen.getByTitle("Change organization avatar")).toHaveClass("rounded-full");
     const name = screen.getByDisplayValue("Acme");
@@ -357,7 +405,7 @@ describe("organization settings tabs", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Members" }));
     expect(name).not.toBeVisible();
     expect(new URL(window.location.href).searchParams.has("tab")).toBe(false);
-    await userEvent.click(screen.getByRole("tab", { name: "Profile" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Workspace" }));
     expect(screen.getByDisplayValue("New workspace")).toBeVisible();
   });
 
@@ -376,10 +424,15 @@ describe("organization settings tabs", () => {
     serve("owner", [{ permission: Perm.orgSettings, scope: "all" }]);
     await mount();
     await waitFor(() =>
-      expect(screen.getByRole("tab", { name: "Voice" })).toHaveAttribute("aria-selected", "true"),
+      expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
     );
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(screen.getByRole("tabpanel")).toHaveAttribute("data-state", "active");
+    expect(screen.getByDisplayValue("Acme")).toBeVisible();
+    expect(document.querySelector('[data-tour="org-voice"]')).toBeVisible();
   });
 
   it("follows a query change without remounting the page", async () => {
@@ -388,7 +441,7 @@ describe("organization settings tabs", () => {
     await screen.findByText("peer@acme.test");
     query.mockImplementation(() => new URLSearchParams("tab=profile"));
     rerender();
-    expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Workspace" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByDisplayValue("Acme")).toBeVisible();
   });
 
@@ -402,15 +455,27 @@ describe("organization settings tabs", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
         "Members",
-        "Profile",
+        "Workspace",
         "Budget and approvals",
         "Proactivity",
-        "Voice",
+        "AI & services",
       ]),
     );
     await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
-    expect(screen.getByRole("tabpanel")).toHaveTextContent("Proactivity");
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("Assistant suggestions and monitoring");
+    expect(screen.queryByRole("heading", { name: "Background services" })).not.toBeInTheDocument();
+  });
+
+  it("groups system services with AI and keeps them reachable for a budget manager", async () => {
+    serve("viewer", [{ permission: Perm.budgetsManage, scope: "all" }]);
+    await mount();
+    await userEvent.click(await screen.findByRole("tab", { name: "AI & services" }));
+    expect(await screen.findByRole("region", { name: "Memory maintenance" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "AI Architect" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Voice" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
+    expect(screen.queryByRole("region", { name: "Memory maintenance" })).not.toBeInTheDocument();
   });
 
   it.each(["voice", "governance", "proactivity", "assistant", "unknown"])(
@@ -427,7 +492,7 @@ describe("organization settings tabs", () => {
       );
       expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual([
         "Members",
-        "Profile",
+        "Workspace",
       ]);
       expect(await screen.findByText("peer@acme.test")).toBeVisible();
     },

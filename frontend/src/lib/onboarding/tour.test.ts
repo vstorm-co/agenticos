@@ -73,6 +73,7 @@ const ORG_STEPS = [
   "org-public-live-data",
   "org-voice",
   "org-assistant",
+  "org-system-agents",
   "org-members",
   "org-roles",
 ];
@@ -236,6 +237,7 @@ describe("visibleTourSteps", () => {
 describe("stepsForPage", () => {
   it("returns every highlight on a standalone page — launch and '?'-only — never an interstitial", () => {
     expect(stepsForPage(ROUTES.CHAT, () => true).map((step) => step.id)).toEqual([
+      "workspace-pulse",
       "chat-start",
       "chat-agent-picker",
       "chat-composer",
@@ -273,9 +275,12 @@ describe("stepsForPage", () => {
     // memory, sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
+      "phone-contact",
+      "phone-dial",
       "settings-tabs",
       "desktop-local-agents",
       "settings-appearance",
+      "memory-views",
       "my-memory",
       "my-claims",
       "sign-in-to-site",
@@ -381,7 +386,7 @@ describe("stepsForPage", () => {
       "members",
     ]) {
       expect(steps.find((step) => step.id === `org-${section}`)?.activate).toBe(
-        `org-tab-${section}`,
+        `org-tab-${section === "voice" ? "profile" : section}`,
       );
     }
   });
@@ -397,6 +402,7 @@ describe("stepsForPage", () => {
       "org-governance",
       "org-proactivity",
       "org-proactivity-model",
+      "org-system-agents",
       "org-members",
       "org-roles",
     ]);
@@ -529,12 +535,12 @@ describe("the Routines page", () => {
     );
     const allowed = stepsForPage(ROUTES.ROUTINES, () => true).map((step) => step.id);
 
-    expect(refused).toEqual(["routines-list", "routine-access", "routines-watches"]);
+    expect(refused).toEqual(["routines-list", "routine-access"]);
     expect(allowed).toEqual([
       "routines-list",
       "routine-access",
-      "routines-watches",
       "routines-create",
+      "routine-advanced",
     ]);
   });
 });

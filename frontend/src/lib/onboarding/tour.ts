@@ -809,7 +809,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
-    activate: "org-tab-voice",
+    activate: "org-tab-profile",
     permission: Perm.orgSettings,
   },
   // The AI Architect's card: drawn only on the active organization's page, and
@@ -820,6 +820,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "org-assistant",
     activate: "org-tab-assistant",
     permission: Perm.orgSettings,
+    optional: true,
+  },
+  {
+    id: "org-system-agents",
+    page: ORG_MEMBERS,
+    target: "org-system-agents",
+    activate: "org-tab-assistant",
+    permission: Perm.budgetsManage,
     optional: true,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members", activate: "org-tab-members" },

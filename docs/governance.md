@@ -754,13 +754,12 @@ notifications and decisions.
 Some work is the platform's own and still needs a model. A **system role** gives it
 an owner an operator can see: one configuration per organization and role, never
 an agent row, never one per job, and never attributed to the starter agent or any
-agent whose instructions did not run (#2575). **Organizations → Members → System
-agents** (`budgets:manage`) lists each role with what it runs on, this month's
+agent whose instructions did not run (#2575). **Organizations → AI & services → Background services** (`budgets:manage`) lists each role with what it runs on, this month's
 spend and its recent executions.
 
 | Role | What it does | Configured |
 |---|---|---|
-| `daily_briefing` | The nightly look at each person's week and the briefing built from it | Under Proactivity, above: the same model and limit, shown here read-only |
+| `daily_briefing` | The nightly look at each person's week and the briefing built from it | In the Proactivity tab: the same model and limit, shown here read-only |
 | `memory_maintenance` | Reads a completed admitted turn once and records the durable facts, preferences and decisions in it as [claims](reference/capabilities.md#memory-claims) | Here: a switch, a model and a monthly budget of its own |
 
 Memory maintenance does not require the AgenticOS starter. Its run retains the originating agent as a storage reference and is accounted as `memory_maintenance`; only platform extraction instructions and the role-selected model execute. Removing or unpublishing the starter does not disable extraction for other published agents.

@@ -772,11 +772,7 @@ labels on the agents you can see; tick several to widen it. You maintain an agen
 categories and tags from its detail page, beside the avatar controls, and the
 change takes effect at once, without publishing a new version.
 
-Organization details use tabs: **Members**, **Profile**, **Budget and approvals**,
-**Proactivity**, **Voice** and **AI Architect**. Administrative tabs follow your
-permissions; AI Architect appears when it can be configured. The selected tab is stored
-in the URL (`?tab=voice`, for example), and switching tabs preserves unsaved form
-values.
+Organization details use five tabs: **Members** for people and invitations; **Workspace** for the organization profile and default voice settings; **Budget and approvals** for spending and access policies; **Proactivity** for suggestions, monitoring and delivery; and **AI & services** for the Architect and system services. Controls retain their own permission gates. AI & services is available to budget managers even when Architect configuration is unavailable. The selected tab is stored in the URL, switching tabs preserves drafts, and old `?tab=voice` links open Workspace.
 
 ## Languages
 

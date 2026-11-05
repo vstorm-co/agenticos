@@ -1,5 +1,5 @@
 ---
-source_sha: "2353dfc1e3f6"
+source_sha: "e92aab93f8c2"
 ---
 
 # La consola { #the-console }
@@ -823,11 +823,7 @@ marca varias para ampliarlo. Las categories y los tags de un agent los mantienes
 de detalle, junto a los controles del avatar, y el cambio surte efecto al
 momento, sin publicar una nueva versión.
 
-Los detalles de la organización se dividen en pestañas: **Members**, **Profile**,
-**Budget and approvals**, **Proactivity**, **Voice** y **AI Architect**. Las
-pestañas administrativas dependen de tus permisos; AI Architect aparece cuando se puede
-configurar. La pestaña seleccionada se guarda en la URL (por ejemplo, `?tab=voice`), y
-cambiar de pestaña conserva los valores del formulario sin guardar.
+Los detalles de la organización tienen cinco pestañas: **Members** para personas e invitaciones; **Workspace** para perfil y ajustes de voz predeterminados; **Budget and approvals** para gastos y acceso; **Proactivity** para sugerencias, supervisión y entrega; y **AI & services** para Architect y servicios del sistema. Cada formulario mantiene sus permisos. Quienes gestionan presupuestos acceden a AI & services incluso sin poder configurar Architect. La selección se guarda en la URL, cambiar de pestaña conserva los borradores y los enlaces antiguos `?tab=voice` abren Workspace.
 
 ## Idiomas { #languages }
 

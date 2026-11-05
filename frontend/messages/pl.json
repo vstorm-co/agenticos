@@ -2688,11 +2688,12 @@
       "workspaces": "Organizacje",
       "you": "(Ty)",
       "yourRoleHere": "Twoja rola tutaj to <badge>{role}</badge>",
-      "tabProfile": "Profil",
+      "tabProfile": "Organizacja",
       "tabGovernance": "Budżet i zgody",
       "tabProactivity": "Proaktywność",
-      "tabVoice": "Głos",
-      "tabAssistant": "AI Architect"
+      "tabAssistant": "AI i usługi",
+      "workspaceSettingsHint": "Nazwa i wygląd organizacji oraz domyślne ustawienia głosu dla agentów i botów kanałowych.",
+      "aiServicesHint": "Skonfiguruj Architecta organizacji i usługi utrzymujące pamięć oraz przygotowujące podsumowania. Zasady sugestii i monitorowania znajdziesz w Proaktywności."
     },
     "rag": {
       "active": "Aktywne",
@@ -5591,8 +5592,8 @@
       "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie uruchomienia są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
-      "managedIn": "Działa na {model}. Konfigurowana w Proaktywności powyżej, więc jest jeden model i jeden limit.",
-      "managedInNoModel": "Model nie został jeszcze wybrany. Konfigurowana w Proaktywności powyżej.",
+      "managedIn": "Działa na {model}. Konfiguracja w zakładce Proaktywność, ze wspólnym modelem i limitem.",
+      "managedInNoModel": "Nie wybrano jeszcze modelu. Skonfiguruj go w zakładce Proaktywność.",
       "enabled": "Uruchamiaj tę rolę",
       "model": "Model",
       "modelHint": "Wybierany, nigdy domyślny: rola wydaje pieniądze, o które nikt nie prosił w danej chwili.",
@@ -6774,6 +6775,10 @@
       "workspace-pulse": {
         "title": "Wymaga Twojej uwagi",
         "body": "Zapytaj, stwórz coś lub powierz zadanie swoim agentom."
+      },
+      "org-system-agents": {
+        "title": "Usługi w tle",
+        "body": "Wybierz modele i budżety usług platformy oraz sprawdź ich użycie. Ustawienia dziennych podsumowań znajdziesz w Proaktywności."
       }
     },
     "chooseLanguage": "Język",

@@ -2740,11 +2740,12 @@
       "workspaces": "Kuruluşlar",
       "you": "(siz)",
       "yourRoleHere": "Buradaki rolünüz: <badge>{role}</badge>",
-      "tabProfile": "Profil",
+      "tabProfile": "Çalışma alanı",
       "tabGovernance": "Budget ve onaylar",
       "tabProactivity": "Proaktiflik",
-      "tabVoice": "Ses",
-      "tabAssistant": "AI Architect"
+      "tabAssistant": "Yapay zekâ ve hizmetler",
+      "workspaceSettingsHint": "Kuruluş kimliği ve ajanların ve kanal botlarının devraldığı varsayılan ses ayarları.",
+      "aiServicesHint": "Kuruluş Architect’ini, bellek bakımı ve özetler için arka plan hizmetlerini yapılandırın. Öneri ve izleme ilkeleri Proaktiflik sekmesindedir."
     },
     "admin": {
       "active": "Etkin",
@@ -8473,6 +8474,10 @@
       "workspace-graph": {
         "title": "Bağlantılı notları keşfedin",
         "body": "Grafik görünümü, Markdown ve frontmatter içindeki bağlantılardan ve geri bağlantılardan oluşturulur. Açık olduğu sürece yenilenir ve yalnızca bu konumda okuyabildiğiniz dosyaları kullanır."
+      },
+      "org-system-agents": {
+        "title": "Arka plan hizmetleri",
+        "body": "Platform hizmetlerinin modellerini ve bütçelerini seçin, kullanımı inceleyin. Günlük özet ayarları Proaktiflik sekmesindedir."
       }
     }
   },
@@ -10586,8 +10591,8 @@
       "configure": "Model ve bütçeyi yapılandır",
       "on": "Açık",
       "off": "Kapalı",
-      "managedIn": "{model} üzerinde çalışır. Tek bir model ve sınır olması için yukarıdaki Proactivity bölümünden yapılandırılır.",
-      "managedInNoModel": "Henüz model seçilmedi. Yukarıdaki Proactivity bölümünden yapılandırılır.",
+      "managedIn": "{model} üzerinde çalışır. Ortak model ve sınır Proaktiflik sekmesinde yapılandırılır.",
+      "managedInNoModel": "Henüz model seçilmedi. Proaktiflik sekmesinde yapılandırın.",
       "enabled": "Bu rolü çalıştır",
       "model": "Model",
       "modelHint": "Rol, o anda istenmemiş bir iş için para harcadığından model açıkça seçilir.",

@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Camera,
   Building2,
-  Mic,
   Sparkles,
   Radar,
   Link2,
@@ -129,6 +128,9 @@ export default function OrgMembersPage({ params }: PageProps) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const tenantId = useTenantId();
   const [tabParam, setTabParam] = useUrlState("tab");
+  const canConfigureAssistant =
+    activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id;
+  const canSystemServices = can(Perm.budgetsManage) && tenantId === id;
   const sections = [
     { id: "members", label: "members", icon: Users, visible: true },
     { id: "profile", label: "tabProfile", icon: Building2, visible: true },
@@ -144,15 +146,16 @@ export default function OrgMembersPage({ params }: PageProps) {
       icon: Radar,
       visible: tenantId !== id || can(Perm.budgetsManage) || canSettings,
     },
-    { id: "voice", label: "tabVoice", icon: Mic, visible: canSettings },
     {
       id: "assistant",
       label: "tabAssistant",
       icon: Sparkles,
-      visible: activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id,
+      visible: canConfigureAssistant || canSystemServices,
     },
   ].filter((section) => section.visible);
-  const tab = sections.find((section) => section.id === tabParam)?.id ?? "members";
+  // Existing bookmarks and settings links keep opening the moved voice controls.
+  const requestedTab = tabParam === "voice" && canSettings ? "profile" : tabParam;
+  const tab = sections.find((section) => section.id === requestedTab)?.id ?? "members";
   const pendingInvitations = invitations.filter((i) => i.status === "pending");
 
   // Workspace profile state - name edits stay local until "Save" lands the
@@ -572,6 +575,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
+          <p className="text-muted-foreground max-w-3xl text-sm leading-6">
+            {t("workspaceSettingsHint")}
+          </p>
           {org && (
             <section
               data-tour="org-profile"
@@ -646,7 +652,7 @@ export default function OrgMembersPage({ params }: PageProps) {
                   />
                   {canManage && name.trim() !== org.name && name.trim() !== "" && (
                     <Button onClick={handleSaveName} disabled={savingName}>
-                      {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                      {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : tc("save")}
                     </Button>
                   )}
                 </div>
@@ -662,6 +668,7 @@ export default function OrgMembersPage({ params }: PageProps) {
               </div>
             </section>
           )}
+          {org && canSettings && <OrgVoiceSettings org={org} />}
         </TabsContent>
         <TabsContent
           value="governance"
@@ -682,15 +689,6 @@ export default function OrgMembersPage({ params }: PageProps) {
           className="space-y-6 data-[state=inactive]:hidden"
         >
           {org && <OrgProactivity org={org} />}
-          {org && <OrgSystemAgents org={org} />}
-        </TabsContent>
-        <TabsContent
-          value="voice"
-          hidden={tab !== "voice"}
-          forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
-        >
-          {org && <OrgVoiceSettings org={org} />}
         </TabsContent>
         <TabsContent
           value="assistant"
@@ -698,7 +696,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           forceMount
           className="space-y-6 data-[state=inactive]:hidden"
         >
-          <OrgAssistant orgId={id} />
+          <p className="text-muted-foreground max-w-3xl text-sm leading-6">{t("aiServicesHint")}</p>
+          {canConfigureAssistant && <OrgAssistant orgId={id} />}
+          {org && canSystemServices && <OrgSystemAgents org={org} />}
         </TabsContent>
       </Tabs>
 

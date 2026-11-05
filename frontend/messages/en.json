@@ -5206,6 +5206,10 @@
       "workspace-pulse": {
         "title": "Needs your attention",
         "body": "Ask, create, or hand a task to your agents."
+      },
+      "org-system-agents": {
+        "title": "Background services",
+        "body": "Choose models and budgets for platform services and review their usage. Daily briefing settings are in Proactivity."
       }
     },
     "chooseLanguage": "Language",
@@ -6650,11 +6654,12 @@
       "workspaces": "Organizations",
       "you": "(you)",
       "yourRoleHere": "Your role here is <badge>{role}</badge>",
-      "tabProfile": "Profile",
+      "tabProfile": "Workspace",
       "tabGovernance": "Budget and approvals",
       "tabProactivity": "Proactivity",
-      "tabVoice": "Voice",
-      "tabAssistant": "AI Architect"
+      "tabAssistant": "AI & services",
+      "workspaceSettingsHint": "Organization identity and the default voice experience inherited by agents and channel bots.",
+      "aiServicesHint": "Configure the organization’s Architect and the background services that maintain memory and build briefings. Suggestion and monitoring policies are under Proactivity."
     },
     "rag": {
       "active": "Active",
@@ -8304,8 +8309,8 @@
       "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
-      "managedIn": "Runs on {model}. Configured under Proactivity above, so there is one model and one limit.",
-      "managedInNoModel": "No model chosen yet. Configured under Proactivity above.",
+      "managedIn": "Runs on {model}. Configured in the Proactivity tab, with one shared model and limit.",
+      "managedInNoModel": "No model chosen yet. Configure it in the Proactivity tab.",
       "enabled": "Run this role",
       "model": "Model",
       "modelHint": "Chosen, never defaulted: the role spends money nobody asked for in the moment.",

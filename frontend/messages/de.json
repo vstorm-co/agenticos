@@ -5084,6 +5084,10 @@
       "workspace-pulse": {
         "title": "Braucht deine Aufmerksamkeit",
         "body": "Stelle eine Frage, erstelle etwas oder übergib deinen Agenten eine Aufgabe."
+      },
+      "org-system-agents": {
+        "title": "Hintergrunddienste",
+        "body": "Modelle und Budgets für Plattformdienste wählen und deren Nutzung prüfen. Einstellungen für tägliche Briefings stehen unter Proaktivität."
       }
     },
     "chooseLanguage": "Sprache",
@@ -5929,11 +5933,12 @@
       "workspaces": "Organisationen",
       "you": "(Sie)",
       "yourRoleHere": "Ihre Rolle hier ist <badge>{role}</badge>",
-      "tabProfile": "Profil",
+      "tabProfile": "Arbeitsbereich",
       "tabGovernance": "Budget und Freigaben",
       "tabProactivity": "Proaktivität",
-      "tabVoice": "Sprache",
-      "tabAssistant": "AI Architect"
+      "tabAssistant": "KI und Dienste",
+      "workspaceSettingsHint": "Identität der Organisation und die von Agents und Kanal-Bots übernommenen Spracheinstellungen.",
+      "aiServicesHint": "Den Architect und Hintergrunddienste für Gedächtnispflege und Briefings konfigurieren. Regeln für Vorschläge und Überwachung stehen unter Proaktivität."
     },
     "rag": {
       "active": "Aktiv",
@@ -8183,8 +8188,8 @@
       "description": "Modellgestützte Plattformdienste. Klappen Sie einen Dienst auf, um Modell und Budget festzulegen. Verbrauch und letzte Ausführungen bleiben darunter sichtbar.",
       "on": "An",
       "off": "Aus",
-      "managedIn": "Läuft auf {model}. Konfiguriert unter Proaktivität oben, es gibt also ein Modell und ein Limit.",
-      "managedInNoModel": "Noch kein Modell gewählt. Konfiguriert unter Proaktivität oben.",
+      "managedIn": "Läuft auf {model}. Im Tab Proaktivität mit gemeinsamem Modell und Limit konfiguriert.",
+      "managedInNoModel": "Noch kein Modell gewählt. Im Tab Proaktivität konfigurieren.",
       "enabled": "Diese Rolle ausführen",
       "model": "Modell",
       "modelHint": "Gewählt, nie voreingestellt: Die Rolle gibt Geld aus, das niemand im Moment angefordert hat.",

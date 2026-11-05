@@ -29,7 +29,7 @@ const BUDGET_FIELD = "monthly_budget_usd";
  * Roles are not agents. Nothing here has instructions a person wrote, so nothing
  * is attributed to the starter agent or anyone else whose instructions did not
  * run; each execution is listed under the role that did it. The daily briefing is
- * the proactivity setting above, shown with its history; memory maintenance is
+ * the setting in the Proactivity tab, shown with its history; memory maintenance is
  * configured here, on a model somebody chose and inside a budget of its own.
  */
 export function OrgSystemAgents({ org }: { org: Organization }) {
@@ -47,7 +47,10 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
   if (error || !roles) return <ErrorState />;
   return (
     <SettingsSection title={t("title")}>
-      <p className="text-muted-foreground mb-4 max-w-3xl text-sm leading-relaxed">
+      <p
+        data-tour="org-system-agents"
+        className="text-muted-foreground mb-4 max-w-3xl text-sm leading-relaxed"
+      >
         {t("description")}
       </p>
       <div className="grid items-stretch gap-4 lg:grid-cols-2">

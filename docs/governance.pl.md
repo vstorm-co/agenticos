@@ -1,5 +1,5 @@
 ---
-source_sha: "1e3e083daa0d"
+source_sha: "64c14327dcb0"
 ---
 
 # Governance { #governance }
@@ -800,13 +800,13 @@ Część pracy należy do samej platformy i mimo to potrzebuje modelu. **Rola
 systemowa** daje jej właściciela, którego operator widzi: jedna konfiguracja na
 organizację i rolę, nigdy wiersz agenta, nigdy jedna na zadanie i nigdy
 przypisana agentowi startowemu ani żadnemu agentowi, którego instrukcje się nie
-wykonały (#2575). **Organizacje → Członkowie → Agenci systemowi**
+wykonały (#2575). **Organizacje → AI i usługi → Usługi w tle**
 (`budgets:manage`) wylicza każdą rolę z modelem, na którym działa, wydatkami w tym
 miesiącu i ostatnimi wykonaniami.
 
 | Rola | Co robi | Konfiguracja |
 |---|---|---|
-| `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W Proaktywności, powyżej: ten sam model i limit, tutaj tylko do odczytu |
+| `daily_briefing` | Nocne spojrzenie na tydzień każdej osoby i zbudowany z niego briefing | W zakładce Proaktywność: ten sam model i limit, tutaj tylko do odczytu |
 | `memory_maintenance` | Czyta zakończoną dopuszczoną turę raz i zapisuje trwałe fakty, preferencje i decyzje jako [claimy](reference/capabilities.md#memory-claims) | Tutaj: przełącznik, model i własny budżet miesięczny |
 
 Utrzymanie pamięci nie wymaga startowego agenta AgenticOS. Przebieg zachowuje agenta źródłowego jako referencję zapisu i jest rozliczany jako `memory_maintenance`; wykonują się wyłącznie platformowe instrukcje ekstrakcji na modelu wybranym dla roli. Usunięcie lub wycofanie publikacji agenta startowego nie wyłącza ekstrakcji innych opublikowanych agentów.

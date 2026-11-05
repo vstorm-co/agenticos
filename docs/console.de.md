@@ -1,5 +1,5 @@
 ---
-source_sha: "2353dfc1e3f6"
+source_sha: "e92aab93f8c2"
 ---
 
 # Die Konsole { #the-console }
@@ -870,12 +870,7 @@ kreuzen Sie mehrere an, um ihn zu erweitern. Die Categories und Tags eines Agent
 Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
 
-Die Organisationsdetails sind in Registerkarten gegliedert: **Mitglieder**, **Profil**,
-**Budget und Freigaben**, **Proaktivität**, **Sprache** und **AI Architect**.
-Administrative Registerkarten richten sich nach deinen Berechtigungen; AI Architect
-erscheint, wenn er konfiguriert werden kann. Die ausgewählte Registerkarte steht in der
-URL (zum Beispiel `?tab=voice`); beim Wechsel bleiben ungespeicherte Formularwerte
-erhalten.
+Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Personen und Einladungen; **Arbeitsbereich** für Profil und Standard-Spracheinstellungen; **Budget und Freigaben** für Ausgaben und Zugriffsregeln; **Proaktivität** für Vorschläge, Überwachung und Zustellung; **KI und Dienste** für Architect und Systemdienste. Jedes Formular behält seine Berechtigungsprüfung. Budgetverantwortliche erreichen KI und Dienste auch ohne Architect-Konfiguration. Die Auswahl steht in der URL, Entwürfe bleiben beim Wechsel erhalten, und bisherige `?tab=voice`-Links öffnen Arbeitsbereich.
 
 ## Sprachen { #languages }
 

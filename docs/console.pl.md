@@ -1,5 +1,5 @@
 ---
-source_sha: "2353dfc1e3f6"
+source_sha: "e92aab93f8c2"
 ---
 
 # Konsola { #the-console }
@@ -800,11 +800,7 @@ poszerzyć.
 Kategorie i tagi agenta utrzymujesz na jego stronie szczegółów, obok kontrolek
 avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 
-Szczegóły organizacji są podzielone na zakładki: **Członkowie**, **Profil**, **Budżet i
-zgody**, **Proaktywność**, **Głos** i **AI Architect**. Zakładki administracyjne zależą
-od uprawnień; AI Architect pojawia się, gdy można go konfigurować. Wybrana zakładka jest
-zapisywana w URL (na przykład `?tab=voice`), a przełączanie zachowuje niezapisane
-wartości formularzy.
+Szczegóły organizacji mają pięć zakładek: **Członkowie** obejmują osoby i zaproszenia; **Organizacja** — profil i domyślne ustawienia głosu; **Budżet i zgody** — wydatki i zasady dostępu; **Proaktywność** — sugestie, monitoring i dostarczanie wyników; **AI i usługi** — Architecta i usługi systemowe. Każdy formularz zachowuje własne wymagania uprawnień. AI i usługi jest dostępne dla zarządzających budżetem także bez prawa konfiguracji Architecta. Wybrana zakładka jest zapisywana w URL, przełączanie zachowuje wersje robocze, a dawne linki `?tab=voice` otwierają Organizację.
 
 ## Języki { #languages }
 

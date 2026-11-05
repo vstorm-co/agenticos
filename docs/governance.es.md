@@ -1,5 +1,5 @@
 ---
-source_sha: "1e3e083daa0d"
+source_sha: "64c14327dcb0"
 ---
 
 # Governance { #governance }
@@ -815,13 +815,13 @@ Parte del trabajo es de la propia plataforma y aun así necesita un modelo. Un
 **rol de sistema** le da un responsable que un operador puede ver: una
 configuración por organización y rol, nunca una fila de agent, nunca una por tarea
 y nunca atribuida al agent inicial ni a ningún agent cuyas instrucciones no se
-ejecutaron (#2575). **Organizaciones → Miembros → Agentes de sistema**
+ejecutaron (#2575). **Organizaciones → AI & services → Background services**
 (`budgets:manage`) lista cada rol con el modelo en que corre, el gasto de este mes
 y sus últimas ejecuciones.
 
 | Rol | Qué hace | Configuración |
 |---|---|---|
-| `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En Proactividad, arriba: el mismo modelo y límite, aquí solo de lectura |
+| `daily_briefing` | La mirada nocturna a la semana de cada persona y el briefing que se construye con ella | En la pestaña Proactivity: el mismo modelo y límite, aquí solo de lectura |
 | `memory_maintenance` | Lee una vez un turno admitido terminado y registra los hechos, preferencias y decisiones duraderos que contiene como [claims](reference/capabilities.md#memory-claims) | Aquí: un interruptor, un modelo y un presupuesto mensual propio |
 
 El mantenimiento de memoria no necesita al agente inicial AgenticOS. Su run conserva el agente de origen como referencia de almacenamiento y se contabiliza como `memory_maintenance`; solo ejecuta las instrucciones de extracción de la plataforma con el modelo elegido para el rol. Eliminar o retirar la publicación del agente inicial no desactiva la extracción de otros agentes publicados.

@@ -1,5 +1,5 @@
 ---
-source_sha: "1e3e083daa0d"
+source_sha: "64c14327dcb0"
 ---
 
 # Governance { #governance }
@@ -855,13 +855,13 @@ Manche Arbeit gehört der Plattform selbst und braucht dennoch ein Modell. Eine
 **Systemrolle** gibt ihr einen Eigentümer, den ein Betreiber sehen kann: eine
 Konfiguration je Organisation und Rolle, nie eine Agent-Zeile, nie eine je Job und
 nie dem Starter-Agent oder einem Agent zugeschrieben, dessen Anweisungen nicht
-liefen (#2575). **Organisationen → Mitglieder → Systemagenten** (`budgets:manage`)
+liefen (#2575). **Organisationen → KI und Dienste → Hintergrunddienste** (`budgets:manage`)
 listet jede Rolle mit ihrem Modell, den Ausgaben dieses Monats und ihren letzten
 Ausführungen.
 
 | Rolle | Was sie tut | Konfiguriert |
 |---|---|---|
-| `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Unter Proaktivität, oben: dasselbe Modell und Limit, hier nur lesbar |
+| `daily_briefing` | Der nächtliche Blick auf die Woche jeder Person und das daraus gebaute Briefing | Im Tab Proaktivität: dasselbe Modell und Limit, hier nur lesbar |
 | `memory_maintenance` | Liest eine abgeschlossene zugelassene Runde einmal und hält die dauerhaften Fakten, Vorlieben und Entscheidungen darin als [Claims](reference/capabilities.md#memory-claims) fest | Hier: ein Schalter, ein Modell und ein eigenes Monatsbudget |
 
 Die Gedächtnispflege benötigt den AgenticOS-Starter nicht. Ihr Run behält den Ursprungsagenten als Speicherreferenz und wird als `memory_maintenance` abgerechnet; ausgeführt werden nur die Extraktionsanweisungen der Plattform auf dem für die Rolle gewählten Modell. Entfernen oder Zurückziehen des Starters deaktiviert die Extraktion anderer veröffentlichter Agenten nicht.
