@@ -26,6 +26,7 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import json
 import logging
 from binascii import Error as BinasciiError
 from collections.abc import (
@@ -2210,9 +2211,9 @@ class SandboxWorkspaceService:
         the route authorises by fetching the conversation, so whoever may open
         one file of a chat may download a folder of it - and nobody else.
 
-        The files are those the panel would show - `browsable`, so a `.git`, a
-        `node_modules` or the platform's own `.agenticos` stays behind - listed
-        whole before a byte is sent, so a folder past the bounds is refused with
+        The files and folders are those the panel would show - `browsable`, so
+        a `.git`, a `node_modules` or the platform's own `.agenticos` stays
+        behind - listed whole before a byte is sent, so a folder past the bounds is refused with
         a status rather than cut off mid-download. The listing reaches deeper
         than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts short is refused
         rather than zipped incomplete. A file the host will not serve once the
@@ -2224,7 +2225,8 @@ class SandboxWorkspaceService:
 
         Raises:
             NotFoundError: If the conversation keeps no workspace, or the folder
-                holds no file.
+                is not one the panel shows. An empty folder it shows is a zip
+                holding that folder.
             BadRequestError: If the folder climbs out of the workspace, or the
                 host cannot be read.
             ExportTooLargeError: If the folder holds more than one download may.
@@ -2242,14 +2244,18 @@ class SandboxWorkspaceService:
         # On the file pool: a host listing runs to a hundred thousand entries,
         # and filtering that many held the loop for close to half a second.
         members, name = await run_blocking(_zip_members_of, listing, wanted)
-        if not members:
-            raise NotFoundError(message="No files in this folder", details={"path": folder})
         return FolderZip(name=name, chunks=self._zipped(ctx, row, members))
 
     async def _zip_listing(
         self, ctx: AuthContext, row: AgentWorkspace, folder: str
     ) -> list[FileInfo]:
-        """Every file under `folder`, or a refusal - never a listing cut short."""
+        """Every entry under `folder`, or a refusal - never a listing cut short.
+
+        A host lists what is under a folder, not the folder itself, so its
+        answering at all is what says the folder is there - and an empty one is
+        then a zip of that folder rather than a 404. The folder is added to the
+        listing as a directory, so `browsable` still decides whether it is shown.
+        """
         if row.backend == "state":
             return stored_entries(dict(row.files or {}), row.directories or ())
         async with self._archive(ctx, row) as archive:
@@ -2274,7 +2280,8 @@ class SandboxWorkspaceService:
                 message="This folder is too large to download as one zip. Download a smaller folder.",
                 details={"max_listed": _ZIP_LISTED_ENTRIES, "max_depth": _ZIP_MAX_DEPTH},
             )
-        return list(tree.entries)
+        itself = FileInfo(name=PurePosixPath(folder).name, path=folder, is_dir=True, size=0)
+        return [itself, *tree.entries]
 
     async def _zipped(
         self, ctx: AuthContext, row: AgentWorkspace, members: list[tuple[str, str]]
@@ -2653,12 +2660,11 @@ def _document_bytes(document: StateBackend, path: str) -> bytes | None:
 
 
 def _zip_members_of(listing: list[FileInfo], folder: str) -> tuple[list[tuple[str, str]], str]:
-    """`zip_members` over the browsable files of a listing - see `folder_zip`."""
+    """`zip_members` over the browsable entries of a listing - see `folder_zip`."""
     return zip_members(
         (
-            (str(entry.get("path")), entry.get("size"))
+            (str(entry.get("path")), entry.get("size"), bool(entry.get("is_dir")))
             for entry in browsable(listing)
-            if not entry.get("is_dir")
         ),
         folder,
     )
@@ -2882,8 +2888,23 @@ def _reason(exc: Exception) -> str:
     it names the exact setting (`workspace_root`), which is the difference between
     an operator fixing this in one line and filing a bug against us.
     """
-    detail = str(exc).strip() or exc.__class__.__name__
-    return f"This host's files could not be read. {detail}"
+    return f"This host's files could not be read. {_detail(exc)}"
+
+
+def _detail(exc: Exception) -> str:
+    """An exception's text, with the JSON a host wraps its own sentence in taken off.
+
+    A refusal from the host arrives as FastAPI's body, `{"detail": "..."}`, and
+    that is what `NOT-INCLUDED.txt` and the panel showed. Any other shape - a
+    validation error's list, plain text - is kept as it came.
+    """
+    text = str(exc).strip()
+    try:
+        body = json.loads(text)
+    except ValueError:
+        return text or exc.__class__.__name__
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return detail.strip() if isinstance(detail, str) and detail.strip() else text
 
 
 def stored_ceiling(row: AgentWorkspace) -> int | None:

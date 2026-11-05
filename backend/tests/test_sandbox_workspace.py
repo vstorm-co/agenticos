@@ -1667,9 +1667,70 @@ class TestDownloadingAFolderAsAZip:
 
         assert folder.name == "ab12-repo.zip"
         assert await _unzipped(folder) == {
+            "ab12-repo/": b"",
             "ab12-repo/src/app.py": b"print(1)",
             "ab12-repo/README.md": b"# repo",
         }
+
+    async def test_a_stored_empty_folder_round_trips(self, monkeypatch, mock_db_session):
+        """An archive's empty folder is unpacked and shown, so it comes back out."""
+        stored = StateBackend()
+        stored.write_bytes("/uploads/repo/a.py", b"a")
+        row = _row(
+            files=dict(stored.files),
+            directories=["/uploads/repo/empty", "/uploads/repo/node_modules"],
+        )
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        whole = await service.folder_zip(_ctx(), conversation_id=uuid4(), folder="uploads/repo")
+        empty = await service.folder_zip(
+            _ctx(), conversation_id=uuid4(), folder="/uploads/repo/empty"
+        )
+
+        assert await _unzipped(whole) == {"repo/": b"", "repo/a.py": b"a", "repo/empty/": b""}
+        assert empty.name == "empty.zip"
+        assert await _unzipped(empty) == {"empty/": b""}
+
+    @pytest.mark.parametrize("folder", ["missing", "uploads/repo/node_modules"])
+    async def test_a_stored_folder_not_shown_is_not_found(
+        self, monkeypatch, mock_db_session, folder
+    ):
+        row = _row(files={}, directories=["/uploads/repo/node_modules"])
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=folder
+            )
+
+    async def test_a_container_s_empty_folder_round_trips(self, monkeypatch, mock_db_session):
+        """The host lists what is under a folder, not the folder itself: that it
+        answered at all is what says the folder is there."""
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                entries = {
+                    "repo": [{"name": "empty", "path": "repo/empty", "is_dir": True, "size": 0}],
+                    "repo/empty": [],
+                }
+                return WorkspaceTree(entries=entries[path], truncated=False)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        whole = await service.folder_zip(_ctx(), conversation_id=uuid4(), folder="repo")
+        empty = await service.folder_zip(_ctx(), conversation_id=uuid4(), folder="repo/empty")
+
+        assert await _unzipped(whole) == {"repo/": b"", "repo/empty/": b""}
+        assert await _unzipped(empty) == {"empty/": b""}
 
     async def test_a_stored_workspace_builds_its_document_once_per_zip(
         self, monkeypatch, mock_db_session
@@ -1692,7 +1753,7 @@ class TestDownloadingAFolderAsAZip:
 
         monkeypatch.setattr(sandbox_workspace, "StateBackend", counting)
 
-        assert len(await _unzipped(folder)) == 5
+        assert len(await _unzipped(folder)) == 6  # five files and their folder
         assert len(built) == 1
 
     async def test_a_container_folder_is_listed_deep_and_read_through_one_client(
@@ -1731,6 +1792,7 @@ class TestDownloadingAFolderAsAZip:
         )
 
         assert await _unzipped(folder) == {
+            "out/": b"",
             "out/a.py": b"out/a.py",
             "out/deep/b.py": b"out/deep/b.py",
         }
@@ -1819,10 +1881,11 @@ class TestDownloadingAFolderAsAZip:
         )
 
         assert await _unzipped(folder) == {
+            "workspace/": b"",
             "workspace/NOT-INCLUDED.txt": (
                 b"These files could not be read, and are not in this zip:\n\n"
                 b"workspace/a: No such file\n"
-            )
+            ),
         }
 
     @pytest.mark.parametrize(
@@ -4697,6 +4760,29 @@ class TestWalkingAHostsDirectories:
         assert contents.entries == []
         assert contents.unreadable_reason is not None
         assert "workspace_root" in contents.unreadable_reason
+
+
+class TestAHostsReasonReadsAsASentence:
+    """The host answers an error as FastAPI's JSON; a person is shown its detail."""
+
+    @pytest.mark.parametrize(
+        ("raised", "said"),
+        [
+            (
+                WorkspaceArchiveError('{"detail":"File is 9437184 bytes, over the read limit"}'),
+                "File is 9437184 bytes, over the read limit",
+            ),
+            (
+                WorkspaceArchiveError("Could not reach the sandbox service"),
+                "Could not reach the sandbox service",
+            ),
+            (WorkspaceArchiveError('{"detail":[{"msg":"bad"}]}'), '{"detail":[{"msg":"bad"}]}'),
+            (WorkspaceArchiveError('["no detail"]'), '["no detail"]'),
+            (WorkspaceArchiveError(""), "WorkspaceArchiveError"),
+        ],
+    )
+    def test_the_detail_is_kept_and_the_wrapping_dropped(self, raised, said):
+        assert sandbox_workspace._reason(raised) == f"This host's files could not be read. {said}"
 
 
 class TestDrawingAHostsImages:

@@ -497,31 +497,82 @@ class TestZippingAFolder:
 
     def test_only_the_folder_is_picked_under_its_own_name(self):
         picked, name = zip_members(
-            [("/uploads/repo/a.py", 3), ("./uploads/repo/sub/b.py", None), ("/other.txt", 1)],
+            [
+                ("/uploads/repo/a.py", 3, False),
+                ("./uploads/repo/sub/b.py", None, False),
+                ("/other.txt", 1, False),
+            ],
             "uploads/repo",
         )
 
         assert name == "repo.zip"
         assert picked == [
+            ("uploads/repo", "repo/"),
             ("/uploads/repo/a.py", "repo/a.py"),
             ("./uploads/repo/sub/b.py", "repo/sub/b.py"),
         ]
+
+    def test_a_folder_s_folders_are_entries_of_their_own(self):
+        """An empty folder has no file to imply it, so it is lost unless named."""
+        picked, _name = zip_members(
+            [
+                ("/repo", 0, True),
+                ("/repo/empty", 0, True),
+                ("/repo/src", 0, True),
+                ("/repo/src/a.py", 1, False),
+            ],
+            "repo",
+        )
+
+        assert picked == [
+            ("repo", "repo/"),
+            ("/repo/empty", "repo/empty/"),
+            ("/repo/src", "repo/src/"),
+            ("/repo/src/a.py", "repo/src/a.py"),
+        ]
+
+    def test_an_empty_folder_is_a_zip_of_that_folder(self):
+        picked, name = zip_members([("/repo/empty", 0, True)], "repo/empty")
+
+        assert (picked, name) == ([("repo/empty", "empty/")], "empty.zip")
+
+    @pytest.mark.parametrize(
+        ("entries", "folder"),
+        [
+            ([("/repo/a.py", 1, False)], "other"),
+            ([("/repo", 1, False)], "repo"),
+            ([("/", 0, True), (".", 0, True)], ""),
+            ([], ""),
+        ],
+    )
+    def test_a_folder_that_is_not_there_is_not_found(self, entries, folder):
+        with pytest.raises(NotFoundError):
+            zip_members(entries, folder)
+
+    def test_folders_count_against_the_entry_bound(self, monkeypatch):
+        monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 1)
+
+        with pytest.raises(ExportTooLargeError):
+            zip_members([("a", 0, True), ("a/b", 0, True)], "")
 
     @pytest.mark.security
     def test_a_name_an_unpacker_would_split_is_encoded(self):
         """A POSIX name may hold a backslash, which Windows reads as a separator:
         `..\\..\\x` would land outside the folder the zip was saved into."""
-        picked, _name = zip_members([("/..\\..\\payload", 1), ("/50%\nnew", 1)], "")
+        picked, _name = zip_members([("/..\\..\\payload", 1, False), ("/50%\nnew", 1, False)], "")
 
-        assert picked == [
+        assert picked[1:] == [
             ("/..\\..\\payload", "workspace/..%5C..%5Cpayload"),
             ("/50%\nnew", "workspace/50%25%0Anew"),
         ]
 
     def test_the_whole_workspace(self):
-        picked, name = zip_members([("/a.txt", 1)], "")
+        picked, name = zip_members([("/a.txt", 1, False)], "")
 
-        assert (picked, name) == ([("/a.txt", "workspace/a.txt")], "workspace.zip")
+        assert (picked, name) == (
+            [("", "workspace/"), ("/a.txt", "workspace/a.txt")],
+            "workspace.zip",
+        )
 
     @pytest.mark.parametrize(
         ("setting", "value"),
@@ -531,7 +582,7 @@ class TestZippingAFolder:
         monkeypatch.setattr(settings, setting, value)
 
         with pytest.raises(ExportTooLargeError):
-            zip_members([("a", 3), ("b", 3)], "")
+            zip_members([("a", 3, False), ("b", 3, False)], "")
 
     async def test_the_stream_is_a_zip_of_the_same_tree(self):
         files = {"/repo/a.py": b"a" * 1000, "/repo/sub/b.py": b"b"}
@@ -552,6 +603,22 @@ class TestZippingAFolder:
                 "repo/a.py": b"a" * 1000,
                 "repo/sub/b.py": b"b",
             }
+
+    async def test_a_folder_is_written_as_a_folder_and_never_read(self):
+        read = AsyncMock(return_value=b"a")
+
+        chunks = [
+            chunk
+            async for chunk in stream_zip(
+                [("repo", "repo/"), ("/repo/empty", "repo/empty/"), ("/repo/a", "repo/a")], read
+            )
+        ]
+
+        with zipfile.ZipFile(io.BytesIO(b"".join(chunks))) as archive:
+            assert archive.namelist() == ["repo/", "repo/empty/", "repo/a"]
+            assert archive.getinfo("repo/empty/").is_dir()
+            assert archive.read("repo/a") == b"a"
+        read.assert_awaited_once_with("/repo/a")
 
     async def test_a_file_that_cannot_be_read_is_named_rather_than_breaking_the_zip(self):
         async def read(path: str) -> bytes:

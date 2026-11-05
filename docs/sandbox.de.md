@@ -1,5 +1,5 @@
 ---
-source_sha: "fb0f7f957d22"
+source_sha: "7b3c2bc4946d"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -675,18 +675,24 @@ tiefer ist als eine Seite voller Kacheln, und fragt den Host nach bis zu 100.000
 Einträgen, weil der Host auch die ausgeblendeten Ordner auflistet. Die Dateien
 liegen unter einem obersten Ordner, der wie der heruntergeladene Ordner heißt.
 
+Ordner sind eigene Einträge, also ist auch ein leerer Ordner im Zip, etwa einer aus
+einem angehängten Archiv. Ein leerer Ordner, allein heruntergeladen, ist ein Zip mit
+genau diesem Ordner, kein 404: Das Panel zeigt ihn, also liefert der Download, was
+gezeigt wurde. Ein Ordner, den das Panel nicht zeigt, ist ein 404.
+
 Ein Backslash, ein `%` oder ein Steuerzeichen im Namen einer Datei wird im Zip
 prozentkodiert (`a\b` wird zu `a%5Cb`), weil ein Entpacker unter Windows einen
 Backslash als Ordnertrenner liest.
 
 Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner
-mit mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Dateien oder mehr als
+mit mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Einträgen (Dateien und Ordner, gezählt wie bei einem
+angehängten Archiv) oder mehr als
 `WORKSPACE_ARCHIVE_MAX_BYTES`, oder einer, den der Host nicht vollständig
 auflisten konnte, wird mit 413 abgelehnt; ein Zip, dem stillschweigend Dateien
 fehlen, wäre schlimmer. Danach werden die Dateien einzeln gelesen und gestreamt.
 
 Eine Datei, die sich nach dem Start des Downloads nicht lesen lässt, wird
-ausgelassen und mit dem Grund in einer `NOT-INCLUDED.txt` im obersten Ordner des
+ausgelassen und mit dem Grund, den der Host nennt, in einer `NOT-INCLUDED.txt` im obersten Ordner des
 Zips genannt (`_NOT-INCLUDED.txt`, wenn der Ordner eine Datei dieses Namens hat).
 Das ist eine Datei, die seit der Auflistung gelöscht wurde, oder eine, die größer
 ist als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`, standardmäßig

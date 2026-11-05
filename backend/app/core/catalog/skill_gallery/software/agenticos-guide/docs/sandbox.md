@@ -618,18 +618,24 @@ levels deep, not six, because a repository is deeper than a page of tiles, and a
 the host for up to 100,000 entries, because the host lists the hidden folders too.
 The files are under one top folder named after the folder that was downloaded.
 
+Folders are entries of their own, so an empty folder, such as one unpacked from an
+attached archive, is in the zip too. An empty folder downloaded on its own is a zip
+holding just that folder, not a 404: the panel shows it, so the download gives what
+was shown. A folder the panel does not show is a 404.
+
 A backslash, a `%` or a control character in a file's name is percent-encoded in the
 zip (`a\b` becomes `a%5Cb`), because an unpacker on Windows reads a backslash as a
 folder separator.
 
 It is listed in full before the first byte is sent. A folder with more than
-`WORKSPACE_ARCHIVE_MAX_ENTRIES` files or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` entries (files and folders, as an attached archive's
+are counted) or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or
 one the host could not list completely, is refused with a 413; a zip that is
 missing files without saying so would be worse. The files are then read and
 streamed one at a time.
 
 A file that cannot be read after the download has started is left out and named,
-with the reason, in a `NOT-INCLUDED.txt` in the zip's top folder (`_NOT-INCLUDED.txt`
+with the host's reason, in a `NOT-INCLUDED.txt` in the zip's top folder (`_NOT-INCLUDED.txt`
 if the folder has a file of that name). That is a file deleted since the listing,
 or one larger than the host's own read limit (`SANDBOXD_MAX_READ_BYTES`, 8 MiB by
 default). If the host stops answering, or the files grow past the byte limit after

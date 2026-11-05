@@ -158,10 +158,11 @@ export function WorkspaceFiles({
   const count = files.length + unstored.length;
 
   // Only for the server's workspace: the archive route is the conversation's, and a
-  // folder on this computer is already a folder on this computer.
+  // folder on this computer is already a folder on this computer. Wherever the tree
+  // is drawn, folders included: the server zips an empty folder as that folder.
   const tErrors = useTranslations("errors");
   const zipFolder =
-    source?.kind === "conversation" && files.length > 0
+    source?.kind === "conversation" && (workspace?.items.length ?? 0) > 0
       ? (folder: string) =>
           void downloadConversationFolder(source.id, folder).catch((err: unknown) =>
             // The server's refusal - a folder too large, one gone - says why in

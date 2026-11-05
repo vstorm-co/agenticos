@@ -486,8 +486,10 @@ async def stream_zip(
     """A `.zip` of `members`, yielded one member at a time.
 
     Args:
-        members: Each file's path in the workspace, and its name in the zip -
-            all under one top folder.
+        members: Each entry's path in the workspace, and its name in the zip -
+            all under one top folder, the first member. A name ending in `/` is
+            a folder, written as a folder entry and never read, so an empty one
+            survives the trip.
         read: Reads one workspace path's bytes, raising `NotFoundError` or
             `BadRequestError` for one file it cannot serve.
 
@@ -510,6 +512,9 @@ async def stream_zip(
     missing: list[str] = []
     with zipfile.ZipFile(sink, "w") as archive:
         for path, name in members:
+            if name.endswith("/"):
+                await run_blocking_settled(archive.mkdir, name, 0o755)
+                continue
             try:
                 data = await read(path)
             except (NotFoundError, BadRequestError) as refused:
@@ -553,33 +558,47 @@ def zip_folder(folder: str) -> str:
 
 
 def zip_members(
-    entries: Iterable[tuple[str, int | None]], folder: str
+    entries: Iterable[tuple[str, int | None, bool]], folder: str
 ) -> tuple[list[tuple[str, str]], str]:
-    """Which files a folder's zip holds, and the name of the zip.
+    """Which files and folders a folder's zip holds, and the name of the zip.
+
+    Folders are entries of their own, a name ending in `/`, and count against
+    the entry bound as an archive's do on the way in: an empty folder has no
+    file to imply it, and is otherwise lost between the panel and the zip.
 
     Args:
-        entries: Each listed file's path and size, as the listing spells it.
+        entries: Each listed entry's path, size and whether it is a folder, as
+            the listing spells them.
         folder: The folder, from :func:`zip_folder`; empty for the whole workspace.
 
     Returns:
-        Each file's workspace path and its name inside the zip - under a top
+        Each entry's workspace path and its name inside the zip - under a top
         folder named after the one downloaded, so unzipping it does not scatter
-        files into wherever it was saved - and the zip's own name.
+        files into wherever it was saved, and which is the first member - and
+        the zip's own name. A folder that is there but empty is a zip of that
+        one folder: the panel shows it, so the download gives what was shown.
 
     Raises:
-        ExportTooLargeError: If the folder holds more files or bytes than one
+        NotFoundError: If the listing names neither the folder nor anything in
+            it - or, for the whole workspace, nothing at all.
+        ExportTooLargeError: If the folder holds more entries or bytes than one
             download may carry.
     """
     top = folder.rsplit("/", 1)[-1] if folder else "workspace"
     picked: list[tuple[str, str]] = []
+    found = False
     total = 0
-    for path, size in entries:
+    for path, size, is_dir in entries:
         relative = _normal(path)
-        if folder and not relative.startswith(f"{folder}/"):
+        if folder and relative == folder:
+            found = found or is_dir
             continue
+        if not relative or (folder and not relative.startswith(f"{folder}/")):
+            continue
+        found = True
         inside = relative[len(folder) + 1 :] if folder else relative
-        picked.append((path, f"{top}/{_zip_safe(inside)}"))
-        total += size or 0
+        picked.append((path, f"{top}/{_zip_safe(inside)}{'/' if is_dir else ''}"))
+        total += 0 if is_dir else size or 0
         if (
             len(picked) > settings.WORKSPACE_ARCHIVE_MAX_ENTRIES
             or total > settings.WORKSPACE_ARCHIVE_MAX_BYTES
@@ -591,7 +610,9 @@ def zip_members(
                     "max_bytes": settings.WORKSPACE_ARCHIVE_MAX_BYTES,
                 },
             )
-    return picked, f"{top}.zip"
+    if not found:
+        raise NotFoundError(message="No files in this folder", details={"path": folder})
+    return [(folder, f"{top}/"), *picked], f"{top}.zip"
 
 
 _UNSAFE_IN_ZIP = re.compile(r"[\\\x00-\x1f\x7f%]")

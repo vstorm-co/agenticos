@@ -1,5 +1,5 @@
 ---
-source_sha: "fb0f7f957d22"
+source_sha: "7b3c2bc4946d"
 ---
 
 # Sandbox { #the-sandbox }
@@ -639,19 +639,26 @@ poziomów w głąb, a nie sześciu, bo repozytorium jest głębsze niż strona k
 prosi host o najwyżej 100 000 wpisów, bo host listuje też ukryte foldery. Pliki
 leżą pod jednym folderem głównym nazwanym jak pobierany folder.
 
+Foldery są osobnymi wpisami, więc pusty folder, na przykład rozpakowany z
+załączonego archiwum, też
+trafia do zipa. Pusty folder pobrany osobno to zip zawierający tylko ten folder, a
+nie 404: panel go pokazuje, więc pobranie daje to, co pokazano. Folder, którego
+panel nie pokazuje, to 404.
+
 Ukośnik wsteczny,
 `%` albo znak sterujący w nazwie pliku są w zipie zakodowane procentowo (`a\b`
 staje się `a%5Cb`), bo program rozpakowujący na Windows czyta ukośnik wsteczny jako
 separator folderów.
 
 Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
-`WORKSPACE_ARCHIVE_MAX_ENTRIES` plikami albo większy niż
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` wpisami (pliki i foldery, liczone jak w załączonym
+archiwum) albo większy niż
 `WORKSPACE_ARCHIVE_MAX_BYTES`, albo taki, którego host nie wylistował w całości,
 jest odrzucany z kodem 413; zip, w którym bez słowa brakuje plików, byłby gorszy.
 Potem pliki są czytane i strumieniowane po jednym.
 
 Plik, którego nie da się przeczytać po rozpoczęciu pobierania, jest pomijany i
-wymieniony, z powodem, w `NOT-INCLUDED.txt` w głównym folderze zipa
+wymieniony, z powodem podanym przez host, w `NOT-INCLUDED.txt` w głównym folderze zipa
 (`_NOT-INCLUDED.txt`, jeśli folder ma plik o tej nazwie). To plik usunięty po
 wylistowaniu albo większy niż własny limit odczytu hosta
 (`SANDBOXD_MAX_READ_BYTES`, domyślnie 8 MiB). Jeśli host przestanie odpowiadać albo

@@ -750,6 +750,35 @@ describe("the workspace panel", () => {
       },
     );
 
+    it("offers an empty folder as a zip, which the server answers with that folder", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue(
+        workspace({
+          items: [
+            { path: "/uploads/aaaaaaaa-repo/empty", size: null, is_dir: true, modified_at: null },
+          ],
+          total: 1,
+        }),
+      );
+      const names = saved();
+
+      draw(
+        <WorkspaceFiles
+          buttonSlot={document.body}
+          conversationId="c1"
+          attachments={[]}
+          revision={0}
+        />,
+      );
+      await openPanel();
+      await userEvent.click(await screen.findByRole("button", { name: "Download empty as .zip" }));
+
+      await waitFor(() => expect(names).toEqual(["empty.zip"]));
+      expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+        "/conversations/c1/workspace/archive?path=uploads%2Faaaaaaaa-repo%2Fempty",
+      );
+      expect(screen.getByRole("button", { name: "Download as .zip" })).toBeVisible();
+    });
+
     it("offers nothing to zip in a workspace with no files", async () => {
       vi.mocked(apiClient.get).mockResolvedValue(workspace({ items: [], total: 0 }));
 
