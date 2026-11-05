@@ -1166,6 +1166,11 @@ describe("the chat container - an answer still being written after its person le
         ([url]) => url === `/conversations/${LEFT}/messages?latest=true&limit=101`,
       );
     const before = reads().length;
+    const question = screen.getByText("Write me a rollout plan");
+    const observedLengths: number[] = [];
+    const unsubscribe = useChatStore.subscribe((state) =>
+      observedLengths.push(state.messages.length),
+    );
 
     // The run ends: the next read of the list no longer says it is at work.
     running = null;
@@ -1173,7 +1178,13 @@ describe("the chat container - an answer still being written after its person le
       await client.invalidateQueries();
     });
 
-    await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
+    try {
+      await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before), SETTLE);
+      expect(observedLengths).not.toContain(0);
+      expect(screen.getByText("Write me a rollout plan")).toBe(question);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("says nothing of an answer left behind while this tab holds the call that is the run", async () => {

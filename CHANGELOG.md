@@ -184,6 +184,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refresh background chat answers in place; sidebar run updates no longer clear
+  and reload the open transcript between queued messages.
+
 - Link Inbox task titles to their tables instead of displaying a separate Open table button.
 
 - Keep queued chat turns from moving the reader to each new question, and keep

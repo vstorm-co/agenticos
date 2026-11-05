@@ -524,6 +524,7 @@ export function ChatContainer({
   // The conversation whose run ended without writing an answer.
   const [lostIn, setLostIn] = useState<string | null>(null);
   const answered = messages.at(-1)?.role === "assistant";
+  const hasForegroundTurn = isProcessing || callActive(voice);
   const answeredRef = useRef(answered);
   useEffect(() => {
     answeredRef.current = answered;
@@ -533,14 +534,17 @@ export function ChatContainer({
     const running = runningSince !== null;
     runningIn.current = { id: currentConversationId, running };
     if (was.id !== currentConversationId || !was.running || running) return;
-    if (currentConversationId === null || answeredRef.current) return;
+    if (currentConversationId === null || answeredRef.current || hasForegroundTurn) return;
     const id = currentConversationId;
     let waiting = true;
     void (async () => {
       for (const pause of ANSWER_REREADS_MS) {
         await new Promise((resolve) => setTimeout(resolve, pause));
         if (!waiting) return;
-        await selectConversation(id);
+        // This is an update to the open thread, not a navigation. Selecting it
+        // clears every message and briefly replaces the transcript with a loader.
+        await rereadConversation(id);
+        if (!waiting) return;
         if (useConversationStore.getState().currentMessages.at(-1)?.role === "assistant") return;
       }
       // The run ended and wrote nothing: its process died under it and the
@@ -550,7 +554,7 @@ export function ChatContainer({
     return () => {
       waiting = false;
     };
-  }, [runningSince, currentConversationId, selectConversation]);
+  }, [runningSince, currentConversationId, rereadConversation, hasForegroundTurn]);
   // Until something else is asked or answered there: then the transcript no
   // longer ends with the question nobody answered.
   const unanswered = messages.at(-1);
