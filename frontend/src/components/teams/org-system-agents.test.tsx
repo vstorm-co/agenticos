@@ -143,6 +143,14 @@ describe("OrgSystemAgents", () => {
     expect(card.querySelector("button")).toBeNull();
   });
 
+  it("keeps service configuration collapsed while its usage stays visible", async () => {
+    render(<OrgSystemAgents org={ORG} />);
+    expect(screen.getByRole("button", { name: "pick" })).not.toBeVisible();
+    expect(screen.getByTestId("system-agent-memory_maintenance")).toHaveTextContent("noRuns");
+    await userEvent.click(screen.getByText("configure"));
+    expect(screen.getByRole("button", { name: "pick" })).toBeVisible();
+  });
+
   it("says when the briefing has no model yet, and when it is off", () => {
     state.roles = [{ ...briefing, enabled: false, model_label: null }, agent()];
     render(<OrgSystemAgents org={ORG} />);
@@ -190,6 +198,7 @@ describe("OrgSystemAgents", () => {
 
   it("refuses to turn on without a model and a budget that is not a number", async () => {
     render(<OrgSystemAgents org={ORG} />);
+    await userEvent.click(screen.getByText("configure"));
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
@@ -204,6 +213,7 @@ describe("OrgSystemAgents", () => {
 
   it("saves the switch, the model and the budget together", async () => {
     render(<OrgSystemAgents org={ORG} />);
+    await userEvent.click(screen.getByText("configure"));
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
@@ -224,6 +234,7 @@ describe("OrgSystemAgents", () => {
       agent({ enabled: true, model_profile_id: "model-1", monthly_budget_usd: "5" }),
     ];
     render(<OrgSystemAgents org={ORG} />);
+    await userEvent.click(screen.getByText("configure"));
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
@@ -239,6 +250,7 @@ describe("OrgSystemAgents", () => {
 
   it("holds the save while a model is being created", async () => {
     render(<OrgSystemAgents org={ORG} />);
+    await userEvent.click(screen.getByText("configure"));
     await userEvent.type(screen.getByLabelText("budget"), "1");
     const save = screen.getByRole("button", { name: "save" });
 
@@ -256,6 +268,7 @@ describe("OrgSystemAgents", () => {
       }),
     );
     render(<OrgSystemAgents org={ORG} />);
+    await userEvent.click(screen.getByText("configure"));
     await userEvent.type(screen.getByLabelText("budget"), "1");
     await userEvent.click(screen.getByRole("button", { name: "save" }));
 

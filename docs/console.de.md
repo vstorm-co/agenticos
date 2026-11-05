@@ -1,5 +1,5 @@
 ---
-source_sha: "c6eb01702f50"
+source_sha: "07314a789f01"
 ---
 
 # Die Konsole { #the-console }
@@ -163,6 +163,8 @@ Zeitplan oder Ereignis mit seinen Werkzeugen; die Läufe erscheinen in Activity.
 **Meine Beobachtungen** liest nur persönliche verbundene Konten und sendet
 Ergebnisse in den privaten Posteingang. Jeder Tab hat eigene Erstellungsaktionen.
 `/routines?tab=watches` öffnet die Beobachtungen.
+
+Organisation → Proaktivität trennt Vorschläge, Überwachung, gemeinsame Limits, Zustellungszeiten und Begrüßungen. Ungespeicherte Änderungen lassen sich verwerfen. Hintergrunddienste zeigen Status und Verbrauch; Modell- und Budgeteinstellungen werden pro Dienst aufgeklappt.
 
 Zeitgesteuerte, ereignisgesteuerte und überwachende Routinen verwenden denselben Dialograhmen mit festem Kopfbereich und Navigation sowie einem scrollbaren Formular. Das Erstellen einer Überwachung führt durch Konfiguration, Nachricht und Zeitplan; Zurück erhält den Entwurf. Die Agentenauswahl zeigt dieselben Avatare wie der Chat. Ausführungs- und Zustelloptionen einer Überwachung stehen gemeinsam in einem Bereich für erweiterte Optionen.
 

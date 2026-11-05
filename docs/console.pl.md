@@ -1,5 +1,5 @@
 ---
-source_sha: "c6eb01702f50"
+source_sha: "07314a789f01"
 ---
 
 # Konsola { #the-console }
@@ -155,6 +155,8 @@ harmonogramu lub zdarzenia, z jego narzędziami; runy widać w Activity.
 **Moje obserwacje** tylko odczytują osobiste połączenia i przekazują znaleziska do
 prywatnego Inbox. Każda zakładka ma własne przyciski tworzenia.
 `/routines?tab=watches` otwiera obserwacje.
+
+Organizacja → Proaktywność oddziela sugestie, monitoring, wspólne limity, harmonogram dostarczania i powitania. Niezapisane zmiany można odrzucić. Usługi działające w tle pokazują stan i zużycie, a ustawienia modelu i budżetu rozwija się przy konkretnej usłudze.
 
 Rutyny harmonogramowe, zdarzeniowe i obserwacje korzystają z tej samej ramy modalu: stałego nagłówka i nawigacji oraz przewijanego formularza. Tworzenie obserwacji prowadzi przez konfigurację, wiadomość i częstotliwość; przycisk Wstecz zachowuje wpisane dane. Wybór agenta pokazuje te same avatary co czat. Ustawienia wykonania i dostarczania obserwacji są zebrane w jednym panelu opcji zaawansowanych.
 

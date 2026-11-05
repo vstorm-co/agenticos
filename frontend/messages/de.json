@@ -8122,6 +8122,12 @@
     "publicLiveDataConfirmWhy": "Jeder mit dem öffentlichen Link einer Seite und jede Website, die sie einbettet, sieht ihre Tabellendaten ohne Anmeldung. Gezeigt wird erst etwas, wenn der Eigentümer der Seite oder ein Owner bzw. Admin sie bestätigt. Früher bestätigte Seiten zeigen ihre Daten sofort wieder.",
     "publicLiveDataConfirm": "Erlauben",
     "proactive": {
+      "budgetTitle": "Budget und Limits",
+      "budgetHint": "Monatliches Budget für Hintergrundarbeit pro Mitglied.",
+      "deliveryTitle": "Zustellungszeitplan",
+      "deliveryHint": "Wählen Sie, wann Vorschläge und Zusammenfassungen nicht dringender Überwachungsergebnisse laufen. Es gilt die Zeitzone des jeweiligen Mitglieds.",
+      "unsavedChanges": "Sie haben ungespeicherte Änderungen",
+      "discardChanges": "Änderungen verwerfen",
       "title": "Assistentenvorschläge und Überwachung",
       "description": "Gesprächsbasierte Vorschläge und lesende Überwachung funktionieren unabhängig. Zeit- und ereignisgesteuerte Routinen benötigen keine aktivierten Vorschläge.",
       "nightly": "Nächtliche Vorschläge",
@@ -8149,15 +8155,16 @@
       "welcomeSaved": "Willkommensnachricht gespeichert",
       "watches": "Lesende Überwachungsroutinen erlauben",
       "watchesHint": "Mitglieder wählen einen Agenten und genehmigen Quellen ihrer eigenen Konten. Relevante Änderungen erscheinen in der Inbox; angeforderte Entwürfe im Arbeitschat.",
-      "watchMinutes": "Höchstens",
+      "watchMinutes": "Mindestabstand zwischen Prüfungen",
       "watchMinutesHint": "Wie oft eine einzelne Beobachtung höchstens nachsehen darf. Häufiger kostet mehr.",
       "switchOrganizationHint": "Wechsle vor dem Konfigurieren der Proaktivität zu dieser Organisation, damit ihre Modellprofile und Schlüssel verwendet werden.",
       "switchOrganization": "Zu {name} wechseln",
-      "runAttribution": "Die Gesprächsanalyse nutzt das Modell unten, die Überwachung den gewählten Agenten. Beide teilen das monatliche Hintergrundbudget pro Person. Tage und Uhrzeit bestimmen auch die Zusammenfassung nicht dringender Funde."
+      "runAttribution": "Vorschläge verwenden ein eigenes Modell, die Überwachung das Modell des gewählten Agenten. Beide teilen sich ein monatliches Budget für Hintergrundarbeit pro Mitglied."
     },
     "systemAgents": {
-      "title": "Systemagenten",
-      "description": "Arbeit, die die Plattform selbst erledigt und die ein Modell braucht. Jede Rolle hat eigene Konfiguration und Verlauf; nichts davon wird einem Agent zugeschrieben, dessen Anweisungen nicht liefen.",
+      "configure": "Modell und Budget konfigurieren",
+      "title": "Hintergrunddienste",
+      "description": "Modellgestützte Plattformdienste. Klappen Sie einen Dienst auf, um Modell und Budget festzulegen. Verbrauch und letzte Ausführungen bleiben darunter sichtbar.",
       "on": "An",
       "off": "Aus",
       "managedIn": "Läuft auf {model}. Konfiguriert unter Proaktivität oben, es gibt also ein Modell und ein Limit.",

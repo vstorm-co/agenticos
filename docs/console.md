@@ -146,6 +146,8 @@ event, with its configured tools; runs appear in Activity. **My watches** only
 reads your personal connected accounts and sends findings to your private Inbox.
 Each tab has its own creation controls. `/routines?tab=watches` opens watches.
 
+Organization → Proactivity separates suggestions, monitoring, shared limits, delivery timing and welcome messages. Unsaved changes can be discarded. Background services show status and usage, with model and budget controls expanded per service.
+
 Scheduled, event and monitoring routines use the same dialog frame, with a fixed header and navigation and a scrolling form. Creating a watch walks through Configure, Message and Schedule; Back preserves your draft. Agent pickers show the same avatars as chat. Watch execution and delivery settings live together under one Advanced options panel.
 
 On the dashboard, Discover starts with illustrated capabilities. Hover over a

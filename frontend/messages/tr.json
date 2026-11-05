@@ -10564,7 +10564,47 @@
     "publicLiveDataConfirmTitle": "Herkese açık sayfalarda canlı veriye izin verilsin mi?",
     "publicLiveDataConfirmWhy": "Bir sayfanın herkese açık bağlantısına sahip herkes ve sayfayı embed eden tüm siteler, oturum açmadan tablo verilerini görür. Sayfanın sahibi veya bir Owner ya da Admin onaylayana kadar hiçbir veri gösterilmez. Daha önce onaylanmış sayfalar verilerini hemen yeniden gösterir.",
     "publicLiveDataConfirm": "İzin ver",
+    "systemAgents": {
+      "title": "Arka plan hizmetleri",
+      "description": "Model kullanan platform hizmetleri. Model ve bütçeyi yapılandırmak için bir hizmeti genişletin. Kullanım ve son çalıştırmalar aşağıda görünür.",
+      "configure": "Model ve bütçeyi yapılandır",
+      "on": "Açık",
+      "off": "Kapalı",
+      "managedIn": "{model} üzerinde çalışır. Tek bir model ve sınır olması için yukarıdaki Proactivity bölümünden yapılandırılır.",
+      "managedInNoModel": "Henüz model seçilmedi. Yukarıdaki Proactivity bölümünden yapılandırılır.",
+      "enabled": "Bu rolü çalıştır",
+      "model": "Model",
+      "modelHint": "Rol, o anda istenmemiş bir iş için para harcadığından model açıkça seçilir.",
+      "budget": "Aylık bütçe (USD)",
+      "noBudget": "Ayrı bir sınır yok",
+      "invalid": "Sıfır veya daha büyük bir sayı girin.",
+      "modelRequired": "Etkinleştirmeden önce bu rolün modelini seçin.",
+      "save": "Kaydet",
+      "saved": "Kaydedildi",
+      "savedOff": "Kapatıldı",
+      "spent": "Bu ay harcanan: {amount}",
+      "spentOf": "Bu ay harcanan: {amount} / {budget}",
+      "noRuns": "Henüz çalıştırılmadı.",
+      "unknownModel": "Model bilinmiyor",
+      "roles": {
+        "daily_briefing": {
+          "name": "Günlük özet",
+          "what": "Her kişinin haftasını gece inceleyerek özet hazırlar."
+        },
+        "memory_maintenance": {
+          "name": "Bellek bakımı",
+          "what": "Tamamlanan bir sohbeti okuyarak kalıcı bilgileri, tercihleri ve kararları sohbetin kapsamına kaydeder. Kapalıyken veya modeli yokken çalışmaz."
+        }
+      },
+      "starterAgentMissing": "Bu rol şu anda çalışmıyor: kayıt için kullandığı AgenticOS başlangıç temsilcisi eksik, yayınlanmamış veya yeniden adlandırılmış. agenticos adıyla yeniden yayınlayın."
+    },
     "proactive": {
+      "budgetTitle": "Bütçe ve sınırlar",
+      "budgetHint": "Her üye için aylık arka plan çalışma bütçesi.",
+      "deliveryTitle": "İletim zamanlaması",
+      "deliveryHint": "Önerilerin ve acil olmayan izleme özetlerinin ne zaman çalışacağını seçin. Her üyenin kendi saat dilimi kullanılır.",
+      "unsavedChanges": "Kaydedilmemiş değişiklikleriniz var",
+      "discardChanges": "Değişiklikleri iptal et",
       "title": "Asistan önerileri ve izleme",
       "description": "Sohbet tabanlı öneriler ve salt okunur izleme bağımsızdır. Zamanlanmış ve olay rutinleri önerilerin etkin olmasını gerektirmez.",
       "nightly": "Gece önerileri",
@@ -10592,11 +10632,11 @@
       "welcomeSaved": "Karşılama mesajı kaydedildi",
       "watches": "Salt okunur izleme rutinlerine izin ver",
       "watchesHint": "Üyeler ajanı seçer ve kendi hesaplarındaki kaynakları onaylar. İlgili değişiklikler Inbox’a, istenen taslaklar çalışma sohbetine gider.",
-      "watchMinutes": "En sık",
+      "watchMinutes": "Kontroller arası minimum süre",
       "watchMinutesHint": "Bir watch’ın en sık ne zaman kontrol edebileceği. Daha sık kontrol daha maliyetlidir.",
       "switchOrganizationHint": "Proactivity’yi yapılandırmadan önce bu kuruluşa geçin; böylece buradaki model profilleri ve key’ler kullanılır.",
       "switchOrganization": "{name} kuruluşuna geç",
-      "runAttribution": "Sohbet analizi aşağıdaki modeli, izleme seçilen ajanı kullanır. İkisi kişi başına aylık arka plan bütçesini paylaşır. Gün ve saat ayrıca acil olmayan bulguların özetini belirler."
+      "runAttribution": "Öneriler ayrı bir model kullanır; izleme, seçilen temsilcinin modelini kullanır. Her iki özellik de üye başına aylık arka plan çalışma bütçesini paylaşır."
     }
   },
   "groups": {

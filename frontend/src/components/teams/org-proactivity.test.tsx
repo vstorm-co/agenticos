@@ -195,8 +195,31 @@ describe("OrgProactivity", () => {
 
   it("explains fixed attribution and the separate proactivity model", () => {
     render(<OrgProactivity org={org()} />);
-    expect(screen.getByText(/Conversation analysis uses the model below/)).toBeVisible();
+    expect(screen.getByText(/Suggestions use a dedicated model/)).toBeVisible();
     expect(screen.getByText(/monitoring uses its selected agent/)).toBeVisible();
+  });
+
+  it("discards a welcome-message draft without saving it", async () => {
+    state.held = [Perm.orgSettings];
+    render(<OrgProactivity org={org()} />);
+    const toggle = screen.getByRole("switch", { name: "Welcome message in chat apps" });
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByText("You have unsaved changes")).toBeNull();
+    expect(state.setWelcomeDm).not.toHaveBeenCalled();
+  });
+
+  it("discards local settings without updating the organization", async () => {
+    render(<OrgProactivity org={org(ON)} />);
+    const limit = screen.getByLabelText("Limit per person (USD a month)");
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "25");
+    expect(screen.getByRole("status")).toHaveTextContent("You have unsaved changes");
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(limit).toHaveValue(1);
+    expect(screen.queryByText("You have unsaved changes")).toBeNull();
+    expect(state.setProactivity).not.toHaveBeenCalled();
   });
 
   it("starts off, and is not turned on without a model to run on", async () => {
@@ -458,7 +481,7 @@ describe("OrgProactivity", () => {
     await userEvent.click(
       screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
     );
-    await userEvent.click(screen.getByRole("combobox", { name: "Most often" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Minimum check interval" }));
     await userEvent.click(await screen.findByRole("option", { name: "Every 3 hours" }));
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
@@ -483,7 +506,9 @@ describe("OrgProactivity", () => {
         })}
       />,
     );
-    expect(screen.getByRole("combobox", { name: "Most often" })).toHaveTextContent("Daily");
+    expect(screen.getByRole("combobox", { name: "Minimum check interval" })).toHaveTextContent(
+      "Daily",
+    );
   });
 
   it("is turned on with a model from the organization's, before work, at seven", async () => {

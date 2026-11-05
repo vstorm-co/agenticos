@@ -8243,6 +8243,12 @@
     "publicLiveDataConfirmWhy": "Anyone with a page's public link, and every site that embeds it, will see its table data without signing in. Nothing is shown until the page's owner or an Owner or Admin confirms it. Pages confirmed earlier show their data again right away.",
     "publicLiveDataConfirm": "Allow",
     "proactive": {
+      "budgetTitle": "Budget and limits",
+      "budgetHint": "Monthly background-work allowance for each member.",
+      "deliveryTitle": "Delivery schedule",
+      "deliveryHint": "Choose when suggestions and non-urgent monitoring digests run. Each member’s own time zone is used.",
+      "unsavedChanges": "You have unsaved changes",
+      "discardChanges": "Discard changes",
       "title": "Assistant suggestions and monitoring",
       "description": "Conversation-based suggestions and read-only monitoring are independent. Scheduled and event routines do not require suggestions to be enabled.",
       "nightly": "Nightly suggestions",
@@ -8270,15 +8276,16 @@
       "welcomeSaved": "Welcome message saved",
       "watches": "Allow read-only monitoring routines",
       "watchesHint": "Members explicitly choose an agent and approve sources in their own accounts. Report relevant changes to their Inbox; requested drafts open in a working chat.",
-      "watchMinutes": "Most often",
+      "watchMinutes": "Minimum check interval",
       "watchMinutesHint": "How often one watch may look at most. More often costs more.",
       "switchOrganizationHint": "Switch to this organization before configuring proactivity so its model profiles and keys are used.",
       "switchOrganization": "Switch to {name}",
-      "runAttribution": "Conversation analysis uses the model below; monitoring uses its selected agent. Both share the monthly per-person background budget. Days and time also control the digest of non-urgent monitoring findings."
+      "runAttribution": "Suggestions use a dedicated model; monitoring uses its selected agent. Both share a monthly background-work budget per member."
     },
     "systemAgents": {
-      "title": "System agents",
-      "description": "Work the platform does itself and that needs a model. Each role has its own configuration and history; none of it is attributed to an agent whose instructions did not run.",
+      "configure": "Configure model and budget",
+      "title": "Background services",
+      "description": "Model-powered platform services. Expand a service to configure its model and budget. Usage and recent runs stay visible below.",
       "on": "On",
       "off": "Off",
       "managedIn": "Runs on {model}. Configured under Proactivity above, so there is one model and one limit.",

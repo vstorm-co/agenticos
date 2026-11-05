@@ -5530,6 +5530,12 @@
     "publicLiveDataConfirmWhy": "Każdy, kto ma publiczny link do strony, i każda witryna, która ją osadza, zobaczy jej dane tabel bez logowania. Nic nie jest pokazywane, dopóki właściciel strony albo Owner lub Admin tego nie potwierdzi. Strony potwierdzone wcześniej znów od razu pokażą swoje dane.",
     "publicLiveDataConfirm": "Zezwól",
     "proactive": {
+      "budgetTitle": "Budżet i limity",
+      "budgetHint": "Miesięczny limit pracy w tle dla każdego członka.",
+      "deliveryTitle": "Harmonogram dostarczania",
+      "deliveryHint": "Wybierz, kiedy uruchamiać sugestie i podsumowania niepilnych wyników monitoringu. Obowiązuje strefa czasowa danego członka.",
+      "unsavedChanges": "Masz niezapisane zmiany",
+      "discardChanges": "Odrzuć zmiany",
       "title": "Sugestie asystenta i monitorowanie",
       "description": "Sugestie na podstawie rozmów i monitorowanie źródeł działają niezależnie. Rutyny czasowe i zdarzeniowe nie wymagają włączenia sugestii.",
       "nightly": "Nocne propozycje",
@@ -5557,15 +5563,16 @@
       "welcomeSaved": "Wiadomość powitalna zapisana",
       "watches": "Zezwalaj na rutyny monitorujące w trybie odczytu",
       "watchesHint": "Użytkownik wybiera agenta i zatwierdza źródła na własnych kontach. Istotne zmiany trafiają do Inbox; zamówione drafty otwierają się w rozmowie.",
-      "watchMinutes": "Najczęściej",
+      "watchMinutes": "Minimalny odstęp między sprawdzeniami",
       "watchMinutesHint": "Jak często pojedyncza obserwacja może najwyżej sprawdzać. Częściej znaczy drożej.",
       "switchOrganizationHint": "Przełącz się na tę organizację przed konfiguracją proaktywności, aby korzystać z jej profili modeli i kluczy.",
       "switchOrganization": "Przełącz na {name}",
-      "runAttribution": "Analiza rozmów używa modelu poniżej; monitorowanie — modelu wybranego agenta. Współdzielą miesięczny budżet pracy w tle na osobę. Dni i godzina określają też porę zestawienia niepilnych znalezisk."
+      "runAttribution": "Sugestie używają osobnego modelu, a monitoring — modelu wybranego agenta. Obie funkcje współdzielą miesięczny budżet pracy w tle na członka."
     },
     "systemAgents": {
-      "title": "Agenci systemowi",
-      "description": "Praca, którą platforma wykonuje sama i która potrzebuje modelu. Każda rola ma własną konfigurację i historię; nic z tego nie jest przypisywane agentowi, którego instrukcje się nie wykonały.",
+      "configure": "Model i budżet",
+      "title": "Usługi działające w tle",
+      "description": "Usługi platformy korzystające z modeli. Rozwiń usługę, aby ustawić jej model i budżet. Zużycie i ostatnie uruchomienia są widoczne poniżej.",
       "on": "Włączona",
       "off": "Wyłączona",
       "managedIn": "Działa na {model}. Konfigurowana w Proaktywności powyżej, więc jest jeden model i jeden limit.",

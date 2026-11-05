@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reorganize organization Proactivity into independent feature cards, shared budget and delivery settings, explicit draft-save controls and collapsible background-service configuration. Clarify the minimum monitoring interval and retain visible usage and run history.
+
 - Allow the schedule time-zone list to scroll inside a dialog, with its own nested scroll lock and a list height constrained to the available space.
 
 - Give single-select and multi-select toolbar filters the same surface, dimensions and focus treatment. Compact selects show consistent icons, with specific marks for sorting, accounts and approval controls.

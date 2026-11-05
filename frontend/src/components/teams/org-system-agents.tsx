@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -46,8 +46,11 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
   // system-agent settings.
   if (error || !roles) return <ErrorState />;
   return (
-    <SettingsSection title={t("title")} description={t("description")}>
-      <div className="divide-foreground/10 space-y-6 divide-y [&>*:not(:first-child)]:pt-6">
+    <SettingsSection title={t("title")}>
+      <p className="text-muted-foreground mb-4 max-w-3xl text-sm leading-relaxed">
+        {t("description")}
+      </p>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         {roles.map((role) => (
           <Role key={role.role} agent={role} />
         ))}
@@ -59,7 +62,12 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
 function Role({ agent }: { agent: SystemAgent }) {
   const t = useTranslations("teams.systemAgents");
   return (
-    <div className="space-y-4" data-testid={`system-agent-${agent.role}`}>
+    <div
+      role="region"
+      aria-label={t(`roles.${agent.role}.name`)}
+      className="bg-background space-y-4 rounded-xl border p-4"
+      data-testid={`system-agent-${agent.role}`}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-sm font-medium">{t(`roles.${agent.role}.name`)}</h3>
@@ -67,9 +75,7 @@ function Role({ agent }: { agent: SystemAgent }) {
             {t(`roles.${agent.role}.what`)}
           </p>
         </div>
-        {agent.managed_in ? (
-          <Badge variant="outline">{agent.enabled ? t("on") : t("off")}</Badge>
-        ) : null}
+        <Badge variant="outline">{agent.enabled ? t("on") : t("off")}</Badge>
       </div>
       {agent.unavailable ? (
         <p role="status" className="text-destructive text-xs">
@@ -81,7 +87,18 @@ function Role({ agent }: { agent: SystemAgent }) {
           {agent.model_label ? t("managedIn", { model: agent.model_label }) : t("managedInNoModel")}
         </p>
       ) : (
-        <Profile agent={agent} />
+        <details className="group rounded-lg border">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            {t("configure")}
+            <ChevronDown
+              className="text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180"
+              aria-hidden
+            />
+          </summary>
+          <div className="border-t p-3">
+            <Profile agent={agent} />
+          </div>
+        </details>
       )}
       <Spend agent={agent} />
       <History agent={agent} />

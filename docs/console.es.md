@@ -1,5 +1,5 @@
 ---
-source_sha: "c6eb01702f50"
+source_sha: "07314a789f01"
 ---
 
 # La consola { #the-console }
@@ -162,6 +162,8 @@ horario o evento con sus herramientas; las ejecuciones aparecen en Activity.
 **Mis seguimientos** solo consulta cuentas personales conectadas y envía hallazgos
 a la bandeja privada. Cada pestaña tiene sus acciones de creación.
 `/routines?tab=watches` abre los seguimientos.
+
+Organización → Proactividad separa sugerencias, seguimiento, límites compartidos, horarios de entrega y mensajes de bienvenida. Los cambios sin guardar se pueden descartar. Los servicios en segundo plano muestran estado y consumo; los ajustes de modelo y presupuesto se despliegan por servicio.
 
 Las rutinas programadas, por eventos y de seguimiento usan el mismo marco de diálogo, con encabezado y navegación fijos y un formulario desplazable. Crear un seguimiento recorre Configuración, Mensaje y Frecuencia; Atrás conserva el borrador. El selector de agentes muestra los mismos avatares que el chat. Las opciones de ejecución y entrega del seguimiento están reunidas en un solo panel de opciones avanzadas.
 
