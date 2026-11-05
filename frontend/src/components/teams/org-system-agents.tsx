@@ -50,7 +50,7 @@ export function OrgSystemAgents({ org }: { org: Organization }) {
       <p className="text-muted-foreground mb-4 max-w-3xl text-sm leading-relaxed">
         {t("description")}
       </p>
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
         {roles.map((role) => (
           <Role key={role.role} agent={role} />
         ))}
