@@ -85,14 +85,14 @@ export default function AccountSettingsPage() {
   };
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="space-y-5">
       <SectionCard
         icon={KeyRound}
         title={t("changePassword")}
         description={t("useStrongUniquePassword")}
       >
         <form
-          className="max-w-xl space-y-4"
+          className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             void handleChangePassword();
@@ -108,7 +108,7 @@ export default function AccountSettingsPage() {
               autoComplete="current-password"
             />
           </FormField>
-          <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField label={t("newPassword")} htmlFor="new-pw">
               <Input
                 id="new-pw"
