@@ -57,6 +57,7 @@ class TestWriteDraft:
 
         assert result.startswith(DRAFTED)
         assert "'Reply to Marta'" in result
+        assert "do not write it out again" in result
 
     def test_two_versions_without_labels_go_back_for_a_retry(self):
         with pytest.raises(ModelRetry, match="label"):
@@ -102,6 +103,23 @@ class TestWriteDraft:
 
         assert "plain text" in description.lower()
         assert "do not repeat" in description.lower()
+
+
+class TestTheInstruction:
+    def _instruction(self, deps: AgentDeps) -> str:
+        return Drafts().get_instructions()(_tool_ctx(deps=deps))
+
+    def test_where_the_card_shows_the_answer_is_told_not_to_repeat_it(self):
+        text = self._instruction(AgentDeps(shows_drafts=True))
+
+        assert WRITE_DRAFT in text
+        assert "never writes the draft out again" in text
+
+    def test_where_no_card_shows_there_is_no_instruction(self):
+        assert self._instruction(AgentDeps(shows_drafts=False)) == ""
+
+    def test_a_delegated_run_gets_no_instruction(self):
+        assert self._instruction(AgentDeps(shows_drafts=True, delegated=True)) == ""
 
 
 class TestTheFormat:

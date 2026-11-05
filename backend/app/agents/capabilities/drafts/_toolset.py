@@ -75,6 +75,9 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
     ) -> str:
         """Show a draft the person will send or paste somewhere else, as a card they copy from.
 
+        The person sees the card with a copy button on each part, so do not repeat
+        the draft in your answer; say at most one short line around it.
+
         Use this when the person asks for text they will send or paste elsewhere:
         an e-mail, a chat message, a post, an issue or pull request description.
         Write plain text unless they asked for markdown or another format, and
@@ -86,9 +89,6 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
         label such as `Short` and `With details`. Code answers stay in code
         blocks; give a field a `format` like `python` only for a snippet the draft
         itself carries.
-
-        The person sees the card with a copy button on each part, so do not repeat
-        the draft in your answer; say at most one line around it.
 
         Args:
             title: What the draft is for, e.g. 'Reply to Marta about the Q4 deck'.
@@ -114,6 +114,6 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
                 "Correct the arguments and call the tool again.",
             )
         return (
-            f"{DRAFTED}{card.title!r}. The person sees it as a card with a copy "
-            "button on each part; do not repeat it in your answer."
+            f"{DRAFTED}{card.title!r}. The person can already see the draft in full as a "
+            "card: do not write it out again in your answer, and say at most one short line."
         )
