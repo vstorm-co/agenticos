@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, Input, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
@@ -96,6 +97,8 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
   const hidden = check.hidden + check.hidden_unknown;
   const most = Math.max(0, ...rows.map((row) => row.fixed + row.broken));
   const [seen, mark] = useSeen(check.id);
+  // Writing test questions edits the skill, which a reader who may only view cannot.
+  const readOnly = useReadOnly();
   const [active, setActive] = useState<ReadonlySet<Bucket>>(new Set());
   const [toggled, setToggled] = useState<ReadonlySet<Bucket>>(new Set());
   // Who had been looked at when the filter went on: a row opened under the filter
@@ -194,7 +197,9 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
                       {reason !== null && (
                         <p className="text-muted-foreground text-xs">{t(`unknown.${reason}`)}</p>
                       )}
-                      {reason === "no_questions" && <AddTestQuestions skillId={check.skill_id} />}
+                      {reason === "no_questions" && !readOnly && (
+                        <AddTestQuestions skillId={check.skill_id} />
+                      )}
                       <ul className="divide-border divide-y rounded-xl border">
                         {sortWithin(bucket, why).map(row)}
                       </ul>
