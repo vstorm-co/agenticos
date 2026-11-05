@@ -1,5 +1,5 @@
 ---
-source_sha: "c3c6b75f98b9"
+source_sha: "659aee690fb0"
 ---
 
 # Konsola { #the-console }
@@ -447,6 +447,8 @@ rutyna, którą zaproponują, wypada w twoim dniu. Nic na nie nie czeka: to wied
 dla agenta, nie harmonogram.
 
 Po ponownym otwarciu rozmowy widzisz najnowsze wiadomości. Wybierz **Wczytaj wcześniejsze wiadomości** nad historią, aby przeczytać starsze tury. Trwające odpowiedzi i niezapisane wyniki pozostają widoczne podczas odświeżania zapisanej historii.
+
+Jeśli nie uda się zapisać odpowiedzi asystenta, czat poprosi cię o skopiowanie potrzebnego tekstu przed opuszczeniem rozmowy. Dotyczy to również częściowych odpowiedzi z przerwanych uruchomień. Tekst przesłany na żywo pozostaje widoczny, ale może go zabraknąć po ponownym otwarciu rozmowy.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

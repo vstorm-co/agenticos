@@ -745,6 +745,10 @@ include = [
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
+    # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
+    # (#2479). Every refusal here - a `../` member, a link, a device, a bomb - is
+    # what stops an upload from writing outside its folder.
+    "app/services/workspace_archive.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
     "app/services/skill_workspace.py",
@@ -1414,6 +1418,10 @@ include = [
     "app/services/sandbox_runtimes.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
+    # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
+    # (#2479). Every refusal here - a `../` member, a link, a device, a bomb - is
+    # what stops an upload from writing outside its folder.
+    "app/services/workspace_archive.py",
     "app/services/usage_report.py",
     "app/services/skill_proposal.py",
     "app/services/skill_workspace.py",

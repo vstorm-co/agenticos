@@ -1222,6 +1222,23 @@ class TestTheParseStopsAtItsLimit:
         assert pages_read == [0, 1, 2]
         assert text == "first\n\nsecond"
 
+    async def test_pdf_nul_characters_do_not_reach_parsed_content(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pymupdf
+
+        page_text = ["f\x00irst\n", "\x00\n", "second\x00\n"]
+
+        def extract(page: pymupdf.Page, _format: str) -> str:
+            return page_text[page.number]
+
+        monkeypatch.setattr(pymupdf.Page, "get_text", extract)
+        text = await fu.DocumentText().parse_content(
+            _pdf(["first", "", "second"]), "pdf", max_chars=13
+        )
+
+        assert text == "first\n\nsecond"
+
     async def test_a_pdf_past_the_page_cap_says_where_it_stopped(
         self, monkeypatch: pytest.MonkeyPatch, pages_read
     ):

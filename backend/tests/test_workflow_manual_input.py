@@ -22,6 +22,7 @@ from app.workflows.nodes.core_input._handler import (
     input_problems,
     ports_for,
 )
+from app.workflows.nodes.trigger_form._handler import FormTriggerConfig
 
 pytestmark = pytest.mark.anyio
 
@@ -64,6 +65,45 @@ class TestTheConfig:
 
 
 class TestTheRunsInput:
+    @pytest.mark.parametrize("config_type", [TriggerInputConfig, FormTriggerConfig])
+    @pytest.mark.parametrize("value", [[], ["leaf-01", "leaf-02"], ["", " leaf-01 ", "leaf-01"]])
+    def test_text_lists_accept_string_arrays_without_changing_items(
+        self, config_type: type[TriggerInputConfig], value: list[str]
+    ) -> None:
+        config = config_type.model_validate(
+            {"fields": [{"name": "devices", "type": "string_list"}]}
+        )
+        assert input_problems(config, {"devices": value}) == []
+        (out,) = ports_for(config)
+        parsed = out.schema.model_validate({"payload": {"devices": value}, "triggered_by": "api"})
+        assert parsed.model_dump()["payload"]["devices"] == value
+
+    @pytest.mark.parametrize(
+        ("value", "path", "kind"),
+        [
+            ("leaf-01", "devices", "list_type"),
+            (None, "devices", "list_type"),
+            ({"device": "leaf-01"}, "devices", "list_type"),
+            (["leaf-01", 2], "devices.1", "string_type"),
+            ([True], "devices.0", "string_type"),
+            ([None], "devices.0", "string_type"),
+            ([["leaf-01"]], "devices.0", "string_type"),
+        ],
+    )
+    def test_text_lists_refuse_scalars_and_non_string_items(
+        self, value: object, path: str, kind: str
+    ) -> None:
+        config = _config([{"name": "devices", "type": "string_list"}])
+        problems = input_problems(config, {"devices": value})
+        assert [(problem["field"], problem["type"]) for problem in problems] == [(path, kind)]
+
+    def test_text_lists_follow_required_and_optional_field_rules(self) -> None:
+        required = _config([{"name": "devices", "type": "string_list"}])
+        assert input_problems(required, {})[0]["type"] == "missing"
+        optional = _config([{"name": "devices", "type": "string_list", "required": False}])
+        assert input_problems(optional, {}) == []
+        assert input_problems(optional, {"devices": None}) == []
+
     def test_an_input_that_fits_has_no_problems_and_no_fields_takes_anything(self):
         assert input_problems(_config(), FITS) == []
         assert input_problems(_config(), {**FITS, "price": 9, "due": "2026-10-01"}) == []
@@ -108,6 +148,26 @@ class TestTheRunsInput:
 
 
 class TestThePort:
+    def test_text_list_ports_publish_array_item_types_and_nullability(self) -> None:
+        config = _config(
+            [
+                {"name": "devices", "type": "string_list"},
+                {"name": "optional", "type": "string_list", "required": False},
+            ]
+        )
+        (out,) = ports_for(config)
+        schema = out.schema.model_json_schema()["$defs"]["Payload"]
+        assert schema["properties"]["devices"] == {
+            "type": "array",
+            "items": {"type": "string"},
+            "title": "devices",
+        }
+        assert schema["properties"]["optional"]["anyOf"] == [
+            {"type": "array", "items": {"type": "string"}},
+            {"type": "null"},
+        ]
+        assert schema["required"] == ["devices"]
+
     def test_with_no_fields_the_payload_stays_open(self):
         assert ports_for(TriggerInputConfig()) is STATIC_PORTS
         assert ports_for(None) is STATIC_PORTS
@@ -173,13 +233,18 @@ class TestPublish:
         assert "does not exist" in str(refused.value.details)
 
     @pytest.mark.parametrize("trigger_id", ["core.input", "trigger.manual"], ids=["api", "manual"])
+    @pytest.mark.parametrize("field_type", ["integer", "string_list"])
     async def test_a_declared_field_of_another_type_is_refused_at_publish(
-        self, mock_db_session, trigger_id
+        self, mock_db_session, trigger_id: str, field_type: str
     ):
         with pytest.raises(GraphValidationError) as refused:
             await validate_graph(
                 mock_db_session,
                 self._ctx(),
-                _graph({"fields": FIELDS}, ("payload", "seats"), trigger_id),
+                _graph(
+                    {"fields": [{"name": "seats", "type": field_type}]},
+                    ("payload", "seats"),
+                    trigger_id,
+                ),
             )
         assert "not compatible" in str(refused.value.details)

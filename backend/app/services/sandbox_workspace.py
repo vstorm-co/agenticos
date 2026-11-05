@@ -26,9 +26,17 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import json
 import logging
 from binascii import Error as BinasciiError
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Sequence,
+)
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
@@ -43,7 +51,7 @@ import httpx
 from PIL import Image, ImageOps
 from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import FileData, FileInfo, StateBackend
-from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS
+from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS, WorkspaceArchiveError
 from pydantic_ai_backends.remote.wire import MAX_TREES
 from pydantic_ai_backends.workspaces import (
     DaytonaWorkspace,
@@ -70,6 +78,7 @@ from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import (
     BadRequestError,
+    ExportTooLargeError,
     ExternalServiceError,
     NotFoundError,
     WorkspaceCapacityError,
@@ -91,6 +100,7 @@ from app.services.sandbox_connection import ResolvedConnection, SandboxConnectio
 from app.services.sandbox_runtimes import CATALOG, runtime_briefing, runtime_parses_documents
 from app.services.sandboxd_compat import explain_unavailable
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
+from app.services.workspace_archive import stream_zip, zip_folder, zip_members
 
 ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace
 """What supplies a connection's sandboxes: a `sandboxd` host, Daytona or E2B."""
@@ -203,6 +213,31 @@ async def _concurrently[T](calls: Sequence[Callable[[], Coroutine[object, object
     async with asyncio.TaskGroup() as group:
         tasks = [group.create_task(call()) for call in calls]
     return [task.result() for task in tasks]
+
+
+@dataclass(frozen=True)
+class FolderZip:
+    """A workspace folder on its way out as a `.zip` (#2479)."""
+
+    name: str
+    """What the download is saved as: the folder's own name, then `.zip`."""
+    chunks: AsyncIterator[bytes]
+    """The zip, one member at a time. Nothing is read until it is iterated."""
+
+
+_ZIP_MAX_DEPTH = 64
+"""How deep a folder's zip reaches - the host's own ceiling, not the listing's six.
+
+The panel shows six levels because it is a page; a zip of a repository is the
+repository, and `src/pkg/sub/module/tests/fixtures/x.json` is an ordinary path."""
+
+_ZIP_LISTED_ENTRIES = 100_000
+"""How many entries a folder's zip asks the host to list - the host's own ceiling.
+
+Not `WORKSPACE_ARCHIVE_MAX_ENTRIES`, which bounds the files that go *in* the
+zip: the host walks everything, the tooling folders `browsable` leaves out
+included, so a project with a `node_modules` of thirty thousand files and a
+dozen of its own would be refused for files nobody asked to download."""
 
 
 @dataclass(frozen=True)
@@ -2167,6 +2202,144 @@ class SandboxWorkspaceService:
                     message=_reason(exc), details={"workspace_id": str(row.id), "path": path}
                 ) from exc
 
+    async def folder_zip(
+        self, ctx: AuthContext, *, conversation_id: UUID, folder: str
+    ) -> FolderZip:
+        """One folder of a conversation's workspace as a `.zip`, streamed.
+
+        Addressed through the conversation for the reason :meth:`read_bytes` is:
+        the route authorises by fetching the conversation, so whoever may open
+        one file of a chat may download a folder of it - and nobody else.
+
+        The files and folders are those the panel would show - `browsable`, so
+        a `.git`, a `node_modules` or the platform's own `.agenticos` stays
+        behind - listed whole before a byte is sent, so a folder past the bounds
+        is refused with a status rather than cut off mid-download. The listing
+        reaches deeper than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts
+        short is refused rather than zipped incomplete. A file the host will not
+        serve once the stream has started - past its own per-read ceiling, or
+        gone since the listing - is left out and named in the zip's
+        `NOT-INCLUDED.txt`.
+
+        Args:
+            folder: As the listing spells it; empty for the whole workspace.
+
+        Raises:
+            NotFoundError: If the conversation keeps no workspace, or the folder
+                is not one the panel shows. An empty folder it shows is a zip
+                holding that folder.
+            BadRequestError: If the folder climbs out of the workspace, or the
+                host cannot be read.
+            ExportTooLargeError: If the folder holds more than one download may.
+        """
+        wanted = zip_folder(folder)
+        row = await self._conversation_workspace(ctx, conversation_id)
+        if row is None:
+            raise NotFoundError(
+                message="This conversation keeps no files",
+                details={"conversation_id": conversation_id},
+            )
+        # The host is asked with the normalised form the answer is matched on - the
+        # panel's own spelling. Asked raw, a `./.agenticos` or an in-container
+        # `/workspace/x` named a folder its listing then spelled differently, and
+        # the folder alone matched: an empty zip of a hidden folder, or of one
+        # whose files were all left behind.
+        listing = await self._zip_listing(ctx, row, wanted or ".")
+        # On the file pool: a host listing runs to a hundred thousand entries,
+        # and filtering that many held the loop for close to half a second.
+        members, name = await run_blocking(_zip_members_of, listing, wanted)
+        return FolderZip(name=name, chunks=self._zipped(ctx, row, members))
+
+    async def _zip_listing(
+        self, ctx: AuthContext, row: AgentWorkspace, folder: str
+    ) -> list[FileInfo]:
+        """Every entry under `folder`, or a refusal - never a listing cut short.
+
+        A host lists what is under a folder, not the folder itself, so its
+        answering at all is what says the folder is there - and an empty one is
+        then a zip of that folder rather than a 404. The folder is added to the
+        listing as a directory, so `browsable` still decides whether it is shown.
+        One the host does not hold is a 404, as it is for a stored workspace.
+        """
+        if row.backend == "state":
+            return stored_entries(dict(row.files or {}), row.directories or ())
+        async with self._archive(ctx, row) as archive:
+            if archive is None:
+                return []
+            try:
+                tree = await _on_host_thread(
+                    partial(
+                        archive.tree,
+                        row.session_id or row.scope_key,
+                        folder,
+                        max_depth=_ZIP_MAX_DEPTH,
+                        max_entries=_ZIP_LISTED_ENTRIES,
+                    )
+                )
+            except Exception as exc:
+                if isinstance(exc, WorkspaceArchiveError) and exc.status_code == 404:
+                    # The host's own reason - which may name its session - stays in
+                    # the log: a missing folder, workspace or route are one 404 here.
+                    logger.info(
+                        "workspace_zip_folder_not_found",
+                        extra={"workspace_id": str(row.id), "reason": _reason(exc)},
+                    )
+                    raise NotFoundError(
+                        message="No files in this folder", details={"path": folder}
+                    ) from exc
+                raise BadRequestError(
+                    message=_reason(exc), details={"workspace_id": row.id, "path": folder}
+                ) from exc
+        if tree.truncated:
+            raise ExportTooLargeError(
+                message="This folder is too large to download as one zip. Download a smaller folder.",
+                details={"max_listed": _ZIP_LISTED_ENTRIES, "max_depth": _ZIP_MAX_DEPTH},
+            )
+        itself = FileInfo(name=PurePosixPath(folder).name, path=folder, is_dir=True, size=0)
+        return [itself, *tree.entries]
+
+    async def _zipped(
+        self, ctx: AuthContext, row: AgentWorkspace, members: list[tuple[str, str]]
+    ) -> AsyncIterator[bytes]:
+        """The zip's bytes, reading each file as its turn comes.
+
+        Runs after the route has returned and its session committed, so it asks
+        the database nothing: the row is in memory, and the host's connection was
+        resolved - and cached on this service - by the listing. One archive client
+        serves every read rather than one per file.
+        """
+
+        # One document for the whole zip: building it copies every file the
+        # workspace holds, and doing that per member was quadratic in files.
+        document = (
+            StateBackend(files=dict(row.files or {}), directories=row.directories or ())
+            if row.backend == "state"
+            else None
+        )
+
+        async def read(path: str) -> bytes:
+            if document is not None:
+                data = _document_bytes(document, path)
+            else:
+                try:
+                    data = await self._read_bytes_from(ctx, row, path)
+                except BadRequestError as refused:
+                    if not _refused_this_file(refused):
+                        # A host that stopped answering would otherwise be asked
+                        # for every file left, each up to its timeout.
+                        raise ExternalServiceError(
+                            message="The workspace's host stopped answering mid-download.",
+                            details={"workspace_id": row.id},
+                        ) from refused
+                    raise
+            if data is None:
+                raise NotFoundError(message="No such file", details={"path": path})
+            return data
+
+        async with self._sharing_archives():
+            async for chunk in stream_zip(members, read):
+                yield chunk
+
     async def read_file_of(self, ctx: AuthContext, workspace_id: UUID, *, path: str) -> str | None:
         """One file's text from a workspace addressed by its own id."""
         row = await self._workspace_of(ctx, workspace_id)
@@ -2325,10 +2498,7 @@ class SandboxWorkspaceService:
     def _state_bytes(row: AgentWorkspace, path: str) -> bytes | None:
         """One file's bytes out of a state-backed workspace, or None when absent."""
         document = StateBackend(files=dict(row.files or {}), directories=row.directories or ())
-        try:
-            return document.read_bytes(path)
-        except FileNotFoundError, IsADirectoryError, NotADirectoryError:
-            return None
+        return _document_bytes(document, path)
 
     @asynccontextmanager
     async def _sharing_archives(self) -> AsyncGenerator[None]:
@@ -2494,6 +2664,36 @@ async def _destroy_and_forget(
         return
     async with get_db_context() as db:
         await pending_destroy_repo.remove(db, pending_id)
+
+
+def _document_bytes(document: StateBackend, path: str) -> bytes | None:
+    """One file's bytes out of a stored workspace's document, or None when absent."""
+    try:
+        return document.read_bytes(path)
+    except FileNotFoundError, IsADirectoryError, NotADirectoryError:
+        return None
+
+
+def _zip_members_of(listing: list[FileInfo], folder: str) -> tuple[list[tuple[str, str]], str]:
+    """`zip_members` over the browsable entries of a listing - see `folder_zip`."""
+    return zip_members(
+        (
+            (str(entry.get("path")), entry.get("size"), bool(entry.get("is_dir")))
+            for entry in browsable(listing)
+        ),
+        folder,
+    )
+
+
+def _refused_this_file(refused: BadRequestError) -> bool:
+    """Whether a host's refusal is about one file, rather than about the host.
+
+    A host answers 400 or 404 for a file it will not serve - past its read
+    ceiling, or gone - and anything else, or nothing at all, when it is the
+    host that is the problem.
+    """
+    cause = refused.__cause__
+    return isinstance(cause, WorkspaceArchiveError) and cause.status_code in (400, 404)
 
 
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:
@@ -2703,8 +2903,23 @@ def _reason(exc: Exception) -> str:
     it names the exact setting (`workspace_root`), which is the difference between
     an operator fixing this in one line and filing a bug against us.
     """
-    detail = str(exc).strip() or exc.__class__.__name__
-    return f"This host's files could not be read. {detail}"
+    return f"This host's files could not be read. {_detail(exc)}"
+
+
+def _detail(exc: Exception) -> str:
+    """An exception's text, with the JSON a host wraps its own sentence in taken off.
+
+    A refusal from the host arrives as FastAPI's body, `{"detail": "..."}`, and
+    that is what `NOT-INCLUDED.txt` and the panel showed. Any other shape - a
+    validation error's list, plain text - is kept as it came.
+    """
+    text = str(exc).strip()
+    try:
+        body = json.loads(text)
+    except ValueError:
+        return text or exc.__class__.__name__
+    detail = body.get("detail") if isinstance(body, dict) else None
+    return detail.strip() if isinstance(detail, str) and detail.strip() else text
 
 
 def stored_ceiling(row: AgentWorkspace) -> int | None:
