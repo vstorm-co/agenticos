@@ -22,6 +22,12 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Keep PDF chat uploads working when extracted text contains NUL characters.
+- Book Stav's billed request cost from response bodies or headers, including
+  streamed Chat Completions and Responses, so models absent from the price
+  snapshot count towards budget caps. USD is used directly; **operators using
+  NOK billing must set `STAV_NOK_PER_USD`** (NOK per dollar) in the backend
+  environment. No rate is guessed or fetched; without conversion and without a
+  catalog price, costs remain visibly partial. (#2729)
 
 ## [1.47.3] - 2026-11-04
 

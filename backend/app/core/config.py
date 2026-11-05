@@ -277,6 +277,8 @@ class Settings(BaseSettings):
     # `ck_organization_budget_positive` constraint already refuses.
     DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
 
+    STAV_NOK_PER_USD: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+
     @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
     @classmethod
     def validate_default_org_budget(cls, v: Decimal | None) -> Decimal | None:

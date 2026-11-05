@@ -20,11 +20,10 @@ Enforcement happens *before* each request, not after. Checking afterwards means
 the request that broke the budget was already paid for, and a loop can overshoot
 by one expensive call every time.
 
-Prices come from `genai-prices`, not from a table in this repository. A
-hand-maintained table cannot express tiered pricing and goes stale silently,
-which is worse than reporting nothing - so a model the package does not know is
-recorded at zero with a warning and flags the run's total as a floor, rather
-than being guessed at.
+Validated provider-reported USD costs take precedence over the `genai-prices`
+snapshot. Without one, the snapshot handles tiers and cached tokens. A model
+neither source can price is recorded at zero with a warning and flags the run's
+total as a floor.
 """
 
 import asyncio
@@ -116,7 +115,8 @@ def price_request(
 ) -> Decimal | None:
     """What one model request cost, or `None` if the model is not priced.
 
-    Delegates to `genai-prices`, which Pydantic maintains and which the
+    Uses a validated provider-reported USD amount when available, otherwise
+    delegates to `genai-prices`, which Pydantic maintains and which the
     Pydantic AI stack already depends on. This used to be a hand-written table
     of nine models, and the table was wrong: Gemini 2.5 Pro charges
     $1.25/1M below a 200k-token context and $2.50 above it, so every
@@ -149,6 +149,8 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
+    if (reported := _provider_reported_cost(usage)) is not None:
+        return reported
     for name, provider_id in _price_lookups(model_name, provider):
         try:
             return calc_price(usage, name, provider_id=provider_id).total_price
@@ -158,6 +160,15 @@ def price_request(
             logger.warning("Refused to price %s from usage %r", model_name, usage)
             return None
     return None
+
+
+def _provider_reported_cost(usage: RequestUsage | RunUsage) -> Decimal | None:
+    reported = getattr(usage, "provider_reported_cost_usd", None)
+    return (
+        reported
+        if isinstance(reported, Decimal) and reported.is_finite() and reported >= 0
+        else None
+    )
 
 
 def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str | None]]:
@@ -193,6 +204,8 @@ class SpendEntry:
     output_tokens: int
     cost_usd: Decimal
     priced: bool
+    provider_reported: bool = False
+    """Whether the cost came from the provider's bill rather than the price catalog."""
     cache_read_tokens: int = 0
     """Of `input_tokens`, those served from the provider's cache - priced lower."""
     cache_write_tokens: int = 0
@@ -402,6 +415,7 @@ class SpendLedger:
                 output_tokens=usage.output_tokens or 0,
                 cost_usd=cost if cost is not None else Decimal(0),
                 priced=cost is not None,
+                provider_reported=_provider_reported_cost(usage) is not None,
                 # The split the price was computed from, kept so a run can be
                 # reconciled with a provider's console (#2170).
                 cache_read_tokens=usage.cache_read_tokens or 0,

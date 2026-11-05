@@ -1,5 +1,5 @@
 ---
-source_sha: "d7e885bf14a4"
+source_sha: "4a53cb5a7983"
 ---
 
 # Configuración { #configuration }
@@ -80,6 +80,7 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | El techo de gasto mensual con el que arranca una organización **nueva**, en USD, para que no esté a un agent desbocado de una factura sorpresa. Se aplica solo en la creación; las organizaciones existentes no se tocan y a cualquier organización se le puede quitar el tope después. Tiene que ser positivo; déjalo **vacío** para que las organizaciones empiecen sin tope (la postura anterior, de adhesión voluntaria) |
+| `STAV_NOK_PER_USD` | vacío | NOK por USD mantenidas por el operador para los costes facturados por Stav. Finito y positivo; por ejemplo, `10` divide NOK entre 10 (ejemplo, no tipo actual). USD no requiere ajuste. No se consulta ningún tipo; sin conversión se usa el catálogo y los modelos desconocidos siguen con coste parcial |
 
 Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
 
