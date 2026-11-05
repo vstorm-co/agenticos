@@ -1,5 +1,5 @@
 ---
-source_sha: "b2ff94fc7c44"
+source_sha: "899422b17690"
 ---
 
 # Konsola { #the-console }
@@ -807,6 +807,8 @@ avatara, a zmiana działa od razu, bez publikowania nowej wersji.
 Szczegóły organizacji mają pięć zakładek: **Członkowie** obejmują osoby i zaproszenia; **Organizacja** — profil i domyślne ustawienia głosu; **Budżet i zgody** — wydatki i zasady dostępu; **Proaktywność** — sugestie, monitoring i dostarczanie wyników; **AI i usługi** — Architecta i usługi systemowe. Każdy formularz zachowuje własne wymagania uprawnień. AI i usługi jest dostępne dla zarządzających budżetem także bez prawa konfiguracji Architecta. Wybrana zakładka jest zapisywana w URL, przełączanie zachowuje wersje robocze, a dawne linki `?tab=voice` otwierają Organizację.
 
 Bursztynowe kropki oznaczają zakładki organizacji i odpowiadające im karty głosu, nocnych sugestii, utrzymania pamięci oraz Architecta, gdy brakuje konfiguracji lub sugestie są wyłączone. Najedź na kropkę lub ustaw na niej fokus, aby przeczytać wyjaśnienie; kliknij lub dotknij, aby je otworzyć. Wskaźniki korzystają z zapisanych ustawień, znikają po uzupełnieniu konfiguracji i respektują uprawnienia do jej zmiany. Wyłączone sugestie są opcją do uruchomienia, a nie błędem. Karta powiadomień iPhone oznacza też brak klucza Apple. Ograniczenie ruchu wyłącza pulsowanie.
+
+Zapisane logowania do stron mają zwarty panel ustawień na pełną szerokość, zamiast rozciągać jeden wpis na całą stronę. Znane usługi pokazują wbudowane logo marki; pozostałe strony korzystają z własnej favicony bez przesyłania odsyłacza, a gdy obraz jest niedostępny — z ikony globu.
 
 ## Języki { #languages }
 
