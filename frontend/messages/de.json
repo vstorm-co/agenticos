@@ -15290,7 +15290,7 @@
       "title": "Annehmen",
       "verdict": {
         "passed": "Kein Agent wurde schlechter und mindestens einer besser.",
-        "blocked": "Mindestens ein Agent wurde schlechter. Anwenden lässt es sich nur, wenn diese Agents auf ihrer Version bleiben; oder ein Fork für die Agents, denen es half, oder weiter verbessern.",
+        "blocked": "Mindestens ein Agent wurde schlechter. Anwenden lässt es sich nur, wenn diese Agents auf ihrer Version bleiben; oder als Fork speichern, oder weiter verbessern.",
         "no_better": "Kein Agent wurde besser, also gibt es nichts anzuwenden.",
         "needs_ack": "Kein Agent wurde schlechter und mindestens einer besser, aber einige Agents konnten nicht geprüft werden."
       },
@@ -15302,7 +15302,17 @@
       "apply": "Als nächste Version von {line} anwenden",
       "applyAndPin": "Anwenden und {names} auf ihrer Version lassen",
       "forkName": "Name des neuen Forks",
-      "forkForHelped": "Einen Fork mit dieser Änderung für {names} anlegen",
+      "fork": {
+        "open": "Als Fork speichern…",
+        "title": "Diese Änderung als Fork speichern",
+        "description": "Main bleibt, wie es ist. Die gewählten Agents wechseln auf den Fork; ohne Auswahl wartet er, bis einer zu ihm wechselt.",
+        "agents": "Agents, die auf den Fork wechseln",
+        "stays": "Sie können ihn nicht ändern: bleibt auf seiner Version",
+        "defaultName": "Versuch {attempt}",
+        "throughSpecialist": "{count, plural, =1 {1 Agent liest den Skill über einen Spezialisten und wird in seinem Builder verschoben.} other {# Agents lesen den Skill über einen Spezialisten und werden in ihrem Builder verschoben.}}",
+        "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, bleibt, wo er ist.} other {# Agents, die Sie nicht sehen, bleiben, wo sie sind.}}",
+        "submit": "{count, plural, =0 {Fork anlegen, ohne Agents zu verschieben} =1 {Fork anlegen und 1 Agent verschieben} other {Fork anlegen und # Agents verschieben}}"
+      },
       "catchUpVerdict": {
         "passed": "Kein Agent wurde mit der Zusammenführung schlechter, und mindestens einer wurde besser.",
         "no_better": "Kein Agent wurde mit der Zusammenführung schlechter.",

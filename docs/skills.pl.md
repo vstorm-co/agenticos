@@ -1,5 +1,5 @@
 ---
-source_sha: "dbbdfc11b4bf"
+source_sha: "83027778cd54"
 ---
 
 # Skille { #skills }
@@ -326,9 +326,12 @@ on agents prowadzi do niej. Na main osoba może nadal:
   zmiana trafi na żywo, więc żaden z nich nie obsłuży jej ani razu. Przypięcie
   wymaga prawa publikacji każdego z nich, a środowisko czekające na promocję musi
   najpierw dostać przypiętą wersję;
-- **zrobić fork dla agentów, którym pomogła**, gdy któryś wypadł lepiej,
-  zostawiając main bez zmian - w kroku Akceptacja w [Popraw](#improving-a-skill)
-  albo przez API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **zrobić fork**, zostawiając main bez zmian - dostępny niezależnie od wyniku,
+  w kroku Akceptacja w [Popraw](#improving-a-skill) albo przez API,
+  `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Na fork przechodzą agenci,
+  którym zmiana pomogła, chyba że wybierzesz innych w `agent_ids`; pusta lista nie
+  przenosi nikogo, a agenta czytającego skill przez specjalistę przenosi się w jego
+  Builderze;
 - **odrzucić** ją.
 
 Na forku zostają tylko dalsze ulepszanie i odrzucenie: przypięcie wskazuje
@@ -528,7 +531,7 @@ Albo każdy agent go traci i skill zostaje usunięty, albo nic się nie zmienia.
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Przesuwa agentów forka z powrotem na main i archiwizuje fork, gdy nikt go już nie czyta |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Sprawdza najnowszą wersję main na jednym przypiętym agencie albo wycenia to sprawdzenie |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Wycenia i zaczyna sesję Popraw na main albo na forku |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla agentów, którym pomógł, albo go odrzuca |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Stosuje wynik sesji, z przypięciem gorszych agentów albo bez, robi z niego fork dla wybranych agentów albo go odrzuca |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Sprawdza wynik ponownie na linii w obecnym stanie |
 | `GET /api/v1/skill-improvements/awaiting` | Sesje skilli czekające na człowieka |
 
@@ -757,10 +760,12 @@ agentów już obejrzałeś, więc widać, kto został.
 To, co proponuje Akceptacja, wynika z wyniku:
 
 - **Nikt gorzej**, a ktoś lepiej: zastosuj jako następną wersję linii.
-- **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji, zrób
-  fork ze zmianą dla agentów, którym pomogła, popraw dalej albo odrzuć. Na forku
-  zostają tylko poprawianie dalej i odrzucenie, bo forka nie da się przypiąć ani
-  rozwidlić ponownie.
+- **Ktoś gorzej:** zastosuj i zostaw tych agentów przypiętych do ich wersji,
+  popraw dalej albo odrzuć. Na forku zostają tylko poprawianie dalej i odrzucenie,
+  bo forka nie da się przypiąć.
+- **Niezależnie od wyniku**, na main, **Zapisz jako fork** robi fork ze zmianą:
+  nadajesz mu nazwę i wybierasz agentów, którzy na niego przejdą - na początek
+  tych, którym pomogła, innych albo nikogo. Forka nie da się rozwidlić ponownie.
 - **Agentów „nie wiadomo”** trzeba potwierdzić, zanim cokolwiek zostanie
   zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
   odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich

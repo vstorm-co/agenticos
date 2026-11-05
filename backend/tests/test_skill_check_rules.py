@@ -233,30 +233,37 @@ def test_a_quick_sample_reaches_the_minimum_beside_the_skill_set(skill_set: int,
 
 class TestOutcomes:
     def test_a_blocked_change_to_main_offers_the_four(self) -> None:
-        assert outcomes(CheckVerdict.BLOCKED, fork=False, helped=True) == [
+        assert outcomes(CheckVerdict.BLOCKED, fork=False) == [
             CheckOutcome.IMPROVE_FURTHER,
             CheckOutcome.APPLY_AND_PIN,
             CheckOutcome.FORK_FOR_HELPED,
             CheckOutcome.DISCARD,
         ]
 
-    def test_a_change_that_helped_no_agent_offers_no_fork_for_the_helped(self) -> None:
-        assert CheckOutcome.FORK_FOR_HELPED not in outcomes(
-            CheckVerdict.BLOCKED, fork=False, helped=False
-        )
+    @pytest.mark.parametrize("result", list(CheckVerdict))
+    def test_a_change_to_main_may_be_forked_whatever_its_result(self, result: CheckVerdict):
+        assert CheckOutcome.FORK_FOR_HELPED in outcomes(result, fork=False)
+
+    @pytest.mark.parametrize("result", list(CheckVerdict))
+    def test_a_change_to_a_fork_is_never_forked_again(self, result: CheckVerdict) -> None:
+        assert CheckOutcome.FORK_FOR_HELPED not in outcomes(result, fork=True)
 
     def test_a_blocked_change_to_a_fork_has_no_pin_and_no_fork(self) -> None:
-        assert outcomes(CheckVerdict.BLOCKED, fork=True, helped=True) == [
+        assert outcomes(CheckVerdict.BLOCKED, fork=True) == [
             CheckOutcome.IMPROVE_FURTHER,
             CheckOutcome.DISCARD,
         ]
 
     def test_a_change_that_helped_nobody_cannot_be_applied(self) -> None:
-        assert CheckOutcome.APPLY not in outcomes(CheckVerdict.NO_BETTER, fork=False, helped=False)
+        assert outcomes(CheckVerdict.NO_BETTER, fork=False) == [
+            CheckOutcome.IMPROVE_FURTHER,
+            CheckOutcome.FORK_FOR_HELPED,
+            CheckOutcome.DISCARD,
+        ]
 
     @pytest.mark.parametrize("result", [CheckVerdict.PASSED, CheckVerdict.NEEDS_ACK])
     def test_a_passing_change_may_be_applied(self, result: CheckVerdict) -> None:
-        assert outcomes(result, fork=True, helped=True)[0] is CheckOutcome.APPLY
+        assert outcomes(result, fork=True)[0] is CheckOutcome.APPLY
 
 
 class TestSample:
