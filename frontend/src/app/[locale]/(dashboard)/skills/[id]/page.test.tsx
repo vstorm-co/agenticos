@@ -146,6 +146,7 @@ async function serveOnce(path: string): Promise<unknown> {
   }
   if (path.startsWith("/skills/s1/forks")) return { items: [RETURNS], total: 1 };
   if (path === "/skills/s1/agents") return AGENTS;
+  if (path === "/skills/s1/improvements") return [];
   if (path.startsWith("/skills/s1/usage")) {
     return { days: 30, since: "", loads: 0, agents: [], hidden_agents: 0, hidden_loads: 0 };
   }

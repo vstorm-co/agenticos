@@ -108,7 +108,7 @@ describe("SkillImprovementPage", () => {
     mount();
 
     expect(await screen.findByText("How each agent did")).toBeVisible();
-    expect(await screen.findByRole("link", { name: "Support" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Details of Support" })).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Decide what to do" }));
 
     expect(

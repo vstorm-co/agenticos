@@ -8512,7 +8512,32 @@
         },
         "versionLabel": "{fork, select, yes {{name} v{number}} other {v{number}}}",
         "forkEmpty": "No version of its own yet: the fork reads v{number} on main. Edit the fork to make its first change.",
-        "forkStarts": "Fork “{name}” starts here"
+        "forkStarts": "Fork “{name}” starts here",
+        "fromSession": "From its Improve session",
+        "sessions": {
+          "title": "Improve sessions",
+          "count": "{count, plural, =0 {None yet} =1 {1 session} other {# sessions}}",
+          "none": "Nobody has improved this line yet.",
+          "unknownStarter": "Someone",
+          "meta": "{who} · {when} · {line} · spent {cost}",
+          "continue": "Continue",
+          "open": "Open",
+          "appliedAs": "Applied as {version}",
+          "result": {
+            "open": "Open",
+            "applied": "Applied",
+            "forked": "Made a fork",
+            "discarded": "Discarded",
+            "caught_up": "Caught up with main",
+            "returned_to_main": "Moved to main",
+            "expired": "Expired",
+            "failed": "Failed",
+            "cancelled": "Ended",
+            "stopped": "Stopped without a change"
+          },
+          "countMore": "Newest {count}",
+          "more": "Show older sessions"
+        }
       },
       "tree": {
         "title": "Version tree",
@@ -15580,7 +15605,11 @@
       },
       "seenCount": "{seen, plural, =0 {None of {total} agents looked at yet} other {Looked at # of {total} agents}}",
       "seen": "Seen",
-      "details": "Details of {name}"
+      "details": "Details of {name}",
+      "stageCounts": "{better} better · {same} same · {worse} worse · {unknown} not known",
+      "stageLoading": "Reading the results…",
+      "stageUnread": "Its results could not be read.",
+      "openAgent": "Open {name}"
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",

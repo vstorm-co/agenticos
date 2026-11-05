@@ -31,9 +31,11 @@ const originBody = ({ forkId, fromRun }: SkillImprovementOrigin) => ({
 export function listSkillImprovements(
   skillId: string,
   forkId: string | null,
+  page: { skip: number; limit: number } | null = null,
 ): Promise<SkillImprovement[]> {
+  const line: Record<string, string> = forkId === null ? { main: "true" } : { fork_id: forkId };
   return apiClient.get<SkillImprovement[]>(root(skillId), {
-    params: forkId === null ? { main: "true" } : { fork_id: forkId },
+    params: page === null ? line : { ...line, skip: String(page.skip), limit: String(page.limit) },
   });
 }
 

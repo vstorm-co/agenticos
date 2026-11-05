@@ -36,6 +36,8 @@ export interface SkillImprovementIteration extends ImprovementIteration {
 
 export interface SkillImprovement extends Omit<Improvement, "iterations"> {
   skill_id: string;
+  /** Who started it, for a reader who may see the member directory. */
+  created_by?: { id: string; name: string | null } | null;
   /** The line it improves; null is main. */
   fork_id: string | null;
   line_name: string;

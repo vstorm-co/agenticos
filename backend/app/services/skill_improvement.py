@@ -26,7 +26,7 @@ import hashlib
 import json
 import logging
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -131,7 +131,7 @@ from app.schemas.skill_improvement import (
     SkillProblemRead,
     SkillVersionRef,
 )
-from app.schemas.skill_version import ReturnToMain
+from app.schemas.skill_version import PersonRef, ReturnToMain
 from app.services import authoring_hunks
 from app.services import improvement_states as rules
 from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
@@ -632,7 +632,11 @@ class SkillImprovementService:
             skip=skip,
             limit=limit,
         )
-        return [await self._read(ctx, row, await self._line_of(skill, row)) for row in rows]
+        people = await self.versions.people(ctx, [row.created_by_user_id for row in rows])
+        return [
+            await self._read(ctx, row, await self._line_of(skill, row), people=people)
+            for row in rows
+        ]
 
     async def read(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         self._require_runs_view(ctx)
@@ -2184,8 +2188,15 @@ class SkillImprovementService:
         )
 
     async def _read(
-        self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine
+        self,
+        ctx: AuthContext,
+        run: SkillImprovementRun,
+        line: SessionLine,
+        *,
+        people: Mapping[UUID, PersonRef] | None = None,
     ) -> SkillImprovementRead:
+        """One session as the console reads it. `people` names who started it, read once
+        for a whole page by the caller listing many; a single read looks its starter up."""
         iterations = await skill_improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
@@ -2199,6 +2210,9 @@ class SkillImprovementService:
             None if base is None else SkillVersionRef(id=base.id, number=base.number)
         )
         result.agents, result.hidden_agents = visible, hidden
+        if people is None:
+            people = await self.versions.people(ctx, [run.created_by_user_id])
+        result.created_by = _starter(people, run.created_by_user_id)
         result.iterations = [
             SkillImprovementIterationRead.model_validate(item) for item in iterations
         ]
@@ -2588,3 +2602,8 @@ class SkillImprovementService:
                 message="A skill session reads runs, which needs runs:view",
                 details={"permission": Perm.RUNS_VIEW.value},
             )
+
+
+def _starter(people: Mapping[UUID, PersonRef], user_id: UUID | None) -> PersonRef | None:
+    """Who started a session, as far as the reader may know; nobody for one with no starter."""
+    return people.get(user_id) if user_id is not None else None

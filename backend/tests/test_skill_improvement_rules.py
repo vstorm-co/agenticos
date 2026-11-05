@@ -13,6 +13,7 @@ from app.schemas.authoring import InstructionChange
 from app.services import authoring_hunks
 from app.services.skill_improvement import (
     SkillStanding,
+    _starter,
     candidate_hash,
     candidate_text,
     filtered,
@@ -110,3 +111,14 @@ def test_rows_name_themselves():
 
     assert "SkillImprovementRun" in repr(run) and "queued" in repr(run)
     assert "number=2" in repr(attempt)
+
+
+def test_a_session_names_its_starter_only_when_it_has_one_the_reader_may_know() -> None:
+    from app.schemas.skill_version import PersonRef
+
+    anna, gone = uuid.uuid4(), uuid.uuid4()
+    people = {anna: PersonRef(id=anna, name="Anna")}
+
+    assert _starter(people, anna) == PersonRef(id=anna, name="Anna")
+    assert _starter(people, gone) is None
+    assert _starter(people, None) is None
