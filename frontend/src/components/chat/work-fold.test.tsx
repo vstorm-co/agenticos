@@ -131,3 +131,18 @@ describe("WorkFold", () => {
     expect(screen.getByRole("button", { name: "Stopped" })).toBeInTheDocument();
   });
 });
+
+describe("waiting activity", () => {
+  it("shows a waiting state instead of a ticking working status", () => {
+    render(
+      <WorkFold steps={4} durationMs={600_000} waiting="awaiting_answer">
+        <span>tools</span>
+      </WorkFold>,
+    );
+    expect(screen.getByRole("button", { name: "Waiting for an answer" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText(/Working/)).toBeNull();
+  });
+});

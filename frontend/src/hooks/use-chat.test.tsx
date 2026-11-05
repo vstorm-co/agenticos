@@ -2699,6 +2699,21 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingQuestions).toEqual([]);
   });
 
+  it("pauses the working status while a tool question awaits an answer", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-live", args: {} });
+    receive("ask_user", { questions: [{ question: "Which?", options: [{ label: "A" }] }] });
+    expect(useWorkingStore.getState().waiting["c-1"]).toBe("awaiting_answer");
+    expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
+      "awaiting_answer",
+    );
+    act(() => result.current.sendAskUserResponses([{ answer: "A", skipped: false }]));
+    expect(useWorkingStore.getState().waiting["c-1"]).toBeUndefined();
+    expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe("running");
+  });
+
   it("sends the answers and closes the prompt", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     receive("ask_user", {
@@ -4307,6 +4322,21 @@ describe("useChat - coming back to a turn still being written", () => {
     rerender({ conversationId: null });
 
     expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
+  });
+
+  it("detaches a newly created chat when leaving with an unanswered question", () => {
+    const { result, rerender } = renderHook(
+      ({ conversationId }: { conversationId: string | null }) => useChat({ conversationId }),
+      { wrapper, initialProps: { conversationId: null as string | null } },
+    );
+    receive("conversation_created", { conversation_id: "c-new" });
+    rerender({ conversationId: "c-new" });
+    receive("ask_user", { questions: [{ question: "Which region?", options: [] }] });
+    expect(result.current.pendingQuestions).toHaveLength(1);
+    act(() => useConversationStore.getState().setCurrentConversationId(null));
+    rerender({ conversationId: null });
+    expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
+    expect(result.current.pendingQuestions).toBeNull();
   });
 
   it("draws nothing of a turn announced for a chat no longer on screen", () => {

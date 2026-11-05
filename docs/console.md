@@ -420,7 +420,7 @@ Conversation lists keep the main agent and also name Claude Code or Codex when s
 
 The Files panel groups files by folder, keeping identical names in different directories distinct. HTML previews load local stylesheets and their nested assets through the same file access as the page. Preview and Source remain separate; scripts stay disabled. If a linked stylesheet cannot be read, the preview says which one failed. Files changed by a turn are linked below its answer, using paths reported by successful write/edit tools or the coding harness. These links open the current workspace files, not a versioned snapshot.
 
-On screens narrower than 768 px, live reasoning and routine tool steps start collapsed behind the working-time line. Tap the line to expand or collapse them. Answers, questions, approval requests, errors and visual results stay visible. Wider screens keep the live steps in view.
+Live reasoning and routine tool calls share one collapsed activity section on every screen size. Open it to inspect the steps; ordinary tool arguments and results stay closed until selected. Answers, questions, approval requests, errors and visual results remain visible outside the section. A pending question or approval shows a waiting status instead of a running timer. Leaving a chat with an unanswered question saves it for answering when you return.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click

@@ -220,6 +220,7 @@ export function useChat(options: UseChatOptions = {}) {
   // without waiting for React's batched re-render. The handler never causes a
   // re-render based on this id, so state isn't needed.
   const currentMessageIdRef = useRef<string | null>(null);
+  const attachedRef = useRef<string | null>(null);
   const currentUserMessageIdRef = useRef<string | null>(null);
   const createdConversationIdRef = useRef<string | null>(null);
   const setCurrentMessageId = useCallback((id: string | null) => {
@@ -459,6 +460,18 @@ export function useChat(options: UseChatOptions = {}) {
     startWorking(activeConversationId, turnStartedAt.current);
     return () => stopWorking(activeConversationId);
   }, [isProcessing, activeConversationId, startWorking, stopWorking]);
+
+  const setWaiting = useWorkingStore((state) => state.setWaiting);
+  const waitingStatus = pendingQuestions?.length
+    ? "awaiting_answer"
+    : pendingApproval
+      ? "awaiting_approval"
+      : null;
+  useEffect(() => {
+    if (activeConversationId === null) return;
+    setWaiting(activeConversationId, waitingStatus);
+    return () => setWaiting(activeConversationId, null);
+  }, [activeConversationId, waitingStatus, setWaiting]);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.
@@ -716,6 +729,7 @@ export function useChat(options: UseChatOptions = {}) {
           // belongs to the chat lifecycle, before another turn can be sent.
           useWorkOnStore.getState().adopt(conversation_id);
           createdConversationIdRef.current = conversation_id;
+          attachedRef.current = conversation_id;
           setCurrentConversationId(conversation_id);
           // Reflect the new ID in the URL so the page is refreshable + shareable.
           if (!scoped) setUrlParam("id", conversation_id);
@@ -1037,6 +1051,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "error": {
+          setPendingQuestions(null);
           setPendingConnection(null);
           // An open that failed ends the turn here, with no `complete` after it.
           setSandboxPreparing(false);
@@ -1152,6 +1167,13 @@ export function useChat(options: UseChatOptions = {}) {
         case "ask_user": {
           const { questions } = wsEvent.data as { questions: WireQuestion[] };
           setPendingQuestions(toAskUserQuestions(questions ?? []));
+          const messageId = currentMessageIdRef.current;
+          const message = chatApi.getState().messages.find((message) => message.id === messageId);
+          for (const call of message?.toolCalls ?? []) {
+            if (call.name === "ask_user_question" && call.status === "running" && messageId) {
+              updateToolCallPart(messageId, call.id, { status: "awaiting_answer" });
+            }
+          }
           break;
         }
 
@@ -2281,9 +2303,16 @@ export function useChat(options: UseChatOptions = {}) {
       }
       if (!isConnected) return;
       setPendingQuestions(null);
+      const messageId = currentMessageIdRef.current;
+      const message = chatApi.getState().messages.find((message) => message.id === messageId);
+      for (const call of message?.toolCalls ?? []) {
+        if (call.status === "awaiting_answer" && messageId) {
+          updateToolCallPart(messageId, call.id, { status: "running" });
+        }
+      }
       sendMessage({ type: "ask_user_response", answers });
     },
-    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage],
+    [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, chatApi, updateToolCallPart],
   );
 
   /** Release a run paused on `connect_account`: `true` once connected, `false` to go on without. */
@@ -2462,6 +2491,10 @@ export function useChat(options: UseChatOptions = {}) {
     turnBelongsTo.current = activeConversationId;
     if (previous === null || previous === activeConversationId || !isProcessing) return;
     followingRef.current = null;
+    if (isConnected && attachedRef.current === previous) {
+      sendMessage({ type: "attach", conversation_id: null });
+      attachedRef.current = null;
+    }
     // Before the working mark's own cleanup, which runs after layout effects:
     // the thread left is still being answered, whatever this tab does next.
     handOffWorking(previous);
@@ -2470,7 +2503,15 @@ export function useChat(options: UseChatOptions = {}) {
     setSessionReady(true);
     reopen();
     setLeftRunning((threads) => new Set(threads).add(previous));
-  }, [activeConversationId, isProcessing, endTurnLocally, reopen, handOffWorking]);
+  }, [
+    activeConversationId,
+    isProcessing,
+    isConnected,
+    sendMessage,
+    endTurnLocally,
+    reopen,
+    handOffWorking,
+  ]);
 
   // The answer that was left behind has landed - the transcript, re-read on
   // coming back, ends with it - so there is nothing still coming to talk about.
@@ -2561,7 +2602,6 @@ export function useChat(options: UseChatOptions = {}) {
   // them its turns.
   const transcriptHere =
     activeConversationId !== null && messages.at(-1)?.conversationId === activeConversationId;
-  const attachedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isConnected || processingRef.current) return;
     if (activeConversationId === null ? attachedRef.current === null : !transcriptHere) return;

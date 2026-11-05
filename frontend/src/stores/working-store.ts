@@ -5,6 +5,11 @@ import { create } from "zustand";
 export interface WorkingState {
   /** When this tab's turn began, by the conversation it is running in. */
   since: Readonly<Record<string, string>>;
+  waiting: Readonly<Record<string, "awaiting_answer" | "awaiting_approval">>;
+  setWaiting: (
+    conversationId: string,
+    status: "awaiting_answer" | "awaiting_approval" | null,
+  ) => void;
   /** Threads whose turn this tab let go to the server - see `handOff`. */
   handedOff: Readonly<Record<string, true>>;
   start: (conversationId: string, since: string) => void;
@@ -35,6 +40,12 @@ export interface WorkingState {
  */
 export const useWorkingStore = create<WorkingState>()((set) => ({
   since: {},
+  waiting: {},
+  setWaiting: (conversationId, status) =>
+    set((state) => {
+      const { [conversationId]: _previous, ...waiting } = state.waiting;
+      return { waiting: status === null ? waiting : { ...waiting, [conversationId]: status } };
+    }),
   handedOff: {},
   start: (conversationId, since) =>
     set((state) => ({ since: { ...state.since, [conversationId]: since } })),
@@ -57,5 +68,5 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       const { [conversationId]: _handed, ...handedOff } = state.handedOff;
       return { since, handedOff };
     }),
-  reset: () => set({ since: {}, handedOff: {} }),
+  reset: () => set({ since: {}, waiting: {}, handedOff: {} }),
 }));

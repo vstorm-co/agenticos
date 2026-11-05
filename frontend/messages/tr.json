@@ -8924,7 +8924,8 @@
       "elapsedSeconds": "{seconds} sn.",
       "elapsedMinutes": "{minutes} dk.{seconds, plural, =0 {} other { # sn.}}",
       "stopped": "Durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
-      "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}"
+      "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
+      "activityCount": "{count} işlem"
     },
     "streamError": "❌ Hata: {message}",
     "turnInterrupted": "Yanıtın ortasında bağlantı kesildi. Agent turu tamamlayıp yanıtı bu konuşmaya kaydeder.",

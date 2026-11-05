@@ -106,6 +106,9 @@ export interface McpCall {
  * both match `github_work_create_issue`, and only the longer one is right.
  */
 export function mcpCall(toolName: string, servers: readonly McpServerRef[]): McpCall | null {
+  if (toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length) {
+    return { server: "AgenticOS", action: toolName.slice("agenticos_".length), domain: null };
+  }
   const matches = servers
     .map((server) => ({ server, prefix: `${mcpToolPrefix(server.name)}_` }))
     .filter(({ prefix }) => toolName.startsWith(prefix) && toolName.length > prefix.length)

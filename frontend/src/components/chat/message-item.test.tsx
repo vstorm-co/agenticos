@@ -522,11 +522,13 @@ describe("the ordered timeline", () => {
     expect(queryByText("Asked you")).not.toBeInTheDocument();
   });
 
-  it("opens the reasoning while it is the part being written, and closes it after", () => {
+  it("keeps live reasoning behind the activity disclosure", () => {
     // A thinking block left open on every past turn buries the answers.
     const parts: ChatMessage["parts"] = [{ id: "p-1", type: "thinking", content: "Checking." }];
     const { container, unmount } = item({ parts, isStreaming: true, content: "" });
-    expect(container.querySelector("details")).toHaveAttribute("open");
+    expect(container.querySelector("details")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Working/ }));
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
     unmount();
 
     const closed = item({ parts, isStreaming: false });
@@ -543,7 +545,7 @@ describe("the ordered timeline", () => {
       ],
     });
 
-    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(container.querySelector("details")).toBeNull();
   });
 
   it("shows a cursor on the part being written, and on no other", () => {
@@ -1144,6 +1146,7 @@ describe("the step a reopened turn leaves open", () => {
       <MessageItem message={message({ parts: [toolPart("a"), toolPart("b")] })} openLastStep />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 2 steps" }));
     expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
     expect(screen.getByTestId("tool-tc-b")).toHaveAttribute("data-open", "true");
   });
@@ -1162,7 +1165,7 @@ describe("the step a reopened turn leaves open", () => {
     expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
   });
 
-  it("keeps every step in view while the turn is still running", () => {
+  it("shows every step on demand through a single live activity disclosure", () => {
     // Folding a run that is still being written hides the step that is happening.
     render(
       <MessageItem
@@ -1170,6 +1173,8 @@ describe("the step a reopened turn leaves open", () => {
       />,
     );
 
+    expect(screen.queryByTestId("tool-tc-a")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Working/ }));
     expect(screen.getByTestId("tool-tc-a")).toBeVisible();
     expect(screen.getByTestId("tool-tc-b")).toBeVisible();
   });
@@ -1335,6 +1340,24 @@ describe("the work before an answer", () => {
     expect(split?.shown).toHaveLength(5);
   });
 
+  it("folds routine calls across reasoning blocks while keeping a neighboring failure visible", () => {
+    const split = foldWork(
+      runsOf([call("a"), thought, call("b"), call("bad", "error")]),
+      false,
+      true,
+    );
+    expect(split?.steps).toBe(2);
+    expect(split?.shown).toHaveLength(1);
+    expect(split?.shown[0]?.kind).toBe("tools");
+    expect(split?.folded).toHaveLength(3);
+  });
+
+  it("does not show Working above a question that is waiting for an answer", () => {
+    item({ parts: [call("question", "awaiting_answer", "ask_user_question")], isStreaming: true });
+    expect(screen.queryByText(/Working/)).toBeNull();
+    expect(screen.getByTestId("tool-tc-question")).toBeVisible();
+  });
+
   it("times a reloaded turn by its run, under its last segment only", () => {
     const parts = [call("a"), text("ans", "Done.")];
     const { unmount } = item({ parts, runDurationMs: 12_400 });
@@ -1347,7 +1370,7 @@ describe("the work before an answer", () => {
 
   it("says the turn is working while it streams, and only once there is work", () => {
     const { unmount } = item({ parts: [call("a", "running")], isStreaming: true });
-    expect(screen.getByRole("status")).toHaveTextContent("Working");
+    expect(screen.getByRole("button", { name: /Working/ })).toBeInTheDocument();
     unmount();
 
     item({ parts: [text("ans", "Thir")], isStreaming: true });
@@ -1362,14 +1385,12 @@ describe("the work before an answer", () => {
       call("approve", "awaiting_approval"),
     ];
     const view = item({ parts, isStreaming: true });
-    const detail = screen.getByTestId("tool-tc-read").closest("[data-work-detail]");
-    expect(detail).toHaveClass("hidden", "md:block");
-    expect(screen.getByText("Here is the result.").closest("[data-work-detail]")).toBeNull();
-    expect(screen.getByTestId("tool-tc-approve").closest("[data-work-detail]")).toBeNull();
-    const toggle = screen.getByRole("button", { name: /Working/ });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("tool-tc-read")).toBeNull();
+    expect(screen.getByText("Here is the result.")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-approve")).toBeVisible();
+    const toggle = screen.getByRole("button", { name: /Waiting for approval/ });
     await userEvent.click(toggle);
-    expect(detail).not.toHaveClass("hidden");
+    expect(screen.getByTestId("tool-tc-read")).toBeVisible();
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     view.rerender(
       <MessageItem
@@ -1381,7 +1402,7 @@ describe("the work before an answer", () => {
     );
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(toggle);
-    expect(detail).toHaveClass("hidden", "md:block");
+    expect(screen.queryByTestId("tool-tc-read")).toBeNull();
   });
 
   it("keeps live failures out of the mobile progress fold", () => {

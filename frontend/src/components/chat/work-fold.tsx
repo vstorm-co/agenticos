@@ -97,6 +97,8 @@ export function WorkFold({
   steps,
   durationMs,
   stopped = false,
+  running = false,
+  waiting,
   children,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
@@ -104,23 +106,32 @@ export function WorkFold({
   durationMs: number | null;
   /** The run was stopped, which the line says instead of "Worked". */
   stopped?: boolean;
+  running?: boolean;
+  waiting?: "awaiting_answer" | "awaiting_approval";
   children: ReactNode;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
   const [open, setOpen] = useState(false);
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
-  const label = stopped
-    ? duration === null
-      ? t("stopped", { count: steps })
-      : t("stoppedAfter", { duration, count: steps })
-    : steps === 0
+  const runText = useTranslations("pages.runs");
+  const label = waiting
+    ? runText("toolState", { status: waiting })
+    : running
       ? duration === null
-        ? tChat("thoughtAboutIt")
-        : t("thoughtFor", { duration })
-      : duration === null
-        ? t("worked", { count: steps })
-        : t("workedFor", { duration, count: steps });
+        ? t("working")
+        : t("workingFor", { duration })
+      : stopped
+        ? duration === null
+          ? t("stopped", { count: steps })
+          : t("stoppedAfter", { duration, count: steps })
+        : steps === 0
+          ? duration === null
+            ? tChat("thoughtAboutIt")
+            : t("thoughtFor", { duration })
+          : duration === null
+            ? t("worked", { count: steps })
+            : t("workedFor", { duration, count: steps });
 
   return (
     <div>
@@ -143,7 +154,7 @@ export function WorkFold({
             <ThinkingOrb
               state="breathing"
               size={20}
-              paused
+              paused={!running}
               className="h-6 w-6 opacity-80 transition-opacity group-hover:opacity-0"
             />
           )}
@@ -158,6 +169,11 @@ export function WorkFold({
           />
         </span>
         {label}
+        {running && steps > 0 && (
+          <span className="text-muted-foreground text-xs">
+            {t("activityCount", { count: steps })}
+          </span>
+        )}
       </button>
       {open && <div className="mt-2 space-y-3 pl-1">{children}</div>}
     </div>

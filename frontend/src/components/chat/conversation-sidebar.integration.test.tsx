@@ -268,6 +268,11 @@ describe("what the sidebar says about the list", () => {
     const other = within(list()).getByText("Other one").closest("[class*='group']") as HTMLElement;
     expect(within(other).queryByText(/Working/)).toBeNull();
 
+    act(() => useWorkingStore.getState().setWaiting("c-2", "awaiting_answer"));
+    expect(within(asked).getByText("Waiting for an answer")).toBeInTheDocument();
+    expect(within(asked).queryByText(/Working/)).toBeNull();
+    act(() => useWorkingStore.getState().setWaiting("c-2", null));
+    expect(within(asked).getByText(/Working/)).toBeInTheDocument();
     act(() => useWorkingStore.getState().stop("c-2"));
     expect(within(asked).queryByText(/Working/)).toBeNull();
   });

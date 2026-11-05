@@ -282,6 +282,26 @@ describe("a tool call in the transcript", () => {
     expect(screen.queryByText("the output")).toBeNull();
   });
 
+  it("keeps generic results closed even when the caller requests automatic expansion", async () => {
+    render(
+      <ToolCallCard
+        mcpServers={[]}
+        autoExpand={false}
+        startOpen
+        toolCall={{
+          id: "tc-1",
+          name: "agenticos_list_projects",
+          args: {},
+          status: "completed",
+          result: "large result",
+        }}
+      />,
+    );
+    expect(screen.queryByText("large result")).toBeNull();
+    await open();
+    expect(screen.getByText("large result")).toBeInTheDocument();
+  });
+
   it("is a button, so a keyboard opens it without a handler of its own", () => {
     // The row used to be a div with a button role and hand-rolled Enter/Space keys.
     card({ result: "the output" });

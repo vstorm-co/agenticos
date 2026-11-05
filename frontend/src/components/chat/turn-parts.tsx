@@ -1,6 +1,5 @@
 "use client";
 
-import { Fragment, useState } from "react";
 import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -78,21 +77,20 @@ export function TurnParts({
   /** The run was stopped part-way, so its work ends without an answer or a "Done". */
   stopped?: boolean;
 }) {
-  const [mobileWorkOpen, setMobileWorkOpen] = useState(false);
   const runs = runsOf(parts);
-  const elapsed = useTurnElapsed(startedAt, isStreaming);
+  const waiting = parts.some((part) => part.toolCall?.status === "awaiting_answer")
+    ? "awaiting_answer"
+    : parts.some((part) => part.toolCall?.status === "awaiting_approval")
+      ? "awaiting_approval"
+      : undefined;
+  const elapsed = useTurnElapsed(startedAt, isStreaming && !waiting);
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
   const render = (run: PartRun, visuals = true, afterWork = false) =>
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
-        {/* The rail folds its own earlier steps away, but it cannot see what is
-                in them - so whether this run holds something a person has to answer
-                is decided here, where the statuses and the names are. */}
-        <AgentSteps
-          showAll={mustShowEveryStep(run.parts)}
-          done={run.parts.length > 1 && !isStreaming && !stopped}
-        >
+        {/* The outer activity disclosure owns folding; avoid nested earlier-step groups. */}
+        <AgentSteps showAll done={run.parts.length > 1 && !isStreaming && !stopped}>
           {run.parts.map((part, step) => (
             <ToolCallCard
               key={part.id}
@@ -100,9 +98,9 @@ export function TurnParts({
               fileSource={fileSource}
               mcpServers={mcpServers}
               agents={agents}
-              // The last call of that turn, which is the one whose result the
-              // reader is here for.
+              // Rich outputs may open on arrival; routine action details stay opt-in.
               startOpen={openLastStep && run.isLast && step === run.parts.length - 1}
+              autoExpand={toolEntry(part.toolCall!.name)?.opensOnSight === true}
             />
           ))}
         </AgentSteps>
@@ -112,7 +110,7 @@ export function TurnParts({
       <ThinkingBlock
         key={run.part.id}
         text={run.content}
-        open={isStreaming && run.isLast}
+        open={false}
         // The block still taking deltas, not every block in a streaming
         // turn: the orb marks where the thinking is arriving, and a turn
         // that thought twice would otherwise show two of them.
@@ -142,46 +140,11 @@ export function TurnParts({
       />
     );
 
-  if (isStreaming) {
-    return (
-      <>
-        {runs.some(isWork) && (
-          <>
-            <div className="hidden md:block">
-              <WorkingLine elapsedMs={elapsed} />
-            </div>
-            <div className="md:hidden">
-              <WorkingLine
-                elapsedMs={elapsed}
-                expanded={mobileWorkOpen}
-                onToggle={() => setMobileWorkOpen((open) => !open)}
-              />
-            </div>
-          </>
-        )}
-        <TurnBrowses calls={browseCalls(runs)} />
-        {runs.map((run, index) => {
-          // Questions, approvals, failures and tool payloads stay reachable while
-          // routine progress folds on small screens. Text keeps its turn order.
-          const foldable = isWork(run) && (run.kind !== "tools" || !mustShowEveryStep(run.parts));
-          return foldable ? (
-            <Fragment key={run.kind === "tools" ? run.parts[0].id : run.part.id}>
-              <div className={cn(!mobileWorkOpen && "hidden md:block")} data-work-detail>
-                {render(run, false)}
-              </div>
-              <TurnVisuals calls={visualCalls([run])} />
-            </Fragment>
-          ) : (
-            render(run, true, index > 0 && isWork(runs[index - 1]!))
-          );
-        })}
-      </>
-    );
-  }
-  const split = foldWork(runs, stopped);
+  const split = foldWork(runs, stopped, isStreaming);
   if (split === null) {
     return (
       <>
+        {isStreaming && !waiting && runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
         <TurnBrowses calls={browseCalls(runs)} />
         {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
       </>
@@ -189,7 +152,13 @@ export function TurnParts({
   }
   return (
     <>
-      <WorkFold steps={split.steps} durationMs={durationMs ?? elapsed} stopped={stopped}>
+      <WorkFold
+        steps={split.steps}
+        durationMs={durationMs ?? elapsed}
+        stopped={stopped}
+        running={isStreaming && !waiting}
+        waiting={waiting}
+      >
         {split.folded.map((run) => render(run, false))}
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
@@ -536,19 +505,46 @@ function isWork(run: PartRun): boolean {
 export function foldWork(
   runs: PartRun[],
   stopped = false,
+  active = false,
 ): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
-  const lastText = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
-  const answer = lastText <= 0 && stopped ? runs.length : lastText;
+  let lastText = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
+  while (lastText > 0) {
+    const previous = runs[lastText - 1]!;
+    if (previous.kind !== "other" || previous.part.type !== "text") break;
+    lastText -= 1;
+  }
+  const toolCount = runs.reduce(
+    (count, run) => count + (run.kind === "tools" ? run.parts.length : 0),
+    0,
+  );
+  const tail = runs.at(-1);
+  const trailingWork =
+    tail !== undefined && isWork(tail) && !(tail.kind === "tools" && mustShowEveryStep(tail.parts));
+  const lastTextRun = runs[lastText];
+  const narrationBeforeWork =
+    lastTextRun?.kind === "other" && lastTextRun.content.length <= NARRATION_CHARS && trailingWork;
+  const answer =
+    (lastText < 0 && (active || stopped || toolCount > 1)) ||
+    (active && narrationBeforeWork) ||
+    (lastText <= 0 && stopped)
+      ? runs.length
+      : lastText;
   if (answer <= 0) return null;
   const folded: PartRun[] = [];
   const kept: PartRun[] = [];
   for (const run of runs.slice(0, answer)) {
-    const foldable =
-      run.kind === "tools"
-        ? !mustShowEveryStep(run.parts)
-        : run.part.type === "thinking" ||
-          (run.part.type === "text" && run.content.length <= NARRATION_CHARS);
-    (foldable ? folded : kept).push(run);
+    if (run.kind === "tools") {
+      const routine = run.parts.filter((part) => !mustShowEveryStep([part]));
+      const attention = run.parts.filter((part) => mustShowEveryStep([part]));
+      if (routine.length > 0) folded.push({ ...run, parts: [routine[0]!, ...routine.slice(1)] });
+      if (attention.length > 0)
+        kept.push({ ...run, parts: [attention[0]!, ...attention.slice(1)] });
+    } else {
+      const foldable =
+        run.part.type === "thinking" ||
+        (run.part.type === "text" && run.content.length <= NARRATION_CHARS);
+      (foldable ? folded : kept).push(run);
+    }
   }
   if (!folded.some(isWork)) return null;
   const steps = folded.reduce((sum, run) => sum + (run.kind === "tools" ? run.parts.length : 0), 0);

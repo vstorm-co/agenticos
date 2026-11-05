@@ -602,7 +602,8 @@
       "elapsedSeconds": "{seconds} s",
       "elapsedMinutes": "{minutes} min{seconds, plural, =0 {} other { # s}}",
       "stopped": "Zatrzymano{count, plural, =0 {} one { · 1 krok} few { · # kroki} many { · # kroków} other { · # kroku}}",
-      "stoppedAfter": "Zatrzymano po {duration}{count, plural, =0 {} one { · 1 krok} few { · # kroki} many { · # kroków} other { · # kroku}}"
+      "stoppedAfter": "Zatrzymano po {duration}{count, plural, =0 {} one { · 1 krok} few { · # kroki} many { · # kroków} other { · # kroku}}",
+      "activityCount": "{count, plural, one {# działanie} few {# działania} many {# działań} other {# działania}}"
     },
     "streamError": "❌ Błąd: {message}",
     "turnInterrupted": "Połączenie zerwało się w trakcie odpowiedzi. Agent kończy turę i zapisuje ją w tej rozmowie.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "899422b17690"
+source_sha: "b6a806020ff6"
 ---
 
 # La consola { #the-console }
@@ -450,7 +450,7 @@ Las listas de conversaciones conservan el agente principal y también muestran C
 
 El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
 
-En pantallas de menos de 768 px, el razonamiento y los pasos habituales de herramientas durante la ejecución empiezan contraídos bajo la línea del tiempo de trabajo. Tócala para mostrar u ocultar los detalles. Las respuestas, preguntas, solicitudes de aprobación, errores y resultados visuales permanecen visibles. En pantallas más anchas se siguen mostrando los pasos en directo.
+El razonamiento en directo y las llamadas habituales a herramientas comparten una única sección de actividad contraída en todos los tamaños de pantalla. Ábrela para revisar los pasos; los argumentos y resultados habituales permanecen cerrados hasta seleccionarlos. Las respuestas, preguntas, solicitudes de aprobación, errores y resultados visuales siguen visibles fuera de la sección. Una pregunta o aprobación pendiente muestra un estado de espera en lugar del contador de trabajo. Al salir de un chat con una pregunta sin responder, se guarda para responder al volver.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta

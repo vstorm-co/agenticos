@@ -1,5 +1,5 @@
 ---
-source_sha: "899422b17690"
+source_sha: "b6a806020ff6"
 ---
 
 # Die Konsole { #the-console }
@@ -470,7 +470,7 @@ Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude 
 
 Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
-Auf Bildschirmen unter 768 px bleiben laufende Überlegungen und gewöhnliche Werkzeugschritte zunächst hinter der Zeile mit der Arbeitszeit eingeklappt. Tippe darauf, um Details ein- oder auszuklappen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben sichtbar. Auf breiteren Bildschirmen sind laufende Schritte weiterhin zu sehen.
+Laufende Überlegungen und gewöhnliche Werkzeugaufrufe stehen auf allen Bildschirmgrößen in einem gemeinsamen eingeklappten Aktivitätsbereich. Öffne ihn, um die Schritte zu prüfen; Argumente und Ergebnisse gewöhnlicher Werkzeuge bleiben bis zur Auswahl geschlossen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben außerhalb sichtbar. Ausstehende Fragen oder Freigaben zeigen einen Wartestatus statt einer laufenden Zeitanzeige. Verlässt du einen Chat mit einer unbeantworteten Frage, wird sie gespeichert und bei der Rückkehr wieder zur Beantwortung angeboten.
 
 **Unter einer Antwort.** Ein Agent mit
 [Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner

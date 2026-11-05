@@ -53,6 +53,8 @@ interface ToolCallCardProps {
    * is a line they can open if they want it.
    */
   startOpen?: boolean;
+  /** Activity details open only when the person asks, even as tool results arrive. */
+  autoExpand?: boolean;
   /**
    * The agents the reader can see, for naming the one a delegation asked.
    *
@@ -82,6 +84,7 @@ export function ToolCallCard({
   fileSource,
   mcpServers,
   startOpen = false,
+  autoExpand = true,
   agents = [],
 }: ToolCallCardProps) {
   const t = useTranslations("chat.tools");
@@ -130,7 +133,10 @@ export function ToolCallCard({
   // charts arrived as two headers and one picture. And bookkeeping never opens on
   // its own - see `staysClosed`.
   const [expanded, setExpanded] = useState(
-    toolCall.status === "completed" && entry?.staysClosed !== true && (startOpen || opensOnSight),
+    autoExpand &&
+      toolCall.status === "completed" &&
+      entry?.staysClosed !== true &&
+      (startOpen || opensOnSight),
   );
   const [showRaw, setShowRaw] = useState(false);
 
@@ -202,7 +208,12 @@ export function ToolCallCard({
   const [seenStatus, setSeenStatus] = useState(toolCall.status);
   if (seenStatus !== toolCall.status) {
     setSeenStatus(toolCall.status);
-    if (toolCall.status === "completed" && entry?.opensWhenDone === true && produced) {
+    if (
+      autoExpand &&
+      toolCall.status === "completed" &&
+      entry?.opensWhenDone === true &&
+      produced
+    ) {
       setExpanded(true);
     }
   }

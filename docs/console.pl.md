@@ -1,5 +1,5 @@
 ---
-source_sha: "899422b17690"
+source_sha: "b6a806020ff6"
 ---
 
 # Konsola { #the-console }
@@ -434,7 +434,7 @@ Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Code
 
 Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 
-Na ekranach węższych niż 768 px rozumowanie i zwykłe kroki narzędzi podczas pracy są domyślnie zwinięte pod wierszem z czasem pracy. Dotknij go, aby rozwinąć lub zwinąć szczegóły. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne. Szersze ekrany nadal pokazują kroki na bieżąco.
+Rozumowanie i zwykłe wywołania narzędzi trafiają do jednej zwiniętej sekcji aktywności na każdym rozmiarze ekranu. Rozwiń ją, aby przejrzeć kroki; argumenty i wyniki zwykłych narzędzi otwierasz osobno. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne poza sekcją. Oczekujące pytanie lub zatwierdzenie pokazuje stan oczekiwania zamiast licznika pracy. Wyjście z czatu z pytaniem bez odpowiedzi zapisuje je do udzielenia odpowiedzi po powrocie.
 
 **Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
 proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a

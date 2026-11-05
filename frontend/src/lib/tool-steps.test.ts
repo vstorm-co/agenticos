@@ -272,3 +272,11 @@ describe("reading a call's arguments", () => {
     expect(pathArg(undefined)).toBeNull();
   });
 });
+
+it("names the built-in AgenticOS MCP without a configured server connection", () => {
+  expect(mcpCall("agenticos_list_projects", [])).toEqual({
+    server: "AgenticOS",
+    action: "list_projects",
+    domain: null,
+  });
+});

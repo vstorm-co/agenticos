@@ -118,6 +118,8 @@ function ConversationItem({
   // can begin and end between two listings, and the thread asked in must not
   // look idle for it.
   const workingHere = useWorkingStore((state) => state.since[conversation.id]);
+  const waiting = useWorkingStore((state) => state.waiting[conversation.id]);
+  const tTools = useTranslations("pages.runs");
   const runningSince = conversation.running_since ?? workingHere ?? null;
   // A thread this tab left mid-answer keeps its own mark until the listing has
   // the run - then the listing speaks for it, and polls it to its end - or until
@@ -196,7 +198,9 @@ function ConversationItem({
             {/* At work, the line says so and for how long, in place of who and
                 when: beside the agent's name it was cut to nothing. The face
                 still says who. */}
-            {runningSince ? (
+            {waiting ? (
+              tTools("toolState", { status: waiting })
+            ) : runningSince ? (
               <RunningFor since={runningSince} />
             ) : (
               <>

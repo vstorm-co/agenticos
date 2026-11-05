@@ -687,7 +687,16 @@ class TestATurnThatFinished:
     async def test_a_turn_that_started_a_conversation_announces_it_first(self):
         session = _session()
 
-        with _chat(AsyncMock(return_value=_finished_turn()), newly_created=True):
+        async def enter_room(conversation_id: str) -> None:
+            assert _sent_events(session)[0] == (
+                "conversation_created",
+                {"conversation_id": _CONVERSATION},
+            )
+
+        with (
+            _chat(AsyncMock(return_value=_finished_turn()), newly_created=True),
+            patch.object(session, "_enter_room", side_effect=enter_room),
+        ):
             await session.process_message(_message())
 
         assert _frame_types(session) == [
@@ -3117,6 +3126,51 @@ class TestASocketThatWentAway:
 
         assert parked == [True]
         assert session._round_parks is False
+
+    @pytest.mark.parametrize("closed", [True, False])
+    async def test_a_question_asked_after_the_reader_left_parks_immediately(self, closed: bool):
+        session = _session()
+        session._live = _CONVERSATION
+        if closed:
+            session._closed = True
+        else:
+            session._park_question_when_leaving(None)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        with pytest.raises(CallDeferred):
+            await session._ask_questions(request)
+        assert session._ask_user_future is None
+        assert "ask_user" not in _frame_types(session)
+
+    async def test_leaving_a_chat_parks_its_unanswered_question(self):
+        session = _session()
+        session._live = _CONVERSATION
+        asked = _next_frame(session)
+        request = AskUserRequest(
+            questions=(
+                Question(
+                    header="Tone",
+                    question="How should it sound?",
+                    options=(QuestionOption(label="Formal"), QuestionOption(label="Casual")),
+                ),
+            )
+        )
+        asking = asyncio.create_task(session._ask_questions(request))
+        await _wait(asked)
+        session._park_question_when_leaving(_CONVERSATION)
+        assert not asking.done()
+        with patch.object(session, "_leave_room", new=AsyncMock()):
+            await session._attach(None)
+        with pytest.raises(CallDeferred):
+            await asking
+        assert session._ask_user_future is None
 
     async def test_a_delegates_question_left_open_is_still_no_answer(self):
         """Only the run's own agent parks: a delegate asking through `ask_parent`

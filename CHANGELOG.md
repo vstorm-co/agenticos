@@ -52,6 +52,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Group chat reasoning and routine actions into one collapsed activity section, keep tool details closed until selected, restore unanswered questions after leaving a chat, announce new conversations before live-room setup, and show waiting states separately from active work.
+
 - **Breaking:** inbound email relays must attest to an aligned DMARC pass for the exact From address in `sender_authentication`. Upgrade relays to supply the trusted receiver verdict before updating the API; signed messages without it are ignored.
 
 - Refresh shipped AgenticOS and Architect defaults on console open while preserving custom prompts, tool settings, models, budgets and unpublished edits. New console agents retain the same AgenticOS baseline; apply `0284_shipped_agent_defaults.py` before starting the updated API.
