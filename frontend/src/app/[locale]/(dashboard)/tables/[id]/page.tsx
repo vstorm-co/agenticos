@@ -579,7 +579,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               }
             />
           </div>
-          <div className="flex w-full flex-wrap items-center gap-2 [&>button]:h-9">
+          <div
+            data-table-view-toolbar
+            className="flex w-full flex-wrap items-center gap-2 [&>button]:h-9"
+          >
             <SearchInput
               value={searchDraft}
               onChange={setSearchDraft}
@@ -592,6 +595,27 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               onChange={setFilters}
             />
             <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
+            {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
+              <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                {t("kanbanGroupBy")}
+                <Select
+                  value={groupBy ?? ""}
+                  disabled={groupingPending}
+                  onValueChange={(value) => void chooseGrouping(value)}
+                >
+                  <SelectTrigger className="h-9 w-36" aria-label={t("kanbanGroupBy")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groupable.map((column) => (
+                      <SelectItem key={column.id} value={column.id}>
+                        {column.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {hidden.length > 0 && (
               <HiddenColumnsPopover
                 hidden={hidden}
@@ -702,27 +726,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               )}
 
-              {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
-                <div className="text-muted-foreground flex items-center gap-2 px-4 pt-4 text-xs">
-                  {t("kanbanGroupBy")}
-                  <Select
-                    value={groupBy ?? ""}
-                    disabled={groupingPending}
-                    onValueChange={(value) => void chooseGrouping(value)}
-                  >
-                    <SelectTrigger size="sm" className="w-44" aria-label={t("kanbanGroupBy")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groupable.map((column) => (
-                        <SelectItem key={column.id} value={column.id}>
-                          {column.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
               {tab === "kanban" &&
                 (groupBy ? (
                   <TableKanbanView

@@ -267,6 +267,41 @@
 /* Dark surfaces rise from navigation to page, cards and floating panels.
    Input wells use the page surface. Their edge stays stronger than decorative
    card borders. Keep both root dark mappings aligned. */
+@theme inline {
+  /* Table labels inherit the app surface and ink, including an explicit Light
+     choice on a dark OS. Mixing in hue keeps color secondary to readable text. */
+  --color-table-blue: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.11 230));
+  --color-table-blue-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.11 230)
+  );
+  --color-table-green: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.1 155));
+  --color-table-green-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.1 155)
+  );
+  --color-table-yellow: color-mix(in oklab, var(--color-card) 90%, oklch(68% 0.12 75));
+  --color-table-yellow-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(68% 0.12 75)
+  );
+  --color-table-purple: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.12 295));
+  --color-table-purple-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.12 295)
+  );
+  --color-table-red: color-mix(in oklab, var(--color-card) 90%, oklch(60% 0.12 20));
+  --color-table-red-foreground: color-mix(
+    in oklab,
+    var(--color-foreground) 70%,
+    oklch(60% 0.12 20)
+  );
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
     --color-sidebar: #141414;
@@ -467,9 +502,9 @@
   --series-4: oklch(64% 0.17 22);
   --series-5: oklch(62% 0.16 312);
   --color-secondary: #282828;
-  --color-secondary-foreground: #f0f0f0;
+  --color-secondary-foreground: oklch(95% 0 0);
   --color-accent: #333333;
-  --color-accent-foreground: #f0f0f0;
+  --color-accent-foreground: oklch(95% 0 0);
 }
 
 @layer base {

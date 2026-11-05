@@ -1158,7 +1158,10 @@ describe("the table detail page", () => {
     });
     const page = renderPage();
     await screen.findByTestId("kanban-view");
-    await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
+    const grouping = screen.getByRole("combobox", { name: "Group by" });
+    expect(grouping.closest("[data-table-view-toolbar]")).not.toBeNull();
+    expect(grouping.closest("[data-table-view-content]")).toBeNull();
+    await userEvent.click(grouping);
     await userEvent.click(screen.getByRole("option", { name: "Priority" }));
     await waitFor(() =>
       expect(screen.getByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4"),

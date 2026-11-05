@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Use muted, theme-aware table option colors with readable ink in explicit Light mode even on a dark OS, and place Kanban grouping alongside filters and sorting in the view toolbar.
+
 - Route approval notifications to real decisions, hide duplicate chat notices when their run already has an approval panel, and refresh outcomes when approvals change.
 
 - Group chat reasoning and routine actions into one collapsed activity section, keep tool details closed until selected, restore unanswered questions after leaving a chat, announce new conversations before live-room setup, and show waiting states separately from active work.
