@@ -14,7 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
@@ -97,13 +97,15 @@ function mount() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return render(<ConversationSidebar />, { wrapper });
+  return { ...render(<ConversationSidebar />, { wrapper }), client };
 }
 
 /** The desktop list. `ConversationSidebar` also renders a mobile sheet. */
 function list(): HTMLElement {
   return screen.getAllByRole("complementary")[0] as HTMLElement;
 }
+
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -295,6 +297,38 @@ describe("what the sidebar says about the list", () => {
       .getByText("Left mid-answer")
       .closest("[class*='group']") as HTMLElement;
     expect(within(row).getByText(/Working/)).toBeInTheDocument();
+  });
+
+  it("keeps the local turn clock authoritative and ignores an already completed listed run", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const now = Date.now();
+    useWorkingStore.getState().start("c-2", new Date(now - 3_000).toISOString());
+    serve([
+      {
+        ...conversation("c-2", "Queued turns"),
+        running_since: new Date(now - 120_000).toISOString(),
+      },
+    ]);
+    const { client } = mount();
+    await screen.findAllByText("Queued turns");
+    const row = within(list()).getByText("Queued turns").closest("[class*='group']") as HTMLElement;
+    act(() => vi.advanceTimersByTime(1000));
+    expect(within(row).getByText(/Working for 4s/)).toBeInTheDocument();
+    act(() => {
+      useWorkingStore.getState().finish("c-2");
+      useWorkingStore.getState().stop("c-2");
+    });
+    expect(within(row).queryByText(/Working/)).not.toBeInTheDocument();
+    // A genuinely new server-side turn still appears after the local completion.
+    serve([
+      {
+        ...conversation("c-2", "Queued turns"),
+        running_since: new Date(Date.now() + 1_000).toISOString(),
+      },
+    ]);
+    await act(() => client.invalidateQueries());
+    await waitFor(() => expect(within(row).getByText(/Working/)).toBeInTheDocument());
+    vi.useRealTimers();
   });
 
   it("lets a handed-off mark go when the listing never shows the run", async () => {

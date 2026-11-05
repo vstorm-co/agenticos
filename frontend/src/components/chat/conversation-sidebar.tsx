@@ -120,7 +120,13 @@ function ConversationItem({
   const workingHere = useWorkingStore((state) => state.since[conversation.id]);
   const waiting = useWorkingStore((state) => state.waiting[conversation.id]);
   const tTools = useTranslations("pages.runs");
-  const runningSince = conversation.running_since ?? workingHere ?? null;
+  const finishedAt = useWorkingStore((state) => state.finishedAt[conversation.id]);
+  const serverSince = conversation.running_since;
+  const listedSince =
+    serverSince && (!finishedAt || Date.parse(serverSince) > Date.parse(finishedAt))
+      ? serverSince
+      : null;
+  const runningSince = workingHere ?? listedSince;
   // A thread this tab left mid-answer keeps its own mark until the listing has
   // the run - then the listing speaks for it, and polls it to its end - or until
   // long enough that a turn the listing never saw has surely finished.
@@ -201,7 +207,7 @@ function ConversationItem({
             {waiting ? (
               tTools("toolState", { status: waiting })
             ) : runningSince ? (
-              <RunningFor since={runningSince} />
+              <RunningFor key={runningSince} since={runningSince} />
             ) : (
               <>
                 {agentLabel && <>{agentLabel} · </>}

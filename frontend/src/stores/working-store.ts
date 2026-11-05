@@ -5,6 +5,8 @@ import { create } from "zustand";
 export interface WorkingState {
   /** When this tab's turn began, by the conversation it is running in. */
   since: Readonly<Record<string, string>>;
+  /** Completed locally: ignore list responses that still contain the previous run. */
+  finishedAt: Readonly<Record<string, string>>;
   waiting: Readonly<Record<string, "awaiting_answer" | "awaiting_approval">>;
   setWaiting: (
     conversationId: string,
@@ -15,6 +17,8 @@ export interface WorkingState {
   start: (conversationId: string, since: string) => void;
   /** This tab's turn is over. A handed-off thread keeps its mark until `settle`. */
   stop: (conversationId: string) => void;
+  /** A terminal socket frame confirmed this turn ended, rather than merely detached. */
+  finish: (conversationId: string) => void;
   /**
    * The person opened another thread while this one was answering, and the turn
    * goes on on the server. Its mark stays: the listing may not have seen the run
@@ -40,6 +44,7 @@ export interface WorkingState {
  */
 export const useWorkingStore = create<WorkingState>()((set) => ({
   since: {},
+  finishedAt: {},
   waiting: {},
   setWaiting: (conversationId, status) =>
     set((state) => {
@@ -55,6 +60,10 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       const { [conversationId]: _stopped, ...rest } = state.since;
       return { since: rest };
     }),
+  finish: (conversationId) =>
+    set((state) => ({
+      finishedAt: { ...state.finishedAt, [conversationId]: new Date().toISOString() },
+    })),
   handOff: (conversationId) =>
     set((state) =>
       conversationId in state.since
@@ -68,5 +77,5 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       const { [conversationId]: _handed, ...handedOff } = state.handedOff;
       return { since, handedOff };
     }),
-  reset: () => set({ since: {}, waiting: {}, handedOff: {} }),
+  reset: () => set({ since: {}, finishedAt: {}, waiting: {}, handedOff: {} }),
 }));

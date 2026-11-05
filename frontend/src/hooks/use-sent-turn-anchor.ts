@@ -14,10 +14,21 @@ export function useSentTurnAnchor(
   contentRef: RefObject<HTMLDivElement | null>,
   spacerRef: RefObject<HTMLDivElement | null>,
   anchoredRef: RefObject<boolean>,
+  sentTurnId: string | null | undefined,
+  readerScrolledUpRef: RefObject<boolean>,
 ): void {
   const previous = useRef<string | null>(null);
-  const sent = messages.findLast((message) => message.role === "user");
-  const key = sent?.clientMessageId ?? sent?.id ?? null;
+  // Only an explicit send owns the viewport. Draining the outbox must not
+  // repeatedly pull the reader away from an earlier answer.
+  const sent = messages.find(
+    (message) =>
+      sentTurnId != null &&
+      message.role === "user" &&
+      (message.clientMessageId === sentTurnId ||
+        message.renderKey === sentTurnId ||
+        message.id === sentTurnId),
+  );
+  const key = sent ? (sentTurnId ?? null) : null;
   const current = useRef(sent);
   useLayoutEffect(() => {
     current.current = sent;
@@ -33,12 +44,13 @@ export function useSentTurnAnchor(
       anchoredRef.current = false;
       space.style.height = "0px";
     }
-    if (!changed || !current.current?.isTemporaryId) return;
+    if (!changed || !current.current) return;
     const row = Array.from(transcript.querySelectorAll<HTMLElement>("[data-message-id]")).find(
       (candidate) => candidate.dataset.messageId === current.current?.id,
     );
     if (!row) return;
     anchoredRef.current = true;
+    readerScrolledUpRef.current = false;
     const size = () => {
       const turnHeight =
         transcript.getBoundingClientRect().bottom -
@@ -58,5 +70,5 @@ export function useSentTurnAnchor(
     observer.observe(transcript);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [key, scrollerRef, contentRef, spacerRef, anchoredRef]);
+  }, [key, scrollerRef, contentRef, spacerRef, anchoredRef, readerScrolledUpRef]);
 }

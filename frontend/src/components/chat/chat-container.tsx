@@ -454,6 +454,7 @@ export function ChatContainer({
     stopGeneration,
     clearMessages,
     queuedMessages,
+    sentTurnId,
     cancelQueued,
     retryQueued,
     sendQueuedNow,
@@ -607,6 +608,8 @@ export function ChatContainer({
     transcriptRef,
     sentTurnSpacerRef,
     sentTurnAnchoredRef,
+    sentTurnId,
+    userScrolledUpRef,
   );
 
   // Clear messages when conversation changes, but NOT when going from null to a new ID

@@ -1507,6 +1507,24 @@ describe("useChat - the summary of its own history", () => {
 });
 
 describe("useChat - approvals and questions", () => {
+  it("records a completed turn for the sidebar but leaves a parked approval unfinished", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Done." });
+    receive("complete", {});
+    expect(useWorkingStore.getState().finishedAt["c-1"]).toBeDefined();
+    useWorkingStore.getState().reset();
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "send_email", args: {}, tool_call_id: "tc-1" });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    expect(useWorkingStore.getState().finishedAt["c-1"]).toBeUndefined();
+  });
+
   it("surfaces the tools waiting on a person, and resolves their cards", async () => {
     // The card used to spin forever: a parked call produces no `tool_result`
     // until somebody decides, so "running" is a state it never leaves.
@@ -4777,6 +4795,12 @@ describe("useChat - the outbox (#2097)", () => {
     ]);
     expect(keepOutbox).toHaveBeenLastCalledWith("c-1", []);
     expect(frame(1).message).toBe("second");
+    expect(result.current.sentTurnId).toBe(
+      result.current.messages.find((message) => message.content === "first")?.clientMessageId,
+    );
+    expect(result.current.sentTurnId).not.toBe(
+      result.current.messages.find((message) => message.content === "second")?.clientMessageId,
+    );
     vi.useRealTimers();
   });
 

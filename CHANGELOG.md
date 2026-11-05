@@ -184,6 +184,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep queued chat turns from moving the reader to each new question, and keep
+  sidebar clocks and completed statuses consistent with the local conversation.
+
 - Persist accepted SMS/iMessage deliveries before acknowledging their webhooks; enforce table-edit authority on project tasks, purge managed boards with deleted scopes, and recover the task selector after access loss.
 
 - Refuse personal cloud coding accounts on shared source workspaces before credential loading, including project snapshots and conversations shared for editing.

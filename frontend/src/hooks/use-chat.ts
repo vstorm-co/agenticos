@@ -240,6 +240,7 @@ export function useChat(options: UseChatOptions = {}) {
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
+  const [sentTurnId, setSentTurnId] = useState<string | null>(null);
   // In the apps the queue is also the outbox: kept sealed on the device under the
   // conversation it was typed in, so closing the app or opening another thread
   // does not lose a message written without a network (#2097). In a browser tab
@@ -459,6 +460,9 @@ export function useChat(options: UseChatOptions = {}) {
       turnStartedAt.current = null;
       return;
     }
+    // Attached turns already have a server start time; do not replace it with
+    // the moment this browser reopened their conversation.
+    if (followingRef.current !== null) return;
     turnStartedAt.current ??= new Date().toISOString();
     if (activeConversationId === null) return;
     startWorking(activeConversationId, turnStartedAt.current);
@@ -1190,7 +1194,19 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "complete": {
-          if (followingRef.current === null) setIsProcessing(false);
+          if (followingRef.current === null) {
+            const finished =
+              conversationApi.getState().currentConversationId ?? activeConversationId;
+            const completedMessage = chatApi
+              .getState()
+              .messages.find((message) => message.id === currentMessageIdRef.current);
+            const parked = completedMessage?.toolCalls?.some(
+              (call) => call.status === "awaiting_approval" || call.status === "awaiting_answer",
+            );
+            if (finished && completedMessage && !parked)
+              useWorkingStore.getState().finish(finished);
+            setIsProcessing(false);
+          }
           // A turn that ended is waiting on nothing: a card left up would answer
           // a run that is gone - a sibling tool failing or parking ends it too.
           setPendingConnection(null);
@@ -1597,7 +1613,7 @@ export function useChat(options: UseChatOptions = {}) {
         setQueue([...messageQueueRef.current, { id, content, fileIds, files, mentions }]);
         return;
       }
-      doSend(content, fileIds, files, mentions);
+      setSentTurnId(doSend(content, fileIds, files, mentions));
     },
     [isConnected, doSend, setQueue],
   );
@@ -2877,6 +2893,7 @@ export function useChat(options: UseChatOptions = {}) {
     stopGeneration,
     clearMessages,
     queuedMessages,
+    sentTurnId,
     cancelQueued,
     retryQueued,
     sendQueuedNow,

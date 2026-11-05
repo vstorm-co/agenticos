@@ -4,12 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/types";
 import { useSentTurnAnchor } from "./use-sent-turn-anchor";
 
-function Harness({ messages }: { messages: ChatMessage[] }) {
+function Harness({ messages, sentTurnId }: { messages: ChatMessage[]; sentTurnId?: string }) {
   const scroller = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const spacer = useRef<HTMLDivElement>(null);
   const anchored = useRef(false);
-  useSentTurnAnchor(messages, scroller, content, spacer, anchored);
+  const readerScrolledUp = useRef(false);
+  useSentTurnAnchor(messages, scroller, content, spacer, anchored, sentTurnId, readerScrolledUp);
   return (
     <div ref={scroller} data-testid="scroller" style={{ paddingBottom: 100 }}>
       <div ref={content} data-testid="content">
@@ -69,11 +70,23 @@ describe("sent turn anchoring", () => {
     const scroller = view.getByTestId("scroller");
     expect(scroller.scrollTop).toBe(0);
     const messages = [user("old"), user("sent", true)];
-    view.rerender(<Harness messages={messages} />);
+    view.rerender(<Harness messages={messages} sentTurnId="sent" />);
     expect(scroller.scrollTop).toBe(76);
     expect(view.getByTestId("spacer").style.height).toBe("396px");
     scroller.scrollTop = 20;
-    view.rerender(<Harness messages={[...messages]} />);
+    view.rerender(<Harness messages={[...messages]} sentTurnId="sent" />);
+    expect(scroller.scrollTop).toBe(20);
+    // The next outbox item is sent automatically, not a request to move the viewport.
+    view.rerender(<Harness messages={[...messages, user("queued", true)]} sentTurnId="sent" />);
+    expect(scroller.scrollTop).toBe(20);
+    expect(view.getByTestId("spacer").style.height).toBe("396px");
+    // A persisted acknowledgement keeps the same anchor even if React batches it with send.
+    view.rerender(
+      <Harness
+        messages={[user("old"), { ...user("saved"), clientMessageId: "sent" }]}
+        sentTurnId="sent"
+      />,
+    );
     expect(scroller.scrollTop).toBe(20);
     height = 600;
     act(() => resized?.());
