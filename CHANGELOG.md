@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Organize deployment settings into focused sections with persistent drafts, a visible save/discard toolbar, and responsive form layouts.
+
 - Show the Inbox and background-work overview in every agent’s empty chat, while retaining agent-specific greetings and opening messages.
 
 - Apply the same visible hover and keyboard selection to model, member, sharing and workflow command pickers; retain readable destructive-action colors in agent menus.

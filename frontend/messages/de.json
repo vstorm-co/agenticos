@@ -7494,6 +7494,22 @@
         "cancelled": "Abgebrochen"
       },
       "loading": "Versionen werden geprüft…"
+    },
+    "adminSettingsLayout": {
+      "title": "Bereitstellungseinstellungen",
+      "hint": "Änderungen gelten für die gesamte Bereitstellung.",
+      "unsaved": "Sie haben ungespeicherte Änderungen.",
+      "discard": "Änderungen verwerfen",
+      "identity": "Identität",
+      "identityHint": "Name, Erscheinungsbild und rechtliche Links in der Konsole.",
+      "access": "Zugang und Konten",
+      "accessHint": "Zugangsregeln, Startorganisation und Nutzungslimits festlegen.",
+      "notices": "Mitteilungen",
+      "noticesHint": "Eine Ankündigung anzeigen oder den Wartungsbildschirm einrichten.",
+      "services": "Sprache und Mobilgerät",
+      "servicesHint": "Audioaufzeichnung und Push-Benachrichtigungen für die mobile App.",
+      "operations": "Wartung",
+      "operationsHint": "Anwendungsupdates und Bereitstellungsdiagnose."
     }
   },
   "profile": {

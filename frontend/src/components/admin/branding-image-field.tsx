@@ -48,8 +48,8 @@ export function BrandingImageField({
   const stored = brandingImageUrl(kind, version);
 
   return (
-    <div className="border-border bg-card flex items-center gap-4 rounded-xl border p-4">
-      <span className="bg-muted text-muted-foreground flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+    <div className="bg-background/50 flex flex-wrap items-center gap-3 rounded-xl p-4">
+      <span className="bg-muted text-muted-foreground flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg">
         {busy ? (
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
         ) : stored ? (
@@ -63,11 +63,11 @@ export function BrandingImageField({
         )}
       </span>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-28">
         <p className="text-foreground text-sm font-medium">
           {t(kind === "logo" ? "brandingLogo" : "brandingFavicon")}
         </p>
-        <p className="text-muted-foreground mt-0.5 text-xs">
+        <p className="text-muted-foreground mt-0.5 text-xs leading-5">
           {t(kind === "logo" ? "brandingLogoHint" : "brandingFaviconHint")}
         </p>
       </div>

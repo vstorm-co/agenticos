@@ -4480,6 +4480,22 @@
       "surfaceProactive": "Proaktif",
       "standaloneRequest": "Model isteği",
       "standaloneResponse": "Model yanıtı"
+    },
+    "adminSettingsLayout": {
+      "title": "Dağıtım ayarları",
+      "hint": "Değişiklikler tüm dağıtım için geçerlidir.",
+      "unsaved": "Kaydedilmemiş değişiklikleriniz var.",
+      "discard": "Değişiklikleri iptal et",
+      "identity": "Kimlik",
+      "identityHint": "Konsolda gösterilen ad, görünüm ve yasal bağlantılar.",
+      "access": "Erişim ve hesaplar",
+      "accessHint": "Katılımı, başlangıç kuruluşunu ve kullanım sınırlarını yönetin.",
+      "notices": "Duyurular",
+      "noticesHint": "Bir duyuru paylaşın veya bakım ekranını yapılandırın.",
+      "services": "Ses ve mobil",
+      "servicesHint": "Ses kaydı tercihleri ve mobil uygulama anlık bildirimleri.",
+      "operations": "Bakım",
+      "operationsHint": "Uygulama güncellemeleri ve dağıtım tanılaması."
     }
   },
   "mcp": {

@@ -7616,6 +7616,22 @@
         "cancelled": "Cancelled"
       },
       "loading": "Checking releases…"
+    },
+    "adminSettingsLayout": {
+      "title": "Deployment settings",
+      "hint": "Changes apply to this entire deployment.",
+      "unsaved": "You have unsaved changes.",
+      "discard": "Discard changes",
+      "identity": "Identity",
+      "identityHint": "Name, appearance and legal links shown throughout the console.",
+      "access": "Access & accounts",
+      "accessHint": "Control who can join, their starting organization and usage limits.",
+      "notices": "Announcements",
+      "noticesHint": "Share a notice or configure the maintenance screen.",
+      "services": "Voice & mobile",
+      "servicesHint": "Audio recording preferences and push notifications for the mobile app.",
+      "operations": "Maintenance",
+      "operationsHint": "Application updates and deployment diagnostics."
     }
   },
   "profile": {

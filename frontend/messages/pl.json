@@ -4253,6 +4253,22 @@
         "cancelled": "Anulowana"
       },
       "loading": "Sprawdzanie wersji…"
+    },
+    "adminSettingsLayout": {
+      "title": "Ustawienia wdrożenia",
+      "hint": "Zmiany dotyczą całego wdrożenia.",
+      "unsaved": "Masz niezapisane zmiany.",
+      "discard": "Odrzuć zmiany",
+      "identity": "Wygląd i nazwa",
+      "identityHint": "Nazwa, wygląd i odnośniki prawne widoczne w konsoli.",
+      "access": "Dostęp i konta",
+      "accessHint": "Określ, kto może dołączyć, organizację początkową i limity użycia.",
+      "notices": "Komunikaty",
+      "noticesHint": "Wyświetl ogłoszenie lub skonfiguruj ekran prac serwisowych.",
+      "services": "Głos i aplikacja",
+      "servicesHint": "Nagrywanie dźwięku i powiadomienia push w aplikacji mobilnej.",
+      "operations": "Utrzymanie",
+      "operationsHint": "Aktualizacje aplikacji i diagnostyka wdrożenia."
     }
   },
   "rag": {
