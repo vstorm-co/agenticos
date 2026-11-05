@@ -8457,7 +8457,7 @@
     "testPanelWhatAnswers": "Co odpowiada",
     "testPanelCompare": "Porównaj dwa obok siebie",
     "testPanelComparedWith": "Porównywany z",
-    "testPanelCompareHint": "Dwa czaty odpowiadają obok siebie. Pytaj oba z pola poniżej, żeby dostały te same słowa.",
+    "testPanelCompareHint": "Zapytaj oba chaty z pola poniżej, żeby otrzymały ten sam prompt.",
     "testPanelChanges": "Co zmienia szkic",
     "testPanelChangesTitle": "Co zmienia szkic",
     "testPanelChangesWhy": "Testowany szkic na tle wersji {version}, tej opublikowanej.",

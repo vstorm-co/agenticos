@@ -68,6 +68,7 @@ export function TestPanel({
   const [ask, setAsk] = useState<ChatPrompt | null>(null);
   const [state, setState] = useState<TestPanelState>(() => readTestPanel(agentId));
   const [showingChanges, setShowingChanges] = useState(false);
+  const [mobilePane, setMobilePane] = useState(0);
   const published = currentVersionId !== null;
   // An environment removed since it was chosen, or anything but the draft on an
   // agent with nothing published, falls back to what can answer.
@@ -266,11 +267,37 @@ export function TestPanel({
           />
         )}
       </header>
+      {compare !== null && (
+        <div
+          className="flex gap-1 px-3 py-2 lg:hidden"
+          role="group"
+          aria-label={t("testPanelCompare")}
+        >
+          {modes.map((value, index) => (
+            <Button
+              key={value}
+              variant={mobilePane === index ? "secondary" : "ghost"}
+              size="sm"
+              className="min-w-0 flex-1"
+              aria-pressed={mobilePane === index}
+              onClick={() => setMobilePane(index)}
+            >
+              <span className="truncate">{label(value)}</span>
+            </Button>
+          ))}
+        </div>
+      )}
       <div className={cn("flex min-h-0 flex-1 flex-col lg:flex-row", compare && "lg:divide-x")}>
-        {modes.map((value) => (
-          <div key={value} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {modes.map((value, index) => (
+          <div
+            key={value}
+            className={cn(
+              "min-h-0 min-w-0 flex-1 flex-col",
+              compare !== null && mobilePane !== index ? "hidden lg:flex" : "flex",
+            )}
+          >
             {compare !== null && (
-              <p className="text-muted-foreground border-b px-3 py-1.5 text-xs font-medium">
+              <p className="text-muted-foreground hidden border-b px-3 py-1.5 text-xs font-medium lg:block">
                 {label(value)}
               </p>
             )}

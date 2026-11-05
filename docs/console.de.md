@@ -1,5 +1,5 @@
 ---
-source_sha: "0560a3c92180"
+source_sha: "aca7aa176169"
 ---
 
 # Die Konsole { #the-console }
@@ -78,7 +78,7 @@ Dateilink-Metadaten speichern für lokale Schritte nur eine opake Herkunftskennu
 
 Die **Visual map** im Agenten-Builder passt die gesamte Konfiguration beim Öffnen und bei Größenänderungen ein. **Reset view** passt sie nach Verschieben oder Zoomen erneut ein. Große Gruppen zeigen sechs Einträge und die verbleibende Anzahl; wählen Sie eine Gruppe für die vollständige, scrollbare Liste. Die Workflow-Minimap zeigt den gesamten Graphen und wechselt den Ausschnitt, ohne den Zoom zu ändern.
 
-Das Testpanel im Builder lässt sich auf den ganzen Arbeitsbereich erweitern, ohne Unterhaltung oder ungesendeten Text zurückzusetzen. Der Vergleich zweier Versionen öffnet diesen Bereich automatisch; die Vollbild-Schaltfläche oder Escape führt zum Builder zurück. Die Versionsauswahl hat eine eigene Zeile, damit die Teststeuerung auch in schmalen Panels nutzbar bleibt.
+Das Testpanel im Builder lässt sich auf den ganzen Arbeitsbereich erweitern, ohne Unterhaltung oder ungesendeten Text zurückzusetzen. Der Vergleich zweier Versionen öffnet diesen Bereich automatisch; die Vollbild-Schaltfläche oder Escape führt zum Builder zurück. Die Versionsauswahl hat eine eigene Zeile, damit die Teststeuerung auch in schmalen Panels nutzbar bleibt. Auf dem Telefon wechseln die Versionsschaltflächen zwischen den verglichenen Chats; beide Gespräche laufen weiter und behalten ihre Entwürfe. Der gemeinsame Prompt erreicht weiterhin beide gleichzeitig.
 
 ## Das Dashboard { #the-dashboard }
 

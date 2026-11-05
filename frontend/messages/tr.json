@@ -6384,7 +6384,7 @@
     "testPanelWhatAnswers": "Yanıtların içeriği",
     "testPanelCompare": "İki yanıtı yan yana karşılaştır",
     "testPanelComparedWith": "Şununla karşılaştırıldı:",
-    "testPanelCompareHint": "İki chat yan yana yanıt verir. Aynı mesajları almaları için aşağıdaki kutudan ikisine de sorun.",
+    "testPanelCompareHint": "Aynı promptu almaları için aşağıdaki kutudan her iki chate de sorun.",
     "testPanelChanges": "Taslağın değişiklikleri",
     "testPanelChangesTitle": "Taslağın değişiklikleri",
     "testPanelChangesWhy": "Test edilen taslak, yayınlanmış v{version} sürümüyle karşılaştırılıyor.",

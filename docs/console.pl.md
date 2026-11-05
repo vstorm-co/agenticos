@@ -1,5 +1,5 @@
 ---
-source_sha: "0560a3c92180"
+source_sha: "aca7aa176169"
 ---
 
 # Konsola { #the-console }
@@ -76,7 +76,7 @@ Metadane linków do plików zapisują dla lokalnych tur tylko niejawny identyfik
 
 **Visual map** w builderze agenta dopasowuje całą konfigurację po otwarciu i zmianie rozmiaru obszaru. **Reset view** ponownie dopasowuje mapę po przesunięciu lub przybliżeniu. Duże grupy pokazują sześć elementów i liczbę pozostałych; wybierz grupę, aby otworzyć pełną, przewijaną listę. Minimapa workflow pokazuje cały graf i pozwala przejść do innego miejsca bez zmiany przybliżenia.
 
-Panel testowania w builderze można rozwinąć na cały obszar bez resetowania rozmowy ani niewysłanego tekstu. Porównanie dwóch wersji automatycznie otwiera ten widok; przycisk pełnego ekranu lub Escape przywraca builder. Wybór wersji ma osobny wiersz, dzięki czemu kontrolki testu mieszczą się w wąskim panelu.
+Panel testowania w builderze można rozwinąć na cały obszar bez resetowania rozmowy ani niewysłanego tekstu. Porównanie dwóch wersji automatycznie otwiera ten widok; przycisk pełnego ekranu lub Escape przywraca builder. Wybór wersji ma osobny wiersz, dzięki czemu kontrolki testu mieszczą się w wąskim panelu. Na telefonie przełączaj porównywane chaty przyciskami wersji; obie rozmowy nadal działają i zachowują szkice. Wspólny prompt nadal trafia do obu naraz.
 
 ## Dashboard { #the-dashboard }
 

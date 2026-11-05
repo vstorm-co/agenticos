@@ -713,7 +713,7 @@
     "testPanelWhatAnswers": "What answers",
     "testPanelCompare": "Compare two side by side",
     "testPanelComparedWith": "Compared with",
-    "testPanelCompareHint": "Two chats answer side by side. Ask both from the box below so they get the same words.",
+    "testPanelCompareHint": "Ask both chats from the box below so they receive the same prompt.",
     "testPanelChanges": "What the draft changes",
     "testPanelChangesTitle": "What the draft changes",
     "testPanelChangesWhy": "The draft under test against version {version}, the one published.",

@@ -70,7 +70,7 @@ File-link metadata stores only an opaque origin identifier for local turns. The 
 
 The agent Builder’s **Visual map** fits the whole configuration on opening and when the canvas changes size. **Reset view** fits it again after panning or zooming. Large groups show six items and their remaining count; select a group to read its complete, scrollable list. The workflow minimap shows the whole graph and lets you move to another part without changing the zoom.
 
-The Builder’s test panel can expand to a full workspace without resetting its conversation or unsent text. Comparing two versions opens that workspace automatically; the full-screen button or Escape returns to the Builder. Version selectors have their own row, so the test controls remain usable in narrow panels.
+The Builder’s test panel can expand to a full workspace without resetting its conversation or unsent text. Comparing two versions opens that workspace automatically; the full-screen button or Escape returns to the Builder. Version selectors have their own row, so the test controls remain usable in narrow panels. On phones, switch between the compared chats using their version buttons; both conversations keep running and keep their drafts. The shared prompt still asks both at once.
 
 ## The dashboard
 

@@ -713,7 +713,7 @@
     "testPanelWhatAnswers": "Was antwortet",
     "testPanelCompare": "Zwei nebeneinander vergleichen",
     "testPanelComparedWith": "Verglichen mit",
-    "testPanelCompareHint": "Zwei Chats antworten nebeneinander. Fragen Sie beide über das Feld unten, damit sie dieselben Worte bekommen.",
+    "testPanelCompareHint": "Fragen Sie beide Chats über das Feld unten, damit sie denselben Prompt erhalten.",
     "testPanelChanges": "Was der Entwurf ändert",
     "testPanelChangesTitle": "Was der Entwurf ändert",
     "testPanelChangesWhy": "Der getestete Entwurf gegenüber Version {version}, der veröffentlichten.",

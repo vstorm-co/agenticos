@@ -1,5 +1,5 @@
 ---
-source_sha: "0560a3c92180"
+source_sha: "aca7aa176169"
 ---
 
 # La consola { #the-console }
@@ -78,7 +78,7 @@ Los metadatos de enlaces guardan solo un identificador opaco del origen para los
 
 **Visual map** en el editor de agentes ajusta toda la configuración al abrirse y al cambiar el tamaño del área. **Reset view** vuelve a ajustarla tras desplazarla o ampliarla. Los grupos grandes muestran seis elementos y el número restante; selecciona un grupo para consultar la lista completa con desplazamiento. El minimapa de workflows muestra todo el grafo y permite cambiar de zona sin modificar el zoom.
 
-El panel de pruebas del editor puede ocupar todo el espacio de trabajo sin reiniciar la conversación ni el texto sin enviar. Comparar dos versiones abre este espacio automáticamente; el botón de pantalla completa o Escape devuelve al editor. Los selectores de versión tienen su propia fila para mantener accesibles los controles en paneles estrechos.
+El panel de pruebas del editor puede ocupar todo el espacio de trabajo sin reiniciar la conversación ni el texto sin enviar. Comparar dos versiones abre este espacio automáticamente; el botón de pantalla completa o Escape devuelve al editor. Los selectores de versión tienen su propia fila para mantener accesibles los controles en paneles estrechos. En el teléfono, los botones de versión alternan entre los chats comparados; ambas conversaciones siguen funcionando y conservan sus borradores. El prompt compartido sigue llegando a ambas a la vez.
 
 ## El dashboard { #the-dashboard }
 
