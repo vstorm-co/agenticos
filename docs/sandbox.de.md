@@ -1,5 +1,5 @@
 ---
-source_sha: "224427151b91"
+source_sha: "301716716518"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -685,11 +685,11 @@ prozentkodiert (`a\b` wird zu `a%5Cb`), weil ein Entpacker unter Windows einen
 Backslash als Ordnertrenner liest.
 
 Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner mit
-mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Einträgen (Dateien und Ordner, gezählt wie
-bei einem angehängten Archiv) oder mehr als `WORKSPACE_ARCHIVE_MAX_BYTES`, oder
-einer, den der Host nicht vollständig auflisten konnte, wird mit 413 abgelehnt; ein
-Zip, dem stillschweigend Dateien fehlen, wäre schlimmer. Danach werden die Dateien
-einzeln gelesen und gestreamt.
+mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Einträgen (Dateien und Ordner, der oberste
+Ordner eingeschlossen, gezählt wie bei einem angehängten Archiv) oder mehr als
+`WORKSPACE_ARCHIVE_MAX_BYTES`, oder einer, den der Host nicht vollständig auflisten
+konnte, wird mit 413 abgelehnt; ein Zip, dem stillschweigend Dateien fehlen, wäre
+schlimmer. Danach werden die Dateien einzeln gelesen und gestreamt.
 
 Eine Datei, die sich nach dem Start des Downloads nicht lesen lässt, wird
 ausgelassen und mit dem Grund, den der Host nennt, in einer `NOT-INCLUDED.txt` im

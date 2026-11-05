@@ -495,6 +495,15 @@ class TestZippingAFolder:
         assert zip_folder("/uploads") == "uploads"
         assert zip_folder(".") == ""
 
+    @pytest.mark.parametrize(
+        ("spelled", "folder"),
+        [("a//b", "a/b"), ("a/./b", "a/b"), ("./a//b/", "a/b"), ("a/.", "a"), ("/./a/b", "a/b")],
+    )
+    def test_a_folder_is_spelled_by_its_segments_as_the_host_spells_it(self, spelled, folder):
+        """The host canonicalises by segments; a folder matched on any other spelling
+        matched only itself, and zipped empty with its files left behind."""
+        assert zip_folder(spelled) == folder
+
     def test_only_the_folder_is_picked_under_its_own_name(self):
         picked, name = zip_members(
             [

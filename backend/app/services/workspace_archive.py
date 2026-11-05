@@ -633,9 +633,6 @@ def _zip_safe(name: str) -> str:
 
 
 def _normal(path: str) -> str:
-    """A listing's path with the spellings backends differ on taken off: `./`, `/`."""
-    stripped = path.strip()
-    while stripped.startswith("./"):
-        stripped = stripped[2:]
-    stripped = stripped.strip("/")
-    return "" if stripped == "." else stripped
+    """A listing's path by its segments, without the `.`, empty and end `/` ones
+    backends differ on - the spelling a host lists its own entries in."""
+    return "/".join(part for part in path.strip().split("/") if part not in ("", "."))

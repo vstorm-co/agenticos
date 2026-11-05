@@ -2214,11 +2214,12 @@ class SandboxWorkspaceService:
         The files and folders are those the panel would show - `browsable`, so
         a `.git`, a `node_modules` or the platform's own `.agenticos` stays
         behind - listed whole before a byte is sent, so a folder past the bounds
-        is refused with a status rather than cut off mid-download. The listing reaches deeper
-        than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts short is refused
-        rather than zipped incomplete. A file the host will not serve once the
-        stream has started - past its own per-read ceiling, or gone since the
-        listing - is left out and named in the zip's `NOT-INCLUDED.txt`.
+        is refused with a status rather than cut off mid-download. The listing
+        reaches deeper than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts
+        short is refused rather than zipped incomplete. A file the host will not
+        serve once the stream has started - past its own per-read ceiling, or
+        gone since the listing - is left out and named in the zip's
+        `NOT-INCLUDED.txt`.
 
         Args:
             folder: As the listing spells it; empty for the whole workspace.
@@ -2277,6 +2278,12 @@ class SandboxWorkspaceService:
                 )
             except Exception as exc:
                 if isinstance(exc, WorkspaceArchiveError) and exc.status_code == 404:
+                    # The host's own reason - which may name its session - stays in
+                    # the log: a missing folder, workspace or route are one 404 here.
+                    logger.info(
+                        "workspace_zip_folder_not_found",
+                        extra={"workspace_id": str(row.id), "reason": _reason(exc)},
+                    )
                     raise NotFoundError(
                         message="No files in this folder", details={"path": folder}
                     ) from exc

@@ -628,10 +628,11 @@ zip (`a\b` becomes `a%5Cb`), because an unpacker on Windows reads a backslash as
 folder separator.
 
 It is listed in full before the first byte is sent. A folder with more than
-`WORKSPACE_ARCHIVE_MAX_ENTRIES` entries (files and folders, as an attached archive's
-are counted) or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or one the host could not
-list completely, is refused with a 413; a zip that is missing files without saying
-so would be worse. The files are then read and streamed one at a time.
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` entries (files and folders, the top folder included,
+as an attached archive's are counted) or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or
+one the host could not list completely, is refused with a 413; a zip that is missing
+files without saying so would be worse. The files are then read and streamed one at
+a time.
 
 A file that cannot be read after the download has started is left out and named,
 with the host's reason, in a `NOT-INCLUDED.txt` in the zip's top folder

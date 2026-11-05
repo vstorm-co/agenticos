@@ -1,5 +1,5 @@
 ---
-source_sha: "224427151b91"
+source_sha: "301716716518"
 ---
 
 # Sandbox { #the-sandbox }
@@ -650,10 +650,11 @@ staje się `a%5Cb`), bo program rozpakowujący na Windows czyta ukośnik wsteczn
 separator folderów.
 
 Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
-`WORKSPACE_ARCHIVE_MAX_ENTRIES` wpisami (pliki i foldery, liczone jak w załączonym
-archiwum) albo większy niż `WORKSPACE_ARCHIVE_MAX_BYTES`, albo taki, którego host
-nie wylistował w całości, jest odrzucany z kodem 413; zip, w którym bez słowa
-brakuje plików, byłby gorszy. Potem pliki są czytane i strumieniowane po jednym.
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` wpisami (pliki i foldery, z folderem głównym,
+liczone jak w załączonym archiwum) albo większy niż `WORKSPACE_ARCHIVE_MAX_BYTES`,
+albo taki, którego host nie wylistował w całości, jest odrzucany z kodem 413; zip, w
+którym bez słowa brakuje plików, byłby gorszy. Potem pliki są czytane i
+strumieniowane po jednym.
 
 Plik, którego nie da się przeczytać po rozpoczęciu pobierania, jest pomijany i
 wymieniony, z powodem podanym przez host, w `NOT-INCLUDED.txt` w głównym folderze

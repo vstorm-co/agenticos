@@ -1,5 +1,5 @@
 ---
-source_sha: "224427151b91"
+source_sha: "301716716518"
 ---
 
 # La sandbox { #the-sandbox }
@@ -665,10 +665,11 @@ con porcentajes en el zip (`a\b` pasa a ser `a%5Cb`), porque un descompresor en
 Windows lee la barra invertida como separador de carpetas.
 
 Se lista entera antes de enviar el primer byte. Una carpeta con más de
-`WORKSPACE_ARCHIVE_MAX_ENTRIES` entradas (archivos y carpetas, contadas como las de
-un archivo adjunto) o más de `WORKSPACE_ARCHIVE_MAX_BYTES`, o una que el host no
-pudo listar entera, se rechaza con un 413; un zip al que le faltan archivos sin
-decirlo sería peor. Después los archivos se leen y se transmiten de uno en uno.
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` entradas (archivos y carpetas, la carpeta superior
+incluida, contadas como las de un archivo adjunto) o más de
+`WORKSPACE_ARCHIVE_MAX_BYTES`, o una que el host no pudo listar entera, se rechaza
+con un 413; un zip al que le faltan archivos sin decirlo sería peor. Después los
+archivos se leen y se transmiten de uno en uno.
 
 Un archivo que no se puede leer una vez empezada la descarga se deja fuera y se
 nombra, con el motivo que da el host, en un `NOT-INCLUDED.txt` en la carpeta
