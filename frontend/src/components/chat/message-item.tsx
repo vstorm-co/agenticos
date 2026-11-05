@@ -357,7 +357,7 @@ export const MessageItem = memo(function MessageItem({
             );
           })()}
 
-        {message.replyTo && (
+        {message.replyTo && !isUser && (
           <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
         )}
         <MessageBody
@@ -643,9 +643,11 @@ function MessageBody({
               isStreaming={Boolean(message.isStreaming)}
             />
           )}
-          {message.content && (
+          {(message.content || (isUser && message.replyTo)) && (
             <TextBubble
               text={message.content}
+              replyTo={isUser ? message.replyTo : undefined}
+              replyAgents={agents}
               showCursor={!isUser && Boolean(message.isStreaming)}
               isUser={isUser}
               onCiteClick={onCiteClick}

@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep quoted replies inside the user message, with a matching compact composer preview, keyboard cancellation and reduced-motion navigation.
+
 - Collapse chat activity after agent messages by default, grouping adjacent thinking and tool steps while keeping actionable approvals beside the composer.
 
 - Keep chat approvals as a simple inline card with readable nested task subjects, optional details and adjacent decisions. Give platform objects distinct icons, keep operation marks stable while tools run, and distinguish finished, waiting and active activity without animating every tool row.

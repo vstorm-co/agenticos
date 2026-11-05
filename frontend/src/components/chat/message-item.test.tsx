@@ -924,6 +924,15 @@ describe("what a person attached", () => {
     expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
   });
 
+  it("keeps the quote on a file-only reply with no message text", () => {
+    item({
+      role: "user",
+      content: "",
+      replyTo: { messageId: "source", role: "assistant", excerpt: "Please attach the file." },
+    });
+    expect(screen.getByText("Please attach the file.")).toBeVisible();
+  });
+
   it("draws a turn whose writer has left as a former member, never as You", () => {
     useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
 

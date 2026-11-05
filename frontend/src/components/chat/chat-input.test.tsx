@@ -75,6 +75,32 @@ describe("ChatInput replying", () => {
   });
 });
 
+it("dismisses the reply with Escape without losing the draft", async () => {
+  act(() =>
+    useChatStore
+      .getState()
+      .setReplyTo({ messageId: "quoted", role: "assistant", excerpt: "Original message" }),
+  );
+  render(<ChatInput onSend={vi.fn()} />);
+  const editor = screen.getByRole("textbox");
+  await userEvent.type(editor, "Keep this draft");
+  await userEvent.keyboard("{Escape}");
+  expect(useChatStore.getState().replyTo).toBeNull();
+  expect(editor).toHaveTextContent("Keep this draft");
+  expect(editor).toHaveFocus();
+});
+
+it("returns focus to the draft after cancelling a reply", async () => {
+  act(() =>
+    useChatStore
+      .getState()
+      .setReplyTo({ messageId: "quoted", role: "assistant", excerpt: "Original message" }),
+  );
+  render(<ChatInput onSend={vi.fn()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Don't reply" }));
+  expect(screen.getByRole("textbox")).toHaveFocus();
+});
+
 describe("ChatInput typing", () => {
   it("says the person is writing when they type words, not when they clear the box", async () => {
     const onTyping = vi.fn();

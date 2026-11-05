@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
-import type { MessagePart, ToolCall } from "@/types";
+import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
@@ -25,6 +25,7 @@ import { PhoneCallCard } from "@/components/phone/phone-call-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
+import { ReplyQuote } from "./reply-quote";
 import { useTurnElapsed, WorkFold } from "./work-fold";
 
 /**
@@ -382,8 +383,12 @@ export function TextBubble({
   onCiteClick,
   mentions,
   afterWork = false,
+  replyTo,
+  replyAgents = [],
 }: {
   text: string;
+  replyTo?: MessageReply;
+  replyAgents?: readonly DelegateRef[];
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
@@ -410,8 +415,10 @@ export function TextBubble({
         className={cn(
           "bg-foreground/[0.07] text-foreground relative rounded-2xl",
           compact ? "px-3 py-1.5" : "px-3 py-2 sm:px-4 sm:py-2.5",
+          replyTo && "max-w-[min(85%,28rem)] min-w-[min(100%,12rem)]",
         )}
       >
+        {replyTo && <ReplyQuote reply={replyTo} agents={replyAgents} embedded />}
         <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
           <RichText text={text} mentions={mentions ?? []} />
         </p>

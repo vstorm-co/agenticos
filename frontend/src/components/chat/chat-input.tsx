@@ -592,6 +592,11 @@ export function ChatInput({
         return;
       }
     }
+    if (e.key === "Escape" && replyTo) {
+      e.preventDefault();
+      setReplyTo(null);
+      return;
+    }
     // On a touch keyboard Enter is a new line, as in every messaging app: there
     // is no Shift to hold for one, and the send button is a thumb away (#2066).
     if (e.key === "Enter" && !e.shiftKey && !touchKeyboard()) {
@@ -931,7 +936,13 @@ export function ChatInput({
 
       {replyTo && (
         <div className="chat-input-reply">
-          <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />
+          <ReplyingTo
+            reply={replyTo}
+            onCancel={() => {
+              setReplyTo(null);
+              editorRef.current?.focus();
+            }}
+          />
         </div>
       )}
 
