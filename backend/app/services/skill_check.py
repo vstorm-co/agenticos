@@ -28,6 +28,7 @@ version they read now - makes it a fork for the agents they pick, or discards it
 import hashlib
 import json
 import logging
+from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -78,7 +79,7 @@ from app.repositories import (
     skill_version_repo,
 )
 from app.schemas.dataset import AnswerAs, DatasetCreate, DatasetRead
-from app.schemas.eval_run import EvalRunRequest, ProposalCheckRecord
+from app.schemas.eval_run import EvalComparisonRead, EvalRunRequest, ProposalCheckRecord
 from app.schemas.resource_usage import ProposalDecision
 from app.schemas.skill_check import (
     AgentRef,
@@ -96,6 +97,7 @@ from app.schemas.skill_check import (
     SkillCheckStart,
     SkillTestSetStart,
     SkillUpdateCheck,
+    StageCounts,
     StageKind,
 )
 from app.schemas.skill_version import (
@@ -633,6 +635,7 @@ class SkillCheckService:
                 dataset_version=_own_dataset_version(item),
                 expected_usd=item.expected,
                 at_most_usd=item.at_most,
+                stages=[],
             )
             for item in plan.agents
         ]
@@ -807,6 +810,7 @@ class SkillCheckService:
                 noisy=False,
                 expected_usd=item.expected,
                 at_most_usd=item.at_most,
+                stages=[],
             )
             rows.append(row)
         await skill_check_repo.add_agents(self.db, organization_id=ctx.organization_id, rows=rows)
@@ -951,7 +955,7 @@ class SkillCheckService:
                         ctx, check, row, Stage(stage[1], dataset, stage[2], stage[3])
                     )
                     return
-        await self._judge(ctx, row)
+        await self._judge(ctx, check, row)
 
     async def _stage_result(self, ctx: AuthContext, run_id: UUID) -> rules.StageResult:
         comparison = await self.evals.compare(ctx, run_id)
@@ -972,34 +976,22 @@ class SkillCheckService:
             compared=comparison.compared,
         )
 
-    async def _stage_comparison(self, ctx: AuthContext, run_id: UUID) -> rules.StageComparison:
-        """One stage's held-out questions compared, the minimum left to the agent's pool."""
-        comparison = await self.evals.compare(ctx, run_id, holdout_minimum=False)
-        mine, theirs = comparison.candidate_summary, comparison.baseline_summary
-        return rules.StageComparison(
-            comparable=comparison.baseline is not None and comparison.verdict != "invalid",
-            gradable_holdout=comparison.compared
-            if comparison.gradable_holdout is None
-            else comparison.gradable_holdout,
-            incomplete=mine.incomplete + (theirs.incomplete if theirs else 0),
-            ungraded=mine.ungraded + (theirs.ungraded if theirs else 0),
-            crashed=mine.crashed + (theirs.crashed if theirs else 0),
-            regressions_confirmed=comparison.regressions_confirmed,
-            fixed_confirmed=comparison.fixed_confirmed,
-            regressions_unconfirmed=comparison.regressions_unconfirmed,
-            fixed_unconfirmed=comparison.fixed_unconfirmed,
-            compared=comparison.compared,
-            candidate_pass_rate=mine.pass_rate,
-            baseline_pass_rate=None if theirs is None else theirs.pass_rate,
-        )
-
-    async def _judge(self, ctx: AuthContext, row: SkillCheckAgent) -> None:
-        """An agent's result from every stage it ran, their held-out questions pooled."""
-        stages = [
-            await self._stage_comparison(ctx, run_id)
-            for run_id in (row.skill_set_run_id, row.dataset_run_id)
+    async def _judge(self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent) -> None:
+        """An agent's result from every stage it ran, their held-out questions pooled, and
+        what each stage's questions came to on its own."""
+        runs: list[tuple[StageKind, UUID]] = [
+            (kind, run_id)
+            for kind, run_id in (
+                ("skill_set", row.skill_set_run_id),
+                (_own_kind(check), row.dataset_run_id),
+            )
             if run_id is not None
         ]
+        compared = [
+            (kind, run_id, await self.evals.compare(ctx, run_id, holdout_minimum=False))
+            for kind, run_id in runs
+        ]
+        stages = [_stage_comparison(comparison) for _, _, comparison in compared]
         result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
         state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
         await skill_check_repo.update_agent(
@@ -1016,8 +1008,33 @@ class SkillCheckService:
                 "fixed_confirmed": result.check.fixed_confirmed,
                 "regressions_confirmed": result.check.regressions_confirmed,
                 "noisy": rules.noisy(result),
+                "stages": [
+                    await self._stage_counts(ctx, kind, run_id, comparison)
+                    for kind, run_id, comparison in compared
+                ],
             },
         )
+
+    async def _stage_counts(
+        self, ctx: AuthContext, kind: StageKind, run_id: UUID, comparison: EvalComparisonRead
+    ) -> dict[str, str | int]:
+        """One stage's counts as `skill_check_agents.stages` keeps them."""
+        run = await eval_run_repo.get(self.db, run_id, organization_id=ctx.organization_id)
+        assert run is not None, "a run just compared is there"
+        flips = Counter(case.flip for case in comparison.cases)
+        counts = StageCounts(
+            compared=flips["fixed"] + flips["regression"] + flips["unchanged"],
+            fixed=flips["fixed"],
+            broken=flips["regression"],
+            unchanged=flips["unchanged"],
+            unknown=flips["incomplete"] + comparison.not_compared + comparison.changed,
+        )
+        return {
+            "kind": kind,
+            "dataset_id": str(run.dataset_id),
+            "eval_run_id": str(run_id),
+            **counts.model_dump(),
+        }
 
     async def _unknown(self, row: SkillCheckAgent, reason: UnknownReason) -> None:
         await skill_check_repo.update_agent(
@@ -1287,10 +1304,7 @@ class SkillCheckService:
             if own is not None and (
                 row.dataset_run_id is not None or row.state in ("queued", "running")
             ):
-                kind: StageKind = (
-                    "dataset" if check.mode == CheckMode.THOROUGH.value else "dataset_sample"
-                )
-                mine.append(Stage(kind, own, row.sample_case_ids))
+                mine.append(Stage(_own_kind(check), own, row.sample_case_ids))
             stages[row.agent_id] = mine
         return stages
 
@@ -1318,6 +1332,7 @@ class SkillCheckService:
                 hidden += 1
                 hidden_unknown += row.state == AgentState.UNKNOWN.value
                 continue
+            counted = {entry["eval_run_id"]: entry for entry in row.stages}
             reads.append(
                 SkillCheckAgentRead(
                     agent=AgentRef(id=agent.id, name=agent.name),
@@ -1338,9 +1353,13 @@ class SkillCheckService:
                             cases=len(stage.case_ids)
                             if stage.case_ids is not None
                             else stage.dataset.case_count,
-                            eval_run_id=row.skill_set_run_id
-                            if stage.kind == "skill_set"
-                            else row.dataset_run_id,
+                            eval_run_id=_run_of(row, stage.kind),
+                            counts=StageCounts.model_validate(
+                                counted[str(_run_of(row, stage.kind))]
+                            )
+                            if stage.dataset.id in readable
+                            and str(_run_of(row, stage.kind)) in counted
+                            else None,
                         )
                         for stage in stages.get(row.agent_id, [])
                     ],
@@ -2123,6 +2142,36 @@ def _chosen_for_fork(
             agent_ids=via,
         )
     return [by_agent[agent_id] for agent_id in picked]
+
+
+def _run_of(row: SkillCheckAgent, kind: StageKind) -> UUID | None:
+    return row.skill_set_run_id if kind == "skill_set" else row.dataset_run_id
+
+
+def _own_kind(check: SkillCheck) -> StageKind:
+    """What asking the agent's own questions is in this check: all of them, or a sample."""
+    return "dataset" if check.mode == CheckMode.THOROUGH.value else "dataset_sample"
+
+
+def _stage_comparison(comparison: EvalComparisonRead) -> rules.StageComparison:
+    """One stage's held-out questions compared, the minimum left to the agent's pool."""
+    mine, theirs = comparison.candidate_summary, comparison.baseline_summary
+    return rules.StageComparison(
+        comparable=comparison.baseline is not None and comparison.verdict != "invalid",
+        gradable_holdout=comparison.compared
+        if comparison.gradable_holdout is None
+        else comparison.gradable_holdout,
+        incomplete=mine.incomplete + (theirs.incomplete if theirs else 0),
+        ungraded=mine.ungraded + (theirs.ungraded if theirs else 0),
+        crashed=mine.crashed + (theirs.crashed if theirs else 0),
+        regressions_confirmed=comparison.regressions_confirmed,
+        fixed_confirmed=comparison.fixed_confirmed,
+        regressions_unconfirmed=comparison.regressions_unconfirmed,
+        fixed_unconfirmed=comparison.fixed_unconfirmed,
+        compared=comparison.compared,
+        candidate_pass_rate=mine.pass_rate,
+        baseline_pass_rate=None if theirs is None else theirs.pass_rate,
+    )
 
 
 def _per_agent(users: Sequence[LineAgent]) -> list[LineAgent]:

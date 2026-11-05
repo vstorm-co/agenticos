@@ -72,6 +72,18 @@ class Outcome:
     incomplete: int = 0
 
 
+def _flips(outcome: Outcome, held_out: int) -> list[SimpleNamespace]:
+    """The compared cases a stage's outcome amounts to, the rest unchanged."""
+    flips = (
+        ["fixed"] * outcome.fixed
+        + ["regression"] * (outcome.broken + outcome.unconfirmed_broken)
+        + ["incomplete"] * outcome.incomplete
+    )
+    return [SimpleNamespace(flip=flip) for flip in flips] + [
+        SimpleNamespace(flip="unchanged") for _ in range(max(held_out - len(flips), 0))
+    ]
+
+
 @dataclass
 class FakeEvals:
     """Eval runs that end at once with what the test scripted for their agent."""
@@ -137,6 +149,7 @@ class FakeEvals:
                 agent_id=agent_id,
                 status=EvalRunStatus.RUNNING.value,
                 held_out=len(request.case_ids) if request.case_ids else fake.held_out,
+                dataset_id=dataset.id,
             )
             fake.started.append((agent_id, request))
             fake.served.append(candidate_skills)
@@ -162,7 +175,10 @@ class FakeEvals:
                 fixed_unconfirmed=0,
                 regressions_unconfirmed=outcome.unconfirmed_broken,
                 compared=held_out,
+                not_compared=0,
+                changed=0,
                 gradable_holdout=held_out,
+                cases=_flips(outcome, held_out),
             )
 
         async def cancel(_self, _ctx, run_id):
