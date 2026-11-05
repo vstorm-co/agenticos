@@ -184,11 +184,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Persist accepted inbound emails and their attachments in transactional background jobs before acknowledging the relay, and require API-key scope plus personal consent when deleting watches.
+
 - Release inbound email attachment capacity when files are consumed, expire or processing fails; store delivery batches atomically and bound file counts.
 
 - Preserve reminders after reviewer access loss, keep project task chats in their project, and deliver Inbox findings when optional task boards hit quotas. Require edit authority on group boards, revoke personal coding grants on membership removal, and include coding patches in bounded personal-data exports.
 
-- Give agent test comparisons a full workspace, preserve chats and unsent text when returning to the Builder, and separate version selection from test actions.
+- Give agent test comparisons a full workspace, preserve chats and unsent text when returning to the Builder, separate version selection from test actions, and switch between preserved comparison chats on phones.
 
 - Fit the agent configuration map into its canvas, keep large groups compact with complete details on demand, and restore the workflow minimap’s graph coordinates.
 

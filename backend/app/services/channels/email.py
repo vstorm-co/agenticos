@@ -43,10 +43,15 @@ import re
 import time
 from collections.abc import AsyncIterable
 from typing import Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.background import spawn_after_rollback
+from app.repositories import background_job as background_job_repo
+from app.services.background_jobs import enqueue
 from app.services.channels import email_state, sms_prompts
 from app.services.channels.base import (
     ChannelAdapter,
@@ -59,6 +64,7 @@ from app.services.channels.base import (
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.email import get_email_provider
 from app.services.email.providers.base import EmailAttachment, EmailMessage
+from app.worker.jobs import PROCESS_EMAIL_DELIVERY, EmailDelivery
 
 logger = logging.getLogger(__name__)
 
@@ -359,3 +365,63 @@ async def read_webhook_body(chunks: AsyncIterable[bytes], *, max_bytes: int) -> 
     except TimeoutError as exc:
         raise BadRequestError(message="The email webhook body timed out") from exc
     return bytes(content)
+
+
+async def queue_delivery(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    bot_id: UUID,
+    bot_address: str,
+    body: str,
+    incoming: IncomingMessage,
+) -> bool:
+    """Commit the complete signed delivery before acknowledging it; False means cache quota."""
+    key = (
+        f"email:{bot_id}:{hashlib.sha256(incoming.message_id.encode()).hexdigest()}"
+        if incoming.message_id
+        else None
+    )
+    if (
+        key is not None
+        and await background_job_repo.get_by_idempotency_key(
+            db, organization_id=organization_id, idempotency_key=key
+        )
+        is not None
+    ):
+        return True
+    thread = await keep_inbound(bot_address, incoming, incoming.raw)
+    if thread is None:
+        return False
+    handles = [item.handle for item in incoming.attachments]
+    try:
+        async with db.begin_nested():
+            await enqueue(
+                db,
+                PROCESS_EMAIL_DELIVERY,
+                EmailDelivery(
+                    organization_id=organization_id,
+                    bot_id=bot_id,
+                    body=body,
+                    attachment_handles=handles,
+                ),
+                organization_id=organization_id,
+                idempotency_key=key,
+                concurrency_key=f"email:{bot_id}:{hashlib.sha256(incoming.platform_chat_id.encode()).hexdigest()}",
+            )
+    except BaseException as exc:
+        import anyio
+
+        with anyio.CancelScope(shield=True):
+            await email_state.discard_attachments(handles)
+        if isinstance(exc, IntegrityError) and key is not None:
+            winner = await background_job_repo.get_by_idempotency_key(
+                db, organization_id=organization_id, idempotency_key=key
+            )
+            if winner is not None:
+                return True
+        raise
+    spawn_after_rollback(
+        db, email_state.discard_attachments(handles), name=f"email_rollback:{bot_id}"
+    )
+    return True

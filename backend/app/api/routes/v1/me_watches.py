@@ -7,10 +7,11 @@ it finds is theirs alone, so there is no view of anybody else's.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
-from app.api.deps import Auth, WatchSvc
+from app.api.deps import Auth, WatchSvc, key_needs
 from app.api.public_api import PUBLIC
+from app.core.permissions import Perm
 from app.schemas.watch import (
     WatchCreate,
     WatchList,
@@ -20,7 +21,7 @@ from app.schemas.watch import (
     WatchUpdate,
 )
 
-router = APIRouter(dependencies=[PUBLIC])
+router = APIRouter(dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))])
 
 
 @router.get("", response_model=WatchList)

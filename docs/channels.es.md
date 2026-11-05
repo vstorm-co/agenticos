@@ -1,5 +1,5 @@
 ---
-source_sha: "91084687206d"
+source_sha: "ff512c283301"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1151,6 +1151,8 @@ secreto rechaza todo. El cuerpo está limitado a 25 MB, se leen hasta diez adjun
 mensaje ya visto se ignora, de modo que un reintento del relay ejecuta el agente una sola vez.
 
 Los adjuntos entrantes comparten un límite de caché de 64 MiB de datos codificados y 1024 archivos por bot. Cada entrega se guarda atómicamente; al agotarse el límite, se devuelve 429 con Retry-After antes de guardar archivos o el hilo. Leer o descartar archivos libera su capacidad inmediatamente. Los archivos no leídos caducan tras 15 minutos; la siguiente operación recupera su capacidad. Los errores de procesamiento también descartan los adjuntos sin usar. Las respuestas y preguntas conservan el hilo de su propio mensaje entrante aunque llegue otro mientras tanto.
+
+El webhook guarda un trabajo `process-email-delivery` antes de devolver 200. El trabajo conserva el cuerpo validado, incluidos los adjuntos; un reinicio de la API o una caché caducada no elimina el trabajo aceptado. La deduplicación por Message-ID se confirma junto con el trabajo; una transacción revertida permite reintentar. Los workers vuelven a comprobar bot y organización, serializan entregas al mismo interlocutor y registran intentos fallidos en Admin → Background jobs. Los payloads terminados siguen `BACKGROUND_JOB_RETENTION_DAYS`; los administradores del despliegue pueden consultarlos.
 
 **Quién escribe.** La firma prueba que el relay envió la petición, no quién escribió el correo: una
 dirección es una afirmación. Una persona actúa con sus propios permisos solo cuando ha vinculado esa

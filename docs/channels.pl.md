@@ -1,5 +1,5 @@
 ---
-source_sha: "91084687206d"
+source_sha: "ff512c283301"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1129,6 +1129,8 @@ identyfikator wiadomości widziany już wcześniej jest pomijany, więc ponowien
 agenta raz.
 
 Przychodzące załączniki współdzielą limit pamięci podręcznej: 64 MiB zakodowanych danych i 1024 pliki na bota. Cała dostawa jest zapisywana atomowo; wyczerpanie limitu zwraca 429 z Retry-After przed zapisaniem plików lub wątku. Odczyt lub odrzucenie plików natychmiast zwalnia ich limit. Nieodczytane pliki wygasają po 15 minutach, a kolejna operacja odzyskuje ich limit. Błędy przetwarzania również usuwają niewykorzystane załączniki. Odpowiedzi i pytania zachowują wątek własnej wiadomości wejściowej także wtedy, gdy w międzyczasie nadejdzie kolejna.
+
+Webhook zapisuje zadanie `process-email-delivery` przed zwróceniem 200. Zadanie zachowuje zweryfikowaną treść wiadomości wraz z załącznikami, więc restart API lub wygaśnięcie cache nie usuwa przyjętej pracy. Deduplikacja Message-ID zatwierdza się razem z zadaniem; żądanie wycofane w transakcji można ponowić. Worker ponownie sprawdza bota i organizację, szereguje dostawy do tego samego rozmówcy i zapisuje nieudane próby w Admin → Background jobs. Dane zakończonych zadań podlegają `BACKGROUND_JOB_RETENTION_DAYS`; administratorzy wdrożenia mogą je przeglądać.
 
 **Kto pisze.** Podpis dowodzi, że żądanie wysłał przekaźnik, a nie kto napisał maila: adres to tylko
 deklaracja. Osoba działa z własnymi uprawnieniami dopiero po powiązaniu tego adresu ze swoim kontem

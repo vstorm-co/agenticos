@@ -75,6 +75,13 @@ def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
     return uuid5(transfer_id, str(attempt))
 
 
+class EmailDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    body: str = Field(max_length=25 * 1024 * 1024)
+    attachment_handles: list[str] = Field(default_factory=list, max_length=10)
+
+
 class ChannelHandbackCall(Payload):
     tool_call_id: str
     tool_name: str
@@ -589,6 +596,15 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROCESS_EMAIL_DELIVERY = Task(
+    kind="process-email-delivery",
+    payload_type=EmailDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
 DELIVER_CHANNEL_HANDBACK = Task(
     kind="deliver-channel-handback",
     payload_type=ChannelHandback,
@@ -601,6 +617,7 @@ DELIVER_CHANNEL_HANDBACK = Task(
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        PROCESS_EMAIL_DELIVERY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,
         INGEST_DOCUMENT,

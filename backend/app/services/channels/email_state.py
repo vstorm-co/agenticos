@@ -10,13 +10,13 @@ worker than the one that received the message.
   fresh thread, which is only cosmetic.
 - **Attachments.** The relay sends files inline; the router fetches them later, in the
   background, through the adapter. They wait here, briefly, under a handle the adapter
-  made - not on disk and not in the database, because nothing about a file somebody mailed
-  needs to outlive the turn that reads it.
+  made. The durable delivery job also retains the signed body, so a worker can rebuild
+  this short-lived cache after a restart or a queue delay.
 """
 
 import json
-from collections.abc import Generator, Iterable
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator, Generator, Iterable
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
 
@@ -26,7 +26,6 @@ THREAD_TTL_SECONDS = 30 * 24 * 60 * 60
 ATTACHMENT_TTL_SECONDS = 15 * 60
 MAX_CACHED_ATTACHMENT_BYTES = 64 * 1024 * 1024
 MAX_CACHED_ATTACHMENTS = 1024
-SEEN_TTL_SECONDS = 24 * 60 * 60
 MAX_REFERENCES = 20
 """Headers grow with every reply; a mail server refuses a long enough `References`."""
 
@@ -81,12 +80,6 @@ async def discard_attachments(handles: Iterable[str]) -> None:
         await take_attachment(handle)
 
 
-async def release_delivery(bot_id: str, message_id: str | None) -> None:
-    """Make a refused storage reservation retriable without claiming a successful delivery."""
-    if _redis is not None and message_id:
-        await _redis.delete(f"channel:email:seen:{bot_id}:{message_id}")
-
-
 def _thread_key(bot_address: str, chat_id: str) -> str:
     return f"channel:email:thread:{bot_address}:{chat_id}"
 
@@ -132,15 +125,20 @@ async def take_attachment(handle: str) -> str | None:
     return value if value is not None else await _redis.getdel(f"channel:email:file:{handle}")
 
 
-async def first_delivery(bot_id: str, message_id: str | None) -> bool:
-    """Whether this is the first time this message id reached this bot.
+@asynccontextmanager
+async def in_worker() -> AsyncGenerator[None]:
+    """Own the channel stores for the lifetime of a worker, including numbered replies."""
+    from app.services.channels import dedupe, sms_prompts
 
-    A relay retries when it hears nothing back, and a mail server can deliver the same
-    message twice; either would run the agent twice on one mail. Without Redis, or without
-    a message id, there is nothing to compare and the message goes through.
-    """
-    if _redis is None or not message_id:
-        return True
-    return await _redis.set(
-        f"channel:email:seen:{bot_id}:{message_id}", "1", ttl=SEEN_TTL_SECONDS, nx=True
-    )
+    client = RedisClient()
+    await client.connect()
+    configure(client)
+    sms_prompts.configure(client)
+    dedupe.configure(client)
+    try:
+        yield
+    finally:
+        configure(None)
+        sms_prompts.configure(None)
+        dedupe.configure(None)
+        await client.close()

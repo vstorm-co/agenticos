@@ -1095,6 +1095,8 @@ seen before is ignored, so a relay's retry runs the agent once.
 
 Inbound attachments share a live cache limit of 64 MiB of encoded data and 1,024 files per bot. Each delivery is stored atomically; exhaustion returns 429 with Retry-After before any file or thread is cached. Reading or discarding files releases their capacity immediately. Unread files expire after 15 minutes, and the next cache operation reclaims their capacity. Processing failures also discard unused attachments. Replies and prompts retain the thread of their own inbound message even when another message arrives meanwhile.
 
+The webhook commits a `process-email-delivery` job before returning 200. The job retains the validated message body, including attachments, so an API restart or an expired cache cannot erase accepted work. Message-ID deduplication commits with that job; a rolled-back request remains retriable. Workers recheck the bot and organization, serialize deliveries to the same correspondent, and record failed attempts in Admin → Background jobs. Finished job payloads follow `BACKGROUND_JOB_RETENTION_DAYS`; deployment administrators can inspect them.
+
 **Who is writing.** The signature proves the relay sent the request, not who wrote the mail: an
 address is a claim. A person acts with their own permissions only once they have linked that address to
 their account like any other channel identity. Every message must include

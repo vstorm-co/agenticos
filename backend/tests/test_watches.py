@@ -295,7 +295,7 @@ class TestSettingOneUp:
 
 
 class TestPersonalConsent:
-    @pytest.mark.parametrize("operation", ["create", "update"])
+    @pytest.mark.parametrize("operation", ["create", "update", "delete"])
     @pytest.mark.parametrize(
         "ctx",
         [
@@ -331,8 +331,10 @@ class TestPersonalConsent:
             with pytest.raises(AuthorizationError, match="own consent"):
                 if operation == "create":
                     await service.create(ctx, _create())
-                else:
+                elif operation == "update":
                     await service.update(ctx, uuid.uuid4(), WatchUpdate(is_active=True))
+                else:
+                    await service.delete(ctx, uuid.uuid4())
         lookup.assert_not_awaited()
 
     @pytest.mark.parametrize("internal_key", [False, True])
@@ -831,6 +833,20 @@ class TestTheRoutes:
         app.dependency_overrides[get_auth_context] = _ctx
         yield service
         app.dependency_overrides.clear()
+
+    @pytest.mark.parametrize(
+        "method,path", [("get", "/me/watches"), ("delete", f"/me/watches/{uuid.uuid4()}")]
+    )
+    async def test_unrelated_api_key_scope_cannot_read_or_delete(
+        self, client: AsyncClient, service, method: str, path: str
+    ):
+        app.dependency_overrides[get_auth_context] = lambda: replace(
+            _ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset()
+        )
+        response = await getattr(client, method)(f"/api/v1{path}")
+        assert response.status_code == 403
+        service.list_mine.assert_not_called()
+        service.delete.assert_not_called()
 
     async def test_set_up_list_change_and_remove(self, client: AsyncClient, service):
         read = watch_read(_watch(), organization=_organization(), connection=_named(_connection()))

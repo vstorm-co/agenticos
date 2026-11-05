@@ -323,7 +323,6 @@ class TestSending:
 
         assert await email_state.thread_of("a", "b") is None
         assert await email_state.take_attachment("h") is None
-        assert await email_state.first_delivery("bot", "<1>")
 
     async def test_a_thread_keeps_a_bounded_chain(self, redis: _Redis) -> None:
         refs = [f"<{n}>" for n in range(50)]
@@ -388,7 +387,9 @@ class TestPromptsAndFiles:
 
 @asynccontextmanager
 async def _client(bot: object | None) -> AsyncIterator[AsyncClient]:
-    app.dependency_overrides[deps.get_db_session] = lambda: MagicMock()
+    db = MagicMock()
+    db.info = {}
+    app.dependency_overrides[deps.get_db_session] = lambda: db
     register_adapter(EmailAdapter())
     try:
         with patch(
@@ -400,6 +401,9 @@ async def _client(bot: object | None) -> AsyncIterator[AsyncClient]:
             ) as client:
                 yield client
     finally:
+        from app.core.background import start_deferred
+
+        start_deferred(db)
         app.dependency_overrides.clear()
 
 
@@ -420,20 +424,31 @@ class TestTheWebhook:
     ROOT = f"{settings.API_V1_STR}/email"
 
     def _bot(self, platform: str = "email") -> MagicMock:
-        return MagicMock(id=uuid4(), platform=platform)
+        return MagicMock(id=uuid4(), organization_id=uuid4(), platform=platform)
 
     @asynccontextmanager
     async def _wired(self, bot: MagicMock, *, secret: str | None = SECRET):
         spawned: list[str] = []
+        receipts: dict[str, object] = {}
+
+        async def queue(_db, _task, job, **kwargs):
+            key = kwargs.get("idempotency_key")
+            if key is not None:
+                receipts[key] = job
+            spawned.append(f"email_event:{job.bot_id}")
+            return uuid4()
+
+        async def existing(_db, *, organization_id, idempotency_key):
+            return receipts.get(idempotency_key)
+
         with (
             patch("app.api.routes.v1.email_webhook.unseal_webhook_secret", return_value=secret),
             patch("app.api.routes.v1.email_webhook.unseal_bot_token", return_value=BOT_ADDRESS),
+            patch("app.services.channels.email.enqueue", new=queue),
             patch(
-                "app.api.routes.v1.email_webhook.spawn",
-                side_effect=lambda coro, name: (spawned.append(name), coro.close()),
+                "app.services.channels.email.background_job_repo.get_by_idempotency_key",
+                new=existing,
             ),
-            patch("app.api.routes.v1.email_webhook.process_channel_event", new=MagicMock()),
-            patch("app.api.routes.v1.email_webhook.process_channel_press", new=MagicMock()),
         ):
             yield spawned
 
@@ -483,7 +498,7 @@ class TestTheWebhook:
         async with self._wired(bot) as spawned, _client(bot) as client:
             await client.post(f"{self.ROOT}/{bot.id}/inbound", **_post(body))
 
-        assert spawned == [f"email_press:{bot.id}"]
+        assert spawned == [f"email_event:{bot.id}"]
 
     @pytest.mark.parametrize(
         "proof",
@@ -680,7 +695,7 @@ async def test_email_state_failure_releases_the_delivery_claim(redis: _Redis) ->
     async with webhook._wired(bot) as spawned, _client(bot) as client:
         with (
             patch(
-                "app.api.routes.v1.email_webhook.keep_inbound",
+                "app.services.channels.email.keep_inbound",
                 new=AsyncMock(side_effect=RuntimeError("cache failed")),
             ),
             pytest.raises(RuntimeError, match="cache failed"),
@@ -740,29 +755,93 @@ async def test_folded_subject_is_unfolded_before_outbound_serialization(redis: _
     assert message.as_bytes()
 
 
-async def test_consuming_or_rejecting_mail_releases_attachment_capacity(redis: _Redis) -> None:
-    from app.services.channels.email import keep_inbound
-    from app.worker.background import channel
+@pytest.mark.parametrize("fails", [False, True])
+async def test_worker_restores_expired_files_and_releases_capacity(
+    redis: _Redis, fails: bool
+) -> None:
+    from app.services.channels.router import ChannelMessageRouter
+    from app.worker.jobs import EmailDelivery
+    from app.worker.tasks.channel_tasks import process_email_delivery
 
+    bot_id, org_id = uuid4(), uuid4()
     payload = {
         "from": "ada@acme.com",
         "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
         "text": "File",
+        "message_id": "<worker-file>",
         "attachments": [{"content_base64": "aGk="}],
     }
-    incoming = EmailAdapter().parse_incoming(payload, "bot")
+    incoming = EmailAdapter().parse_incoming(payload, str(bot_id))
     assert incoming is not None
-    assert await keep_inbound(BOT_ADDRESS, incoming, payload) is not None
-    assert redis.data["channel:email:attachments:bot:used"] == "4"
+    handles = [item.handle for item in incoming.attachments]
+    job = EmailDelivery(
+        organization_id=org_id, bot_id=bot_id, body=json.dumps(payload), attachment_handles=handles
+    )
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(return_value=MagicMock())
+    context.__aexit__ = AsyncMock(return_value=False)
+
+    async def route(message, db):
+        assert message.attachments[0].handle == handles[0]
+        assert await email_state.take_attachment(handles[0]) == "aGk="
+        if fails:
+            raise RuntimeError("failed")
+
     with (
-        patch.object(
-            channel, "process_channel_event", new=AsyncMock(side_effect=RuntimeError("failed"))
+        patch("app.worker.tasks.channel_tasks.get_db_context", return_value=context),
+        patch(
+            "app.repositories.channel_bot_repo.get_for_inbound",
+            new=AsyncMock(
+                return_value=MagicMock(
+                    id=bot_id, organization_id=org_id, is_active=True, platform="email"
+                )
+            ),
         ),
-        pytest.raises(RuntimeError),
+        patch("app.services.channel_bot.unseal_bot_token", return_value=BOT_ADDRESS),
+        patch.object(ChannelMessageRouter, "route", new=AsyncMock(side_effect=route)),
     ):
-        await channel.process_email_event(incoming)
-    assert redis.data["channel:email:attachments:bot:used"] == "0"
-    assert await email_state.take_attachment(incoming.attachments[0].handle) is None
+        if fails:
+            with pytest.raises(RuntimeError, match="failed"):
+                await process_email_delivery(job)
+        else:
+            await process_email_delivery(job)
+    assert await email_state.take_attachment(handles[0]) is None
+    assert redis.data[f"channel:email:attachments:{bot_id}:used"] == "0"
+
+
+async def test_worker_routes_numbered_replies_after_durable_admission(redis: _Redis) -> None:
+    from app.services.channels.prompts import ChannelPrompts
+    from app.worker.jobs import EmailDelivery
+    from app.worker.tasks.channel_tasks import process_email_delivery
+
+    bot_id, org_id = uuid4(), uuid4()
+    await sms_prompts.remember(str(bot_id), "ada@acme.com", ["aos:a:0"], start=1, platform="email")
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "text": "1",
+        "message_id": "<reply>",
+    }
+    context = MagicMock()
+    context.__aenter__ = AsyncMock(return_value=MagicMock())
+    context.__aexit__ = AsyncMock(return_value=False)
+    with (
+        patch("app.worker.tasks.channel_tasks.get_db_context", return_value=context),
+        patch(
+            "app.repositories.channel_bot_repo.get_for_inbound",
+            new=AsyncMock(
+                return_value=MagicMock(
+                    id=bot_id, organization_id=org_id, is_active=True, platform="email"
+                )
+            ),
+        ),
+        patch("app.services.channel_bot.unseal_bot_token", return_value=BOT_ADDRESS),
+        patch.object(ChannelPrompts, "press", new=AsyncMock()) as press,
+    ):
+        await process_email_delivery(
+            EmailDelivery(organization_id=org_id, bot_id=bot_id, body=json.dumps(payload))
+        )
+    assert press.await_args.args[0].value == "aos:a:0"
 
 
 async def test_thread_storage_failure_does_not_keep_file_capacity(redis: _Redis) -> None:

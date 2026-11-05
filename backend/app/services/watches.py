@@ -327,6 +327,7 @@ class WatchService:
 
     async def delete(self, ctx: AuthContext, watch_id: UUID) -> None:
         """Remove it, and what it found with it."""
+        self._require_personal_consent(ctx)
         watch = await self._own(ctx, self._person(ctx), watch_id, for_update=True)
         await OutcomeService(self.db).resolve_watch_findings(
             organization_id=ctx.organization_id, user_id=self._person(ctx), watch_id=watch.id

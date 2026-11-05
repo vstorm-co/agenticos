@@ -1,5 +1,5 @@
 ---
-source_sha: "91084687206d"
+source_sha: "ff512c283301"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1208,6 +1208,8 @@ Anhänge werden gelesen, und eine bereits gesehene Nachrichten-ID wird ignoriert
 Versuch des Relays den Agenten nur einmal startet.
 
 Eingehende Anhänge teilen ein Cache-Limit von 64 MiB kodierter Daten und 1.024 Dateien pro Bot. Jede Zustellung wird atomar gespeichert; bei Erschöpfung folgt 429 mit Retry-After, bevor Dateien oder Verlauf gespeichert werden. Lesen oder Verwerfen gibt die Kapazität sofort frei. Ungelesene Dateien verfallen nach 15 Minuten; die nächste Cache-Operation gewinnt ihre Kapazität zurück. Verarbeitungsfehler entfernen ebenfalls ungenutzte Anhänge. Antworten und Rückfragen bleiben im Verlauf ihrer eigenen Eingangsnachricht, auch wenn inzwischen eine weitere eintrifft.
+
+Der Webhook speichert einen Job `process-email-delivery`, bevor er 200 zurückgibt. Der Job behält den validierten Nachrichteninhalt einschließlich Anhängen; ein API-Neustart oder abgelaufener Cache verliert dadurch keine angenommene Arbeit. Die Message-ID-Deduplizierung wird mit dem Job bestätigt; nach einem Rollback kann die Anfrage wiederholt werden. Worker prüfen Bot und Organisation erneut, serialisieren Zustellungen an denselben Gesprächspartner und zeigen fehlgeschlagene Versuche unter Admin → Background jobs. Beendete Job-Payloads unterliegen `BACKGROUND_JOB_RETENTION_DAYS`; Deployment-Administratoren können sie einsehen.
 
 **Wer schreibt.** Die Signatur beweist, dass das Relay die Anfrage gesendet hat, nicht wer die Mail
 geschrieben hat: Eine Adresse ist eine Behauptung. Eine Person handelt erst dann mit ihren eigenen
