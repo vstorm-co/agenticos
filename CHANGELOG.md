@@ -187,6 +187,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reduce the shared page bottom clearance from 64px to 16px on desktop, keeping mobile safe-area spacing.
+
 - List OpenAI, OpenAI subscription, Anthropic and OpenRouter first in provider pickers,
   preserving the order of all remaining providers.
 
