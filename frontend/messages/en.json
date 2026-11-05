@@ -7467,6 +7467,7 @@
         "makePrivate": "Make private, visible only to you",
         "nowShared": "View shared",
         "nowPrivate": "View made private",
+        "groupedName": "Kanban by {column}",
         "defaultName": "Default {kind}",
         "defaultSaved": "Default view saved",
         "defaultHint": "Open this view by default for everyone with access to the table. The saved view will be shared.",

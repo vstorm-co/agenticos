@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useTableDefaultView } from "./use-table-views";
-import { createView } from "@/lib/table-views-api";
+import { createView, updateView } from "@/lib/table-views-api";
 import { updateTable } from "@/lib/tables-api";
 import { emptyViewConfig } from "@/types/tables";
 vi.mock("@/lib/table-views-api", () => ({
@@ -50,4 +50,32 @@ it("saves the current Kanban as a shared view and sets that exact view as the ta
     expect.objectContaining({ kind: "kanban", visibility: "shared", config }),
   );
   expect(updateTable).toHaveBeenCalledWith("tasks", { default_view_id: "kanban-view" });
+});
+
+it("copies another owner's view rather than discarding the current grouping", async () => {
+  const source = {
+    id: "someone-elses-view",
+    table_id: "tasks",
+    owner_user_id: "other",
+    name: "Board",
+    kind: "kanban" as const,
+    visibility: "shared" as const,
+    config: emptyViewConfig(),
+    can_manage: false,
+    can_delete: false,
+    created_at: "2026-11-05T00:00:00Z",
+    updated_at: null,
+  };
+  vi.mocked(createView).mockResolvedValue({ ...source, id: "copy" });
+  const { result } = renderHook(() => useTableDefaultView("tasks"), { wrapper });
+  const config = { ...emptyViewConfig(), group_by: "priority" };
+  await act(async () => {
+    await result.current.mutateAsync({ view: source, kind: "kanban", config, names: [] });
+  });
+  expect(updateView).not.toHaveBeenCalled();
+  expect(createView).toHaveBeenCalledWith(
+    "tasks",
+    expect.objectContaining({ config, visibility: "shared" }),
+  );
+  expect(updateTable).toHaveBeenCalledWith("tasks", { default_view_id: "copy" });
 });

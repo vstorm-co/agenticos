@@ -1,5 +1,5 @@
 ---
-source_sha: "e41233127d5d"
+source_sha: "00805a24f941"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -853,3 +853,6 @@ AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
 
 Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.
+
+
+**Group by** wird automatisch gespeichert, wenn ein Bearbeiter eine Spalte auswählt. Ein verwaltbarer gespeicherter Kanban wird aktualisiert; andernfalls wird eine private Ansicht erstellt und ausgewählt. Bei abgelehntem Speichern bleibt die bisherige Gruppierung erhalten. Leser können die Gruppierung vorübergehend ändern. **Set as default** in der Werkzeugleiste speichert das aktuelle Format für alle; normale Tabellen öffnen sich als Table, bis ein Bearbeiter eine andere Standardansicht auswählt.

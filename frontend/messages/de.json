@@ -6746,6 +6746,7 @@
         "makePrivate": "Privat machen, nur für Sie sichtbar",
         "nowShared": "Ansicht geteilt",
         "nowPrivate": "Ansicht ist jetzt privat",
+        "groupedName": "Kanban nach {column}",
         "defaultName": "Standard: {kind}",
         "defaultSaved": "Standardansicht gespeichert",
         "defaultHint": "Diese Ansicht für alle mit Tabellenzugriff standardmäßig öffnen. Die gespeicherte Ansicht wird geteilt.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "e41233127d5d"
+source_sha: "00805a24f941"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -806,3 +806,6 @@ AgenticOS MCP ofrece `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 Los editores pueden elegir **Establecer como predeterminada** en la barra de herramientas. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
 
 Las notas de tareas son documentos Markdown con el mismo editor rich text y vista previa que otras celdas documentales. Las relaciones separadas **Persona** y **Agente** conservan a la persona responsable y al agente que trabaja. **Siguiente paso** elige persona o agente y vuelve a la persona después del resultado. La persona responsable inicia el agente con su propia cuenta. Para transferir una tarea, elige primero a la persona como siguiente paso y deja que el destinatario inicie el trabajo con su cuenta.
+
+
+**Group by** se guarda automáticamente cuando un editor elige una columna. Actualiza una vista Kanban guardada que pueda administrar; si no existe, crea y selecciona una vista privada. Si se rechaza el guardado, se conserva la agrupación anterior. Los lectores pueden cambiarla temporalmente. **Set as default** en la barra de herramientas guarda el formato actual para todos; las tablas normales se abren como Table hasta que un editor elige otra vista predeterminada.

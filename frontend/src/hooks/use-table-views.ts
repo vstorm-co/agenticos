@@ -84,7 +84,7 @@ export function useTableDefaultView(tableId: string) {
       config: import("@/types/tables").TableViewConfig;
       names: string[];
     }) => {
-      let selected = view;
+      let selected = view?.can_manage ? view : null;
       if (selected?.can_manage)
         selected = await updateView(tableId, selected.id, { visibility: "shared", config });
       if (!selected) {

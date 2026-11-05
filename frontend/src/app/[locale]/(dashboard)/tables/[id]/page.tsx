@@ -178,8 +178,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
   const defaultView = useTableDefaultView(id);
   const effectiveViewId = viewIdParam ?? (tabParam === null ? table?.default_view_id : null);
-  const activeView = views.find((view) => view.id === effectiveViewId) ?? null;
-  const tab = tabParam === null && activeView ? activeView.kind : parseTab(tabParam);
+  const requestedView = views.find((view) => view.id === effectiveViewId) ?? null;
+  const tab = tabParam === null && requestedView ? requestedView.kind : parseTab(tabParam);
+  const activeView = requestedView?.kind === tab ? requestedView : null;
   const [sort, setSort] = useState<RecordSort>(activeView?.config.sort ?? DEFAULT_SORT);
   const [filters, setFilters] = useState<RecordFilter[]>(activeView?.config.filters ?? []);
   const [searchDraft, setSearchDraft] = useState(activeView?.config.search ?? "");
@@ -196,7 +197,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const liveColumns = table?.columns.filter((column) => !column.archived) ?? [];
   const groupable = liveColumns.filter((column) => column.type === "single_select");
   const groupBy =
-    activeView?.config.group_by ?? groupPick ?? (groupable.length === 1 ? groupable[0]!.id : null);
+    groupPick ?? activeView?.config.group_by ?? (groupable.length === 1 ? groupable[0]!.id : null);
 
   // `sort` is the grid's own working sort, seeded from the active view's
   // stored one each time the view changes - re-seeded from render, not a
@@ -277,6 +278,38 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     visible_columns: visible,
     group_by: tab === "kanban" ? groupBy : (activeView?.config.group_by ?? null),
   };
+  const groupingPending = createView.isPending || updateView.isPending;
+  const chooseGrouping = async (columnId: string) => {
+    const column = groupable.find((column) => column.id === columnId);
+    if (!column) return;
+    if (!canEdit) {
+      setGroupPick(columnId);
+      return;
+    }
+    try {
+      if (activeView?.can_manage) {
+        await updateView.mutateAsync({
+          viewId: activeView.id,
+          data: { config: { ...activeView.config, group_by: columnId } },
+        });
+      } else {
+        const base = tViews("groupedName", { column: column.label });
+        let name = base;
+        for (let suffix = 2; views.some((view) => view.name === name); suffix += 1)
+          name = `${base} ${suffix}`;
+        const created = await createView.mutateAsync({
+          name,
+          kind: "kanban",
+          visibility: "private",
+          config: { ...emptyViewConfig(), ...working, group_by: columnId },
+        });
+        setViewIdParam(created.id);
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, tErrors));
+    }
+  };
+  const isDefaultView = activeView !== null && activeView.id === table.default_view_id;
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
   const unsaved =
     activeView !== null &&
@@ -568,11 +601,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             )}
             {canEdit && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                disabled={
-                  defaultView.isPending || (!!activeView && activeView.id === table.default_view_id)
-                }
+                disabled={groupingPending || defaultView.isPending || isDefaultView}
                 title={tViews("defaultHint")}
                 onClick={() =>
                   defaultView.mutate(
@@ -591,7 +622,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                   )
                 }
               >
-                {tViews(activeView?.id === table.default_view_id ? "isDefault" : "setDefault")}
+                {tViews(isDefaultView ? "isDefault" : "setDefault")}
               </Button>
             )}
             <ViewSettingsPopover
@@ -671,27 +702,27 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               )}
 
-              {tab === "kanban" &&
-                groupBy !== null &&
-                groupable.length > 1 &&
-                !activeView?.config.group_by && (
-                  // Picked here rather than saved: it can be picked again.
-                  <div className="text-muted-foreground flex items-center gap-2 px-4 pt-4 text-xs">
-                    {t("kanbanGroupBy")}
-                    <Select value={groupBy ?? ""} onValueChange={setGroupPick}>
-                      <SelectTrigger size="sm" className="w-44" aria-label={t("kanbanGroupBy")}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groupable.map((column) => (
-                          <SelectItem key={column.id} value={column.id}>
-                            {column.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+              {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
+                <div className="text-muted-foreground flex items-center gap-2 px-4 pt-4 text-xs">
+                  {t("kanbanGroupBy")}
+                  <Select
+                    value={groupBy ?? ""}
+                    disabled={groupingPending}
+                    onValueChange={(value) => void chooseGrouping(value)}
+                  >
+                    <SelectTrigger size="sm" className="w-44" aria-label={t("kanbanGroupBy")}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groupable.map((column) => (
+                        <SelectItem key={column.id} value={column.id}>
+                          {column.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {tab === "kanban" &&
                 (groupBy ? (
                   <TableKanbanView
@@ -715,7 +746,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                         <p className="text-muted-foreground max-w-md text-sm">
                           {t("kanbanGroupHint")}
                         </p>
-                        <Select value="" onValueChange={setGroupPick}>
+                        <Select
+                          value=""
+                          disabled={groupingPending}
+                          onValueChange={(value) => void chooseGrouping(value)}
+                        >
                           <SelectTrigger className="w-56" aria-label={t("kanbanGroupBy")}>
                             <SelectValue placeholder={t("kanbanGroupBy")} />
                           </SelectTrigger>

@@ -162,6 +162,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Persist Kanban grouping changes automatically and keep the chosen default table format consistent when switching between saved views.
+
 - Focus the writable chat composer after navigation even when its opener retains focus during connection; increase shared secondary-button and filter contrast across the console.
 
 - Show saved browser sign-ins in a compact settings panel with service logos and site favicons instead of a stretched placeholder card.

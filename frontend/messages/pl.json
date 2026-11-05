@@ -3501,6 +3501,7 @@
         "makePrivate": "Ustaw jako prywatny, widoczny tylko dla Ciebie",
         "nowShared": "Udostępniono widok",
         "nowPrivate": "Widok jest teraz prywatny",
+        "groupedName": "Kanban według {column}",
         "defaultName": "Domyślny: {kind}",
         "defaultSaved": "Zapisano domyślny widok",
         "defaultHint": "Otwieraj ten widok domyślnie dla wszystkich z dostępem do tabeli. Zapisany widok będzie współdzielony.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "e41233127d5d"
+source_sha: "00805a24f941"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -800,3 +800,6 @@ AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`,
 Edytor tabeli może wybrać **Ustaw jako domyślny** na pasku narzędzi. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
 
 Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem jak inne komórki dokumentowe. Osobne relacje **Osoba** i **Agent** mogą zachować człowieka odpowiedzialnego za zadanie i wykonującego je agenta. **Następny krok** wskazuje osobę albo agenta; po przygotowaniu wyniku wraca do osoby. Pracę agenta uruchamia odpowiedzialna osoba na własnym koncie. Przekazując zadanie, wybierz najpierw osobę jako następny krok i pozwól odbiorcy rozpocząć pracę na swoim koncie.
+
+
+**Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** na pasku narzędzi zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
