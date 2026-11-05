@@ -187,6 +187,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- List OpenAI, OpenAI subscription, Anthropic and OpenRouter first in provider pickers,
+  preserving the order of all remaining providers.
+
 - Refresh background chat answers in place; sidebar run updates no longer clear
   and reload the open transcript between queued messages.
 
