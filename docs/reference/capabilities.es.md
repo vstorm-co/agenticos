@@ -1,5 +1,5 @@
 ---
-source_sha: "a9c402805186"
+source_sha: "4e0659c4b1d7"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2425,7 +2425,9 @@ Una llamada que nombra otra tabla, o una operación que la concesión no incluye
 rechaza antes de leer nada. Cada llamada pasa además la propia comprobación de
 acceso del servicio de tablas como el miembro para el que actúa el run, reconstruido
 a partir de su membresía en cada llamada, así que una tabla que se deja de compartir
-o un rol reducido detiene la llamada siguiente.
+o un rol reducido detiene la llamada siguiente. Publicar rechaza una tabla que quien
+publica no puede ver, igual que una colección, porque la concesión presta la tabla a
+todos los que ejecutan el agent.
 
 `create_table` solo se ofrece con **Allow create**, y el miembro sigue necesitando
 `tables:create`. Las herramientas de registros nunca crean tablas. Una tabla que

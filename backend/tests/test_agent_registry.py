@@ -154,6 +154,9 @@ def _db():
     # `execute`; the mount must await and answer the head read with an empty chain.
     db.execute = AsyncMock()
     db.execute.return_value.scalar_one_or_none.return_value = None
+    # Publish lists the agent's channel bindings to find the public lines a new
+    # version would move; an agent on no bot has none.
+    db.execute.return_value.all = MagicMock(return_value=[])
     return db
 
 
@@ -2796,6 +2799,86 @@ class TestContextValidation:
             await AgentRegistryService(_db()).validate_spec(
                 ctx, _spec(context_ids=[shared.id], model_profile_id=uuid.uuid4())
             )
+
+
+def _table(ctx: AuthContext, *, owner_user_id: uuid.UUID):
+    """A private table row in the caller's organization - same shape as `_skill`."""
+    return MagicMock(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=owner_user_id,
+        visibility=Visibility.PRIVATE.value,
+    )
+
+
+def _tables_spec(*table_ids: uuid.UUID) -> AgentSpec:
+    return _spec(
+        model_profile_id=uuid.uuid4(),
+        capabilities=[
+            CapabilityBindingSpec(
+                id="virtual_tables",
+                config={"tables": [{"table_id": str(table_id)} for table_id in table_ids]},
+            )
+        ],
+    )
+
+
+class TestTableValidation:
+    """Binding a table lends it, so publish checks the publisher can view it.
+
+    A run with no member behind it - a stranger on a public line - reads the
+    granted tables as the agent, and tables are bound by UUID, so without this
+    check a member could bind a colleague's private table and read it through
+    the line. The same rule as a collection.
+    """
+
+    @staticmethod
+    async def _validate(ctx: AuthContext, spec: AgentSpec, table) -> None:
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                f"{REGISTRY_PATH}.virtual_table_repo.get_table",
+                new=AsyncMock(return_value=table),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(ctx, spec)
+
+    @pytest.mark.anyio
+    async def test_a_table_this_organization_does_not_have_is_not_found(self):
+        table_id = uuid.uuid4()
+        with pytest.raises(BadRequestError) as refused:
+            await self._validate(_ctx(), _tables_spec(table_id), None)
+        assert refused.value.details is not None
+        assert refused.value.details["problems"] == [f"Table not found: {table_id}"]
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_private_table_the_publisher_cannot_view_is_not_found(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        private = _table(ctx, owner_user_id=uuid.uuid4())
+        with (
+            patch(
+                "app.services.access.resource_grant_repo.get_level",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await self._validate(ctx, _tables_spec(private.id), private)
+        assert refused.value.details is not None
+        assert refused.value.details["problems"] == [f"Table not found: {private.id}"]
+
+    @pytest.mark.anyio
+    async def test_a_grant_lets_a_member_bind_a_table_they_do_not_own(self):
+        ctx = _ctx(OrgRoleName.MEMBER)
+        shared = _table(ctx, owner_user_id=uuid.uuid4())
+        with patch(
+            "app.services.access.resource_grant_repo.get_level",
+            new=AsyncMock(return_value=GrantLevel.READ),
+        ):
+            await self._validate(ctx, _tables_spec(shared.id), shared)
 
 
 class TestToolApprovalValidation:

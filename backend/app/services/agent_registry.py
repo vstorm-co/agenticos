@@ -51,6 +51,7 @@ from app.agents.capabilities.computer_use import (
 from app.agents.capabilities.follow_ups import FollowUpsConfig
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.capabilities.virtual_tables import VirtualTablesConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
 from app.agents.model_resolver import lacks_key
 from app.agents.spec import (
@@ -100,6 +101,7 @@ from app.repositories import (
     sandbox_connection_repo,
     skill_repo,
     user_repo,
+    virtual_table_repo,
 )
 from app.repositories import workflow as workflow_repo
 from app.schemas.agent import (
@@ -133,6 +135,7 @@ from app.services.access import (
     MCP_CONNECTION,
     SECRET,
     SKILL,
+    TABLE,
     WORKFLOW,
     accessible_ids,
     resolve_access,
@@ -1939,6 +1942,10 @@ class AgentRegistryService:
                 problems.add(await self.model_profile_problems(ctx, config.step_model_profile_id))
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
+            if isinstance(config, VirtualTablesConfig):
+                problems.add(
+                    await self._table_problems(ctx, [grant.table_id for grant in config.tables])
+                )
             problems.add(ungateable_tool_problems(binding, definition, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
@@ -2208,6 +2215,29 @@ class AgentRegistryService:
             )
             if not reachable:
                 problems.append(f"Collection not found: {collection_id}")
+        return problems
+
+    async def _table_problems(self, ctx: AuthContext, table_ids: Sequence[UUID]) -> list[str]:
+        """Tables the publisher cannot lend out.
+
+        The same rule as a collection: a run with no member behind it - a stranger on a
+        public line - reads the tables its spec grants as the agent, with no member's
+        access to narrow it, so binding a table shares what is in it and the publisher
+        has to be able to view it themselves. Only `view`, because a write as the agent
+        is refused unless somebody approves it, and then it runs as them. "Not found"
+        covers a missing id, another organization's and one this publisher may not
+        view, deliberately indistinguishably, as for a collection.
+        """
+        problems: list[str] = []
+        for table_id in table_ids:
+            table = await virtual_table_repo.get_table(
+                self.db, table_id, organization_id=ctx.organization_id
+            )
+            reachable = table is not None and await resolve_access(
+                self.db, ctx, table, Perm.TABLES_VIEW, resource_type=TABLE
+            )
+            if not reachable:
+                problems.append(f"Table not found: {table_id}")
         return problems
 
     async def _skill_problems(self, ctx: AuthContext, skill_ids: Sequence[UUID]) -> list[str]:

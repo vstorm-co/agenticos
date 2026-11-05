@@ -1,5 +1,5 @@
 ---
-source_sha: "a9c402805186"
+source_sha: "4e0659c4b1d7"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2544,6 +2544,9 @@ nennt, wird abgelehnt, bevor etwas gelesen wird. Jeder Aufruf durchläuft außer
 die eigene Zugriffsprüfung des Tabellen-Service als das Mitglied, für das der Run
 handelt, bei jedem Aufruf aus seiner Mitgliedschaft neu aufgebaut. Eine nicht mehr
 geteilte Tabelle oder eine eingeschränkte Rolle stoppt also den nächsten Aufruf.
+Das Veröffentlichen lehnt eine Tabelle ab, die der Veröffentlichende nicht sehen
+darf, wie bei einer Sammlung, weil die Freigabe die Tabelle jedem leiht, der den
+Agent ausführt.
 
 `create_table` wird nur mit **Allow create** angeboten, und das Mitglied braucht
 weiterhin `tables:create`. Datensatz-Tools legen nie Tabellen an. Eine Tabelle, die

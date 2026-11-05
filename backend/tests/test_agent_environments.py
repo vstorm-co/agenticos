@@ -80,7 +80,11 @@ def _service(agent: MagicMock) -> AgentEnvironmentService:
     """A service whose agent lookup succeeds, so the tests can be about
     environments. The registry's own refusals are proven in
     `tests/test_agent_registry.py` against the real `resolve_access`."""
-    service = AgentEnvironmentService(MagicMock())
+    db = MagicMock()
+    # Moving an environment lists the agent's channel bindings to find the public
+    # lines it would move; an agent on no bot has none.
+    db.execute = AsyncMock(return_value=MagicMock(all=MagicMock(return_value=[])))
+    service = AgentEnvironmentService(db)
     service.agents = MagicMock()
     service.agents.get = AsyncMock(return_value=agent)
     # No version here runs on a ChatGPT sign-in; `test_publish_sign_ins` has one.

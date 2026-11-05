@@ -1,5 +1,5 @@
 ---
-source_sha: "a9c402805186"
+source_sha: "4e0659c4b1d7"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2362,7 +2362,9 @@ Wywołanie wskazujące inną tabelę albo operację, której uprawnienie nie obe
 jest odrzucane, zanim cokolwiek zostanie przeczytane. Każde wywołanie przechodzi też
 własną kontrolę dostępu serwisu tabel jako członek, w imieniu którego działa run,
 odbudowany z jego członkostwa przy każdym wywołaniu. Tabela, którą przestano
-udostępniać, albo zawężona rola zatrzymuje więc następne wywołanie.
+udostępniać, albo zawężona rola zatrzymuje więc następne wywołanie. Publikacja
+odrzuca tabelę, której publikujący nie może zobaczyć, tak samo jak kolekcję, bo
+uprawnienie udostępnia tabelę każdemu, kto uruchamia agenta.
 
 `create_table` jest dostępne tylko z **Allow create**, a członek nadal potrzebuje
 `tables:create`. Narzędzia rekordów nigdy nie tworzą tabel. Tabela, którą agent

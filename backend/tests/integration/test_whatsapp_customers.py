@@ -674,11 +674,13 @@ class TestTheStore:
         org, bot, _ = estate
         store = WindowStore(sessions)
         await self._record(sessions, org, bot, T1)
-        assert await store.close(str(bot.id), BSUID, at=T2)
+        closed = await store.close(str(bot.id), BSUID, at=T2)
+        assert closed
         assert await store.window(str(bot.id), BSUID, now=T2 + timedelta(minutes=1)) is False
         await self._record(sessions, org, bot, T2)
         assert await store.window(str(bot.id), BSUID, now=T2 + timedelta(minutes=1)) is True
-        assert await store.close(str(bot.id), BSUID, at=T2 + timedelta(minutes=2))
+        reclosed = await store.close(str(bot.id), BSUID, at=T2 + timedelta(minutes=2))
+        assert reclosed
 
     async def test_no_record_reads_as_none(self, sessions, estate) -> None:
         _, bot, _ = estate

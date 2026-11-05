@@ -2262,7 +2262,9 @@ The grants are part of the published spec, which the model cannot change. A call
 naming another table, or an operation the grant leaves out, is refused before
 anything is read. Every call also runs the table service's own access check as the
 member the run acts for, rebuilt from their membership on each call, so a table
-unshared or a role narrowed mid-run stops the next call.
+unshared or a role narrowed mid-run stops the next call. Publishing refuses a table
+the publisher cannot view, as it refuses a collection, because the binding lends the
+table to everyone who runs the agent.
 
 `create_table` is offered only with **Allow create**, and the member still needs
 `tables:create`. Record tools never create tables. A table the agent makes is usable
