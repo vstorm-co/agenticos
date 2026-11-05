@@ -12,7 +12,7 @@ from app.db.models.skill import Skill
 from app.main import app
 from app.services import sharing
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.fixture
