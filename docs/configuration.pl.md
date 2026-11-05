@@ -1,5 +1,5 @@
 ---
-source_sha: "bd163100ac0f"
+source_sha: "f8a0d851ec5d"
 ---
 
 # Konfiguracja { #configuration }
@@ -82,6 +82,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Limit na plik dla sparsowanego tekstu wklejanego do promptu bez workspace'u |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Zbiorczy limit tekstu załączników w jednej turze |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
+| `STAV_NOK_PER_USD` | puste | Kurs NOK za USD utrzymywany przez operatora do kosztów naliczonych przez Stav. Skończony i dodatni; np. `10` dzieli NOK przez 10 (przykład, nie bieżący kurs). USD nie wymaga ustawienia. Kurs nie jest pobierany; bez przeliczenia używany jest katalog cen, a nieznane modele pozostają częściowo wycenione |
 
 Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
 

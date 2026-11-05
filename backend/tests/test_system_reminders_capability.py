@@ -369,7 +369,7 @@ class TestLlmReminder:
         )
         with patch("app.agents.capabilities._ambient.Agent", _FakeAgent):
             assert await reminder(ctx) == "focus"
-        assert isinstance(captured["model"], InstrumentedModel)
+        assert isinstance(captured["model"].wrapped, InstrumentedModel)
         assert captured["model_settings"] == {"temperature": 0.5}
 
     @pytest.mark.security

@@ -18,7 +18,7 @@ from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ToolCallPart, ToolReturn
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import ToolDefinition
-from pydantic_ai.usage import RunUsage
+from pydantic_ai.usage import RequestUsage, RunUsage
 from pydantic_ai.workspaces import Workspace, WrapperWorkspace
 from pydantic_ai_harness.tool_output_limits import Spill, Summarize, Truncate
 
@@ -88,6 +88,7 @@ class _Spender(AbstractCapability[Any]):
 
     input_tokens: int = 0
     output_tokens: int = 0
+    billed_usd: Decimal | None = None
 
     async def after_tool_execute(
         self,
@@ -100,6 +101,9 @@ class _Spender(AbstractCapability[Any]):
     ) -> Any:
         ctx.usage.input_tokens += self.input_tokens
         ctx.usage.output_tokens += self.output_tokens
+        if self.billed_usd is not None:
+            ctx.usage.requests += 1
+            ctx.usage.incr(RequestUsage(cost=self.billed_usd, provider_reported_requests=1))
         return result
 
 
@@ -452,3 +456,18 @@ class TestRegistration:
         )
         assert isinstance(capability, MeteredToolOutputLimits)
         assert capability.wrapped.bands[0].over == ToolOutputLimitsConfig().threshold
+
+
+async def test_tool_output_summary_books_the_provider_bill_for_an_unlisted_model() -> None:
+    ledger = SpendLedger()
+    ctx = RunContext(deps=None, model=TestModel(model_name="stav/unlisted-model"), usage=RunUsage())
+    capability = MeteredToolOutputLimits(
+        wrapped=_Spender(input_tokens=43, billed_usd=Decimal("0.5"))
+    )
+    with metered_by(ledger):
+        await capability.after_tool_execute(
+            ctx, call=_call(), tool_def=_tool_def(), args={}, result="ok"
+        )
+    assert ledger.total_usd == Decimal("0.5")
+    assert ledger.entries[0].provider_reported
+    assert not ledger.has_unpriced_models

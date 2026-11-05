@@ -1,5 +1,5 @@
 ---
-source_sha: "0d9d393678fa"
+source_sha: "46f379e3c504"
 ---
 
 # Governance { #governance }
@@ -176,7 +176,18 @@ kolejnym żądaniu.
 
 ### Koszt, którego nie dało się zmierzyć, mówi o tym wprost { #a-cost-that-could-not-be-measured-says-so }
 
-`genai-prices` nie zna każdego modelu. Gdy run trafia na taki, dla którego nie ma
+Koszt naliczony przez Stav ma pierwszeństwo przed katalogiem: `usage.cost` z
+`cost_currency` lub nagłówki `x-stav-cost` i `x-stav-cost-currency`. Dotyczy to
+Chat Completions i Responses, także ze streamingiem. USD używane jest wprost;
+NOK wymaga `STAV_NOK_PER_USD` ([konfiguracja](configuration.md)), utrzymywanego
+przez operatora. To NOK za dolara: wartość `10` dzieliłaby NOK przez 10;
+nie jest to rekomendacja bieżącego kursu. Kurs nie jest pobierany automatycznie.
+Usage zachowuje kwotę, walutę, kurs i koszt w USD, a ledger oznacza źródło jako
+raportowane przez dostawcę. Nieprawidłowa kwota, nieobsługiwana waluta lub brak
+przeliczenia pozostawiają wycenę z katalogu.
+
+Bez użytecznego kosztu raportowanego przez dostawcę wycena korzysta z
+`genai-prices`. Pakiet nie zna każdego modelu. Gdy run trafia na taki, dla którego nie ma
 wpisu, to żądanie jest księgowane na zero, a run zostaje oznaczony jako
 `cost_is_partial` — suma jest zaniżona dokładnie o to, ile kosztowały tamte
 żądania, a uczciwe jej odczytanie to **dolna granica**.
