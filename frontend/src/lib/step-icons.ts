@@ -1,5 +1,13 @@
 import {
   AudioLines,
+  Bot,
+  Brain,
+  CalendarClock,
+  FolderKanban,
+  ListTodo,
+  NotebookText,
+  Radar,
+  Table2,
   BarChart3,
   BookOpen,
   Clapperboard,
@@ -47,3 +55,24 @@ export const STEP_ICONS: Record<StepKind, LucideIcon> = {
   mcp: Plug,
   tool: Wrench,
 };
+
+/** Object marks for platform operations; other services retain their own marks. */
+export function toolIcon(name: string, kind: StepKind = "tool"): LucideIcon {
+  const platform = name.startsWith("agenticos_");
+  const action = platform ? name.slice("agenticos_".length) : name;
+  if (
+    (platform || /^(read|write|save|edit|delete|correct|share|search)_memory$/.test(name)) &&
+    /(^|_)(memory|memories)(_|$)/.test(action)
+  )
+    return Brain;
+  if (!platform) return STEP_ICONS[kind];
+  if (/(^|_)tasks?(_|$)/.test(action)) return ListTodo;
+  if (/(^|_)tables?(_|$)/.test(action)) return Table2;
+  if (/(^|_)projects?(_|$)/.test(action)) return FolderKanban;
+  if (/(^|_)watch(?:es)?(_|$)/.test(action)) return Radar;
+  if (/(^|_)(routines?|triggers?)(_|$)/.test(action)) return CalendarClock;
+  if (/(^|_)agents?(_|$)/.test(action)) return Bot;
+  if (/(^|_)context(_|$)/.test(action)) return NotebookText;
+  if (/(^|_)skills?(_|$)/.test(action)) return BookOpen;
+  return STEP_ICONS[kind];
+}

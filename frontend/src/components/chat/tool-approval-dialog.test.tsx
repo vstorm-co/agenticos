@@ -281,6 +281,38 @@ describe("the tool approval dialog", () => {
     expect(screen.getByText("A new agent draft")).toBeVisible();
     expect(screen.getByText("Helpdesk")).toBeVisible();
     // Arguments that are not a draft are asked about as any call is.
-    expect(screen.getByText("Allow Agenticos create agent draft?")).toBeVisible();
+    expect(screen.getByText("Allow Create agent draft in AgenticOS?")).toBeVisible();
   });
+});
+
+it("keeps platform approvals compact while showing the task title", () => {
+  mount([
+    action("a-1", {
+      tool_name: "agenticos_create_task",
+      args: { task: { title: "Review supplier draft" } },
+    }),
+  ]);
+  expect(screen.getByText("Allow Create task in AgenticOS?")).toBeVisible();
+  expect(screen.getByText("Review supplier draft")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Reject" })).toBeVisible();
+  expect(screen.queryByText("2 actions")).toBeNull();
+});
+
+it("renders a task description as readable text without loading embedded remote images", async () => {
+  mount([
+    action("a-1", {
+      tool_name: "agenticos_create_task",
+      args: {
+        task: {
+          title: "Review draft",
+          description:
+            "**Checklist**\n\n- Read the draft\n\n![private](https://example.test/tracking.png)",
+        },
+      },
+    }),
+  ]);
+  await userEvent.click(screen.getByRole("button", { name: "Details" }));
+  expect(await screen.findByText("Checklist")).toHaveProperty("tagName", "STRONG");
+  expect(screen.queryByRole("img", { name: "private" })).toBeNull();
 });

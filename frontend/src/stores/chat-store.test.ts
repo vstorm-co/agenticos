@@ -505,3 +505,40 @@ it("retains late next-step buttons when an older history request finishes", () =
     "Make a table",
   ]);
 });
+
+describe("a saved message arriving before its acknowledgement", () => {
+  it("keeps one answer and its tool results when the live id becomes the stored id", () => {
+    const local = message({
+      id: "live",
+      isTemporaryId: true,
+      renderKey: "stable",
+      content: "One answer.",
+      toolCalls: [toolCall({ name: "propose_setup" })],
+    });
+    store().addMessage(message({ id: "question", role: "user", content: "Hello" }));
+    store().addMessage(local);
+    store().rereadMessages([
+      message({ id: "question", role: "user", content: "Hello" }),
+      message({ id: "saved", content: "One answer." }),
+    ]);
+    store().updateMessage("live", (msg) => ({ ...msg, id: "saved", isTemporaryId: false }));
+    expect(store().messages.map((msg) => msg.id)).toEqual(["question", "saved"]);
+    expect(store().messages[1]).toMatchObject({
+      renderKey: "stable",
+      content: "One answer.",
+      toolCalls: local.toolCalls,
+    });
+    store().rereadMessages([
+      message({ id: "question", role: "user", content: "Hello" }),
+      message({ id: "saved", content: "One answer.", toolCalls: local.toolCalls }),
+    ]);
+    expect(store().messages).toHaveLength(2);
+  });
+
+  it("does not merge distinct stored segments just because their text matches", () => {
+    store().addMessage(message({ id: "first", content: "Same." }));
+    store().addMessage(message({ id: "second", content: "Same." }));
+    store().updateMessage("second", (msg) => ({ ...msg, isStreaming: false }));
+    expect(store().messages.map((msg) => msg.id)).toEqual(["first", "second"]);
+  });
+});

@@ -1,14 +1,12 @@
 "use client";
 
-import { Children, useState, type ReactNode } from "react";
+import { Children, useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronDown, ChevronRight, PauseCircle, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, X, type LucideIcon } from "lucide-react";
 
 import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
 import { STEP_ICONS } from "@/lib/step-icons";
-import { STEP_ORBS } from "@/lib/step-orbs";
-import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import type { StepKind } from "@/lib/tool-catalog";
 
 interface AgentStepsProps {
@@ -50,15 +48,17 @@ export function AgentSteps({ children, showAll = false, done = false }: AgentSte
   const folded = !showAll && !opened && earlier.length >= 2;
 
   return (
-    <div className="border-foreground/10 space-y-0.5 border-l pl-3.5">
+    <div className="before:bg-border/70 relative space-y-0.5 before:absolute before:inset-y-4 before:left-4 before:w-px before:content-['']">
       {folded ? (
         <button
           type="button"
           onClick={() => setOpened(true)}
           aria-expanded={false}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-2 py-1 text-[13px]"
+          className="text-muted-foreground hover:text-foreground relative flex min-h-8 items-center gap-2 rounded-md px-1.5 py-1 text-[13px]"
         >
-          <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="bg-background relative flex size-5 shrink-0 items-center justify-center">
+            <ChevronRight className="size-3.5" aria-hidden />
+          </span>
           {t("earlierSteps", { count: earlier.length })}
         </button>
       ) : (
@@ -82,6 +82,7 @@ interface AgentStepProps {
   /** The subject, when the label did not already carry it. */
   detail?: string | null;
   kind: StepKind;
+  icon?: LucideIcon;
   state: "running" | "done" | "error" | "parked";
   /**
    * What a parked step waits for. A question's own label already says it waits
@@ -116,6 +117,7 @@ export function AgentStep({
   mark,
   detail,
   kind,
+  icon,
   state,
   parkedOn = "approval",
   expanded,
@@ -124,45 +126,47 @@ export function AgentStep({
   children,
 }: AgentStepProps) {
   const t = useTranslations("chat.steps");
-  const Icon = state === "parked" ? PauseCircle : STEP_ICONS[kind];
+  const Icon = icon ?? STEP_ICONS[kind];
+  const detailsId = useId();
   const openable = onToggle !== undefined;
   // The server's brand, where there is one, and the generic plug where there is not.
   // A step that says "Linear · Create issue" beside Linear's mark is legible at a
   // glance in a way a row of identical wrenches never was.
-  const brand =
-    logoDomain !== null && logoDomain !== undefined && state !== "parked"
-      ? logoDataUri(logoDomain)
-      : null;
+  const brand = logoDomain !== null && logoDomain !== undefined ? logoDataUri(logoDomain) : null;
 
   const line = (
     <>
-      {state === "running" ? (
-        // The orb replaces both the glyph and the brand mark while the call is in
-        // flight. A pulsing icon said "busy"; an orb that scans, braids or wires
-        // itself says which kind of busy, which is the difference between waiting
-        // and following along. The mark comes back the moment the call lands.
-        <ThinkingOrb state={STEP_ORBS[kind]} size={20} className="-my-2 -ml-1 h-7 w-7" />
-      ) : mark !== undefined && state !== "parked" ? (
-        mark
-      ) : brand !== null ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={brand} alt="" className="h-3.5 w-3.5 shrink-0 rounded-sm" />
-      ) : (
-        <Icon
-          className={cn(
-            "h-3.5 w-3.5 shrink-0",
-            state === "error" && "text-destructive",
-            state === "parked" && "text-amber-600",
-            state === "done" && "text-muted-foreground",
-          )}
-          aria-hidden
-        />
-      )}
+      <span
+        className="bg-background relative z-10 flex size-5 shrink-0 items-center justify-center"
+        aria-hidden
+      >
+        {mark !== undefined ? (
+          mark
+        ) : brand !== null ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a bundled brand URI
+          <img src={brand} alt="" className="size-3.5 rounded-sm" />
+        ) : (
+          <Icon
+            className={cn(
+              "size-3.5",
+              state === "error"
+                ? "text-destructive"
+                : state === "parked"
+                  ? "text-amber-700 dark:text-amber-400"
+                  : "text-muted-foreground",
+              state === "running" && "text-foreground",
+            )}
+          />
+        )}
+        {state === "running" && (
+          <span className="bg-foreground/65 ring-background absolute right-0 bottom-0 size-1.5 rounded-full ring-2 motion-safe:animate-pulse" />
+        )}
+      </span>
       <span
         className={cn(
-          "min-w-0 truncate text-[13px]",
-          state === "error" ? "text-destructive" : "text-muted-foreground",
-          state === "running" && "text-foreground/70",
+          "min-w-0 truncate text-[13px] leading-5",
+          state === "error" ? "text-destructive" : "text-foreground/75",
+          state === "running" && "text-foreground",
         )}
       >
         {label}
@@ -173,19 +177,20 @@ export function AgentStep({
         </span>
       )}
       {state === "parked" && parkedOn === "approval" && (
-        <span className="shrink-0 text-xs text-amber-600">{t("awaitingApproval")}</span>
+        <span className="ml-auto shrink-0 rounded-md border border-amber-500/20 bg-amber-500/5 px-1.5 py-0.5 text-[11px] leading-4 text-amber-700 dark:text-amber-400">
+          {t("awaitingApproval")}
+        </span>
       )}
       {state === "error" && (
         <X className="text-destructive h-3 w-3 shrink-0" aria-label={t("failed")} />
       )}
-      {/* The orb is the animation now, and it is `aria-hidden` - so the word
-          stays, for a reader who gets nothing from either. */}
+      {/* Motion is decorative; screen readers get the actual running state. */}
       {state === "running" && <span className="sr-only">{t("running")}</span>}
     </>
   );
 
   return (
-    <div className="group/step step-in relative py-1">
+    <div className="group/step relative py-0.5">
       {/* The icon sits on the rail rather than beside it, which is what makes a run
           of steps read as one thread instead of an indented list. */}
       <div className="flex items-center gap-2">
@@ -194,25 +199,33 @@ export function AgentStep({
             type="button"
             onClick={onToggle}
             aria-expanded={expanded}
-            className="hover:text-foreground flex max-w-full min-w-0 items-center gap-2 rounded-md text-left"
+            aria-controls={expanded ? detailsId : undefined}
+            className="hover:bg-muted/50 focus-visible:ring-ring flex min-h-8 max-w-full min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
           >
             {line}
             <ChevronDown
               className={cn(
                 "text-muted-foreground h-3 w-3 shrink-0 transition-transform",
-                "opacity-0 group-hover/step:opacity-100",
+                "ml-auto opacity-50 group-hover/step:opacity-100",
                 expanded && "rotate-180 opacity-100",
               )}
               aria-hidden
             />
           </button>
         ) : (
-          <span className="flex min-w-0 items-center gap-2">{line}</span>
+          <span className="flex min-h-8 min-w-0 items-center gap-2 px-1.5">{line}</span>
         )}
         {expanded && actions}
       </div>
 
-      {expanded && children !== undefined && <div className="pt-2 pb-1">{children}</div>}
+      {expanded && children !== undefined && (
+        <div
+          id={detailsId}
+          className="border-border/60 bg-muted/15 mt-1 mb-2 min-w-0 overflow-hidden rounded-lg border p-3"
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -228,8 +241,10 @@ export function AgentStep({
 function StepsDone() {
   const t = useTranslations("chat.steps");
   return (
-    <div className="flex items-center gap-2 py-1">
-      <Check className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+    <div className="relative flex min-h-8 items-center gap-2 px-1.5 py-1">
+      <span className="bg-background relative flex size-5 shrink-0 items-center justify-center">
+        <Check className="text-muted-foreground size-3.5" aria-hidden />
+      </span>
       <span className="text-muted-foreground text-[13px]">{t("done")}</span>
     </div>
   );

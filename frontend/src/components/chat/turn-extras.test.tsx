@@ -172,3 +172,13 @@ describe("TurnExtras", () => {
     expect(await screen.findByRole("button", { name: "Switch on Web search" })).toBeEnabled();
   });
 });
+
+it("never offers to enable the withdrawn Tables capability from a historical chat", () => {
+  const retired = call("request_capability", {
+    result: JSON.stringify({ ...CARD, capability_id: "virtual_tables", name: "Tables" }),
+  });
+  const { container } = render(<TurnExtras message={answer([retired])} />);
+  expect(container).toBeEmptyDOMElement();
+  expect(enable).not.toHaveBeenCalled();
+  expect(askOwner).not.toHaveBeenCalled();
+});

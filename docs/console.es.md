@@ -1,5 +1,5 @@
 ---
-source_sha: "cf7ebdb903c1"
+source_sha: "23296ac2f6cb"
 ---
 
 # La consola { #the-console }
@@ -452,9 +452,11 @@ Las listas de conversaciones conservan el agente principal y también muestran C
 
 El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
 
-El razonamiento en directo y las llamadas habituales a herramientas comparten una única sección de actividad contraída en todos los tamaños de pantalla. Ábrela para revisar los pasos; los argumentos y resultados habituales permanecen cerrados hasta seleccionarlos. Las respuestas, preguntas, solicitudes de aprobación, errores y resultados visuales siguen visibles fuera de la sección. Una pregunta o aprobación pendiente muestra un estado de espera en lugar del contador de trabajo. Al salir de un chat con una pregunta sin responder, se guarda para responder al volver.
+El razonamiento y las llamadas a herramientas se contraen por defecto en todos los tamaños de pantalla, también después de un mensaje del agente. La actividad consecutiva comparte un desplegable; los mensajes separan los grupos. Abre un grupo para revisar los pasos, errores y detalles opcionales. Las respuestas, tarjetas de aprobación y resultados visuales permanecen visibles fuera de los grupos. Las preguntas ya respondidas tienen su propio desplegable cerrado; ábrelo para leer la respuesta. Una pregunta o aprobación pendiente muestra un estado de espera en lugar del contador de trabajo. Al salir de un chat con una pregunta sin responder, se guarda para responder al volver.
 
-Las notificaciones de aprobación del chat enlazan a la cola de aprobaciones y no ofrecen **Visto**, **Hecho** ni **No volver a preguntar**. Si esa ejecución ya tiene un panel de decisión junto al editor, se oculta su notificación duplicada; las demás ejecuciones pendientes siguen visibles. La campana también lleva las aprobaciones a la cola de decisiones. Solo aprobar o rechazar la solicitud real decide la operación; los eventos de notificaciones y ejecuciones actualizan el estado mostrado.
+Las aprobaciones del chat siguen siendo una tarjeta compacta junto al editor: operación, icono y título de la tarea u objeto, con argumentos adicionales bajo Details. Approve y Reject están al lado de la solicitud o debajo en pantallas estrechas. La actividad terminada muestra una marca discreta, los pasos en espera un estado propio y los pasos activos conservan su icono en lugar de una esfera animada por llamada.
+
+Los avisos de resultados también están junto al editor. Mientras hay un panel de decisión visible, se ocultan los avisos de aprobación incluso de ejecuciones anteriores. Sin panel, enlazan a la cola de aprobaciones. Nunca ofrecen Visto, Hecho ni No volver a preguntar: solo aprobar o rechazar la solicitud real decide la operación. Inbox y la campana conservan sus notificaciones.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta

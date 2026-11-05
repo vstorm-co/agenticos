@@ -75,9 +75,15 @@ export function ToolApprovalDialog({
     // Laid out by the card's own width, not the window's: in the Architect's
     // widget the window is wide and the card is not, and buttons beside the
     // question squeezed what was asked into a column a third of the card.
-    <div className="@container">
-      <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm @xl:flex-row @xl:items-start">
-        <ul className="min-w-0 flex-1 space-y-4">
+    <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
+      <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-3 shadow-sm @xl:flex-row @xl:items-start">
+        <ul
+          className={cn(
+            "min-w-0 flex-1 space-y-4",
+            actionRequests.length > 1 &&
+              "max-h-[min(36dvh,20rem)] scrollbar-thin overflow-y-auto overscroll-contain",
+          )}
+        >
           {actionRequests.map((action) => {
             // The Architect's agent draft is decided as a draft, not as a JSON call (#1799).
             const draft = action.tool_name === AGENT_DRAFT_TOOL ? draftArgs(action.args) : null;
@@ -114,8 +120,8 @@ export function ToolApprovalDialog({
                   {summary !== null && (
                     <p
                       className={cn(
-                        "text-foreground/80 truncate text-sm",
-                        "command" in args && "font-mono text-xs",
+                        "text-foreground/80 line-clamp-2 text-sm break-words",
+                        ("command" in args || "cmd" in args) && "font-mono text-xs",
                       )}
                       title={summary}
                     >

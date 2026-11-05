@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Lightbulb, MessageCircleQuestion } from "lucide-react";
+import { ChevronRight, Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
@@ -25,7 +25,7 @@ import { PhoneCallCard } from "@/components/phone/phone-call-card";
 import { WorkflowRunCard } from "./workflow-run-card";
 import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
-import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
+import { useTurnElapsed, WorkFold } from "./work-fold";
 
 /**
  * A turn's body: its reasoning, its work and its words, in the order they arrived.
@@ -154,13 +154,72 @@ export function TurnParts({
       />
     );
 
+  // Work after narration needs the same disclosure as work before the answer.
+  // Keep questions and messages in place; only adjacent activity shares a fold.
+  const renderShown = (shown: PartRun[], afterFold = false) => {
+    const groups: PartRun[][] = [];
+    for (const run of shown) {
+      const previous = groups.at(-1);
+      if (isWork(run) && previous && isWork(previous[0]!)) previous.push(run);
+      else groups.push([run]);
+    }
+    return groups.map((group, index) => {
+      const first = group[0]!;
+      if (!isWork(first)) {
+        return render(
+          first,
+          true,
+          (index === 0 && afterFold) || (index > 0 && isWork(groups[index - 1]![0]!)),
+        );
+      }
+      const calls = group.flatMap((run) => (run.kind === "tools" ? run.parts : []));
+      const groupWaiting = calls.some((part) => part.toolCall?.status === "awaiting_answer")
+        ? "awaiting_answer"
+        : calls.some((part) => part.toolCall?.status === "awaiting_approval")
+          ? "awaiting_approval"
+          : undefined;
+      const running = isStreaming && !groupWaiting && group.some((run) => run.isLast);
+      return (
+        <div key={first.kind === "tools" ? first.parts[0].id : first.part.id}>
+          <WorkFold
+            steps={calls.length}
+            durationMs={null}
+            stopped={stopped && group.some((run) => run.isLast)}
+            running={running}
+            waiting={groupWaiting}
+          >
+            {group.map((run) => render(run, false))}
+          </WorkFold>
+          <TurnVisuals calls={visualCalls(group)} />
+        </div>
+      );
+    });
+  };
   const split = foldWork(runs, stopped, isStreaming);
+  if (split) {
+    // Adjacent work is one disclosure even when a call needs attention.
+    while (split.shown[0] && isWork(split.shown[0])) {
+      const run = split.shown.shift()!;
+      split.folded.push(run);
+      if (run.kind === "tools") split.steps += run.parts.length;
+    }
+  }
+  const foldedWaiting = split?.folded.some(
+    (run) =>
+      run.kind === "tools" &&
+      run.parts.some(
+        (part) =>
+          part.toolCall?.status === "awaiting_answer" ||
+          part.toolCall?.status === "awaiting_approval",
+      ),
+  )
+    ? waiting
+    : undefined;
   if (split === null) {
     return (
       <>
-        {isStreaming && !waiting && runs.some(isWork) && <WorkingLine elapsedMs={elapsed} />}
         <TurnBrowses calls={browseCalls(runs)} />
-        {runs.map((run, index) => render(run, true, index > 0 && isWork(runs[index - 1]!)))}
+        {renderShown(runs)}
       </>
     );
   }
@@ -171,16 +230,13 @@ export function TurnParts({
         durationMs={durationMs ?? elapsed}
         stopped={stopped}
         running={isStreaming && !waiting}
-        waiting={waiting}
+        waiting={foldedWaiting}
       >
         {split.folded.map((run) => render(run, false))}
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
-      {split.shown.map((run, index) =>
-        // The first thing after the fold opens the answer, as anything after a step does.
-        render(run, true, index === 0 || isWork(split.shown[index - 1]!)),
-      )}
+      {renderShown(split.shown, true)}
     </>
   );
 }
@@ -280,20 +336,25 @@ export function AskUserBlock({
 }) {
   const t = useTranslations("chat");
   return (
-    <div className="border-foreground/10 text-muted-foreground space-y-1.5 border-l pl-3.5 text-[13px]">
-      <div className="flex items-center gap-2">
-        <MessageCircleQuestion className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-        {/* Who asked, where a delegate did. The main agent asking is the ordinary
-            case and says nothing extra; a specialist asking is the thing a reader
-            cannot reconstruct from the transcript otherwise (#1042). */}
-        <span className="font-medium">
+    <details className="group text-muted-foreground text-[13px]">
+      <summary className="hover:text-foreground flex min-h-8 cursor-pointer items-center gap-2 rounded-md py-1 focus-visible:outline-2 focus-visible:outline-offset-2">
+        <MessageCircleQuestion className="size-3.5 shrink-0" aria-hidden />
+        <span className="shrink-0 font-medium">
           {askedBy ? t("askUserAskedBy", { name: askedBy }) : t("askUserAsked")}
         </span>
+        <span className="line-clamp-1 min-w-0 break-words group-open:line-clamp-none">
+          {question}
+        </span>
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+        />
+      </summary>
+      <div className="border-border mt-1 ml-1.5 space-y-2 border-l py-1 pl-4">
+        <div className="text-xs font-medium">{t("askUserAnswered")}</div>
+        <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
       </div>
-      <p className="text-foreground/80 break-words whitespace-pre-wrap">{question}</p>
-      <div className="font-medium">{t("askUserAnswered")}</div>
-      <p className="text-foreground/80 break-words whitespace-pre-wrap">{answer}</p>
-    </div>
+    </details>
   );
 }
 

@@ -96,9 +96,18 @@ const chatState: StateCreator<ChatState> = (set) => ({
     })),
 
   updateMessage: (id, updater) =>
-    set((state) => ({
-      messages: state.messages.map((msg) => (msg.id === id ? updater(msg) : msg)),
-    })),
+    set((state) => {
+      const index = state.messages.findIndex((message) => message.id === id);
+      if (index < 0) return state;
+      const updated = updater(state.messages[index]!);
+      // History may arrive before message_saved renames the live bubble. Keep
+      // its render key and current content, replacing the already-fetched row.
+      return {
+        messages: state.messages.flatMap((message, position) =>
+          position === index ? [updated] : message.id === updated.id ? [] : [message],
+        ),
+      };
+    }),
 
   removeMessage: (id) =>
     set((state) => ({

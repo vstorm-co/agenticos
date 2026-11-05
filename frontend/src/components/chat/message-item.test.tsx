@@ -532,7 +532,19 @@ describe("the ordered timeline", () => {
     unmount();
 
     const closed = item({ parts, isStreaming: false });
+    expect(closed.container.querySelector("details")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Thought about it" }));
     expect(closed.container.querySelector("details")).not.toHaveAttribute("open");
+  });
+
+  it("keeps answered questions collapsed until the reader expands one", async () => {
+    const { container } = item({
+      parts: [{ id: "q", type: "ask_user", question: "Which team?", answer: "Engineering" }],
+    });
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Engineering")).not.toBeVisible();
+    await userEvent.click(screen.getByText("Asked you"));
+    expect(screen.getByText("Engineering")).toBeVisible();
   });
 
   it("leaves the reasoning closed once something newer is streaming", () => {
@@ -1355,7 +1367,11 @@ describe("the work before an answer", () => {
   it("does not show Working above a question that is waiting for an answer", () => {
     item({ parts: [call("question", "awaiting_answer", "ask_user_question")], isStreaming: true });
     expect(screen.queryByText(/Working/)).toBeNull();
-    expect(screen.getByTestId("tool-tc-question")).toBeVisible();
+    expect(screen.queryByTestId("tool-tc-question")).toBeNull();
+    expect(screen.getByRole("button", { name: /Waiting for an answer/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("times a reloaded turn by its run, under its last segment only", () => {
@@ -1377,7 +1393,7 @@ describe("the work before an answer", () => {
     expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
 
-  it("collapses routine live work on small screens and keeps the answer and approvals outside", async () => {
+  it("collapses each activity block while keeping narration visible", async () => {
     const parts = [
       thought,
       call("read"),
@@ -1387,8 +1403,12 @@ describe("the work before an answer", () => {
     const view = item({ parts, isStreaming: true });
     expect(screen.queryByTestId("tool-tc-read")).toBeNull();
     expect(screen.getByText("Here is the result.")).toBeVisible();
+    expect(screen.queryByTestId("tool-tc-approve")).toBeNull();
+    const approvalToggle = screen.getByRole("button", { name: /Waiting for approval/ });
+    expect(approvalToggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(approvalToggle);
     expect(screen.getByTestId("tool-tc-approve")).toBeVisible();
-    const toggle = screen.getByRole("button", { name: /Waiting for approval/ });
+    const toggle = screen.getByRole("button", { name: /Worked/ });
     await userEvent.click(toggle);
     expect(screen.getByTestId("tool-tc-read")).toBeVisible();
     expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -1405,9 +1425,33 @@ describe("the work before an answer", () => {
     expect(screen.queryByTestId("tool-tc-read")).toBeNull();
   });
 
-  it("keeps live failures out of the mobile progress fold", () => {
+  it("keeps live failures in a collapsed activity group", async () => {
     item({ parts: [thought, call("bad", "error")], isStreaming: true });
-    expect(screen.getByTestId("tool-tc-bad").closest("[data-work-detail]")).toBeNull();
+    expect(screen.queryByTestId("tool-tc-bad")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Working/ }));
+    expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
+  });
+
+  it("folds thinking and trailing tool calls together after a message", async () => {
+    item({
+      parts: [
+        call("before"),
+        text("n", "The board already exists."),
+        thought,
+        call("after"),
+        call("last"),
+      ],
+    });
+    expect(screen.getByText("The board already exists.")).toBeVisible();
+    expect(screen.queryByTestId("tool-tc-after")).toBeNull();
+    expect(screen.queryByText("Thought about it")).toBeNull();
+    const folds = screen.getAllByRole("button", { name: /Worked/ });
+    expect(folds).toHaveLength(2);
+    await userEvent.click(folds[1]!);
+    expect(screen.getByText("Thought about it")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-after")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-last")).toBeVisible();
+    expect(screen.queryByTestId("tool-tc-before")).toBeNull();
   });
 
   it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {

@@ -264,11 +264,11 @@ describe("a tool call in the transcript", () => {
     expect(screen.getByText("https://acme.example/help")).toBeInTheDocument();
   });
 
-  it("says nothing about the input while the tool is still running", () => {
+  it("keeps the search subject visible while the tool is running", () => {
     // The caption already occupies that line.
     card({ name: "web_search", args: { query: "refund law" }, status: "running" });
 
-    expect(screen.queryByText("refund law")).toBeNull();
+    expect(screen.getByText("refund law")).toBeVisible();
   });
 
   it("opens and closes on the row", async () => {
@@ -783,4 +783,14 @@ it("does not stringify a collapsed result, and computes it only when opened (#24
   } finally {
     stringify.mockRestore();
   }
+});
+
+it("shows the task being worked on before the platform tool finishes", () => {
+  card({
+    name: "agenticos_create_task",
+    args: { task: { title: "Review supplier draft" } },
+    status: "running",
+  });
+  expect(screen.getByText("Create task")).toBeVisible();
+  expect(screen.getByText("Review supplier draft")).toBeVisible();
 });

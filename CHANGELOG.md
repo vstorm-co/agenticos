@@ -56,6 +56,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Collapse chat activity after agent messages by default, grouping adjacent thinking and tool steps while keeping actionable approvals beside the composer.
+
+- Keep chat approvals as a simple inline card with readable nested task subjects, optional details and adjacent decisions. Give platform objects distinct icons, keep operation marks stable while tools run, and distinguish finished, waiting and active activity without animating every tool row.
+
 - Keep chat outcome notices beside the composer instead of at the top of the transcript, and suppress approval notices whenever the chat already shows its approval decision panel.
 
 - Complete the coding-task diff integration from PR #2728: bound rendering to 2,000 lines across a change set, retry transient fetch failures once, keep sandbox stderr out of snapshot failure logs, and preserve UUIDs in refusal details.
@@ -177,6 +181,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **Planning cache and history migration:** Harness 0.64 returns framed plans with tool metadata and records a missing or changed visible plan as user-channel run history. It no longer inserts a planning cache breakpoint. Existing `planning.cache_ttl` values still load but are ignored: move custom retention to `cache` in the agent or model profile's model settings, for example `cache: "1h"`. Platform prompt caching remains enabled by default.
 
 ### Fixed
+
+- Prevent duplicate chat answers and setup cards when stored history arrives before the live message receives its saved ID. Collapse answered questions by default and give approval details full-width nested sections and readable descriptions.
 
 - Mark installed shipped gallery skills, including starter-agent skills such as `agent-budgets`, as built-in on existing installations without changing their content.
 

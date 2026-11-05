@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronRight, OctagonPause } from "lucide-react";
+import {
+  ChevronRight,
+  Check,
+  MessageCircleQuestion,
+  OctagonPause,
+  ShieldCheck,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
@@ -139,43 +145,38 @@ export function WorkFold({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="group text-muted-foreground hover:text-foreground flex min-h-9 items-center gap-2 rounded-md py-0.5 text-left text-[13px] transition-colors md:min-h-0"
+        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 max-w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
-        <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
-          {/* The mark of work done; the way in once the pointer is on it, and the way
-              back - staying put - once it is open. */}
-          {!open && stopped && (
-            <OctagonPause
-              className="h-3.5 w-3.5 transition-opacity group-hover:opacity-0"
-              aria-hidden
-            />
+        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
+          {waiting === "awaiting_approval" ? (
+            <ShieldCheck className="size-3.5 text-amber-700 dark:text-amber-400" />
+          ) : waiting === "awaiting_answer" ? (
+            <MessageCircleQuestion className="size-3.5" />
+          ) : stopped ? (
+            <OctagonPause className="size-3.5" />
+          ) : running ? (
+            <ThinkingOrb state="breathing" size={20} className="size-5 opacity-80" />
+          ) : (
+            <Check className="size-3.5" />
           )}
-          {!open && !stopped && (
-            <ThinkingOrb
-              state="breathing"
-              size={20}
-              paused={!running}
-              className="h-6 w-6 opacity-80 transition-opacity group-hover:opacity-0"
-            />
-          )}
-          <ChevronRight
-            className={cn(
-              "absolute h-3.5 w-3.5 transition-[transform,opacity]",
-              open
-                ? "rotate-90 opacity-100"
-                : "opacity-100 md:opacity-0 md:group-hover:opacity-100",
-            )}
-            aria-hidden
-          />
         </span>
-        {label}
+        <span className={cn("leading-5", (running || waiting) && "text-foreground/85")}>
+          {label}
+        </span>
+        <ChevronRight
+          aria-hidden
+          className={cn(
+            "size-3.5 shrink-0 opacity-50 transition-transform motion-reduce:transition-none",
+            open && "rotate-90",
+          )}
+        />
         {running && steps > 0 && (
           <span className="text-muted-foreground text-xs">
             {t("activityCount", { count: steps })}
           </span>
         )}
       </button>
-      {open && <div className="mt-2 space-y-3 pl-1">{children}</div>}
+      {open && <div className="mt-2 space-y-2 pl-0.5">{children}</div>}
     </div>
   );
 }

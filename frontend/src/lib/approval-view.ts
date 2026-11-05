@@ -42,6 +42,12 @@ function sentence(words: string[]): string {
  * A built-in tool (`known`) has no service; it keeps the catalog's own name.
  */
 export function serviceAction(toolName: string, known: boolean): ServiceAction {
+  if (toolName.startsWith("agenticos_") && toolName.length > "agenticos_".length) {
+    return {
+      service: "AgenticOS",
+      action: sentence(toolName.slice("agenticos_".length).split("_")),
+    };
+  }
   const cut = toolName.indexOf("_");
   if (known || cut <= 0) return { service: null, action: toolName };
   const service = toolName.slice(0, cut);
@@ -90,14 +96,33 @@ const SUMMARY_LENGTH = 160;
  * what the details are for.
  */
 export function callSummary(args: Record<string, unknown>): string | null {
+  const value = summaryValue(args, 0);
+  if (value === null) return null;
+  const line = value.trim().split("\n")[0]!.trim();
+  return line.length > SUMMARY_LENGTH ? `${line.slice(0, SUMMARY_LENGTH - 1)}…` : line;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function summaryValue(args: Record<string, unknown>, depth: number): string | null {
   const strings = Object.entries(args).filter(
     (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim() !== "",
   );
-  const telling =
-    TELLING.map((key) => strings.find(([name]) => name === key)).find(Boolean) ?? strings[0];
-  if (telling === undefined) return null;
-  const line = telling[1].trim().split("\n")[0]!.trim();
-  return line.length > SUMMARY_LENGTH ? `${line.slice(0, SUMMARY_LENGTH - 1)}…` : line;
+  const telling = TELLING.map((key) => strings.find(([name]) => name === key)).find(Boolean);
+  if (telling !== undefined) return telling[1];
+  // Platform writes wrap their subject in a typed payload. Prefer its title
+  // over a top-level table UUID, and keep arbitrary nested schemas out of view.
+  if (depth < 2) {
+    for (const key of ["task", "record", "data", "draft", "payload", "values"]) {
+      const nested = args[key];
+      if (!isRecord(nested)) continue;
+      const subject = summaryValue(nested, depth + 1);
+      if (subject !== null) return subject;
+    }
+  }
+  return strings[0]?.[1] ?? null;
 }
 
 /** Whether a value says nothing: an empty string, list or object, or no value. */

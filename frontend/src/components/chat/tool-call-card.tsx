@@ -1,5 +1,6 @@
 "use client";
 import { memo, useMemo, useState, type MouseEvent } from "react";
+import { toolIcon } from "@/lib/step-icons";
 import { Code2 } from "lucide-react";
 import type { TurnFileSource } from "@/types/chat";
 import type { ToolCall } from "@/types";
@@ -242,8 +243,9 @@ export const ToolCallCard = memo(function ToolCallCard({
               { name: delegate.name },
             )
       }
-      detail={isRunning || delegate !== null ? null : step.detail}
+      detail={delegate !== null ? null : step.detail}
       kind={step.kind}
+      icon={toolIcon(toolCall.name, step.kind)}
       logoDomain={step.logoDomain}
       mark={
         delegate === null ? undefined : (

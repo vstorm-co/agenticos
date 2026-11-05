@@ -123,3 +123,14 @@ describe("one step", () => {
     expect(screen.getByRole("presentation", { hidden: true })).toBeInTheDocument();
   });
 });
+
+it("keeps the operation icon stable while running without a per-step animated orb", () => {
+  const { container, rerender } = render(
+    <AgentStep label="Read report" kind="read" state="running" expanded={false} />,
+  );
+  expect(container.querySelector(".lucide-file-text")).not.toBeNull();
+  expect(screen.getByText("Running")).toBeInTheDocument();
+  rerender(<AgentStep label="Read report" kind="read" state="done" expanded={false} />);
+  expect(container.querySelector(".lucide-file-text")).not.toBeNull();
+  expect(screen.queryByText("Running")).toBeNull();
+});

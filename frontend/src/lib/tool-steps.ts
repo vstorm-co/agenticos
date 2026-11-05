@@ -23,6 +23,8 @@
  * module cannot reach one (#446).
  */
 
+import { callSummary } from "./approval-view";
+
 import type { DelegationStep } from "@/types";
 
 import { toolCaption, toolDisplayName, type Translate } from "./agent-step-captions";
@@ -162,6 +164,11 @@ export function titleWords(value: string): string {
     .join(" ");
 }
 
+function mcpSubject(args: Record<string, unknown> | undefined): string | null {
+  const subject = callSummary(args ?? {});
+  return subject !== null && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(subject) ? null : subject;
+}
+
 /**
  * The line for one tool call.
  *
@@ -178,13 +185,14 @@ export function toolStep(
 ): ToolStep {
   const fromMcp = mcpCall(name, servers);
   if (fromMcp !== null) {
-    // The server, then what was asked of it. Named this way round because the
-    // server is what somebody is deciding to trust: "Linear · Create issue" says
-    // where the side effect landed, and `linear_create_issue` says it in a way
-    // nobody reads.
+    // External service names identify where effects land. Platform operations
+    // already have an object mark and the agent's context, so their verb leads.
     return {
-      label: `${serverLabel(fromMcp.server)} · ${sentence(actionOf(fromMcp.action, fromMcp.server))}`,
-      detail: null,
+      label:
+        fromMcp.server === "AgenticOS"
+          ? sentence(fromMcp.action)
+          : `${serverLabel(fromMcp.server)} · ${sentence(actionOf(fromMcp.action, fromMcp.server))}`,
+      detail: mcpSubject(args),
       kind: "mcp",
       logoDomain: fromMcp.domain,
     };
