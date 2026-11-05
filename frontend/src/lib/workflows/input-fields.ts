@@ -12,6 +12,7 @@ import type { JsonSchema, Port } from "./types";
 
 export const INPUT_FIELD_TYPES = [
   "text",
+  "string_list",
   "number",
   "integer",
   "boolean",
@@ -80,6 +81,7 @@ export function fieldCaption(field: Pick<InputField, "name" | "label">): string 
 
 const JSON_TYPE: Record<InputFieldType, string> = {
   text: "string",
+  string_list: "array",
   number: "number",
   integer: "integer",
   boolean: "boolean",
@@ -93,6 +95,7 @@ const JSON_TYPE: Record<InputFieldType, string> = {
  */
 function fieldSchema(field: InputField): JsonSchema {
   const own: JsonSchema = { type: JSON_TYPE[field.type] };
+  if (field.type === "string_list") own["items"] = { type: "string" };
   const title = fieldCaption(field);
   return field.required
     ? { ...own, title }
@@ -154,6 +157,13 @@ function fieldValue(
   const text = value.trim();
   if (text === "") return field.required ? { problem: "required" } : null;
   switch (field.type) {
+    case "string_list":
+      return {
+        value: text
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line !== ""),
+      };
     case "number": {
       const number = Number(text);
       return Number.isFinite(number) ? { value: number } : { problem: "number" };

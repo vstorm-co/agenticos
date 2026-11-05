@@ -4,6 +4,7 @@ description: Checks uploaded artwork against press requirements and says the num
   found, the number needed and the fix.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - code_execution

@@ -1,5 +1,5 @@
 ---
-source_sha: "96238babff5e"
+source_sha: "46f379e3c504"
 ---
 
 # Governance { #governance }
@@ -1057,7 +1057,9 @@ rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześ
 Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
 sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
 zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
-zatrzymuje się dla człowieka jak zawsze. Widok runu wymienia każdy skrypt i każde
+zatrzymuje się dla człowieka jak zawsze. Tak samo pytania, delegowania i
+narzędzia, których wywołanie jest tym, co widzi osoba (wersje robocze, wykresy,
+rysunki). Widok runu wymienia każdy skrypt i każde
 wywołanie, które wykonał.
 
 ### Raportowanie { #reporting }

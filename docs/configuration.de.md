@@ -1,5 +1,5 @@
 ---
-source_sha: "4a53cb5a7983"
+source_sha: "f8a0d851ec5d"
 ---
 
 # Konfiguration { #configuration }
@@ -75,6 +75,10 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Obergrenze der entpackten Größe pro Member einer ZIP-basierten Office-Datei (ODF, PPTX) |
 | `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Obergrenze der gesamten entpackten Größe einer ZIP-basierten Office-Datei |
 | `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Obergrenze der Member-Anzahl einer ZIP-basierten Office-Datei |
+| `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Höchstzahl an Dateien und Ordnern in einem angehängten `.zip`/`.tar.gz` und an Dateien im Zip eines Workspace-Ordners |
+| `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Höchstens so viel darf ein angehängtes Archiv entpackt ergeben und das Zip eines Workspace-Ordners tragen |
+| `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Höchstens so viel darf ein angehängtes Archiv entpackt ergeben, als Vielfaches seiner komprimierten Größe — darüber wird es als Dekompressionsbombe abgelehnt |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Höchstens so viel darf eine Datei in einem angehängten Archiv entpackt ergeben — so viel hält das Entpacken auf einmal im Speicher |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Obergrenze für gespeicherten extrahierten Text, damit ein kleines ZIP/OLE die Zeile nicht aufbläht |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Obergrenze pro Datei für den in einen Prompt ohne Workspace eingefügten geparsten Text |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Gesamtobergrenze für Anhangstext über eine Runde |

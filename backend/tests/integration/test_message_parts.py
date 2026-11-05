@@ -33,6 +33,7 @@ from app.schemas.conversation import (
     LocalMessageFileSource,
     MessageCreate,
     MessagePart,
+    MessageRead,
 )
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
@@ -214,8 +215,9 @@ async def test_runner_file_origin_uuids_round_trip_through_the_service_and_jsonb
             run_id=run.id,
         )
     message_id = message.id
+    await db.commit()
     db.expunge(message)
-    stored = (await db.execute(select(Message).where(Message.id == message_id))).scalar_one()
+    stored = await ConversationService(db).get_message(message_id)
 
     assert stored.parts == [
         {
@@ -225,6 +227,16 @@ async def test_runner_file_origin_uuids_round_trip_through_the_service_and_jsonb
         },
         {"type": "text", "text": "Answer"},
     ]
-    parsed = [MessagePart.model_validate(part) for part in stored.parts]
+    transcript, total, _cost = await ConversationService(db).transcript(
+        conversation.id,
+        organization_id=conversation.organization_id,
+        user_id=conversation.user_id,
+        include_tool_calls=True,
+    )
+    assert total == 1
+    assert transcript[0].id == message_id
+    parsed = MessageRead.model_validate(transcript[0]).parts
+    assert parsed == parts
+    assert parsed is not None
     assert parsed[0].file_source is not None and parsed[0].file_source.id == file_id
     assert stored.run_id == run.id

@@ -70,6 +70,10 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Decompressed-size cap per member of a ZIP-backed office file (ODF, PPTX) |
 | `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Total decompressed-size cap across a ZIP-backed office file |
 | `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Member-count cap for a ZIP-backed office file |
+| `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Most files and folders an attached `.zip`/`.tar.gz` may hold, and most files a workspace folder's zip may hold |
+| `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Most an attached archive may unpack to, and most a workspace folder's zip may carry |
+| `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Most an attached archive may unpack to, as a multiple of its compressed size — past it, it is refused as a decompression bomb |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Most one file in an attached archive may unpack to — what an unpack holds in memory at once |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Cap on stored extracted text, so a small ZIP/OLE cannot expand the row |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Per-file cap on the parsed text pasted into a no-workspace prompt |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Aggregate cap on attachment text across one turn |

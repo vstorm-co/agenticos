@@ -4,6 +4,7 @@ description: Answers what the schedule can absorb and what a change costs, namin
   what moves.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - code_execution

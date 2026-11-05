@@ -12,6 +12,7 @@ starters:
 - Set up a weekly report
 capabilities:
 - ask_user
+- drafts
 - follow_ups
 - clock
 - planning

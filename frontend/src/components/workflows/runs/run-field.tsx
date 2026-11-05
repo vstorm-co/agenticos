@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
+  Textarea,
 } from "@/components/ui";
 import {
   type FieldProblem,
@@ -78,6 +79,20 @@ export function RunField({
             ))}
           </SelectContent>
         </Select>
+      ) : field.type === "string_list" ? (
+        <>
+          <Textarea
+            id={id}
+            aria-invalid={problem !== undefined}
+            aria-describedby={`${id}-hint`}
+            value={text}
+            rows={3}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          <p id={`${id}-hint`} className="text-muted-foreground text-xs">
+            {t("startRunListHint")}
+          </p>
+        </>
       ) : (
         <Input
           id={id}

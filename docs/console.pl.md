@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "659aee690fb0"
 ---
 
 # Konsola { #the-console }
@@ -448,6 +448,8 @@ dla agenta, nie harmonogram.
 
 Po ponownym otwarciu rozmowy widzisz najnowsze wiadomości. Wybierz **Wczytaj wcześniejsze wiadomości** nad historią, aby przeczytać starsze tury. Trwające odpowiedzi i niezapisane wyniki pozostają widoczne podczas odświeżania zapisanej historii.
 
+Jeśli nie uda się zapisać odpowiedzi asystenta, czat poprosi cię o skopiowanie potrzebnego tekstu przed opuszczeniem rozmowy. Dotyczy to również częściowych odpowiedzi z przerwanych uruchomień. Tekst przesłany na żywo pozostaje widoczny, ale może go zabraknąć po ponownym otwarciu rozmowy.
+
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
@@ -483,6 +485,12 @@ skopiowania SVG jako obrazu, powiększenia i zapisu jako
 agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
 pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
 rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
+
+**Wersje robocze.** Agent z [Wersjami roboczymi](reference/capabilities.md#drafts)
+pokazuje tekst, który wyślesz lub wkleisz gdzie indziej - e-mail, odpowiedź, wpis -
+jako kartę w swojej odpowiedzi. Każda część ma własną ikonę kopiowania, która
+kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w jednej
+karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
 otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.

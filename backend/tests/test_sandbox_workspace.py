@@ -56,7 +56,12 @@ from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, WorkspaceOverflowStore
 from app.agents.spec import AgentSpec
 from app.core import background
-from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.exceptions import (
+    BadRequestError,
+    ExportTooLargeError,
+    ExternalServiceError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
 from app.services import sandbox_workspace
@@ -1633,6 +1638,388 @@ class TestServingAConversationsFileAsBytes:
         )
 
         assert data == png
+
+
+async def _unzipped(folder) -> dict[str, bytes]:
+    import io
+    import zipfile
+
+    data = b"".join([chunk async for chunk in folder.chunks])
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        return {name: archive.read(name) for name in archive.namelist()}
+
+
+class TestDownloadingAFolderAsAZip:
+    """A folder of a conversation's workspace, out as one `.zip` (#2479)."""
+
+    async def test_a_stored_folder_comes_back_as_the_same_tree(self, monkeypatch, mock_db_session):
+        stored = StateBackend()
+        stored.write_bytes("/uploads/ab12-repo/src/app.py", b"print(1)")
+        stored.write_bytes("/uploads/ab12-repo/README.md", b"# repo")
+        stored.write_bytes("/uploads/ab12-repo/node_modules/x.js", b"tooling")
+        stored.write_bytes("/notes.txt", b"elsewhere")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder="/uploads/ab12-repo"
+        )
+
+        assert folder.name == "ab12-repo.zip"
+        assert await _unzipped(folder) == {
+            "ab12-repo/": b"",
+            "ab12-repo/src/app.py": b"print(1)",
+            "ab12-repo/README.md": b"# repo",
+        }
+
+    async def test_a_stored_empty_folder_round_trips(self, monkeypatch, mock_db_session):
+        """An archive's empty folder is unpacked and shown, so it comes back out."""
+        stored = StateBackend()
+        stored.write_bytes("/uploads/repo/a.py", b"a")
+        row = _row(
+            files=dict(stored.files),
+            directories=["/uploads/repo/empty", "/uploads/repo/node_modules"],
+        )
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        whole = await service.folder_zip(_ctx(), conversation_id=uuid4(), folder="uploads/repo")
+        empty = await service.folder_zip(
+            _ctx(), conversation_id=uuid4(), folder="/uploads/repo/empty"
+        )
+
+        assert await _unzipped(whole) == {"repo/": b"", "repo/a.py": b"a", "repo/empty/": b""}
+        assert empty.name == "empty.zip"
+        assert await _unzipped(empty) == {"empty/": b""}
+
+    @pytest.mark.parametrize("folder", ["missing", "uploads/repo/node_modules"])
+    async def test_a_stored_folder_not_shown_is_not_found(
+        self, monkeypatch, mock_db_session, folder
+    ):
+        row = _row(files={}, directories=["/uploads/repo/node_modules"])
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=folder
+            )
+
+    async def test_a_container_s_empty_folder_round_trips(self, monkeypatch, mock_db_session):
+        """The host lists what is under a folder, not the folder itself: that it
+        answered at all is what says the folder is there."""
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                entries = {
+                    "repo": [{"name": "empty", "path": "repo/empty", "is_dir": True, "size": 0}],
+                    "repo/empty": [],
+                }
+                return WorkspaceTree(entries=entries[path], truncated=False)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        service = SandboxWorkspaceService(mock_db_session)
+
+        whole = await service.folder_zip(_ctx(), conversation_id=uuid4(), folder="repo")
+        empty = await service.folder_zip(_ctx(), conversation_id=uuid4(), folder="repo/empty")
+
+        assert await _unzipped(whole) == {"repo/": b"", "repo/empty/": b""}
+        assert await _unzipped(empty) == {"empty/": b""}
+
+    async def test_a_stored_workspace_builds_its_document_once_per_zip(
+        self, monkeypatch, mock_db_session
+    ):
+        """Building the document copies every file; once per member was quadratic."""
+        stored = StateBackend()
+        for index in range(5):
+            stored.write_bytes(f"/out/{index}.txt", b"x")
+        row = _row(files=dict(stored.files))
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder="out"
+        )
+        built: list[object] = []
+        real = sandbox_workspace.StateBackend
+
+        def counting(*args, **kwargs):
+            built.append(args)
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(sandbox_workspace, "StateBackend", counting)
+
+        assert len(await _unzipped(folder)) == 6  # five files and their folder
+        assert len(built) == 1
+
+    async def test_a_container_folder_is_listed_deep_and_read_through_one_client(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        made: list[object] = []
+        asked: list[tuple[str, int, int]] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                made.append(self)
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                asked.append((path, max_depth, max_entries))
+                return WorkspaceTree(
+                    entries=[
+                        {"name": "out", "path": "out", "is_dir": True, "size": 0},
+                        {"name": "a.py", "path": "out/a.py", "is_dir": False, "size": 1},
+                        {"name": "b.py", "path": "out/deep/b.py", "is_dir": False, "size": 1},
+                    ],
+                    truncated=False,
+                )
+
+            def read_bytes(self, session_id, path):
+                return path.encode()
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder="out"
+        )
+
+        assert await _unzipped(folder) == {
+            "out/": b"",
+            "out/a.py": b"out/a.py",
+            "out/deep/b.py": b"out/deep/b.py",
+        }
+        # Deep, and as many entries as the host will list: tooling folders are
+        # walked too, and must not be what refuses the download.
+        assert asked == [("out", 64, 100_000)]
+        # One for the listing, one shared by every read.
+        assert len(made) == 2
+        assert all(archive.closed for archive in made)
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("folder", ["./.agenticos", ".//skills/foo", "./node_modules"])
+    async def test_a_container_folder_the_panel_hides_is_not_found_however_spelled(
+        self, monkeypatch, mock_db_session, folder
+    ):
+        """The host is asked for the folder as the panel would spell it, so a
+        `./` cannot carry a hidden one past `browsable`."""
+        from pydantic_ai_backends import remote as remote_module
+
+        asked: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                asked.append(path)
+                return WorkspaceTree(entries=[], truncated=False)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=folder
+            )
+        assert asked == [folder.replace(".//", "./").removeprefix("./")]
+
+    async def test_a_container_folder_spelled_in_container_is_not_zipped_empty(
+        self, monkeypatch, mock_db_session
+    ):
+        """`/workspace/proj` is asked for as `workspace/proj`, which the host does
+        not hold - a 404, not a zip of an empty `proj/` beside files it left out."""
+        from pydantic_ai_backends import remote as remote_module
+
+        asked: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                asked.append(path)
+                if path != "proj":
+                    raise WorkspaceArchiveError('{"detail":"No such directory"}', 404)
+                return WorkspaceTree(
+                    entries=[{"name": "a", "path": "proj/a", "is_dir": False, "size": 1}],
+                    truncated=False,
+                )
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError, match="No files in this folder"):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder="/workspace/proj"
+            )
+        assert asked == ["workspace/proj"]
+
+    async def test_a_listing_the_host_cut_short_is_refused_not_zipped(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                return WorkspaceTree(entries=[], truncated=True)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(ExportTooLargeError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=""
+            )
+
+    async def test_a_host_that_cannot_be_read_says_why(self, monkeypatch, mock_db_session):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                raise WorkspaceArchiveError("Could not reach the sandbox service")
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(BadRequestError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder="out"
+            )
+
+    async def test_a_workspace_with_no_host_left_has_no_files(self, monkeypatch, mock_db_session):
+        row = _row(backend="service", session_id="dc-1", connection_id=None)
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError, match="No files"):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=""
+            )
+
+    async def test_a_file_gone_since_the_listing_is_named_in_the_zip(
+        self, monkeypatch, mock_db_session
+    ):
+        from pydantic_ai_backends import remote as remote_module
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                return WorkspaceTree(
+                    entries=[{"name": "a", "path": "a", "is_dir": False, "size": 1}],
+                    truncated=False,
+                )
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        monkeypatch.setattr(
+            SandboxWorkspaceService, "_read_bytes_from", AsyncMock(return_value=None)
+        )
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder=""
+        )
+
+        assert await _unzipped(folder) == {
+            "workspace/": b"",
+            "workspace/NOT-INCLUDED.txt": (
+                b"These files could not be read, and are not in this zip:\n\n"
+                b"workspace/a: No such file\n"
+            ),
+        }
+
+    @pytest.mark.parametrize(
+        ("status", "named"),
+        [(400, True), (404, True), (None, False), (502, False)],
+    )
+    async def test_only_a_refusal_of_one_file_is_skipped(
+        self, monkeypatch, mock_db_session, status, named
+    ):
+        """A file past the host's read ceiling is named in the zip; a host that
+        stopped answering ends the download rather than being asked for every
+        file left, each up to its timeout."""
+        from pydantic_ai_backends import remote as remote_module
+
+        reads: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                return WorkspaceTree(
+                    entries=[
+                        {"name": "a", "path": "a", "is_dir": False, "size": 1},
+                        {"name": "b", "path": "b", "is_dir": False, "size": 1},
+                    ],
+                    truncated=False,
+                )
+
+            def read_bytes(self, session_id, path):
+                reads.append(path)
+                raise WorkspaceArchiveError("File is 9437184 bytes, over the read limit", status)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+        folder = await SandboxWorkspaceService(mock_db_session).folder_zip(
+            _ctx(), conversation_id=uuid4(), folder=""
+        )
+
+        if named:
+            note = (await _unzipped(folder))["workspace/NOT-INCLUDED.txt"]
+            assert b"workspace/a:" in note and b"over the read limit" in note
+            assert reads == ["a", "b"]
+        else:
+            with pytest.raises(ExternalServiceError):
+                await _unzipped(folder)
+            assert reads == ["a"]
+
+    async def test_a_chat_with_no_workspace_has_nothing_to_zip(self, monkeypatch, mock_db_session):
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        mock_db_session.scalar = AsyncMock(return_value=None)
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=""
+            )
+
+    @pytest.mark.security
+    async def test_a_folder_leading_outside_is_refused_before_anything_is_read(
+        self, monkeypatch, mock_db_session
+    ):
+        listed = AsyncMock(return_value=[])
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", listed)
+
+        with pytest.raises(BadRequestError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder="../other-conversation"
+            )
+        listed.assert_not_awaited()
 
 
 class TestOneFlatListOfFiles:
@@ -4436,6 +4823,29 @@ class TestWalkingAHostsDirectories:
         assert contents.entries == []
         assert contents.unreadable_reason is not None
         assert "workspace_root" in contents.unreadable_reason
+
+
+class TestAHostsReasonReadsAsASentence:
+    """The host answers an error as FastAPI's JSON; a person is shown its detail."""
+
+    @pytest.mark.parametrize(
+        ("raised", "said"),
+        [
+            (
+                WorkspaceArchiveError('{"detail":"File is 9437184 bytes, over the read limit"}'),
+                "File is 9437184 bytes, over the read limit",
+            ),
+            (
+                WorkspaceArchiveError("Could not reach the sandbox service"),
+                "Could not reach the sandbox service",
+            ),
+            (WorkspaceArchiveError('{"detail":[{"msg":"bad"}]}'), '{"detail":[{"msg":"bad"}]}'),
+            (WorkspaceArchiveError('["no detail"]'), '["no detail"]'),
+            (WorkspaceArchiveError(""), "WorkspaceArchiveError"),
+        ],
+    )
+    def test_the_detail_is_kept_and_the_wrapping_dropped(self, raised, said):
+        assert sandbox_workspace._reason(raised) == f"This host's files could not be read. {said}"
 
 
 class TestDrawingAHostsImages:

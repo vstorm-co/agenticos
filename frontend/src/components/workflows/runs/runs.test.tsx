@@ -88,6 +88,33 @@ describe("StartRunDialog", () => {
 });
 
 describe("StartRunDialog with declared fields", () => {
+  it("requires a text list and submits its lines as an array", async () => {
+    const onStart = mount({
+      testFields: [
+        {
+          name: "devices",
+          label: "Devices",
+          type: "string_list",
+          required: true,
+          description: null,
+          options: [],
+        },
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(onStart).not.toHaveBeenCalled();
+    const input = screen.getByRole("textbox", { name: "Devices" });
+    expect(input.tagName).toBe("TEXTAREA");
+    expect(input).toHaveAccessibleDescription("One item per line. Blank lines are ignored.");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(input, { target: { value: "leaf-01\n\n leaf-02 " } });
+    await userEvent.click(screen.getByRole("button", { name: "Start a run" }));
+    expect(onStart).toHaveBeenCalledWith({
+      mode: "test",
+      input: { devices: ["leaf-01", "leaf-02"] },
+    });
+  });
+
   const FIELDS: InputField[] = [
     {
       name: "email",

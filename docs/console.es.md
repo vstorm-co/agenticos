@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "659aee690fb0"
 ---
 
 # La consola { #the-console }
@@ -463,6 +463,8 @@ por él: es conocimiento para el agent, no un calendario.
 
 Al volver a abrir una conversación, ves los mensajes más recientes. Usa **Load earlier messages** encima del historial para leer turnos más antiguos. Las respuestas en curso y los resultados sin guardar siguen visibles mientras se actualiza el historial guardado.
 
+Si no se puede guardar una respuesta del asistente, el chat te pide que copies el texto que necesites antes de salir de la conversación. Esto también se aplica a las respuestas parciales de ejecuciones interrumpidas. El texto transmitido sigue visible, pero puede faltar al volver a abrir la conversación.
+
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
 el run. Arrastra un mensaje de la cola, o usa sus flechas, para cambiar el orden.
@@ -499,6 +501,12 @@ compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregi
 vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
 La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
 cada uno abre la conversación en la que se dibujó.
+
+**Borradores.** Un agente con [Borradores](reference/capabilities.md#drafts) muestra
+el texto que enviarás o pegarás en otro sitio - un correo, una respuesta, una
+publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icono de
+copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
+misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
 se abre automáticamente en un panel lateral a toda altura junto al chat.

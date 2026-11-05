@@ -1,5 +1,5 @@
 ---
-source_sha: "4a53cb5a7983"
+source_sha: "f8a0d851ec5d"
 ---
 
 # Configuración { #configuration }
@@ -76,6 +76,10 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Tope del tamaño descomprimido por miembro de un archivo de oficina basado en ZIP (ODF, PPTX) |
 | `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Tope del tamaño descomprimido total de un archivo de oficina basado en ZIP |
 | `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Tope del número de miembros de un archivo de oficina basado en ZIP |
+| `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Máximo de archivos y carpetas que puede contener un `.zip`/`.tar.gz` adjunto, y de archivos en el zip de una carpeta del workspace |
+| `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Máximo que puede ocupar un archivo comprimido adjunto una vez descomprimido, y que puede llevar el zip de una carpeta del workspace |
+| `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Máximo que puede ocupar un archivo comprimido adjunto una vez descomprimido, como múltiplo de su tamaño comprimido; por encima se rechaza como bomba de descompresión |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Máximo que puede ocupar un archivo dentro de un archivo comprimido adjunto una vez descomprimido; es lo que la descompresión mantiene en memoria a la vez |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Tope del texto extraído almacenado, para que un ZIP/OLE pequeño no infle la fila |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |
