@@ -777,8 +777,12 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         worse = _names(check, "worse") or "the agents it made worse"
         actions.append(f"Apply to main and keep {worse} on v{base}")
     if "fork_for_helped" in outcomes:
-        helped = _names(check, "better") or "the agents it helped"
-        actions.append(f"Make a fork for {helped}")
+        helped = _names(check, "better")
+        actions.append(
+            f"Make a fork for {helped}, or for the agents the person picks"
+            if helped
+            else "Make a fork for the agents the person picks, or none"
+        )
     if "catch_up" in outcomes:
         actions.append(f'Take the merge into the fork "{fork}"')
     if "return_to_main" in outcomes:
@@ -800,7 +804,7 @@ _SKILL_VERDICTS = {
     "no_better": "No agent got better, so there is nothing to apply.",
     "blocked": (
         "An agent got worse, so it cannot simply be applied: apply it and keep the worse "
-        "agents on their version, make a fork for the agents it helped, improve further, "
+        "agents on their version, make a fork for the agents the person picks, improve further, "
         "or end the session."
     ),
 }
@@ -2333,6 +2337,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         outcome: Literal["apply", "apply_and_pin", "fork_for_helped", "catch_up", "return_to_main"],
         acknowledge_unknown: bool = False,
         fork_name: str | None = None,
+        fork_agent_ids: list[UUID] | None = None,
     ) -> dict[str, Any]:
         """Accept a skill session's result, only as the person chose. Needs `skills:edit`.
 
@@ -2340,7 +2345,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         main and keeps every agent it made worse on its current version, which
         also needs `agents:publish` on each of them. `fork_for_helped` leaves
         main as it is and makes a fork named `fork_name` with this change for
-        the agents it helped. On a catch-up, `catch_up` takes the merge in as the
+        the agents it helped, or for `fork_agent_ids` when the person picked
+        others - an empty list moves none. On a catch-up, `catch_up` takes the merge in as the
         fork's newest version and moves the fork's start to main's newest, and
         `return_to_main` moves the fork's agents back to main instead, offered
         only when main alone made none of them worse. Offer only the session's
@@ -2368,15 +2374,14 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if outcome == "fork_for_helped":
             if not fork_name:
                 return api.refuse("Name the fork: ask the person, or use the helped agent's name.")
-            forked = await api.request(
-                "POST",
-                f"{path}/fork",
-                json={
-                    "confirmed": True,
-                    "name": fork_name,
-                    "acknowledge_unknown": acknowledge_unknown,
-                },
-            )
+            choice: dict[str, Any] = {
+                "confirmed": True,
+                "name": fork_name,
+                "acknowledge_unknown": acknowledge_unknown,
+            }
+            if fork_agent_ids is not None:
+                choice["agent_ids"] = [str(agent_id) for agent_id in fork_agent_ids]
+            forked = await api.request("POST", f"{path}/fork", json=choice)
             return {
                 "status": forked["session"]["status"],
                 "fork": _skill_fork(forked["fork"]),

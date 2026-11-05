@@ -13,7 +13,7 @@ import type { ScorerStatus } from "@/types/scoring";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
 import { CheckSummary } from "./check-summary";
 import { percent, seconds, usd } from "./format";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 import { SCORER_TONE, VerdictBadge, VerdictIcon, type VerdictTone } from "./verdict-badge";
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
@@ -198,12 +198,15 @@ function Expectation({
 export function CaseDetail({
   attempts,
   arms,
+  check,
   expectation,
   datasetId,
   caseId,
 }: {
   attempts: EvalAttempt[];
   arms: EvalRunArm[];
+  /** The proposal the run checks, which names its sides. */
+  check?: SideCheck | null;
   expectation: DatasetCaseContent | null;
   datasetId: string;
   caseId: string;
@@ -230,7 +233,7 @@ export function CaseDetail({
           return (
             <div key={arm.id} className="space-y-2">
               <p className="text-sm font-semibold">
-                {t("sideModel", { name: sideName(arm, t), model: arm.model_label })}
+                {t("sideModel", { name: sideName(arm, t, check), model: arm.model_label })}
               </p>
               {own.map((attempt) => (
                 <Attempt key={attempt.id} attempt={attempt} />

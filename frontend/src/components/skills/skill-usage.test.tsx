@@ -8,6 +8,7 @@ import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import type { SkillUsage } from "@/types/skill-versions";
 import { SkillUsageCard, usageDays } from "./skill-usage";
+import { fromFirstLoad } from "./usage-chart";
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
@@ -103,6 +104,9 @@ describe("SkillUsageCard", () => {
     expect(chip("Agent 0")).toHaveAttribute("aria-pressed", "false");
     expect(chip("Agent 5")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("img", { name: "Loads per day, one line per agent" })).toBeVisible();
+    expect(
+      screen.getByText("The agents picked did not load the skill in the last 30 days."),
+    ).toBeVisible();
 
     await userEvent.click(chip("Agent 0"));
     expect(chip("Agent 0")).toHaveAttribute("aria-pressed", "true");
@@ -154,5 +158,23 @@ describe("usageDays", () => {
       "6 3",
       "6 3",
     ]);
+  });
+});
+
+describe("fromFirstLoad", () => {
+  const days = [
+    { day: "1", a: 0, b: 0 },
+    { day: "2", a: 0, b: 3 },
+    { day: "3", a: 0, b: 0 },
+    { day: "4", a: 2, b: 0 },
+  ];
+
+  it("starts at the first day a picked agent loaded the skill, keeping the quiet days after", () => {
+    expect(fromFirstLoad(days, new Set(["a", "b"])).map((day) => day.day)).toEqual(["2", "3", "4"]);
+    expect(fromFirstLoad(days, new Set(["a"])).map((day) => day.day)).toEqual(["4"]);
+  });
+
+  it("leaves no days when the picked agents loaded it on none", () => {
+    expect(fromFirstLoad(days, new Set(["c"]))).toEqual([]);
   });
 });

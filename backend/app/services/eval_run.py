@@ -71,6 +71,7 @@ from app.db.models.eval_run import (
     EvalRunStatus,
 )
 from app.db.models.eval_suite import EvalSuiteTrigger
+from app.db.models.skill_version import SkillFork, SkillVersion
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -80,12 +81,14 @@ from app.repositories import (
     eval_suite_repo,
     member_repo,
     organization_repo,
+    skill_version_repo,
 )
 from app.repositories.authoring import EvidenceInputs
 from app.repositories.eval_run import RunExecution
 from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_run import (
     ArmEstimate,
+    ArmSkillVersionRead,
     ArmSummaryRead,
     CaseFlipRead,
     ComparisonSide,
@@ -2062,6 +2065,20 @@ class EvalRunService:
         suites = await eval_suite_repo.started_runs(
             self.db, [run.id for run in runs], organization_id=org
         )
+        served_ids = {
+            UUID(version_id)
+            for arms in arms_by_run.values()
+            for arm in arms
+            for version_id in (arm.skill_versions or {}).values()
+        }
+        skill_versions = await skill_version_repo.get_versions(
+            self.db, served_ids, organization_id=org
+        )
+        skill_forks = await skill_version_repo.get_forks(
+            self.db,
+            {v.fork_id for v in skill_versions.values() if v.fork_id is not None},
+            organization_id=org,
+        )
         reads = []
         for run in runs:
             attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
@@ -2091,6 +2108,9 @@ class EvalRunService:
                         spec_hash=arm.spec_hash,
                         skill_ids=[UUID(skill_id) for skill_id in arm.skill_bodies or {}],
                         context_ids=[UUID(key) for key in arm.context_bodies or {}],
+                        skill_versions=_served_skill_versions(
+                            arm.skill_versions, skill_versions, skill_forks
+                        ),
                         summary=_summary_read(summary),
                         by_tag={tag: _summary_read(s) for tag, s in summary.by_tag.items()},
                         ungraded_cases=[
@@ -2978,6 +2998,27 @@ def case_content(revision: DatasetCase) -> str:
         },
         sort_keys=True,
     )
+
+
+def _served_skill_versions(
+    served: Mapping[str, str] | None,
+    versions: Mapping[UUID, SkillVersion],
+    forks: Mapping[UUID, SkillFork],
+) -> list[ArmSkillVersionRead]:
+    """Each skill a side was served once, by its stored version: an agent and its
+    inline specialists may read one skill, and a version since deleted is left out."""
+    by_skill: dict[UUID, ArmSkillVersionRead] = {}
+    for version_id in (served or {}).values():
+        version = versions.get(UUID(version_id))
+        if version is None or version.skill_id in by_skill:
+            continue
+        fork = forks.get(version.fork_id) if version.fork_id is not None else None
+        by_skill[version.skill_id] = ArmSkillVersionRead(
+            skill_id=version.skill_id,
+            number=version.number,
+            fork_name=fork.name if fork is not None else None,
+        )
+    return list(by_skill.values())
 
 
 def _failed_alike(firsts: Sequence[EvalRunCase]) -> str | None:

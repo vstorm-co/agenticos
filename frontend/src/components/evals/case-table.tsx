@@ -31,7 +31,7 @@ import type {
   EvalRunArm,
 } from "@/types/eval-runs";
 import { CaseDetail } from "./case-detail";
-import { sideName } from "./names";
+import { sideName, type SideCheck } from "./names";
 import { VerdictBadge, type VerdictTone } from "./verdict-badge";
 
 export const ALL = "all";
@@ -98,7 +98,15 @@ function corrected(attempt: EvalAttempt): boolean {
 }
 
 /** How each side's first answer to a case came out, one dot per side. */
-function SideDots({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunArm[] }) {
+function SideDots({
+  attempts,
+  arms,
+  check,
+}: {
+  attempts: EvalAttempt[];
+  arms: EvalRunArm[];
+  check: SideCheck | null | undefined;
+}) {
   const t = useTranslations("evals");
   return (
     <span className="flex shrink-0 items-center gap-1">
@@ -107,7 +115,7 @@ function SideDots({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunAr
           attempts.find((attempt) => attempt.arm_id === arm.id && attempt.attempt === 0),
         );
         const label = t("cases.dot", {
-          side: t("sideModel", { name: sideName(arm, t), model: arm.model_label }),
+          side: t("sideModel", { name: sideName(arm, t, check), model: arm.model_label }),
           state,
         });
         return (
@@ -197,7 +205,7 @@ export function CaseTable({
     const { candidate, baseline } = comparison;
     for (const flip of comparison.cases) {
       const side = flip.candidate === null || baseline === null ? candidate : baseline;
-      flipOf.set(flip.case_id, { ...flip, side: sideName(side, tSide) });
+      flipOf.set(flip.case_id, { ...flip, side: sideName(side, tSide, run.proposal_check) });
     }
   }
 
@@ -250,7 +258,7 @@ export function CaseTable({
                     ) : (
                       <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                     )}
-                    <SideDots attempts={item.attempts} arms={run.arms} />
+                    <SideDots attempts={item.attempts} arms={run.arms} check={run.proposal_check} />
                     {trainIds.has(item.case_id) && (
                       <Badge variant="outline">{t("partition.train")}</Badge>
                     )}
@@ -283,6 +291,7 @@ export function CaseTable({
                       <CaseDetail
                         attempts={item.attempts}
                         arms={run.arms}
+                        check={run.proposal_check}
                         expectation={item.expectation}
                         datasetId={run.dataset_id}
                         caseId={item.case_id}

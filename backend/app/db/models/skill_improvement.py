@@ -84,7 +84,7 @@ class SkillImprovementOutcome(StrEnum):
     APPLIED_PINNED = "applied_pinned"
     """Applied to main, with the agents it made worse kept on their version."""
     FORKED = "forked"
-    """Made a fork for the agents it helped; main stayed as it was."""
+    """Made a fork for the agents the person picked; main stayed as it was."""
     DISCARDED = "discarded"
     CAUGHT_UP = "caught_up"
     RETURNED_TO_MAIN = "returned_to_main"

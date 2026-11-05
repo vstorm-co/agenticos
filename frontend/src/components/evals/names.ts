@@ -4,11 +4,17 @@ import type { ArmRole, ArmSource, ProposalCheckRecord } from "@/types/eval-runs"
 
 type Translate = (
   key: string,
-  values?: { version?: number; count?: number; agent?: string },
+  values?: { version?: number; count?: number; agent?: string; fork?: string },
 ) => string;
 
-/** A proposal's check, with the name of the agent it ran on once the page has read it. */
-export type SideCheck = ProposalCheckRecord & { agent?: string };
+/**
+ * A proposal's check, with the name of the agent it ran on once the page has read it
+ * and, for a skill's check, the stored version its proposal is weighed against.
+ */
+export type SideCheck = ProposalCheckRecord & {
+  agent?: string;
+  current?: { number: number; fork_name: string | null } | null;
+};
 
 /**
  * A side by what it ran - a published version by its number, otherwise its source.
@@ -24,7 +30,16 @@ export function sideName(
   check?: SideCheck | null,
 ): string {
   if (check?.kind === "skill" && check.agent !== undefined && side.role !== undefined) {
-    return t(side.role === "candidate" ? "skillProposed" : "skillCurrent", { agent: check.agent });
+    if (side.role === "candidate") return t("skillProposed", { agent: check.agent });
+    const current = check.current;
+    if (!current) return t("skillCurrent", { agent: check.agent });
+    return current.fork_name === null
+      ? t("skillCurrentVersion", { agent: check.agent, version: current.number })
+      : t("skillCurrentFork", {
+          agent: check.agent,
+          fork: current.fork_name,
+          version: current.number,
+        });
   }
   if (check && side.role === "candidate") return proposedName(check, t);
   if (side.version_number !== null) return t("version", { version: side.version_number });

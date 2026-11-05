@@ -71,11 +71,11 @@ export function applySkillImprovement(
   });
 }
 
-/** Make a fork with the measured attempt for the agents it helped. */
+/** Make a fork with the measured attempt, and move the agents named onto it - none for []. */
 export function forkSkillImprovement(
   skillId: string,
   sessionId: string,
-  body: { name: string; acknowledge_unknown: boolean },
+  body: { name: string; agent_ids: string[]; acknowledge_unknown: boolean },
 ): Promise<{ session: SkillImprovement }> {
   return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/fork`, {
     confirmed: true,

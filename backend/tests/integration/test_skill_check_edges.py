@@ -1139,7 +1139,9 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         assert {row.unknown_reason for row in read.agents} == {"failed"}
         assert await _live_runs(db, check.id) == []
 
-    async def test_a_change_that_helped_nobody_offers_no_fork_for_the_helped(self, db, monkeypatch):
+    async def test_a_change_that_helped_nobody_may_still_be_forked(self, db, monkeypatch):
+        """Whether a fork is worth having is the person's call: a blocked change offers it,
+        and with nobody helped it moves nobody unless they pick."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
@@ -1148,17 +1150,112 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         )
 
         read = await service.read(lab.ctx, lab.skill.id, check.id)
+        forked = await service.fork(
+            lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x", acknowledge_unknown=True)
+        )
 
         assert read.verdict is CheckVerdict.BLOCKED
-        assert CheckOutcome.FORK_FOR_HELPED not in read.outcomes
-        with pytest.raises(BadRequestError, match="does not offer"):
-            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+        assert CheckOutcome.FORK_FOR_HELPED in read.outcomes
+        assert forked.moved == [] and forked.draft_only == []
+        assert forked.fork.name == "x"
 
-    async def test_a_change_that_helped_only_through_a_specialist_offers_no_fork(
+    async def test_a_change_that_helped_nobody_is_forked_for_the_agents_picked(
         self, db, monkeypatch
     ):
-        """A fork moves only agents that bind the skill themselves; one helped through a
-        specialist is moved in its Builder, so it is no reason to offer the fork."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(broken=1)})
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        forked = await service.fork(
+            lab.ctx,
+            lab.skill.id,
+            check.id,
+            SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.b.id, lab.b.id]),
+        )
+
+        assert CheckOutcome.FORK_FOR_HELPED in read.outcomes
+        assert [agent.name for agent in forked.moved] == ["B"]
+
+    async def test_an_empty_pick_forks_without_moving_the_helped(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        forked = await service.fork(
+            lab.ctx,
+            lab.skill.id,
+            check.id,
+            SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[]),
+        )
+
+        assert read.verdict is not CheckVerdict.BLOCKED
+        assert CheckOutcome.FORK_FOR_HELPED in read.outcomes
+        assert forked.moved == [] and forked.draft_only == []
+
+    async def test_a_pick_outside_the_check_is_refused(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
+
+        with pytest.raises(BadRequestError, match="Pick agents this check asked") as refused:
+            await service.fork(
+                lab.ctx,
+                lab.skill.id,
+                check.id,
+                SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.pinned.id]),
+            )
+        assert refused.value.details["agent_ids"] == [lab.pinned.id]
+
+    async def test_a_pick_the_caller_may_not_see_reads_as_outside_the_check(self, db, monkeypatch):
+        """Refusing it as not editable would confirm a hidden agent was checked."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+        _deny(monkeypatch, Perm.AGENTS_VIEW, lab.b.id)
+
+        with pytest.raises(BadRequestError, match="Pick agents this check asked") as refused:
+            await service.fork(
+                lab.ctx,
+                lab.skill.id,
+                check.id,
+                SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.b.id]),
+            )
+        assert refused.value.details["agent_ids"] == [lab.b.id]
+
+    async def test_a_pick_the_caller_may_not_edit_is_refused(self, db, monkeypatch):
+        """The default leaves a helped agent the caller may not edit on main; one they named
+        themselves is refused rather than left behind without a word."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1), lab.b.id: Outcome(broken=1)}
+        )
+        _deny(monkeypatch, Perm.AGENTS_EDIT, lab.b.id)
+
+        with pytest.raises(AuthorizationError) as refused:
+            await service.fork(
+                lab.ctx,
+                lab.skill.id,
+                check.id,
+                SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.a.id, lab.b.id]),
+            )
+        assert refused.value.details == {"agent_ids": [lab.b.id], "agents": ["B"]}
+        assert "You may not edit B" in refused.value.message
+
+    async def test_an_agent_helped_through_a_specialist_is_moved_in_its_builder(
+        self, db, monkeypatch
+    ):
+        """A fork moves only agents that bind the skill themselves: the default leaves one
+        helped through a specialist where it is, and picking it is refused."""
         lab = await _lab(db)
         evals = FakeEvals()
         evals.install(monkeypatch)
@@ -1171,21 +1268,19 @@ class TestWhatTheCheckMeasuredIsWhatShips:
         next(row for row in rows if row.agent_id == lab.a.id).via_specialist = "reader"
         await db.flush()
 
-        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        with pytest.raises(BadRequestError, match="through a specialist") as refused:
+            await service.fork(
+                lab.ctx,
+                lab.skill.id,
+                check.id,
+                SkillCheckFork(name="x", acknowledge_unknown=True, agent_ids=[lab.a.id]),
+            )
+        forked = await service.fork(
+            lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x", acknowledge_unknown=True)
+        )
 
-        assert read.verdict is CheckVerdict.BLOCKED
-        assert CheckOutcome.FORK_FOR_HELPED not in read.outcomes
-        with pytest.raises(BadRequestError, match="does not offer"):
-            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
-
-    async def test_a_change_that_hurt_nobody_is_not_forked(self, db, monkeypatch):
-        lab = await _lab(db)
-        evals = FakeEvals()
-        evals.install(monkeypatch)
-        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)})
-
-        with pytest.raises(BadRequestError, match="does not offer"):
-            await service.fork(lab.ctx, lab.skill.id, check.id, SkillCheckFork(name="x"))
+        assert refused.value.details["agent_ids"] == [lab.a.id]
+        assert forked.moved == [] and forked.draft_only == []
 
     async def test_an_agent_published_again_since_the_check_must_be_checked_again(
         self, db, monkeypatch

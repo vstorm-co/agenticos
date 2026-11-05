@@ -210,6 +210,13 @@ class SkillCheckApplied(BaseSchema):
 class SkillCheckFork(BaseSchema):
     name: str = Field(min_length=1, max_length=64)
     acknowledge_unknown: bool = False
+    agent_ids: list[UUID] | None = Field(
+        default=None,
+        description=(
+            "The check's agents to move onto the fork. Left out, the agents it helped move; "
+            "an empty list moves none"
+        ),
+    )
 
 
 class SkillCheckForked(BaseSchema):

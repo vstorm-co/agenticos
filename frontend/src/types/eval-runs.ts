@@ -157,6 +157,8 @@ export interface EvalRunArm {
   spec_hash: string;
   /** The skills this side served a proposed body for instead of the stored one. */
   skill_ids?: string[];
+  /** The stored version of each skill this side was served, once per skill. */
+  skill_versions?: { skill_id: string; number: number; fork_name: string | null }[];
   /** The context files this side served a proposed body for instead of the stored one. */
   context_ids?: string[];
   summary: ArmSummary;
