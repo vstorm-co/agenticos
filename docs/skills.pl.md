@@ -1,5 +1,5 @@
 ---
-source_sha: "83027778cd54"
+source_sha: "d80090c01ab6"
 ---
 
 # Skille { #skills }
@@ -697,6 +697,12 @@ na jej własnej linii, a agenci podążający za tą linią dostają ją od razu
 numeruje wersje od 1 tak jak main, więc noszą jego nazwę - „Returns v2” - a
 historia main zaznacza wersję, od której startuje każdy fork.
 
+Pod wersjami osoba, która może przeglądać runy, widzi **sesje Improve** tej linii:
+kiedy każda trwała i kto ją zaczął, jak się skończyła - zastosowana jako wersja,
+fork, odrzucona, wygasła - i ile kosztowała. **Kontynuuj** otwiera sesję, która
+wciąż na Ciebie czeka; **Otwórz** pokazuje zakończoną. Wersja, którą sesja
+zastosowała, linkuje do niej.
+
 **Drzewo wersji** rysuje main jako linię pól od lewej do prawej, kończącą się na
 najnowszej wersji. Każdy fork odchodzi na własnym torze od wersji, od której
 wystartował, a każdy agent siedzi w polu wersji, której używa. Na linii z co
@@ -752,10 +758,22 @@ tych, o których nie wiadomo. Pod nim jest wiersz dla każdego agenta: lepiej, b
 zmian, w granicach szumu, gorzej albo nie wiadomo, z agentami do obejrzenia na
 górze. Każdy wiersz ma mały pasek pytań naprawionych wobec zepsutych.
 
-Wiersz rozwija się do szczegółów: liczb, linku do runu i informacji, czy agenta sprawdzono
-tylko na własnych pytaniach skilla, bo nie miał swoich tam, gdzie wczytał skill.
-Otwarty wiersz dostaje znacznik **Obejrzany**, a linia nad wierszami liczy, ilu
-agentów już obejrzałeś, więc widać, kto został.
+Cały wiersz rozwija się do szczegółów kliknięciem w dowolnym miejscu albo
+klawiszem Enter lub Spacją: dla każdego zestawu pytań, który dostał - pytań
+skilla, własnego zestawu albo jego próbki - ile wyszło lepiej, bez zmian, gorzej
+albo nie wiadomo, z linkiem do runu, i czy sprawdzono go tylko na pytaniach
+skilla. Otwarty wiersz dostaje znacznik **Obejrzany**.
+
+Nad wierszami **Do obejrzenia** liczy gorszych i nieznanych agentów, których
+jeszcze nie otworzyłeś. Każda liczba na pasku filtruje wiersze do swoich agentów,
+pole wyszukiwania znajduje agenta po nazwie, a **Tylko nieobejrzane** ukrywa tych,
+których już otworzyłeś.
+
+Wiersze są pogrupowane według wyniku: najpierw gorsi, z
+najbardziej zepsutymi na górze, potem nieznani według powodu, dla którego nie dało
+się ich sprawdzić - z możliwością dodania pytań testowych, gdy to jest powodem -
+potem ci w trakcie, bez zmian i lepsi. Od ośmiu agentów grupy bez zmian i lepsi są
+zwinięte i tylko policzone, dopóki ich nie otworzysz.
 
 To, co proponuje Akceptacja, wynika z wyniku:
 

@@ -15601,15 +15601,28 @@
         "unknown": "{count} not known",
         "same": "{count} no change",
         "better": "{count} better",
-        "pending": "{count} still checking"
+        "pending": "{count} still checking",
+        "filter": "Show only"
       },
-      "seenCount": "{seen, plural, =0 {None of {total} agents looked at yet} other {Looked at # of {total} agents}}",
       "seen": "Seen",
       "details": "Details of {name}",
       "stageCounts": "{better} better · {same} same · {worse} worse · {unknown} not known",
       "stageLoading": "Reading the results…",
       "stageUnread": "Its results could not be read.",
-      "openAgent": "Open {name}"
+      "openAgent": "Open {name}",
+      "left": "Left to look at: {left} of {total}",
+      "nothingLeft": "Nothing worse or unknown to look at",
+      "onlyUnseen": "Only the ones not looked at",
+      "search": "Find an agent",
+      "noMatch": "No agent matches.",
+      "group": {
+        "worse": "Worse ({count})",
+        "unknown": "Not known ({count})",
+        "pending": "Still checking ({count})",
+        "same": "No change ({count})",
+        "better": "Better ({count})"
+      },
+      "brokeOnSkill": "{broke} of {total} broke on the skill's own questions, which every agent shares."
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",

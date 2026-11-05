@@ -1,5 +1,5 @@
 ---
-source_sha: "83027778cd54"
+source_sha: "d80090c01ab6"
 ---
 
 # Skills { #skills }
@@ -719,6 +719,12 @@ reciben de inmediato. Un fork numera sus versiones desde 1 como main, así que l
 su nombre - "Returns v2" - y el historial de main marca la versión desde la que
 empieza cada fork.
 
+Debajo de las versiones, quien puede ver runs ve las **sesiones de Improve** de la
+línea: cuándo se hizo cada una y quién la empezó, cómo terminó - aplicada como
+versión, un fork, descartada, caducada - y cuánto costó. **Continuar** abre una
+sesión que aún te espera; **Abrir** muestra una terminada. Una versión que aplicó
+una sesión enlaza con ella.
+
 **Árbol de versiones** dibuja main como una línea de cajas de izquierda a derecha que
 termina en su versión más nueva. Cada fork sale, en un carril propio, de la versión
 en que empezó, y cada agent está en la caja de la versión que usa. En una línea de
@@ -774,10 +780,23 @@ cambios, peor o desconocidos. Debajo hay una fila por agent: mejor, sin cambios,
 dentro del ruido, peor o desconocido, con los que hay que mirar primero arriba. Cada
 fila tiene una pequeña barra de las preguntas que arregló frente a las que estropeó.
 
-Una fila se abre a sus detalles: los recuentos, un enlace a su run y si se comprobó
-solo con las preguntas propias del skill, porque no tenía las suyas donde cargó el
-skill. Una fila que has abierto queda marcada como **Vista**, y una línea encima
-cuenta cuántas has mirado, para que veas qué agents quedan.
+Una fila entera se abre a sus detalles con un clic en cualquier parte o con Intro
+o Espacio: para cada conjunto de preguntas que recibió - las del skill, su propio
+conjunto o una muestra de él - cuántas salieron mejor, igual, peor o desconocidas,
+con un enlace a ese run, y si se comprobó solo con las preguntas del skill. Una
+fila que has abierto queda marcada como **Vista**.
+
+Encima de las filas, **Por revisar** cuenta los agents peores y desconocidos que
+aún no has abierto. Cada recuento de la barra filtra las filas a sus agents, un
+cuadro de búsqueda encuentra un agent por su nombre, y **Solo las no vistas** oculta
+las que ya abriste.
+
+Las filas se agrupan según el resultado: primero los peores,
+con los más estropeados arriba, luego los desconocidos según el motivo por el que
+no se pudieron comprobar - con una forma de añadir preguntas de prueba cuando ese es
+el motivo - luego los que se están comprobando, sin cambios y mejores. A partir de
+ocho agents, sin cambios y mejores empiezan plegados y solo contados hasta que los
+abras.
 
 Lo que ofrece Aceptar depende del resultado:
 

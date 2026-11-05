@@ -677,6 +677,12 @@ the newest on its own line, and the agents following that line get it at once. A
 fork numbers its versions from 1 like main, so they carry its name - "Returns v2" -
 and main's history marks the version each fork starts from.
 
+Under the versions, a reader who may view runs sees the line's **Improve
+sessions**: when each ran and who started it, how it ended - applied as a version,
+a fork, discarded, expired - and what it cost. **Continue** opens a session still
+waiting on you; **Open** reads a finished one. A version a session applied links
+back to it.
+
 **Version tree** draws main as a line of boxes from left to right, ending at its
 newest version. Each fork branches off the version it started from on a lane of its
 own, and every agent sits in the box of the version it uses. On a line of eight
@@ -730,10 +736,21 @@ change, worse, or not known. Under it is a row for each agent: better, no change
 within noise, worse or unknown, with the agents to look at first on top. Each row
 has a small bar of the questions it fixed against the ones it broke.
 
-A row opens to its details: the counts, a link to its run, and whether it was
-checked only on the skill's own questions because it had none of its own where it
-loaded the skill. A row you have opened is marked **Seen**, and a line above the rows counts how many
-you have looked at, so you can see which agents are left.
+A whole row opens to its details, by a click anywhere on it or by Enter or Space:
+for each set of questions it was asked - the skill's own, its own set or a sample of
+it - how many came out better, the same, worse or not known, with a link to that
+run, and whether it was checked only on the skill's questions. A row you have
+opened is marked **Seen**.
+
+Above the rows, **Left to look at** counts the worse and unknown agents you have not
+opened yet. Each count on the bar filters the rows to its agents, a search box finds
+an agent by name, and **Only the ones not looked at** hides those you have opened.
+
+The rows are grouped by how they came out: the worse ones first, the most broken
+on top, then the unknown ones by why they could not be checked - with a way to add
+test questions when that is the reason - then those still being checked, no change
+and better. From eight agents on, no change and better start folded, counted until
+you open them.
 
 What Accept offers comes from the result:
 
