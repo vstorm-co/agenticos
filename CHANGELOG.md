@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Mount the console task API proxy so project Tasks buttons and task lists reach the backend instead of returning a frontend 404.
+
 - Prevent already-approved chat requests from reappearing during HTTP continuations, and submit each in-flight approval batch only once.
 
 - Prevent duplicate chat answers and setup cards when stored history arrives before the live message receives its saved ID. Collapse answered questions by default and give approval details full-width nested sections and readable descriptions.
