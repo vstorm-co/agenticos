@@ -1,5 +1,5 @@
 ---
-source_sha: "a9c4b5f3c7e8"
+source_sha: "0c355ecc1f1d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1648,6 +1648,25 @@ die Antwort, jeden Schritt und die geänderten Dateien. Bei einer Aufgabe über
 `timeout_minutes` und einer, die ein Mensch stoppt, wird die ganze Prozessgruppe
 gestoppt. Im Hintergrund heißt auch, dass eine Aufgabe nicht an der Obergrenze des
 Sandbox-Dienstes für einen Befehl abgeschnitten wird.
+
+**Was sie geändert hat, als Diff.** Bei `edit` in einer Unterhaltung wird der
+Workspace vor der Aufgabe und danach erneut erfasst, in einen eigenen Git-Speicher
+der Aufgabe unter `/tmp` - nie in das Repository, das jemand geklont hat, dessen
+Index und Historie unberührt bleiben. Das Panel listet dann die Dateien, die die
+Aufgabe hinzugefügt, geändert, gelöscht oder umbenannt hat, und darunter die Hunks
+jeder Datei, mit **Patch kopieren**; eine Aufgabe, die nichts geändert hat, sagt das.
+Auch eine fehlgeschlagene oder abgelaufene Aufgabe behält ihren Diff. Ausgelassen
+werden die eigenen Ordner der Plattform `.agenticos/`, `skills/` und `tool_output/`,
+Werkzeugordner wie `.git`, `.venv` und `node_modules` sowie Dateien über 1 MiB, es sei
+denn, sie waren zu Beginn der Aufgabe kleiner. Der Patch wird bis 256 KiB und 500 Dateien gespeichert und dort
+markiert, wo er abgeschnitten wurde.
+
+**Wer den Diff liest.** Er wird mit der Unterhaltung gespeichert und mit demselben
+Zugriff gelesen wie ihr Transkript, also sieht ihn jeder, der den Chat lesen darf;
+wird der Chat gelöscht, verschwindet er mit. In einem Sandbox, den mehrere Chats
+teilen, sieht eine Aufgabe, die gleichzeitig mit einer anderen läuft, auch deren
+Änderungen in ihrem Diff. Eine Aufgabe zurückzunehmen wird noch nicht angeboten,
+und eine Aufgabe auf diesem Computer zeichnet keinen Diff auf.
 
 **Die Aufgaben einer Unterhaltung setzen eine Sitzung fort.** Die Sitzungs-ID des
 Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, eine je

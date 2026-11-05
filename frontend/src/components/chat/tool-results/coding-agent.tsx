@@ -16,6 +16,7 @@ import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
 import { CollapsibleBlock } from "../collapsible-block";
 import { MarkdownContent } from "../markdown-content";
+import { TaskChanges } from "./coding-changes";
 
 type StepKind = "read" | "search" | "edit" | "command" | "web" | "other";
 
@@ -36,6 +37,8 @@ interface CodingReport {
   steps?: CodingStep[];
   files_changed?: string[];
   refused?: string[];
+  /** The change set the task left in the sandbox, read by `TaskChanges` (#2480). */
+  changes_id?: string;
 }
 
 const STEP_ICON: Record<StepKind, LucideIcon> = {
@@ -109,6 +112,16 @@ function Report({ report }: { report: CodingReport }) {
   const steps = report.steps ?? [];
   const files = report.files_changed ?? [];
   const refused = report.refused ?? [];
+  const names = files.length > 0 && (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <span className="text-muted-foreground">{t("filesChanged", { count: files.length })}</span>
+      {files.map((file) => (
+        <span key={file} className="bg-foreground/[0.06] rounded px-1.5 py-0.5 font-mono">
+          {file}
+        </span>
+      ))}
+    </div>
+  );
   return (
     <>
       <div className="flex items-center gap-2 text-xs">
@@ -127,17 +140,11 @@ function Report({ report }: { report: CodingReport }) {
       <div className="text-sm">
         <MarkdownContent content={report.answer} />
       </div>
-      {files.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-muted-foreground">
-            {t("filesChanged", { count: files.length })}
-          </span>
-          {files.map((file) => (
-            <span key={file} className="bg-foreground/[0.06] rounded px-1.5 py-0.5 font-mono">
-              {file}
-            </span>
-          ))}
-        </div>
+      {/* The diff, where one was kept, says everything the list of names did. */}
+      {report.changes_id !== undefined ? (
+        <TaskChanges changeId={report.changes_id} fallback={names} />
+      ) : (
+        names
       )}
       {steps.length > 0 && (
         <CollapsibleBlock label={t("steps", { count: steps.length })} open={false}>

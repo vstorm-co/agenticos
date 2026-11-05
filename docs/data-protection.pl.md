@@ -1,5 +1,5 @@
 ---
-source_sha: "9168cf4e79a4"
+source_sha: "3e8627cbbe69"
 ---
 
 # Ochrona danych { #data-protection }
@@ -89,6 +89,7 @@ przez sprawdzenie rodzica.
 | `users`, `sessions`, `organization_members` | Konta i logowania | E-mail, imię, awatar, zahaszowane hasło albo id konta Google, hash refresh tokenu, adres IP i user agent na sesję; to, co osoba powiedziała agentom o sobie - język konsoli, strefa czasowa, rola, czym się zajmuje, godziny pracy - oraz pierwsze wiadomości napisane dla jej pustego czatu | Uwierzytelnianie i autoryzacja; to, co każdy agent słyszy o osobie |
 | `browser_sign_ins` | Zapisane logowania osoby do stron, dla przeglądarki | Strona, organizacja, kiedy ostatnio użyte, i sama sesja (ciasteczka i `localStorage` strony) zapieczętowana w vaulcie w zakresie tej osoby | Kolejne przeglądanie w jej imieniu zaczyna się już zalogowane. Eksport danych osobowych podaje strony, nigdy sesji |
 | `conversations`, `messages`, `tool_calls` | Każdy czat na każdej powierzchni | Tekst, który ludzie napisali, odpowiedzi i rozumowanie modelu, argumenty i wyniki narzędzi, kroczące podsumowanie długich wątków | Podstawowa funkcja produktu; historia, do której człowiek wraca |
+| `coding_task_changes` | Zadanie agenta kodującego przy `edit` w rozmowie | Pliki zmienione przez zadanie i ich patch, do 256 KiB: kod taki, jaki był, i taki, jaki się stał | Diff zadania, pokazywany w jego panelu; czytany z dostępem rozmowy |
 | `voice_calls` | Każde połączenie [rozmowy głosowej](voice.md) | Id użytkownika rozmówcy (brak dla odwiedzającego), agent, run, konwersacja i embed, do których należała, provider i model, id rozmowy u providera, id klucza z vaultu, którym była prowadzona, worker, który ją trzyma, jej heartbeat, czasy startu, końca i rozłączenia, jej koszt, sekundy i liczba trafień guardraili. **Bez dźwięku i bez transkrypcji** - słowa rozmowy to zwykłe wiersze w `messages`, każdy oznaczony `turn_id` i, gdy rozmówca wszedł agentowi w słowo, `interrupted` | Rozłączanie rozmowy, której proces umarł, i liczenie miesięcznych minut rozmów organizacji |
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `generated_media` | Jeden wiersz na każdy obraz, klip mowy lub wideo wygenerowane przez agenta | Organizacja, konwersacja, w której powstał, jeśli run ją miał, nazwa pliku, ścieżka w magazynie i rozmiar - **nie jego treść**, która jest plikiem pod `MEDIA_DIR` | Liczenie wygenerowanych mediów każdej organizacji względem jej limitu oraz usuwanie ich razem z konwersacją albo po okresie retencji |
@@ -117,6 +118,8 @@ przez sprawdzenie rodzica.
 | `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) i każda transkrypcja: dyktowanie, wiadomość głosowa z kanału, API, dyktowanie odwiedzającego na hostowanej stronie albo w widgecie | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia; przy transkrypcji także provider i model, identyfikator klucza z vaultu, z którym ją wysłano, skąd przyszła, agent i bot kanału, dla których była, oraz długość nagrania. Wiersz wiadomości głosowej z kanału wskazuje osobę, z którą powiązane jest konto nadawcy, a przy niepowiązanym nadawcy nikogo. Wiersz odwiedzającego nie wskazuje nikogo - ani odwiedzającego, który nie ma konta, ani tego, kto opublikował stronę. Usunięcie osoby, agenta, bota albo klucza czyści powiązanie i zostawia wiersz - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
 | `organization_secrets`, `model_profiles`, `mcp_connections`, `channel_bots` | Poświadczenia i to, gdzie wskazują | Wyłącznie zapieczętowany szyfrogram, z podpowiedzią; provider, model i `base_url` jawnie | Sięganie do providerów. Zobacz [Sekrety](secrets.md) |
+
+Usunięcie rozmowy usuwa też zapisane zestawy zmian zadań programistycznych (`coding_task_changes`).
 
 `workflow_node_spend` zachowuje bezpośrednie opłaty za decyzje i embeddingi po usunięciu historii: organizację, UUID próby, koszt, znacznik częściowego kosztu i daty. Nie zawiera promptów, wyników, plików ani tożsamości użytkownika. Opłaty agentów pozostają w `agent_runs` i nie są liczone podwójnie. Nigdy niezapisanych kosztów historycznych nie można odtworzyć.
 

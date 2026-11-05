@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Import PR #2728: show bounded per-task coding diffs, changed files and Copy patch in chat, with conversation-scoped access and cascading deletion. Apply `0289_coding_task_changes.py`; desktop-local tasks do not yet record a diff. Reverting a task is not offered.
+
 - Show pulsing setup indicators on organization tabs and configuration cards, with permission-aware explanations for missing Voice, memory, Architect and iPhone-push setup or disabled nightly suggestions.
 - Nine built-in platform and production skills, automatically delivered to existing organizations with edit/deletion protection; AgenticOS, Architect and new default agents bind them alongside presentation skills. Stronger completion, questions, delegation and document-quality guidance; Architect gains Apps and Charts.
 - Platform MCP operations for standing Context, agent context bindings, skill editing and text resources.

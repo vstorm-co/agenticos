@@ -1,5 +1,5 @@
 ---
-source_sha: "a9c4b5f3c7e8"
+source_sha: "0c355ecc1f1d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1553,6 +1553,24 @@ zakończeniu wynik wywołania zawiera odpowiedź, każdy krok i zmienione pliki.
 Zadaniu po `timeout_minutes` i zadaniu zatrzymanemu przez człowieka zatrzymywana
 jest cała grupa procesów. Praca w tle oznacza też, że zadania nie ucina limit
 usługi sandboxa na jedno polecenie.
+
+**Co zmieniło, jako diff.** Przy `edit` w rozmowie workspace jest
+fotografowany przed zadaniem i znowu po nim, do magazynu git należącego tylko do
+tego zadania, w `/tmp` - nigdy do repozytorium, które ktoś sklonował; jego indeks i
+historia zostają nietknięte. Panel wymienia potem pliki, które zadanie dodało,
+zmieniło, usunęło albo przeniosło, a pod nimi fragmenty zmian każdego pliku, z
+przyciskiem **Kopiuj patch**; zadanie, które niczego nie zmieniło, mówi to wprost.
+Zadanie nieudane albo przerwane po czasie też zachowuje swój diff. Pominięte są:
+własne foldery platformy `.agenticos/`, `skills/` i `tool_output/`, foldery
+narzędzi, takie jak `.git`, `.venv` i `node_modules`, oraz pliki większe niż 1 MiB,
+chyba że na początku zadania były mniejsze. Patch jest zachowywany do 256 KiB i 500 plików i oznaczany
+tam, gdzie został ucięty.
+
+**Kto czyta diff.** Jest zapisany razem z rozmową i czytany z takim samym dostępem
+jak jej transkrypcja, więc widzi go każdy, kto może czytać czat; usunięcie czatu
+usuwa też diff. W sandboxie, który dzieli kilka czatów, zadanie działające w tym
+samym czasie co inne widzi w swoim diffie także tamtego zmiany. Cofania zadania
+jeszcze nie ma, a zadanie na tym komputerze nie zapisuje diffu.
 
 **Zadania jednej rozmowy kontynuują jedną sesję.** Identyfikator sesji harnessu
 jest trzymany w sandboxie obok pracy, w `.agenticos/coding-agent/`, osobno dla każdej

@@ -33,12 +33,19 @@ from pydantic_ai.workspaces import (
     WorkspaceUnavailableError,
     WrapperWorkspace,
 )
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import get
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.budget import SpendLedger, metered_by
-from app.agents.capabilities.coding_agent import CodingAgent, CodingAgentConfig, _task
+from app.agents.capabilities.coding_agent import (
+    CodingAgent,
+    CodingAgentConfig,
+    _changes,
+    _task,
+    _toolset,
+)
 from app.agents.capabilities.coding_agent._harness import (
     MAX_ANSWER_CHARS,
     MAX_STEPS,
@@ -72,6 +79,7 @@ from app.agents.spec import AgentSpec
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind
+from app.schemas.coding_task_change import ChangeSet
 from app.services.agent_registry import _coding_agent_problems
 from tests.workspaces import ShellFailing, document_workspace
 
@@ -1004,6 +1012,191 @@ class TestRunningATask:
             await _call(_Shell(), task="  ")
         with pytest.raises(ModelRetry, match="no API key"):
             await _call(_Shell(), api_key=None)
+
+
+TREE = "a" * 40
+_SHA = "0" * 40
+_RAW = (
+    f":100644 100644 {_SHA} {_SHA} M\0src/app.py\0".encode()
+    + f":000000 100644 {_SHA} {_SHA} A\0README.md\0".encode()
+)
+_COUNTS = b"1\t1\tsrc/app.py\0" + b"2\t0\tREADME.md\0"
+_PATCH = (
+    "diff --git a/src/app.py b/src/app.py\n@@ -1 +1 @@\n-a - b\n+a + b\n"
+    "diff --git a/README.md b/README.md\nnew file mode 100644\n@@ -0,0 +1,2 @@\n+# Demo\n+\n"
+)
+# What `FINISH` prints: the sizes, the file count, both lists, the patch.
+_TWO_FILES = (
+    f"{len(_RAW)}\n{len(_COUNTS)}\n{len(_PATCH.encode())}\n2\n"
+    f"{base64.b64encode(_RAW).decode()}\n{base64.b64encode(_COUNTS).decode()}\n{_PATCH}"
+)
+
+
+class _Snapshotting(_Shell):
+    """A sandbox whose workspace snapshots: a tree before the task, two edited files after."""
+
+    def __init__(
+        self, *, finish: CommandResult | BaseException | None = None, **kwargs: Any
+    ) -> None:
+        super().__init__(**kwargs)
+        self.finish = finish or CommandResult(exit_code=0, stdout=_TWO_FILES, stderr="")
+
+    async def run(self, command: Any, **kwargs: Any) -> CommandResult:
+        if command == _changes.BEGIN:
+            self.commands.append((command, kwargs.get("env"), kwargs.get("timeout")))
+            return CommandResult(exit_code=0, stdout=f"{TREE}\n", stderr="")
+        if command == _changes.FINISH:
+            self.commands.append((command, kwargs.get("env"), kwargs.get("timeout")))
+            if isinstance(self.finish, BaseException):
+                raise self.finish
+            return self.finish
+        return await super().run(command, **kwargs)
+
+    @property
+    def snapshots(self) -> list[str]:
+        scripts = (_changes.BEGIN, _changes.FINISH, _changes.DISCARD)
+        return [
+            {_changes.BEGIN: "begin", _changes.FINISH: "finish", _changes.DISCARD: "discard"}[c]
+            for c, _, _ in self.commands
+            if c in scripts
+        ]
+
+
+class _Recorder:
+    """`CodingTaskChangeService` as the tool reaches it, keeping what it was handed."""
+
+    def __init__(self, raises: Exception | None = None) -> None:
+        self.raises = raises
+        self.recorded: list[tuple[ChangeSet, dict[str, Any]]] = []
+        self.id = uuid4()
+
+    def __call__(self, _db: Any) -> _Recorder:
+        return self
+
+    async def record(self, changes: ChangeSet, **where: Any) -> Any:
+        if self.raises is not None:
+            raise self.raises
+        self.recorded.append((changes, where))
+        return SimpleNamespace(id=self.id)
+
+
+@pytest.fixture
+def recorder(monkeypatch: pytest.MonkeyPatch) -> _Recorder:
+    recorder = _Recorder()
+
+    @contextlib.asynccontextmanager
+    async def savepoint() -> Any:
+        yield
+
+    @contextlib.asynccontextmanager
+    async def no_database() -> Any:
+        yield SimpleNamespace(begin_nested=savepoint)
+
+    monkeypatch.setattr(_toolset, "get_db_context", no_database)
+    monkeypatch.setattr(_toolset, "CodingTaskChangeService", recorder)
+    return recorder
+
+
+class TestWhatATaskChanged:
+    """#2480: the workspace is snapshotted around a task and the diff kept for its panel."""
+
+    async def test_a_task_that_edits_two_files_names_its_change_set(
+        self, recorder: _Recorder
+    ) -> None:
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+
+        report = CodingReport.model_validate_json(await _call(shell))
+
+        assert report.changes_id == str(recorder.id)
+        ((changes, where),) = recorder.recorded
+        assert [entry.path for entry in changes.files] == ["src/app.py", "README.md"]
+        assert where["conversation_id"] == THREAD and where["tool_call_id"] == "call-1"
+        assert where["harness"] == "claude_code"
+        # Before the harness starts, after it ends, and the store removed.
+        assert shell.snapshots == ["begin", "finish", "discard"]
+        order = [command for command, _, _ in shell.commands]
+        assert order.index(_changes.BEGIN) < order.index(shell.started[0])
+        begin_env = next(env for command, env, _ in shell.commands if command == _changes.BEGIN)
+        finish_env = next(env for command, env, _ in shell.commands if command == _changes.FINISH)
+        assert begin_env is not None and finish_env is not None
+        assert finish_env[_changes.BASE_ENV] == TREE
+        assert finish_env[_changes.STORE_ENV] == begin_env[_changes.STORE_ENV]
+
+    async def test_a_failed_task_keeps_what_it_changed_too(self, recorder: _Recorder) -> None:
+        shell = _Snapshotting(stderr="Invalid API key\n", exit_code=1)
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "failed" and report.changes_id == str(recorder.id)
+
+    @pytest.mark.parametrize(
+        "where",
+        [{"access": "read_only"}, {"conversation_id": None}],
+        ids=["read-only", "no-conversation"],
+    )
+    async def test_a_task_that_cannot_change_anything_kept_is_not_snapshotted(
+        self, recorder: _Recorder, where: dict[str, Any]
+    ) -> None:
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        report = CodingReport.model_validate_json(await _call(shell, **where))
+        assert report.changes_id is None and shell.snapshots == []
+
+    async def test_a_task_that_could_not_run_drops_its_snapshot(self, recorder: _Recorder) -> None:
+        shell = _Snapshotting(raises=WorkspaceUnavailableError("gone"))
+        answer = await _call(shell)
+        assert answer.startswith("Claude Code could not run")
+        assert shell.snapshots == ["begin", "discard"] and recorder.recorded == []
+
+    async def test_a_stopped_task_drops_its_snapshot(self, recorder: _Recorder) -> None:
+        class _Cancelled(_Snapshotting):
+            async def _poll(self, command: str) -> CommandResult:
+                raise anyio.get_cancelled_exc_class()
+
+        shell = _Cancelled(hangs=True)
+        with pytest.raises(anyio.get_cancelled_exc_class()):
+            await _call(shell)
+        assert shell.snapshots == ["begin", "discard"] and recorder.recorded == []
+
+    async def test_a_diff_that_cannot_be_read_costs_only_the_diff(
+        self, recorder: _Recorder
+    ) -> None:
+        shell = _Snapshotting(
+            events=_lines(_claude_stream(result=_CLAUDE_DONE)),
+            finish=WorkspaceUnavailableError("gone"),
+        )
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "completed" and report.changes_id is None
+        assert shell.snapshots == ["begin", "finish", "discard"]
+
+    async def test_a_commit_that_fails_costs_only_the_diff(
+        self, recorder: _Recorder, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The connection can go at COMMIT, after the savepoint was released."""
+
+        @contextlib.asynccontextmanager
+        async def savepoint() -> Any:
+            yield
+
+        @contextlib.asynccontextmanager
+        async def lost_at_commit() -> Any:
+            yield SimpleNamespace(begin_nested=savepoint)
+            raise OperationalError("COMMIT", {}, Exception("connection lost"))
+
+        monkeypatch.setattr(_toolset, "get_db_context", lost_at_commit)
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+
+        report = CodingReport.model_validate_json(await _call(shell))
+
+        assert report.outcome == "completed" and report.changes_id is None
+
+    async def test_a_change_set_that_cannot_be_recorded_costs_only_the_diff(
+        self, recorder: _Recorder, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        recorder.raises = SQLAlchemyError("conversation gone")
+        shell = _Snapshotting(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "completed" and report.changes_id is None
+        assert f"in conversation {THREAD} could not be recorded: SQLAlchemyError" in caplog.text
+        # The error's own text carries the INSERT's parameters - the workspace's code.
+        assert "conversation gone" not in caplog.text
 
 
 class TestWatchingItWork:

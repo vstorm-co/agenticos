@@ -95,6 +95,7 @@ from app.services.ws_auth import authenticate_socket_key, authenticate_socket_to
 from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
@@ -172,6 +173,13 @@ def get_conversation_task_service(db: DBSession) -> ConversationTaskService:
 
 
 ConversationTaskSvc = Annotated[ConversationTaskService, Depends(get_conversation_task_service)]
+
+
+def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
+    return CodingTaskChangeService(db)
+
+
+CodingTaskChangeSvc = Annotated[CodingTaskChangeService, Depends(get_coding_task_change_service)]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:

@@ -114,6 +114,13 @@ class CodingReport(BaseModel):
     task_updates: list[str] = []
     refused: list[str] = []
     """Tools the harness wanted and was not allowed at this access."""
+    changes_id: str | None = None
+    """The change set the task left in the sandbox, kept for its panel (#2480).
+
+    Its id, not the patch: this report is what the model reads back on every
+    later turn. Set only for a task at `edit` in a conversation whose workspace
+    could be snapshotted.
+    """
 
 
 @dataclass(frozen=True)

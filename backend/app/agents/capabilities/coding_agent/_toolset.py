@@ -21,17 +21,17 @@ from typing import Any, Literal, Protocol
 from uuid import UUID
 
 import anyio
-import httpx
-from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage
 from pydantic_ai.workspaces import WorkspaceError
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
+from app.agents.capabilities.coding_agent import _changes
 from app.agents.capabilities.coding_agent._acp import AcpError, DevicePipe, run_task
 from app.agents.capabilities.coding_agent._harness import (
     CLAUDE_TOKEN_PREFIX,
@@ -49,6 +49,7 @@ from app.agents.capabilities.coding_agent._harness import (
 )
 from app.agents.capabilities.coding_agent._narration import Narration
 from app.agents.capabilities.coding_agent._task import (
+    SANDBOX_FAILURES,
     Outcome,
     clean_up,
     outline,
@@ -58,6 +59,8 @@ from app.agents.capabilities.coding_agent._task import (
     task_files,
 )
 from app.core.exceptions import BadRequestError
+from app.db.session import get_db_context
+from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.device_hub import (
     DeviceCallFailed,
     DeviceCallTimedOut,
@@ -145,14 +148,6 @@ class CodexSignIn(Protocol):
 
 
 SignIn = Callable[[UUID], CodexSignIn]
-
-_SANDBOX_FAILURES = (UserError, WorkspaceError, httpx.HTTPError)
-"""What the sandbox raises when it cannot run a command at all.
-
-The sandboxd client raises its HTTP error unmapped when the service refuses to
-open a session - a runtime still building answers 409 - so that is a sandbox the
-task could not run in, like the other two.
-"""
 
 
 RunsOn = Literal["sandbox", "this_computer"]
@@ -383,7 +378,7 @@ def build_coding_toolset(
                     },
                     timeout=60,
                 )
-            except _SANDBOX_FAILURES as failed:
+            except SANDBOX_FAILURES as failed:
                 logger.warning("%s could not sign in in the workspace: %s", label, failed)
                 return f"{label} could not run in this sandbox ({type(failed).__name__})."
             return await continued(ctx, task, fresh_session, narration, home=home)
@@ -398,7 +393,37 @@ def build_coding_toolset(
         *,
         home: str | None,
     ) -> CodingReport | str:
-        """The task in this conversation's session, or a new one when that is gone."""
+        """The task in this conversation's session, or a new one when that is gone.
+
+        Snapshotted before and diffed after when its changes are kept, so the
+        report names what the task changed (#2480).
+        """
+        # A read-only task changes nothing to show; its snapshot would cost time for nothing.
+        keeps = access == "edit" and _keeps_changes(ctx.deps)
+        baseline = await _changes.begin(ctx) if keeps else None
+        try:
+            report = await resumed(ctx, task, fresh_session, narration, home=home)
+        except BaseException:
+            with anyio.CancelScope(shield=True):
+                if baseline is not None:
+                    await _changes.discard(ctx, baseline.store)
+            raise
+        if baseline is None:
+            return report
+        if isinstance(report, str):
+            await _changes.discard(ctx, baseline.store)
+            return report
+        # A failed or timed-out task may have changed files too: its diff is kept as well.
+        return await _with_changes(ctx, report, baseline)
+
+    async def resumed(
+        ctx: RunContext[Any],
+        task: str,
+        fresh_session: bool,
+        narration: Narration,
+        *,
+        home: str | None,
+    ) -> CodingReport | str:
         session_id = None if fresh_session else await remembered_session(ctx, harness)
         report = await attempt(ctx, task, session_id, narration, home=home)
         if (
@@ -449,7 +474,7 @@ def build_coding_toolset(
             outcome = await run_detached(
                 ctx, command, files, timeout_seconds=timeout_seconds, on_events=shown
             )
-        except _SANDBOX_FAILURES as failed:
+        except SANDBOX_FAILURES as failed:
             logger.warning("%s could not run in the workspace: %s", label, failed)
             if seen:
                 # The sandbox went mid-task, after the harness had started work:
@@ -465,7 +490,7 @@ def build_coding_toolset(
         finally:
             try:
                 await clean_up(ctx, files)
-            except _SANDBOX_FAILURES:
+            except SANDBOX_FAILURES:
                 logger.debug("A coding task's files in %s were already gone", files.events)
         return reported(outcome)
 
@@ -525,12 +550,65 @@ async def _keep_rotated(
         result = await ctx.workspace.run(  # noqa: S604
             READ_AUTH, shell=True, env=env, timeout=60
         )
-    except _SANDBOX_FAILURES as failed:
+    except SANDBOX_FAILURES as failed:
         logger.warning("Codex's sign-in could not be read back from the sandbox: %s", failed)
         return
     rotated = rotated_sign_in(result.stdout, written)
     if rotated is not None:
         await source.swap(written, rotated)
+
+
+def _keeps_changes(deps: object) -> bool:
+    """Whether a task's change set is kept: in an organization's conversation, where a panel reads it."""
+    return isinstance(getattr(deps, "organization_id", None), UUID) and isinstance(
+        getattr(deps, "conversation_id", None), UUID
+    )
+
+
+async def _with_changes(
+    ctx: RunContext[Any], report: CodingReport, baseline: _changes.Baseline
+) -> CodingReport:
+    """The report, naming the change set the task left - once it is recorded."""
+    changes = await _changes.finish(ctx, baseline)
+    if changes is None:
+        return report
+    try:
+        async with get_db_context() as db:
+            try:
+                # A savepoint, caught inside the session: `get_db_context` logs
+                # an error that leaves it with its traceback, and an INSERT's
+                # error text holds its parameters - the workspace's code (#2480).
+                async with db.begin_nested():
+                    kept = await CodingTaskChangeService(db).record(
+                        changes,
+                        organization_id=ctx.deps.organization_id,
+                        conversation_id=ctx.deps.conversation_id,
+                        tool_call_id=ctx.tool_call_id,
+                        harness=report.harness,
+                    )
+            except SQLAlchemyError as failed:
+                return _unrecorded(ctx, report, failed)
+    except SQLAlchemyError as failed:
+        # The commit, or a connection lost on the way: no parameters in that
+        # error, and the same answer - the diff is lost, the report is not.
+        return _unrecorded(ctx, report, failed)
+    return report.model_copy(update={"changes_id": str(kept.id)})
+
+
+def _unrecorded(ctx: RunContext[Any], report: CodingReport, failed: Exception) -> CodingReport:
+    """The report without a diff, when the diff could not be kept.
+
+    The task's work is done and its report is the model's answer; a diff that
+    could not be kept - a conversation deleted meanwhile, or the database itself
+    failing - costs the panel its diff, not the run its result. Named by its
+    class alone: an INSERT's error text carries the workspace's code.
+    """
+    logger.error(
+        "A coding task's changes in conversation %s could not be recorded: %s",
+        ctx.deps.conversation_id,
+        type(failed).__name__,
+    )
+    return report
 
 
 def _person(deps: object) -> UUID | None:
