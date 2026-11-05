@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Limit expanded chat activity to a keyboard-accessible scrolling region instead of stretching long tool histories across the transcript.
+
 - Keep live chat activity in one truncated status row instead of a changing tool or reasoning preview beneath it; detailed steps remain available in the disclosure.
 
 - Flatten Agents, Tables, Workflows, Apps and Routines catalogs, soften shared buttons, fields, select menus and dialogs, and use an opaque chat composer without a focus beam. Keep received chat text readable while its Markdown renderer loads.

@@ -1,5 +1,5 @@
 ---
-source_sha: "6a0ac268c613"
+source_sha: "340d765498a6"
 ---
 
 # La consola { #the-console }
@@ -464,7 +464,7 @@ Al volver a abrir un chat también se restauran las aprobaciones y preguntas de 
 
 El texto recibido sigue siendo legible mientras carga el módulo de formato Markdown. El editor tiene una superficie opaca y un foco discreto, sin borde animado ni desenfoque del fondo.
 
-Durante el trabajo, una breve etiqueta de actividad comparte la línea de estado. Se mantiene en una sola línea; los pasos completos y el razonamiento permanecen dentro del desplegable. Los segmentos de solo actividad de una ejecución comparten un resumen y su hora de inicio. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación. Abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
+Durante el trabajo, una breve etiqueta de actividad comparte la línea de estado. Se mantiene en una sola línea; los pasos completos y el razonamiento permanecen dentro del desplegable. El historial abierto tiene una altura limitada y desplazamiento propio; el control para contraerlo permanece encima. Los segmentos de solo actividad de una ejecución comparten un resumen y su hora de inicio. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación. Abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
 
 Las escrituras MCP confirmadas muestran tarjetas enlazadas de proyectos, tablas, tareas, registros, agentes, workflows, skills y Context. Los errores no generan tarjetas de éxito. Los mensajes enviados aparecen cerca del borde superior con espacio para la respuesta; el desplazamiento manual conserva tu posición. Las listas Person y Agent se desplazan dentro del diálogo del registro. Las preguntas siguen funcionando tras las continuaciones HTTP aprobadas.
 

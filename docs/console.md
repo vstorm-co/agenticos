@@ -434,7 +434,7 @@ Reopening a chat also restores approvals and questions for delegated tools absen
 
 Incoming text remains readable while its Markdown formatting module loads. The composer uses an opaque surface with a quiet focus state, without a moving border or background blur.
 
-While an agent works, a short activity label shares the status row. It stays on one line; full tool steps and reasoning remain inside the disclosure. Adjacent activity-only segments from the same run share one summary and the run’s start time. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
+While an agent works, a short activity label shares the status row. It stays on one line; full tool steps and reasoning remain inside the disclosure. Expanded history has a height limit and its own scrolling area, with the collapse control above it. Adjacent activity-only segments from the same run share one summary and the run’s start time. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
 
 Successful MCP writes show linked cards for projects, tables, tasks, records, agents, workflows, skills and Context. Errors do not become success cards. After sending a message, the chat places it near the top with space for the answer; scrolling manually keeps your position. Person and Agent pickers scroll inside record dialogs. Questions remain available after an approval resumes a chat through HTTP.
 

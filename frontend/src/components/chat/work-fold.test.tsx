@@ -168,3 +168,23 @@ it("updates one compact live disclosure without exposing its detailed steps", as
   expect(screen.getByText("Detailed tool arguments")).toBeVisible();
   expect(screen.queryByText("Thinking...")).toBeNull();
 });
+
+it("opens the full history as a labelled keyboard-accessible scroll region", async () => {
+  render(
+    <WorkFold steps={40} durationMs={120_000}>
+      {Array.from({ length: 40 }, (_, index) => (
+        <p key={index}>Step {index + 1}</p>
+      ))}
+    </WorkFold>,
+  );
+  const toggle = screen.getByRole("button", { name: /Worked for 2m/ });
+  expect(screen.queryByRole("region")).toBeNull();
+  await userEvent.click(toggle);
+  const history = screen.getByRole("region", { name: /Worked for 2m/ });
+  expect(toggle).toHaveAttribute("aria-controls", history.id);
+  expect(screen.getByText("Step 40")).toBeInTheDocument();
+  await userEvent.tab();
+  expect(history).toHaveFocus();
+  await userEvent.click(toggle);
+  expect(screen.queryByRole("region")).toBeNull();
+});

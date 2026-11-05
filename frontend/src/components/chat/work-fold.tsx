@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   ChevronRight,
   Check,
@@ -122,6 +122,8 @@ export function WorkFold({
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
   const [open, setOpen] = useState(false);
+  const historyId = useId();
+  const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
   const runText = useTranslations("pages.runs");
   const label = waiting
@@ -146,6 +148,8 @@ export function WorkFold({
     <div>
       <button
         type="button"
+        id={toggleId}
+        aria-controls={open ? historyId : undefined}
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
         className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
@@ -194,7 +198,19 @@ export function WorkFold({
           </span>
         )}
       </button>
-      {open && <div className="mt-2 space-y-2">{children}</div>}
+      {open && (
+        <div
+          id={historyId}
+          role="region"
+          aria-labelledby={toggleId}
+          // Focus lets keyboard users scroll to steps outside the visible region.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          className="focus-visible:ring-ring mt-2 max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain rounded-lg p-1 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+        >
+          <div className="space-y-2">{children}</div>
+        </div>
+      )}
     </div>
   );
 }

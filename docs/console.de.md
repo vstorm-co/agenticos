@@ -1,5 +1,5 @@
 ---
-source_sha: "6a0ac268c613"
+source_sha: "340d765498a6"
 ---
 
 # Die Konsole { #the-console }
@@ -484,7 +484,7 @@ Beim erneuten Öffnen eines Chats werden auch Freigaben und Fragen delegierter W
 
 Eingehender Text bleibt lesbar, während das Markdown-Modul lädt. Das Eingabefeld hat eine undurchsichtige Fläche und einen dezenten Fokuszustand, ohne bewegten Rahmen oder Hintergrundunschärfe.
 
-Während der Arbeit steht eine kurze Aktivitätsbezeichnung in der Statuszeile. Sie bleibt einzeilig; vollständige Werkzeugschritte und Überlegungen stehen im aufklappbaren Verlauf. Reine Aktivitätssegmente desselben Laufs teilen eine Zusammenfassung und dessen Startzeit. Abgeschlossene und verschachtelte Agentenaustausche bleiben erhalten, auch Coding-Agent-Berichte. Öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Überlegungen.
+Während der Arbeit steht eine kurze Aktivitätsbezeichnung in der Statuszeile. Sie bleibt einzeilig; vollständige Werkzeugschritte und Überlegungen stehen im aufklappbaren Verlauf. Der geöffnete Verlauf hat eine begrenzte Höhe und einen eigenen Scrollbereich; die Schaltfläche zum Einklappen bleibt darüber. Reine Aktivitätssegmente desselben Laufs teilen eine Zusammenfassung und dessen Startzeit. Abgeschlossene und verschachtelte Agentenaustausche bleiben erhalten, auch Coding-Agent-Berichte. Öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Überlegungen.
 
 Erfolgreiche MCP-Schreibvorgänge zeigen verlinkte Karten für Projekte, Tabellen, Aufgaben, Datensätze, Agenten, Workflows, Skills und Context. Fehler erzeugen keine Erfolgskarten. Gesendete Nachrichten stehen nahe am oberen Rand mit Platz für die Antwort; manuelles Scrollen behält Ihre Position bei. Person- und Agent-Listen scrollen im Datensatzdialog. Fragen funktionieren auch nach genehmigten HTTP-Fortsetzungen.
 
