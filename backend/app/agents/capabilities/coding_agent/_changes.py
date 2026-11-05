@@ -188,10 +188,10 @@ async def begin(ctx: RunContext[Any]) -> Baseline | None:
     tree = result.stdout.strip().rsplit("\n", 1)[-1].strip()
     if result.exit_code != 0 or not _is_object_id(tree):
         if result.exit_code != NO_GIT:
+            # The exit code alone: stderr is the sandbox's, and a task that rewrote
+            # the store's git config can make it print the workspace.
             logger.warning(
-                "A coding task's workspace could not be snapshotted (exit %s): %s",
-                result.exit_code,
-                result.stderr.strip()[-500:],
+                "A coding task's workspace could not be snapshotted (exit %s)", result.exit_code
             )
         await discard(ctx, store)
         return None
@@ -215,11 +215,8 @@ async def finish(ctx: RunContext[Any], baseline: Baseline) -> ChangeSet | None:
         with anyio.CancelScope(shield=True):
             await discard(ctx, baseline.store)
     if result.exit_code != 0:
-        logger.warning(
-            "A coding task's changes could not be read (exit %s): %s",
-            result.exit_code,
-            result.stderr.strip()[-500:],
-        )
+        # The exit code alone, as in `begin`: stderr is the sandbox's to write.
+        logger.warning("A coding task's changes could not be read (exit %s)", result.exit_code)
         return None
     return parse(result.stdout)
 
