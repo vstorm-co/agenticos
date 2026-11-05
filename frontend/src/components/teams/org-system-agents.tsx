@@ -6,6 +6,8 @@ import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { SetupIndicator } from "@/components/settings/setup-indicator";
+import { systemAgentSetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { ErrorState } from "@/components/states";
 import { Badge, Button, Input, Label, Switch } from "@/components/ui";
@@ -73,7 +75,10 @@ function Role({ agent }: { agent: SystemAgent }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-medium">{t(`roles.${agent.role}.name`)}</h3>
+          <div className="flex items-center gap-1.5">
+            <h3 className="text-sm font-medium">{t(`roles.${agent.role}.name`)}</h3>
+            <SetupIndicator hints={systemAgentSetupHints(agent)} />
+          </div>
           <p className="text-muted-foreground text-xs leading-relaxed">
             {t(`roles.${agent.role}.what`)}
           </p>

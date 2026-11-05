@@ -778,6 +778,8 @@ change takes effect at once, without publishing a new version.
 
 Organization details use five tabs: **Members** for people and invitations; **Workspace** for the organization profile and default voice settings; **Budget and approvals** for spending and access policies; **Proactivity** for suggestions, monitoring and delivery; and **AI & services** for the Architect and system services. Controls retain their own permission gates. AI & services is available to budget managers even when Architect configuration is unavailable. The selected tab is stored in the URL, switching tabs preserves drafts, and old `?tab=voice` links open Workspace.
 
+Amber setup dots mark organization tabs and the matching Voice, nightly-suggestion, memory-maintenance and Architect cards when configuration is incomplete or suggestions are off. Hover or focus the dot for a specific explanation; click or tap it to keep the explanation open. Indicators use saved configuration, disappear when completed and respect the permissions needed to edit it. Disabled suggestions are described as optional setup, not an error. The iPhone push configuration card also marks a missing Apple key. Reduced-motion preferences disable the pulsing animation.
+
 ## Languages
 
 The console speaks English, Polish, German and Turkish. The walkthrough's first

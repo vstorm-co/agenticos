@@ -13072,5 +13072,15 @@
       "user": "Następny krok: osoba",
       "agent": "Następny krok: agent"
     }
+  },
+  "setupHints": {
+    "title": "Konfiguracja do uzupełnienia",
+    "voiceModel": "Głos nie ma domyślnego dostawcy lub modelu. Wybierz je w Organizacja → Głos, aby korzystać z transkrypcji przez dostawcę.",
+    "voiceKey": "Głos ma dostawcę i model, ale nie ma klucza. Wybierz klucz organizacji w Organizacja → Głos.",
+    "proactivityOff": "Nocne sugestie są wyłączone. Włącz je w Proaktywności, jeśli asystent ma przygotowywać propozycje dla zespołu.",
+    "proactivityModel": "Nocne sugestie są włączone, ale nie wybrano modelu. Wybierz model w Proaktywności.",
+    "memoryModel": "Utrzymanie pamięci nie ma wybranego modelu. Wybierz go w AI i usługi → Usługi w tle, aby korzystać z automatycznego utrzymania pamięci.",
+    "architectModel": "Architect potrzebuje modelu. Otwórz go w Agent Builder z zakładki AI i usługi i wybierz model.",
+    "mobilePush": "Powiadomienia push na iPhonie nie mają klucza Apple. Dodaj tutaj klucz APNs, jeśli korzystasz z własnej wersji aplikacji iOS."
   }
 }

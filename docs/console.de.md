@@ -1,5 +1,5 @@
 ---
-source_sha: "74e51bb424b0"
+source_sha: "b2ff94fc7c44"
 ---
 
 # Die Konsole { #the-console }
@@ -875,6 +875,8 @@ Detailseite, neben den Avatar-Steuerelementen, und die Änderung wirkt sofort,
 ohne dass eine neue Version veröffentlicht wird.
 
 Die Organisationsdetails haben fünf Registerkarten: **Mitglieder** für Personen und Einladungen; **Arbeitsbereich** für Profil und Standard-Spracheinstellungen; **Budget und Freigaben** für Ausgaben und Zugriffsregeln; **Proaktivität** für Vorschläge, Überwachung und Zustellung; **KI und Dienste** für Architect und Systemdienste. Jedes Formular behält seine Berechtigungsprüfung. Budgetverantwortliche erreichen KI und Dienste auch ohne Architect-Konfiguration. Die Auswahl steht in der URL, Entwürfe bleiben beim Wechsel erhalten, und bisherige `?tab=voice`-Links öffnen Arbeitsbereich.
+
+Bernsteinfarbene Punkte markieren Organisationstabs und die zugehörigen Karten für Sprache, nächtliche Vorschläge, Gedächtnispflege und Architect bei unvollständiger Konfiguration oder ausgeschalteten Vorschlägen. Hover oder Tastaturfokus zeigt die Erklärung; Klicken oder Tippen hält sie geöffnet. Die Hinweise verwenden gespeicherte Einstellungen, verschwinden nach der Einrichtung und beachten Bearbeitungsrechte. Ausgeschaltete Vorschläge gelten als optionale Einrichtung, nicht als Fehler. Auch die iPhone-Push-Karte markiert einen fehlenden Apple-Schlüssel. Bei reduzierter Bewegung entfällt das Pulsieren.
 
 ## Sprachen { #languages }
 

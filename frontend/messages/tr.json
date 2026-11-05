@@ -12748,5 +12748,15 @@
       "user": "Sonraki adım: kişi",
       "agent": "Sonraki adım: ajan"
     }
+  },
+  "setupHints": {
+    "title": "Yapılandırma mevcut",
+    "voiceModel": "Ses için varsayılan sağlayıcı veya model yok. Sağlayıcı üzerinden transkripsiyon için Çalışma alanı → Ses bölümünde seçin.",
+    "voiceKey": "Ses sağlayıcısı ve modeli var ancak anahtar yok. Çalışma alanı → Ses bölümünde kuruluş anahtarı seçin.",
+    "proactivityOff": "Gece önerileri kapalı. Asistanın ekibiniz için öneriler hazırlamasını istiyorsanız Proaktiflik bölümünde açın.",
+    "proactivityModel": "Gece önerileri açık ancak model seçilmedi. Proaktiflik bölümünde bir model seçin.",
+    "memoryModel": "Bellek bakımı için model seçilmedi. Otomatik bellek bakımı için Yapay zekâ ve hizmetler → Arka plan hizmetleri bölümünde model seçin.",
+    "architectModel": "Architect bir model gerektiriyor. Yapay zekâ ve hizmetler üzerinden Agent Builder’da açın ve bir model seçin.",
+    "mobilePush": "iPhone anlık bildirimleri için Apple anahtarı yapılandırılmadı. Kendi iOS uygulama derlemenizi kullanıyorsanız buraya APNs anahtarınızı ekleyin."
   }
 }

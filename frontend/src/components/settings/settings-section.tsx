@@ -63,6 +63,7 @@ export function SectionCard({
 
 interface SettingsSectionProps {
   title: string;
+  status?: ReactNode;
   description?: string;
   /** Right-aligned action (e.g. "Save changes" button). */
   action?: ReactNode;
@@ -74,6 +75,7 @@ interface SettingsSectionProps {
 
 export function SettingsSection({
   title,
+  status,
   description,
   action,
   danger,
@@ -102,6 +104,7 @@ export function SettingsSection({
               {title}
             </h2>
             {description && !danger && <ContextHelp>{description}</ContextHelp>}
+            {status}
           </div>
           {description && danger && (
             <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>

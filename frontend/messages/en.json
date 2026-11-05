@@ -13297,5 +13297,15 @@
       "user": "Next step: person",
       "agent": "Next step: agent"
     }
+  },
+  "setupHints": {
+    "title": "Setup available",
+    "voiceModel": "Voice has no default provider or model. Choose them in Workspace → Voice to use provider-based transcription.",
+    "voiceKey": "Voice has a provider and model, but no key. Select an organization key in Workspace → Voice.",
+    "proactivityOff": "Nightly suggestions are off. Enable them in Proactivity if you want the assistant to prepare suggestions for your team.",
+    "proactivityModel": "Nightly suggestions are on, but no model is selected. Choose a model in Proactivity.",
+    "memoryModel": "Memory maintenance has no model selected. Choose one in AI & services → Background services to use automatic memory maintenance.",
+    "architectModel": "The Architect needs a model. Open it in Agent Builder from AI & services and select one.",
+    "mobilePush": "iPhone push notifications have no Apple key configured. Add your APNs key here if you use your own iOS app build."
   }
 }

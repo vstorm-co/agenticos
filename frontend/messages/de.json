@@ -12969,5 +12969,15 @@
       "user": "Nächster Schritt: Person",
       "agent": "Nächster Schritt: Agent"
     }
+  },
+  "setupHints": {
+    "title": "Konfiguration verfügbar",
+    "voiceModel": "Für Sprache fehlt ein Standardanbieter oder Modell. Unter Arbeitsbereich → Sprache für die Transkription über einen Anbieter auswählen.",
+    "voiceKey": "Sprache hat Anbieter und Modell, aber keinen Schlüssel. Unter Arbeitsbereich → Sprache einen Organisationsschlüssel wählen.",
+    "proactivityOff": "Nächtliche Vorschläge sind aus. Unter Proaktivität aktivieren, wenn der Assistent Vorschläge für Ihr Team vorbereiten soll.",
+    "proactivityModel": "Nächtliche Vorschläge sind an, aber ohne Modell. Unter Proaktivität ein Modell wählen.",
+    "memoryModel": "Für Gedächtnispflege fehlt ein Modell. Unter KI und Dienste → Hintergrunddienste auswählen, um automatische Gedächtnispflege zu nutzen.",
+    "architectModel": "Der Architect benötigt ein Modell. Unter KI und Dienste im Agent Builder öffnen und ein Modell auswählen.",
+    "mobilePush": "Für iPhone-Push-Benachrichtigungen fehlt ein Apple-Schlüssel. Hier einen APNs-Schlüssel hinzufügen, wenn Sie einen eigenen iOS-App-Build nutzen."
   }
 }

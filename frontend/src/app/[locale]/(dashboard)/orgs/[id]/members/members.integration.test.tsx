@@ -12,7 +12,7 @@ import { permissionsOf, ROLE_CATALOG } from "@/test-utils/role-catalog";
 import { assignableRoles } from "@/lib/assignable-roles";
 import type { MyPermissions } from "@/types/permissions";
 import { Perm } from "@/types/permissions";
-import type { OrgRole } from "@/types/organization";
+import type { Organization, OrgRole } from "@/types/organization";
 
 /**
  * Which rows offer a role picker, and which offer a label instead.
@@ -94,7 +94,11 @@ function member(
 }
 
 /** Answer every request the page makes, as a caller holding `role`. */
-function serve(role: string, extraPermissions: MyPermissions["permissions"] = []) {
+function serve(
+  role: string,
+  extraPermissions: MyPermissions["permissions"] = [],
+  configuration: Partial<Organization> = {},
+) {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
     if (url.startsWith("/me/permissions"))
@@ -120,7 +124,7 @@ function serve(role: string, extraPermissions: MyPermissions["permissions"] = []
       });
     if (url === "/orgs")
       return Promise.resolve({
-        items: [{ id: "org-1", name: "Acme", avatar_color: null }],
+        items: [{ id: "org-1", name: "Acme", avatar_color: null, ...configuration }],
         total: 1,
       });
     if (url.includes("/members")) {
@@ -476,6 +480,64 @@ describe("organization settings tabs", () => {
     expect(screen.queryByRole("tab", { name: "Voice" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
     expect(screen.queryByRole("region", { name: "Memory maintenance" })).not.toBeInTheDocument();
+  });
+
+  it("describes unfinished setup on the matching tabs and cards", async () => {
+    serve(
+      "owner",
+      [
+        { permission: Perm.orgSettings, scope: "all" },
+        { permission: Perm.budgetsManage, scope: "all" },
+      ],
+      {
+        speech_to_text_provider: null,
+        speech_to_text_model: null,
+        speech_to_text_secret_id: null,
+        proactive_enabled: false,
+      },
+    );
+    await mount();
+    const workspace = await screen.findByRole("tab", { name: "Workspace" });
+    await waitFor(() =>
+      expect(workspace).toHaveAccessibleDescription(/Voice has no default provider or model/),
+    );
+    expect(screen.getByRole("tab", { name: "Proactivity" })).toHaveAccessibleDescription(
+      /Nightly suggestions are off/,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "AI & services" })).toHaveAccessibleDescription(
+        /Memory maintenance has no model/,
+      ),
+    );
+    await userEvent.click(workspace);
+    expect(
+      within(screen.getByRole("tabpanel")).getByRole("button", {
+        name: /Voice has no default provider/,
+      }),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Proactivity" }));
+    expect(
+      within(screen.getByRole("tabpanel")).getByRole("button", {
+        name: /Nightly suggestions are off/,
+      }),
+    ).toBeVisible();
+  });
+
+  it("does not advertise setup controls a viewer cannot use", async () => {
+    serve("viewer", [], {
+      speech_to_text_provider: null,
+      speech_to_text_model: null,
+      speech_to_text_secret_id: null,
+      proactive_enabled: false,
+    });
+    await mount();
+    const tabs = await screen.findByRole("tablist");
+    expect(
+      within(tabs).queryByRole("button", {
+        name: /Voice has|Nightly suggestions|Memory maintenance/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Workspace" })).not.toHaveAttribute("aria-describedby");
   });
 
   it.each(["voice", "governance", "proactivity", "assistant", "unknown"])(

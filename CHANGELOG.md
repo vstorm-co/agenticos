@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Show pulsing setup indicators on organization tabs and configuration cards, with permission-aware explanations for missing Voice, memory, Architect and iPhone-push setup or disabled nightly suggestions.
+
 - Choose a shared saved view as the table default, with explicit URL overrides; start task boards in Kanban and use rich-text notes plus linked Person/Agent references and an explicit next-step actor.
 
 - Durable tasks share one Virtual Table record across scoped boards, working chats and Inbox. Provision personal, project, group and organization boards on first use; schedule model-free reminders or one-shot agent work with existing routine authority, retain review state, and settle the same commitment from Tables or Inbox.

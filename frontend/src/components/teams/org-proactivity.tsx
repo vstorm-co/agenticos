@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
+import { SetupIndicator } from "@/components/settings/setup-indicator";
+import { proactivitySetupHints } from "@/lib/setup-hints";
 import { SettingsSection } from "@/components/settings/settings-section";
 import {
   Button,
@@ -110,6 +112,7 @@ export function OrgProactivity({ org }: { org: Organization }) {
 /** A feature's switch and explanation stay together, even when its settings are hidden. */
 function FeaturePanel({
   title,
+  status,
   description,
   icon: Icon,
   id,
@@ -119,6 +122,7 @@ function FeaturePanel({
   children,
 }: {
   title: string;
+  status?: ReactNode;
   description: string;
   icon: LucideIcon;
   id: string;
@@ -134,9 +138,12 @@ function FeaturePanel({
           <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
         </span>
         <div className="min-w-0 flex-1 space-y-1.5">
-          <Label htmlFor={id} className="text-sm font-semibold">
-            {title}
-          </Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor={id} className="text-sm font-semibold">
+              {title}
+            </Label>
+            {status}
+          </div>
           <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
         </div>
         <Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
@@ -204,6 +211,7 @@ function NightlyForm({ org }: { org: Organization }) {
       <div className="grid items-stretch gap-4 lg:grid-cols-2">
         <FeaturePanel
           title={t("nightly")}
+          status={<SetupIndicator hints={proactivitySetupHints(org)} />}
           description={t("nightlyHint")}
           icon={Moon}
           id="org-proactive-enabled"

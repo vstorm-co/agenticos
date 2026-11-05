@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Camera,
@@ -32,6 +32,15 @@ import {
   OrgSpendingLimit,
   OrgVoiceSettings,
 } from "@/components/teams";
+import { SetupIndicator } from "@/components/settings/setup-indicator";
+import { useSystemAgents } from "@/hooks/use-system-agents";
+import {
+  voiceSetupHints,
+  proactivitySetupHints,
+  systemAgentSetupHints,
+  architectSetupHints,
+  type SetupHint,
+} from "@/lib/setup-hints";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ForgetMemberMemory } from "@/components/memory/forget-member-memory";
 import { DirectoryBadge } from "@/components/orgs/directory-badge";
@@ -94,6 +103,8 @@ export default function OrgMembersPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("pages.orgs");
   const tc = useTranslations("common");
+  const tSetup = useTranslations("setupHints");
+  const setupId = useId();
   const tGroups = useTranslations("groups");
   const tDirectory = useTranslations("directory");
   const tDiscord = useTranslations("discordRoles");
@@ -131,6 +142,17 @@ export default function OrgMembersPage({ params }: PageProps) {
   const canConfigureAssistant =
     activeOrgId === id && !!assistant?.can_configure && !!assistant.agent_id;
   const canSystemServices = can(Perm.budgetsManage) && tenantId === id;
+  const { roles: systemRoles, error: systemRolesError } = useSystemAgents(canSystemServices);
+  const hints: Record<string, SetupHint[]> = {
+    profile: org && canSettings ? voiceSetupHints(org) : [],
+    proactivity: org && can(Perm.budgetsManage) ? proactivitySetupHints(org) : [],
+    assistant: [
+      ...(canConfigureAssistant && assistant ? architectSetupHints(assistant) : []),
+      ...(canSystemServices && !systemRolesError
+        ? (systemRoles ?? []).flatMap(systemAgentSetupHints)
+        : []),
+    ],
+  };
   const sections = [
     { id: "members", label: "members", icon: Users, visible: true },
     { id: "profile", label: "tabProfile", icon: Building2, visible: true },
@@ -440,10 +462,26 @@ export default function OrgMembersPage({ params }: PageProps) {
       >
         <TabsList data-tour="org-tabs">
           {sections.map((section) => (
-            <TabsTrigger key={section.id} value={section.id} data-tour={`org-tab-${section.id}`}>
-              <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
-              {t(section.label)}
-            </TabsTrigger>
+            <div key={section.id} className="relative pt-2">
+              <TabsTrigger
+                value={section.id}
+                data-tour={`org-tab-${section.id}`}
+                aria-describedby={
+                  hints[section.id]?.length ? `${setupId}-${section.id}` : undefined
+                }
+              >
+                <section.icon className="mr-1.5 size-4 shrink-0" aria-hidden />
+                {t(section.label)}
+              </TabsTrigger>
+              <span id={`${setupId}-${section.id}`} className="sr-only">
+                {(hints[section.id] ?? []).map((hint) => tSetup(hint)).join(" ")}
+              </span>
+              <SetupIndicator
+                hints={hints[section.id] ?? []}
+                className="absolute top-0 right-0"
+                focusable={false}
+              />
+            </div>
           ))}
         </TabsList>
         {/* Keep drafts mounted while another section is open. Hidden panels take
