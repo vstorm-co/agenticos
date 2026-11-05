@@ -68,6 +68,8 @@ Preview CSS imports, images and fonts resolve relative to their stylesheet throu
 
 File-link metadata stores only an opaque origin identifier for local turns. The folder mapping stays on the initiating desktop, scoped to its account and organization; other participants and computers cannot resolve those links. Legacy origins containing a local path are omitted when reading stored turns.
 
+The agent Builder’s **Visual map** fits the whole configuration on opening and when the canvas changes size. **Reset view** fits it again after panning or zooming. Large groups show six items and their remaining count; select a group to read its complete, scrollable list. The workflow minimap shows the whole graph and lets you move to another part without changing the zoom.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

@@ -309,6 +309,7 @@
     "mapCycleBadge": "Führt zurück",
     "mapCycleDetail": "Die Delegation kehrt zu einem Agent zurück, der auf diesem Zweig bereits darüber liegt. Ein Run weist die Schleife ab, statt ihr zu folgen.",
     "mapDelegate": "Delegat",
+    "mapMoreItems": "+{count} weitere · alle anzeigen",
     "mapDepthCap": "Mehr darunter",
     "mapDepthCapDetail": "Hat eigene Delegaten, die ein von diesem Agent gestarteter Run nie erreichen kann – die Tiefenbegrenzung der Delegation endet hier, oder seine Delegation ist ausgeschaltet.",
     "mapDetailRegion": "Details zu {name}",

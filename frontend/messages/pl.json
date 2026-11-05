@@ -8053,6 +8053,7 @@
     "mapCycleBadge": "Zapętla się",
     "mapCycleDetail": "Delegacja wraca do agenta znajdującego się już wyżej w tej gałęzi. Run odrzuca pętlę, zamiast za nią podążać.",
     "mapDelegate": "Delegat",
+    "mapMoreItems": "+{count} więcej · otwórz pełną listę",
     "mapDepthCap": "Więcej poniżej",
     "mapDepthCapDetail": "Ma własne delegaty, do których run rozpoczęty od tego agenta nigdy nie dotrze - limit głębokości delegacji kończy się tutaj albo jego delegacja jest wyłączona.",
     "mapDetailRegion": "Szczegóły dla {name}",

@@ -1,5 +1,5 @@
 ---
-source_sha: "340d765498a6"
+source_sha: "c136a2a19ae6"
 ---
 
 # Konsola { #the-console }
@@ -73,6 +73,8 @@ Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukr
 Importy CSS, obrazy i fonty w podglądzie są rozwiązywane względem arkusza przez ten sam autoryzowany dostęp do plików. Podgląd dopuszcza cztery zagnieżdżone poziomy, 64 zasoby, 8 MiB wejściowych zasobów i 16 MiB rozwiniętego wyniku. Skróty plików zachowują konwersację lub folder z chwili wykonania tury, zapisane z jej osią czasu. Zmiana Work on nie przekierowuje skrótów. Starsze tury bez zapisanego źródła nie otrzymują zgadywanych linków. Otwarcie lokalnego pliku nadal wymaga aktualnej zgody na folder.
 
 Metadane linków do plików zapisują dla lokalnych tur tylko niejawny identyfikator źródła. Powiązanie z folderem pozostaje na komputerze inicjującym, w zakresie konta i organizacji; inni uczestnicy i komputery nie mogą rozwiązać tych linków. Starsze źródła zawierające lokalną ścieżkę są pomijane przy odczycie zapisanych tur.
+
+**Visual map** w builderze agenta dopasowuje całą konfigurację po otwarciu i zmianie rozmiaru obszaru. **Reset view** ponownie dopasowuje mapę po przesunięciu lub przybliżeniu. Duże grupy pokazują sześć elementów i liczbę pozostałych; wybierz grupę, aby otworzyć pełną, przewijaną listę. Minimapa workflow pokazuje cały graf i pozwala przejść do innego miejsca bez zmiany przybliżenia.
 
 ## Dashboard { #the-dashboard }
 

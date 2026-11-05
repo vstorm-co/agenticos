@@ -309,6 +309,7 @@
     "mapCycleBadge": "Loops back",
     "mapCycleDetail": "Delegation returns to an agent already above it on this branch. A run refuses the loop rather than following it.",
     "mapDelegate": "Delegate",
+    "mapMoreItems": "+{count} more · open to view all",
     "mapDepthCap": "More below",
     "mapDepthCapDetail": "Has delegates of its own that a run starting from this agent can never reach - the delegation depth cap stops here, or its delegation is switched off.",
     "mapDetailRegion": "Details for {name}",

@@ -1,5 +1,5 @@
 ---
-source_sha: "340d765498a6"
+source_sha: "c136a2a19ae6"
 ---
 
 # La consola { #the-console }
@@ -75,6 +75,8 @@ En el teléfono, las acciones bajo los mensajes del usuario y del agente empieza
 Las importaciones CSS, imágenes y fuentes se resuelven respecto a su hoja de estilo mediante el mismo acceso autorizado. Las vistas previas permiten cuatro niveles anidados, 64 recursos, 8 MiB de entrada y 16 MiB de salida expandida. Los enlaces conservan su conversación o carpeta local original, registrada en la cronología del turno. Cambiar Work on no los redirige. Los turnos antiguos sin origen registrado no reciben enlaces inferidos. Abrir un archivo local sigue requiriendo su permiso nativo vigente.
 
 Los metadatos de enlaces guardan solo un identificador opaco del origen para los turnos locales. La relación con la carpeta permanece en el equipo que inició el turno, limitada a su cuenta y organización; otros participantes y equipos no pueden resolver esos enlaces. Los orígenes antiguos con una ruta local se omiten al leer turnos guardados.
+
+**Visual map** en el editor de agentes ajusta toda la configuración al abrirse y al cambiar el tamaño del área. **Reset view** vuelve a ajustarla tras desplazarla o ampliarla. Los grupos grandes muestran seis elementos y el número restante; selecciona un grupo para consultar la lista completa con desplazamiento. El minimapa de workflows muestra todo el grafo y permite cambiar de zona sin modificar el zoom.
 
 ## El dashboard { #the-dashboard }
 

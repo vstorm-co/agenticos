@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Fit the agent configuration map into its canvas, keep large groups compact with complete details on demand, and restore the workflow minimap’s graph coordinates.
+
 - Limit expanded chat activity to a keyboard-accessible scrolling region instead of stretching long tool histories across the transcript.
 
 - Keep live chat activity in one truncated status row instead of a changing tool or reasoning preview beneath it; detailed steps remain available in the disclosure.

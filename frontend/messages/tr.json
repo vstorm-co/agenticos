@@ -5980,6 +5980,7 @@
     "mapCycleBadge": "Döngüye dönüyor",
     "mapCycleDetail": "Delegation bu dalda daha üstte bulunan bir Agent'a geri dönüyor. Run döngüyü izlemek yerine reddeder.",
     "mapDelegate": "Delegate",
+    "mapMoreItems": "+{count} tane daha · tümünü aç",
     "mapDepthCap": "Altında devamı var",
     "mapDepthCapDetail": "Kendi delegate'leri var, ancak delegation derinliği sınırı veya delegation'ın kapalı olması nedeniyle bu Agent'tan başlayan run onlara ulaşamaz.",
     "mapDetailRegion": "{name} için ayrıntılar",
