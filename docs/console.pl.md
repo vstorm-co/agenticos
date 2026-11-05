@@ -1,5 +1,5 @@
 ---
-source_sha: "03e8f564a7e3"
+source_sha: "46ff7fba22f9"
 ---
 
 # Konsola { #the-console }
@@ -328,6 +328,8 @@ karta, która wyłącza go dla wszystkich i ustawia jego powitanie. **Ustawienia
 Asystent** to już tylko twoje własne wskazówki.
 
 ## Domyślne agenty platformy { #shipped-agent-defaults }
+
+AgenticOS, Architect i domyślna konfiguracja nowych agentów nie zawierają narzędzi do roboczego planowania. Agenci raportują postęp na czacie, a pracę wymagającą trwałego zapisu obsługują przez zarządzane Tasks w AgenticOS MCP.
 
 Oba agenty startowe i nowe agenty z konsoli mają Watch a command, Background topics, Work while tools run, ograniczone wyszukiwanie wcześniejszych rozmów i wyszukiwanie narzędzi lokalnym BM25 z pięcioma wynikami. Otrzymują specjalistów research, explore i review, dynamicznych specjalistów oraz automatyczny wybór delegowania sync/async. Monitory kończą się wraz z turą i wymagają trwałej powłoki; tematy w tle przeżywają turę. Historia jest wyszukiwana tylko na żądanie, najpierw fragmenty, potem ograniczone okna transkrypcji. Grupy i uruchomienia bez nadzoru nie przeszukują prywatnej historii.
 

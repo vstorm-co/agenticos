@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Remove scratch planning tools from AgenticOS, Architect and new-agent defaults; keep progress guidance in messages and durable commitments in managed Tasks.
+
 - Restore approvals and questions for delegated tools from the parent run pause even when the parent timeline only contains a task call; show paused delegates as working during an approved HTTP continuation and reconcile finished published delegates independently when the parent pauses again.
 
 - Keep approved chat turns visibly working while their HTTP continuation runs, preserve their live state during transcript refreshes and queue follow-up messages until the continuation returns.

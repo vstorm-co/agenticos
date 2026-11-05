@@ -1,5 +1,5 @@
 ---
-source_sha: "03e8f564a7e3"
+source_sha: "46ff7fba22f9"
 ---
 
 # Die Konsole { #the-console }
@@ -353,6 +353,8 @@ legt seine Begrüßung fest. **Einstellungen → Assistent** enthält nur noch I
 eigenen Tipps.
 
 ## Mitgelieferte Agenten { #shipped-agent-defaults }
+
+AgenticOS, Architect und die Vorgaben für neue Agenten enthalten keine Werkzeuge für vorläufige Arbeitspläne. Agenten melden ihren Fortschritt im Chat und verwenden verwaltete Tasks über AgenticOS MCP für dauerhaft zu speichernde Arbeit.
 
 Beide Startagenten und neue Konsolenagenten enthalten Watch a command, Background topics, Work while tools run, begrenzte Suche in früheren Gesprächen und lokale BM25-Werkzeugsuche mit fünf Ergebnissen. Sie erhalten research-, explore- und review-Spezialisten, dynamische Spezialisten und automatische sync/async-Delegation. Monitore benötigen eine dauerhafte Shell und enden mit dem Turn; Hintergrundthemen bleiben danach bestehen. Frühere Gespräche werden nur bei Bedarf durchsucht: zuerst Ausschnitte, dann begrenzte Transkriptfenster. Gruppen und unbeaufsichtigte Läufe können keine private Historie durchsuchen.
 

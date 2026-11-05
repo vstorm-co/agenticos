@@ -405,3 +405,13 @@ def test_explicit_desktop_browser_survives_without_a_deployment_cdp_endpoint(mon
     monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
     binding = {"id": "browser_use", "config": {"connection": "local"}}
     assert agent_templates.for_this_deployment((binding,)) == [binding]
+
+
+def test_shipped_agents_and_new_agent_defaults_do_not_offer_planning_tools() -> None:
+    for key in ("general/agenticos", "general/platform-assistant"):
+        template = agent_templates.get(key)
+        assert template is not None
+        assert "planning" not in {binding["id"] for binding in template.capabilities}
+        assert "write_plan" not in template.instructions
+        assert "planning tool" not in template.instructions
+    assert "planning" not in agent_templates.starter_capabilities()

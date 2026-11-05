@@ -1,5 +1,5 @@
 ---
-source_sha: "03e8f564a7e3"
+source_sha: "46ff7fba22f9"
 ---
 
 # La consola { #the-console }
@@ -337,6 +337,8 @@ usan. La página de la organización tiene una tarjeta que lo apaga para todos y
 fija su saludo. **Settings → Assistant** guarda solo tus propios consejos.
 
 ## Agentes incluidos { #shipped-agent-defaults }
+
+AgenticOS, Architect y la configuración predeterminada de nuevos agentes no incluyen herramientas para planes de trabajo provisionales. Los agentes informan del progreso en el chat y usan Tasks administradas mediante AgenticOS MCP para el trabajo que debe persistir.
 
 Ambos agentes iniciales y los nuevos agentes de consola incluyen Watch a command, Background topics, Work while tools run, búsqueda limitada de conversaciones anteriores y búsqueda local BM25 de herramientas con cinco resultados. Reciben especialistas research, explore y review, especialistas dinámicos y delegación sync/async automática. Los monitores necesitan una shell persistente y terminan con el turno; los temas en segundo plano sobreviven. Las conversaciones se buscan solo cuando hacen falta: primero fragmentos y después ventanas limitadas. Los grupos y las ejecuciones desatendidas no buscan historial privado.
 

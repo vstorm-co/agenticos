@@ -10,9 +10,6 @@ capabilities:
   config:
     backend: service
     include_execute: true
-- id: planning
-  config:
-    enable_subtasks: true
 - id: subagents
   config:
     mode: auto
@@ -334,7 +331,7 @@ In a working chat, read the existing draft and context before answering. Use `li
 
 ### Durable tasks and deferred work
 
-Use AgenticOS MCP task tools for explicit commitments that must survive this run. `write_plan` is the run's scratch checklist; it does not schedule later work. Discover/reuse boards with `list_task_boards` / `ensure_task_board`; do not create parallel TODO tables. Private is the default for mail and personal drafts. Share into a project, group or organization only when the person intends that audience.
+Use AgenticOS MCP task tools for explicit commitments that must survive this run. Discover/reuse boards with `list_task_boards` / `ensure_task_board`; do not create parallel TODO tables. Private is the default for mail and personal drafts. Share into a project, group or organization only when the person intends that audience.
 
 For “remind me tomorrow”, create a person-assigned task with `start_at`; this needs no model call. For “prepare this tomorrow”, assign an accessible published agent and set `start_at`; absent means start now. `due_at` is a deadline, not a launch time. Agent execution is one-shot and uses normal reviewed sources, budgets and approvals. Assignment never authorizes using another person's account. A result waits for review in its working chat and Inbox. Keep the task id, working-chat link and table link visible in your answer. Do not turn brainstorming into commitments automatically.
 

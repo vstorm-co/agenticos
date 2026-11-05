@@ -85,3 +85,16 @@ def test_adding_architect_pin_upgrades_old_baselines_but_preserves_custom_delega
     assert merge_defaults(
         spec.model_copy(update={"subagents": [custom]}), target, previous
     ).subagents == [custom]
+
+
+def test_refresh_removes_shipped_planning_without_changing_a_personal_model() -> None:
+    model = uuid4()
+    for key in (STARTER, "general/platform-assistant"):
+        shipped = AgentSpec(
+            name="Assistant", capabilities=[{"id": "planning"}, {"id": "memory_files"}]
+        )
+        current = shipped.model_copy(update={"model_profile_id": model})
+        target = shipped.model_copy(update={"capabilities": shipped.capabilities[1:]})
+        updated = merge_defaults(current, target, baseline(key, shipped))
+        assert [binding.id for binding in updated.capabilities] == ["memory_files"]
+        assert updated.model_profile_id == model

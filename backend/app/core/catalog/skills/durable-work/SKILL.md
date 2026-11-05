@@ -16,7 +16,7 @@ Keep progress updates brief: result, uncertainty and the next useful check.
 
 | Lifetime | Mechanism | Completion requirement |
 | --- | --- | --- |
-| Steps inside this run | `write_plan` | Update after evidence, not after dispatch |
+| Steps inside this run | Brief progress messages | Update after evidence, not after dispatch |
 | Independent investigation inside this run | Subagent task/delegate | Collect and check its returned evidence |
 | Slow tool while other steps proceed | Its supported `run_in_background` option | Consume the result before depending on it |
 | Command output during this turn | `start_monitor` | Stop when finished; not available in every shell |
