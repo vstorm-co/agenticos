@@ -21,6 +21,7 @@ export function checkAgent(
         dataset_name: "Skill set",
         cases: 4,
         eval_run_id: null,
+        counts: null,
       },
       {
         kind: "dataset_sample",
@@ -28,6 +29,7 @@ export function checkAgent(
         dataset_name: "Own",
         cases: 2,
         eval_run_id: null,
+        counts: null,
       },
     ],
     fixed: 0,

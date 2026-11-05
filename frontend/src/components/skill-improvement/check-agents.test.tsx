@@ -10,7 +10,13 @@ const compared = vi.hoisted(() => ({
   comparison: undefined as Partial<EvalComparison> | undefined,
   error: null as Error | null,
 }));
-vi.mock("@/hooks/use-eval-runs", () => ({ useEvalComparison: () => compared }));
+const asked = vi.hoisted(() => ({ enabled: [] as boolean[] }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalComparison: (_run: string, options: { enabled?: boolean } = {}) => {
+    asked.enabled.push(options.enabled ?? true);
+    return compared;
+  },
+}));
 
 /** Opens every agent's row, as a person reading them all would. */
 async function openAll() {
@@ -23,6 +29,7 @@ beforeEach(() => {
   localStorage.clear();
   compared.comparison = undefined;
   compared.error = null;
+  asked.enabled = [];
 });
 
 describe("CheckAgents", () => {
@@ -184,19 +191,38 @@ describe("CheckAgents", () => {
     );
   });
 
-  it("breaks each stage down into better, same, worse and not known", async () => {
+  it("breaks an older check's stages down from their runs, an unfinished case as not known", async () => {
+    const flip = (kind: string) => ({ flip: kind });
     compared.comparison = {
-      fixed_confirmed: 1,
-      fixed_unconfirmed: 1,
-      regressions_confirmed: 1,
-      regressions_unconfirmed: 0,
-      compared: 7,
+      cases: [
+        flip("fixed"),
+        flip("fixed"),
+        flip("regression"),
+        flip("unchanged"),
+        flip("incomplete"),
+      ] as EvalComparison["cases"],
       not_compared: 2,
     };
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     await openAll();
 
-    expect(screen.getByText("2 better · 4 same · 1 worse · 2 not known")).toBeInTheDocument();
+    expect(screen.getByText("2 better · 1 same · 1 worse · 3 not known")).toBeInTheDocument();
+    expect(asked.enabled).toContain(true);
+  });
+
+  it("reads the counts a check kept without asking the run", async () => {
+    const row = checkAgent("Refunds", "worse");
+    row.stages = [
+      {
+        ...row.stages[0]!,
+        counts: { compared: 6, fixed: 1, broken: 1, unchanged: 4, unknown: 2 },
+      },
+    ];
+    render(<CheckAgents check={skillCheck({ agents: [row] })} />);
+    await openAll();
+
+    expect(screen.getByText("1 better · 4 same · 1 worse · 2 not known")).toBeInTheDocument();
+    expect(asked.enabled.every((enabled) => !enabled)).toBe(true);
   });
 
   it("says while a stage's results are read, and when they cannot be", async () => {
