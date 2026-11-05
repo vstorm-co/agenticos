@@ -1803,6 +1803,69 @@ class TestDownloadingAFolderAsAZip:
         assert len(made) == 2
         assert all(archive.closed for archive in made)
 
+    @pytest.mark.security
+    @pytest.mark.parametrize("folder", ["./.agenticos", ".//skills/foo", "./node_modules"])
+    async def test_a_container_folder_the_panel_hides_is_not_found_however_spelled(
+        self, monkeypatch, mock_db_session, folder
+    ):
+        """The host is asked for the folder as the panel would spell it, so a
+        `./` cannot carry a hidden one past `browsable`."""
+        from pydantic_ai_backends import remote as remote_module
+
+        asked: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                asked.append(path)
+                return WorkspaceTree(entries=[], truncated=False)
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder=folder
+            )
+        assert asked == [folder.replace(".//", "./").removeprefix("./")]
+
+    async def test_a_container_folder_spelled_in_container_is_not_zipped_empty(
+        self, monkeypatch, mock_db_session
+    ):
+        """`/workspace/proj` is asked for as `workspace/proj`, which the host does
+        not hold - a 404, not a zip of an empty `proj/` beside files it left out."""
+        from pydantic_ai_backends import remote as remote_module
+
+        asked: list[str] = []
+
+        class _Archive(_ClosesItsClient):
+            def __init__(self, url, token="", timeout=None):
+                pass
+
+            def tree(self, session_id, path=".", *, max_depth, max_entries):
+                asked.append(path)
+                if path != "proj":
+                    raise WorkspaceArchiveError('{"detail":"No such directory"}', 404)
+                return WorkspaceTree(
+                    entries=[{"name": "a", "path": "proj/a", "is_dir": False, "size": 1}],
+                    truncated=False,
+                )
+
+        monkeypatch.setattr(remote_module, "WorkspaceArchive", _Archive, raising=False)
+        _serve(monkeypatch, _resolved())
+        row = _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[row]))
+
+        with pytest.raises(NotFoundError, match="No files in this folder"):
+            await SandboxWorkspaceService(mock_db_session).folder_zip(
+                _ctx(), conversation_id=uuid4(), folder="/workspace/proj"
+            )
+        assert asked == ["workspace/proj"]
+
     async def test_a_listing_the_host_cut_short_is_refused_not_zipped(
         self, monkeypatch, mock_db_session
     ):

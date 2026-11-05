@@ -584,7 +584,7 @@ def zip_members(
         ExportTooLargeError: If the folder holds more entries or bytes than one
             download may carry.
     """
-    top = folder.rsplit("/", 1)[-1] if folder else "workspace"
+    top = _zip_safe(folder.rsplit("/", 1)[-1]) if folder else "workspace"
     picked: list[tuple[str, str]] = []
     found = False
     total = 0
@@ -599,8 +599,10 @@ def zip_members(
         inside = relative[len(folder) + 1 :] if folder else relative
         picked.append((path, f"{top}/{_zip_safe(inside)}{'/' if is_dir else ''}"))
         total += 0 if is_dir else size or 0
+        # Plus one for the top folder, a member the attaching side counts too: a
+        # zip at the bound is one that can be attached again.
         if (
-            len(picked) > settings.WORKSPACE_ARCHIVE_MAX_ENTRIES
+            len(picked) + 1 > settings.WORKSPACE_ARCHIVE_MAX_ENTRIES
             or total > settings.WORKSPACE_ARCHIVE_MAX_BYTES
         ):
             raise ExportTooLargeError(

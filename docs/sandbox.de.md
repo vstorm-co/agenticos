@@ -1,5 +1,5 @@
 ---
-source_sha: "7b3c2bc4946d"
+source_sha: "224427151b91"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -684,21 +684,21 @@ Ein Backslash, ein `%` oder ein Steuerzeichen im Namen einer Datei wird im Zip
 prozentkodiert (`a\b` wird zu `a%5Cb`), weil ein Entpacker unter Windows einen
 Backslash als Ordnertrenner liest.
 
-Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner
-mit mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Einträgen (Dateien und Ordner, gezählt wie bei einem
-angehängten Archiv) oder mehr als
-`WORKSPACE_ARCHIVE_MAX_BYTES`, oder einer, den der Host nicht vollständig
-auflisten konnte, wird mit 413 abgelehnt; ein Zip, dem stillschweigend Dateien
-fehlen, wäre schlimmer. Danach werden die Dateien einzeln gelesen und gestreamt.
+Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner mit
+mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Einträgen (Dateien und Ordner, gezählt wie
+bei einem angehängten Archiv) oder mehr als `WORKSPACE_ARCHIVE_MAX_BYTES`, oder
+einer, den der Host nicht vollständig auflisten konnte, wird mit 413 abgelehnt; ein
+Zip, dem stillschweigend Dateien fehlen, wäre schlimmer. Danach werden die Dateien
+einzeln gelesen und gestreamt.
 
 Eine Datei, die sich nach dem Start des Downloads nicht lesen lässt, wird
-ausgelassen und mit dem Grund, den der Host nennt, in einer `NOT-INCLUDED.txt` im obersten Ordner des
-Zips genannt (`_NOT-INCLUDED.txt`, wenn der Ordner eine Datei dieses Namens hat).
-Das ist eine Datei, die seit der Auflistung gelöscht wurde, oder eine, die größer
-ist als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`, standardmäßig
-8 MiB). Antwortet der Host nicht mehr oder wachsen die Dateien nach der Auflistung
-über die Byte-Grenze, bricht der Stream ab, und der Download ist unvollständig und
-lässt sich nicht öffnen.
+ausgelassen und mit dem Grund, den der Host nennt, in einer `NOT-INCLUDED.txt` im
+obersten Ordner des Zips genannt (`_NOT-INCLUDED.txt`, wenn der Ordner eine Datei
+dieses Namens hat). Das ist eine Datei, die seit der Auflistung gelöscht wurde, oder
+eine, die größer ist als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`,
+standardmäßig 8 MiB). Antwortet der Host nicht mehr oder wachsen die Dateien nach
+der Auflistung über die Byte-Grenze, bricht der Stream ab, und der Download ist
+unvollständig und lässt sich nicht öffnen.
 
 Ein Ordner auf diesem Computer, in der Desktop-App, hat keine solche Schaltfläche:
 Er ist bereits ein Ordner auf diesem Computer.

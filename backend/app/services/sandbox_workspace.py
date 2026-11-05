@@ -2213,8 +2213,8 @@ class SandboxWorkspaceService:
 
         The files and folders are those the panel would show - `browsable`, so
         a `.git`, a `node_modules` or the platform's own `.agenticos` stays
-        behind - listed whole before a byte is sent, so a folder past the bounds is refused with
-        a status rather than cut off mid-download. The listing reaches deeper
+        behind - listed whole before a byte is sent, so a folder past the bounds
+        is refused with a status rather than cut off mid-download. The listing reaches deeper
         than the panel's (`_ZIP_MAX_DEPTH`); one the host cuts short is refused
         rather than zipped incomplete. A file the host will not serve once the
         stream has started - past its own per-read ceiling, or gone since the
@@ -2238,9 +2238,12 @@ class SandboxWorkspaceService:
                 message="This conversation keeps no files",
                 details={"conversation_id": conversation_id},
             )
-        # The host is asked with the folder as its own listing spelled it - absolute or
-        # not - and the answer is matched on the normalised form.
-        listing = await self._zip_listing(ctx, row, folder.strip() or ".")
+        # The host is asked with the normalised form the answer is matched on - the
+        # panel's own spelling. Asked raw, a `./.agenticos` or an in-container
+        # `/workspace/x` named a folder its listing then spelled differently, and
+        # the folder alone matched: an empty zip of a hidden folder, or of one
+        # whose files were all left behind.
+        listing = await self._zip_listing(ctx, row, wanted or ".")
         # On the file pool: a host listing runs to a hundred thousand entries,
         # and filtering that many held the loop for close to half a second.
         members, name = await run_blocking(_zip_members_of, listing, wanted)
@@ -2255,6 +2258,7 @@ class SandboxWorkspaceService:
         answering at all is what says the folder is there - and an empty one is
         then a zip of that folder rather than a 404. The folder is added to the
         listing as a directory, so `browsable` still decides whether it is shown.
+        One the host does not hold is a 404, as it is for a stored workspace.
         """
         if row.backend == "state":
             return stored_entries(dict(row.files or {}), row.directories or ())
@@ -2272,6 +2276,10 @@ class SandboxWorkspaceService:
                     )
                 )
             except Exception as exc:
+                if isinstance(exc, WorkspaceArchiveError) and exc.status_code == 404:
+                    raise NotFoundError(
+                        message="No files in this folder", details={"path": folder}
+                    ) from exc
                 raise BadRequestError(
                     message=_reason(exc), details={"workspace_id": row.id, "path": folder}
                 ) from exc

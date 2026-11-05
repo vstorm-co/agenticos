@@ -549,6 +549,27 @@ class TestZippingAFolder:
         with pytest.raises(NotFoundError):
             zip_members(entries, folder)
 
+    async def test_a_zip_at_the_entry_bound_can_be_attached_again(self, monkeypatch):
+        """The top folder is a member too, and the attaching side counts it."""
+        monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 3)
+        picked, _name = zip_members([("a/x", 1, False), ("a/y", 1, False)], "a")
+
+        data = b"".join([chunk async for chunk in stream_zip(picked, AsyncMock(return_value=b"1"))])
+
+        assert len(scan_archive(data, "zip")) == 3
+        with pytest.raises(ExportTooLargeError):
+            zip_members([("a/x", 1, False), ("a/y", 1, False), ("a/z", 1, False)], "a")
+
+    @pytest.mark.security
+    def test_the_top_folder_s_own_name_is_encoded(self):
+        picked, name = zip_members([("a\\..\\evil/x", 1, False)], "a\\..\\evil")
+
+        assert picked == [
+            ("a\\..\\evil", "a%5C..%5Cevil/"),
+            ("a\\..\\evil/x", "a%5C..%5Cevil/x"),
+        ]
+        assert name == "a%5C..%5Cevil.zip"
+
     def test_folders_count_against_the_entry_bound(self, monkeypatch):
         monkeypatch.setattr(settings, "WORKSPACE_ARCHIVE_MAX_ENTRIES", 1)
 

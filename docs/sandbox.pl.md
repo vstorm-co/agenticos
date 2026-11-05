@@ -1,5 +1,5 @@
 ---
-source_sha: "7b3c2bc4946d"
+source_sha: "224427151b91"
 ---
 
 # Sandbox { #the-sandbox }
@@ -640,10 +640,9 @@ prosi host o najwyżej 100 000 wpisów, bo host listuje też ukryte foldery. Pli
 leżą pod jednym folderem głównym nazwanym jak pobierany folder.
 
 Foldery są osobnymi wpisami, więc pusty folder, na przykład rozpakowany z
-załączonego archiwum, też
-trafia do zipa. Pusty folder pobrany osobno to zip zawierający tylko ten folder, a
-nie 404: panel go pokazuje, więc pobranie daje to, co pokazano. Folder, którego
-panel nie pokazuje, to 404.
+załączonego archiwum, też trafia do zipa. Pusty folder pobrany osobno to zip
+zawierający tylko ten folder, a nie 404: panel go pokazuje, więc pobranie daje to,
+co pokazano. Folder, którego panel nie pokazuje, to 404.
 
 Ukośnik wsteczny,
 `%` albo znak sterujący w nazwie pliku są w zipie zakodowane procentowo (`a\b`
@@ -652,18 +651,17 @@ separator folderów.
 
 Całość jest wyliczana przed wysłaniem pierwszego bajtu. Folder z więcej niż
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` wpisami (pliki i foldery, liczone jak w załączonym
-archiwum) albo większy niż
-`WORKSPACE_ARCHIVE_MAX_BYTES`, albo taki, którego host nie wylistował w całości,
-jest odrzucany z kodem 413; zip, w którym bez słowa brakuje plików, byłby gorszy.
-Potem pliki są czytane i strumieniowane po jednym.
+archiwum) albo większy niż `WORKSPACE_ARCHIVE_MAX_BYTES`, albo taki, którego host
+nie wylistował w całości, jest odrzucany z kodem 413; zip, w którym bez słowa
+brakuje plików, byłby gorszy. Potem pliki są czytane i strumieniowane po jednym.
 
 Plik, którego nie da się przeczytać po rozpoczęciu pobierania, jest pomijany i
-wymieniony, z powodem podanym przez host, w `NOT-INCLUDED.txt` w głównym folderze zipa
-(`_NOT-INCLUDED.txt`, jeśli folder ma plik o tej nazwie). To plik usunięty po
-wylistowaniu albo większy niż własny limit odczytu hosta
-(`SANDBOXD_MAX_READ_BYTES`, domyślnie 8 MiB). Jeśli host przestanie odpowiadać albo
-po wylistowaniu pliki urosną ponad limit bajtów, strumień się zatrzymuje, a pobrany
-plik jest niekompletny i się nie otworzy.
+wymieniony, z powodem podanym przez host, w `NOT-INCLUDED.txt` w głównym folderze
+zipa (`_NOT-INCLUDED.txt`, jeśli folder ma plik o tej nazwie). To plik usunięty po
+wylistowaniu albo większy niż własny limit odczytu hosta (`SANDBOXD_MAX_READ_BYTES`,
+domyślnie 8 MiB). Jeśli host przestanie odpowiadać albo po wylistowaniu pliki urosną
+ponad limit bajtów, strumień się zatrzymuje, a pobrany plik jest niekompletny i się
+nie otworzy.
 
 Folder na tym komputerze, w aplikacji desktopowej, nie ma takiego przycisku: on
 już jest folderem na tym komputerze.

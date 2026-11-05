@@ -1,5 +1,5 @@
 ---
-source_sha: "7b3c2bc4946d"
+source_sha: "224427151b91"
 ---
 
 # La sandbox { #the-sandbox }
@@ -655,11 +655,10 @@ repositorio es más profundo que una página de mosaicos, y pide al host hasta 1
 entradas, porque el host lista también las carpetas ocultas. Los archivos quedan
 bajo una carpeta superior con el nombre de la carpeta descargada.
 
-Las carpetas son entradas propias, así que una carpeta vacía, como una
-descomprimida de un archivo
-adjunto, también está en el zip. Una carpeta vacía descargada sola es un zip que
-contiene solo esa carpeta, no un 404: el panel la muestra, así que la descarga da lo
-que se mostró. Una carpeta que el panel no muestra es un 404.
+Las carpetas son entradas propias, así que una carpeta vacía, como una descomprimida
+de un archivo adjunto, también está en el zip. Una carpeta vacía descargada sola es
+un zip que contiene solo esa carpeta, no un 404: el panel la muestra, así que la
+descarga da lo que se mostró. Una carpeta que el panel no muestra es un 404.
 
 Una barra invertida, un `%` o un carácter de control en el nombre de un archivo se codifica
 con porcentajes en el zip (`a\b` pasa a ser `a%5Cb`), porque un descompresor en
@@ -667,18 +666,17 @@ Windows lee la barra invertida como separador de carpetas.
 
 Se lista entera antes de enviar el primer byte. Una carpeta con más de
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` entradas (archivos y carpetas, contadas como las de
-un archivo adjunto) o más de `WORKSPACE_ARCHIVE_MAX_BYTES`, o
-una que el host no pudo listar entera, se rechaza con un 413; un zip al que le
-faltan archivos sin decirlo sería peor. Después los archivos se leen y se
-transmiten de uno en uno.
+un archivo adjunto) o más de `WORKSPACE_ARCHIVE_MAX_BYTES`, o una que el host no
+pudo listar entera, se rechaza con un 413; un zip al que le faltan archivos sin
+decirlo sería peor. Después los archivos se leen y se transmiten de uno en uno.
 
 Un archivo que no se puede leer una vez empezada la descarga se deja fuera y se
-nombra, con el motivo que da el host, en un `NOT-INCLUDED.txt` en la carpeta superior del zip
-(`_NOT-INCLUDED.txt` si la carpeta tiene un archivo con ese nombre). Es un archivo
-borrado después del listado, o uno mayor que el propio límite de lectura del host
-(`SANDBOXD_MAX_READ_BYTES`, 8 MiB por defecto). Si el host deja de responder, o los
-archivos crecen por encima del límite de bytes después del listado, la transmisión
-se detiene, y la descarga queda incompleta y no se abre.
+nombra, con el motivo que da el host, en un `NOT-INCLUDED.txt` en la carpeta
+superior del zip (`_NOT-INCLUDED.txt` si la carpeta tiene un archivo con ese
+nombre). Es un archivo borrado después del listado, o uno mayor que el propio límite
+de lectura del host (`SANDBOXD_MAX_READ_BYTES`, 8 MiB por defecto). Si el host deja
+de responder, o los archivos crecen por encima del límite de bytes después del
+listado, la transmisión se detiene, y la descarga queda incompleta y no se abre.
 
 Una carpeta de este ordenador, en la app de escritorio, no tiene ese botón: ya es
 una carpeta de este ordenador.

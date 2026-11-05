@@ -629,17 +629,17 @@ folder separator.
 
 It is listed in full before the first byte is sent. A folder with more than
 `WORKSPACE_ARCHIVE_MAX_ENTRIES` entries (files and folders, as an attached archive's
-are counted) or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or
-one the host could not list completely, is refused with a 413; a zip that is
-missing files without saying so would be worse. The files are then read and
-streamed one at a time.
+are counted) or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or one the host could not
+list completely, is refused with a 413; a zip that is missing files without saying
+so would be worse. The files are then read and streamed one at a time.
 
 A file that cannot be read after the download has started is left out and named,
-with the host's reason, in a `NOT-INCLUDED.txt` in the zip's top folder (`_NOT-INCLUDED.txt`
-if the folder has a file of that name). That is a file deleted since the listing,
-or one larger than the host's own read limit (`SANDBOXD_MAX_READ_BYTES`, 8 MiB by
-default). If the host stops answering, or the files grow past the byte limit after
-the listing, the stream stops, and the download is incomplete and will not open.
+with the host's reason, in a `NOT-INCLUDED.txt` in the zip's top folder
+(`_NOT-INCLUDED.txt` if the folder has a file of that name). That is a file deleted
+since the listing, or one larger than the host's own read limit
+(`SANDBOXD_MAX_READ_BYTES`, 8 MiB by default). If the host stops answering, or the
+files grow past the byte limit after the listing, the stream stops, and the download
+is incomplete and will not open.
 
 A folder on this computer, in the desktop app, has no such button: it is already a
 folder on this computer.
