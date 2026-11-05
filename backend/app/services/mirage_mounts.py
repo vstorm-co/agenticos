@@ -325,12 +325,13 @@ def _check_hosts(info: BackendInfo, options: Mapping[str, MountValue]) -> None:
             parsed = urlsplit(text)
             parameters = dict(parse_qsl(parsed.query, keep_blank_values=True))
             host_files = {"passfile", "servicefile", "sslkey", "sslcert", "sslrootcert", "sslcrl"}
-            # asyncpg otherwise reads PGPASSWORD or a host-side .pgpass file.
-            if (
-                parsed.password is None and "password" not in parameters
-            ) or host_files.intersection(key.lower() for key in parameters):
+            # asyncpg treats empty URI passwords and blank query values as
+            # absent, then reads PGPASSWORD or a host-side .pgpass file.
+            if not (parsed.password or parameters.get("password")) or host_files.intersection(
+                key.lower() for key in parameters
+            ):
                 raise _Unmountable(
-                    "its vault DSN must supply a password and cannot name host credential files."
+                    "its vault DSN must supply a nonempty password and cannot name host credential files."
                 )
 
 

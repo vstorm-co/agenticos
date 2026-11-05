@@ -1,5 +1,5 @@
 ---
-source_sha: "6a8f9a255977"
+source_sha: "970dcbba6cd6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1313,7 +1313,7 @@ zalogowanym koncie, na którym ją rozpoczęto.
 
 Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Nadawca z kanału bez połączonego konta wymaga zgody na każde narzędzie Mirage, także odczyt; połączenie konta przywraca zwykłe zasady folderów ustalone przez autora.
 
-Montowania PostgreSQL wymagają hasła w DSN z vaulta, także jawnego pustego hasła dla serwera z uwierzytelnianiem trust. Nie korzystają zastępczo z `PGPASSWORD` ani `.pgpass`. Parametry DSN wskazujące pliki poświadczeń lub TLS na hoście (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) są odrzucane.
+Montowania PostgreSQL wymagają niepustego hasła w DSN z vaulta; puste hasła i uwierzytelnianie bez hasła nie są obsługiwane. Nie korzystają zastępczo z `PGPASSWORD` ani `.pgpass`. Parametry DSN wskazujące pliki poświadczeń lub TLS na hoście (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) są odrzucane.
 
 SSH używa jawnej nazwy użytkownika i hasła wskazanego w vaulcie. Podaj zaufany publiczny `host_key` serwera; adapter przypina ten klucz oraz wyłącza lokalną konfigurację SSH, lokalne klucze prywatne i agenta SSH. Automatyczne uwierzytelnianie danymi środowiska nie jest dostępne.
 

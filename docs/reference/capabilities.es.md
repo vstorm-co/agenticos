@@ -1,5 +1,5 @@
 ---
-source_sha: "6a8f9a255977"
+source_sha: "970dcbba6cd6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1340,7 +1340,7 @@ iniciadora de AgenticOS.
 
 Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL debe figurar en la lista permitida del despliegue. MongoDB y GridFS requieren un único host `mongodb://`: la plataforma fuerza `directConnection=true` y rechaza el descubrimiento SRV. Los remitentes de canales sin cuenta vinculada necesitan aprobación para cada herramienta Mirage, incluso las lecturas; al vincular la cuenta se aplica la política habitual de carpetas del autor.
 
-Los montajes PostgreSQL requieren una contraseña en el DSN de la bóveda, incluida una contraseña explícitamente vacía para un servidor con autenticación trust. No recurren a `PGPASSWORD` ni a `.pgpass`. Se rechazan los parámetros DSN que apuntan a archivos de credenciales o TLS del host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`).
+Los montajes PostgreSQL requieren una contraseña no vacía en el DSN de la bóveda; no se admiten contraseñas vacías ni autenticación sin contraseña. No recurren a `PGPASSWORD` ni a `.pgpass`. Se rechazan los parámetros DSN que apuntan a archivos de credenciales o TLS del host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`).
 
 SSH usa un nombre de usuario explícito y una contraseña del vault. Proporciona el `host_key` público de confianza del servidor; el adaptador fija esa clave y desactiva la configuración SSH local, las claves privadas locales y el agente SSH. No se permite la autenticación automática con credenciales del entorno.
 

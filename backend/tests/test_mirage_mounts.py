@@ -652,6 +652,8 @@ def test_a_direct_mongo_target_must_be_a_sealed_vault_value() -> None:
     "dsn",
     [
         "postgresql://u@db.acme.internal/sales",
+        "postgresql://u:@db.acme.internal/sales",
+        "postgresql://u@db.acme.internal/sales?password=",
         "postgresql://u@db.acme.internal/sales?passfile=/host/credentials",
         "postgresql://u:pw@db.acme.internal/sales?sslkey=/host/key",
         "postgresql://u:pw@db.acme.internal/sales?sslcert=/host/cert",
@@ -682,11 +684,11 @@ async def test_postgres_cannot_read_host_credential_files_or_inherit_a_host_pass
 @pytest.mark.parametrize(
     "dsn",
     [
-        "postgresql://u:@db.acme.internal/sales",
-        "postgresql://u@db.acme.internal/sales?password=",
+        "postgresql://u:mount-password@db.acme.internal/sales",
+        "postgresql://u@db.acme.internal/sales?password=mount-password",
     ],
 )
-async def test_postgres_can_use_an_explicit_empty_password_without_host_fallback(
+async def test_postgres_driver_uses_the_vault_password_without_host_fallback(
     ctx: AuthContext,
     vault: dict[UUID, ApiKeySecret | EntraAppSecret],
     monkeypatch: pytest.MonkeyPatch,
@@ -702,3 +704,24 @@ async def test_postgres_can_use_an_explicit_empty_password_without_host_fallback
     )
     assert len(terminal.mounts) == 1 and terminal.notes == ()
     assert terminal.mounts[0].config["dsn"] == SecretStr(dsn)
+    from asyncpg.connect_utils import _parse_connect_dsn_and_args
+
+    # Match the pinned driver's actual DSN semantics without opening a socket.
+    _, parameters = _parse_connect_dsn_and_args(
+        dsn=dsn,
+        host=None,
+        port=None,
+        user=None,
+        password=None,
+        passfile=None,
+        database=None,
+        ssl=None,
+        service=None,
+        servicefile=None,
+        direct_tls=None,
+        server_settings=None,
+        target_session_attrs=None,
+        krbsrvname=None,
+        gsslib=None,
+    )
+    assert parameters.password == "mount-password"

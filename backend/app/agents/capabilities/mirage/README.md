@@ -103,7 +103,7 @@ Unlinked channel senders need approval for all terminal tools, including reads.
 Organization-account consent rechecks the initiator’s current permissions before
 exchanging the provider code.
 
-PostgreSQL mounts require a password in the vault DSN, including an explicit empty password for a trust-authenticated server. They do not fall back to `PGPASSWORD` or `.pgpass`. DSN parameters naming host credential or TLS files (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) are refused.
+PostgreSQL mounts require a nonempty password in the vault DSN; empty passwords and passwordless authentication are not supported. They do not fall back to `PGPASSWORD` or `.pgpass`. DSN parameters naming host credential or TLS files (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) are refused.
 
 SSH is password-only through the vault, with an explicit username and pinned
 public host key. The adapter disables API-host SSH config, agent authentication
