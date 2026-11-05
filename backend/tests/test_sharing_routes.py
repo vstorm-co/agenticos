@@ -37,7 +37,9 @@ from app.api.routes.v1.sharing import (
     workflow_sharing_router,
 )
 from app.core.exceptions import NotFoundError
-from app.services.access import AGENT, COLLECTION, SECRET, SKILL
+from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.db.models.resource_grant import Visibility
+from app.services.access import AGENT, COLLECTION, SECRET, SKILL, resolve_access
 from app.services.sharing import SharingState
 
 _RESOLVE = "app.api.routes.v1._sharing_loaders.resolve_access"
@@ -163,8 +165,47 @@ class TestResourceLoaders:
 
         assert refused.value.message == message
         assert refused.value.details == {detail_key: str(resource_id)}
-        _, kwargs = resolve.await_args
-        assert resolve.await_args.args[3] is kwargs["resource_type"].view
+        resource_type = resolve.await_args.kwargs["resource_type"]
+        asked = [call.args[3] for call in resolve.await_args_list]
+        assert asked == list(dict.fromkeys((resource_type.view, resource_type.edit)))
+
+    @pytest.mark.parametrize(("kind", "loader", "message", "detail_key"), LOADERS)
+    @pytest.mark.anyio
+    async def test_a_caller_who_may_edit_but_not_view_is_let_through(
+        self, kind, loader, message, detail_key
+    ):
+        """An API key issued for `edit` alone edits the row elsewhere, so it may share it."""
+        organization_id = uuid.uuid4()
+        row = MagicMock(organization_id=organization_id, archived_at=None, scope="org")
+        db = MagicMock(get=AsyncMock(return_value=row))
+
+        async def edit_only(db, ctx, resource, perm, *, resource_type):
+            return perm is resource_type.edit
+
+        with patch(_RESOLVE, new=AsyncMock(side_effect=edit_only)):
+            assert await loader(db, uuid.uuid4(), MagicMock(organization_id=organization_id)) is row
+
+    @pytest.mark.anyio
+    async def test_an_api_key_issued_for_edit_alone_still_reaches_its_own_skill(self):
+        """The real access rules, not a stub: the key edits the skill through
+        `PATCH /skills/{id}`, so its sharing must not read as missing."""
+        organization_id, owner = uuid.uuid4(), uuid.uuid4()
+        ctx = AuthContext(
+            user_id=owner,
+            organization_id=organization_id,
+            role=OrgRoleName.OWNER,
+            key_scopes=frozenset({Perm.SKILLS_EDIT}),
+        )
+        row = MagicMock(
+            id=uuid.uuid4(),
+            organization_id=organization_id,
+            owner_user_id=owner,
+            visibility=Visibility.PRIVATE.value,
+        )
+        db = MagicMock(get=AsyncMock(return_value=row))
+
+        with patch(_RESOLVE, new=resolve_access):
+            assert await load_skill(db, row.id, ctx) is row
 
     @pytest.mark.anyio
     async def test_the_artifact_loader_is_the_service_s_rule_not_one_of_its_own(self):
