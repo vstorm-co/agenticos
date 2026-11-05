@@ -117,3 +117,60 @@ export function draftsAsText(cards: readonly DraftCard[]): string {
 export function withDraftText(content: string | undefined, cards: readonly DraftCard[]): string {
   return [content ?? "", draftsAsText(cards)].filter((part) => part !== "").join("\n\n");
 }
+
+export interface DraftTextPart {
+  text: string;
+  placeholder: boolean;
+}
+
+// A fence, then an inline span: brackets inside either are syntax, not a gap to fill.
+// Only a closed fence is code: in a `text` part an unclosed one is just backticks.
+const CODE = /```[\s\S]*?```|``[^\n]*?``|`[^`\n]*`/g;
+// [2-60 characters]; markdown links and references are told apart in placeholderParts.
+const BRACKETED = /\[([^[\]\n]{2,60})\]/gu;
+// A reference definition's tail: ": " and one target with a slash, dot or colon in it.
+const DEFINITION = /^: *[^\s:/.]*[:/.]\S*\s*(?:\n|$)/;
+
+function isPlaceholder(inner: string): boolean {
+  return (
+    /\p{L}/u.test(inner) && !/^[\^!]/.test(inner) && !inner.includes("://") && !/^cid:/.test(inner)
+  );
+}
+
+/**
+ * A draft's text as runs of plain text and placeholders ("[Your Name]"): the
+ * details the agent left for the person to fill in. The parts' texts joined are
+ * the input, so copying is unaffected. Only `text` and `markdown` are scanned -
+ * brackets are syntax in any other format - and links, footnotes, quoted lines
+ * and code are never placeholders. Anything else in brackets with a letter in it
+ * is: a false flag costs a glance, a missed one a draft sent unfilled.
+ */
+export function placeholderParts(text: string, format: string): DraftTextPart[] {
+  if (text === "") return [];
+  if (format !== "text" && format !== "markdown") return [{ text, placeholder: false }];
+  const masked = text.replace(CODE, (code) => " ".repeat(code.length));
+  const parts: DraftTextPart[] = [];
+  let last = 0;
+  for (const match of masked.matchAll(BRACKETED)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const lineStart = masked.lastIndexOf("\n", start - 1) + 1;
+    const before = masked.slice(lineStart, start);
+    if (masked[start - 1] === "[" && masked[end] === "]") continue;
+    if (before.trimStart().startsWith(">")) continue;
+    if (
+      format === "markdown" &&
+      (/^[([]/.test(masked.slice(end)) ||
+        masked[start - 1] === "]" ||
+        (/^ {0,3}$/.test(before) && DEFINITION.test(masked.slice(end))))
+    ) {
+      continue;
+    }
+    if (!isPlaceholder(match[1]!)) continue;
+    if (start > last) parts.push({ text: text.slice(last, start), placeholder: false });
+    parts.push({ text: match[0], placeholder: true });
+    last = end;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), placeholder: false });
+  return parts;
+}

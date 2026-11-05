@@ -162,6 +162,41 @@ describe("a draft card", () => {
     expect(container.querySelector("strong, b")).toBeNull();
   });
 
+  it("shows a placeholder in the red token, brackets kept", () => {
+    const { container } = render(
+      <DraftCardView card={card([field({ text: "<b>hi</b> [Your Name]" })])} />,
+    );
+
+    const mark = screen.getByText("[Your Name]");
+    expect(mark.tagName).toBe("MARK");
+    expect(mark.className).toContain("--draft-placeholder-ink");
+    expect(container.querySelector("b")).toBeNull();
+    expect(screen.getByText(/<b>hi<\/b>/)).toBeVisible();
+  });
+
+  it("copies the brackets as typed", async () => {
+    render(<DraftCardView card={card([field({ text: "Thanks,\n[Your Name]" })])} />);
+
+    await userEvent.click(screen.getByRole("button"));
+    expect(writeText).toHaveBeenCalledWith("Thanks,\n[Your Name]");
+  });
+
+  it("marks nothing in a code field", () => {
+    const { container } = render(
+      <DraftCardView card={card([field({ text: "items[i]", format: "python" })])} />,
+    );
+
+    expect(container.querySelector("mark")).toBeNull();
+  });
+
+  it("keeps a field without a placeholder as one text child", () => {
+    render(<DraftCardView card={card([field({ text: "Hi Marta," })])} />);
+
+    const paragraph = screen.getByText("Hi Marta,");
+    expect(paragraph.childNodes).toHaveLength(1);
+    expect(paragraph.querySelector("mark")).toBeNull();
+  });
+
   it("fills its column instead of sizing to its content", () => {
     const { container } = render(<DraftCardView card={card([field({})])} />);
     expect(container.firstElementChild).toHaveClass("w-full", "min-w-0");

@@ -31,5 +31,8 @@ goes back through `steer` and never costs the turn.
 Two instructions in the tool's description are load-bearing: write **plain text**
 unless asked otherwise, and **do not repeat the draft** in the answer. The
 capability's instruction and the tool's result say the latter again, because the
-description alone left gpt-4.1 quoting the draft in about a third of runs. A result
+description alone left gpt-4.1 quoting the draft in about a third of runs. A third, for details the
+model does not know: it writes a short placeholder in square brackets (`[Your Name]`)
+instead of inventing one, and keeps brackets already in the text it was given; the card
+shows those in red. A result
 that does not open with `Drafted ` (a refusal on the last attempt) draws no card.

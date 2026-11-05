@@ -5,6 +5,7 @@ import {
   draftOf,
   draftsAsText,
   draftsOf,
+  placeholderParts,
   withDraftText,
   wroteDraft,
   type DraftCard,
@@ -174,5 +175,77 @@ describe("withDraftText", () => {
     expect(withDraftText("Here you go.", [card()])).toBe(
       `Here you go.\n\n${draftsAsText([card()])}`,
     );
+  });
+});
+
+describe("placeholderParts", () => {
+  const marked = (text: string, format = "text") =>
+    placeholderParts(text, format)
+      .filter((part) => part.placeholder)
+      .map((part) => part.text);
+
+  const cases: [string, string, string, string[]][] = [
+    ["a name", "Best,\n[Your Name]", "text", ["[Your Name]"]],
+    ["two", "[date] and [time]", "text", ["[date]", "[time]"]],
+    ["Cyrillic", "Cześć [Имя]", "text", ["[Имя]"]],
+    ["Japanese", "[お名前]様", "text", ["[お名前]"]],
+    ["Polish words", "[imię i nazwisko]", "text", ["[imię i nazwisko]"]],
+    ["a bracketed word the person gave", "[EXTERNAL] update", "text", ["[EXTERNAL]"]],
+    ["60 characters", `[${"a".repeat(60)}]`, "text", [`[${"a".repeat(60)}]`]],
+    ["61 characters", `[${"a".repeat(61)}]`, "text", []],
+    ["a markdown link", "See [docs](https://x.io)", "markdown", []],
+    ["a link and a name", "Hi [Name], see [docs](https://x.io)", "markdown", ["[Name]"]],
+    ["task boxes", "- [ ] ship\n- [x] test", "markdown", []],
+    ["one character", "[a]", "text", []],
+    ["a footnote number", "cite [1]", "text", []],
+    ["digits only", "[123]", "text", []],
+    ["a reference link", "[docs][ref]", "markdown", []],
+    ["a reference definition", "[ref]: https://x.io", "markdown", []],
+    ["a salutation", "Dear [Name]:\nThanks", "text", ["[Name]"]],
+    ["a label before a colon", "[date]: venue", "markdown", ["[date]"]],
+    ["adjacent names as text", "[First Name][Last Name]", "text", ["[First Name]", "[Last Name]"]],
+    ["an indented reference definition", "  [ref]: https://x.io", "markdown", []],
+    ["an unclosed fence as text", "```\nopen [Name]", "text", ["[Name]"]],
+    ["a double-backtick span", "``x[ab]`` and [Name]", "markdown", ["[Name]"]],
+    ["a bare alert", "[!NOTE] x", "text", []],
+    ["two characters", "[ID] please", "text", ["[ID]"]],
+    ["a footnote", "See[^note]", "markdown", []],
+    ["an alert", "> [!NOTE]", "markdown", []],
+    ["wiki brackets", "[[Page]]", "text", []],
+    ["inline code", "`items[key]`", "markdown", []],
+    ["inline code in text", "run `items[key]` now", "text", []],
+    ["a fence", "```\nd[name]\n```", "markdown", []],
+    ["quoted text", "> On Mon, [Name] wrote", "text", []],
+    ["a cid image", "[cid:image001.png@01D9]", "text", []],
+    ["a url", "[link: https://x.io]", "text", []],
+    ["a scheme", "[https://x.io]", "text", []],
+    ["a code format", "items[index]", "python", []],
+    ["the same string as text", "items[index]", "text", ["[index]"]],
+  ];
+
+  it.each(cases)("%s", (_name, text, format, expected) => {
+    expect(marked(text, format)).toEqual(expected);
+    expect(
+      placeholderParts(text, format)
+        .map((part) => part.text)
+        .join(""),
+    ).toBe(text);
+  });
+
+  it("splits plain text and placeholders in order", () => {
+    expect(placeholderParts("Best,\n[Your Name]", "text")).toEqual([
+      { text: "Best,\n", placeholder: false },
+      { text: "[Your Name]", placeholder: true },
+    ]);
+  });
+
+  it("keeps a code format whole", () => {
+    expect(placeholderParts("items[index]", "python")).toEqual([
+      { text: "items[index]", placeholder: false },
+    ]);
+  });
+
+  it("returns no part for no text", () => {
+    expect(placeholderParts("", "text")).toEqual([]);
   });
 });

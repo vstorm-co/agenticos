@@ -14,7 +14,10 @@ DRAFT_RULE = (
     "Text the person will send or paste somewhere else (an e-mail, a message, a post) "
     "goes through write_draft. The person sees the card with every part in full, so "
     "your answer never writes the draft out again: not quoted, not paraphrased, not in "
-    "a code block. Say at most one short line around it, or nothing."
+    "a code block. Say at most one short line around it, or nothing. Use square "
+    "brackets in a draft only for a detail the person must fill in, such as [Your Name] "
+    "or [date], and never invent such a detail; keep brackets already in text the person "
+    "gave you or that you are replying to, such as [WIP]."
 )
 
 

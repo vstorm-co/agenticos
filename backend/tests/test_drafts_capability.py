@@ -104,6 +104,13 @@ class TestWriteDraft:
         assert "plain text" in description.lower()
         assert "do not repeat" in description.lower()
 
+    def test_the_tool_asks_for_a_bracketed_placeholder_and_keeps_given_brackets(self):
+        description = _drafts.tools[WRITE_DRAFT].tool_def.description or ""
+
+        assert "[Your Name]" in description
+        assert "square brackets" in description
+        assert "[WIP]" in description
+
 
 class TestTheInstruction:
     def _instruction(self, deps: AgentDeps) -> str:
@@ -114,6 +121,12 @@ class TestTheInstruction:
 
         assert WRITE_DRAFT in text
         assert "never writes the draft out again" in text
+
+    def test_the_instruction_asks_for_placeholders_in_square_brackets(self):
+        text = self._instruction(AgentDeps(shows_drafts=True))
+
+        assert "square brackets" in text
+        assert "[Your Name]" in text
 
     def test_where_no_card_shows_there_is_no_instruction(self):
         assert self._instruction(AgentDeps(shows_drafts=False)) == ""

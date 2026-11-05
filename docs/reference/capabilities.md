@@ -2777,6 +2777,8 @@ its name, trimmed of blank lines at either end. Never HTML or rich text, so it
 pastes in the destination's own font and colours. A field is shown as typed -
 markdown is not rendered, `<b>` is not interpreted - and copied as typed.
 
+Where the person has to supply a detail the agent does not know, it writes a short placeholder in square brackets such as `[Your Name]` or `[date]` instead of inventing one. The card shows anything in square brackets with a letter in it in red, so it is not sent unfilled, except links, footnotes and code; copy keeps the brackets.
+
 Two to five takes on the same draft ("give me two versions") go in one call as
 **versions**, shown as tabs named by a word or two ("Short", "With details").
 The limits: a title of up to 120 characters, up to 10 fields per version, up to

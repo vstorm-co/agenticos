@@ -83,6 +83,11 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
         Write plain text unless they asked for markdown or another format, and
         then set `format` to say so.
 
+        Use square brackets only for a detail the person must fill in, such as
+        `[Your Name]` or `[date]`, and never invent such a detail. Keep brackets
+        that are already part of text they gave you or that you are replying to,
+        such as `Re: [EXTERNAL] ...` or `[WIP]`.
+
         Make one segment (`fields` entry) per part that is pasted in a different
         place, such as `Subject` and `Body`, and name a field only when there are
         several. Several versions go in one call, each with a one- or two-word

@@ -1,5 +1,5 @@
 ---
-source_sha: "1d31f2a3602c"
+source_sha: "feffd37533b1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2973,6 +2973,8 @@ sin su nombre y sin líneas en blanco al principio ni al final. Nunca HTML ni te
 enriquecido, así que se pega con la fuente y los colores del destino. Un campo se
 muestra tal como se escribió - el markdown no se renderiza, `<b>` no se interpreta -
 y se copia igual.
+
+Cuando la persona debe aportar un dato que el agente no conoce, este escribe un marcador breve entre corchetes, como `[Tu nombre]` o `[fecha]`, en lugar de inventarlo. La tarjeta muestra en rojo todo lo que va entre corchetes y contiene una letra, para que no se envíe sin rellenar, salvo enlaces, notas al pie y código; copiar conserva los corchetes.
 
 De dos a cinco variantes del mismo borrador («dame dos versiones») van en una sola
 llamada como **variantes** y se muestran como pestañas con un nombre de una o dos

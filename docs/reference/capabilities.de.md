@@ -1,5 +1,5 @@
 ---
-source_sha: "1d31f2a3602c"
+source_sha: "feffd37533b1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3122,6 +3122,8 @@ ohne dessen Namen und ohne Leerzeilen am Anfang und Ende. Nie HTML oder
 formatierten Text, er wird also in der Schrift und den Farben des Ziels eingefügt.
 Ein Feld wird so gezeigt, wie es getippt wurde - Markdown wird nicht gerendert,
 `<b>` nicht interpretiert - und so kopiert.
+
+Muss die Person eine Angabe selbst ergänzen, die der Agent nicht kennt, schreibt er statt einer Erfindung einen kurzen Platzhalter in eckigen Klammern, etwa `[Ihr Name]` oder `[Datum]`. Die Karte zeigt alles in eckigen Klammern, das einen Buchstaben enthält, rot an, damit nichts unausgefüllt verschickt wird, außer Links, Fußnoten und Code; Kopieren behält die Klammern.
 
 Zwei bis fünf Varianten desselben Entwurfs („gib mir zwei Versionen") kommen in einem
 Aufruf als **Varianten** und erscheinen als Tabs mit ein bis zwei Wörtern als Name

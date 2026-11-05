@@ -4,7 +4,13 @@ import { useId, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
-import { copyableText, draftsOf, type DraftCard, type DraftField } from "@/lib/drafts";
+import {
+  copyableText,
+  draftsOf,
+  placeholderParts,
+  type DraftCard,
+  type DraftField,
+} from "@/lib/drafts";
 import type { ToolCall } from "@/types";
 import { CopyButton } from "./copy-button";
 
@@ -26,7 +32,18 @@ function DraftSegment({ field, named }: { field: DraftField; named: boolean }) {
           !prose && "font-mono text-xs",
         )}
       >
-        {field.text}
+        {placeholderParts(field.text, field.format).map((part, index) =>
+          part.placeholder ? (
+            <mark
+              key={index}
+              className="bg-transparent font-medium text-[var(--draft-placeholder-ink)] underline decoration-dotted underline-offset-2"
+            >
+              {part.text}
+            </mark>
+          ) : (
+            part.text
+          ),
+        )}
       </p>
       <span className="text-muted-foreground absolute right-3.5 bottom-1.5 font-mono text-[10px]">
         {field.format}
