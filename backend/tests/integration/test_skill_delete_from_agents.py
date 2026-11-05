@@ -239,10 +239,20 @@ class TestRefusingTheWholeDelete:
         assert refused.value.message.startswith("'Clerk' does not publish without 'refunds'")
 
 
-async def _waiting_for_a_lock(factory: async_sessionmaker[AsyncSession]) -> None:
-    """Return once some session of this database waits for a lock, or fail after 10s."""
+async def _waiting_for_a_lock(
+    factory: async_sessionmaker[AsyncSession], task: asyncio.Task[None]
+) -> None:
+    """Return once some session of this database waits for a lock.
+
+    A loaded runner can take seconds to reach the lock, so the bound is generous;
+    a delete that finishes instead of waiting is awaited, so its own error, not a
+    timeout, is what fails the test.
+    """
     async with factory() as session:
-        for _ in range(100):
+        for _ in range(600):
+            if task.done():
+                await task
+                raise AssertionError("the delete finished without waiting for a lock")
             waiting = await session.scalar(
                 text(
                     "SELECT count(*) FROM pg_stat_activity "
@@ -252,7 +262,7 @@ async def _waiting_for_a_lock(factory: async_sessionmaker[AsyncSession]) -> None
             if waiting:
                 return
             await asyncio.sleep(0.1)
-    raise AssertionError("nothing waited for a lock")
+    raise AssertionError("nothing waited for a lock within 60s")
 
 
 class TestBesideAnotherWriter:
@@ -320,7 +330,7 @@ class TestBesideAnotherWriter:
                 await skill_repo.hold(binding, [skill.id], organization_id=ctx.organization_id)
                 await _published(binding, ctx, name="Desk", spec=_spec(skill))
                 task = asyncio.create_task(delete())
-                await _waiting_for_a_lock(factory)
+                await _waiting_for_a_lock(factory, task)
                 assert not task.done()
 
                 await binding.commit()
