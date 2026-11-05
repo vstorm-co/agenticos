@@ -86,8 +86,13 @@ a passage number never counts as a number in the answer. A plain "no" is not
 enough: every negative question also needs the alternative the docs name, so
 "the documentation does not say" never passes. The check still cannot tell a
 correct answer from a confused one that uses the same words, so treat it as a
-rough signal. `--json` writes every question's retrieved pages and answer for
-anyone who wants to read them.
+rough signal.
+
+`--json` writes every question's retrieved pages and answer for anyone who
+wants to read them, and the queries a `multi_query` or `hyde` mode
+searched for it. The file also records what produced the run: when it started,
+a SHA-256 of the question set, the embedding model and its dimension, the chunk
+settings and parsers, and the digest the collection names carry.
 
 ## Running it
 
@@ -114,16 +119,27 @@ The options:
 |---|---|---|
 | `--top-k` | `5` | Repeatable. Chunks per search, the knowledge capability's `default_top_k` |
 | `--mode` | `off` | Repeatable. `off`, `multi_query` or `hyde`, the capability's `query_analysis_mode` |
+| `--chunk-size` | `2500` | Characters per chunk, as a collection's ingestion settings set it |
+| `--chunk-overlap` | `200` | Characters a chunk repeats from the one before. Must be smaller than `--chunk-size` |
+| `--chunking-strategy` | `recursive` | `recursive`, `markdown` or `fixed` |
 | `--max-variants` | `3` | Rephrasings `multi_query` may add |
 | `--locale` | `en`, `pl` | Repeatable. The languages indexed; must include each `cross_language` question's |
 | `--embedding-model` | `text-embedding-3-small` | Any model in the embedding catalog, or another with `--embedding-dim` |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Any OpenAI-compatible `/v1/embeddings` endpoint |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | The variable the key is read from |
 | `--keyless` | off | The endpoint takes no key |
-| `--llm-model` | none | A Pydantic AI model name. Its provider reads its own key variable |
+| `--llm-model` | none | A Pydantic AI model name. Its provider reads its own key variable. `openai:` uses OpenAI's Responses API; see below for other endpoints |
 | `--answers` | off | Also answer each question from what was retrieved, and check the facts |
-| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page or a setting changed; pass it after a change to parser code |
+| `--reingest` | off | Drop the collections and index the corpus again. A run does this by itself when a page or a chunk setting changed; pass it after a change to parser code |
 | `--json` | none | Also write the per-question results to this file |
+
+The chunk options are checked as a knowledge base's ingestion settings are, and
+every other ingestion setting is that form's default. The corpus is Markdown,
+which the built-in reader parses whatever PDF parser is set, so there is no
+parser option. The harness reads no environment variables for these settings.
+
+A question set the loader refuses stops the run before anything is indexed,
+with one message that names each item and its problem.
 
 The report goes to standard output and progress to standard error, so
 `> results.md` keeps the report alone. The harness stops before measuring if a
@@ -143,6 +159,20 @@ make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
 `bge-m3` is multilingual, which matters for the `cross_language` questions. The
 numbers describe that model, not the one a deployment's collections use, so
 compare runs with the same embedding model only.
+
+A local model for `multi_query`, `hyde` and `--answers` needs the
+`openai-chat:` prefix, because `openai:` calls the Responses API, which most
+OpenAI-compatible servers do not have. `OPENAI_BASE_URL` points the provider at
+the server, and without `OPENAI_API_KEY` it sends a placeholder key. After
+`ollama pull qwen3:8b`:
+
+```bash
+export OPENAI_BASE_URL=http://localhost:11434/v1
+make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
+    --embedding-model bge-m3 --keyless --mode multi_query --llm-model openai-chat:qwen3:8b"
+```
+
+The same applies to any endpoint that offers chat completions only.
 
 ## Cost
 

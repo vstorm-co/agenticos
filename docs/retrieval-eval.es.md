@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "6c1db347d0da"
+source_sha: "57f6091a727f"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -94,8 +94,14 @@ cuenta como número de la respuesta. Un simple "no" no basta: cada pregunta
 negativa necesita también la alternativa que nombra la documentación, así que
 "la documentación no lo dice" nunca pasa. La comprobación sigue sin distinguir
 una respuesta correcta de una confundida con las mismas palabras, así que tómala
-como señal aproximada. `--json` escribe las páginas recuperadas y la respuesta
-de cada pregunta para quien quiera leerlas.
+como señal aproximada.
+
+`--json` escribe las páginas recuperadas y la respuesta de cada pregunta para
+quien quiera leerlas, y las consultas que un modo `multi_query` o `hyde` buscó
+para ella. El archivo también registra qué produjo la ejecución: cuándo empezó,
+un SHA-256 del conjunto de preguntas, el modelo de embeddings y su dimensión,
+los ajustes de fragmentación y los parsers, y el digest que llevan los nombres
+de las colecciones.
 
 ## Ejecutarlo { #running-it }
 
@@ -122,16 +128,28 @@ Las opciones:
 |---|---|---|
 | `--top-k` | `5` | Repetible. Fragmentos por búsqueda, el `default_top_k` de la capability de conocimiento |
 | `--mode` | `off` | Repetible. `off`, `multi_query` o `hyde`, el `query_analysis_mode` de la capability |
+| `--chunk-size` | `2500` | Caracteres por fragmento, como los fijan los ajustes de ingesta de una colección |
+| `--chunk-overlap` | `200` | Caracteres que un fragmento repite del anterior. Debe ser menor que `--chunk-size` |
+| `--chunking-strategy` | `recursive` | `recursive`, `markdown` o `fixed` |
 | `--max-variants` | `3` | Reformulaciones que `multi_query` puede añadir |
 | `--locale` | `en`, `pl` | Repetible. Los idiomas indexados; debe incluir el de cada pregunta `cross_language` |
 | `--embedding-model` | `text-embedding-3-small` | Cualquier modelo del catálogo de embeddings, u otro con `--embedding-dim` |
 | `--embedding-base-url` | `https://api.openai.com/v1` | Cualquier endpoint `/v1/embeddings` compatible con OpenAI |
 | `--embedding-api-key-env` | `OPENAI_API_KEY` | La variable de la que se lee la clave |
 | `--keyless` | desactivado | El endpoint no requiere clave |
-| `--llm-model` | ninguno | Un nombre de modelo de Pydantic AI. Su provider lee su propia variable de clave |
+| `--llm-model` | ninguno | Un nombre de modelo de Pydantic AI. Su provider lee su propia variable de clave. `openai:` usa la Responses API de OpenAI; otros endpoints, más abajo |
 | `--answers` | desactivado | Además responde cada pregunta a partir de lo recuperado y comprueba los hechos |
-| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia una página o un ajuste; páselo tras un cambio en el código del parser |
+| `--reingest` | desactivado | Elimina las colecciones e indexa el corpus de nuevo. Una ejecución lo hace por sí sola cuando cambia una página o un ajuste de fragmentación; páselo tras un cambio en el código del parser |
 | `--json` | ninguno | Además escribe los resultados por pregunta en este archivo |
+
+Las opciones de fragmentación se comprueban como los ajustes de ingesta de una
+base de conocimiento, y cualquier otro ajuste de ingesta tiene el valor por
+defecto de ese formulario. El corpus es Markdown, que el lector integrado
+analiza sea cual sea el parser de PDF configurado, así que no hay opción de
+parser. El harness no lee estos ajustes de ninguna variable de entorno.
+
+Un conjunto de preguntas que el loader rechaza detiene la ejecución antes de
+indexar nada, con un único mensaje que nombra cada pregunta y su problema.
 
 El informe va a la salida estándar y el progreso a la salida de error estándar,
 así que `> results.md` conserva solo el informe. El harness se detiene antes de
@@ -151,6 +169,20 @@ make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
 `bge-m3` es multilingüe, lo que importa para las preguntas `cross_language`. Los
 números describen ese modelo, no el que usan las colecciones de un despliegue, así
 que compara solo ejecuciones con el mismo modelo de embeddings.
+
+Un modelo local para `multi_query`, `hyde` y `--answers` necesita el prefijo
+`openai-chat:`, porque `openai:` llama a la Responses API, que la mayoría de los
+servidores compatibles con OpenAI no tienen. `OPENAI_BASE_URL` dirige el
+provider al servidor y, sin `OPENAI_API_KEY`, envía una clave de relleno. Tras
+`ollama pull qwen3:8b`:
+
+```bash
+export OPENAI_BASE_URL=http://localhost:11434/v1
+make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
+    --embedding-model bge-m3 --keyless --mode multi_query --llm-model openai-chat:qwen3:8b"
+```
+
+Lo mismo vale para cualquier endpoint que solo ofrezca chat completions.
 
 ## Coste { #cost }
 

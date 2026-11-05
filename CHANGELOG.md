@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- A retrieval evaluation over the AgenticOS docs: 34 questions with known pages and answers, including "does it support X" questions the docs answer with a plain no and Polish questions answered from English pages (and the reverse). `make eval-retrieval` indexes the docs and reports hit@k, recall@k and MRR per category for each `top_k` and `query_analysis_mode` you name, and with `--answers` checks each answer for the expected facts. Every run makes billed embedding and model calls; [Retrieval evaluation](docs/retrieval-eval.md) has the options and the cost. Knowledge agents' defaults are unchanged. (#2482)
+- A retrieval evaluation over the AgenticOS docs: 34 questions with known pages and answers, including "does it support X" questions the docs answer with a plain no and Polish questions answered from English pages (and the reverse). `make eval-retrieval` indexes the docs and reports hit@k, recall@k and MRR per category for each `top_k` and `query_analysis_mode` you name, and with `--answers` checks each answer for the expected facts. `--chunk-size`, `--chunk-overlap` and `--chunking-strategy` compare chunking, and `--json` records the run's settings, a hash of the question set and each question's generated queries. Every run makes billed embedding and model calls; [Retrieval evaluation](docs/retrieval-eval.md) has the options and the cost. Knowledge agents' defaults are unchanged. (#2482)
 
 ### Fixed
 
