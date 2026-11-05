@@ -96,9 +96,12 @@ function fits(field: ArtifactActionField, value: unknown): ProblemKind | null {
     case "text":
       return typeof value === "string" ? null : "text";
     case "string_list":
-      return Array.isArray(value) && value.every((item: unknown) => typeof item === "string")
-        ? null
-        : "string_list";
+      if (!Array.isArray(value)) return "string_list";
+      // Sparse slots become null in JSON; reject them before confirmation serializes the list.
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.hasOwn(value, index) || typeof value[index] !== "string") return "string_list";
+      }
+      return null;
     case "number":
       return typeof value === "number" && Number.isFinite(value) ? null : "number";
     case "integer":

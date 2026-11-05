@@ -71,6 +71,15 @@ describe("inputProblems", () => {
     expect(kinds([field("string_list")], { f: null })).toEqual([]);
   });
 
+  it.each([
+    ["all holes", new Array<string>(2)],
+    ["leading hole", Object.assign(new Array<string>(2), { 1: "leaf-01" })],
+    ["middle hole", Object.assign(new Array<string>(3), { 0: "leaf-01", 2: "leaf-02" })],
+    ["trailing hole", Object.assign(new Array<string>(2), { 0: "leaf-01" })],
+  ])("rejects a text list with %s before confirmation", (_label, value) => {
+    expect(kinds([field("string_list")], { f: value })).toEqual(["string_list"]);
+  });
+
   it("accepts what fits", () => {
     expect(kinds([field("text", { required: true })], { f: "x" })).toEqual([]);
     expect(kinds([field("number")], { f: 1.5 })).toEqual([]);
