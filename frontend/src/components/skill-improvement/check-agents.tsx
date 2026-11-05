@@ -98,7 +98,9 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
   const [seen, mark] = useSeen(check.id);
   const [active, setActive] = useState<ReadonlySet<Bucket>>(new Set());
   const [toggled, setToggled] = useState<ReadonlySet<Bucket>>(new Set());
-  const [onlyUnseen, setOnlyUnseen] = useState(false);
+  // Who had been looked at when the filter went on: a row opened under the filter
+  // stays, so its details can be read.
+  const [unseenFrom, setUnseenFrom] = useState<ReadonlySet<string> | null>(null);
   const [query, setQuery] = useState("");
   const flip = (set: ReadonlySet<Bucket>, bucket: Bucket) => {
     const next = new Set(set);
@@ -111,7 +113,7 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
   const shown = rows.filter(
     (row) =>
       (active.size === 0 || active.has(bucketOf(row.state))) &&
-      (!onlyUnseen || !seen.has(keyOf(row))) &&
+      (unseenFrom === null || !unseenFrom.has(keyOf(row))) &&
       (needle === "" ||
         `${row.agent.name} ${row.via_specialist ?? ""}`.toLocaleLowerCase().includes(needle)),
   );
@@ -143,8 +145,8 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
           <span className="flex items-center gap-1.5">
             <Checkbox
               id={`unseen-${check.id}`}
-              checked={onlyUnseen}
-              onCheckedChange={(value) => setOnlyUnseen(value === true)}
+              checked={unseenFrom !== null}
+              onCheckedChange={(value) => setUnseenFrom(value === true ? new Set(seen) : null)}
             />
             <Label htmlFor={`unseen-${check.id}`} className="text-xs font-normal">
               {t("onlyUnseen")}

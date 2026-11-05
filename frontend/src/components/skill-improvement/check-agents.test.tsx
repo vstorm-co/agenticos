@@ -308,6 +308,22 @@ describe("CheckAgents", () => {
       expect(screen.getByText("No agent matches.")).toBeVisible();
     });
 
+    it("keeps a row opened under Only the ones not looked at, so it can be read", async () => {
+      render(<CheckAgents check={many()} />);
+      await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
+
+      await userEvent.click(screen.getByRole("button", { name: "Details of Refunds" }));
+      expect(screen.getByRole("button", { name: "Details of Refunds" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(screen.getByRole("link", { name: "Open Refunds" })).toBeVisible();
+
+      await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
+      await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
+      expect(names()).not.toContain("Refunds");
+    });
+
     it("says when nothing worse or unknown is left to look at", () => {
       render(
         <CheckAgents
