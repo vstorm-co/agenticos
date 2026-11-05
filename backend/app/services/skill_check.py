@@ -1023,11 +1023,11 @@ class SkillCheckService:
         assert run is not None, "a run just compared is there"
         flips = Counter(case.flip for case in comparison.cases)
         counts = StageCounts(
-            compared=comparison.compared,
+            compared=flips["fixed"] + flips["regression"] + flips["unchanged"],
             fixed=flips["fixed"],
             broken=flips["regression"],
             unchanged=flips["unchanged"],
-            unknown=flips["incomplete"] + comparison.not_compared,
+            unknown=flips["incomplete"] + comparison.not_compared + comparison.changed,
         )
         return {
             "kind": kind,

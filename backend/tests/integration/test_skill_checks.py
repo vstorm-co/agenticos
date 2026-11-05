@@ -176,6 +176,7 @@ class FakeEvals:
                 regressions_unconfirmed=outcome.unconfirmed_broken,
                 compared=held_out,
                 not_compared=0,
+                changed=0,
                 gradable_holdout=held_out,
                 cases=_flips(outcome, held_out),
             )

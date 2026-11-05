@@ -79,12 +79,17 @@ StageKind = Literal["skill_set", "dataset_sample", "dataset"]
 class StageCounts(BaseSchema):
     """One stage's held-out questions, candidate against baseline."""
 
-    compared: int
+    compared: int = Field(
+        description="Answered and graded on both sides: fixed, broken or unchanged"
+    )
     fixed: int = Field(description="Failed before and pass with the change, re-asks or not")
     broken: int = Field(description="Passed before and fail with the change, re-asks or not")
     unchanged: int = Field(description="Compared, and answered the same way on both sides")
     unknown: int = Field(
-        description="Held out but not compared: unanswered, ungraded or changed in between"
+        description=(
+            "Held out but not compared: unanswered or ungraded on a side, asked on one side "
+            "only, or changed in between"
+        )
     )
 
 

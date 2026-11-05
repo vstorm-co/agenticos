@@ -1571,6 +1571,26 @@ class TestStageCounts:
             str(stage.dataset_id) for stage in a.stages
         ]
 
+    async def test_an_incomplete_question_is_unknown_and_never_compared(self, db, monkeypatch):
+        """Every held-out question lands in exactly one count."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=1, incomplete=1)}, mode="thorough"
+        )
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        a = next(row for row in read.agents if row.agent.id == lab.a.id)
+        for stage in a.stages:
+            assert stage.counts is not None and stage.eval_run_id is not None
+            held = evals.runs[stage.eval_run_id].held_out
+            assert stage.counts.unknown == 1
+            assert stage.counts.compared == held - 1
+            assert stage.counts.compared + stage.counts.unknown == held
+            assert stage.counts.unchanged == held - 2
+
     async def test_an_agent_the_reader_may_not_see_shows_no_counts(self, db, monkeypatch):
         lab = await _lab(db)
         evals = FakeEvals()
