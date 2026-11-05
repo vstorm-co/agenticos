@@ -1585,6 +1585,7 @@ export function useChat(options: UseChatOptions = {}) {
       // drainer effect below pops the head as soon as the agent is idle.
       if (
         processingRef.current ||
+        decidingApprovalRef.current !== null ||
         !sessionReadyRef.current ||
         !isConnected ||
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
@@ -2195,6 +2196,11 @@ export function useChat(options: UseChatOptions = {}) {
         // Once, after all of them: the run continues when nothing is left
         // parked, and resuming per decision would start it while calls it has
         // not been told about are still waiting.
+        // HTTP resumes do not stream frames to this socket. Keep the turn live
+        // so transcript refreshes cannot replace it with its old parked snapshot.
+        if (decidingApprovalRef.current === decisionToken && parked.messageId !== null) {
+          updateMessage(parked.messageId, (message) => ({ ...message, isStreaming: true }));
+        }
         const resumed = await resumeRun(parked.runId);
         // Approved calls are marked finished here rather than left `running`. The
         // resume ran over HTTP, so their `tool_result` frames went to that response
@@ -2246,12 +2252,19 @@ export function useChat(options: UseChatOptions = {}) {
         setPendingApproval(parked);
         toast.error(getErrorMessage(error, tErrors));
       } finally {
-        if (decidingApprovalRef.current === decisionToken) decidingApprovalRef.current = null;
+        if (decidingApprovalRef.current === decisionToken) {
+          if (parked.messageId !== null) {
+            updateMessage(parked.messageId, (message) => ({ ...message, isStreaming: false }));
+          }
+          decidingApprovalRef.current = null;
+          setDrainTick((tick) => tick + 1);
+        }
       }
     },
     [
       pendingApproval,
       updateToolCallPart,
+      updateMessage,
       decideApproval,
       resumeRun,
       showContinuation,
@@ -2678,7 +2691,7 @@ export function useChat(options: UseChatOptions = {}) {
   // in, and the person decides whether it goes again or not at all.
   useEffect(() => {
     if (interruptedFor !== null) return;
-    if (!isConnected || isProcessing || !sessionReady) return;
+    if (!isConnected || isProcessing || !sessionReady || decidingApprovalRef.current) return;
     const next = messageQueueRef.current[0];
     if (!next || next.refused !== undefined) return;
     const account = useAuthStore.getState().user?.id;
@@ -2692,6 +2705,7 @@ export function useChat(options: UseChatOptions = {}) {
         conversation !== conversationApi.getState().currentConversationId ||
         messageQueueRef.current[0] !== next ||
         processingRef.current ||
+        decidingApprovalRef.current !== null ||
         !sessionReadyRef.current
       )
         return;

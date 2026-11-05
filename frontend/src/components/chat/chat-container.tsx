@@ -1475,6 +1475,7 @@ function ChatUI({
               <OutcomeCards
                 conversationId={conversationId}
                 hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
+                isWorking={isProcessing || messages.some((message) => message.isStreaming)}
                 className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
               />
             )}

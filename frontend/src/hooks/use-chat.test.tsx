@@ -1703,6 +1703,67 @@ describe("useChat - approvals and questions", () => {
     ).toBe(false);
   });
 
+  it("keeps an HTTP continuation visibly working across a stale transcript refresh", async () => {
+    let finish!: (value: object) => void;
+    const resumed = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume") ? resumed : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("message_saved", { message_id: "saved-turn" });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+    const parkedSnapshot = useChatStore.getState().messages.map((message) => ({ ...message }));
+    let submitting!: Promise<void>;
+    await act(async () => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      isStreaming: true,
+      toolCalls: [{ id: "tc-1", status: "running" }],
+    });
+    act(() => useChatStore.getState().rereadMessages(parkedSnapshot));
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      isStreaming: true,
+      toolCalls: [{ id: "tc-1", status: "running" }],
+    });
+    act(() => result.current.sendMessage("Follow up after the continuation"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(
+      useChatStore.getState().messages.filter((message) => message.role === "user"),
+    ).toHaveLength(0);
+    await act(async () => {
+      finish({
+        status: "completed",
+        output: "Done.",
+        settled: [{ tool_call_id: "tc-1", result: "ok" }],
+      });
+      await submitting;
+    });
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      isStreaming: false,
+      toolCalls: [{ id: "tc-1", status: "completed", result: "ok" }],
+    });
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
+    expect(
+      useChatStore
+        .getState()
+        .messages.some(
+          (message) =>
+            message.role === "user" && message.content === "Follow up after the continuation",
+        ),
+    ).toBe(true);
+  });
+
   it("keeps a rejected step refused when a chat run's batch mixes both", async () => {
     post.mockImplementation((url: string) =>
       Promise.resolve(url.startsWith("/approvals/") ? { continues_in_chat: true } : {}),

@@ -100,6 +100,16 @@ describe("OutcomeCards", () => {
     expect(screen.getByText("A finding")).toBeVisible();
   });
 
+  it("hides stale approval notices while a continuation is working", () => {
+    state.outcomes = [
+      outcome({ kind: "approval_requested" }),
+      outcome({ id: "finding", summary: "A finding" }),
+    ];
+    render(<OutcomeCards conversationId="c-1" isWorking />);
+    expect(screen.queryByText("Finance is waiting on your approval")).toBeNull();
+    expect(screen.getByText("A finding")).toBeVisible();
+  });
+
   it("keeps a legacy approval reachable when its source or link is absent", () => {
     state.outcomes = [outcome({ kind: "approval_requested", context_url: null })];
     render(<OutcomeCards conversationId="c-1" />);

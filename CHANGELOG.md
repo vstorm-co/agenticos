@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep approved chat turns visibly working while their HTTP continuation runs, preserve their live state during transcript refreshes and queue follow-up messages until the continuation returns.
+
 - Mount the console task API proxy so project Tasks buttons and task lists reach the backend instead of returning a frontend 404.
 
 - Prevent already-approved chat requests from reappearing during HTTP continuations, and submit each in-flight approval batch only once.
