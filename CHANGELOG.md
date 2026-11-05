@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- A new Drafts capability: when the web chat is asked for text to send or paste elsewhere, such as an e-mail, a reply or a post, the agent shows it as a card with one segment per part, a plain-text copy icon on each, versions as tabs and a small type hint. Reopening a conversation or opening it by shared link shows the same card. New agents, every template and the agents the Architect creates have it on; existing agents are unchanged until their author switches it on and publishes. (#2737)
+
+### Fixed
+
+- With code mode on, charts and drawings were run from scripts and never appeared; they now stay ordinary calls.
+
 ## [1.47.3] - 2026-11-04
 
 ### Fixed

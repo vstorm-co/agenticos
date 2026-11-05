@@ -1,5 +1,5 @@
 ---
-source_sha: "9990e62dfb03"
+source_sha: "1d31f2a3602c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -100,6 +100,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
+| `drafts` | Entwürfe | utility | `write_draft` | — | — | nicht verfügbar |
 | `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
@@ -3097,6 +3098,61 @@ stehen blieb. Antworten kann nur die gefragte Person, über
 zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
+
+## Entwürfe { #drafts }
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+Bittet jemand um eine E-Mail, eine Antwort auf Slack, einen Beitrag oder eine
+Ticket-Beschreibung, legt der Agent den Text in eine eigene Karte, statt ihn in die
+Antwort zu mischen. So muss nichts von Hand markiert oder am Ziel aufgeräumt
+werden.
+
+Die Karte hat einen Titel und eine Art (Email, Slack message, Post). Ein
+Text mit Teilen, die an verschiedenen Stellen eingefügt werden - Betreff und Inhalt
+einer E-Mail - hat ein Segment pro Teil, und jedes Segment hat ein eigenes
+Kopiersymbol in der Ecke. Ein Segment zeigt seinen Namen nur dort, wo er die Teile
+unterscheidbar macht, und einen kleinen Typhinweis in der unteren Ecke: standardmäßig
+`text`, `markdown`, wenn die Person es wollte, oder eine Sprache für ein Snippet,
+das der Text mitbringt.
+
+Kopieren legt **reinen Text** in die Zwischenablage: genau den Text des Segments,
+ohne dessen Namen und ohne Leerzeilen am Anfang und Ende. Nie HTML oder
+formatierten Text, er wird also in der Schrift und den Farben des Ziels eingefügt.
+Ein Feld wird so gezeigt, wie es getippt wurde - Markdown wird nicht gerendert,
+`<b>` nicht interpretiert - und so kopiert.
+
+Zwei bis fünf Varianten desselben Entwurfs („gib mir zwei Versionen") kommen in einem
+Aufruf als **Varianten** und erscheinen als Tabs mit ein bis zwei Wörtern als Name
+(„Kurz", „Mit Details"). Die Grenzen: ein Titel bis 120 Zeichen, bis zu 10 Felder je
+Variante, bis zu 20.000 Zeichen je Feld und kein leeres Feld. Ein Aufruf, der eine
+Grenze verletzt, wird mit einer Meldung abgelehnt, die nennt, was zu korrigieren
+ist; das Modell versucht es erneut, und eine leere Karte erscheint nie.
+
+Die Karte wird aus den Argumenten des gespeicherten Aufrufs neu aufgebaut; wer die
+Unterhaltung wieder öffnet, sieht dieselbe Karte. Eine per Link geteilte
+Unterhaltung trägt ihre Entwürfe ebenfalls (die neuesten 50, zusammen höchstens 500.000
+Zeichen, da jeder mit dem Link sie laden kann). Ein abgelehnter Aufruf oder einer,
+dessen Argumente sich nicht mehr lesen lassen, zeigt keine Karte.
+
+Angeboten wird sie **nur im Web-Chat**, weil nur diese Oberfläche die Karte
+zeichnet. Die Desktop- und die Telefon-App laden dieselbe Konsole und bekommen sie
+daher auch, einschließlich Quick Ask. Auf jeder anderen Oberfläche - gehostete
+Seiten und das eingebettete Widget, Chat-Kanäle, die API, Zeitpläne, Workflows, Hintergrund-Topics, Sprache - und
+für einen Subagent, dessen Ausgabe zum übergeordneten Modell geht und nicht zur
+Person, sieht der Agent das Tool nicht und schreibt den Text wie bisher in seine
+Antwort.
+
+Sie ist in jedem neuen Agent, jeder Vorlage und den vom Architect erstellten Agents
+standardmäßig an, und ein Autor kann sie abschalten. Bestehende Agents bleiben
+unverändert, bis ihr Autor sie einschaltet und eine neue Version veröffentlicht.
+
+!!! note "Grenze: ein umbenanntes Tool"
+    Die Konsole findet die Karte am Namen des Tools, wie bei `draw` und
+    `create_chart`. Eine Bindung, die `write_draft` umbenennt, verliert die Karte:
+    der Aufruf erscheint als gewöhnlicher Schritt. Verfolgt in
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Nächste Schritte { #follow-ups }
 

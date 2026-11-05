@@ -1,5 +1,5 @@
 ---
-source_sha: "9990e62dfb03"
+source_sha: "1d31f2a3602c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -99,6 +99,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
+| `drafts` | Borradores | utility | `write_draft` | — | — | no disponible |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -2948,6 +2949,60 @@ detuvo. Solo la persona a quien se preguntó puede responder, mediante
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+## Borradores { #drafts }
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+Cuando alguien pide un correo, una respuesta en Slack, una publicación o la
+descripción de una incidencia, el agent pone el texto en una tarjeta propia en lugar
+de mezclarlo con la respuesta, así que no hay que seleccionar nada a mano ni
+limpiarlo donde se pega.
+
+La tarjeta tiene un título y un tipo (Email, Slack message,
+Post). Un texto con partes que se pegan en sitios distintos - el asunto y el cuerpo
+de un correo - tiene un segmento por parte, y cada segmento tiene su propio icono de
+copiar en la esquina. Un segmento muestra su nombre solo donde sirve para distinguir
+las partes, y una pequeña pista de tipo en la esquina inferior: `text` por defecto,
+`markdown` cuando la persona lo pidió, o un lenguaje para un fragmento que el texto
+lleva consigo.
+
+Copiar pone **texto plano** en el portapapeles: exactamente el texto del segmento,
+sin su nombre y sin líneas en blanco al principio ni al final. Nunca HTML ni texto
+enriquecido, así que se pega con la fuente y los colores del destino. Un campo se
+muestra tal como se escribió - el markdown no se renderiza, `<b>` no se interpreta -
+y se copia igual.
+
+De dos a cinco variantes del mismo borrador («dame dos versiones») van en una sola
+llamada como **variantes** y se muestran como pestañas con un nombre de una o dos
+palabras («Corta», «Con detalles»). Los límites: un título de hasta 120 caracteres,
+hasta 10 campos por variante, hasta 20.000 caracteres por campo y ningún campo vacío.
+Una llamada que rompe un límite se rechaza con un mensaje que dice qué corregir, así
+que el modelo reintenta y nunca se dibuja una tarjeta vacía.
+
+La tarjeta se reconstruye a partir de los argumentos de la llamada guardada, así que
+al reabrir una conversación se ve la misma tarjeta. Una conversación compartida por
+enlace también lleva sus borradores (hasta los 50 más recientes y 500.000 caracteres de
+texto entre todos, porque cualquiera con el enlace puede cargarla). Una llamada
+rechazada, o cuyos argumentos ya no se pueden leer, no muestra tarjeta.
+
+Se ofrece **solo en el chat web**, porque es la única superficie que dibuja la
+tarjeta. Las apps de escritorio y de teléfono cargan la misma consola, así que
+también la tienen, incluida la consulta rápida. En cualquier otra superficie -
+páginas alojadas y el widget incrustado, canales de chat, la API, programaciones,
+workflows, topics en segundo plano, voz - y para un subagente, cuya salida va al modelo padre y no a la persona, el agent
+no ve la herramienta y escribe el texto en su respuesta como hasta ahora.
+
+Está activada por defecto en cada agent nuevo, cada plantilla y los agents que crea
+el Architect, y un autor puede desactivarla. Los agents existentes no cambian hasta
+que su autor la active y publique una versión nueva.
+
+!!! note "Límite: una herramienta renombrada"
+    La consola encuentra la tarjeta por el nombre de la herramienta, igual que con
+    `draw` y `create_chart`. Un binding que renombra `write_draft` pierde la
+    tarjeta: la llamada se muestra como un paso corriente. Seguimiento en
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Follow-ups { #follow-ups }
 

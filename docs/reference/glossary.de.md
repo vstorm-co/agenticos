@@ -66,7 +66,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 |---|---|
 | Apps | `artifacts` |
 | Rückfragen | `ask_user` |
-| Texte zum Versenden | `drafts` |
+| Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
 | Diagramme | `charts` |

@@ -1,5 +1,5 @@
 ---
-source_sha: "c8babc3ac8d9"
+source_sha: "0d9d393678fa"
 ---
 
 # Governance { #governance }
@@ -1042,7 +1042,9 @@ juntas.
 Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
 las mismas comprobaciones de permisos que una llamada directa. Una herramienta
 que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
-se detiene para la persona como siempre. La vista del run lista cada script y
+se detiene para la persona como siempre. Lo mismo vale para preguntas,
+delegaciones y herramientas cuya llamada es lo que ve la persona (borradores,
+gráficos, dibujos). La vista del run lista cada script y
 cada llamada que hizo.
 
 ### Informes { #reporting }

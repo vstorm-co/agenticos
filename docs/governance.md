@@ -977,7 +977,9 @@ fanning out over hundreds of sandboxed calls cannot open them all together.
 
 Each call from a script goes through the same guardrails, budget and permission
 checks as a direct call. A tool that needs approval is never folded in: it stays
-an ordinary call, and the run stops for the person as it always does. The run view
+an ordinary call, and the run stops for the person as it always does. So do questions,
+delegations and tools whose call is what the person sees (drafts, charts,
+drawings). The run view
 lists each script and every call it made.
 
 ### Reporting

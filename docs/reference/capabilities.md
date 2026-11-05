@@ -92,6 +92,7 @@ browser is pointed at the deployment's browser service
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
+| `drafts` | Drafts | utility | `write_draft` | — | — | not available |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -2753,6 +2754,58 @@ asked can answer, through `POST /runs/{run_id}/answers`; `GET
 /runs/{run_id}/questions` reads the card back. After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+## Drafts
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+When someone asks for an e-mail, a reply on Slack, a post or an issue
+description, the agent puts the text in a card of its own instead of mixing it
+into the answer, so nothing has to be selected by hand or cleaned up where it
+lands.
+
+The card has a title and a kind (Email, Slack message, Post). A draft
+with parts that are pasted in different places - an e-mail's subject and body -
+has one segment per part, and each segment has its own copy icon in the corner.
+A segment shows its name only where that tells the parts apart, and a small
+type hint in its bottom corner: `text` by default, `markdown` when the person
+asked for it, or a language for a snippet the draft carries.
+
+Copy puts **plain text** on the clipboard: exactly the segment's text, without
+its name, trimmed of blank lines at either end. Never HTML or rich text, so it
+pastes in the destination's own font and colours. A field is shown as typed -
+markdown is not rendered, `<b>` is not interpreted - and copied as typed.
+
+Two to five takes on the same draft ("give me two versions") go in one call as
+**versions**, shown as tabs named by a word or two ("Short", "With details").
+The limits: a title of up to 120 characters, up to 10 fields per version, up to
+20,000 characters in a field, and no empty field. A call that breaks one is
+refused with a message naming what to fix, so the model retries and no empty
+card is ever drawn.
+
+The card is rebuilt from the stored call's arguments, so reopening a
+conversation shows the same card. A conversation shared by link carries its
+drafts too (up to the newest 50, and 500,000 characters of text between them,
+since anyone with the link can load it). A call that was refused, or whose
+arguments no longer parse, shows no card.
+
+It is offered **only in the web chat**, because that is the one surface that
+draws the card. The desktop and phone apps load the same console, so they get
+it too, quick ask included. On every other surface - hosted pages and the
+embed widget, chat channels, the API, schedules, workflows, background topics, voice - and for a subagent,
+whose output goes to the parent model and not to the person, the agent does not
+see the tool and writes the draft into its answer as before.
+
+It is on by default in every new agent, every template and the agents the
+Architect creates, and an author can switch it off. Existing agents are
+unchanged until their author turns it on and publishes a new version.
+
+!!! note "Limit: a renamed tool"
+    The console finds the card by the tool's name, as it does for `draw` and
+    `create_chart`. A binding that renames `write_draft` loses the card: the
+    call shows as an ordinary step. Tracked in
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Follow-ups { #follow-ups }
 

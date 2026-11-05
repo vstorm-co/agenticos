@@ -65,7 +65,7 @@ w [Capabilities](capabilities.md).
 |---|---|
 | Aplikacje | `artifacts` |
 | Pytania do użytkownika | `ask_user` |
-| Teksty do wysłania | `drafts` |
+| Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
 | Wykresy | `charts` |
