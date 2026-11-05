@@ -130,6 +130,8 @@ const ACCEPTED =
 interface ChatInputProps {
   /** Focus once the composer becomes writable on entry to the main chat. */
   autoFocus?: boolean;
+  /** Re-arm entry focus for an explicit New chat without remounting the editor. */
+  focusRequest?: number;
   onSend: (
     message: string,
     fileIds?: string[],
@@ -253,6 +255,7 @@ function touchKeyboard(): boolean {
 
 export function ChatInput({
   autoFocus = false,
+  focusRequest = 0,
   onSend,
   disabled,
   isProcessing,
@@ -306,6 +309,14 @@ export function ChatInput({
   const entryFocusRequested = useRef(autoFocus);
   const initialFocusAttempted = useRef(false);
   const interactedWhileConnecting = useRef(false);
+  const previousFocusRequest = useRef(focusRequest);
+  useLayoutEffect(() => {
+    if (previousFocusRequest.current === focusRequest) return;
+    previousFocusRequest.current = focusRequest;
+    entryFocusRequested.current = autoFocus;
+    initialFocusAttempted.current = false;
+    interactedWhileConnecting.current = false;
+  }, [autoFocus, focusRequest]);
   useEffect(() => {
     if (!entryFocusRequested.current || !disabled || initialFocusAttempted.current) return;
     const noteInteraction = (event: Event) => {
@@ -323,7 +334,7 @@ export function ChatInput({
       document.removeEventListener("pointerdown", noteInteraction, true);
       document.removeEventListener("focusin", noteInteraction, true);
     };
-  }, [disabled]);
+  }, [disabled, focusRequest]);
   useEffect(() => {
     if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
     initialFocusAttempted.current = true;
@@ -338,7 +349,7 @@ export function ChatInput({
     )
       return;
     editorRef.current?.focus();
-  }, [disabled]);
+  }, [disabled, focusRequest]);
   // Reply was just chosen on a message: the person goes on to type the answer.
   useEffect(() => {
     if (replyTo) editorRef.current?.focus();

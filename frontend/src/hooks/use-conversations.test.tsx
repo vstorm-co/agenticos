@@ -1431,6 +1431,19 @@ describe("a request that outlives the account that made it", () => {
 });
 
 describe("starting a new chat", () => {
+  it("requests composer focus again even if the previous draft was already empty", async () => {
+    const result = await hook();
+    const before = useConversationStore.getState().composerFocusRequest;
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    expect(useConversationStore.getState().composerFocusRequest).toBe(before + 1);
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+    expect(useConversationStore.getState().composerFocusRequest).toBe(before + 2);
+  });
+
   it("leaves even an empty stored conversation so its project cannot leak into a new draft", async () => {
     // A stored conversation has a fixed project identity, even before any messages.
     const result = await hook();

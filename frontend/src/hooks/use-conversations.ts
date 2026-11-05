@@ -841,6 +841,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       clearMessages();
       setCurrentMessages([]);
       setCurrentConversationId(null);
+      conversationApi.getState().requestComposerFocus();
       // Strip the stale ?id= immediately so a refresh mid-flight lands on a
       // fresh /chat instead of the old conversation. The new id will be set
       // by the WS conversation_created event on first message.

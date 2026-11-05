@@ -1028,6 +1028,7 @@ function ChatUI({
   incomingFiles,
   onVisualReport,
 }: ChatUIProps) {
+  const composerFocusRequest = useConversationStore((state) => state.composerFocusRequest);
   const t = useTranslations("chat");
   const tDictation = useTranslations("chat.dictation");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -1658,6 +1659,7 @@ function ChatUI({
                           costs the row a button. */}
                           <ChatInput
                             autoFocus={!compact && !onCall}
+                            focusRequest={composerFocusRequest}
                             onSend={sendMessage}
                             // Mentions address the agent the thread is talking to -
                             // in a fixed window (the test panel, the Architect) the

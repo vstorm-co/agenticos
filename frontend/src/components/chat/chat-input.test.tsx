@@ -945,6 +945,28 @@ it("does not take touch-keyboard focus on arrival or when a reply finishes", asy
 });
 
 describe("chat entry focus", () => {
+  it("focuses the reused composer on each explicit new-chat request", async () => {
+    const onSend = vi.fn();
+    const view = (focusRequest: number, disabled = false) => (
+      <>
+        <button>New chat</button>
+        <ChatInput autoFocus focusRequest={focusRequest} disabled={disabled} onSend={onSend} />
+      </>
+    );
+    const { rerender } = render(view(0));
+    const editor = screen.getByRole("textbox");
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    expect(editor).not.toHaveFocus();
+    rerender(view(1));
+    expect(editor).toHaveFocus();
+    expect(screen.getByRole("textbox")).toBe(editor);
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    rerender(view(2, true));
+    expect(editor).not.toHaveFocus();
+    rerender(view(2));
+    expect(editor).toHaveFocus();
+  });
+
   it("takes focus from the navigation button that opened chat", () => {
     const opener = document.createElement("button");
     opener.textContent = "New chat";

@@ -60,6 +60,8 @@ On phones, focusing the chat message switches to a compact writing row with atta
 
 Entering the main chat focuses the composer as soon as it becomes writable, including when the navigation button still holds focus during connection. A control deliberately used while connecting keeps its focus.
 
+Every explicit **New chat** action focuses the composer again, including starting over from an empty draft; receiving a conversation ID while typing does not request focus.
+
 On phones, the actions beneath user and agent messages start hidden. Tap the **More** button beside the sender to show or hide copying, replies, ratings and other available actions. Desktop keeps its hover controls.
 
 Preview CSS imports, images and fonts resolve relative to their stylesheet through the same authorized file source. Previews limit recursion to four nested levels, 64 assets, 8 MiB of input assets and 16 MiB of expanded output. Turn file links retain their original conversation or local folder, recorded with the saved timeline; changing Work on cannot retarget them. Older turns without a recorded origin have no inferred links. Opening a local file still requires its current native folder grant.

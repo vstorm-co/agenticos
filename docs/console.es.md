@@ -1,5 +1,5 @@
 ---
-source_sha: "46ff7fba22f9"
+source_sha: "4dd9c3f1ff4e"
 ---
 
 # La consola { #the-console }
@@ -65,6 +65,8 @@ Los diálogos de categorías de plantillas se ajustan al contenido; elegir un se
 Las instrucciones de agentes y proyectos tienen una barra compacta con título, ayuda, código/vista previa y ampliación. El Markdown ampliado conserva el modo seleccionado. Las variables de prompt sin usar empiezan plegadas; las variables propias existentes o una zona horaria personalizada mantienen abierto el panel. Los editores ampliados de texto y archivos conservan márgenes uniformes en el teléfono. Los campos de texto usan allí una letra mayor sin ampliar los campos de escritorio.
 
 En el teléfono, enfocar el mensaje activa una fila compacta de escritura con adjuntos y envío. La selección del agente y la entrada de voz siguen disponibles en **+**. La bienvenida y las sugerencias de conexiones se ocultan al escribir; los menús de autocompletado se ajustan a la altura disponible. El diseño permanece estable al pasar del texto a Enviar.
+
+Cada acción explícita **New chat** vuelve a enfocar el editor, incluso desde un borrador vacío; recibir un identificador de conversación mientras se escribe no solicita el foco.
 
 Al entrar en el chat principal, el campo recibe el foco en cuanto permite escribir, incluso si el botón de navegación lo conservaba durante la conexión. Un control utilizado deliberadamente mientras se conecta mantiene el foco.
 

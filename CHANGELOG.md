@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Focus the chat composer after every New chat action, including when the editor is reused or the preceding draft is already empty.
+
 - Allow chat approval waivers by default in new organizations while preserving existing organization choices and per-conversation consent.
 
 - Remove scratch planning tools from AgenticOS, Architect and new-agent defaults; keep progress guidance in messages and durable commitments in managed Tasks.
