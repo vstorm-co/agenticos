@@ -444,3 +444,78 @@ async def test_unrelated_integrity_failures_are_not_reported_as_duplicate_accoun
             await CodingAccountService(db).create(
                 AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member"), request()
             )
+
+
+@pytest.mark.parametrize("stored_kind", ["api_key", "openai_codex"])
+async def test_codex_refuses_an_invalid_stored_credential_variant(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, stored_kind: str
+) -> None:
+    @asynccontextmanager
+    async def connection() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            yield db
+            await db.commit()
+
+    monkeypatch.setattr(codex_module, "get_db_context", connection)
+    async with connection() as db:
+        owner = await person(db)
+        org = await organization(db, owner)
+        row = await CodingAccountService(db).create(
+            context(owner, org), request().model_copy(update={"harness": "codex", "enabled": True})
+        )
+        row.secret_kind = stored_kind
+        source = PersonalCodexCredentials(org.id, owner.id, row.id, row.generation)
+    monkeypatch.setattr(
+        codex_module, "unseal_secret", lambda *args, **kwargs: ApiKeySecret(api_key=KEY)
+    )
+    pair = OpenAICodexCredentials(
+        access_token="access-value", refresh_token="refresh-value", account_id="account"
+    )
+    with pytest.raises(TypeError):
+        await source.load()
+    with pytest.raises(TypeError):
+        await source.swap(pair, pair)
+
+
+async def test_a_private_task_refuses_a_wrong_harness_or_non_coding_credential(
+    engine: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.secret_kinds import NoSecret
+
+    @asynccontextmanager
+    async def connection() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            yield db
+            await db.commit()
+
+    monkeypatch.setattr(coding_module, "get_db_context", connection)
+    async with connection() as db:
+        owner = await person(db)
+        org = await organization(db, owner)
+        auth = context(owner, org)
+        row = await CodingAccountService(db).save(
+            auth,
+            harness="codex",
+            label="ChatGPT",
+            secret=OpenAICodexSecret(
+                access_token="access-value", refresh_token="refresh-value", account_id="account"
+            ),
+            enabled=True,
+        )
+    factory = PersonalCodingSessionFactory(
+        auth, AgentSpec(name="Test"), SandboxConfig(backend="service"), uuid4()
+    )
+    run = RunContext(
+        deps=AgentDeps(organization_id=org.id, user_id=str(owner.id), conversation_id=uuid4()),
+        model=TestModel(),
+        usage=RunUsage(),
+        prompt="Task",
+    )
+    with pytest.raises(BadRequestError, match="only run Codex"):
+        async with factory._isolated(run, row, "claude_code"):
+            pytest.fail("Wrong harness admitted")
+    monkeypatch.setattr(coding_module, "unseal_secret", lambda *args, **kwargs: NoSecret())
+    with pytest.raises(TypeError):
+        async with factory._isolated(run, row, "codex"):
+            pytest.fail("Non-coding credential admitted")

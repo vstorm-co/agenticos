@@ -146,3 +146,24 @@ async def test_a_cleanup_failure_preserves_the_original_copy_error() -> None:
     workspace.run.side_effect = [SimpleNamespace(exit_code=1), RuntimeError("cleanup failed")]
     with pytest.raises(BadRequestError):
         await snapshots.snapshot(workspace)
+
+
+async def test_nonzero_cleanup_preserves_an_existing_copy_error() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    workspace = AsyncMock(spec=Workspace)
+    workspace.run.return_value = SimpleNamespace(exit_code=1)
+    with pytest.raises(BadRequestError):
+        await snapshots.snapshot(workspace)
+
+
+def test_credential_whitespace_is_rejected_without_changing_the_secret() -> None:
+    from pydantic import SecretStr, ValidationError
+
+    from app.schemas.coding_account import CodingAccountCreate
+
+    with pytest.raises(ValidationError):
+        CodingAccountCreate(
+            harness="codex", label="Mine", api_key=SecretStr(" key-with-whitespace ")
+        )

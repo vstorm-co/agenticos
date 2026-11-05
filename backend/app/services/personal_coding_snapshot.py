@@ -85,10 +85,7 @@ def decode_snapshot(raw: bytes) -> CodingSnapshot:
     total = 0
     digest = hashlib.sha256()
     for path, (text, executable) in sorted(encoded.items()):
-        try:
-            path_bytes = path.encode("utf-8")
-        except UnicodeError:
-            raise BadRequestError(message="The coding snapshot contains an invalid path") from None
+        path_bytes = path.encode("utf-8")
         parsed = PurePosixPath(path)
         if (
             not path
