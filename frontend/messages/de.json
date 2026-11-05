@@ -1331,6 +1331,9 @@
     "delete": "Löschen",
     "describeIssue": "Beschreiben Sie das Problem … (optional)",
     "download": "Herunterladen",
+    "drafts": {
+      "versions": "Varianten dieses Entwurfs"
+    },
     "dropFilesAttach": "Dateien zum Anhängen hierher ziehen",
     "edit": "Bearbeiten",
     "editMeans": "Bearbeiten erlaubt, diese Unterhaltung umzubenennen, zu archivieren, zu löschen und ihr Züge hinzuzufügen.",
@@ -1785,8 +1788,8 @@
       "videoNotStored": "Das Video wurde erzeugt, aber nicht gespeichert.",
       "suggestingNextSteps": "Schlägt nächste Schritte vor",
       "nextSteps": "Nächste Schritte",
-      "writingDraft": "Schreibt einen Text zum Versenden",
-      "draft": "Text zum Versenden",
+      "writingDraft": "Schreibt einen Entwurf",
+      "draft": "Hat einen Entwurf geschrieben",
       "requestingCapability": "Bittet um eine Capability",
       "capabilityRequest": "Bitte um eine Capability",
       "proposingSetup": "Schlage vor, was sich einrichten lässt",
@@ -10791,8 +10794,8 @@
       "never": "Veröffentlicht nie ein Video; es erscheint im Gespräch."
     },
     "drafts": {
-      "name": "Texte zum Versenden",
-      "does": "Zeigt Text, den der Agent zum Versenden schreibt - eine E-Mail, eine Chat-Antwort, einen Beitrag - als Karte mit einem Kopieren-Button an jedem Teil.",
+      "name": "Entwürfe",
+      "does": "Zeigt einen Entwurf des Textes, den der Agent zum Versenden schreibt - eine E-Mail, eine Chat-Antwort, einen Beitrag - als Karte mit einem Kopieren-Button an jedem Teil.",
       "example1": "Antwort an Marta zur Q4-Präsentation",
       "example2": "Zwei Versionen einer Slack-Ankündigung",
       "needs": "Nichts weiter. Die Karte erscheint im Web-Chat.",

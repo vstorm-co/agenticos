@@ -1331,6 +1331,9 @@
     "delete": "Delete",
     "describeIssue": "Describe the issue... (optional)",
     "download": "Download",
+    "drafts": {
+      "versions": "Versions of this draft"
+    },
     "dropFilesAttach": "Drop files to attach",
     "edit": "Edit",
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
