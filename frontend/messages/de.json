@@ -1383,7 +1383,10 @@
       "storedSuffix": "{size} gespeichert",
       "title": "Dateien",
       "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt.",
-      "onThisComputer": "In {folder} auf diesem Computer"
+      "onThisComputer": "In {folder} auf diesem Computer",
+      "downloadAll": "Als .zip herunterladen",
+      "downloadFolder": "{name} als .zip herunterladen",
+      "zipFailed": "Der Ordner konnte nicht heruntergeladen werden."
     },
     "generateShareLink": "Freigabelink erzeugen",
     "helpful": "Hilfreich",

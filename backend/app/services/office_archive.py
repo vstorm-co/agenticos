@@ -63,8 +63,11 @@ def _directory_extent(data: bytes) -> tuple[int, int] | None:
     return int.from_bytes(zip64[32:40], "little"), int.from_bytes(zip64[40:48], "little")
 
 
-def zip_has_too_many_members(data: bytes) -> bool:
-    """Whether the ZIP declares more members than `CHAT_ARCHIVE_MAX_MEMBERS` allows.
+def zip_has_too_many_members(data: bytes, *, limit: int | None = None) -> bool:
+    """Whether the ZIP declares more members than `limit` allows.
+
+    `limit` defaults to `CHAT_ARCHIVE_MAX_MEMBERS`, the office-file bound; an
+    archive unpacked into a workspace passes its own (#2479).
 
     The member count alone is forgeable - `zipfile` walks the directory by its
     byte size, not by the count - so the directory's size is bounded as well.
@@ -73,7 +76,8 @@ def zip_has_too_many_members(data: bytes) -> bool:
     if extent is None:
         return False
     count, directory_bytes = extent
-    limit = settings.CHAT_ARCHIVE_MAX_MEMBERS
+    if limit is None:
+        limit = settings.CHAT_ARCHIVE_MAX_MEMBERS
     return count > limit or directory_bytes > limit * _DIRECTORY_BYTES_PER_MEMBER
 
 

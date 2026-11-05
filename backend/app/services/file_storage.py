@@ -105,6 +105,21 @@ _ODT_MIME = "application/vnd.oasis.opendocument.text"
 _ODS_MIME = "application/vnd.oasis.opendocument.spreadsheet"
 _ODP_MIME = "application/vnd.oasis.opendocument.presentation"
 _TIFF_MIME = "image/tiff"
+_ZIP_MIME = "application/zip"
+_GZIP_MIME = "application/gzip"
+
+# What a browser or a platform calls a `.zip` or a `.tar.gz` (#2479). Kept apart
+# from `_MIME_TO_FORMAT` on purpose: an archive type is a *weak* claim, never one
+# that overrides a recognised extension. A `.docx` is a zip, and a client that
+# labels one `application/zip` is describing its container rather than asking
+# for it to be unpacked - so the extension decides, as it did before archives
+# were accepted at all. See `resolve_format`.
+_ARCHIVE_MIME_TO_FORMAT = {
+    _ZIP_MIME: "zip",
+    "application/x-zip-compressed": "zip",
+    _GZIP_MIME: "targz",
+    "application/x-gzip": "targz",
+}
 
 ALLOWED_MIME_TYPES = {
     "image/jpeg",
@@ -138,6 +153,9 @@ ALLOWED_MIME_TYPES = {
     _ODP_MIME,
     _MSG_MIME,
     "application/x-yaml",
+    # Unpacked into an agent's workspace, and refused by an agent without one
+    # (`attachments.py`); validated member by member at upload (#2479).
+    *_ARCHIVE_MIME_TO_FORMAT,
 }
 
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -194,6 +212,11 @@ _EXTENSION_TO_FORMAT = {
     "pptx": "pptx",
     "odp": "odp",
     "msg": "msg",
+    "zip": "zip",
+    "tgz": "targz",
+    # `file_extension` reads `repo.tar.gz` as `gz`. A `.gz` that is not a tar is
+    # refused at upload, when the archive is read.
+    "gz": "targz",
 }
 
 _FORMAT_TO_MIME = {
@@ -212,7 +235,12 @@ _FORMAT_TO_MIME = {
     "pptx": _PPTX_MIME,
     "odp": _ODP_MIME,
     "msg": _MSG_MIME,
+    "zip": _ZIP_MIME,
+    "targz": _GZIP_MIME,
 }
+
+ARCHIVE_FILE_TYPE = "archive"
+"""The `file_type` of a `.zip` or `.tar.gz`, which is unpacked rather than written (#2479)."""
 
 _FORMAT_TO_FILE_TYPE = {
     "png": "image",
@@ -230,6 +258,8 @@ _FORMAT_TO_FILE_TYPE = {
     "pptx": "presentation",
     "odp": "presentation",
     "msg": "email",
+    "zip": ARCHIVE_FILE_TYPE,
+    "targz": ARCHIVE_FILE_TYPE,
     "text": "text",
 }
 
@@ -265,7 +295,7 @@ _GENERIC_MIME_TYPES = {"", "application/octet-stream"}
 # not one of the recognised binary/image formats. A declaration from this set on a
 # binary extension (`text/plain` on `photo.png`) is a contradiction the byte phase
 # cannot catch - images and PDF are not sniffed - so it is a conflict here (#1591).
-_TEXT_MIME_TYPES = ALLOWED_MIME_TYPES - _MIME_TO_FORMAT.keys()
+_TEXT_MIME_TYPES = ALLOWED_MIME_TYPES - _MIME_TO_FORMAT.keys() - _ARCHIVE_MIME_TO_FORMAT.keys()
 
 
 def normalize_media_type(content_type: str | None) -> str:
@@ -289,10 +319,20 @@ def resolve_format(mime_type: str | None, filename: str) -> str:
     of `classify_file`. Validation, not this, rejects a MIME that *contradicts* the
     extension; here the declared MIME is simply believed when it is specific.
     """
-    fmt = _MIME_TO_FORMAT.get(normalize_media_type(mime_type))
+    normalized = normalize_media_type(mime_type)
+    fmt = _MIME_TO_FORMAT.get(normalized)
     if fmt is not None:
         return fmt
-    return _EXTENSION_TO_FORMAT.get(file_extension(filename), "text")
+    extension = file_extension(filename)
+    fmt = _EXTENSION_TO_FORMAT.get(extension)
+    if fmt is not None:
+        return fmt
+    # An archive type names the format only where the name names none we know:
+    # `notes.txt` sent as `application/zip` is still the text file it says it is.
+    archive = _ARCHIVE_MIME_TO_FORMAT.get(normalized)
+    if archive is not None and extension not in ALLOWED_EXTENSIONS:
+        return archive
+    return "text"
 
 
 def canonical_mime(mime_type: str | None, filename: str) -> str:
@@ -317,25 +357,32 @@ def canonical_mime(mime_type: str | None, filename: str) -> str:
             return _XLSM_MIME
         return known
     normalized = normalize_media_type(mime_type)
-    if normalized in ALLOWED_MIME_TYPES:
+    # A text type only: an archive type on a text file's name is the weak claim
+    # `resolve_format` already overruled, and must not be what the file is
+    # stored - and then served - as.
+    if normalized in _TEXT_MIME_TYPES:
         return normalized
     return _EXTENSION_TO_TEXT_MIME.get(file_extension(filename), "text/plain")
 
 
 def sniff_container(data: bytes) -> str | None:
-    """The container a file's own first bytes say it is: TIFF, OLE, ZIP, or `None`.
+    """The container a file's own first bytes say it is: TIFF, OLE, ZIP, gzip, or `None`.
 
     Cheap and bounded - a handful of leading bytes - and enough to catch a forged
     signature that contradicts the resolved format before a parser is handed it.
     OLE (`D0 CF 11 E0`) backs legacy DOC/XLS/MSG; ZIP (`PK\\x03\\x04`) backs the
-    OOXML and OpenDocument formats; TIFF is little- or big-endian.
+    OOXML and OpenDocument formats and a `.zip` archive; gzip (`1F 8B`) a `.tar.gz`;
+    TIFF is little- or big-endian.
     """
     if data[:4] in (b"II*\x00", b"MM\x00*"):
         return "tiff"
     if data[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
         return "ole"
-    if data[:4] == b"PK\x03\x04":
+    # An archive with no members is only its end record, so it opens on that.
+    if data[:4] in (b"PK\x03\x04", b"PK\x05\x06"):
         return "zip"
+    if data[:2] == b"\x1f\x8b":
+        return "gzip"
     return None
 
 
@@ -352,6 +399,8 @@ _FORMAT_TO_CONTAINER = {
     "odt": "zip",
     "ods": "zip",
     "odp": "zip",
+    "zip": "zip",
+    "targz": "gzip",
 }
 
 

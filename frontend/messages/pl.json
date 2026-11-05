@@ -428,7 +428,10 @@
       "storedSuffix": "zapisano {size}",
       "title": "Pliki",
       "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie.",
-      "onThisComputer": "W {folder} na tym komputerze"
+      "onThisComputer": "W {folder} na tym komputerze",
+      "downloadAll": "Pobierz jako .zip",
+      "downloadFolder": "Pobierz {name} jako .zip",
+      "zipFailed": "Nie udało się pobrać folderu."
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",

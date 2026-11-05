@@ -101,6 +101,7 @@ a file it can open, and one without gets the text in its prompt.
 | **Document (OpenDocument)** | …opendocument.text | .odt | Paragraphs via `odfpy`. Appended to prompt as context. |
 | **Email** | application/vnd.ms-outlook | .msg | Headers and body read from the OLE/MAPI streams via `olefile` (BSD); embedded attachments listed by name, not recursed. Appended to prompt as context. |
 | **Text** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | UTF-8 decoded directly (XML by its declared BOM/encoding). Appended to prompt as context. |
+| **Archive** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Read whole at upload and refused if unsafe (see [Archives](#archives)). Its text is the list of what it holds. Unpacked into the workspace; refused by an agent without one. |
 
 ### Where an attachment goes depends on the agent
 
@@ -118,6 +119,52 @@ gets the file instead of the text:
 | pdf, docx, spreadsheet, document, presentation, email | parsed text pasted inline | written to `uploads/`, with the extracted text beside it unless the runtime can read it (`email` always gets it — `lit` cannot read `.msg`); reference and a 20-line head |
 | image | `BinaryContent` | `BinaryContent` **and** written; reference names the path |
 | tiff | PNG page(s) as `BinaryContent`, page cap noted | original `.tiff` written; PNG page(s) shown, page cap noted |
+| archive (`.zip`, `.tar.gz`) | refused: the model is told the agent has no workspace to unpack it into, and nothing of it is pasted | unpacked into `uploads/<id>-<name>/`; reference names the folder and lists the top of the tree |
+
+### Archives { #archives }
+
+A `.zip` or `.tar.gz` is how a repository, or any folder of files, is given to an
+agent. The platform unpacks it on the server, before the agent runs, rather than
+giving the archive to the agent to unpack. A stored workspace has no shell to run
+`unzip` in, a sandbox image is not certain to have one, and an archive is a known
+way to write outside a folder. One check on the server can be tested; an agent
+running `tar -xf` on what it was given cannot.
+
+The archive is read whole when it is uploaded. The upload is refused with a 400,
+and nothing is stored, when:
+
+- a member's path leads outside the archive (`../`), starts at the root (`/etc/x`)
+  or at a drive (`C:/`), contains a backslash or a control character;
+- a member is a symlink, a hard link, a device file or a FIFO;
+- the same path is in it twice, or as both a file and a folder;
+- a member is encrypted, or the file is not the archive its name says;
+- it holds more than `WORKSPACE_ARCHIVE_MAX_ENTRIES` files and folders (5000),
+  unpacks to more than `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB), or unpacks to more
+  than `WORKSPACE_ARCHIVE_MAX_RATIO` times its own size (100) — a decompression
+  bomb. Sizes are measured while the members are read, not taken from the
+  archive's headers, which can be false;
+- one file in it unpacks to more than `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES`
+  (50 MiB), since an unpack holds one file in memory at a time.
+
+The upload limit, `CHAT_MAX_UPLOAD_SIZE_MB`, applies to the archive itself.
+
+For an agent with a workspace, the members are written under
+`uploads/<first 8 hex of the file id>-<archive name without .zip>/`, with their
+folders kept — `repo.zip` holding `repo/src/app.py` becomes
+`uploads/3f2a1b9c-repo/repo/src/app.py`. The reference names that folder and
+starts with the first lines of the list of members. The members are written one
+at a time, so only one member is in memory at once. If the workspace refuses a
+write part of the way through, or the turn is stopped during the unpack, the
+folder is removed: the model is told the archive could not be written, and a
+half-unpacked tree is never taken for a whole one.
+
+An agent without a workspace has nowhere to unpack it. The model is told that it
+cannot open the archive and is not given the list of members, because a list of
+paths would let it answer questions about code it cannot read.
+
+To get files out again, the chat's **Files** panel offers each folder, and the
+whole workspace, as a `.zip` — see
+[Sandbox: downloading a folder](sandbox.md#downloading-a-folder-as-a-zip).
 
 **A later turn still has the file.** What the attachment added to the prompt -
 the paste, or the reference and its head - is kept beside the message and
@@ -335,6 +382,10 @@ the poll that read the mailbox. They follow the chat-upload file type allowlist 
 size limit: of the attachments a mailbox lists, only the first 10 per message are
 considered, and 25 MiB per message. One left out is listed with the reason, and a
 test run fetches nothing.
+
+A `.zip` or `.tar.gz` is left out as `type_not_allowed`:
+a chat checks an archive member by member before it unpacks it (see
+[Archives](#archives)), and nothing checks one that a workflow receives.
 
 An HTML file in a workflow, such as a stored page or an attachment, is read by
 [`html.parse`](reference/workflow-nodes.md#html-parse), not by `text.extract`, which

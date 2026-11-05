@@ -102,3 +102,22 @@ export async function readConversationFileBytes(
   );
   return response.blob();
 }
+
+/**
+ * One folder of the workspace as a `.zip`, or the whole of it when `path` is empty
+ * (#2479).
+ *
+ * Authorised as `readConversationFileBytes` is, by the conversation, so whoever may
+ * open one of its files may download a folder of them. The server bounds it and
+ * refuses a folder past the bounds before sending anything, and leaves out the
+ * tooling folders the panel hides (`.git`, `node_modules`, ...).
+ */
+export async function readConversationFolderZip(
+  conversationId: string,
+  path: string,
+): Promise<Blob> {
+  const response = await apiClient.raw(
+    `/conversations/${conversationId}/workspace/archive?path=${encodeURIComponent(path)}`,
+  );
+  return response.blob();
+}
