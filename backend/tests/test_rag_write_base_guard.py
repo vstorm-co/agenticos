@@ -299,7 +299,7 @@ def _job() -> IngestDocument:
     return IngestDocument(
         rag_document_id=uuid4(),
         collection_name="docs",
-        filepath="queued/a.md",
+        filepath="media/_rag_tmp/a-1.md",
         source_path="a.md",
         replace=False,
         attempt=1,

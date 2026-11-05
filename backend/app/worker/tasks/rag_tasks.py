@@ -248,6 +248,22 @@ async def _still_ingestable(document_id: str, collection_name: str) -> bool:
         return True
 
 
+async def _dispatch_ended(document_id: str, attempt: int) -> bool:
+    """Whether this dispatch of the document is over: the row moved on, or a retry did.
+
+    Fail-safe: an error answers no, so a failure is only ever reported as before.
+    """
+    try:
+        async with get_worker_db_context() as db:
+            doc = await rag_document_repo.get_by_id(db, UUID(document_id))
+    except Exception:
+        logger.warning("Could not read document %s back", document_id)
+        return False
+    return doc is not None and (
+        doc.status != DocumentStatus.PROCESSING or doc.ingestion_attempt != attempt
+    )
+
+
 async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     """Process a document: parse, chunk, embed, store in vector DB.
 
@@ -261,15 +277,26 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
     written reason and returns, logged at INFO, and the queue does not retry it
     (#2561).
 
+    So is a run of a dispatch that already ended: its copy went with it, and a
+    rescued attempt or a requeued payload finding the row settled, or a newer
+    retry's, returns `ended` rather than failing again (#2681).
+
     `job.attempt` is which dispatch of the document this is (#1598) - `1` for an
     upload, whatever `retry_ingestion` bumped it to for a retry - carried through
     to every settlement so a stale one (superseded by a later retry) is ignored
     rather than notifying under the wrong attempt's dedup key. It is not the
     job's own attempt, which the queue counts.
+
+    The scratch copy at `job.filepath` is this job's alone (#2681), and it goes
+    once no attempt of the job is coming: on any return, and on a failure on the
+    last attempt. A failure the queue retries keeps it for the retry, and so does
+    a cancellation - a shutdown or a lost lease gives the job back. A job that
+    dies without reaching this is the settler's (`settle_lost_ingest`).
     """
     logger.info("Starting ingestion: %s -> %s", job.source_path, job.collection_name)
+    ended = False
     try:
-        return await _run_ingestion(
+        outcome = await _run_ingestion(
             str(job.rag_document_id),
             job.collection_name,
             job.filepath,
@@ -277,7 +304,10 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
             job.replace,
             job.attempt,
         )
+        ended = True
+        return outcome
     except Exception as exc:
+        ended = is_final_attempt()
         logger.exception("Ingestion failed for %s", job.source_path)
         await _fail_document(
             str(job.rag_document_id),
@@ -285,6 +315,16 @@ async def ingest_document(job: IngestDocument) -> dict[str, Any]:
             attempt=job.attempt,
         )
         raise
+    finally:
+        if ended:
+            _discard_scratch(job.filepath)
+
+
+def _discard_scratch(filepath: str) -> None:
+    """Remove a job's scratch copy; `discard` logs a failed unlink rather than raising."""
+    from app.services import rag_scratch
+
+    rag_scratch.discard(filepath)
 
 
 async def sync_collection(job: SyncCollection) -> dict[str, Any]:
@@ -389,7 +429,14 @@ async def _run_ingestion(
     from app.services.rag_document import RAGDocumentService
 
     async with get_worker_db_context() as db:
-        record = await RAGDocumentService(db).get_document(rag_document_id)
+        try:
+            record = await RAGDocumentService(db).get_document(rag_document_id)
+        except NotFoundError:
+            # Deleted while the job waited - by itself, or with its knowledge base,
+            # collection, account or organization. Nothing to index and nothing a
+            # retry could change, so the job ends here (#2681).
+            logger.info("Document %s was deleted before it was parsed", rag_document_id)
+            return {"status": "deleted", "filename": source_path}
         organization_id = record.organization_id
         # Checked again here, not only at upload: the budget can be reached by
         # runs that finished while this file waited in the queue. Raising lets
@@ -463,7 +510,26 @@ async def _run_ingestion(
     # held zero rows.
     if result.status is not IngestionStatus.DONE:
         reason = result.error_message or result.message
-        if result.refused:
+        if (
+            not result.refused
+            and not file_path.exists()
+            and await _dispatch_ended(rag_document_id, attempt)
+        ):
+            # This dispatch already ended - settled, or superseded by a retry with a
+            # copy of its own - and took its copy with it (#2681). What ran it again
+            # is a requeued dead job, or an attempt rescued from a lost lease while
+            # the first one finished: nothing is left for it to do, and the document
+            # is parsed again by retrying it, which writes a new copy.
+            logger.info("Ingestion %d of %s already ended", attempt, rag_document_id)
+            return {
+                "status": "ended",
+                "filename": source_path,
+                "message": "This ingest already ended; retry the document to parse it again",
+            }
+        # A failure is a refusal too once the document is no longer wanted: a delete
+        # removes the scratch copy after its commit, and a parser that had not opened
+        # it yet cannot read it (#2681).
+        if result.refused or not await _still_ingestable(rag_document_id, collection_name):
             # Skipped on purpose: the collection or its base went while the file
             # parsed. A retry cannot index it, so this ends the job instead of
             # raising into one, and it is not an error worth a traceback (#2561).
@@ -740,7 +806,12 @@ async def _run_sync(
 
 
 async def _fail_document(
-    rag_document_id: str, *, error_message: str | None, attempt: int, final: bool = False
+    rag_document_id: str,
+    *,
+    error_message: str | None,
+    attempt: int,
+    final: bool = False,
+    settling: bool = False,
 ) -> None:
     """Put a failure on the document row, and let the first one keep it.
 
@@ -764,6 +835,11 @@ async def _fail_document(
     which returns rather than raising into a retry. A row already gone is what
     such a refusal usually finds, so it is noted at INFO rather than warned of.
 
+    `settling` is the queue's settler calling (`settle_lost_ingest`): a failure to
+    write the row is raised rather than logged, so the job's end stays owed and
+    the rescuer runs it again. Swallowed, the job was marked settled over a row
+    left `processing` for good, which the document's own retry refuses (#2681).
+
     Failure is the only status this records. Reaching `DONE` needs the vector
     document's id, which only `_run_ingestion` holds, so it calls
     `complete_ingestion` itself.
@@ -786,6 +862,8 @@ async def _fail_document(
     except NotFoundError:
         logger.info("Document %s is gone; no failure to record", rag_document_id)
     except Exception as e:
+        if settling:
+            raise
         logger.warning("Failed to record the ingestion failure: %s", e)
 
 
@@ -1803,11 +1881,18 @@ async def settle_lost_ingest(job: IngestDocument, reason: str) -> None:
     A child killed by the memory watchdog or the kernel cannot mark its own row,
     so the row stayed `processing` with nothing left to finish it (Codex, #2248).
     A document the handler already settled - done, or failed with its own
-    reason - is left as it is.
+    reason - is left as it is. The job's scratch copy goes either way: no
+    attempt of it is coming (#2681).
     """
-    await _fail_document(
-        str(job.rag_document_id), error_message=_stopped(reason), attempt=job.attempt
-    )
+    try:
+        await _fail_document(
+            str(job.rag_document_id),
+            error_message=_stopped(reason),
+            attempt=job.attempt,
+            settling=True,
+        )
+    finally:
+        _discard_scratch(job.filepath)
 
 
 async def settle_lost_collection_sync(job: SyncCollection, reason: str) -> None:

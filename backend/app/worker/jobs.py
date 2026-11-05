@@ -485,6 +485,7 @@ EXPIRE_APPROVALS = _sweep("expire-approvals")
 EXPIRE_INVITATIONS = _sweep("expire-invitations")
 REAP_STALE_RUNS = _sweep("reap-stale-runs")
 SWEEP_TEARDOWN_RESERVATIONS = _sweep("sweep-teardown-reservations")
+SWEEP_RAG_SCRATCH = _sweep("sweep-rag-scratch")
 APPLY_RETENTION = _sweep("apply-retention", timeout=timedelta(hours=2))
 SWEEP_NOTIFICATIONS = _sweep("sweep-notifications")
 SWEEP_BACKGROUND_JOBS = _sweep("sweep-background-jobs")
@@ -558,6 +559,7 @@ TASKS: dict[str, TaskKind] = {
         EXPIRE_INVITATIONS,
         REAP_STALE_RUNS,
         SWEEP_TEARDOWN_RESERVATIONS,
+        SWEEP_RAG_SCRATCH,
         APPLY_RETENTION,
         SWEEP_NOTIFICATIONS,
         SWEEP_BACKGROUND_JOBS,

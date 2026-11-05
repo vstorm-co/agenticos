@@ -1,5 +1,5 @@
 ---
-source_sha: "dba106dd80cc"
+source_sha: "d6e3bf78d15a"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -674,7 +674,10 @@ faltan workers. El panel del despliegue muestra el mismo día como tarjeta.
 
 Tres acciones, cada una auditada con quién la hizo:
 
-- **Retry** da a un job muerto una nueva serie de intentos.
+- **Retry** da a un job muerto una nueva serie de intentos. Un ingest de
+  documento muerto se rechaza: su copia de parseo se fue con él, así que
+  reintenta el documento desde su base de conocimiento, que vuelve a parsear el
+  archivo almacenado.
 - **Cancel** retira un job que nadie ha empezado.
 - **Resume** deja que los workers vuelvan a recoger un tipo pausado.
 
@@ -684,7 +687,7 @@ queda sin memoria. Cada propietario recibe un aviso en la aplicación y por
 correo, y la notificación no se puede desactivar: el trabajo de ese tipo se
 acumula hasta que uno de ellos lo reanuda. Una pausa nombra la organización
 cuyos jobs la provocaron, y para todas las demás el tipo sigue funcionando. Reintenta los jobs muertos solo
-cuando la causa esté resuelta, o morirán igual. Los ajustes están en
+cuando la causa esté resuelta, o morirán igual; un ingest de documento muerto, desde su base de conocimiento. Los ajustes están en
 [Configuración](configuration.md#background-work).
 
 ## Resumen { #recap }

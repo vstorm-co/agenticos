@@ -42,6 +42,7 @@ from app.schemas.rag import (
 from app.schemas.sync_source import blank_is_absent
 from app.services.file_storage import get_file_storage
 from app.services.background_jobs import enqueue
+from app.services import rag_scratch
 from app.services.notifications import NotificationService
 from app.services.spend import assert_organization_within_budget
 from app.services.ingestion_config import (
@@ -410,7 +411,8 @@ class RAGDocumentService:
 
         The copy under `MEDIA_DIR/_rag_tmp` is what the flow opens: permanent
         storage may be somewhere the worker container cannot reach, and the
-        directory is shared between the two.
+        directory is shared between the two. One file per dispatch, removed by
+        the job once no attempt of it is coming (`app.services.rag_scratch`).
 
         Queued as an `ingest-document` job in this request's transaction: the job
         reads this document by id on a session of its own, and the two commit
@@ -419,9 +421,9 @@ class RAGDocumentService:
         in a child process of the ingest pool, so a parse that runs out of memory
         is stopped there and written down on the job, not in the API.
         """
-        tmp_dir = Path(settings.MEDIA_DIR) / "_rag_tmp"
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-        tmp_path = str(tmp_dir / f"{doc_id!s}{Path(filename).suffix.lower()}")
+        scratch = rag_scratch.scratch_path(doc_id, attempt=attempt, filename=filename)
+        scratch.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = str(scratch)
         # anyio, not open(): an upload can be tens of megabytes, and writing it
         # synchronously stalls every other request on this worker until it lands.
         async with await anyio.open_file(tmp_path, "wb") as f:
@@ -792,6 +794,19 @@ class RAGDocumentService:
                 delete_files_best_effort(deleted.storage_paths),
                 name="delete-document-file",
             )
+        # The parse scratch copies too (#2681), for a document still processing - and
+        # one a deployment from before #2681 never removed. A job still parsing one
+        # finds its row gone and ends as a refusal; the hourly sweep is the backstop
+        # for a copy this best-effort task loses.
+        spawn_after_commit(
+            self.db,
+            rag_scratch.discard_document(
+                doc.id,
+                filename=doc.filename,
+                attempts=doc.ingestion_attempt,
+            ),
+            name="delete-document-scratch",
+        )
 
     async def unlisted_by_source(
         self, *, sync_source_id: UUID, collection_name: str, listed: set[str]

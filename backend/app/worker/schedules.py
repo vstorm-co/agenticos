@@ -120,6 +120,10 @@ SCHEDULES: tuple[Schedule, ...] = (
     # A teardown reservation whose drop failed for good blocks its collection's
     # name with nothing left to reattempt it (#1364).
     Schedule("sweep-teardown-reservations", jobs.SWEEP_TEARDOWN_RESERVATIONS, _HOUR),
+    # A parse scratch copy whose job was lost, or that a deployment from before
+    # #2681 never removed: the document's content, on the media volume (#2681).
+    # Its own schedule, so a failing reservation drop cannot stop it.
+    Schedule("sweep-rag-scratch", jobs.SWEEP_RAG_SCRATCH, _HOUR),
     # Daily: retention windows are measured in days, so the hour a row leaves is
     # nobody's business.
     Schedule("sweep-sandbox-operations", jobs.SWEEP_SANDBOX_OPERATIONS, _DAY),
@@ -227,5 +231,11 @@ async def _fire(db: AsyncSession, schedule: Schedule, occurrence: datetime) -> U
 
 
 def _spread(index: int, count: int) -> timedelta:
-    """A share of a minute: spread enough to keep the sweeps apart, and no daily one waits a day."""
-    return _MINUTE * index / max(count, 1)
+    """A share of a minute: spread enough to keep the sweeps apart, and no daily one waits a day.
+
+    No two schedules may start at the same instant, and one whose interval is
+    shorter than its share starts one interval out instead
+    (`background_schedule.declare`). In `count + 1` shares, so no share of the
+    current set lands on such a clamped start; `test_background_schedules` checks it.
+    """
+    return _MINUTE * index / (count + 1)
