@@ -187,6 +187,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Run read-only AgenticOS MCP tools automatically under `writes`, including project and conversation reads; keep approvals for state changes and the explicit `all` policy.
+
 - Combine page explanations and onboarding in one information menu beside the title, on mobile and desktop.
 
 - Reduce the shared page bottom clearance from 64px to 16px on desktop, keeping mobile safe-area spacing.

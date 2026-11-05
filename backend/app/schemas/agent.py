@@ -754,8 +754,8 @@ class PlatformMcpTool(BaseSchema):
     held: bool = Field(
         default=False,
         description=(
-            "A read held for approval under `approval: writes` all the same - reading a "
-            "whole past conversation, which an injected instruction could carry off"
+            "Legacy read-approval exception flag; always false. Read-only platform tools "
+            "run automatically under `writes` and require approval under `all`."
         ),
     )
 

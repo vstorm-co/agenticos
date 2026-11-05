@@ -1,5 +1,5 @@
 ---
-source_sha: "896a572c9a3a"
+source_sha: "219615c706c4"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -208,13 +208,11 @@ wywołanie: karta pokazuje dokładne argumenty, a wykonywane są te zatwierdzone
 samego serwera, więc `writes` jest tak ścisłe, jak serwer jest uczciwy — dla
 serwera, którego nie kontrolujesz, wybierz `all`.
 
-Własny szablon Architekta prosi
-o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
-imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
-`writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
-pyta, również administratora. Dwa odczyty czekają jak zmiany: `read_conversation`
-udostępnia całą wcześniejszą rozmowę, a `get_project` instrukcje wybranego projektu.
-Przeczytana strona nie może po cichu wywołać żadnego z tych ujawnień.
+Szablon Architect używa `writes` dla serwera platformy. Powiązania z tym serwerem
+wymuszają co najmniej `writes`, także przy `none`, ponieważ narzędzia działają
+z uprawnieniami pytającej osoby. Odczyty, w tym `get_project` i `read_conversation`,
+działają automatycznie przy `writes`. Tworzenie, aktualizacja, usuwanie i inne
+operacje zmieniające stan wymagają akceptacji. Wybierz `all`, aby pytać również o odczyty.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
@@ -1102,11 +1100,10 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `list_watches`, `delete_watch` | własne obserwacje wywołującego |
 | `create_watch`, `update_watch` | zgoda człowieka w prywatnej rozmowie; `agents:run` przy wyborze agenta |
 
-Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów,
-pomijając opisy, instrukcje i pozostałe edytowalne etykiety. Odczyt wybranego projektu
-przez `get_project` zawiera je i przy polityce `writes` czeka na akceptację, tak
-jak `read_conversation`. Instrukcje innego udostępnionego projektu nie powinny
-trafiać do modelu wyłącznie dlatego, że szukał przestrzeni roboczej.
+Wyszukiwanie przez `list_projects` zwraca tylko ID i nazwy projektów.
+Instrukcje i konfigurację wybranego projektu odczytuje `get_project`.
+To operacja tylko do odczytu: przy `writes` działa bez akceptacji,
+z zachowaniem uprawnień pytającej osoby do projektu.
 
 Agenta da się tu zbudować od początku do końca: utworzyć szkic, edytować go,
 wypróbować jako nieopublikowany draft przez `test_agent_draft` - run testowy,

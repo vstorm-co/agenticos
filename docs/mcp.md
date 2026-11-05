@@ -195,12 +195,12 @@ arguments, and the approved ones are what runs. `all` holds every call. The
 read-only hint is the server's own claim, so `writes` is only as strict as the
 server is honest — choose `all` for a server you do not control.
 
-The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
-the person it acts for. Any agent's binding to that server is held to at least
-`writes`, `none` included: its tools act with the authority of whoever is asking,
-an Admin's too. Two reads wait like writes: `read_conversation` releases a
-whole past conversation, and `get_project` releases a chosen project's
-instructions. A page the agent read must not silently trigger either disclosure.
+The Architect's template uses `writes` for the platform server. Bindings to that
+server enforce at least `writes`, including when configured as `none`, because
+tools act with the caller's permissions. Read-only tools, including `get_project`
+and `read_conversation`, run automatically under `writes`. Creating, updating,
+deleting and other state-changing operations require approval. Use `all` to
+require approval for reads as well.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -1060,11 +1060,10 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `list_watches`, `delete_watch` | the caller’s own watches |
 | `create_watch`, `update_watch` | private-human consent; `agents:run` when selecting an agent |
 
-Project discovery with `list_projects` returns only project ids and names,
-excluding descriptions, instructions and other authored labels. Reading one chosen
-project with `get_project` includes them and waits for approval under the `writes`
-policy, just like `read_conversation`. Instructions from another shared project
-should not enter the model merely because it searched for a workspace.
+Project discovery with `list_projects` returns only project ids and names.
+Read a selected project's instructions and configuration with `get_project`.
+This is a read-only operation and runs without approval under `writes`, subject
+to the caller's existing access to the project.
 
 An agent can be built end to end here: drafted, edited, tried as the unpublished
 draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the

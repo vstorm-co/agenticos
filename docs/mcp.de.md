@@ -1,5 +1,5 @@
 ---
-source_sha: "896a572c9a3a"
+source_sha: "219615c706c4"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -214,13 +214,12 @@ freigegebenen. `all` hält jeden Aufruf an. Der Nur-lesen-Hinweis ist die
 Behauptung des Servers selbst, also ist `writes` nur so streng, wie der Server
 ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren.
 
-Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
-er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
-diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
-der Berechtigung dessen, der fragt, auch eines Admins. Zwei Lesezugriffe warten
-wie Änderungen: `read_conversation` gibt eine ganze frühere Unterhaltung frei,
-`get_project` die Anweisungen eines ausgewählten Projekts. Eine gelesene Seite
-darf keine dieser Offenlegungen unbemerkt auslösen.
+Die Vorlage des Architect verwendet `writes` für den Plattformserver. Bindings
+an diesen Server erzwingen mindestens `writes`, auch bei `none`, da Tools mit den
+Berechtigungen des Aufrufers handeln. Lesezugriffe einschließlich `get_project`
+und `read_conversation` laufen unter `writes` automatisch. Erstellen, Aktualisieren,
+Löschen und andere zustandsändernde Aktionen benötigen eine Freigabe. Mit `all`
+benötigen auch Lesezugriffe eine Freigabe.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
@@ -1152,11 +1151,10 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `list_watches`, `delete_watch` | eigene Beobachtungen des Aufrufers |
 | `create_watch`, `update_watch` | private menschliche Zustimmung; `agents:run` bei der Agentenwahl |
 
-Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen, ohne
-Beschreibungen, Anweisungen und weitere bearbeitbare Bezeichnungen. `get_project` liest ein
-ausgewähltes Projekt einschließlich seiner Anweisungen und wartet unter `writes`
-wie `read_conversation` auf Freigabe. Anweisungen eines anderen geteilten Projekts
-sollen nicht allein durch die Suche nach einem Arbeitsbereich ins Modell gelangen.
+Die Suche mit `list_projects` liefert nur Projekt-IDs und Namen.
+`get_project` liest die Anweisungen und Konfiguration eines ausgewählten Projekts.
+Dieser Lesezugriff läuft unter `writes` ohne Freigabe; die bestehenden
+Zugriffsrechte des Aufrufers auf das Projekt gelten weiterhin.
 
 Ein Agent lässt sich hier von Anfang bis Ende bauen: entwerfen, bearbeiten, mit
 `test_agent_draft` als unveröffentlichter Entwurf ausprobieren - ein Test-Run,

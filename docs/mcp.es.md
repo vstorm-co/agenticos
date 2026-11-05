@@ -1,5 +1,5 @@
 ---
-source_sha: "896a572c9a3a"
+source_sha: "219615c706c4"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -212,13 +212,12 @@ todas las llamadas. La marca de solo lectura la declara el propio servidor, así
 `writes` es tan estricta como honesto sea el servidor: elige `all` para un servidor
 que no controlas.
 
-La propia plantilla del Architect pide `writes` para el servidor
-de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
-vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
-con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
-Admin incluida. Dos lecturas esperan como cambios: `read_conversation` revela una
-conversación pasada completa y `get_project` las instrucciones de un proyecto
-elegido. Una página leída no debe provocar ninguna de esas revelaciones sin aviso.
+La plantilla del Architect usa `writes` para el servidor de la plataforma. Los
+vínculos con este servidor imponen al menos `writes`, incluso con `none`, porque
+las herramientas actúan con los permisos de quien llama. Las lecturas, incluidas
+`get_project` y `read_conversation`, se ejecutan automáticamente con `writes`.
+Crear, actualizar, eliminar y otras operaciones que cambian el estado requieren
+aprobación. Usa `all` para exigir aprobación también en las lecturas.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
@@ -1133,11 +1132,10 @@ permiso que faltaba.
 | `list_watches`, `delete_watch` | vigilancias propias de quien llama |
 | `create_watch`, `update_watch` | consentimiento humano privado; `agents:run` al elegir agente |
 
-La búsqueda con `list_projects` devuelve solo identificadores y nombres,
-omitiendo descripciones, instrucciones y otras etiquetas editables. `get_project` lee un
-proyecto elegido con sus instrucciones y espera aprobación bajo `writes`, igual
-que `read_conversation`. Las instrucciones de otro proyecto compartido no deben
-llegar al modelo solo por buscar un espacio de trabajo.
+La búsqueda con `list_projects` devuelve solo identificadores y nombres.
+`get_project` lee las instrucciones y la configuración de un proyecto elegido.
+Es una operación de solo lectura y se ejecuta sin aprobación con `writes`,
+respetando los permisos existentes de quien llama sobre el proyecto.
 
 Aquí se puede construir un agent de principio a fin: esbozarlo, editarlo, probarlo
 como borrador sin publicar con `test_agent_draft` - un run de prueba, con

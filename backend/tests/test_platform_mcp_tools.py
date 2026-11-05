@@ -1025,29 +1025,25 @@ class TestWhatNeverWaitsForApproval:
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 
-    def test_reading_a_whole_past_conversation_waits_like_a_write(self) -> None:
-        """Codex on #2324: `list_runs` names the conversations and this returns
-        them, so a page that injected both calls could carry one off."""
-        tools = {tool.name: tool for tool in platform_tool_catalog()}
+    async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
+        from pydantic_ai.tools import ToolDefinition
 
-        assert {name for name, tool in tools.items() if tool.held} == {
-            "read_conversation",
-            "get_project",
-        }
-        assert not tools["read_conversation"].writes
-        assert not tools["get_project"].writes
-        assert not tools["get_run"].held
-
-    async def test_a_held_read_is_announced_as_no_read_only_tool(self) -> None:
-        """The read-only hint is what the `writes` policy reads to let a call through."""
+        from app.agents.mcp import needs_approval
         from app.services.platform_mcp import build_platform_mcp
 
         server, _ = build_platform_mcp(MagicMock())
         listed = {tool.name: tool for tool in await server.list_tools()}
-
-        assert listed["read_conversation"].annotations.readOnlyHint is False
-        assert listed["get_project"].annotations.read_only_hint is False
-        assert listed["get_run"].annotations.readOnlyHint is True
+        for declared in platform_tool_catalog():
+            tool = listed[declared.name]
+            assert tool.annotations.read_only_hint is (not declared.writes)
+            definition = ToolDefinition(
+                name=tool.name,
+                metadata={"annotations": tool.annotations.model_dump(by_alias=True)},
+            )
+            assert needs_approval(definition, "writes") is declared.writes
+            assert needs_approval(definition, "all") is True
+        for name in ("get_project", "read_conversation", "get_run"):
+            assert listed[name].annotations.read_only_hint is True
 
     def test_the_agent_layer_names_the_same_set(self) -> None:
         from app.agents.mcp import PLATFORM_UNGATED_TOOLS

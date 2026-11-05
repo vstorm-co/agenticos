@@ -54,17 +54,6 @@ not be able to write it unseen. `app.agents.mcp` names the same set as
 """
 
 
-HELD = frozenset({"read_conversation", "get_project"})
-"""Reads held for a person's approval under a binding's `writes` policy, like a write.
-
-Reading a whole past conversation releases what somebody said before, to a model
-that may also be reading a web page written to make it fetch that conversation
-and send it on - `list_runs` names the conversations, this returns them. The
-person sees which conversation before it is read (Codex on #2324). Project
-instructions also require an explicit read: discovery must not load arbitrary
-shared instructions into the model (Codex on #2507).
-"""
-
 _TOOL_FIELDS = frozenset({"last_tools", "allowed_tools"})
 """A connection's tools - what `list_my_connections` leaves out unless asked."""
 
@@ -77,11 +66,6 @@ class PlatformTool:
     """Whether it changes something. An MCP client is told so through the tool's
     read-only hint, which is also what holds the call for a person's approval
     under a binding's default `writes` policy."""
-
-    @property
-    def held(self) -> bool:
-        """Whether this read waits for approval as a write does - see `HELD`."""
-        return self.name in HELD
 
     @property
     def ungated(self) -> bool:
@@ -138,7 +122,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def get_project(project_id: UUID) -> dict[str, Any]:
         """Read a project's instructions, default agent and workspace backend.
 
-        Needs access to that project; waits for approval like reading a conversation.
+        Needs access to that project. Read-only; runs automatically under `writes`.
         `state` stores shared files only; `service`
         provides a shared sandbox host. A personal Desktop folder is separate and is not
         represented by this backend or shared by project membership. Check the actual runtime and agent's execution
