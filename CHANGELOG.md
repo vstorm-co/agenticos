@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Unify personal settings panels with visible descriptions and compact forms while retaining the horizontal tabs. Move active sessions into Account and place password submission below its fields.
+
 - Rebalance organization tabs: combine profile and voice settings in Workspace, and move background services beside the Architect under AI & services. Preserve drafts, permission gates and existing Voice links.
 
 - Organize deployment settings into focused sections with persistent drafts, a visible save/discard toolbar, and responsive form layouts.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Lock } from "lucide-react";
+import { AlertTriangle, KeyRound, LogOut, Lock } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -19,6 +19,7 @@ import {
   Input,
 } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
+import { ActiveSessions } from "@/components/dashboard/active-sessions";
 import { SectionCard } from "@/components/settings/settings-section";
 import { useAuth } from "@/hooks";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -84,35 +85,34 @@ export default function AccountSettingsPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col space-y-6">
+    <div className="max-w-4xl space-y-5">
       <SectionCard
-        fill
+        icon={KeyRound}
         title={t("changePassword")}
         description={t("useStrongUniquePassword")}
-        action={
-          <Button
-            onClick={handleChangePassword}
-            disabled={saving || !currentPassword || !newPassword}
-            size="sm"
-          >
-            {saving ? t("saving2") : t("updatePassword")}
-          </Button>
-        }
       >
-        <div className="flex flex-1 flex-col space-y-4">
+        <form
+          className="max-w-xl space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleChangePassword();
+          }}
+        >
           <FormField label={t("currentPassword")} htmlFor="current-pw">
             <Input
               id="current-pw"
+              disabled={saving}
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               autoComplete="current-password"
             />
           </FormField>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             <FormField label={t("newPassword")} htmlFor="new-pw">
               <Input
                 id="new-pw"
+                disabled={saving}
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -122,6 +122,7 @@ export default function AccountSettingsPage() {
             <FormField label={t("confirmNewPassword")} htmlFor="confirm-pw">
               <Input
                 id="confirm-pw"
+                disabled={saving}
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -129,10 +130,25 @@ export default function AccountSettingsPage() {
               />
             </FormField>
           </div>
-        </div>
+          <div className="pt-1">
+            <Button
+              type="submit"
+              loading={saving}
+              disabled={saving || !currentPassword || !newPassword || !confirmPassword}
+            >
+              {t("updatePassword")}
+            </Button>
+          </div>
+        </form>
       </SectionCard>
 
-      <SectionCard title={t("signOutEverywhere")} description={t("revokeEveryActiveSession")}>
+      <ActiveSessions />
+
+      <SectionCard
+        icon={LogOut}
+        title={t("signOutEverywhere")}
+        description={t("revokeEveryActiveSession")}
+      >
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm">
@@ -165,7 +181,12 @@ export default function AccountSettingsPage() {
         </AlertDialog>
       </SectionCard>
 
-      <SectionCard title={t("deleteAccount")} description={t("permanentlyRemoveYourAccount")}>
+      <SectionCard
+        icon={AlertTriangle}
+        danger
+        title={t("deleteAccount")}
+        description={t("permanentlyRemoveYourAccount")}
+      >
         <div className="border-border bg-muted flex items-start gap-3 rounded-xl border p-4">
           <span className="bg-card border-border text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border">
             <AlertTriangle className="h-4 w-4" />
