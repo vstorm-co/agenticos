@@ -40,6 +40,16 @@ from app.core.exceptions import NotFoundError
 from app.services.access import AGENT, COLLECTION, SECRET, SKILL
 from app.services.sharing import SharingState
 
+_RESOLVE = "app.api.routes.v1._sharing_loaders.resolve_access"
+
+
+@pytest.fixture(autouse=True)
+def _caller_can_view():
+    """Every caller may view the row unless a test says otherwise; refusals patch over it."""
+    with patch(_RESOLVE, new=AsyncMock(return_value=True)):
+        yield
+
+
 ROUTERS = (
     ("agents", agent_sharing_router),
     ("collections", collection_sharing_router),
@@ -133,10 +143,35 @@ class TestResourceLoaders:
 
         assert await loader(db, uuid.uuid4(), MagicMock(organization_id=organization_id)) is row
 
+    @pytest.mark.parametrize(("kind", "loader", "message", "detail_key"), LOADERS)
+    @pytest.mark.anyio
+    async def test_a_row_the_caller_cannot_view_is_reported_as_missing(
+        self, kind, loader, message, detail_key
+    ):
+        """The same message and details as an id that does not exist (#2619)."""
+        organization_id = uuid.uuid4()
+        row = MagicMock(organization_id=organization_id, scope="org")
+        db = MagicMock(get=AsyncMock(return_value=row))
+        ctx = MagicMock(organization_id=organization_id)
+        resource_id = uuid.uuid4()
+
+        with (
+            patch(_RESOLVE, new=AsyncMock(return_value=False)) as resolve,
+            pytest.raises(NotFoundError) as refused,
+        ):
+            await loader(db, resource_id, ctx)
+
+        assert refused.value.message == message
+        assert refused.value.details == {detail_key: str(resource_id)}
+        _, kwargs = resolve.await_args
+        assert resolve.await_args.args[3] is kwargs["resource_type"].view
+
     @pytest.mark.anyio
     async def test_the_artifact_loader_is_the_service_s_rule_not_one_of_its_own(self):
         """Who finds an archived page is decided in `ArtifactService.load`, beside `read`."""
-        ctx, db, row = MagicMock(), MagicMock(), MagicMock()
+        organization_id = uuid.uuid4()
+        ctx, db = MagicMock(organization_id=organization_id), MagicMock()
+        row = MagicMock(organization_id=organization_id)
         resource_id = uuid.uuid4()
 
         with patch(
@@ -146,6 +181,26 @@ class TestResourceLoaders:
             assert await load_artifact(db, resource_id, ctx) is row
 
         load.assert_awaited_once_with(ctx, resource_id)
+
+    @pytest.mark.anyio
+    async def test_a_page_the_caller_cannot_view_is_reported_as_missing(self):
+        """`ArtifactService.load` finds a live page for anyone; viewing it is asked here."""
+        organization_id = uuid.uuid4()
+        ctx, db = MagicMock(organization_id=organization_id), MagicMock()
+        resource_id = uuid.uuid4()
+
+        with (
+            patch(
+                "app.api.routes.v1._sharing_loaders.ArtifactService.load",
+                new=AsyncMock(return_value=MagicMock(organization_id=organization_id)),
+            ),
+            patch(_RESOLVE, new=AsyncMock(return_value=False)),
+            pytest.raises(NotFoundError) as refused,
+        ):
+            await load_artifact(db, resource_id, ctx)
+
+        assert refused.value.message == "App not found"
+        assert refused.value.details == {"artifact_id": str(resource_id)}
 
     @pytest.mark.anyio
     async def test_a_member_s_own_mcp_connection_is_nobody_else_s_to_share(self):
