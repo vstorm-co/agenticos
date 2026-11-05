@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-11-05
+
 ### Added
 
 - A new Drafts capability: when the web chat is asked for text to send or paste elsewhere, such as an e-mail, a reply or a post, the agent shows it as a card with one segment per part, a plain-text copy icon on each, versions as tabs and a small type hint. Reopening a conversation or opening it by shared link shows the same card. Details the agent leaves for the person to fill in, written in square brackets such as `[Your Name]`, show in red so a draft is not sent unfilled. A markdown part has a Preview button that shows it rendered, with images not loaded; copy always gives the source. New agents, every template and the agents the Architect creates have it on; existing agents are unchanged until their author switches it on and publishes. (#2737)
@@ -20008,7 +20010,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.48.0...HEAD
+[1.48.0]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...v1.48.0
 [1.47.3]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...v1.47.3
 [1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
