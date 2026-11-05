@@ -46,6 +46,8 @@ Markdown fields and file editors also offer an expand button without discarding 
 
 Page headers use the surrounding layout’s spacing once. Cards, sidebar rows, tabs and empty states use compact spacing on desktop while interactive controls keep larger touch targets.
 
+Secondary buttons and toolbar filters share a more visible filled surface, full-contrast labels and distinct hover, pressed and open states. The chat model picker follows the same secondary-action styling.
+
 Personal settings keep horizontal tabs at the top, including desktop-only pages inside the app. Settings panels show their descriptions directly and use content-sized forms. Account holds password changes and active sessions; the password action sits below the fields.
 
 Profile fields share a row when there is room; **Save changes** is available only after an edit. Capability cards have one settings target and a separate enable switch; settings panels keep examples behind an information icon rather than repeating the gallery illustration.
@@ -56,7 +58,7 @@ Agent and project instructions share one compact toolbar for their heading, help
 
 On phones, focusing the chat message switches to a compact writing row with attachment and send controls. Agent selection and voice input remain available under **+**. The welcome suggestions and connection suggestions step aside while composing, and completion menus stay within the available height. Moving focus from the draft to Send keeps the layout stable.
 
-Phone chat does not focus the input automatically on arrival or when a reply finishes.
+Entering the main chat focuses the composer as soon as it becomes writable, including when the navigation button still holds focus during connection. A control deliberately used while connecting keeps its focus.
 
 On phones, the actions beneath user and agent messages start hidden. Tap the **More** button beside the sender to show or hide copying, replies, ratings and other available actions. Desktop keeps its hover controls.
 

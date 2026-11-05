@@ -1,5 +1,5 @@
 ---
-source_sha: "b6a806020ff6"
+source_sha: "3abb8ea0fa2e"
 ---
 
 # Die Konsole { #the-console }
@@ -54,6 +54,8 @@ Auf Telefonen bleiben Beschreibung, Kategorie und Dateiverwaltung in Skill- und 
 
 Seitenüberschriften verwenden die Abstände des umgebenden Layouts ohne Verdopplung. Karten, Seitenleistenzeilen, Tabs und leere Zustände haben auf dem Desktop kompaktere Abstände; Bedienelemente behalten größere Touchflächen.
 
+Sekundäre Schaltflächen und Filter teilen eine deutlichere Füllfläche, kontrastreiche Beschriftungen und klare Zustände bei Hover, Betätigung und geöffnetem Menü. Die Modellauswahl im Chat verwendet denselben Stil.
+
 Persönliche Einstellungen behalten horizontale Tabs am oberen Rand, einschließlich der Desktop-Seiten innerhalb der App. Beschreibungen stehen direkt im Panel; Formulare passen sich ihrem Inhalt an. Konto enthält Passwortänderung und aktive Sitzungen; die Passwortaktion steht unter den Feldern.
 
 Profilfelder stehen bei genügend Platz nebeneinander; **Änderungen speichern** ist erst nach einer Bearbeitung verfügbar. Eine Fähigkeitskarte hat einen Bereich zum Öffnen der Einstellungen und einen separaten Schalter zum Aktivieren. Beispiele stehen im Einstellungsbereich hinter dem Informationssymbol; die Illustration der Galerie wird dort nicht wiederholt.
@@ -64,7 +66,7 @@ Anweisungen für Agenten und Projekte haben eine kompakte gemeinsame Leiste für
 
 Auf dem Telefon wechselt das Nachrichtenfeld beim Fokussieren in eine kompakte Schreibzeile mit Anhängen und Senden. Agentenauswahl und Spracheingabe bleiben unter **+** erreichbar. Begrüßung und Verbindungsvorschläge treten beim Schreiben zurück; Ergänzungsmenüs passen sich der verfügbaren Höhe an. Beim Fokuswechsel zum Senden bleibt das Layout stabil.
 
-Auf dem Telefon fokussiert der Chat das Eingabefeld weder beim Öffnen noch nach einer fertigen Antwort automatisch.
+Beim Öffnen des Hauptchats erhält das Eingabefeld den Fokus, sobald es beschreibbar ist, auch wenn während des Verbindungsaufbaus noch die Navigationsschaltfläche fokussiert war. Ein währenddessen bewusst verwendetes Bedienelement behält den Fokus.
 
 Auf dem Smartphone sind die Aktionen unter Nachrichten von Nutzern und Agenten zunächst ausgeblendet. Die Schaltfläche **Mehr** neben dem Absender blendet Kopieren, Antworten, Bewertungen und weitere verfügbare Aktionen ein oder aus. Am Desktop erscheinen die Bedienelemente weiterhin beim Darüberfahren.
 

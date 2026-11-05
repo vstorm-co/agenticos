@@ -1,5 +1,5 @@
 ---
-source_sha: "b6a806020ff6"
+source_sha: "3abb8ea0fa2e"
 ---
 
 # Konsola { #the-console }
@@ -52,6 +52,8 @@ Na telefonie edytory skilli i contextu chowają opis, kategorię i zarządzanie 
 
 Nagłówki korzystają z odstępów otaczającego układu bez ich podwajania. Karty, wiersze panelu bocznego, zakładki i puste stany mają mniejsze odstępy na komputerze, a kontrolki zachowują większe obszary dotykowe.
 
+Przyciski drugorzędne i filtry mają wspólne, wyraźniejsze wypełnienie, kontrastowe etykiety oraz czytelne stany najechania, naciśnięcia i otwarcia. Wybór modelu w chacie korzysta z tego samego stylu przycisku.
+
 Ustawienia osobiste zachowują poziome zakładki u góry, w tym opcje desktopowe dostępne w aplikacji. Panele pokazują opisy bezpośrednio, a formularze mają wysokość dopasowaną do zawartości. Konto zawiera zmianę hasła i aktywne sesje; przycisk zmiany hasła jest pod polami.
 
 Pola profilu mieszczą się w jednym wierszu, gdy jest miejsce; **Zapisz zmiany** jest dostępne dopiero po edycji. Karta możliwości ma jeden obszar otwierający ustawienia i osobny przełącznik włączenia. W panelu ustawień przykłady są pod ikoną informacji, zamiast powtarzanej ilustracji z galerii.
@@ -62,7 +64,7 @@ Instrukcje agentów i projektów mają jeden zwarty pasek z tytułem, pomocą, p
 
 Na telefonie fokus w polu wiadomości przełącza czat w zwarty wiersz pisania z załącznikami i wysyłaniem. Wybór agenta oraz głos pozostają dostępne pod **+**. Powitanie i sugestie połączeń chowają się na czas pisania, a menu uzupełniania mieści się w dostępnej wysokości. Przejście z tekstu na Wyślij zachowuje stabilny układ.
 
-Czat na telefonie nie ustawia automatycznie fokusu w polu przy otwieraniu ani po zakończeniu odpowiedzi.
+Wejście do głównego czatu ustawia fokus w polu wiadomości, gdy tylko można w nim pisać, także jeśli podczas łączenia fokus pozostał na przycisku nawigacji. Kontrolka świadomie użyta podczas łączenia zachowuje fokus.
 
 Na telefonach akcje pod wiadomościami użytkownika i agenta są początkowo ukryte. Przycisk **Więcej** obok nadawcy pokazuje lub ukrywa kopiowanie, odpowiedzi, oceny i pozostałe dostępne akcje. Na komputerze przyciski nadal pojawiają się po najechaniu kursorem.
 

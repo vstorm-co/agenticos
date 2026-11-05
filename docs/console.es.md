@@ -1,5 +1,5 @@
 ---
-source_sha: "b6a806020ff6"
+source_sha: "3abb8ea0fa2e"
 ---
 
 # La consola { #the-console }
@@ -54,6 +54,8 @@ En teléfonos, los editores de skills y contexto mantienen plegadas la descripci
 
 Los encabezados utilizan el espaciado del diseño que los rodea sin duplicarlo. Las tarjetas, las filas de la barra lateral, las pestañas y los estados vacíos tienen un espaciado más compacto en escritorio; los controles conservan áreas táctiles mayores.
 
+Los botones secundarios y los filtros comparten un relleno más visible, etiquetas con contraste y estados claros al pasar el cursor, pulsar o abrir un menú. El selector de modelo del chat utiliza el mismo estilo.
+
 Los ajustes personales mantienen pestañas horizontales en la parte superior, incluidas las páginas exclusivas de escritorio dentro de la aplicación. Los paneles muestran sus descripciones directamente y los formularios se ajustan al contenido. Cuenta reúne el cambio de contraseña y las sesiones activas; la acción de contraseña aparece debajo de los campos.
 
 Los campos del perfil comparten fila cuando hay espacio; **Guardar cambios** solo está disponible tras editar. Cada tarjeta de capacidad tiene una zona para abrir los ajustes y un interruptor independiente para activarla. Los ejemplos aparecen detrás del icono de información en los ajustes, sin repetir la ilustración de la galería.
@@ -64,7 +66,7 @@ Las instrucciones de agentes y proyectos tienen una barra compacta con título, 
 
 En el teléfono, enfocar el mensaje activa una fila compacta de escritura con adjuntos y envío. La selección del agente y la entrada de voz siguen disponibles en **+**. La bienvenida y las sugerencias de conexiones se ocultan al escribir; los menús de autocompletado se ajustan a la altura disponible. El diseño permanece estable al pasar del texto a Enviar.
 
-En el teléfono, el chat no enfoca automáticamente el campo al abrirse ni cuando termina una respuesta.
+Al entrar en el chat principal, el campo recibe el foco en cuanto permite escribir, incluso si el botón de navegación lo conservaba durante la conexión. Un control utilizado deliberadamente mientras se conecta mantiene el foco.
 
 En el teléfono, las acciones bajo los mensajes del usuario y del agente empiezan ocultas. El botón **Más** junto al remitente muestra u oculta copiar, responder, valorar y las demás acciones disponibles. En el escritorio, los controles siguen apareciendo al pasar el cursor.
 

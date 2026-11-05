@@ -2,6 +2,7 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Spinner } from "./spinner";
+import { SECONDARY_CONTROL } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -14,11 +15,9 @@ const buttonVariants = cva(
           "border border-foreground/10 bg-action text-action-foreground hover:border-foreground/15 hover:bg-action-hover active:bg-action-active",
         destructive:
           "bg-destructive text-destructive-foreground shadow-card hover:bg-destructive/90 active:bg-destructive/80",
-        // Secondary edges stay faint against a softly filled surface.
-        outline:
-          "text-foreground/90 border border-foreground/[0.07] bg-foreground/[0.035] hover:border-foreground/12 hover:bg-foreground/[0.075] active:bg-foreground/[0.11]",
+        outline: ["border", SECONDARY_CONTROL],
         secondary:
-          "bg-foreground/[0.07] text-foreground/90 hover:bg-foreground/[0.11] active:bg-foreground/[0.14]",
+          "border border-foreground/[0.08] bg-foreground/[0.12] text-foreground hover:border-foreground/[0.12] hover:bg-foreground/[0.17] active:bg-foreground/[0.21]",
         ghost: "text-foreground hover:bg-accent hover:text-accent-foreground active:bg-accent/75",
         link: "text-brand underline-offset-4 hover:text-brand-hover hover:underline",
       },

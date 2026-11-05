@@ -919,6 +919,36 @@ it("does not take touch-keyboard focus on arrival or when a reply finishes", asy
 });
 
 describe("chat entry focus", () => {
+  it("takes focus from the navigation button that opened chat", () => {
+    const opener = document.createElement("button");
+    opener.textContent = "New chat";
+    document.body.append(opener);
+    opener.focus();
+    try {
+      const onSend = vi.fn();
+      const { rerender } = render(<ChatInput autoFocus disabled onSend={onSend} />);
+      expect(opener).toHaveFocus();
+      rerender(<ChatInput autoFocus onSend={onSend} />);
+      expect(screen.getByRole("textbox")).toHaveFocus();
+    } finally {
+      opener.remove();
+    }
+  });
+
+  it("preserves a control deliberately used while the composer is connecting", async () => {
+    const onSend = vi.fn();
+    const view = (disabled: boolean) => (
+      <>
+        <button>Other control</button>
+        <ChatInput autoFocus disabled={disabled} onSend={onSend} />
+      </>
+    );
+    const { rerender } = render(view(true));
+    await userEvent.click(screen.getByRole("button", { name: "Other control" }));
+    rerender(view(false));
+    expect(screen.getByRole("button", { name: "Other control" })).toHaveFocus();
+  });
+
   it("focuses the writable composer on entry without another click", () => {
     render(<ChatInput autoFocus onSend={vi.fn()} />);
     expect(screen.getByRole("textbox")).toHaveFocus();

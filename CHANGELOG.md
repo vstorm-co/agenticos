@@ -162,6 +162,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Focus the writable chat composer after navigation even when its opener retains focus during connection; increase shared secondary-button and filter contrast across the console.
+
 - Show saved browser sign-ins in a compact settings panel with service logos and site favicons instead of a stretched placeholder card.
 
 - Unify personal settings panels with visible descriptions and compact forms while retaining the horizontal tabs. Move active sessions into Account and place password submission below its fields.

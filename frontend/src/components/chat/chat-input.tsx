@@ -305,13 +305,35 @@ export function ChatInput({
   const editorRef = useRef<ComposerEditorHandle>(null);
   const entryFocusRequested = useRef(autoFocus);
   const initialFocusAttempted = useRef(false);
+  const interactedWhileConnecting = useRef(false);
+  useEffect(() => {
+    if (!entryFocusRequested.current || !disabled || initialFocusAttempted.current) return;
+    const noteInteraction = (event: Event) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          "button, a[href], input, textarea, select, [contenteditable='true'], [role='combobox']",
+        )
+      )
+        interactedWhileConnecting.current = true;
+    };
+    document.addEventListener("pointerdown", noteInteraction, true);
+    document.addEventListener("focusin", noteInteraction, true);
+    return () => {
+      document.removeEventListener("pointerdown", noteInteraction, true);
+      document.removeEventListener("focusin", noteInteraction, true);
+    };
+  }, [disabled]);
   useEffect(() => {
     if (!entryFocusRequested.current || disabled || initialFocusAttempted.current) return;
     initialFocusAttempted.current = true;
-    // A delayed connection must not take focus from a control already in use.
+    // A navigation button may still be focused on arrival. Only preserve an
+    // editable field, a dialog, or a control used after this composer mounted.
     if (
+      interactedWhileConnecting.current ||
+      document.activeElement?.closest("[role='dialog'], [role='alertdialog'], [role='menu']") ||
       document.activeElement?.matches(
-        "input, textarea, select, button, [contenteditable='true'], [role='combobox']",
+        "input, textarea, select, [contenteditable='true'], [role='combobox']",
       )
     )
       return;

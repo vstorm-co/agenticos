@@ -250,9 +250,9 @@ export function ChatModelPicker({ value, agentModel, onChange }: ChatModelPicker
         <div>
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="bg-foreground/[0.035] hover:bg-foreground/[0.06] h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl border border-transparent px-3.5 py-3 text-left text-[13px]"
+            className="h-auto min-h-16 w-full items-start justify-start gap-3 rounded-xl px-3.5 py-3 text-left text-[13px]"
             aria-label={t("changeModel")}
             data-tour="chat-model-picker"
             aria-expanded={expanded}
