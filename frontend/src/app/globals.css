@@ -309,7 +309,7 @@
     --color-foreground: #f0f0f0;
     --color-card: #212121;
     --color-card-foreground: #f0f0f0;
-    --color-popover: #333333;
+    --color-popover: #272727;
     --color-popover-foreground: #f0f0f0;
     --color-peek-well: oklch(21.5% 0.0025 265);
     --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -363,7 +363,7 @@
   --color-foreground: #f0f0f0;
   --color-card: #212121;
   --color-card-foreground: #f0f0f0;
-  --color-popover: #333333;
+  --color-popover: #272727;
   --color-popover-foreground: #f0f0f0;
   --color-peek-well: oklch(21.5% 0.0025 265);
   --color-peek-sheet: oklch(25.5% 0.0025 265);
@@ -466,7 +466,7 @@
   --color-destructive-ink: #ffb4b4;
   --color-warning-ink: #f0cc84;
   --color-success-ink: #99d5b1;
-  --color-popover: #333333;
+  --color-popover: #272727;
   --color-popover-foreground: #f0f0f0;
   --color-sidebar: #141414;
   --color-background: #1a1a1a;
@@ -2086,35 +2086,17 @@ body .tour-spotlight {
      that is what it is now - a class called `glass` that is not glass is the
      kind of name this codebase spends its comments avoiding. */
   .panel {
-    border: 1px solid var(--color-border);
+    border: 1px solid color-mix(in oklab, var(--color-foreground) 8%, transparent);
     background: var(--color-popover);
     box-shadow:
       0 1px 2px 0 rgb(0 0 0 / 0.08),
       0 12px 40px -12px rgb(0 0 0 / 0.3);
   }
-  /* The same panel over a dimmed overlay - a dialog, a drawer. It was the
-     nearly-opaque variant back when the ordinary one was see-through; with
-     both solid the only difference left is the surface it sits on, and a
-     sheet sits on `card` so its own contents are on the card colour they
-     would be anywhere else. */
-  /* The chat's composer over the transcript: the panel's own colour, partly
-     clear and blurred, so what scrolls behind it reads as depth rather than as
-     text cut off at an opaque edge. Declared after .panel so it wins. */
-  /* The composer sits on the page, not over it: a card's shadow, not a menu's.
-     The panel's long drop read as a dark haze under the box. */
+  /* Keep the typing surface opaque so scrolling text cannot compete with a draft. */
   .panel.composer-box {
-    box-shadow: var(--shadow-card);
-  }
-  .composer-glass {
-    /* Clearer at the top, where the text is typed, and nearly solid by the row
-       of controls, which have to read whatever has scrolled behind them. */
-    background: linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--color-popover) 66%, transparent),
-      color-mix(in oklab, var(--color-popover) 94%, transparent)
-    );
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    backdrop-filter: blur(18px) saturate(1.4);
+    background: var(--color-card);
+    border-color: color-mix(in oklab, var(--color-foreground) 10%, transparent);
+    box-shadow: 0 4px 20px -8px rgb(0 0 0 / 0.12);
   }
   /* Menus, popovers and select lists: open for a moment and closed again, so
      the blur the .panel note retired from everything costs a frame or two here,

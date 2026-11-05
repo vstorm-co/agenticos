@@ -93,7 +93,7 @@ export function TriggerRow({ trigger, showAgent = false }: TriggerRowProps) {
   return (
     // On a phone the actions take a line of their own under the routine: four
     // icons beside it squeezed its name and schedule down to "Getti... Ever...".
-    <div className="hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
+    <div className="border-foreground/8 bg-card hover:border-foreground/20 flex flex-wrap items-center gap-3 rounded-xl border p-3 transition-colors sm:flex-nowrap">
       <button
         type="button"
         onClick={openRuns}

@@ -1,5 +1,5 @@
 ---
-source_sha: "7887ce9be71f"
+source_sha: "ce7f38627cac"
 ---
 
 # La consola { #the-console }
@@ -461,6 +461,8 @@ El razonamiento y las llamadas a herramientas se contraen por defecto en todos l
 Las aprobaciones del chat siguen siendo una tarjeta compacta junto al editor: operación, icono y título de la tarea u objeto, con argumentos adicionales bajo Details. Approve y Reject están al lado de la solicitud o debajo en pantallas estrechas. La actividad terminada muestra una marca discreta, los pasos en espera un estado propio y los pasos activos conservan su icono en lugar de una esfera animada por llamada.
 
 Al volver a abrir un chat también se restauran las aprobaciones y preguntas de herramientas delegadas ausentes de la cronología del agente principal. Un subagente pausado se muestra trabajando durante su continuación HTTP aprobada. Un subagente publicado que ha terminado conserva su propio resultado cuando el agente principal se detiene ante otra decisión.
+
+El texto recibido sigue siendo legible mientras carga el módulo de formato Markdown. El editor tiene una superficie opaca y un foco discreto, sin borde animado ni desenfoque del fondo.
 
 Durante el trabajo se muestra una vista previa del último paso o razonamiento; la actividad anterior sigue contraída. Los segmentos de solo actividad de una ejecución comparten un resumen y su hora de inicio. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación. Abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
 

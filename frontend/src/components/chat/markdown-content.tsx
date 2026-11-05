@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { memo } from "react";
+import { createContext, memo, useContext } from "react";
 
 export interface MarkdownContentProps {
   content: string;
@@ -45,13 +45,19 @@ export interface MarkdownContentProps {
  * content immediately while the renderer chunk loads, then swaps to the rich
  * markdown output once ready.
  */
+// next/dynamic does not pass the renderer's props to its loading component.
+const PendingMarkdown = createContext("");
+
+function MarkdownFallback() {
+  const content = useContext(PendingMarkdown);
+  return <p className="leading-relaxed break-words whitespace-pre-wrap">{content}</p>;
+}
+
 const MarkdownContentImpl = dynamic(
   () => import("./markdown-content.impl").then((m) => m.MarkdownContent),
   {
     ssr: false,
-    loading: () => (
-      <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">&nbsp;</p>
-    ),
+    loading: MarkdownFallback,
   },
 );
 
@@ -64,13 +70,15 @@ export const MarkdownContent = memo(function MarkdownContent({
   streaming,
 }: MarkdownContentProps) {
   return (
-    <MarkdownContentImpl
-      content={content}
-      onCiteClick={onCiteClick}
-      bareCode={bareCode}
-      inertImages={inertImages}
-      documentMedia={documentMedia}
-      streaming={streaming}
-    />
+    <PendingMarkdown.Provider value={content}>
+      <MarkdownContentImpl
+        content={content}
+        onCiteClick={onCiteClick}
+        bareCode={bareCode}
+        inertImages={inertImages}
+        documentMedia={documentMedia}
+        streaming={streaming}
+      />
+    </PendingMarkdown.Provider>
   );
 });

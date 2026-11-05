@@ -1,5 +1,5 @@
 ---
-source_sha: "7887ce9be71f"
+source_sha: "ce7f38627cac"
 ---
 
 # Die Konsole { #the-console }
@@ -481,6 +481,8 @@ Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen i
 Chat-Freigaben bleiben eine kompakte Karte neben dem Eingabefeld: Operation, Symbol und Aufgaben- oder Objekttitel, weitere Argumente unter Details. Approve und Reject stehen daneben, auf schmalen Bildschirmen darunter. Abgeschlossene Aktivität erhält ein dezentes Abschlusszeichen, wartende Schritte einen eigenen Status. Laufende Schritte behalten ihr Operationssymbol statt einer animierten Kugel pro Aufruf.
 
 Beim erneuten Öffnen eines Chats werden auch Freigaben und Fragen delegierter Werkzeuge wiederhergestellt, die in der Zeitleiste des übergeordneten Agenten fehlen. Während seiner genehmigten HTTP-Fortsetzung wird ein pausierter Subagent als arbeitend angezeigt. Ein abgeschlossener veröffentlichter Unteragent behält sein eigenes Ergebnis, wenn der übergeordnete Agent auf eine weitere Entscheidung wartet.
+
+Eingehender Text bleibt lesbar, während das Markdown-Modul lädt. Das Eingabefeld hat eine undurchsichtige Fläche und einen dezenten Fokuszustand, ohne bewegten Rahmen oder Hintergrundunschärfe.
 
 Während der Arbeit bleibt eine Vorschau des letzten Schritts oder der Überlegungen sichtbar, frühere Aktivität bleibt eingeklappt. Reine Aktivitätssegmente desselben Laufs teilen eine Zusammenfassung und dessen Startzeit. Abgeschlossene und verschachtelte Agentenaustausche bleiben erhalten, auch Coding-Agent-Berichte. Öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Überlegungen.
 

@@ -1,13 +1,13 @@
 /** Shared surface and states for text fields, selects and multiline fields. */
 export const FORM_CONTROL =
-  "border-input bg-background text-foreground placeholder:text-muted-foreground hover:border-foreground/25 focus-visible:border-foreground/30 focus-visible:ring-foreground/10 aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive w-full min-w-0 rounded-lg border transition-colors duration-[var(--duration-fast)] focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
+  "border-foreground/12 bg-foreground/3 text-foreground placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-foreground/30 focus-visible:ring-foreground/10 aria-invalid:border-destructive aria-invalid:focus-visible:border-destructive aria-invalid:focus-visible:ring-destructive w-full min-w-0 rounded-lg border transition-colors duration-[var(--duration-fast)] focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
 /** A visible secondary action surface on both the page and a card. */
 export const SECONDARY_CONTROL =
-  "border-foreground/[0.12] bg-foreground/[0.09] text-foreground hover:border-foreground/[0.16] hover:bg-foreground/[0.14] active:bg-foreground/[0.18]";
+  "border-transparent bg-foreground/5 text-foreground hover:border-transparent hover:bg-foreground/8 active:bg-foreground/12";
 
 /** Shared trigger for toolbar filters, whether single- or multi-select. */
-export const FILTER_CONTROL = `${SECONDARY_CONTROL} data-[state=open]:border-foreground/[0.16] data-[state=open]:bg-foreground/[0.14] h-9 gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-normal focus-visible:border-foreground/35 focus-visible:ring-foreground/15 focus-visible:ring-[3px] focus-visible:outline-none`;
+export const FILTER_CONTROL = `${SECONDARY_CONTROL} data-[state=open]:border-transparent data-[state=open]:bg-foreground/8 h-9 gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-normal focus-visible:border-foreground/35 focus-visible:ring-foreground/15 focus-visible:ring-[3px] focus-visible:outline-none`;
 
 /** Highlight stays visible on both card and popover surfaces. */
 export const MENU_ITEM_FOCUS =

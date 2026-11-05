@@ -101,6 +101,7 @@ export default function ArtifactsPage() {
         fill
         data-tour="artifacts-list"
         namedByPage
+        layout="grid"
         title={t("title")}
         counted={error || isLoading ? null : t("count", { count: total })}
         // Which pages to show is always offered: when every page is archived the

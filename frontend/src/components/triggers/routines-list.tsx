@@ -53,6 +53,7 @@ export function RoutinesList() {
       <ListCard
         fill
         namedByPage
+        layout="grid"
         title={t("activityTitle")}
         contentClassName="p-0"
         counted={loading || error ? null : t("routineCount", { count: items.length })}
@@ -78,18 +79,19 @@ export function RoutinesList() {
             description={t("activityEmptyDescription")}
           />
         ) : (
-          <div className="space-y-3 p-5">
+          <div className="space-y-3">
             {list.visible.length === 0 ? (
               <p className="text-muted-foreground text-sm">{t("noRoutineMatches")}</p>
             ) : (
-              <ul className="divide-border divide-y">
+              <ul className="space-y-3">
                 {list.visible.map((item) =>
                   item.kind === "task" ? (
-                    <li key={`task:${item.row.id}`} className="py-3">
+                    <li key={`task:${item.row.id}`} className="list-none">
                       <TriggerRow trigger={item.row} showAgent />
                     </li>
                   ) : (
                     <WatchRow
+                      className="border-foreground/8 bg-card rounded-xl border"
                       key={`monitor:${item.row.id}`}
                       watch={item.row}
                       lapsed={connections.some(

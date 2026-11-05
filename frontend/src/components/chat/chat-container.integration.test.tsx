@@ -1466,7 +1466,7 @@ describe("the chat container - late transcript reconciliation", () => {
     expect(useChatStore.getState().messages.at(-1)?.content).toContain(
       "Could not persist this answer",
     );
-    expect(screen.getByText(/Could not persist this answer/)).toBeVisible();
+    expect(await screen.findByText(/Could not persist this answer/)).toBeVisible();
   });
 });
 

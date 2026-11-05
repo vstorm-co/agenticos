@@ -101,9 +101,12 @@ export default function TablesPage() {
         aria-modal={galleryFullscreen || undefined}
         aria-label={t("catalog")}
         className={
-          galleryFullscreen ? "fixed inset-0 z-40 overflow-y-auto rounded-none" : undefined
+          galleryFullscreen
+            ? "bg-background fixed inset-0 z-40 overflow-y-auto rounded-none p-4 sm:p-6"
+            : undefined
         }
         namedByPage
+        layout="grid"
         title={t("catalog")}
         counted={isLoading ? null : t("shownCount", { count: total })}
         controls={

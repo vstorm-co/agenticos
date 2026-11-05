@@ -94,7 +94,6 @@ import { useFollowContent } from "@/hooks/use-follow-content";
 import { useSentTurnAnchor } from "@/hooks/use-sent-turn-anchor";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
-import { Beam } from "@/components/ui/beam";
 import { useAgentDictation } from "@/hooks/use-agent-dictation";
 import { usePermissions, useVoiceReadiness, useVoiceSession, type VoiceSession } from "@/hooks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1109,7 +1108,6 @@ function ChatUI({
     [],
   );
   const browserLevel = useAudioLevel(stopBrowserDictation ? mic.stream : null);
-  const [composerFocused, setComposerFocused] = useState(false);
   // The latest answer's next steps sit on the composer until somebody types
   // their own (#2301).
   const [drafting, setDrafting] = useState(false);
@@ -1645,196 +1643,180 @@ function ChatUI({
                   {/* No glow under the box: the pill above it says the microphone is
                     open and how loud, and a second signal below read as a shadow. */}
                   <div>
-                    {/* All the way around the composer, and only while somebody is in
-                  it. A border that glows permanently is decoration; one that
-                  lights when the caret arrives is the box saying it is where
-                  the typing goes. The glow outside it answers the microphone
-                  and the turn; this is the box's own. */}
                     {/* Every hint on top of the box, beside the pill it belongs to. */}
                     {!isArchived && !onCall && (
                       <NextSteps steps={nextSteps} onPick={(step) => sendMessage(step)} />
                     )}
                     <DictationStrip hint={composerStrip} placement="above" />
-                    <Beam
-                      size="md"
-                      borderRadius={16}
-                      active={composerFocused}
-                      onFocusChange={setComposerFocused}
+                    <div
+                      data-tour="chat-composer"
+                      className={cn(
+                        "panel composer-box focus-within:border-foreground/20 rounded-2xl transition-colors",
+                        composerStrip !== null && "rounded-t-none",
+                      )}
                     >
                       <div
-                        data-tour="chat-composer"
-                        className={cn(
-                          "panel composer-box focus-within:border-foreground/30 rounded-2xl transition-colors",
-                          !compact && "composer-glass",
-                          composerStrip !== null && "rounded-t-none",
-                        )}
+                        className={cn("px-2.5 pt-1 pb-0.5", !compact && "sm:px-4 sm:pt-4 sm:pb-1")}
                       >
-                        <div
-                          className={cn(
-                            "px-2.5 pt-1 pb-0.5",
-                            !compact && "sm:px-4 sm:pt-4 sm:pb-1",
-                          )}
-                        >
-                          {isArchived && (
-                            <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
-                              {t("conversationArchived")}
-                            </p>
-                          )}
-                          {/* One row of actions under the text, the same at every
+                        {isArchived && (
+                          <p className="text-muted-foreground pb-2 text-center font-mono text-xs tracking-wider uppercase">
+                            {t("conversationArchived")}
+                          </p>
+                        )}
+                        {/* One row of actions under the text, the same at every
                           level of every limit: attach and who answers on the left;
                           usage, the model, the microphone and send on the right. A
                           limit near its end changes an icon's colour and never
                           costs the row a button. */}
-                          <ChatInput
-                            autoFocus={!compact && !onCall}
-                            focusRequest={composerFocusRequest}
-                            onSend={sendMessage}
-                            // Mentions address the agent the thread is talking to -
-                            // in a fixed window (the test panel, the Architect) the
-                            // scope's own selection holds it.
-                            agentId={delegatingAgentId}
-                            mentionsFromDraft={testingDraft}
-                            hints={messages.length === 0}
-                            disabled={
-                              isStopping ||
-                              (!isConnected && !keepsOutbox) ||
-                              isArchived ||
-                              onCall ||
-                              !!pendingApproval ||
-                              !!(pendingQuestions && pendingQuestions.length)
-                            }
-                            isProcessing={isProcessing}
-                            canStop={
-                              isStopping ||
-                              canStopParked ||
-                              isProcessing ||
-                              !!pendingApproval ||
-                              !!pendingQuestions?.length ||
-                              !!pendingConnection
-                            }
-                            onStop={onStop}
-                            stopDisabled={isStopping}
-                            slashContext={slashContext}
-                            commands={slashCommands}
-                            attachmentSlot={attachmentSlot}
-                            incoming={incoming}
-                            onTyping={onTyping}
-                            onDraftChange={setDrafting}
-                            offline={!isConnected}
-                            projects={projectMentions.items}
-                            onPickProject={projectMentions.pick}
-                            mic={mic}
-                            onListeningChange={onListeningChange}
-                            dictation={{
-                              engine,
-                              state: dictationState,
-                              actions: dictationActions,
-                            }}
-                            dictateNow={dictateNow}
-                            onDictateStarted={clearIntent}
-                            // Who answers first and largest: it is the most
-                            // consequential choice in the composer.
-                            controlsSlot={
-                              agentFixed ? undefined : (
-                                <>
-                                  <AgentPicker />
-                                  {/* A phone's row is the agent alone; the project is
-                                    picked from its `+` sheet. */}
-                                  <span className="contents max-md:hidden">
-                                    <ProjectChip
-                                      conversationId={conversationId}
-                                      pickerOpen={projectPickerOpen}
-                                      onPickerOpenChange={setProjectPickerOpen}
-                                    />
-                                  </span>
-                                </>
-                              )
-                            }
-                            onProject={
-                              agentFixed || conversationId
-                                ? undefined
-                                : () => setProjectPickerOpen(true)
-                            }
-                            // A phone's row keeps +, the agent, the microphone and
-                            // send; these move into its `+` sheet as rows.
-                            phoneRows={
+                        <ChatInput
+                          autoFocus={!compact && !onCall}
+                          focusRequest={composerFocusRequest}
+                          onSend={sendMessage}
+                          // Mentions address the agent the thread is talking to -
+                          // in a fixed window (the test panel, the Architect) the
+                          // scope's own selection holds it.
+                          agentId={delegatingAgentId}
+                          mentionsFromDraft={testingDraft}
+                          hints={messages.length === 0}
+                          disabled={
+                            isStopping ||
+                            (!isConnected && !keepsOutbox) ||
+                            isArchived ||
+                            onCall ||
+                            !!pendingApproval ||
+                            !!(pendingQuestions && pendingQuestions.length)
+                          }
+                          isProcessing={isProcessing}
+                          canStop={
+                            isStopping ||
+                            canStopParked ||
+                            isProcessing ||
+                            !!pendingApproval ||
+                            !!pendingQuestions?.length ||
+                            !!pendingConnection
+                          }
+                          onStop={onStop}
+                          stopDisabled={isStopping}
+                          slashContext={slashContext}
+                          commands={slashCommands}
+                          attachmentSlot={attachmentSlot}
+                          incoming={incoming}
+                          onTyping={onTyping}
+                          onDraftChange={setDrafting}
+                          offline={!isConnected}
+                          projects={projectMentions.items}
+                          onPickProject={projectMentions.pick}
+                          mic={mic}
+                          onListeningChange={onListeningChange}
+                          dictation={{
+                            engine,
+                            state: dictationState,
+                            actions: dictationActions,
+                          }}
+                          dictateNow={dictateNow}
+                          onDictateStarted={clearIntent}
+                          // Who answers first and largest: it is the most
+                          // consequential choice in the composer.
+                          controlsSlot={
+                            agentFixed ? undefined : (
                               <>
-                                {!agentFixed && (
-                                  <SheetRow icon={Bot} label={t("rail.agent")}>
-                                    <AgentPicker />
-                                  </SheetRow>
-                                )}
-                                {offerCall && !onCall && (
-                                  <SheetRow
-                                    icon={PhoneCall}
-                                    label={t("input.callAgent", {
-                                      agent: callAgent?.name ?? t("rail.agent"),
-                                    })}
-                                  >
-                                    <VoiceCallButton
-                                      readiness={readiness}
-                                      failed={readinessFailed}
-                                      disabled={isProcessing || isArchived}
-                                      onStart={startCall}
-                                      setUpHref={agentCallsHref}
-                                      publishedOnly={testingDraft}
-                                    />
-                                  </SheetRow>
-                                )}
-                                <SheetRow
-                                  icon={SlidersHorizontal}
-                                  label={t("input.modelAndApprovals")}
-                                >
-                                  <ChatControls
-                                    onModelProfileChange={onModelProfileChange}
-                                    onApprovalModeChange={onApprovalModeChange}
-                                    agentModel={agentModel}
-                                    agentCapabilities={agentCapabilities}
+                                <AgentPicker />
+                                {/* A phone's row is the agent alone; the project is
+                                    picked from its `+` sheet. */}
+                                <span className="contents max-md:hidden">
+                                  <ProjectChip
+                                    conversationId={conversationId}
+                                    pickerOpen={projectPickerOpen}
+                                    onPickerOpenChange={setProjectPickerOpen}
                                   />
-                                </SheetRow>
-                                <SheetRow icon={Gauge} label={t("input.contextUsed")}>
-                                  <UsageMeter
-                                    usage={lastUsage}
-                                    workspace={workspace}
-                                    total={conversationCost}
-                                    contextWindow={contextWindow}
-                                  />
-                                </SheetRow>
+                                </span>
                               </>
-                            }
-                            actionsSlot={
-                              <span className="contents max-md:hidden">
-                                {/* Wide screens only, as is the panel it opens. */}
-                                <span ref={setFilesSlot} className="hidden lg:contents" />
+                            )
+                          }
+                          onProject={
+                            agentFixed || conversationId
+                              ? undefined
+                              : () => setProjectPickerOpen(true)
+                          }
+                          // A phone's row keeps +, the agent, the microphone and
+                          // send; these move into its `+` sheet as rows.
+                          phoneRows={
+                            <>
+                              {!agentFixed && (
+                                <SheetRow icon={Bot} label={t("rail.agent")}>
+                                  <AgentPicker />
+                                </SheetRow>
+                              )}
+                              {offerCall && !onCall && (
+                                <SheetRow
+                                  icon={PhoneCall}
+                                  label={t("input.callAgent", {
+                                    agent: callAgent?.name ?? t("rail.agent"),
+                                  })}
+                                >
+                                  <VoiceCallButton
+                                    readiness={readiness}
+                                    failed={readinessFailed}
+                                    disabled={isProcessing || isArchived}
+                                    onStart={startCall}
+                                    setUpHref={agentCallsHref}
+                                    publishedOnly={testingDraft}
+                                  />
+                                </SheetRow>
+                              )}
+                              <SheetRow
+                                icon={SlidersHorizontal}
+                                label={t("input.modelAndApprovals")}
+                              >
+                                <ChatControls
+                                  onModelProfileChange={onModelProfileChange}
+                                  onApprovalModeChange={onApprovalModeChange}
+                                  agentModel={agentModel}
+                                  agentCapabilities={agentCapabilities}
+                                />
+                              </SheetRow>
+                              <SheetRow icon={Gauge} label={t("input.contextUsed")}>
                                 <UsageMeter
                                   usage={lastUsage}
                                   workspace={workspace}
                                   total={conversationCost}
                                   contextWindow={contextWindow}
                                 />
-                                <div>
-                                  <ChatControls
-                                    onModelProfileChange={onModelProfileChange}
-                                    onApprovalModeChange={onApprovalModeChange}
-                                    agentModel={agentModel}
-                                    agentCapabilities={agentCapabilities}
-                                  />
-                                </div>
-                                {/* The call stands in Send's place, as one that can
+                              </SheetRow>
+                            </>
+                          }
+                          actionsSlot={
+                            <span className="contents max-md:hidden">
+                              {/* Wide screens only, as is the panel it opens. */}
+                              <span ref={setFilesSlot} className="hidden lg:contents" />
+                              <UsageMeter
+                                usage={lastUsage}
+                                workspace={workspace}
+                                total={conversationCost}
+                                contextWindow={contextWindow}
+                              />
+                              <div>
+                                <ChatControls
+                                  onModelProfileChange={onModelProfileChange}
+                                  onApprovalModeChange={onApprovalModeChange}
+                                  agentModel={agentModel}
+                                  agentCapabilities={agentCapabilities}
+                                />
+                              </div>
+                              {/* The call stands in Send's place, as one that can
                                   start or one that says why it cannot - except
                                   during the call, when it waits here, hidden, for
                                   focus to come back to. */}
-                                {onCall && callButton}
-                              </span>
-                            }
-                            // Not during a call: the box is closed then, Send with it.
-                            // Nor while readiness loads, when the button draws
-                            // nothing and the slot would leave no Send at all.
-                            idleSlot={callShown && !onCall ? callButton : undefined}
-                          />
-                        </div>
+                              {onCall && callButton}
+                            </span>
+                          }
+                          // Not during a call: the box is closed then, Send with it.
+                          // Nor while readiness loads, when the button draws
+                          // nothing and the slot would leave no Send at all.
+                          idleSlot={callShown && !onCall ? callButton : undefined}
+                        />
                       </div>
-                    </Beam>
+                    </div>
                   </div>
                 </div>
                 <ComposerStatus isConnected={isConnected} />

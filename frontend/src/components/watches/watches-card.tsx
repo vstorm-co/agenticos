@@ -16,7 +16,7 @@ import { useAgents, useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatches } from "@/hooks/use-watches";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import { cadenceLabel } from "@/lib/watch-cadence";
 import type { Watch } from "@/lib/watches-api";
 import { WatchAccount } from "./watch-account";
@@ -155,12 +155,14 @@ export function WatchesCard({
 }
 
 export function WatchRow({
+  className,
   watch,
   lapsed,
   onEdit,
   onToggle,
   onRemove,
 }: {
+  className?: string;
   watch: Watch;
   lapsed: boolean;
   onEdit: () => void;
@@ -175,7 +177,12 @@ export function WatchRow({
   const cadence = cadenceLabel(watch.interval_minutes, tCadence);
   const unsuccessful = watch.last_attempt_status && watch.last_attempt_status !== "completed";
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5">
+    <li
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-5",
+        className,
+      )}
+    >
       <div className="min-w-0 flex-1 space-y-1">
         <p className="truncate text-sm font-medium">{watch.title}</p>
         <RoutineAutoPause stoppedAt={watch.auto_stopped_at} count={watch.consecutive_failures} />
