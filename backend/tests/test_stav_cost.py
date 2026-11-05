@@ -35,6 +35,8 @@ from app.agents.stav_cost import _active, capture_stav_cost
 from app.core.config import Settings, settings
 from app.core.secret_kinds import ApiKeySecret
 
+pytestmark = pytest.mark.security
+
 MODEL = "deepseek-ai/deepseek-v4-1-flash-1017"
 
 
@@ -385,3 +387,105 @@ async def test_auxiliary_response_costs_survive_output_validation_failure() -> N
         assert ledger.total_usd == Decimal("1")
         assert all(entry.provider_reported for entry in ledger.entries)
         assert not ledger.has_unpriced_models
+
+
+@pytest.mark.anyio
+async def test_image_description_keeps_billed_cost_after_run_usage_aggregation() -> None:
+    from app.agents.capabilities.budget import metered_by
+    from app.services.rag.image_describer import PydanticAIImageDescriber
+
+    credential = ResolvedCredential(
+        provider="stav", secret=ApiKeySecret(api_key="sk_stav_test"), api="chat"
+    )
+    async with httpx2.AsyncClient(
+        transport=httpx2.MockTransport(
+            lambda _: _wire("chat", False, {"cost": "0.5", "cost_currency": "USD"})
+        )
+    ) as transport:
+        with patch.object(_StavProvider, "_get_http_client", return_value=transport):
+            model = build_model(credential, MODEL)
+        ledger = SpendLedger()
+        async with model:
+            with metered_by(ledger):
+                assert (
+                    await PydanticAIImageDescriber(model).describe(b"image", "image/png") == "hello"
+                )
+        assert ledger.total_usd == Decimal("0.5")
+        assert ledger.entries[0].provider_reported
+        assert not ledger.has_unpriced_models
+
+
+@pytest.mark.parametrize("cost", [Decimal("0"), Decimal("0.5")])
+def test_snapshot_delta_preserves_billed_usd_and_request_provenance(cost: Decimal) -> None:
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.capabilities.budget import usage_counts, usage_delta
+
+    usage = RunUsage(requests=1)
+    usage.incr(RequestUsage(cost=Decimal("0.7"), provider_reported_requests=1))
+    before = usage_counts(usage)
+    usage.requests += 1
+    usage.incr(
+        RequestUsage(cost=cost, provider_reported_requests=1, input_tokens=43, output_tokens=3)
+    )
+    delta = usage_delta(before, usage)
+    assert delta is not None
+    assert delta.cost == cost
+    assert delta.requests == 1
+    ledger = SpendLedger()
+    entry = ledger.record(MODEL, delta, "stav")
+    assert ledger.total_usd == cost
+    assert entry.provider_reported
+    assert not ledger.has_unpriced_models
+
+
+@pytest.mark.anyio
+async def test_mixed_aggregate_counts_known_spend_without_claiming_its_total_is_complete() -> None:
+    from pydantic_ai.usage import RunUsage
+
+    usage = RunUsage(requests=2)
+    usage.incr(RequestUsage(cost=Decimal("0.5"), provider_reported_requests=1, input_tokens=43))
+    usage.incr(RequestUsage(input_tokens=43))
+    ledger = SpendLedger()
+    entry = ledger.record(MODEL, usage, "stav")
+    assert ledger.total_usd == Decimal("0.5")
+    assert entry.provider_reported
+    assert ledger.has_unpriced_models
+    guard = BudgetGuard(ledger=ledger, limits=[SpendLimit(BudgetScope.AGENT, Decimal("0.4"))])
+    with pytest.raises(BudgetExceeded):
+        await guard.assert_within_budget()
+
+
+@pytest.mark.parametrize("count", [True, "1", None, -1])
+def test_invalid_reported_request_counts_do_not_claim_a_priced_total(count: object) -> None:
+    usage = RequestUsage(cost=Decimal("0.5"), provider_reported_requests=count)
+    ledger = SpendLedger()
+    ledger.record(MODEL, usage)
+    assert ledger.has_unpriced_models
+
+
+@pytest.mark.parametrize("cost", [Decimal("NaN"), Decimal("Infinity"), Decimal("-1"), None])
+def test_invalid_native_cost_cannot_reduce_the_aggregate_ledger(cost: Decimal | None) -> None:
+    usage = RequestUsage(cost=cost, provider_reported_requests=1)
+    ledger = SpendLedger()
+    ledger.record(MODEL, usage)
+    assert ledger.total_usd == 0
+    assert ledger.has_unpriced_models
+
+
+def test_snapshot_delta_does_not_reuse_an_earlier_requests_bill_for_an_unknown_call() -> None:
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.capabilities.budget import usage_counts, usage_delta
+
+    usage = RunUsage(requests=1)
+    usage.incr(RequestUsage(cost=Decimal("0.7"), provider_reported_requests=1))
+    before = usage_counts(usage)
+    usage.requests += 1
+    usage.incr(RequestUsage(input_tokens=43))
+    delta = usage_delta(before, usage)
+    assert delta is not None and delta.cost is None
+    ledger = SpendLedger()
+    ledger.record(MODEL, delta)
+    assert ledger.total_usd == 0
+    assert ledger.has_unpriced_models

@@ -480,7 +480,7 @@ class TestUsageDelta:
     def test_a_change_carries_all_four_priced_counts(self):
         before = usage_counts(RunUsage())
         usage = RunUsage(input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3)
-        assert usage_delta(before, usage) == RequestUsage(
+        assert usage_delta(before, usage) == RunUsage(
             input_tokens=8, output_tokens=2, cache_read_tokens=1, cache_write_tokens=3
         )
 

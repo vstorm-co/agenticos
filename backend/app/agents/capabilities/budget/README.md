@@ -21,7 +21,10 @@ used directly; NOK requires the operator-maintained `STAV_NOK_PER_USD` setting
 The request usage retains the amount, currency, conversion rate and USD result;
 the ledger marks the entry `provider_reported`. No exchange-rate service is
 called. Missing conversion or invalid amounts leave the catalog fallback in
-place, with an unpriced request still flagged incomplete.
+place, with an unpriced request still flagged incomplete. Billed USD and a
+numeric reported-request counter survive auxiliary usage aggregation; a mixed
+aggregate that includes requests without reported prices stays partial while
+its known spend still counts towards the budget.
 
 Otherwise prices come from [`genai-prices`](https://github.com/pydantic/genai-prices),
 not from a table here. There was a table - nine models, hand-maintained - and

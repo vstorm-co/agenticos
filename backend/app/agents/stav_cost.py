@@ -57,6 +57,8 @@ class _Capture:
         # RequestUsage explicitly supports arbitrary serialized usage fields.
         setattr(usage, "provider_reported_cost_usd", usd)  # noqa: B010 - SDK extension, absent from its static type
         usage.cost = usd
+        # Numeric counters survive RequestUsage -> RunUsage aggregation; Decimal extras do not.
+        setattr(usage, "provider_reported_requests", 1)  # noqa: B010 - SDK's supported extra usage counter
         provenance = {
             "provider": "stav",
             "amount": str(self.cost),

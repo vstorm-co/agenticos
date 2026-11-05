@@ -134,7 +134,9 @@ def price_request(
     implementation of `genai_prices.types.AbstractUsage` for exactly this, and
     copying the counts into a second object would only create somewhere for the
     two conventions to disagree about whether `input_tokens` includes the
-    cached ones. It does.
+    cached ones. It does. For aggregated billed usage, native `cost` is retained
+    alongside a numeric reported-request counter; arbitrary Decimal extras are
+    not accumulated by the SDK.
 
     Prices come from the snapshot bundled with the package. Nothing here
     reaches the network - a self-hosted deployment should not phone home
@@ -162,13 +164,24 @@ def price_request(
     return None
 
 
+def _reported_requests(usage: RequestUsage | RunUsage) -> int:
+    count = getattr(usage, "provider_reported_requests", 0)
+    return count if isinstance(count, int) and not isinstance(count, bool) and count > 0 else 0
+
+
 def _provider_reported_cost(usage: RequestUsage | RunUsage) -> Decimal | None:
     reported = getattr(usage, "provider_reported_cost_usd", None)
-    return (
-        reported
-        if isinstance(reported, Decimal) and reported.is_finite() and reported >= 0
-        else None
-    )
+    if isinstance(reported, Decimal) and reported.is_finite() and reported >= 0:
+        return reported
+    native = usage.cost
+    if (
+        _reported_requests(usage)
+        and isinstance(native, Decimal)
+        and native.is_finite()
+        and native >= 0
+    ):
+        return native
+    return None
 
 
 def _price_lookups(model_name: str, provider: str | None) -> list[tuple[str, str | None]]:
@@ -205,7 +218,7 @@ class SpendEntry:
     cost_usd: Decimal
     priced: bool
     provider_reported: bool = False
-    """Whether the cost came from the provider's bill rather than the price catalog."""
+    """Whether this entry includes a provider bill rather than only catalog prices."""
     cache_read_tokens: int = 0
     """Of `input_tokens`, those served from the provider's cache - priced lower."""
     cache_write_tokens: int = 0
@@ -406,16 +419,23 @@ class SpendLedger:
         self, model_name: str, usage: RequestUsage | RunUsage, provider: str | None = None
     ) -> SpendEntry:
         cost = price_request(usage, model_name, provider)
+        reported = _provider_reported_cost(usage)
+        reported_requests = _reported_requests(usage)
+        incomplete = reported is not None and 0 < reported_requests < usage.requests
         if cost is None:
             logger.warning("No price for model %s - run cost will be under-reported", model_name)
+        elif incomplete:
+            logger.warning(
+                "Aggregated usage contains requests without reported prices - run cost is partial"
+            )
         return self.book(
             SpendEntry(
                 model_name=model_name,
                 input_tokens=usage.input_tokens or 0,
                 output_tokens=usage.output_tokens or 0,
                 cost_usd=cost if cost is not None else Decimal(0),
-                priced=cost is not None,
-                provider_reported=_provider_reported_cost(usage) is not None,
+                priced=cost is not None and not incomplete,
+                provider_reported=reported is not None,
                 # The split the price was computed from, kept so a run can be
                 # reconciled with a provider's console (#2170).
                 cache_read_tokens=usage.cache_read_tokens or 0,
@@ -664,41 +684,64 @@ def metered_nested_run(usage: RunUsage, model_name: str | None) -> Generator[Run
                 record_ambient_usage(model_name, own)
 
 
-def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:
-    """The four counters a price is computed from, read off the run's usage.
+@dataclass(frozen=True)
+class UsageSnapshot:
+    """The token counts, billed USD and provenance before a nested model call."""
 
-    A tuple rather than the object: `RunUsage` is accumulated in place, so keeping
-    a reference and comparing later compares it with itself. Cached tokens are
-    carried alongside the plain ones because they are priced differently and
-    `input_tokens` already includes them; dropping them would bill a cache read at
-    the full input rate, the defect :func:`price_request` exists to avoid.
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cost: Decimal | None
+    requests: int
+    reported_requests: int
+
+
+def usage_counts(usage: RunUsage) -> UsageSnapshot:
+    """Snapshot counts and cost before a nested call mutates the shared usage.
+
+    Native `cost` and the reported-request counter survive the SDK's aggregation,
+    unlike a request's arbitrary decimal metadata. Keeping both allows the delta
+    to book billed USD without treating a mixed, partly unpriced run as complete.
     """
-    return (
-        usage.input_tokens,
-        usage.output_tokens,
-        usage.cache_read_tokens,
-        usage.cache_write_tokens,
+    return UsageSnapshot(
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_read_tokens=usage.cache_read_tokens,
+        cache_write_tokens=usage.cache_write_tokens,
+        cost=usage.cost,
+        requests=usage.requests,
+        reported_requests=_reported_requests(usage),
     )
 
 
-def usage_delta(before: tuple[int, int, int, int], usage: RunUsage) -> RequestUsage | None:
-    """What a step added to the run's usage, or `None` when it called no model.
+def usage_delta(before: UsageSnapshot, usage: RunUsage) -> RunUsage | None:
+    """What a nested call added, including billed USD and its provenance.
 
-    A capability that runs its own `Agent` - a compaction summary, a tool-output
-    summary, an LLM reminder - spends against `ctx.usage` and nowhere the request
-    wrapper can see, so each meters itself by snapshotting :func:`usage_counts`
-    before the step and diffing after. One helper so the meters cannot drift on
-    how the diff is taken.
+    Returns `None` when nothing changed. An unchanged cost can still be a real
+    zero-cost response: a new reported-request counter distinguishes that from
+    a response whose cost was omitted.
     """
     after = usage_counts(usage)
     if after == before:
         return None
-    return RequestUsage(
-        input_tokens=after[0] - before[0],
-        output_tokens=after[1] - before[1],
-        cache_read_tokens=after[2] - before[2],
-        cache_write_tokens=after[3] - before[3],
+    reported_requests = after.reported_requests - before.reported_requests
+    cost = (
+        after.cost - (before.cost or Decimal(0))
+        if after.cost is not None and (after.cost != before.cost or reported_requests > 0)
+        else None
     )
+    delta = RunUsage(
+        input_tokens=after.input_tokens - before.input_tokens,
+        output_tokens=after.output_tokens - before.output_tokens,
+        cache_read_tokens=after.cache_read_tokens - before.cache_read_tokens,
+        cache_write_tokens=after.cache_write_tokens - before.cache_write_tokens,
+        requests=after.requests - before.requests,
+        cost=cost,
+    )
+    if reported_requests > 0:
+        setattr(delta, "provider_reported_requests", reported_requests)  # noqa: B010 - SDK extra usage counter
+    return delta
 
 
 PeriodSpendLookup = Callable[[], Awaitable[Decimal]]
