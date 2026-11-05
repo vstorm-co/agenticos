@@ -254,6 +254,7 @@ def _thread(*calls: MagicMock) -> tuple[MagicMock, MagicMock]:
     message = MagicMock()
     message.id = uuid.uuid4()
     message.tool_calls = list(calls)
+    message.parts = None
     conv = MagicMock()
     conv.messages = [message]
     return conv, message
@@ -332,3 +333,36 @@ def test_a_draft_past_the_text_limit_is_left_out() -> None:
         sum(len(f.text) for d in kept for v in d.versions for f in v.fields)
         <= SHARED_MAX_DRAFT_CHARS
     )
+
+
+def test_drafts_of_one_turn_follow_the_order_the_turn_wrote_them() -> None:
+    first, second = (
+        _draft_call("c1", _card(title="first")),
+        _draft_call("c2", _card(title="second")),
+    )
+    conv, message = _thread(second, first)
+    message.parts = [
+        {"type": "tool", "tool_call_id": "c1"},
+        {"type": "text", "content": "and then"},
+        {"type": "tool", "tool_call_id": "c2"},
+    ]
+
+    assert [d.id for d in shared_drafts(conv)[message.id]] == ["c1", "c2"]
+
+
+def test_a_draft_no_part_names_keeps_its_place_after_the_ones_that_are_named() -> None:
+    named, unnamed = _draft_call("c1", _card()), _draft_call("c2", _card())
+    conv, message = _thread(unnamed, named)
+    message.parts = [{"type": "tool", "tool_call_id": "c1"}]
+
+    assert [d.id for d in shared_drafts(conv)[message.id]] == ["c1", "c2"]
+
+
+def test_the_order_is_applied_before_the_newest_fifty_are_kept() -> None:
+    calls = [_draft_call(f"c{i}", _card(title=f"t{i}")) for i in range(SHARED_MAX_DRAFTS + 1)]
+    conv, message = _thread(*reversed(calls))
+    message.parts = [{"type": "tool", "tool_call_id": c.tool_call_id} for c in calls]
+
+    kept = shared_drafts(conv)[message.id]
+
+    assert [d.id for d in kept] == [f"c{i}" for i in range(1, SHARED_MAX_DRAFTS + 1)]

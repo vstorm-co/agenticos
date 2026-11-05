@@ -1,5 +1,5 @@
 ---
-source_sha: "cadc79967b48"
+source_sha: "b9c6d9c6f25b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -2897,7 +2897,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Kante | Liest | Schwärzen | Blockieren |
 |---|---|---|---|
 | Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| Ausgabe | die Antwort des Agents und den Text, den seine Entwürfe, Zeichnungen, Diagramme, Seiten und Fragen zeigen | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | Tool-Argumente | was der Agent einem Tool übergibt, bevor das Tool läuft | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2975,7 +2975,14 @@ Stream, und ein gesperrtes Stichwort beendet den Run, bevor ein Tool aufgerufen
 wird. Getrennt von der Ausgabeprüfung, weil das Schwärzen eines Arguments ändert,
 was das Tool tut: Eine E-Mail geht mit einem Platzhalter statt des Schlüssels
 hinaus. Solange sie aktiv ist, werden die Argumente eines Aufrufs zurückgehalten,
-bis der Aufruf vollständig ist, wie die Antwort.
+bis der Aufruf vollständig ist, wie die Antwort. Die Ausnahme ist, was ein Aufruf der Person zeigt - ein
+[Entwurf](#drafts), eine Zeichnung, ein Diagramm, eine Seite oder eine Frage: Die
+Ausgabe-Kante prüft seinen Text wie die Antwort, ob diese Kante aktiv ist oder nicht. In
+einer Zeichnung oder Seite sind das der Text, die lesbaren Attribute (`alt`, `title`,
+`aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, außer einem eingebetteten Bild oder einer Base64-`data:`-URI) und die Strings in einem Skript; Tags,
+Kommentare, Stile und Code bleiben unverändert. Eine Zeichnung oder Seite erscheint,
+wenn der Aufruf vollständig ist, nicht beim Schreiben.
 
 **Ein Delegat streamt unter der Ausgabeprüfung des delegierenden Runs.** Text und
 Reasoning, die ein Delegat im Delegationspanel schreibt, durchlaufen dieselbe
@@ -3020,8 +3027,7 @@ in die Schleife gelangen — eine abgerufene Seite, eine Datei, die Antwort eine
 MCP-Servers —, wo eine Prompt-Injection-Nutzlast das Modell sonst ungelesen
 erreichen würde.
 
-Zwei Dinge stehen bewusst außerhalb des Umfangs. **Tool-Argumente** sind eine
-strukturierte Abbildung ohne Textdetektor, deshalb sind sie keine Kante. Und das
+Eine Sache steht bewusst außerhalb des Umfangs: Das
 `approve`-Urteil des Harness für ein Tool ist nicht portiert:
 [Genehmigungen](../governance.md) parken einen Run bereits pro Tool für eine
 menschliche Entscheidung, und ein zweiter, regelgetriebener Pfad zu demselben
@@ -3135,9 +3141,14 @@ behält die Klammern.
 Zwei bis fünf Varianten desselben Entwurfs („gib mir zwei Versionen") kommen in einem
 Aufruf als **Varianten** und erscheinen als Tabs mit ein bis zwei Wörtern als Name
 („Kurz", „Mit Details"). Die Grenzen: ein Titel bis 120 Zeichen, bis zu 10 Felder je
-Variante, bis zu 20.000 Zeichen je Feld und kein leeres Feld. Ein Aufruf, der eine
+Variante, bis zu 20.000 Zeichen je Feld und kein leeres Feld, keinen leeren Titel und keine leere Art. Ein Aufruf, der eine
 Grenze verletzt, wird mit einer Meldung abgelehnt, die nennt, was zu korrigieren
 ist; das Modell versucht es erneut, und eine leere Karte erscheint nie.
+
+Die [Ausgabe-Kante](#guardrails) eines Agents prüft einen Entwurf wie seine Antwort:
+Ein Geheimnis oder personenbezogene Daten, die sie schwärzt, sind auch in der Karte
+geschwärzt, und ein gesperrtes Stichwort stoppt den Run. Entwürfe, die gespeichert
+wurden, bevor der Agent diese Schutzmaßnahme hatte, werden nicht umgeschrieben.
 
 Die Karte wird aus den Argumenten des gespeicherten Aufrufs neu aufgebaut; wer die
 Unterhaltung wieder öffnet, sieht dieselbe Karte. Eine per Link geteilte

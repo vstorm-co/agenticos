@@ -13,7 +13,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
-from app.db.models.conversation import Conversation
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
 from app.schemas.conversation_share import (
     SharedConversationBody,
@@ -35,6 +35,22 @@ SHARED_MAX_DRAFT_CHARS = 500_000
 """How much draft text one view of a shared thread carries."""
 
 
+def _in_turn_order(message: Message) -> list[ToolCall]:
+    """A message's tool calls in the order its turn made them.
+
+    The relationship orders by start time, and a turn's calls are stored with the
+    same one, so ties come back in any order. The turn's parts keep the real
+    sequence: calls they name come first, in that order, then any they do not.
+    """
+    calls = list(message.tool_calls or [])
+    position = {
+        part["tool_call_id"]: index
+        for index, part in reversed(list(enumerate(message.parts or [])))
+        if part.get("type") == "tool" and part.get("tool_call_id")
+    }
+    return sorted(calls, key=lambda call: position.get(call.tool_call_id, len(position)))
+
+
 def shared_drafts(conversation: Conversation) -> dict[UUID, list[SharedDraft]]:
     """Each message's drafts, rebuilt from the calls that wrote them, for a thread shared by link.
 
@@ -50,7 +66,7 @@ def shared_drafts(conversation: Conversation) -> dict[UUID, list[SharedDraft]]:
     placed = [
         (message.id, call)
         for message in conversation.messages or []
-        for call in message.tool_calls or []
+        for call in _in_turn_order(message)
         if call.tool_name == WRITE_DRAFT
         and call.status == "completed"
         and (call.result or "").startswith(DRAFTED)

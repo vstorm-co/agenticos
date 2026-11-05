@@ -1,5 +1,5 @@
 ---
-source_sha: "cadc79967b48"
+source_sha: "b9c6d9c6f25b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -2686,7 +2686,7 @@ pythonowego strażnika.
 | Krawędź | Czyta | Redagowanie | Blokowanie |
 |---|---|---|---|
 | wejście | prompt użytkownika | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| wyjście | odpowiedź agenta | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| wyjście | odpowiedź agenta i tekst, który pokazują jego wersje robocze, rysunki, wykresy, strony i pytania | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | wynik narzędzia | to, co zwróciło narzędzie, zanim przeczyta to model | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | argumenty narzędzia | to, co agent przekazuje narzędziu, zanim narzędzie zadziała | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2761,7 +2761,13 @@ stream, a zablokowane słowo kończy run, zanim jakiekolwiek narzędzie zostanie
 wywołane. To osobna krawędź, a nie część kontroli wyjścia, bo redakcja argumentu
 zmienia to, co robi narzędzie: e-mail wychodzi z zamiennikiem w miejscu klucza.
 Gdy jest włączona, argumenty wywołania są wstrzymywane, aż wywołanie będzie
-kompletne, tak jak odpowiedź.
+kompletne, tak jak odpowiedź. Wyjątkiem jest to, co wywołanie pokazuje osobie - [wersja robocza](#drafts), rysunek,
+wykres, strona lub pytanie: krawędź wyjścia sprawdza jego tekst tak jak odpowiedź,
+niezależnie od tego, czy ta krawędź jest włączona. W rysunku lub stronie jest to tekst,
+czytelne atrybuty (`alt`, `title`, `aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, poza osadzonym obrazem lub URI `data:` w base64) i napisy w
+skrypcie; znaczniki, komentarze, style i kod nie są zmieniane. Rysunek lub strona
+pojawia się, gdy wywołanie jest kompletne, nie w trakcie pisania.
 
 **Delegat streamuje pod kontrolą wyjścia runu, który go wywołał.** Tekst i
 rozumowanie, które delegat pisze w panelu delegacji, przechodzą tę samą kontrolę co
@@ -2803,8 +2809,7 @@ najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do
 pobraną stroną, plikiem, odpowiedzią serwera MCP — gdzie ładunek z prompt injection
 inaczej dotarłby do modelu nieprzeczytany.
 
-Dwie rzeczy są celowo poza zakresem. **Argumenty narzędzi** to ustrukturyzowane
-mapowanie bez detektora tekstu, więc nie są krawędzią. A werdykt `approve` z
+Jedna rzecz jest celowo poza zakresem: werdykt `approve` z
 narzędzi harnessu nie jest przeniesiony: [zatwierdzenia](../governance.md) już
 parkują run per narzędzie na decyzję człowieka, a druga, sterowana regułami droga do
 tego samego mechanizmu to dokładnie to, czego unika się jednymi drzwiami.
@@ -2909,9 +2914,14 @@ zachowuje nawiasy.
 Od dwóch do pięciu wariantów tej samej wersji roboczej („daj mi dwie wersje")
 trafia do jednego wywołania jako **warianty** i jest pokazywane jako zakładki w
 jednej karcie o nazwach z jednego lub dwóch słów („Krótka", „Ze szczegółami"). Limity: tytuł do
-120 znaków, do 10 pól w wariancie, do 20 000 znaków w polu i żadnego pustego pola.
+120 znaków, do 10 pól w wariancie, do 20 000 znaków w polu i żadnego pustego pola, tytułu ani rodzaju.
 Wywołanie, które przekracza limit, jest odrzucane z komunikatem wskazującym, co
 poprawić, więc model ponawia próbę i pusta karta nigdy się nie pojawia.
+
+[Krawędź wyjścia](#guardrails) agenta sprawdza wersję roboczą tak jak jego odpowiedź:
+sekret lub dane osobowe, które zredaguje, są zredagowane także na karcie, a
+zablokowane słowo zatrzymuje run. Wersje robocze zapisane, zanim agent miał to
+zabezpieczenie, nie są przepisywane.
 
 Karta jest odtwarzana z argumentów zapisanego wywołania, więc po ponownym
 otwarciu rozmowy widać tę samą kartę. Rozmowa udostępniona linkiem też niesie swoje

@@ -2578,7 +2578,7 @@ Python guard.
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
 | input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| output | the agent's answer, and the text its drafts, drawings, charts, pages and questions show | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | tool arguments | what the agent passes a tool, before the tool runs | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2645,7 +2645,14 @@ is what the tool receives, what the transcript stores and what the stream shows,
 and a blocked keyword ends the run before any tool is called. It is separate from
 the output check because redacting an argument changes what the tool does: an
 e-mail goes out with a placeholder where the key was. While it is on, a call's
-arguments are held back until the call is complete, as the answer is.
+arguments are held back until the call is complete, as the answer is. The one
+exception is what a call shows the person - a [draft](#drafts), a drawing, a chart, a page or a
+question: the output edge checks its text as it checks the answer, whether or not this
+edge is on. In a drawing or page that is the text, the readable attributes (`alt`, `title`,
+`aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, except an inline image or a base64 `data:` URI) and the strings in a script; tags, comments,
+styles and code are not changed. A drawing or page appears when the call is complete, not
+as it is written.
 
 **A delegate streams under its delegating run's output check.** The text and
 reasoning a delegate writes in the delegation panel pass the same check as the
@@ -2684,8 +2691,7 @@ does any other.
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
 response — where a prompt-injection payload would otherwise reach the model unread.
 
-Two things are deliberately out of scope. **Tool arguments** are a structured
-mapping with no text detector, so they are not an edge. And the harness's tool
+One thing is deliberately out of scope: the harness's tool
 `approve` verdict is not ported: [approvals](../governance.md) already park a run per
 tool for a human decision, and a second, rule-driven path to the same mechanism is
 what a single door avoids.
@@ -2788,9 +2794,13 @@ markdown part's preview. Copy keeps the brackets.
 Two to five takes on the same draft ("give me two versions") go in one call as
 **versions**, shown as tabs named by a word or two ("Short", "With details").
 The limits: a title of up to 120 characters, up to 10 fields per version, up to
-20,000 characters in a field, and no empty field. A call that breaks one is
+20,000 characters in a field, and no empty field, title or kind. A call that breaks one is
 refused with a message naming what to fix, so the model retries and no empty
 card is ever drawn.
+
+An agent's [output guardrails](#guardrails) check a draft as they check its answer:
+a secret or personal data it redacts is redacted in the card, and a blocked keyword
+stops the run. Drafts stored before the agent had the guardrail are not rewritten.
 
 The card is rebuilt from the stored call's arguments, so reopening a
 conversation shows the same card. A conversation shared by link carries its

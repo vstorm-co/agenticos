@@ -104,6 +104,9 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
         Returns:
             A confirmation that the card is on its way to the person.
         """
+        for field, value in (("title", title), ("kind", kind)):
+            if not value.strip():
+                return steer(ctx, f"That draft needs a {field}. Add it and call the tool again.")
         try:
             card = DraftCard.model_validate(
                 {

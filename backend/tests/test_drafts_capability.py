@@ -92,6 +92,19 @@ class TestWriteDraft:
                 _tool_ctx(), title="t", kind="Post", versions=[_version(text="  \n ")]
             )
 
+    def test_a_blank_title_or_kind_goes_back_for_a_retry(self):
+        with pytest.raises(ModelRetry, match="title"):
+            _drafts.write_draft(_tool_ctx(), title="  ", kind="Post", versions=[_version()])
+        with pytest.raises(ModelRetry, match="kind"):
+            _drafts.write_draft(_tool_ctx(), title="t", kind="\n", versions=[_version()])
+
+    def test_a_stored_draft_with_a_blank_title_still_parses(self):
+        card = parse_draft_card(
+            {"title": " ", "kind": "Post", "versions": [{"fields": [{"text": "Hi"}]}]}
+        )
+
+        assert card is not None
+
     def test_a_field_error_names_its_full_path(self):
         version = DraftVersionInput(fields=[DraftFieldInput(text="ok"), DraftFieldInput(text=" ")])
 

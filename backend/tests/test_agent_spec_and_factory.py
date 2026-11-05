@@ -1364,3 +1364,21 @@ def test_browser_history_pruning_runs_after_compaction_and_before_reminders(
     )
     assert isinstance(browser, WebBrowser)
     assert ("press" in browser.report_tool_names) is (override == "name")
+
+
+def test_the_factory_hands_guardrails_the_tools_whose_arguments_are_the_answer():
+    from app.agents.capabilities.guardrails._capability import ScreenedToolArgs
+
+    spec = AgentSpec(
+        name="Writer",
+        capabilities=[
+            {"id": "drafts"},
+            {"id": "guardrails", "config": {"redact_secrets_out": True}},
+        ],
+    )
+
+    built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4())
+
+    (guardrails,) = [c for c in built.capabilities if type(c).__name__ == "CombinedCapability"]
+    (answer,) = [c for c in guardrails.capabilities if isinstance(c, ScreenedToolArgs)]
+    assert answer.tools == frozenset({"write_draft"})

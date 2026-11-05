@@ -1,5 +1,5 @@
 ---
-source_sha: "cadc79967b48"
+source_sha: "b9c6d9c6f25b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -2759,7 +2759,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 | Borde | Lee | Censura | Bloqueo |
 |---|---|---|---|
 | entrada | el prompt del usuario | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| salida | la respuesta del agent | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| salida | la respuesta del agent y el texto que muestran sus borradores, dibujos, gráficos, páginas y preguntas | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | resultado de herramienta | lo que devolvió una herramienta, antes de que lo lea el modelo | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | argumentos de herramienta | lo que el agent pasa a una herramienta, antes de que se ejecute | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2833,7 +2833,15 @@ guarda la transcripción y lo que muestra el stream, y una palabra bloqueada ter
 el run antes de llamar a ninguna herramienta. Va aparte de la revisión de salida
 porque redactar un argumento cambia lo que hace la herramienta: un correo sale con
 un marcador donde estaba la clave. Mientras está activo, los argumentos de una
-llamada se retienen hasta que la llamada está completa, como la respuesta.
+llamada se retienen hasta que la llamada está completa, como la respuesta. La
+excepción es lo que una llamada muestra a la persona - un [borrador](#drafts), un dibujo,
+un gráfico, una página o una pregunta: el borde de salida revisa su texto como revisa la
+respuesta, tenga o no activo este borde. En un dibujo o una página es el texto,
+los atributos legibles (`alt`, `title`, `aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, salvo una imagen incrustada o un URI `data:` en base64) y las
+cadenas de un script; las etiquetas, los comentarios, los estilos y el código no se
+cambian. Un dibujo o una página aparece cuando la llamada está completa, no mientras se
+escribe.
 
 **Un delegado transmite bajo la revisión de salida del run que delega.** El texto y
 el razonamiento que un delegado escribe en el panel de delegación pasan la misma
@@ -2876,8 +2884,7 @@ más importa.** Es la única guarda sobre el contenido no confiable que entra en
 bucle — una página descargada, un archivo, la respuesta de un servidor MCP — donde si
 no una carga de inyección de prompt llegaría al modelo sin leerse.
 
-Dos cosas quedan deliberadamente fuera de alcance. Los **argumentos de herramienta**
-son un mapeo estructurado sin detector de texto, así que no son un borde. Y el
+Una cosa queda deliberadamente fuera de alcance: el
 veredicto `approve` de herramienta del harness no se ha portado: las
 [aprobaciones](../governance.md) ya aparcan un run por herramienta para una decisión
 humana, y una segunda vía, guiada por reglas, al mismo mecanismo es justo lo que evita
@@ -2985,9 +2992,14 @@ corchetes.
 De dos a cinco variantes del mismo borrador («dame dos versiones») van en una sola
 llamada como **variantes** y se muestran como pestañas con un nombre de una o dos
 palabras («Corta», «Con detalles»). Los límites: un título de hasta 120 caracteres,
-hasta 10 campos por variante, hasta 20.000 caracteres por campo y ningún campo vacío.
+hasta 10 campos por variante, hasta 20.000 caracteres por campo y ningún campo, título o tipo vacío.
 Una llamada que rompe un límite se rechaza con un mensaje que dice qué corregir, así
 que el modelo reintenta y nunca se dibuja una tarjeta vacía.
+
+El [borde de salida](#guardrails) de un agent revisa un borrador como revisa su respuesta:
+un secreto o dato personal que redacta queda redactado también en la tarjeta, y una
+palabra bloqueada detiene el run. Los borradores guardados antes de que el agent
+tuviera la protección no se reescriben.
 
 La tarjeta se reconstruye a partir de los argumentos de la llamada guardada, así que
 al reabrir una conversación se ve la misma tarjeta. Una conversación compartida por
