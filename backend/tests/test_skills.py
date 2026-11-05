@@ -350,24 +350,25 @@ class TestSkillManagement:
         """
         ctx = _ctx()
         installed, local = _row("refunds"), _row("our-own-thing")
+        starter_skill = _row("agent-budgets")
         bundled = MagicMock()
         bundled.name = "refunds"
 
         with (
             patch(
                 f"{SKILLS_PATH}.skill_repo.list_visible",
-                new=AsyncMock(return_value=([installed, local], 2)),
+                new=AsyncMock(return_value=([installed, starter_skill, local], 3)),
             ),
             patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
             patch(
                 f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"refunds", "our-own-thing"}),
+                new=AsyncMock(return_value={"refunds", "agent-budgets", "our-own-thing"}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
         ):
             listing = await SkillService(_db()).list_readable(ctx)
 
-        assert [item.built_in for item in listing.items] == [True, False]
+        assert [item.built_in for item in listing.items] == [True, True, False]
         # The card peeks at the body without the listing carrying it: front
         # matter is dropped, because the card already shows the name.
         assert listing.items[0].excerpt == "# Refunds\n\nCheck the order first."

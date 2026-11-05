@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7b92f805e7"
+source_sha: "bbc7f8f0b4db"
 ---
 
 # Skills { #skills }
@@ -211,6 +211,8 @@ propuesta rechazada no impida guardar el estado y el coste del turno.
 nuevas reciben procedimientos de construcción de plataforma, trabajo prolongado,
 investigación, visualización, Apps y presentaciones. Skills marca las copias como
 `built-in`: son skills normales de la organización, no enlaces a un registro.
+
+La etiqueta `built-in` también identifica las copias instaladas de la galería incluida, entre ellas los skills añadidos por los agentes iniciales. Indica su origen en la plataforma, no una instalación automática. La galería sigue siendo opcional y las personalizaciones existentes se pueden editar.
 
 Las instalaciones existentes reciben nuevos skills al actualizar sus agentes
 incluidos después de abrir la consola. Crear un agente desde la plantilla

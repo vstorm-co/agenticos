@@ -62,7 +62,7 @@ MAX_RESOURCE_BYTES = 512 * 1024
 def _summary(skill: Skill, bundled_names: frozenset[str]) -> SkillSummary:
     """A skill as the listing shows it.
 
-    `built_in` is a name match against the shipped library because that is
+    `built_in` is a name match against the shipped library and gallery because that is
     all installing keeps: an install copies the folder into an ordinary row,
     and the name - unique per organization, never editable - is the one trace
     of where it came from.
@@ -287,7 +287,9 @@ class SkillService:
             skip=skip,
             limit=limit,
         )
-        bundled_names = frozenset(entry.name for entry in skill_library.library())
+        bundled_names = frozenset(entry.name for entry in skill_library.library()) | frozenset(
+            skill.name for industry in skill_library.gallery() for skill in industry.skills
+        )
         used = await agents_using(
             self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7b92f805e7"
+source_sha: "bbc7f8f0b4db"
 ---
 
 # Skille { #skills }
@@ -206,6 +206,8 @@ jej statusu i kosztu.
 procedury budowania platformy, długiej pracy, researchu, wizualizacji, Apps i
 prezentacji. Lista Skills oznacza te kopie jako `built-in`. To zwykłe skille
 organizacji, a nie odwołania do zewnętrznego rejestru.
+
+Etykieta `built-in` obejmuje też zainstalowane kopie z galerii dostarczanej z platformą, w tym skille przypinane przez agentów startowych. Oznacza pochodzenie z platformy, a nie automatyczny sposób instalacji. Galeria nadal wymaga wyboru skilla, a istniejące modyfikacje można edytować.
 
 Istniejące instalacje dostają nowe skille przy odświeżaniu dostarczonych agentów
 po otwarciu konsoli; tworzenie agenta z domyślnego wzorca również uruchamia

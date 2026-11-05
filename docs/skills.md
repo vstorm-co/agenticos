@@ -201,6 +201,8 @@ whole library, including platform-building procedures, durable work, research,
 visual design, Apps and presentation skills. The Skills page marks these copies
 `built-in`. They are ordinary organization-owned skills, not remote registry links.
 
+The `built-in` badge also identifies installed copies from the shipped skill gallery, including skills attached by the starter agents. It describes their shipped origin, not whether the organization installed them automatically. Gallery installation remains opt-in and existing customizations remain editable.
+
 Existing installations receive new built-ins when their shipped agents refresh
 on opening the console; creating an agent from the default starter also performs
 this synchronization. No manual seed command is required. Untouched copies are

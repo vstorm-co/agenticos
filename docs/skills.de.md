@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7b92f805e7"
+source_sha: "bbc7f8f0b4db"
 ---
 
 # Skills { #skills }
@@ -217,6 +217,8 @@ ein abgelehnter Vorschlag verhindert weder Status- noch Kostenaufzeichnung.
 Organisationen erhalten Verfahren für Plattformaufbau, längere Arbeit, Recherche,
 Visualisierung, Apps und Präsentationen. Skills kennzeichnet die Kopien als
 `built-in`. Es sind gewöhnliche Skills der Organisation, keine Registry-Verweise.
+
+Das Kennzeichen `built-in` gilt auch für installierte Kopien aus der mitgelieferten Skill-Galerie, einschließlich der von Starteragenten hinzugefügten Skills. Es bezeichnet die Herkunft aus der Plattform, nicht eine automatische Installation. Galerie-Skills werden weiterhin gezielt installiert; vorhandene Anpassungen bleiben editierbar.
 
 Bestehende Installationen erhalten neue Built-ins beim Aktualisieren der
 mitgelieferten Agenten nach dem Öffnen der Konsole. Auch ein neuer Agent aus der

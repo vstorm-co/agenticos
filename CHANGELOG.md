@@ -164,6 +164,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Mark installed shipped gallery skills, including starter-agent skills such as `agent-budgets`, as built-in on existing installations without changing their content.
+
 - Persist Kanban grouping changes automatically and keep the chosen default table format consistent when switching between saved views.
 
 - Focus the writable chat composer after navigation even when its opener retains focus during connection; increase shared secondary-button and filter contrast across the console.
