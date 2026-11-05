@@ -1,9 +1,22 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { trackingProject as project } from "@/test-utils/project-tracking";
 import type { ProjectTrackingReview } from "@/lib/project-tracking-api";
 import { ProjectTrackingDialog } from "./project-tracking-dialog";
+import type { AgentAvatarProps } from "@/components/agents/agent-avatar";
+
+vi.mock("@/components/agents/agent-avatar", () => ({
+  AgentAvatar: ({ agentId, slug, hasAvatar, colorSlot }: AgentAvatarProps) => (
+    <span
+      data-testid="agent-avatar"
+      data-id={agentId}
+      data-slug={slug}
+      data-uploaded={String(hasAvatar)}
+      data-color={colorSlot}
+    />
+  ),
+}));
 
 const state = vi.hoisted(() => ({
   loading: false,
@@ -28,6 +41,9 @@ vi.mock("@/hooks/use-agents", () => ({
       {
         id: "planner",
         name: "Planner",
+        slug: "planner",
+        has_avatar: true,
+        avatar_color: 4,
         current_version_id: "v1",
         status: "published",
         can_run: true,
@@ -70,6 +86,19 @@ beforeEach(() => {
   state.fetching = false;
   state.review.review_token = "review-one";
   state.review.unavailable_sources = [];
+});
+it("shows the source agent portrait in the options and the selected value", async () => {
+  mount();
+  const selector = screen.getByRole("combobox", { name: "Source agent you can edit" });
+  await userEvent.click(selector);
+  const option = screen.getByRole("option", { name: "Planner" });
+  const portrait = within(option).getByTestId("agent-avatar");
+  expect(portrait).toHaveAttribute("data-id", "planner");
+  expect(portrait).toHaveAttribute("data-slug", "planner");
+  expect(portrait).toHaveAttribute("data-uploaded", "true");
+  expect(portrait).toHaveAttribute("data-color", "4");
+  await userEvent.click(option);
+  expect(within(selector).getByTestId("agent-avatar")).toHaveAttribute("data-id", "planner");
 });
 it("requires explicit publication consent and sends the exact reviewed version and accounts", async () => {
   mount();

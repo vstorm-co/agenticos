@@ -9,6 +9,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_COLUMN } from "@/lib/dialog-sizes";
 import type { Project } from "@/types/projects";
 import { ErrorState } from "@/components/states/error-state";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import {
   Button,
   Checkbox,
@@ -113,8 +114,17 @@ export function ProjectTrackingDialog({
                         !agent.workflow_id,
                     )
                     .map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
+                      <SelectItem key={agent.id} value={agent.id} textValue={agent.name}>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <AgentAvatar
+                            agentId={agent.id}
+                            slug={agent.slug}
+                            hasAvatar={agent.has_avatar}
+                            colorSlot={agent.avatar_color}
+                            size="sm"
+                          />
+                          <span className="truncate">{agent.name}</span>
+                        </span>
                       </SelectItem>
                     ))}
                 </SelectContent>
