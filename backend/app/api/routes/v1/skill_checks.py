@@ -144,7 +144,8 @@ async def apply_check(
 async def fork_check(
     skill_id: UUID, check_id: UUID, data: SkillCheckFork, service: SkillCheckSvc, ctx: Auth
 ) -> Any:
-    """Make the checked text a fork for the agents it helped; main stays as it is."""
+    """Make the checked text a fork for the agents picked, by default the ones it helped; main
+    stays as it is."""
     return await service.fork(ctx, skill_id, check_id, data)
 
 

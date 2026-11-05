@@ -15365,7 +15365,7 @@
       "title": "Akceptacja",
       "verdict": {
         "passed": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej.",
-        "blocked": "Przynajmniej jeden agent wypadł gorzej. Zmianę można zastosować tylko, zostawiając tych agentów na ich wersji, zrobić z nią fork dla agentów, którym pomogła, albo dalej ją poprawiać.",
+        "blocked": "Przynajmniej jeden agent wypadł gorzej. Zmianę można zastosować tylko, zostawiając tych agentów na ich wersji, zapisać jako fork albo dalej ją poprawiać.",
         "no_better": "Żaden agent nie wypadł lepiej, więc nie ma czego zastosować.",
         "needs_ack": "Żaden agent nie wypadł gorzej, a przynajmniej jeden lepiej, ale części agentów nie dało się sprawdzić."
       },
@@ -15377,7 +15377,17 @@
       "apply": "Zastosuj jako następną wersję: {line}",
       "applyAndPin": "Zastosuj i zostaw {names} na obecnej wersji",
       "forkName": "Nazwa nowego forka",
-      "forkForHelped": "Zrób fork z tą zmianą dla {names}",
+      "fork": {
+        "open": "Zapisz jako fork…",
+        "title": "Zapisz tę zmianę jako fork",
+        "description": "Main zostaje bez zmian. Wybrani agenci przechodzą na fork; bez wybranych fork czeka, aż ktoś na niego przejdzie.",
+        "agents": "Agenci, którzy przejdą na fork",
+        "stays": "Nie możesz go zmienić: zostaje na swojej wersji",
+        "defaultName": "Próba {attempt}",
+        "throughSpecialist": "{count, plural, =1 {1 agent czyta skill przez specjalistę i przenosi się go w jego Builderze.} few {# agentów czyta skill przez specjalistę i przenosi się ich w ich Builderze.} many {# agentów czyta skill przez specjalistę i przenosi się ich w ich Builderze.} other {# agenta czyta skill przez specjalistę i przenosi się ich w ich Builderze.}}",
+        "hidden": "{count, plural, =1 {1 agent, którego nie widzisz, zostaje tam, gdzie jest.} few {# agentów, których nie widzisz, zostaje tam, gdzie są.} many {# agentów, których nie widzisz, zostaje tam, gdzie są.} other {# agenta, których nie widzisz, zostaje tam, gdzie są.}}",
+        "submit": "{count, plural, =0 {Zrób fork bez przenoszenia agentów} =1 {Zrób fork i przenieś 1 agenta} few {Zrób fork i przenieś # agentów} many {Zrób fork i przenieś # agentów} other {Zrób fork i przenieś # agenta}}"
+      },
       "catchUpVerdict": {
         "passed": "Żaden agent nie wypadł gorzej ze scaleniem, a co najmniej jeden wypadł lepiej.",
         "no_better": "Żaden agent nie wypadł gorzej ze scaleniem.",

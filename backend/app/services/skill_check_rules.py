@@ -19,9 +19,10 @@ checks the change again.
 `unknown`, and a person acknowledges it before applying.
 
 **What a person may do.** On main, a change that made an agent worse may still be
-applied with that agent pinned to the version it has now, or made a fork for the
-agents it helped. On a fork neither exists: a pin names a main version and a fork
-never starts from another fork.
+applied with that agent pinned to the version it has now, and any change may be
+made a fork, whatever its result: the person picks which agents move onto it. On a
+fork neither exists: a pin names a main version and a fork never starts from
+another fork.
 
 **The agent's own questions in a quick check** are picked without a model: of the
 questions whose answers loaded the skill, the ones sharing most words with the
@@ -182,23 +183,25 @@ def verdict(states: Iterable[AgentState]) -> CheckVerdict:
     return CheckVerdict.PASSED
 
 
-def outcomes(result: CheckVerdict, *, fork: bool, helped: bool) -> list[CheckOutcome]:
+def outcomes(result: CheckVerdict, *, fork: bool) -> list[CheckOutcome]:
     """What a person may do with a finished check, in the order the page offers them.
 
-    `helped` says some agent got better; a fork for the helped agents needs one.
+    A check on main may always become a fork, whatever its result: the person decides
+    which agents move onto it, the helped ones unless they pick others or none.
     """
+    forked = [] if fork else [CheckOutcome.FORK_FOR_HELPED]
     if result is CheckVerdict.BLOCKED:
         if fork:
             return [CheckOutcome.IMPROVE_FURTHER, CheckOutcome.DISCARD]
         return [
             CheckOutcome.IMPROVE_FURTHER,
             CheckOutcome.APPLY_AND_PIN,
-            *([CheckOutcome.FORK_FOR_HELPED] if helped else []),
+            *forked,
             CheckOutcome.DISCARD,
         ]
     if result is CheckVerdict.NO_BETTER:
-        return [CheckOutcome.IMPROVE_FURTHER, CheckOutcome.DISCARD]
-    return [CheckOutcome.APPLY, CheckOutcome.IMPROVE_FURTHER, CheckOutcome.DISCARD]
+        return [CheckOutcome.IMPROVE_FURTHER, *forked, CheckOutcome.DISCARD]
+    return [CheckOutcome.APPLY, CheckOutcome.IMPROVE_FURTHER, *forked, CheckOutcome.DISCARD]
 
 
 def update_outcomes(result: CheckVerdict) -> list[CheckOutcome]:

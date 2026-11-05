@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ContinueSession } from "@/components/improvement/continue-session";
 import { useReadOnly } from "@/components/improvement/read-only";
-import { Button, Checkbox, Input, Label } from "@/components/ui";
+import { Button, Checkbox, Label } from "@/components/ui";
 import { useSkillAccept } from "@/hooks/use-skill-improvement";
 import { useReturnToMain } from "@/hooks/use-skill-merge";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -15,6 +15,7 @@ import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
 import type { ReturnedToMain } from "@/types/skill-merge";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
+import { ForkDialog } from "./fork-dialog";
 import { MainAloneAcknowledge, unmeasured } from "./main-alone";
 import { MergeAgain } from "./merge-again";
 
@@ -32,19 +33,22 @@ function movedLine(failure: unknown): boolean {
   );
 }
 
-/** The outcomes that change the skill, each held until the person confirms it. */
+/**
+ * The outcomes that change the line, each held until the person confirms it. A fork
+ * leaves the line as it is and is confirmed in its own dialog.
+ */
 const WRITES: (CheckOutcome | MergeOutcome)[] = [
   "apply",
   "apply_and_pin",
-  "fork_for_helped",
   "catch_up",
   "return_to_main",
 ];
 
 /**
  * What to do with a measured attempt. The check decides what may be done: applying
- * when nobody is worse, pinning the agents it made worse or forking it for the ones
- * it helped when somebody is, improving further, or discarding it. A reader who may
+ * when nobody is worse, pinning the agents it made worse when somebody is, improving
+ * further, or discarding it - and on main, whatever it found, saving it as a fork for
+ * the agents the person picks. A reader who may
  * not edit the skill sees the verdict and none of the decisions. A result whose line or
  * agents moved since its check offers Check again in place of the decisions it no longer
  * backs. A catch-up takes the merge into the fork, or - when main alone made nobody worse
@@ -77,12 +81,10 @@ export function SkillAccept({
   const unknown =
     check.agents.filter((row) => row.state === "unknown").length + check.hidden_unknown;
   const unknownNames = names("unknown");
-  const helped = check.agents.find((row) => row.state === "better");
   const [acknowledged, setAcknowledged] = useState(false);
   const [aloneAcknowledged, setAloneAcknowledged] = useState(false);
   const aloneUnknown = unmeasured(session.main_alone_check);
   const [confirmed, setConfirmed] = useState(false);
-  const [forkName, setForkName] = useState(helped?.agent.name ?? "");
   const [refusal, setRefusal] = useState<string | null>(null);
   const [lineMoved, setLineMoved] = useState(false);
   const blockedOnFork =
@@ -94,13 +96,17 @@ export function SkillAccept({
   const held = !confirmed || (unknown > 0 && !acknowledged);
   const recheck = session.stale === true || lineMoved;
 
-  async function decide(write: () => Promise<unknown>) {
+  /** Runs a decision; resolves to why it was refused, or null once it went through. */
+  async function decide(write: () => Promise<unknown>): Promise<string | null> {
     setRefusal(null);
     try {
       await write();
+      return null;
     } catch (failure) {
       if (movedLine(failure)) setLineMoved(true);
-      setRefusal(getErrorMessage(failure, tErrors));
+      const refused = getErrorMessage(failure, tErrors);
+      setRefusal(refused);
+      return refused;
     }
   }
   const applyIt = (pinWorse: boolean) =>
@@ -117,6 +123,18 @@ export function SkillAccept({
         <Button variant="outline" disabled={held} loading={busy} onClick={() => void applyIt(true)}>
           {t("applyAndPin", { names: names("worse") })}
         </Button>
+      )}
+      {session.outcomes.includes("fork_for_helped") && (
+        <ForkDialog
+          skillId={session.skill_id}
+          check={check}
+          attempt={session.iteration}
+          disabled={unknown > 0 && !acknowledged}
+          busy={busy}
+          onFork={(choice) =>
+            decide(() => fork.mutateAsync({ ...choice, acknowledge_unknown: acknowledged }))
+          }
+        />
       )}
       {session.outcomes.includes("catch_up") && (
         <Button disabled={held} loading={busy} onClick={() => void applyIt(false)}>
@@ -194,29 +212,6 @@ export function SkillAccept({
               <Label htmlFor="skill-accept-confirm" className="leading-snug font-normal">
                 {tImprovement("confirmation")}
               </Label>
-            </div>
-          )}
-          {!recheck && session.outcomes.includes("fork_for_helped") && helped && (
-            <div className="max-w-md space-y-2">
-              <Label htmlFor="skill-accept-fork">{t("forkName")}</Label>
-              <Input
-                id="skill-accept-fork"
-                value={forkName}
-                maxLength={64}
-                onChange={(event) => setForkName(event.target.value)}
-              />
-              <Button
-                variant="outline"
-                disabled={held || forkName.trim() === ""}
-                loading={busy}
-                onClick={() =>
-                  void decide(() =>
-                    fork.mutateAsync({ name: forkName.trim(), acknowledge_unknown: acknowledged }),
-                  )
-                }
-              >
-                {t("forkForHelped", { names: names("better") })}
-              </Button>
             </div>
           )}
           {refusal !== null && (
