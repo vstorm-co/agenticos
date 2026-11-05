@@ -4,6 +4,7 @@ description: Checks an application against published criteria and reports the ga
   without awarding anything.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - code_execution

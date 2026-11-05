@@ -92,6 +92,7 @@ browser is pointed at the deployment's browser service
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
+| `drafts` | Drafts | utility | `write_draft` | — | — | not available |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -2577,7 +2578,7 @@ Python guard.
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
 | input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| output | the agent's answer, and the text its drafts, drawings, charts, pages and questions show | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | tool arguments | what the agent passes a tool, before the tool runs | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2644,7 +2645,14 @@ is what the tool receives, what the transcript stores and what the stream shows,
 and a blocked keyword ends the run before any tool is called. It is separate from
 the output check because redacting an argument changes what the tool does: an
 e-mail goes out with a placeholder where the key was. While it is on, a call's
-arguments are held back until the call is complete, as the answer is.
+arguments are held back until the call is complete, as the answer is. The one
+exception is what a call shows the person - a [draft](#drafts), a drawing, a chart, a page or a
+question: the output edge checks its text as it checks the answer, whether or not this
+edge is on. In a drawing or page that is the text, the readable attributes (`alt`, `title`,
+`aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, except an inline image or a base64 `data:` URI) and the strings in a script; tags, comments,
+styles and code are not changed. A drawing or page appears when the call is complete, not
+as it is written.
 
 **A delegate streams under its delegating run's output check.** The text and
 reasoning a delegate writes in the delegation panel pass the same check as the
@@ -2683,8 +2691,7 @@ does any other.
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
 response — where a prompt-injection payload would otherwise reach the model unread.
 
-Two things are deliberately out of scope. **Tool arguments** are a structured
-mapping with no text detector, so they are not an edge. And the harness's tool
+One thing is deliberately out of scope: the harness's tool
 `approve` verdict is not ported: [approvals](../governance.md) already park a run per
 tool for a human decision, and a second, rule-driven path to the same mechanism is
 what a single door avoids.
@@ -2753,6 +2760,70 @@ asked can answer, through `POST /runs/{run_id}/answers`; `GET
 /runs/{run_id}/questions` reads the card back. After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+## Drafts
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+When someone asks for an e-mail, a reply on Slack, a post or an issue
+description, the agent puts the text in a card of its own instead of mixing it
+into the answer, so nothing has to be selected by hand or cleaned up where it
+lands.
+
+The card has a title and a kind (Email, Slack message, Post). A draft
+with parts that are pasted in different places - an e-mail's subject and body -
+has one segment per part, and each segment has its own copy icon in the corner.
+A segment shows its name only where that tells the parts apart, and a small
+type hint in its bottom corner: `text` by default, `markdown` when the person
+asked for it, or a language for a snippet the draft carries.
+
+Copy puts **plain text** on the clipboard: exactly the segment's text, without
+its name, trimmed of blank lines at either end. Never HTML or rich text, so it
+pastes in the destination's own font and colours. A field is shown as typed, and `<b>` is
+never interpreted. A `markdown` part has a Preview button that shows it rendered, with
+links that work and images shown as links, not loaded; Source returns to the text.
+Copy always gives the source.
+
+Where the person has to supply a detail the agent does not know, it writes a short
+placeholder in square brackets such as `[Your Name]` or `[date]` instead of inventing
+one. The card shows in red any text in square brackets that has a letter in it, except
+links, footnotes, quoted lines and code, so nothing is sent unfilled, except in a
+markdown part's preview. Copy keeps the brackets.
+
+Two to five takes on the same draft ("give me two versions") go in one call as
+**versions**, shown as tabs named by a word or two ("Short", "With details").
+The limits: a title of up to 120 characters, up to 10 fields per version, up to
+20,000 characters in a field, and no empty field, title or kind. A call that breaks one is
+refused with a message naming what to fix, so the model retries and no empty
+card is ever drawn.
+
+An agent's [output guardrails](#guardrails) check a draft as they check its answer:
+a secret or personal data it redacts is redacted in the card, and a blocked keyword
+stops the run. Drafts stored before the agent had the guardrail are not rewritten.
+
+The card is rebuilt from the stored call's arguments, so reopening a
+conversation shows the same card. A conversation shared by link carries its
+drafts too (up to the newest 50, and 500,000 characters of text between them,
+since anyone with the link can load it). A call that was refused, or whose
+arguments no longer parse, shows no card.
+
+It is offered **only in the web chat**, because that is the one surface that
+draws the card. The desktop and phone apps load the same console, so they get
+it too, quick ask included. On every other surface - hosted pages and the
+embed widget, chat channels, the API, schedules, workflows, background topics, voice - and for a subagent,
+whose output goes to the parent model and not to the person, the agent does not
+see the tool and writes the draft into its answer as before.
+
+It is on by default in every new agent, every template and the agents the
+Architect creates, and an author can switch it off. Existing agents are
+unchanged until their author turns it on and publishes a new version.
+
+!!! note "Limit: a renamed tool"
+    The console finds the card by the tool's name, as it does for `draw` and
+    `create_chart`. A binding that renames `write_draft` loses the card: the
+    call shows as an ordinary step. Tracked in
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Follow-ups { #follow-ups }
 

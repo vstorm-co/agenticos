@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   bytesKey,
   documentName,
+  downloadConversationFolder,
   readFileBytes,
   readFileText,
   textKey,
@@ -143,4 +144,36 @@ it("loads CSS image bytes through the original local root", async () => {
   ).readPreview?.();
   expect(preview?.content).toContain("data:image/png;base64,");
   expect(readLocalFile).toHaveBeenCalledWith("/original", "site/image.png");
+});
+
+/**
+ * A folder out as one `.zip` (#2479): through the conversation, as one file is, and
+ * saved under the folder's own name - or `workspace.zip` for the whole of it.
+ */
+describe("downloading a folder", () => {
+  it.each([
+    ["uploads/3f2a1b9c-repo", "uploads%2F3f2a1b9c-repo", "3f2a1b9c-repo.zip"],
+    ["/out/", "%2Fout%2F", "out.zip"],
+    ["", "", "workspace.zip"],
+    [".", ".", "workspace.zip"],
+  ])("asks the archive route for %j and saves it as %s", async (folder, encoded, saved) => {
+    const names: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      names.push(this.download);
+    });
+    Object.assign(URL, { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+    vi.mocked(apiClient.raw).mockResolvedValueOnce({
+      blob: async () => new Blob(["PK"]),
+    } as unknown as Response);
+
+    await downloadConversationFolder("c1", folder);
+
+    expect(vi.mocked(apiClient.raw).mock.calls.at(-1)?.[0]).toBe(
+      `/conversations/c1/workspace/archive?path=${encoded}`,
+    );
+    expect(names).toEqual([saved]);
+    click.mockRestore();
+  });
 });

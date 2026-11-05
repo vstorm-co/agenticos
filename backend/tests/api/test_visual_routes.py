@@ -113,6 +113,7 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
         id=uuid4(),
         role="assistant",
         content="Here it is.",
+        parts=None,
         created_at=datetime(2026, 10, 16, tzinfo=UTC),
         tool_calls=[
             SimpleNamespace(

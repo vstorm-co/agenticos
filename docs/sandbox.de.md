@@ -1,5 +1,5 @@
 ---
-source_sha: "a0dffce17e83"
+source_sha: "301716716518"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -658,6 +658,53 @@ sind eine Spalte der Zeile, die die Auflistung ohnehin gelesen hat.
 Das **Files**-Panel im Chat und die eigene Liste eines Workspace zeichnen ihre
 Kacheln wie **All files**: die ersten Zeilen einer gespeicherten Textdatei und
 ein Bild als Vorschau innerhalb derselben Grenze.
+
+### Einen Ordner als Zip herunterladen { #downloading-a-folder-as-a-zip }
+
+Der Bereich **Files** im Chat hat **Als .zip herunterladen** für den ganzen
+Workspace und an jedem Ordner eine Download-Schaltfläche. Beide rufen
+`GET /api/v1/conversations/{id}/workspace/archive?path=<folder>` auf (ein leerer
+`path` ist der ganze Workspace), autorisiert wie `/workspace/raw`: durch das Lesen
+des Gesprächs. Eine Person, mit der der Chat geteilt wurde, kann also einen Ordner
+daraus herunterladen, und sonst niemand.
+
+Das Zip enthält, was der Bereich zeigt. Die oben genannten Präfixe und
+Werkzeugordner (`.git`, `node_modules`, `.venv`, ...) bleiben draußen. Die
+Auflistung für ein Zip reicht 64 Ebenen tief statt sechs, weil ein Repository
+tiefer ist als eine Seite voller Kacheln, und fragt den Host nach bis zu 100.000
+Einträgen, weil der Host auch die ausgeblendeten Ordner auflistet. Die Dateien
+liegen unter einem obersten Ordner, der wie der heruntergeladene Ordner heißt.
+
+Ordner sind eigene Einträge, also ist auch ein leerer Ordner im Zip, etwa einer aus
+einem angehängten Archiv. Ein leerer Ordner, allein heruntergeladen, ist ein Zip mit
+genau diesem Ordner, kein 404: Das Panel zeigt ihn, also liefert der Download, was
+gezeigt wurde. Ein Ordner, den das Panel nicht zeigt, ist ein 404.
+
+Ein Backslash, ein `%` oder ein Steuerzeichen im Namen einer Datei wird im Zip
+prozentkodiert (`a\b` wird zu `a%5Cb`), weil ein Entpacker unter Windows einen
+Backslash als Ordnertrenner liest.
+
+Sie wird vollständig aufgelistet, bevor das erste Byte gesendet wird. Ein Ordner mit
+mehr als `WORKSPACE_ARCHIVE_MAX_ENTRIES` Einträgen (Dateien und Ordner, der oberste
+Ordner eingeschlossen, gezählt wie bei einem angehängten Archiv) oder mehr als
+`WORKSPACE_ARCHIVE_MAX_BYTES`, oder einer, den der Host nicht vollständig auflisten
+konnte, wird mit 413 abgelehnt; ein Zip, dem stillschweigend Dateien fehlen, wäre
+schlimmer. Danach werden die Dateien einzeln gelesen und gestreamt.
+
+Eine Datei, die sich nach dem Start des Downloads nicht lesen lässt, wird
+ausgelassen und mit dem Grund, den der Host nennt, in einer `NOT-INCLUDED.txt` im
+obersten Ordner des Zips genannt (`_NOT-INCLUDED.txt`, wenn der Ordner eine Datei
+dieses Namens hat). Das ist eine Datei, die seit der Auflistung gelöscht wurde, oder
+eine, die größer ist als die eigene Lesegrenze des Hosts (`SANDBOXD_MAX_READ_BYTES`,
+standardmäßig 8 MiB). Antwortet der Host nicht mehr oder wachsen die Dateien nach
+der Auflistung über die Byte-Grenze, bricht der Stream ab, und der Download ist
+unvollständig und lässt sich nicht öffnen.
+
+Ein Ordner auf diesem Computer, in der Desktop-App, hat keine solche Schaltfläche:
+Er ist bereits ein Ordner auf diesem Computer.
+
+Archive gehen auch den anderen Weg: Ein an einen Chat angehängtes `.zip` oder
+`.tar.gz` wird nach `uploads/` entpackt — siehe [Archive](file-processing.md#archives).
 
 ## Wie lange irgendetwas überlebt { #how-long-anything-survives }
 

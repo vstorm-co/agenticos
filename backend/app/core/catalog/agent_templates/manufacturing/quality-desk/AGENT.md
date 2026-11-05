@@ -4,6 +4,7 @@ description: Records deviations with containment first, and raises supplier nonc
   a supplier cannot dispute.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - charts

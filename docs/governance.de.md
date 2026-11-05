@@ -1,5 +1,5 @@
 ---
-source_sha: "c8babc3ac8d9"
+source_sha: "46f379e3c504"
 ---
 
 # Governance { #governance }
@@ -184,7 +184,18 @@ Ausgabe wird festgehalten statt abgelehnt, sodass eine Kompaktierung, die ein Ca
 
 ### Kosten, die sich nicht messen ließen, sagen das { #a-cost-that-could-not-be-measured-says-so }
 
-`genai-prices` kennt nicht jedes Modell. Trifft ein Run auf eines, für das es
+Die von Stav berechneten Kosten haben Vorrang vor dem Katalog: `usage.cost`
+mit `cost_currency` oder die Header `x-stav-cost` und `x-stav-cost-currency`.
+Das gilt für Chat Completions und Responses, auch beim Streaming. USD wird
+direkt verwendet; NOK erfordert `STAV_NOK_PER_USD`
+([Konfiguration](configuration.md)), vom Betreiber gepflegt. Der Wert gibt NOK
+pro Dollar an: `10` würde NOK durch 10 teilen und ist keine Empfehlung für den
+aktuellen Kurs. Es wird kein Kurs automatisch abgerufen. Usage bewahrt Betrag,
+Währung, Kurs und USD-Kosten; das Ledger markiert die Quelle als vom Anbieter
+gemeldet. Ungültige Beträge, nicht unterstützte Währungen oder fehlende
+Umrechnung lassen den Katalog-Fallback bestehen.
+
+Ohne verwendbare vom Anbieter gemeldete Kosten gilt: `genai-prices` kennt nicht jedes Modell. Trifft ein Run auf eines, für das es
 keinen Eintrag hat, wird diese Anfrage mit null gebucht und der Run als
 `cost_is_partial` markiert — die Summe ist um genau das zu niedrig, was diese
 Anfragen gekostet haben, und die ehrliche Lesart davon ist eine **Untergrenze**.
@@ -1122,7 +1133,9 @@ ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
 Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
 und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
 Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
-Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+Run hält wie immer für die Person an. Ebenso Rückfragen, Delegationen und
+Tools, deren Aufruf das ist, was die Person sieht (Entwürfe, Diagramme,
+Zeichnungen). Die Run-Ansicht listet jedes Skript und
 jeden Aufruf, den es gemacht hat.
 
 ### Berichte { #reporting }

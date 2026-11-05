@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3e2c94ada4"
+source_sha: "659aee690fb0"
 ---
 
 # La consola { #the-console }
@@ -501,6 +501,12 @@ compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregi
 vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
 La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
 cada uno abre la conversación en la que se dibujó.
+
+**Borradores.** Un agente con [Borradores](reference/capabilities.md#drafts) muestra
+el texto que enviarás o pegarás en otro sitio - un correo, una respuesta, una
+publicación - como una tarjeta en su respuesta. Cada parte tiene su propio icono de
+copiar, que copia texto plano; varias variantes de un borrador son pestañas en la
+misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
 se abre automáticamente en un panel lateral a toda altura junto al chat.

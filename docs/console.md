@@ -467,6 +467,11 @@ error, the agent has already been told; **Fix it** asks again. On a phone a tap 
 it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
 you, each opening the conversation it was drawn in.
 
+**Drafts.** An agent with [Drafts](reference/capabilities.md#drafts) shows text you will
+send or paste elsewhere - an e-mail, a reply, a post - as a card in its answer. Each
+part has its own copy icon, which copies plain text; several variants of one draft
+are tabs in the same card. A message's own **Copy** includes its drafts.
+
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
 opens automatically in a full-height side panel while the transcript scrolls.
 On narrow screens it opens full screen. Closing the panel leaves a compact link

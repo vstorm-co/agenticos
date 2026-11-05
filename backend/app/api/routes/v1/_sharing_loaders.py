@@ -10,7 +10,7 @@ Each takes the caller's context rather than only its organization, so a loader
 can refuse what the resource's own read path refuses: an archived artifact is
 found only by a caller who may edit it.
 
-A row the caller may not view is reported exactly as a missing id - same
+A row the caller may neither view nor edit is reported exactly as a missing id - same
 message, same `details` - so the sharing routes cannot be used to tell a
 private resource apart from one that does not exist (#2619). A caller who can
 view but not edit gets past the loader and is refused with a 403 by the
@@ -58,12 +58,20 @@ async def _visible[R: OwnedResource](
     resource_type: ResourceType,
     missing: NotFoundError,
 ) -> R:
-    """`row`, when it is the caller's organization's and they may view it; `missing` otherwise."""
+    """`row`, when it is the caller's organization's and they may view or edit it; `missing`
+    otherwise.
+
+    Edit admits on its own because an API key can be issued for `edit` without `view`,
+    and such a key may still change the resource everywhere else - refusing it its
+    sharing would make sharing the one edit it cannot make. Every role's view reaches
+    at least as far as its edit, so for a session this is the view check.
+    """
     if row is None or row.organization_id != ctx.organization_id:
         raise missing
-    if not await resolve_access(db, ctx, row, resource_type.view, resource_type=resource_type):
-        raise missing
-    return row
+    for perm in dict.fromkeys((resource_type.view, resource_type.edit)):
+        if await resolve_access(db, ctx, row, perm, resource_type=resource_type):
+            return row
+    raise missing
 
 
 async def load_agent(db: AsyncSession, agent_id: UUID, ctx: AuthContext) -> Agent:

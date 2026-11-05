@@ -167,6 +167,14 @@ class ProviderSpec:
 
 
 class _StavClient(AsyncOpenAI):
+    def _process_response_data[ResponseT](
+        self, *, data: object, cast_to: type[ResponseT], response: httpx2.Response
+    ) -> ResponseT:
+        from app.agents.stav_cost import capture_stav_cost
+
+        capture_stav_cost(data, response.headers)
+        return super()._process_response_data(data=data, cast_to=cast_to, response=response)
+
     async def _prepare_request(self, request: httpx2.Request) -> None:
         await super()._prepare_request(request)
         # Apply after request-level headers, which otherwise override the profile's region.
@@ -549,6 +557,15 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
     Raises:
         BadRequestError: If the provider has no catalog entry.
     """
+    model_client = _build_model(credential, model)
+    if credential.provider == "stav":
+        from app.agents.stav_cost import StavCostModel
+
+        return StavCostModel(model_client)
+    return model_client
+
+
+def _build_model(credential: ResolvedCredential, model: str) -> Model:
     spec = get_provider(credential.provider)
     if credential.api == "responses":
         # Local for the reason `_build_provider`'s are: a deployment that never

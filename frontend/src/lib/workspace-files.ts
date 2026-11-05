@@ -14,7 +14,11 @@
  * not here - they are `file-kinds.ts`, which answers that for every surface.
  */
 
-import { readConversationFile, readConversationFileBytes } from "./conversation-workspace-api";
+import {
+  readConversationFile,
+  readConversationFileBytes,
+  readConversationFolderZip,
+} from "./conversation-workspace-api";
 import { readLocalFile } from "./desktop/commands";
 import { saveBlob, type FileAccess, type FileText } from "./file-access";
 import { readProjectBytes, readProjectText } from "./projects-api";
@@ -121,6 +125,26 @@ export function workspaceFileAccess(source: FileSource, path: string): FileAcces
       saveBlob(blob, path.split("/").filter(Boolean).pop() ?? "file");
     },
   };
+}
+
+/** What a whole workspace's zip is called, where there is no folder to name it after. */
+const WHOLE_WORKSPACE = "workspace";
+
+/**
+ * Save one folder of a conversation's workspace as `<folder>.zip` (#2479).
+ *
+ * Named here by the rule the server names it by - the folder's last segment, or
+ * `workspace` for the whole of it - rather than parsed out of the response's
+ * `Content-Disposition`, which the server writes in RFC 5987's `filename*` form
+ * for any name a person may have chosen.
+ */
+export async function downloadConversationFolder(
+  conversationId: string,
+  folder: string,
+): Promise<void> {
+  const blob = await readConversationFolderZip(conversationId, folder);
+  const segments = folder.split("/").filter((segment) => segment !== "" && segment !== ".");
+  saveBlob(blob, `${segments.at(-1) ?? WHOLE_WORKSPACE}.zip`);
 }
 
 /** The id an attachment is filed under, ahead of its own name - `uploads/<8 hex>-<name>`. */

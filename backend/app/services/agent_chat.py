@@ -565,6 +565,8 @@ class ChatAgentRunner:
         # model request reads it.
         prepared.deps.steering = steering
         prepared.deps.visual_reports = visual_reports
+        # This runner is the console's, which draws a draft as a card.
+        prepared.deps.shows_drafts = True
         input_edge = input_screen_for(prepared.spec)
         if steering is not None:
             steering.screen = input_edge
