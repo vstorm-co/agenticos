@@ -1,5 +1,5 @@
 ---
-source_sha: "d7e885bf14a4"
+source_sha: "bd163100ac0f"
 ---
 
 # Konfiguracja { #configuration }
@@ -74,6 +74,10 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Limit rozmiaru po dekompresji na element pliku biurowego opartego na ZIP (ODF, PPTX) |
 | `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Limit całkowitego rozmiaru po dekompresji pliku biurowego opartego na ZIP |
 | `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Limit liczby elementów pliku biurowego opartego na ZIP |
+| `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Najwięcej plików i folderów, jakie może zawierać załączony `.zip`/`.tar.gz`, i najwięcej plików w zipie folderu workspace'u |
+| `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Najwięcej, do ilu może się rozpakować załączone archiwum, i najwięcej, ile może nieść zip folderu workspace'u |
+| `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Najwięcej, do ilu może się rozpakować załączone archiwum, jako wielokrotność rozmiaru skompresowanego — powyżej jest odrzucane jako bomba dekompresyjna |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Najwięcej, do ilu może się rozpakować jeden plik w załączonym archiwum — tyle rozpakowywanie trzyma naraz w pamięci |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Limit przechowywanego wyciągniętego tekstu, żeby małe ZIP/OLE nie rozdęło wiersza |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Limit na plik dla sparsowanego tekstu wklejanego do promptu bez workspace'u |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Zbiorczy limit tekstu załączników w jednej turze |
