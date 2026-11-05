@@ -138,7 +138,7 @@ export function AgentMap({
   const focusedDelegate = flatDelegates.find((delegate) => delegate.key === focused);
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <div className="absolute top-2 right-2 z-10 flex gap-1">
         <Button
           type="button"
