@@ -16,6 +16,12 @@ approvals follow.
 records what a run cost, so a failure here has to be logged rather than raised -
 otherwise a full workspace or a name collision replaces whatever actually
 happened to the run.
+
+*Whoever reads a proposal is whoever may decide it.* A proposal carries the full
+body an agent wrote for a skill, so it is listed and read only by a caller who may
+edit that skill - grants included, as `resolve_access` decides - and is reported
+as missing to anyone else (#2422). A proposal for a new skill has no skill to ask,
+and is anyone's who holds `skills:edit`, which the routes already require.
 """
 
 import logging
@@ -25,10 +31,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.skill_proposal import ProposalStatus, SkillProposal
-from app.repositories import skill_proposal_repo
+from app.repositories import skill_proposal_repo, skill_repo
 from app.schemas.skill import SkillUpdate
+from app.services.access import SKILL, accessible_ids, resolve_access
 from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
@@ -104,19 +111,50 @@ class SkillProposalService:
     async def list_proposals(
         self, ctx: AuthContext, *, status: str | None = None
     ) -> list[SkillProposal]:
-        return await skill_proposal_repo.list_for_organization(
+        """The proposals this caller may decide, newest first: those for a skill they
+        may edit, and those for a new skill."""
+        proposals = await skill_proposal_repo.list_for_organization(
             self.db, organization_id=ctx.organization_id, status=status
         )
+        skills = await skill_repo.get_many(
+            self.db,
+            list({proposal.skill_id for proposal in proposals if proposal.skill_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        editable = await accessible_ids(
+            self.db, ctx, skills.values(), Perm.SKILLS_EDIT, resource_type=SKILL
+        )
+        return [
+            proposal
+            for proposal in proposals
+            if proposal.skill_id is None or proposal.skill_id in editable
+        ]
 
     async def get(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
+        """One proposal the caller may decide.
+
+        Raises:
+            NotFoundError: If it is not this organization's, or it is for a skill
+                the caller may not edit - the same answer, so ids cannot be probed.
+        """
         proposal = await skill_proposal_repo.get(
             self.db, proposal_id, organization_id=ctx.organization_id
         )
-        if proposal is None:
+        if proposal is None or not await self._may_decide(ctx, proposal):
             raise NotFoundError(
                 message="Skill change not found", details={"proposal_id": str(proposal_id)}
             )
         return proposal
+
+    async def _may_decide(self, ctx: AuthContext, proposal: SkillProposal) -> bool:
+        if proposal.skill_id is None:
+            return True
+        skill = await skill_repo.get(
+            self.db, proposal.skill_id, organization_id=ctx.organization_id
+        )
+        return skill is not None and await resolve_access(
+            self.db, ctx, skill, Perm.SKILLS_EDIT, resource_type=SKILL
+        )
 
     async def apply(self, ctx: AuthContext, proposal_id: UUID) -> SkillProposal:
         """Accept a change: write it to the skill, then mark it applied.

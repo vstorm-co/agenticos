@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- **Skills** → **Changes** (`GET /skill-changes` and `GET /skill-changes/{id}`) now lists and opens an agent's proposed change only for a person who may edit the skill it targets, including through a grant. A proposal for a new skill is still shown to anyone holding `skills:edit`. Until now anyone with `skills:edit` at any scope could list and read the full proposed body for every skill in the organization, including private skills of other people, and could discard those proposals. A proposal for a skill the caller cannot edit now answers 404, the same as an id that does not exist. (#2422)
+
 ## [1.48.0] - 2026-11-05
 
 ### Added
