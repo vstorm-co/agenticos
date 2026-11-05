@@ -262,7 +262,7 @@ class MirageConfig(BaseModel):
 @register(
     id=MIRAGE_CAPABILITY_ID,
     voice="hand_off",
-    name="Virtual terminal",
+    name="Mirage (virtual terminal)",
     category="analysis",
     description=(
         "Read and search the services you mount - Drive, GitHub, Notion, a database - "

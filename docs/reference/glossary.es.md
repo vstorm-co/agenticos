@@ -1,5 +1,5 @@
 ---
-source_sha: "e6717214333c"
+source_sha: "ed8d100c1b8c"
 ---
 
 # Glosario { #glossary }
@@ -84,7 +84,7 @@ se describe en [Capabilities](capabilities.md).
 | Media offload | `media` |
 | Memory | `memory_files` |
 | Memory (mem0) | `memory_mem0` |
-| Virtual terminal | `mirage` |
+| Mirage (terminal virtual) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Temas en segundo plano | `background_tasks` |

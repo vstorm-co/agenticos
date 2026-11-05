@@ -1,5 +1,5 @@
 ---
-source_sha: "df3aa9f082d4"
+source_sha: "5002bf9a9ce1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1235,7 +1235,7 @@ to instrukcje, za którymi idzie każdy powiązany z nim agent przy każdym runi
 zmiana jest zapisywana jako propozycja, a ktoś z `skills:edit` ją przyjmuje albo
 odrzuca — zobacz [Skille](../skills.md).
 
-## Wirtualny terminal { #mirage }
+## Mirage (wirtualny terminal) { #mirage }
 
 Siedem narzędzi `sandbox` z prefiksem `mirage_`, działających na usługach, które
 autor montuje: Dysk Google, repozytorium GitHub, Notion, baza Postgres, serwer SSH,

@@ -10957,7 +10957,7 @@
       "example1": "Investigate the export bug in a new topic while we continue planning the release."
     },
     "mirage": {
-      "name": "Virtual terminal",
+      "name": "Mirage (virtual terminal)",
       "does": "Mounts the services you choose - a Drive, a GitHub repository, Notion, a database, an SSH server - as folders, so the agent lists, searches and reads them with a shell, and writes where you allow it.",
       "example1": "Find every contract in a Drive folder that mentions a client",
       "example2": "Search a repository and a Notion workspace in one go",
@@ -12709,10 +12709,10 @@
   },
   "mirage": {
     "folders": "Folders",
-    "foldersDetail": "Each folder mounts one service. The agent lists, searches and reads it with shell commands, and writes only where you allow it.",
-    "addFolder": "Add folder",
+    "foldersDetail": "Add an integration for each source, then choose its service, credentials and access. Each integration becomes a folder the agent can list, search and read.",
+    "addFolder": "Add integration",
     "folder": "Folder",
-    "service": "Service",
+    "service": "Integration",
     "servicePlaceholder": "Choose a service ({name} is not available here)",
     "removeFolder": "Remove {folder}",
     "writable": "The agent may write here",

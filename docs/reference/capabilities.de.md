@@ -1,5 +1,5 @@
 ---
-source_sha: "df3aa9f082d4"
+source_sha: "5002bf9a9ce1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1313,7 +1313,7 @@ einem Skill. Ein Skill sind Instruktionen, denen jeder daran gebundene Agent bei
 jedem Run folgt, deshalb wird eine Änderung als Vorschlag festgehalten und jemand
 mit `skills:edit` nimmt sie an oder verwirft sie — siehe [Skills](../skills.md).
 
-## Virtuelles Terminal { #mirage }
+## Mirage (virtuelles Terminal) { #mirage }
 
 Die sieben Werkzeuge der `sandbox`, mit dem Präfix `mirage_`, über den Diensten,
 die ein Autor einbindet: ein Google Drive, ein GitHub-Repository, Notion, eine

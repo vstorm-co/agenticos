@@ -65,7 +65,7 @@ const S3 = backend({ name: "s3", title: "Amazon S3", available: false, reason: "
 const DEFINITION: CapabilityCatalogEntry = {
   recommended: null,
   id: "mirage",
-  name: "Virtual terminal",
+  name: "Mirage (virtual terminal)",
   category: "files",
   description: "Mounts services as folders.",
   side_effecting: true,
@@ -157,7 +157,7 @@ describe("the folders", () => {
   it("adds a folder on the first service that can be mounted, under a free name", async () => {
     const onChange = mount({ mounts: [{ path: "/ram/", backend: "ram" }] });
 
-    await userEvent.click(screen.getByRole("button", { name: "Add folder" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add integration" }));
 
     expect(written(onChange)).toEqual([
       { path: "/ram/", backend: "ram" },
@@ -169,7 +169,7 @@ describe("the folders", () => {
     backends.mockReturnValue({ data: { installed: false, items: [] }, isError: false });
     mount({});
 
-    expect(screen.getByRole("button", { name: "Add folder" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add integration" })).toBeDisabled();
     expect(screen.getByText(/does not have the virtual terminal installed/)).toBeInTheDocument();
   });
 
@@ -193,7 +193,7 @@ describe("the folders", () => {
   it("names a service it cannot mount, and why", async () => {
     mount({ mounts: [{ path: "/a/", backend: "ram" }] });
 
-    await userEvent.click(screen.getByLabelText("Service"));
+    await userEvent.click(screen.getByLabelText("Integration"));
 
     expect(await screen.findByRole("option", { name: /Amazon S3/ })).toHaveAttribute(
       "aria-disabled",
@@ -209,7 +209,7 @@ describe("the folders", () => {
       ],
     });
 
-    await userEvent.click(screen.getByLabelText("Service"));
+    await userEvent.click(screen.getByLabelText("Integration"));
     await userEvent.click(await screen.findByRole("option", { name: "Google Drive" }));
 
     expect(written(onChange)).toEqual([
@@ -227,7 +227,7 @@ describe("the folders", () => {
   it("shows a stored service this deployment no longer offers by name", () => {
     mount({ mounts: [{ path: "/a/", backend: "dropbox" }] });
 
-    expect(screen.getByLabelText("Service")).toHaveTextContent("dropbox is not available here");
+    expect(screen.getByLabelText("Integration")).toHaveTextContent("dropbox is not available here");
   });
 
   it("asks about approval only once a folder is writable", async () => {

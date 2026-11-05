@@ -1119,7 +1119,7 @@ describe("the virtual terminal", () => {
   const MIRAGE: CapabilityCatalogEntry = {
     ...CHARTS,
     id: "mirage",
-    name: "Virtual terminal",
+    name: "Mirage (virtual terminal)",
     category: "files",
     description: "Mounts services as folders.",
     tools: [],
@@ -1130,16 +1130,18 @@ describe("the virtual terminal", () => {
   it("opens its own panel, where each folder picks a service", async () => {
     renderWorkbench({ catalog: [MIRAGE, CHARTS], selected: [binding("mirage")] });
 
-    await openCapability("Virtual terminal");
+    await openCapability("Mirage (virtual terminal)");
 
-    expect(screen.getByRole("button", { name: "Add folder" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add integration" })).toBeVisible();
   });
 
   it("routes the terminal switch to its capability binding", async () => {
     const onToggle = vi.fn();
     renderWorkbench({ catalog: [MIRAGE], selected: [binding("mirage")], onToggle });
-    await openCapability("Virtual terminal");
-    await userEvent.click(screen.getByRole("switch", { name: "Virtual terminal enabled" }));
+    await openCapability("Mirage (virtual terminal)");
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Mirage (virtual terminal) enabled" }),
+    );
     expect(onToggle).toHaveBeenCalledWith("mirage");
   });
 });

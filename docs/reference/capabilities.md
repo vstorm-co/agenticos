@@ -1176,7 +1176,7 @@ skill is instructions every agent bound to it follows on every run, so a change 
 recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
 see [Skills](../skills.md).
 
-## Virtual terminal { #mirage }
+## Mirage (virtual terminal) { #mirage }
 
 The seven `sandbox` tools, prefixed `mirage_`, over the services an author mounts:
 a Google Drive, a GitHub repository, Notion, a Postgres database, an SSH server, a

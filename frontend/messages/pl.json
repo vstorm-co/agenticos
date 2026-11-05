@@ -11657,7 +11657,7 @@
       "example1": "Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy planowanie wydania."
     },
     "mirage": {
-      "name": "Wirtualny terminal",
+      "name": "Mirage (wirtualny terminal)",
       "does": "Montuje wybrane usługi - Dysk, repozytorium GitHub, Notion, bazę danych, serwer SSH - jako foldery, więc agent przegląda je, przeszukuje i czyta w powłoce, a pisze tam, gdzie mu pozwolisz.",
       "example1": "Znajdź w folderze na Dysku każdą umowę, która wspomina klienta",
       "example2": "Przeszukaj naraz repozytorium i przestrzeń w Notion",
@@ -12484,10 +12484,10 @@
   },
   "mirage": {
     "folders": "Foldery",
-    "foldersDetail": "Każdy folder montuje jedną usługę. Agent listuje, przeszukuje i czyta ją poleceniami powłoki, a zapisuje tylko tam, gdzie na to pozwolisz.",
-    "addFolder": "Dodaj folder",
+    "foldersDetail": "Każde źródło dodajesz osobno: wybierz integrację, dane dostępowe i uprawnienia. Integracja staje się folderem, który agent może przeglądać, przeszukiwać i czytać.",
+    "addFolder": "Dodaj integrację",
     "folder": "Folder",
-    "service": "Usługa",
+    "service": "Integracja",
     "servicePlaceholder": "Wybierz usługę ({name} nie jest tu dostępna)",
     "removeFolder": "Usuń {folder}",
     "writable": "Agent może tu zapisywać",

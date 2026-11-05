@@ -8,6 +8,7 @@ import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { MirageOptions } from "@/components/agents/mirage-options";
+import { MirageBackendIcon } from "@/components/agents/mirage-backend-icon";
 import {
   Button,
   IconButton,
@@ -205,7 +206,12 @@ function MountRow({ index, mount, backends, disabled, errors, onChange, onRemove
           >
             <SelectTrigger id={`${id}-backend`}>
               <SelectValue placeholder={t("servicePlaceholder", { name: mount.backend })}>
-                {info?.title}
+                {info && (
+                  <span className="flex items-center gap-2">
+                    <MirageBackendIcon backend={info.name} />
+                    {info.title}
+                  </span>
+                )}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -216,11 +222,14 @@ function MountRow({ index, mount, backends, disabled, errors, onChange, onRemove
                   disabled={!entry.available}
                   textValue={entry.title}
                 >
-                  <span className="flex flex-col gap-0.5">
-                    <span>{entry.title}</span>
-                    {entry.reason && (
-                      <span className="text-muted-foreground text-xs">{entry.reason}</span>
-                    )}
+                  <span className="flex items-center gap-2">
+                    <MirageBackendIcon backend={entry.name} />
+                    <span className="flex flex-col gap-0.5">
+                      <span>{entry.title}</span>
+                      {entry.reason && (
+                        <span className="text-muted-foreground text-xs">{entry.reason}</span>
+                      )}
+                    </span>
                   </span>
                 </SelectItem>
               ))}

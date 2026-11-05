@@ -10836,7 +10836,7 @@
       "example1": "Untersuche den Exportfehler in einem neuen Thema, während wir die Veröffentlichung weiter planen."
     },
     "mirage": {
-      "name": "Virtuelles Terminal",
+      "name": "Mirage (virtuelles Terminal)",
       "does": "Bindet die Dienste ein, die Sie wählen - ein Drive, ein GitHub-Repository, Notion, eine Datenbank, einen SSH-Server - als Ordner, damit der Agent sie mit einer Shell auflistet, durchsucht und liest und dort schreibt, wo Sie es erlauben.",
       "example1": "Jeden Vertrag in einem Drive-Ordner finden, der einen Kunden erwähnt",
       "example2": "Ein Repository und einen Notion-Workspace in einem Durchgang durchsuchen",
@@ -12381,10 +12381,10 @@
   },
   "mirage": {
     "folders": "Ordner",
-    "foldersDetail": "Jeder Ordner bindet einen Dienst ein. Der Agent listet, durchsucht und liest ihn mit Shell-Befehlen und schreibt nur dort, wo Sie es erlauben.",
-    "addFolder": "Ordner hinzufügen",
+    "foldersDetail": "Fügen Sie jede Quelle einzeln hinzu und wählen Sie Dienst, Zugangsdaten und Zugriffsrechte. Jede Integration wird zu einem Ordner, den der Agent auflisten, durchsuchen und lesen kann.",
+    "addFolder": "Integration hinzufügen",
     "folder": "Ordner",
-    "service": "Dienst",
+    "service": "Integration",
     "servicePlaceholder": "Dienst wählen ({name} ist hier nicht verfügbar)",
     "removeFolder": "{folder} entfernen",
     "writable": "Der Agent darf hier schreiben",
