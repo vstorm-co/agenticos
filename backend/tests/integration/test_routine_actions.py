@@ -372,33 +372,6 @@ async def test_unreviewed_work_or_version_cannot_gain_consent(
         )
 
 
-async def test_granted_internal_table_writes_need_no_routine_exception(
-    db: AsyncSession, world: World
-) -> None:
-    from app.services.routine_actions import action_options
-
-    spec = AgentSpec(name="Worker", capabilities=[{"id": "virtual_tables"}])
-    authority = await capture(db, world)
-    for name in (
-        "create_table",
-        "create_record",
-        "upsert_record",
-        "update_record",
-        "delete_record",
-    ):
-        decision = await authority.action_policy(world.agent.id, spec, tool(name, "virtual_tables"))
-        assert not decision.required and decision.consented_by is None
-    assert action_options(spec) == []
-    # This only changes the routine default. Explicit spec approvals still feed
-    # the approval gate's required names through its existing independent policy.
-    from app.agents.capabilities.approval import approval_required_tools
-
-    required = AgentSpec(
-        name="Worker", capabilities=[{"id": "virtual_tables", "approval": "required"}]
-    )
-    assert "update_record" in approval_required_tools(required)
-
-
 @pytest.mark.parametrize(
     "change",
     [

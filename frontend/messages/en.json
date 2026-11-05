@@ -880,17 +880,6 @@
     "voicePreview": "Listen to this voice",
     "voicePreviewStop": "Stop",
     "voicePreviewNeedsKey": "Choose a key to listen to this voice",
-    "tablesGrantsLabel": "Tables this agent may use",
-    "tablesGrantsDetail": "Tick a table, then choose what the agent may do in it. Reading is always on. An agent never reaches a table that is not ticked here, and every call is still checked as the member it acts for.",
-    "tablesNone": "There are no tables yet. Create one under Tables, then come back to grant it.",
-    "tablesGrantToggle": "Let the agent use {name}",
-    "tablesOperationsLabel": "What the agent may do in {name}",
-    "tablesOperationRead": "Read",
-    "tablesOperationCreate": "Add",
-    "tablesOperationUpdate": "Update",
-    "tablesOperationDelete": "Delete",
-    "tablesGrantOrphaned": "A granted table is gone or no longer shared with you:",
-    "tablesManage": "Manage tables",
     "workflowsGrantsLabel": "Workflows it may start",
     "workflowsGrantsDetail": "Each becomes something the agent can run - with the input it declares, as the member the agent acts for, and waiting for its answer.",
     "workflowsNeedsPermission": "Choosing workflows needs workflows:view.",
@@ -11231,14 +11220,6 @@
       "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
       "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
     },
-    "virtual_tables": {
-      "name": "Tables",
-      "does": "Lets the agent list, read and write the typed tables it is granted - add a record, update one, look one up.",
-      "example1": "Log each new support request as a row",
-      "example2": "Check a customer's plan in a table before answering",
-      "needs": "At least one table granted, or permission to create tables.",
-      "never": "Never touches a table it was not granted, and never deletes a table; a deleted record keeps its history."
-    },
     "workflows": {
       "name": "Workflows",
       "does": "Lets the agent start the published workflows it is granted and read what they answer.",
@@ -11787,16 +11768,6 @@
       "wait_seconds": {
         "title": "Wait for a run (seconds)",
         "description": "How long run_workflow waits for a run to finish before handing back its id to read later."
-      }
-    },
-    "virtual_tables": {
-      "tables": {
-        "title": "Tables it may use",
-        "description": "The tables the agent may reach, and what it may do in each."
-      },
-      "allow_create": {
-        "title": "Create tables",
-        "description": "Let the agent create new tables. The member it acts for still needs the tables:create permission."
       }
     },
     "artifacts": {

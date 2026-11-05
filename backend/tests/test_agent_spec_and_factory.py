@@ -1335,7 +1335,7 @@ class TestVoiceSpec:
 
     def test_the_spec_version_did_not_move(self):
         # 13 is the browser's fold (#2127); an optional section with a default adds none.
-        assert SPEC_VERSION == 13
+        assert SPEC_VERSION == 14
 
 
 @pytest.mark.parametrize(

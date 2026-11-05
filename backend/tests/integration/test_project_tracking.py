@@ -108,12 +108,11 @@ async def test_preset_creates_real_views_private_copy_and_project_conversation(d
     assert conversation is not None and conversation.project_id == project
     policy = read_policy(trigger.approved_sources)
     assert policy.project_id == project and policy.project_hash is not None
-    binding = next(
-        item for item in clone.draft_spec["capabilities"] if item["id"] == "virtual_tables"
-    )
-    assert binding["config"]["tables"] == [
+    assert all(item["id"] != "virtual_tables" for item in clone.draft_spec["capabilities"])
+    assert clone.draft_spec["table_bindings"] == [
         {"table_id": str(installed.table_id), "operations": ["read", "create", "update"]}
     ]
+    assert any(item["account"] == "platform" for item in clone.draft_spec["mcp_servers"])
     views = list(
         await db.scalars(select(TableView).where(TableView.table_id == installed.table_id))
     )

@@ -1,5 +1,5 @@
 ---
-source_sha: "3d67fb3646b4"
+source_sha: "896a572c9a3a"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1214,7 +1214,7 @@ Serwer platformy MCP udostępnia też narzędzia workflows i Virtual Tables. Zac
 Do rekordów operacyjnych służą `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` i `update_virtual_table_record`. Zmiany schematu i rekordów zachowują kontrolę rewizji. Wszystkie narzędzia działają w organizacji wywołującego, z jego uprawnieniami i grantami zasobów; zapis nadal wymaga zatwierdzenia platformy MCP. Skille Architecta workflow-builder i virtual-tables wyjaśniają wybór wyzwalaczy, opakowanie udokumentowanego HTTP API, gdy brakuje integracji w galerii MCP, oraz podpięcie opublikowanego workflow jako narzędzia agenta. Poświadczenia konfiguruje się w sejfie, nigdy w grafie ani wyniku dla modelu.
 
 
-Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Istniejące capabilities pozostają edytowalne ze swoimi grantami; nie są automatycznie zamieniane na szerszy dostęp MCP.
+Workflows i Tables używają serwera AgenticOS MCP jako wspólnego interfejsu narzędzi. Udostępniaj agentowi tylko potrzebne narzędzia. `run_workflow` uruchamia opublikowany workflow i zwraca przyjęty run; wynik sprawdzaj przez `get_workflow_execution`. Narzędzia tabel obejmują `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` i `list_virtual_table_views`. Aktualizacja i usunięcie używają odczytanej rewizji, a zapisy nadal wymagają zatwierdzenia. Lista widoków używa tego samego uwierzytelnionego publicznego API i kontroli dostępu do tabeli. Dotychczasowe powiązania Workflows pozostają edytowalne. Capability Tables zostało usunięte: uprawnienia aplikacji przechodzą do `table_bindings`, a operacje na tabelach wymagają jawnego połączenia z platformowym MCP.
 
 Oczekiwane odmowy API zwracają jawny obiekt `error` ze statusem HTTP, kodem, komunikatem i bezpiecznymi szczegółami pól. To odmowa operacji, nigdy udany zapis. Obiekt pozostaje czytelny w historii czatu; nieoczekiwane błędy serwera nadal są maskowane. Narzędzie `prepare_workflow_draft` pozwala zaakceptować tabelę i graf razem, a `check_workflow_draft` sprawdza je bez wykonywania akcji. Odświeżenie niezmodyfikowanego Architekta instaluje i podpina także skille workflow-builder i virtual-tables, zachowując obecne powiązania i odmawiając nadpisania niezapisanych zmian szkicu.
 

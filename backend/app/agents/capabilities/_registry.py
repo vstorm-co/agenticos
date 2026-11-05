@@ -752,7 +752,6 @@ def load_builtins() -> None:
         tool_output_limits,
         tool_search,
         video_generation,
-        virtual_tables,
         visuals,
         web_fetch,
         web_research,

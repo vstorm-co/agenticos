@@ -22,7 +22,7 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities import CapabilityDef, all_capabilities
 from app.agents.capabilities._failures import steer
-from app.agents.spec import AgentSpec, PlatformMcpServerRef
+from app.agents.spec import AgentSpec
 
 PLUMBING = frozenset(
     {
@@ -61,19 +61,6 @@ def _inventory(spec: AgentSpec) -> tuple[list[CapabilityDef], list[CapabilityDef
     """What the agent has, and what it could be given, in the Toolbox's order."""
     bound = {binding.id for binding in spec.capabilities if binding.enabled}
     covered = set(bound | PLUMBING)
-    table_tools = {
-        "get_virtual_table",
-        "query_virtual_table",
-        "add_virtual_table_record",
-        "update_virtual_table_record",
-    }
-    platform_tables = any(
-        isinstance(server, PlatformMcpServerRef)
-        and (server.allowed_tools is None or table_tools <= set(server.allowed_tools))
-        for server in spec.mcp_servers
-    )
-    if platform_tables:
-        covered.add("virtual_tables")
     has: list[CapabilityDef] = []
     missing: list[CapabilityDef] = []
     for definition in all_capabilities():

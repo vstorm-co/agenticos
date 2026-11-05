@@ -26,12 +26,12 @@ def test_disabled_binding_drops_old_grants_and_create_authority():
         ],
     )
     result = _with_task_table(spec, table, name="Tracker")
-    binding = result.capabilities[0]
-    assert binding.enabled and not binding.config["allow_create"]
-    assert binding.config["tables"] == [
-        {"table_id": str(table), "operations": ["read", "create", "update"]}
-    ]
-    assert not spec.capabilities[0].enabled
+    assert result.capabilities == []
+    assert result.table_bindings[0].table_id == table
+    assert result.table_bindings[0].operations == ("read", "create", "update")
+    assert spec.table_bindings == []
+    assert result.mcp_servers[0].account == "platform"
+    assert "add_virtual_table_record" in result.mcp_servers[0].allowed_tools
 
 
 def test_full_table_grants_refuse_extension():
@@ -57,3 +57,27 @@ def test_collection_creation_permissions_are_required():
         ProjectTrackingService._can_create(
             AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
         )
+
+
+def test_tracker_adds_only_table_operations_to_a_restricted_platform_connection():
+    spec = AgentSpec.model_validate(
+        {
+            "name": "Planner",
+            "mcp_servers": [
+                {"account": "platform", "allowed_tools": ["list_agents"], "approval": "all"}
+            ],
+        }
+    )
+    result = _with_task_table(spec, uuid4(), name="Tracker")
+    assert len(result.mcp_servers) == 1
+    assert result.mcp_servers[0].approval == "all"
+    assert set(result.mcp_servers[0].allowed_tools or []) == {
+        "list_agents",
+        "list_virtual_tables",
+        "get_virtual_table",
+        "query_virtual_table",
+        "get_virtual_table_record",
+        "add_virtual_table_record",
+        "update_virtual_table_record",
+    }
+    assert spec.mcp_servers[0].allowed_tools == ["list_agents"]

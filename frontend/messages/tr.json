@@ -5346,16 +5346,6 @@
         "description": "run_workflow tamamlanmış bir run'ın id'sini daha sonra okunmak üzere döndürmeden önce ne kadar bekler."
       }
     },
-    "virtual_tables": {
-      "tables": {
-        "title": "Kullanabileceği tablolar",
-        "description": "Agent'ın erişebileceği tablolar ve her birinde yapabilecekleri."
-      },
-      "allow_create": {
-        "title": "Tablo oluştursun",
-        "description": "Agent'ın yeni tablo oluşturmasına izin ver. Agent'ın adına işlem yaptığı üyenin yine de tables:create izni olmalıdır."
-      }
-    },
     "artifacts": {
       "preview_screenshot": {
         "title": "Sayfanın görselini modele göster",
@@ -5696,14 +5686,6 @@
       "example2": "Döndürebileceğin depo modelini 3D oluştur",
       "needs": "Ek bir şey gerekmez. Visual design skill'i çizimlerin tasarımlı görünmesini sağlar.",
       "never": "Ağ erişimi yoktur; çizim bir app sayfası gibi yalıtılmış biçimde çalışır."
-    },
-    "virtual_tables": {
-      "name": "Tablolar",
-      "does": "Agent'ın kendisine verilen yapılandırılmış tablolarda kayıt eklemesini, güncellemesini, aramasını ve okumasını sağlar.",
-      "example1": "Her yeni destek talebini satır olarak kaydet",
-      "example2": "Yanıtlamadan önce tablodan müşterinin planını kontrol et",
-      "needs": "En az bir tablo için izin veya tablo oluşturma yetkisi gerekir.",
-      "never": "İzin verilmemiş tabloya dokunmaz ve tablo silmez; silinen kayıtların geçmişi tutulur."
     },
     "workflows": {
       "name": "Workflow'lar",
@@ -6569,17 +6551,6 @@
     "voicePreview": "Bu voice'u dinle",
     "voicePreviewStop": "Durdur",
     "voicePreviewNeedsKey": "Bu voice'u dinlemek için key seçin",
-    "tablesGrantsLabel": "Agent'ın kullanabileceği tablolar",
-    "tablesGrantsDetail": "Bir tabloyu işaretleyip Agent'ın orada neler yapabileceğini seçin. Okuma her zaman açıktır. Agent burada işaretlenmemiş tabloya erişemez ve her çağrı Agent'ın adına işlem yaptığı üye olarak denetlenir.",
-    "tablesNone": "Henüz tablo yok. Tables altında bir tane oluşturup erişim vermek için buraya dönün.",
-    "tablesGrantToggle": "Agent'ın {name} kullanmasına izin ver",
-    "tablesOperationsLabel": "Agent'ın {name} içinde yapabilecekleri",
-    "tablesOperationRead": "Oku",
-    "tablesOperationCreate": "Ekle",
-    "tablesOperationUpdate": "Güncelle",
-    "tablesOperationDelete": "Sil",
-    "tablesGrantOrphaned": "İzin verilen tablo silinmiş veya artık sizinle paylaşılmıyor:",
-    "tablesManage": "Tabloları yönet",
     "workflowsGrantsLabel": "Başlatabileceği workflow'lar",
     "workflowsGrantsDetail": "Her workflow, belirttiği girdiyle Agent'ın çalıştırabileceği bir öğeye dönüşür; Agent'ın adına işlem yapan üye olarak çalışır ve sonuç beklenir.",
     "workflowsNeedsPermission": "Workflow seçmek için workflows:view izni gerekir.",

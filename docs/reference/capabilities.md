@@ -62,7 +62,6 @@ browser is pointed at the deployment's browser service
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — | as-is |
 | `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | as-is |
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
-| `virtual_tables` | Tables | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | as-is |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | as-is |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
@@ -2290,34 +2289,9 @@ goal-reanchor line. A failed generation never blocks the run.
 
 ## Tables { #tables }
 
-Reads and writes the [Virtual Tables](../virtual-tables.md) the binding grants. The
-Builder's panel lists the organization's tables. Tick one and choose what the agent
-may do in it: read, add, update and delete records. An upsert needs both add and
-update, because it creates the record when nothing holds its key.
+Table operations are tools of **AgenticOS MCP**, not a separate capability. Connect the platform MCP in the agent’s services and discover its table tools with tool search. Reads use the current member’s access; writes follow the MCP approval policy.
 
-The grants are part of the published spec, which the model cannot change. A call
-naming another table, or an operation the grant leaves out, is refused before
-anything is read. Every call also runs the table service's own access check as the
-member the run acts for, rebuilt from their membership on each call, so a table
-unshared or a role narrowed mid-run stops the next call.
-
-`create_table` is offered only with **Allow create**, and the member still needs
-`tables:create`. Record tools never create tables. A table the agent makes is usable
-for the rest of that run.
-
-`list_views` returns the saved views of the tables the agent may read, with each
-view's id, its columns and whether it is shared. A page can start its query from one, which
-copies the view's filters and sort; nothing about the view is linked afterwards, and a view
-with a search cannot be bound. [Pages and views](../virtual-tables.md#views-for-pages) says how a
-page reads a table. The `share_view` tool no longer exists, and a spec that still gates or renames it
-loads without it, with a warning in the log.
-
-The write tools are side-effecting per tool, so an approval policy gates them and
-not the reads. A write's operation key comes from the run and the tool call, so a
-retried call replays its first answer. Values are keyed by column id or label, and a
-select's choice is its option label, written, filtered and read back alike.
-Conflicts, validation, quotas, history and audit are the same as in the console and
-the API, because every tool calls the same service.
+Spec version 14 removes stored `virtual_tables` bindings when they load. Existing grants used by published apps move to `table_bindings`; this field exposes no tools. Disabled grants stay disabled. MCP connections, allowed tools and approval settings are not widened automatically. An old agent without platform MCP needs it connected explicitly before it can operate on tables.
 
 ## Workflows { #workflows }
 
@@ -2895,7 +2869,7 @@ the agent is assembled:
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
-| `tables:read` | `virtual_tables`, and every [table workflow node](workflow-nodes.md#virtual-tables) |
+| `tables:read` | every [table workflow node](workflow-nodes.md#virtual-tables) |
 | `tables:write` | the table workflow nodes that write |
 | `workflows:run` | `workflows` |
 | `computer:use` | `computer_use` |

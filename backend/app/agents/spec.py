@@ -42,6 +42,7 @@ from pydantic import (
 )
 
 from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding, ToolOverride
+from app.agents.table_bindings import TableGrant
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +84,10 @@ logger = logging.getLogger(__name__)
 # settings of the engine it no longer runs (`mode`, `headless`) and keeps
 # `use_vision` as `vision`. A spec that bound both keeps the step-by-step one,
 # which was the one that could run.
-SPEC_VERSION = 13
+# 14 withdraws the Tables capability. Table grants remain app-binding data;
+# agent operations use the platform MCP, which must be explicitly connected.
+SPEC_VERSION = 14
+
 
 MAX_STARTERS = 4
 """How many first messages an agent offers - what an empty chat shows at once."""
@@ -145,13 +149,40 @@ _SKILLS_CAPABILITY = "skills"
 _LOAD_SKILL = "load_skill"
 _WITHDRAWN_SKILL_TOOLS = frozenset({"list_skills", _LOAD_SKILL})
 _TABLES_CAPABILITY = "virtual_tables"
-_WITHDRAWN_TABLE_TOOLS = frozenset({"share_view"})
 _BROWSER = "browser_use"
 _FOLDED_BROWSER = "browser_choice"
 _FOLDED_BROWSER_TOOL = ("browse_page", "browse_web")
 _WITHDRAWN_BROWSER_CONFIG = frozenset(
     {"decision_model", "decision_base_url", "min_confidence", "mode", "headless", "use_vision"}
 )
+
+
+class _WithdrawnTablesConfig(BaseModel):
+    tables: list[TableGrant] = Field(default_factory=list)
+
+
+def _without_table_capability(data: Any, *, keep_grants: bool) -> Any:
+    if not isinstance(data, dict) or not isinstance(data.get("capabilities"), list):
+        return data
+    items = [
+        item.model_dump(mode="json") if isinstance(item, CapabilityBindingSpec) else item
+        for item in data["capabilities"]
+    ]
+    legacy = [
+        item for item in items if isinstance(item, dict) and item.get("id") == _TABLES_CAPABILITY
+    ]
+    if not legacy:
+        return data
+    migrated = {**data, "capabilities": [item for item in items if item not in legacy]}
+    if keep_grants and "table_bindings" not in data:
+        migrated["table_bindings"] = [
+            grant.model_dump(mode="json")
+            for item in legacy
+            if item.get("enabled", True)
+            for grant in _WithdrawnTablesConfig.model_validate(item.get("config", {})).tables
+        ]
+    logger.warning("Removing withdrawn Tables capability; use AgenticOS MCP for table operations")
+    return migrated
 
 
 def _one_browser(data: Any) -> Any:
@@ -341,33 +372,6 @@ class CapabilityBindingSpec(BaseModel):
                 ", ".join(sorted(withdrawn)),
             )
             migrated[key] = kept
-        return migrated
-
-    @model_validator(mode="before")
-    @classmethod
-    def _drop_the_withdrawn_share_view(cls, data: Any) -> Any:
-        """Let a tables binding that gated or renamed `share_view` load without it.
-
-        `share_view` let an agent share a person's private view so a page bound to
-        it served others; a page now reads its own query with its owner's access, so
-        no view is shared for it and the tool is gone. It never reached a release, so
-        no stored spec version names it and none is migrated: this only keeps a spec
-        saved while it existed publishable, the way the skills tools version 12
-        withdrew are dropped, rather than refused as an unknown tool at publish.
-        """
-        if not isinstance(data, dict) or data.get("id") != _TABLES_CAPABILITY:
-            return data
-        migrated = dict(data)
-        for key in ("tool_approval", "tool_overrides"):
-            stated = data.get(key)
-            if not isinstance(stated, dict) or not _WITHDRAWN_TABLE_TOOLS & stated.keys():
-                continue
-            logger.warning("Dropping `%s` for share_view, which no longer exists.", key)
-            migrated[key] = {
-                tool_id: value
-                for tool_id, value in stated.items()
-                if tool_id not in _WITHDRAWN_TABLE_TOOLS
-            }
         return migrated
 
     @model_validator(mode="before")
@@ -1274,6 +1278,11 @@ class SpecialistSpec(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
+    def _withdraw_tables_capability(cls, data: Any) -> Any:
+        return _without_table_capability(data, keep_grants=False)
+
+    @model_validator(mode="before")
+    @classmethod
     def _migrate_version_12_browsers(cls, data: Any) -> Any:
         """A specialist that bound both browsers keeps one - see :func:`_one_browser`."""
         return _one_browser(data)
@@ -1507,6 +1516,12 @@ class AgentSpec(BaseModel):
     )
 
     capabilities: list[CapabilityBindingSpec] = Field(default_factory=list)
+    table_bindings: list[TableGrant] = Field(
+        default_factory=list,
+        max_length=50,
+        description="Table operations this agent may bind in published apps; not agent tools",
+    )
+
     collection_ids: list[UUID] = Field(
         default_factory=list,
         description="Knowledge collections this agent may search",
@@ -1654,6 +1669,16 @@ class AgentSpec(BaseModel):
         specialist with content on.
         """
         return self.observability.content if self.observability else "full"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _withdraw_tables_capability(cls, data: Any) -> Any:
+        """Keep old app grants while removing the withdrawn table tools.
+
+        Never add MCP authority automatically: old agents without platform MCP
+        must have it connected explicitly. Existing MCP policies are unchanged.
+        """
+        return _without_table_capability(data, keep_grants=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -1812,6 +1837,13 @@ class AgentSpec(BaseModel):
         if value is None or value.model_dump(exclude_none=True):
             return value
         return None
+
+    @field_validator("table_bindings")
+    @classmethod
+    def _one_binding_per_table(cls, value: list[TableGrant]) -> list[TableGrant]:
+        if len({grant.table_id for grant in value}) != len(value):
+            raise ValueError("Bind each table once")
+        return value
 
     @field_validator("external_agents")
     @classmethod

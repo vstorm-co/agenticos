@@ -1,5 +1,5 @@
 ---
-source_sha: "a711148736f8"
+source_sha: "c7d098e193ca"
 ---
 
 # Słownik { #glossary }
@@ -98,5 +98,5 @@ w [Capabilities](capabilities.md).
 | Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |
-| Tabele | `virtual_tables` |
+| Tabele | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflowy | `workflows` |

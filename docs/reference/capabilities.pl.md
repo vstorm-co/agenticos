@@ -1,5 +1,5 @@
 ---
-source_sha: "bce16e00915a"
+source_sha: "2483572bdd9d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -69,7 +69,6 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — | bez zmian |
 | `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | bez zmian |
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
-| `virtual_tables` | Tabele | dane | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | bez zmian |
 | `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | bez zmian |
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
@@ -2390,37 +2389,9 @@ podejmuje [Zarządzanie kontekstem](#context-management).
 
 ## Tabele { #tables }
 
-Czyta i zapisuje [Virtual Tables](../virtual-tables.md), do których binding daje
-dostęp. Panel w Builderze wypisuje tabele organizacji. Zaznacz tabelę i wybierz, co
-agent może w niej robić: czytać, dodawać, zmieniać i usuwać rekordy. Upsert wymaga
-dodawania i zmiany naraz, bo tworzy rekord, gdy żaden nie ma jego klucza.
+Operacje na tabelach są narzędziami **AgenticOS MCP**, a nie osobnym capability. Podłącz platformowe MCP w usługach agenta i wyszukaj jego narzędzia tabel. Odczyty korzystają z bieżących uprawnień użytkownika; zapisy podlegają polityce zatwierdzania MCP.
 
-Uprawnienia są częścią opublikowanego specu, którego model nie może zmienić.
-Wywołanie wskazujące inną tabelę albo operację, której uprawnienie nie obejmuje,
-jest odrzucane, zanim cokolwiek zostanie przeczytane. Każde wywołanie przechodzi też
-własną kontrolę dostępu serwisu tabel jako członek, w imieniu którego działa run,
-odbudowany z jego członkostwa przy każdym wywołaniu. Tabela, którą przestano
-udostępniać, albo zawężona rola zatrzymuje więc następne wywołanie.
-
-`create_table` jest dostępne tylko z **Allow create**, a członek nadal potrzebuje
-`tables:create`. Narzędzia rekordów nigdy nie tworzą tabel. Tabela, którą agent
-utworzy, jest dostępna do końca tego runa.
-
-`list_views` zwraca zapisane widoki tabel, które agent może czytać, z id każdego
-widoku, jego kolumnami i informacją, czy jest współdzielony. Strona może od niego
-zacząć swoje zapytanie, co kopiuje filtry i sortowanie widoku; potem nic z widoku nie
-jest powiązane, a widoku z wyszukiwaniem nie można powiązać.
-[Strony i widoki](../virtual-tables.md#views-for-pages) mówią, jak strona czyta
-tabelę. Narzędzie `share_view` już nie istnieje, a spec, który nadal je bramkuje albo
-zmienia jego nazwę, ładuje się bez niego, z ostrzeżeniem w logu.
-
-Narzędzia zapisu są oznaczone jako mające skutki uboczne osobno dla każdego
-narzędzia, więc polityka zatwierdzeń obejmuje je, a nie odczyty. Klucz operacji
-zapisu pochodzi z runa i wywołania narzędzia, więc ponowione wywołanie odtwarza
-pierwszą odpowiedź. Wartości podaje się po id albo etykiecie kolumny, a wybór w
-kolumnie wyboru to etykieta opcji - tak samo przy zapisie, filtrowaniu i odczycie. Konflikty,
-walidacja, limity, historia i audyt są takie same jak w konsoli i API, bo każde
-narzędzie wywołuje ten sam serwis.
+Wersja 14 specyfikacji usuwa zapisane powiązania `virtual_tables` podczas wczytywania. Istniejące uprawnienia używane przez opublikowane aplikacje przechodzą do `table_bindings`; to pole nie udostępnia narzędzi. Wyłączone uprawnienia pozostają wyłączone. Połączenia MCP, dozwolone narzędzia i ustawienia zatwierdzania nie są automatycznie rozszerzane. Stary agent bez platformowego MCP wymaga jego jawnego podłączenia przed operowaniem na tabelach.
 
 ## Workflowy { #workflows }
 

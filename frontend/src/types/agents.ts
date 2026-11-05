@@ -421,6 +421,8 @@ export interface AgentSpec {
   collection_ids: string[];
   skill_ids: string[];
   context_ids: string[];
+  /** App data bindings, not a separate tool capability. */
+  table_bindings?: { table_id: string; operations: ("read" | "create" | "update" | "delete")[] }[];
   mcp_servers: McpServerRef[];
   /**
    * Delegates, each pinned to a published version.

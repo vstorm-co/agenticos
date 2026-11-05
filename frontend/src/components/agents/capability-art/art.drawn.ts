@@ -6,7 +6,6 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   visuals: 140,
   background_tools: 222,
   background_tasks: 222,
-  virtual_tables: 200,
   workflows: 270,
   text_to_speech: 28,
   computer_use: 200,
@@ -228,28 +227,6 @@ const FOLLOW_UPS =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >next →</text></g></g>' +
   "</svg>";
 
-/** Tables: a slab on the base ruled into rows, a few cells filled in, and `rows` above. */
-const VIRTUAL_TABLES =
-  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
-  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
-  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
-  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
-  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
-  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
-  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
-  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
-  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
-  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)">' +
-  '<rect x="9" y="9" width="63" height="9" rx="2" class="ac" />' +
-  '<g class="breathe" style="animation-delay:0s"><rect x="9" y="24" width="63" height="9" rx="2" class="mu" /></g>' +
-  '<g class="breathe" style="animation-delay:-0.6s"><rect x="9" y="39" width="63" height="9" rx="2" class="mu" /></g>' +
-  '<g class="breathe" style="animation-delay:-1.2s"><rect x="9" y="54" width="63" height="9" rx="2" class="mu" /></g>' +
-  '<path class="igrid" d="M30 9V63M51 9V63"/></g>' +
-  '<g class="bob"><g transform="translate(172 30)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
-  '<text x="0" y="2.4" class="tx mono s7 mid b" >rows</text></g></g>' +
-  "</svg>";
-
-/** Workflows: three steps standing on the base, joined by lines that draw themselves. */
 const WORKFLOWS =
   '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
   '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
@@ -290,7 +267,6 @@ export const DRAWN_ART: Readonly<Record<string, string>> = {
   visuals: VISUALS,
   background_tools: BACKGROUND_TOOLS,
   background_tasks: BACKGROUND_TASKS,
-  virtual_tables: VIRTUAL_TABLES,
   workflows: WORKFLOWS,
   monitor: MONITOR,
   text_to_speech: TEXT_TO_SPEECH,

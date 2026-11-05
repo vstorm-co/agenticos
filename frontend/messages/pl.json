@@ -8614,17 +8614,6 @@
     "voicePreview": "Posłuchaj tego głosu",
     "voicePreviewStop": "Zatrzymaj",
     "voicePreviewNeedsKey": "Wybierz klucz, aby posłuchać tego głosu",
-    "tablesGrantsLabel": "Tabele, których ten agent może używać",
-    "tablesGrantsDetail": "Zaznacz tabelę, a potem wybierz, co agent może w niej robić. Odczyt jest zawsze włączony. Agent nigdy nie sięga do tabeli, której tu nie zaznaczono, a każde wywołanie jest nadal sprawdzane jako członek, w którego imieniu działa.",
-    "tablesNone": "Nie ma jeszcze tabel. Utwórz jedną w Tabelach, a potem wróć, żeby ją przyznać.",
-    "tablesGrantToggle": "Pozwól agentowi używać {name}",
-    "tablesOperationsLabel": "Co agent może robić w {name}",
-    "tablesOperationRead": "Odczyt",
-    "tablesOperationCreate": "Dodawanie",
-    "tablesOperationUpdate": "Zmiana",
-    "tablesOperationDelete": "Usuwanie",
-    "tablesGrantOrphaned": "Przyznana tabela zniknęła albo nie jest już Ci udostępniona:",
-    "tablesManage": "Zarządzaj tabelami",
     "workflowsGrantsLabel": "Workflow, które może uruchomić",
     "workflowsGrantsDetail": "Każdy staje się czymś, co agent może uruchomić - z wejściem, które deklaruje, jako osoba, w imieniu której działa agent, i z czekaniem na odpowiedź.",
     "workflowsNeedsPermission": "Wybór workflow wymaga uprawnienia workflows:view.",
@@ -9210,16 +9199,6 @@
       "wait_seconds": {
         "title": "Czekanie na run (sekundy)",
         "description": "Jak długo run_workflow czeka na zakończenie runu, zanim zwróci jego id do odczytania później."
-      }
-    },
-    "virtual_tables": {
-      "tables": {
-        "title": "Tabele, których może używać",
-        "description": "Tabele, do których agent ma dostęp, i to, co może w każdej z nich robić."
-      },
-      "allow_create": {
-        "title": "Tworzenie tabel",
-        "description": "Pozwala agentowi tworzyć nowe tabele. Członek, w imieniu którego działa, nadal potrzebuje uprawnienia tables:create."
       }
     },
     "artifacts": {
@@ -11948,14 +11927,6 @@
       "example2": "Model 3D magazynu, który można obracać",
       "needs": "Nic dodatkowego. Skill visual-design sprawia, że rysunki wyglądają na zaprojektowane.",
       "never": "Nigdy nie łączy się z siecią - rysunek działa odcięty, jak strona aplikacji."
-    },
-    "virtual_tables": {
-      "name": "Tabele",
-      "does": "Agent może wyświetlać, czytać i zapisywać typowane tabele, do których ma dostęp - dodać rekord, zmienić go, znaleźć.",
-      "example1": "Zapisać każde nowe zgłoszenie do wsparcia jako wiersz",
-      "example2": "Sprawdzić plan klienta w tabeli przed odpowiedzią",
-      "needs": "Co najmniej jedna udostępniona tabela albo uprawnienie do tworzenia tabel.",
-      "never": "Nigdy nie rusza tabeli, do której nie ma dostępu, i nie usuwa tabel; usunięty rekord zachowuje swoją historię."
     },
     "workflows": {
       "name": "Workflowy",

@@ -4,16 +4,13 @@ An approval card that says `table_id: 6f1c…` asks a person to approve somethin
 they cannot read, so a tool may describe its parked call: its ids as names. The
 description is a courtesy and the approval is not, which is what most of this
 file guards - a describer that fails, hangs or answers nothing leaves the call
-parked exactly as it was, with no context. The real access checks behind the
-table describers are proved against Postgres in
-`tests/integration/test_approval_context.py`.
+parked exactly as it was, with no context. The operation's access checks remain independent
+of its description.
 """
 
 import asyncio
 import uuid
-from collections.abc import AsyncIterator, Mapping
-from contextlib import asynccontextmanager
-from types import SimpleNamespace
+from collections.abc import Mapping
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -33,18 +30,9 @@ from app.agents.capabilities.approval import (
     ApprovalGranted,
     ApprovalPending,
     ApprovalRequest,
-    approval_describers,
-    approval_tool_ids,
 )
 from app.agents.capabilities.approval import _capability as gate_module
-from app.agents.capabilities.virtual_tables import _describe
-from app.agents.capabilities.virtual_tables._describe import (
-    APPROVAL_DESCRIBERS,
-    describe_record_write,
-)
 from app.agents.deps import AgentDeps
-from app.agents.spec import AgentSpec
-from app.core.exceptions import NotFoundError
 from app.services.agent_runner import ApprovalChannel
 
 # What an approver is shown, and whether a held call is described: approval-gate behaviour.
@@ -58,7 +46,7 @@ def _builtins_loaded() -> None:
     load_builtins()
 
 
-def _tool_def(name: str = "update_record", capability_id: str | None = "virtual_tables"):
+def _tool_def(name: str = "update_record", capability_id: str | None = "records"):
     return ToolDefinition(
         name=name,
         parameters_json_schema={"type": "object", "properties": {}},
@@ -184,7 +172,7 @@ def _channel(**kwargs: Any) -> ApprovalChannel:
 
 def _request(describe: AsyncMock) -> ApprovalRequest:
     return ApprovalRequest(
-        capability_id="virtual_tables",
+        capability_id="records",
         tool_name="change_record",
         tool_call_id="call-1",
         tool_args={"table_id": "6f1c"},
@@ -249,44 +237,6 @@ class TestTheChannelKeepsTheNames:
 
 
 class TestWhichToolsAreDescribed:
-    def test_a_renamed_tool_keeps_its_describer(self):
-        spec = AgentSpec(
-            name="Clerk",
-            capabilities=[
-                {
-                    "id": "virtual_tables",
-                    "tool_overrides": {"update_record": {"name": "change_record"}},
-                },
-                # Bound, with no describer of its own: nothing of it is described.
-                {"id": "clock"},
-            ],
-        )
-
-        describers = approval_describers(spec)
-        tool_ids = approval_tool_ids(spec)
-
-        assert tool_ids["change_record"] == "update_record"
-        assert "update_record" not in tool_ids
-        assert describers["change_record"] is describe_record_write
-        assert "update_record" not in describers
-        assert describers["delete_record"] is describe_record_write
-        # Reads are never parked by the spec, so nothing describes them.
-        assert "list_records" not in describers
-
-    def test_a_disabled_binding_describes_nothing(self):
-        spec = AgentSpec(name="Clerk", capabilities=[{"id": "virtual_tables", "enabled": False}])
-
-        assert approval_describers(spec) == {}
-
-    def test_the_table_writes_are_the_described_tools(self):
-        assert set(APPROVAL_DESCRIBERS) == {
-            "create_record",
-            "upsert_record",
-            "update_record",
-            "delete_record",
-        }
-        assert REGISTRY["virtual_tables"].describers == APPROVAL_DESCRIBERS
-
     def test_describing_a_tool_the_capability_does_not_declare_is_refused(self):
         with pytest.raises(RuntimeError, match="does not declare"):
             register(
@@ -315,99 +265,3 @@ class TestWhichToolsAreDescribed:
             assert set(REGISTRY["test_described"].describers) == {"real"}
         finally:
             REGISTRY.pop("test_described")
-
-
-# -- the table describers, with the services stubbed -----------------------------
-
-TABLE = SimpleNamespace(id=uuid.uuid4(), name="Orders")
-PERSON = uuid.uuid4()
-
-
-def _deps(person: uuid.UUID | None = PERSON) -> AgentDeps:
-    return AgentDeps(organization_id=uuid.uuid4(), run_person=person)
-
-
-@asynccontextmanager
-async def _session() -> AsyncIterator[MagicMock]:
-    yield MagicMock()
-
-
-def _stubbed(*, table: Any = TABLE, record: Any = None, member: Any = "member"):
-    """Patch the session, the member and the service the describers read through."""
-    tables = MagicMock()
-    tables.describe_table = AsyncMock(
-        side_effect=table if isinstance(table, Exception) else None, return_value=table
-    )
-    tables.get_record = AsyncMock(
-        side_effect=record if isinstance(record, Exception) else None, return_value=record
-    )
-    return (
-        patch.object(_describe, "get_db_context", _session),
-        patch.object(_describe, "acting_member", AsyncMock(return_value=member)),
-        patch.object(_describe, "VirtualTableService", MagicMock(return_value=tables)),
-    )
-
-
-async def _with(patches: tuple[Any, ...], call: Any) -> Any:
-    with patches[0], patches[1], patches[2]:
-        return await call
-
-
-def _missing() -> NotFoundError:
-    return NotFoundError(message="Not found", details={})
-
-
-class TestWritingARecord:
-    @pytest.mark.parametrize(
-        "args",
-        [
-            {"external_id": " A-1 ", "values": {"Customer": "Ada"}},
-            {"values": {"Quantity": 2, "Customer": "Ada Lovelace"}},
-            {"record_id": str(uuid.uuid4())},
-            {},
-        ],
-        ids=["external id", "values", "record id", "nothing else"],
-    )
-    @pytest.mark.security
-    async def test_only_the_table_is_named(self, args: dict[str, Any]):
-        """No record label: it is a cell's text, stored on a row every approver reads
-        and kept after the record is gone."""
-        patches = _stubbed(
-            record=SimpleNamespace(external_id="B-7", values={str(uuid.uuid4()): "Grace"})
-        )
-
-        context = await _with(
-            patches, describe_record_write(_deps(), {"table_id": TABLE.id, **args})
-        )
-
-        assert context == {"table": "Orders"}
-
-    @pytest.mark.security
-    async def test_the_stored_record_is_never_read(self):
-        tables = MagicMock(describe_table=AsyncMock(return_value=TABLE), get_record=AsyncMock())
-        patches = _stubbed()
-        with (
-            patches[0],
-            patches[1],
-            patch.object(_describe, "VirtualTableService", MagicMock(return_value=tables)),
-        ):
-            await describe_record_write(_deps(), {"table_id": TABLE.id, "record_id": uuid.uuid4()})
-
-        tables.get_record.assert_not_awaited()
-
-    @pytest.mark.security
-    async def test_a_table_the_person_may_not_see_is_not_named(self):
-        context = await _with(
-            _stubbed(table=_missing()),
-            describe_record_write(_deps(), {"table_id": uuid.uuid4(), "external_id": "A-1"}),
-        )
-
-        assert context is None
-
-    @pytest.mark.security
-    async def test_a_run_for_nobody_names_nothing(self):
-        context = await _with(
-            _stubbed(), describe_record_write(_deps(None), {"table_id": TABLE.id})
-        )
-
-        assert context is None

@@ -9,7 +9,6 @@ from uuid import UUID, uuid4
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.virtual_tables import VirtualTablesConfig
 from app.agents.mcp import McpSourceIdentity, tool_prefix
 from app.agents.spec import AgentSpec, OrgMcpServerRef, PersonalMcpServerRef
 from app.core.audit import current_impersonator, record_audit
@@ -56,9 +55,13 @@ _NON_SOURCE_FIELDS = frozenset(
 
 
 def spec_fingerprint(spec: AgentSpec) -> str:
+    material = spec.model_dump(mode="json", exclude=set(_NON_SOURCE_FIELDS))
+    # An empty app-binding field grants nothing new to a pre-version-14 routine.
+    if not spec.table_bindings:
+        material.pop("table_bindings", None)
     return hashlib.sha256(
         json.dumps(
-            spec.model_dump(mode="json", exclude=set(_NON_SOURCE_FIELDS)),
+            material,
             sort_keys=True,
             separators=(",", ":"),
         ).encode()
@@ -268,19 +271,10 @@ class RoutineSourceService:
             resources.update(f"Context · {identifier}" for identifier in current.context_ids)
             resources.update(f"Skill · {identifier}" for identifier in current.skill_ids)
             resources.update(f"Capability · {binding.id}" for binding in current.capabilities)
-            for binding in current.capabilities:
-                if binding.id == "virtual_tables" and binding.enabled:
-                    try:
-                        tables = VirtualTablesConfig.model_validate(binding.config)
-                    except ValidationError:
-                        unavailable.add("Task table configuration")
-                        continue
-                    resources.update(
-                        f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
-                        for grant in tables.tables
-                    )
-                    if tables.allow_create:
-                        resources.add("Capability · create additional tables")
+            resources.update(
+                f"Table · {grant.table_id} · {'/'.join(operation.value for operation in grant.operations)}"
+                for grant in current.table_bindings
+            )
             for delegate in current.subagents:
                 if delegate.agent_version_id in seen:
                     continue

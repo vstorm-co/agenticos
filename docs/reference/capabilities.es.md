@@ -1,5 +1,5 @@
 ---
-source_sha: "bce16e00915a"
+source_sha: "2483572bdd9d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -69,7 +69,6 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — | tal cual |
 | `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | tal cual |
 | `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
-| `virtual_tables` | Tablas | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | tal cual |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | tal cual |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
@@ -2448,38 +2447,9 @@ línea de reanclaje del objetivo. Una generación fallida nunca bloquea el run.
 
 ## Tablas { #tables }
 
-Lee y escribe las [Virtual Tables](../virtual-tables.md) que concede el binding. El
-panel del Builder lista las tablas de la organización. Marca una y elige qué puede
-hacer el agent en ella: leer, añadir, actualizar y borrar registros. Un upsert
-necesita añadir y actualizar a la vez, porque crea el registro cuando ninguno tiene
-su clave.
+Las operaciones de tablas son herramientas de **AgenticOS MCP**, no una capacidad separada. Conecte el MCP de la plataforma en los servicios del agente y busque sus herramientas de tablas. Las lecturas usan los permisos actuales del miembro; las escrituras siguen la política de aprobación MCP.
 
-Las concesiones forman parte del spec publicado, que el modelo no puede cambiar.
-Una llamada que nombra otra tabla, o una operación que la concesión no incluye, se
-rechaza antes de leer nada. Cada llamada pasa además la propia comprobación de
-acceso del servicio de tablas como el miembro para el que actúa el run, reconstruido
-a partir de su membresía en cada llamada, así que una tabla que se deja de compartir
-o un rol reducido detiene la llamada siguiente.
-
-`create_table` solo se ofrece con **Allow create**, y el miembro sigue necesitando
-`tables:create`. Las herramientas de registros nunca crean tablas. Una tabla que
-crea el agent se puede usar el resto de ese run.
-
-`list_views` devuelve las vistas guardadas de las tablas que el agent puede leer, con
-el id de cada vista, sus columnas y si está compartida. Una página puede partir de una para
-su query, lo que copia los filtros y el orden de la vista; después no queda nada vinculado a
-ella, y una vista con búsqueda no se puede vincular. [Páginas y vistas](../virtual-tables.md#views-for-pages)
-explica cómo lee una página una tabla. La herramienta `share_view` ya no existe, y un spec que
-aún la protege o la renombra se carga sin ella, con un aviso en el log.
-
-Las herramientas de escritura tienen efectos secundarios por herramienta, así que una
-política de aprobación las cubre a ellas y no a las lecturas. La clave de operación
-de una escritura sale del run y de la llamada a la herramienta, así que una llamada
-reintentada repite su primera respuesta. Los valores se indican por id o etiqueta de
-columna, y la elección de una columna de selección es la etiqueta de su opción, igual
-al escribir, filtrar y leer. Los conflictos, la validación, las cuotas, el historial y la auditoría son
-los mismos que en la consola y la API, porque cada herramienta llama al mismo
-servicio.
+La versión 14 de la especificación elimina las conexiones `virtual_tables` guardadas al cargarlas. Los permisos existentes de las aplicaciones publicadas pasan a `table_bindings`; este campo no expone herramientas. Los permisos desactivados siguen desactivados. Las conexiones MCP, herramientas permitidas y aprobaciones no se amplían automáticamente. Un agente antiguo sin MCP de la plataforma necesita conectarlo explícitamente antes de operar con tablas.
 
 ## Workflows { #workflows }
 

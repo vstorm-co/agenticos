@@ -95,5 +95,5 @@ in [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
-| Tables | `virtual_tables` |
+| Tables | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |

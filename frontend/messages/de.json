@@ -880,17 +880,6 @@
     "voicePreview": "Diese Stimme anhören",
     "voicePreviewStop": "Anhalten",
     "voicePreviewNeedsKey": "Wählen Sie einen Schlüssel, um diese Stimme anzuhören",
-    "tablesGrantsLabel": "Tabellen, die dieser Agent nutzen darf",
-    "tablesGrantsDetail": "Haken Sie eine Tabelle an und wählen Sie, was der Agent darin tun darf. Lesen ist immer an. Ein Agent erreicht nie eine Tabelle, die hier nicht angehakt ist, und jeder Aufruf wird weiterhin als das Mitglied geprüft, für das er handelt.",
-    "tablesNone": "Es gibt noch keine Tabellen. Legen Sie unter Tabellen eine an und kommen Sie zurück, um sie freizugeben.",
-    "tablesGrantToggle": "Den Agent {name} nutzen lassen",
-    "tablesOperationsLabel": "Was der Agent in {name} tun darf",
-    "tablesOperationRead": "Lesen",
-    "tablesOperationCreate": "Hinzufügen",
-    "tablesOperationUpdate": "Ändern",
-    "tablesOperationDelete": "Löschen",
-    "tablesGrantOrphaned": "Eine freigegebene Tabelle gibt es nicht mehr oder sie ist nicht mehr mit Ihnen geteilt:",
-    "tablesManage": "Tabellen verwalten",
     "workflowsGrantsLabel": "Workflows, die er starten darf",
     "workflowsGrantsDetail": "Jeder wird zu etwas, das der Agent ausführen kann - mit der Eingabe, die er deklariert, als das Mitglied, für das der Agent handelt, und mit Warten auf seine Antwort.",
     "workflowsNeedsPermission": "Die Auswahl von Workflows erfordert workflows:view.",
@@ -11110,14 +11099,6 @@
       "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
       "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
     },
-    "virtual_tables": {
-      "name": "Tabellen",
-      "does": "Der Agent kann die ihm freigegebenen typisierten Tabellen auflisten, lesen und beschreiben - einen Datensatz anlegen, ändern, nachschlagen.",
-      "example1": "Jede neue Support-Anfrage als Zeile erfassen",
-      "example2": "Vor einer Antwort den Tarif eines Kunden in einer Tabelle prüfen",
-      "needs": "Mindestens eine freigegebene Tabelle oder die Erlaubnis, Tabellen anzulegen.",
-      "never": "Fasst nie eine nicht freigegebene Tabelle an und löscht nie eine Tabelle; ein gelöschter Datensatz behält seinen Verlauf."
-    },
     "workflows": {
       "name": "Workflows",
       "does": "Der Agent kann die ihm freigegebenen veröffentlichten Workflows starten und lesen, was sie antworten.",
@@ -11666,16 +11647,6 @@
       "wait_seconds": {
         "title": "Auf einen Run warten (Sekunden)",
         "description": "Wie lange run_workflow auf das Ende eines Runs wartet, bevor es seine ID zurückgibt, damit sie später gelesen wird."
-      }
-    },
-    "virtual_tables": {
-      "tables": {
-        "title": "Tabellen, die er nutzen darf",
-        "description": "Die Tabellen, auf die der Agent zugreifen darf, und was er in jeder tun darf."
-      },
-      "allow_create": {
-        "title": "Tabellen anlegen",
-        "description": "Erlaubt dem Agenten, neue Tabellen anzulegen. Das Mitglied, in dessen Namen er handelt, braucht weiterhin die Berechtigung tables:create."
       }
     },
     "artifacts": {

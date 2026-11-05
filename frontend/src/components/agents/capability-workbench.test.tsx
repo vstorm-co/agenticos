@@ -29,7 +29,7 @@ vi.mock("@/hooks/use-memory", () => ({
 
 vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: [], isLoading: false, error: null }),
-  // The tables panel lists the organization's tables; `tables-section` covers it.
+  // Table resources are available through the platform MCP.
   useAllTables: () => ({
     tables: [{ id: "t-1", name: "Leads", description: null }],
     isLoading: false,
@@ -767,37 +767,6 @@ describe("image generation, whose model is a provider and a model", () => {
   });
 });
 
-describe("tables, whose grants are a table and its operations", () => {
-  const TABLES: CapabilityCatalogEntry = {
-    ...CHARTS,
-    id: "virtual_tables",
-    name: "Tables",
-    category: "data",
-    description: "Read and write the Virtual Tables this agent is granted.",
-    tools: [],
-    contracts: [],
-    config_schema: null,
-  };
-
-  it("opens its own panel rather than the generated form", async () => {
-    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")] });
-
-    await openCapability("Tables");
-
-    expect(screen.getByRole("checkbox", { name: "Let the agent use Leads" })).toBeVisible();
-  });
-
-  it("grants it from the panel's own switch", async () => {
-    const onToggle = vi.fn();
-    renderWorkbench({ catalog: [TABLES, CHARTS], selected: [binding("virtual_tables")], onToggle });
-
-    await openCapability("Tables");
-    await userEvent.click(screen.getByRole("switch", { name: "Tables enabled" }));
-
-    expect(onToggle).toHaveBeenCalledWith("virtual_tables");
-  });
-});
-
 describe("workflows, whose grants are the workflows it may start", () => {
   const WORKFLOWS: CapabilityCatalogEntry = {
     ...CHARTS,
@@ -829,11 +798,11 @@ describe("workflows, whose grants are the workflows it may start", () => {
   });
 });
 
-it("routes new workflow and table tools through MCP while keeping old bindings editable", async () => {
+it("routes workflows through MCP while keeping stored workflow bindings editable", async () => {
   renderWorkbench({
     catalog: [
       { ...CHARTS, id: "workflows", name: "Workflows" },
-      { ...CHARTS, id: "virtual_tables", name: "Tables" },
+      { ...CHARTS, id: "knowledge", name: "Knowledge" },
       CHARTS,
     ],
     selected: [],

@@ -1,5 +1,5 @@
 ---
-source_sha: "bce16e00915a"
+source_sha: "2483572bdd9d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -70,7 +70,6 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `context` | Kontext | knowledge | `list_context`, `read_context` | — | — | unverändert |
 | `memory_files` | Gedächtnis | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | unverändert |
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
-| `virtual_tables` | Tabellen | data | `list_tables`, `table_exists`, `describe_table`, `create_table`, `record_exists`, `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `list_views` | `tables:read` | — | unverändert |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | unverändert |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
@@ -2570,39 +2569,9 @@ Run nie.
 
 ## Tabellen { #tables }
 
-Liest und schreibt die [Virtual Tables](../virtual-tables.md), die das Binding
-freigibt. Das Panel im Builder listet die Tabellen der Organisation. Haken Sie eine
-an und wählen Sie, was der Agent darin tun darf: Datensätze lesen, hinzufügen,
-ändern und löschen. Ein Upsert braucht Hinzufügen und Ändern, weil er den Datensatz
-anlegt, wenn keiner seinen Schlüssel hat.
+Tabellenoperationen sind Werkzeuge von **AgenticOS MCP**, keine separate Capability. Verbinden Sie das Plattform-MCP unter den Diensten des Agenten und suchen Sie dessen Tabellenwerkzeuge. Lesezugriffe verwenden die aktuellen Rechte des Mitglieds; Schreibzugriffe folgen der MCP-Genehmigungsrichtlinie.
 
-Die Freigaben sind Teil des veröffentlichten Specs, den das Modell nicht ändern
-kann. Ein Aufruf, der eine andere Tabelle oder eine nicht freigegebene Operation
-nennt, wird abgelehnt, bevor etwas gelesen wird. Jeder Aufruf durchläuft außerdem
-die eigene Zugriffsprüfung des Tabellen-Service als das Mitglied, für das der Run
-handelt, bei jedem Aufruf aus seiner Mitgliedschaft neu aufgebaut. Eine nicht mehr
-geteilte Tabelle oder eine eingeschränkte Rolle stoppt also den nächsten Aufruf.
-
-`create_table` wird nur mit **Allow create** angeboten, und das Mitglied braucht
-weiterhin `tables:create`. Datensatz-Tools legen nie Tabellen an. Eine Tabelle, die
-der Agent anlegt, ist für den Rest dieses Runs nutzbar.
-
-`list_views` liefert die gespeicherten Ansichten der Tabellen, die der Agent lesen
-darf, mit der ID jeder Ansicht, ihren Spalten und ob sie geteilt ist. Eine Seite
-kann ihre Abfrage von einer aus beginnen, was die Filter und die Sortierung der
-Ansicht kopiert; danach bleibt nichts an der Ansicht verknüpft, und eine Ansicht
-mit Suche lässt sich nicht binden. [Seiten und Ansichten](../virtual-tables.md#views-for-pages)
-sagt, wie eine Seite eine Tabelle liest. Das Tool `share_view` gibt es nicht mehr,
-und ein Spec, der es noch absichert oder umbenennt, lädt ohne es, mit einer Warnung
-im Log.
-
-Die Schreib-Tools sind pro Tool als seiteneffektbehaftet markiert, sodass eine
-Freigaberichtlinie sie erfasst und nicht die Lesezugriffe. Der Operationsschlüssel
-eines Schreibzugriffs stammt aus dem Run und dem Tool-Aufruf, daher spielt ein
-wiederholter Aufruf seine erste Antwort erneut ab. Werte werden per Spalten-ID oder
-Label angegeben, und die Auswahl einer Auswahlspalte ist das Label ihrer Option -
-beim Schreiben, Filtern und Lesen gleich. Konflikte, Validierung, Kontingente, Historie und Audit sind
-dieselben wie in der Konsole und der API, weil jedes Tool denselben Service aufruft.
+Spezifikationsversion 14 entfernt gespeicherte `virtual_tables`-Bindungen beim Laden. Bestehende Freigaben für veröffentlichte Apps wechseln zu `table_bindings`; dieses Feld stellt keine Werkzeuge bereit. Deaktivierte Freigaben bleiben deaktiviert. MCP-Verbindungen, erlaubte Werkzeuge und Genehmigungen werden nicht automatisch erweitert. Bei alten Agenten ohne Plattform-MCP muss es ausdrücklich verbunden werden, bevor sie Tabellen bearbeiten können.
 
 ## Workflows { #workflows }
 

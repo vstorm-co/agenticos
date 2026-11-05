@@ -184,4 +184,4 @@ def test_platform_table_tools_do_not_request_a_duplicate_tables_capability() -> 
 
 def test_restricted_platform_binding_does_not_claim_unavailable_table_operations() -> None:
     spec = _spec(mcp_servers=[{"account": "platform", "allowed_tools": ["list_agents"]}])
-    assert "virtual_tables" in SetupBriefing.for_spec(spec, agent_id=uuid.uuid4()).missing
+    assert "virtual_tables" not in SetupBriefing.for_spec(spec, agent_id=uuid.uuid4()).missing

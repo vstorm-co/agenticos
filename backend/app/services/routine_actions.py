@@ -125,10 +125,6 @@ def action_review(
 
 
 def routine_effect(definition: CapabilityDef, tool: CapabilityToolInfo, *, local: bool) -> bool:
-    # Table writes stay within the capability's live, operation-specific grants.
-    # An explicit agent approval policy still gates them independently.
-    if definition.id == "virtual_tables":
-        return False
     if definition.id == "sandbox" and local and tool.id in ("write_file", "edit_file"):
         return True
     # A task may cross an external-agent boundary where this deployment cannot

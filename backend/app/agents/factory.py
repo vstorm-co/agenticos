@@ -325,10 +325,8 @@ def build_agent(
             raise BadRequestError(message="A routine action policy requires an agent identity")
         routine_policy = partial(routine_action_check, agent_id, spec)
     refuse_ungateable_approvals(spec)
-    # Function-local: `virtual_tables/_toolset.py` imports `app.services.virtual_tables` at
-    # module level, which loops back through the factory to this module.
-    from app.agents.capabilities.virtual_tables import TABLE_GRANTS_RESOURCE, table_grants_of
     from app.agents.capabilities.workflows import WORKFLOW_IDS_RESOURCE, workflow_ids_of
+    from app.agents.table_bindings import TABLE_GRANTS_RESOURCE
 
     bindings = spec.bindings()
     if voice is not None:
@@ -374,7 +372,9 @@ def build_agent(
             # delete the bytes is the conversation, not a setting.
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
-            TABLE_GRANTS_RESOURCE: table_grants_of(spec),
+            TABLE_GRANTS_RESOURCE: {
+                grant.table_id: frozenset(grant.operations) for grant in spec.table_bindings
+            },
             WORKFLOW_IDS_RESOURCE: frozenset(workflow_ids_of(spec)),
             # Where the agent's web readers may go: a drawing fetches an image by
             # address only from a host one of them would itself reach.

@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Remove the standalone Tables capability and its UI and toolset. Table operations use AgenticOS MCP. Stored specs migrate to version 14: existing app table grants are retained as `table_bindings`, and project trackers connect MCP instead of adding Tables. Operators must explicitly connect platform MCP on old agents that do not already have it; existing connection restrictions and approvals are preserved.
+
 - Recover every pending approval batch after worker continuations and refresh parked chat turns on run updates without replacing live drafts. Keep live activity grouping stable, avoid marking pending steps Done, and update elapsed labels once per second. Page long skill references, prioritize exact tool names over nested schemas, and avoid requesting duplicate Tables tools when AgenticOS MCP already provides record operations.
 
 - Use muted, theme-aware table option colors with readable ink in explicit Light mode even on a dark OS, and place Kanban grouping alongside filters and sorting in the view toolbar.

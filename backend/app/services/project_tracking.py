@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.capabilities.virtual_tables import TableGrant, VirtualTablesConfig
-from app.agents.spec import AgentSpec, CapabilityBindingSpec
+from app.agents.spec import AgentSpec, PlatformMcpServerRef
+from app.agents.table_bindings import TableGrant
 from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -37,32 +37,35 @@ class _Reviewed:
 
 
 def _with_task_table(spec: AgentSpec, table_id: UUID, *, name: str) -> AgentSpec:
-    existing = next(
-        (binding for binding in spec.capabilities if binding.id == "virtual_tables"), None
-    )
-    config = (
-        VirtualTablesConfig()
-        if existing is None or not existing.enabled
-        else VirtualTablesConfig.model_validate(existing.config)
-    )
-    if len(config.tables) >= 50:
-        raise BadRequestError(message="Choose an agent with room for the project task table")
+    grants = [grant for grant in spec.table_bindings if grant.table_id != table_id]
     grant = TableGrant.model_validate(
         {"table_id": table_id, "operations": ["read", "create", "update"]}
     )
-    config = VirtualTablesConfig(tables=[*config.tables, grant], allow_create=config.allow_create)
-    binding = (
-        CapabilityBindingSpec(id="virtual_tables", config=config.model_dump(mode="json"))
-        if existing is None
-        else existing.model_copy(update={"enabled": True, "config": config.model_dump(mode="json")})
-    )
+    if len(grants) >= 50:
+        raise BadRequestError(message="Choose an agent with room for the project task table")
+    table_tools = [
+        "list_virtual_tables",
+        "get_virtual_table",
+        "query_virtual_table",
+        "get_virtual_table_record",
+        "add_virtual_table_record",
+        "update_virtual_table_record",
+    ]
+    servers = [
+        server.model_copy(
+            update={"allowed_tools": list(dict.fromkeys([*server.allowed_tools, *table_tools]))}
+        )
+        if isinstance(server, PlatformMcpServerRef) and server.allowed_tools is not None
+        else server
+        for server in spec.mcp_servers
+    ]
+    if not any(isinstance(server, PlatformMcpServerRef) for server in servers):
+        servers.append(PlatformMcpServerRef(account="platform", allowed_tools=table_tools))
     return spec.model_copy(
         update={
             "name": name,
-            "capabilities": [
-                *(item for item in spec.capabilities if item.id != "virtual_tables"),
-                binding,
-            ],
+            "table_bindings": [*grants, grant],
+            "mcp_servers": servers,
         }
     )
 
