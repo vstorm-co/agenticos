@@ -1,5 +1,5 @@
 ---
-source_sha: "0c355ecc1f1d"
+source_sha: "bce16e00915a"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1506,6 +1506,8 @@ do pobrania, też jest księgowany i zwracany jako wynik, a nie kierowany z powr
 do modelu: druga próba zostałaby rozliczona ponownie.
 
 ## Coding agent { #coding-agent }
+
+**Osobiste konta w chmurze.** W **Settings → Profile → Coding accounts** podłącz klucz Anthropic lub token konfiguracji Claude, klucz OpenAI albo nowe logowanie ChatGPT, a następnie jawnie włącz użycie w tej organizacji. W Coding agent wybierz **Private cloud task with my account**. Konto obsługuje tylko uwierzytelnione zadania rozpoczęte przez Ciebie w czacie web/API; nie harmonogramy, kanały, klucze API ani podszywanie się. Inni członkowie nie mogą pożyczyć konta. Osobny kontener zadania dostaje ograniczoną kopię źródeł (500 plików, 1 MiB na plik, 16 MiB łącznie; bez dowiązań, katalogów platformy i pamięci podręcznej). Raport wskazuje konto i snapshot oraz pokazuje diff i ZIP w czacie. Wspólne pliki projektu nie zmieniają się automatycznie. Cofnięcie dostępu do konta lub projektu anuluje pracę; zewnętrzną zgodę ChatGPT można dodatkowo cofnąć w ustawieniach ChatGPT. Dotychczasowe konta organizacyjne w toolu oraz zatwierdzone foldery i logowania lokalnej CLI pozostają osobnymi trybami. Po `0290_personal_coding_accounts.py` zaktualizuj API i workery razem.
 
 `run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 

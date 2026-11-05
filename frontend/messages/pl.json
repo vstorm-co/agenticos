@@ -6801,6 +6801,10 @@
       "org-system-agents": {
         "title": "Usługi w tle",
         "body": "Wybierz modele i budżety usług platformy oraz sprawdź ich użycie. Ustawienia dziennych podsumowań znajdziesz w Proaktywności."
+      },
+      "personal-coding-accounts": {
+        "title": "Konta do programowania",
+        "body": "Podłącz własne konto do kodowania i jawnie zezwól na jego użycie. Prywatne zadania w chmurze zwracają diff i archiwum wyników bez automatycznej zmiany wspólnych plików projektu."
       }
     },
     "chooseLanguage": "Język",
@@ -9189,7 +9193,14 @@
       },
       "runs_on": {
         "title": "Gdzie działa",
-        "description": "W sandboxie agenta, na kluczu zapisanym tutaj - albo w folderze, który osoba wybiera na własnym komputerze w aplikacji desktopowej, gdzie Claude Code i Codex używają logowania, które już mają, i nie potrzebują klucza."
+        "description": "W sandboxie agenta, na kluczu zapisanym tutaj - albo w folderze, który osoba wybiera na własnym komputerze w aplikacji desktopowej, gdzie Claude Code i Codex używają logowania, które już mają, i nie potrzebują klucza.",
+        "options": {
+          "personal_sandbox": {
+            "label": "Prywatne zadanie chmurowe z moim kontem",
+            "description": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików.",
+            "summary": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików."
+          }
+        }
       }
     },
     "workflows": {
@@ -13100,5 +13111,37 @@
     "memoryModel": "Utrzymanie pamięci nie ma wybranego modelu. Wybierz go w AI i usługi → Usługi w tle, aby korzystać z automatycznego utrzymania pamięci.",
     "architectModel": "Architect potrzebuje modelu. Otwórz go w Agent Builder z zakładki AI i usługi i wybierz model.",
     "mobilePush": "Powiadomienia push na iPhonie nie mają klucza Apple. Dodaj tutaj klucz APNs, jeśli korzystasz z własnej wersji aplikacji iOS."
+  },
+  "codingAccounts": {
+    "title": "Konta do programowania",
+    "description": "Twoje konto do zadań programistycznych, które uruchamiasz w tej organizacji. Inni członkowie nie mogą go używać.",
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "connectNamed": "Połącz {name}",
+    "label": "Nazwa konta",
+    "apiKey": "Klucz API",
+    "chatGPT": "Logowanie ChatGPT",
+    "oauthHelp": "Rozpocznij nowe logowanie, dokończ je w przeglądarce i wklej pełny adres zwrotny localhost. Nie importuj pliku auth.json z CLI.",
+    "continueOpenAI": "Kontynuuj w OpenAI",
+    "startSignIn": "Rozpocznij logowanie",
+    "callback": "Adres zwrotny",
+    "credential": "Klucz API lub token Claude",
+    "keyHelp": "Claude Code obsługuje klucz Anthropic lub token setup; Codex obsługuje klucz OpenAI. Konta osobiste łączą się bezpośrednio z dostawcą.",
+    "consent": "Zezwól agentom w tej organizacji na używanie tego konta do zadań programistycznych, które uruchamiam.",
+    "sharing": "Prywatne zadania chmurowe kopiują workspace do odizolowanego kontenera. Wyniki są widoczne dla czytelników czatu; wspólne pliki projektu nie są automatycznie zmieniane.",
+    "connecting": "Łączenie…",
+    "connect": "Połącz",
+    "notConnected": "Niepołączone",
+    "enabled": "Włączone dla moich zadań",
+    "disabled": "Wyłączone",
+    "disable": "Wyłącz użycie",
+    "enable": "Włącz użycie",
+    "disconnect": "Odłącz",
+    "loadFailed": "Nie udało się wczytać kont",
+    "retry": "Spróbuj ponownie",
+    "localHelp": "Aby użyć profilu, w narzędziu Coding agent wybierz prywatne zadanie chmurowe z moim kontem. Opcja Ten komputer korzysta z lokalnego logowania CLI i zatwierdzonego folderu; poświadczenia zostają na komputerze.",
+    "disconnectHelp": "Odłączenie usuwa kopię poświadczeń z AgenticOS i zatrzymuje zadania. Grant ChatGPT unieważnisz też w ustawieniach ChatGPT. Zadania harmonogramów i kanałów nie korzystają z tych kont.",
+    "personalAccount": "Konto osobiste: {label}",
+    "baseRevision": "Snapshot workspace: {revision}"
   }
 }

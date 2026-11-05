@@ -1,5 +1,5 @@
 ---
-source_sha: "3e8627cbbe69"
+source_sha: "7b030822ee6c"
 ---
 
 # Ochrona danych { #data-protection }
@@ -88,6 +88,7 @@ przez sprawdzenie rodzica.
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Konta i logowania | E-mail, imię, awatar, zahaszowane hasło albo id konta Google, hash refresh tokenu, adres IP i user agent na sesję; to, co osoba powiedziała agentom o sobie - język konsoli, strefa czasowa, rola, czym się zajmuje, godziny pracy - oraz pierwsze wiadomości napisane dla jej pustego czatu | Uwierzytelnianie i autoryzacja; to, co każdy agent słyszy o osobie |
 | `browser_sign_ins` | Zapisane logowania osoby do stron, dla przeglądarki | Strona, organizacja, kiedy ostatnio użyte, i sama sesja (ciasteczka i `localStorage` strony) zapieczętowana w vaulcie w zakresie tej osoby | Kolejne przeglądanie w jej imieniu zaczyna się już zalogowane. Eksport danych osobowych podaje strony, nigdy sesji |
+| `coding_accounts` | Osobiste konta Claude Code/Codex | Organizacja, właściciel, nazwa konta, wersja zgody i klucz API lub para tokenów ChatGPT zaszyfrowane w zakresie użytkownika | Eksport metadanych tylko dla właściciela; osobny kontener na zadanie; odłączenie usuwa zgodę w platformie, nie u dostawcy |
 | `conversations`, `messages`, `tool_calls` | Każdy czat na każdej powierzchni | Tekst, który ludzie napisali, odpowiedzi i rozumowanie modelu, argumenty i wyniki narzędzi, kroczące podsumowanie długich wątków | Podstawowa funkcja produktu; historia, do której człowiek wraca |
 | `coding_task_changes` | Zadanie agenta kodującego przy `edit` w rozmowie | Pliki zmienione przez zadanie i ich patch, do 256 KiB: kod taki, jaki był, i taki, jaki się stał | Diff zadania, pokazywany w jego panelu; czytany z dostępem rozmowy |
 | `voice_calls` | Każde połączenie [rozmowy głosowej](voice.md) | Id użytkownika rozmówcy (brak dla odwiedzającego), agent, run, konwersacja i embed, do których należała, provider i model, id rozmowy u providera, id klucza z vaultu, którym była prowadzona, worker, który ją trzyma, jej heartbeat, czasy startu, końca i rozłączenia, jej koszt, sekundy i liczba trafień guardraili. **Bez dźwięku i bez transkrypcji** - słowa rozmowy to zwykłe wiersze w `messages`, każdy oznaczony `turn_id` i, gdy rozmówca wszedł agentowi w słowo, `interrupted` | Rozłączanie rozmowy, której proces umarł, i liczenie miesięcznych minut rozmów organizacji |

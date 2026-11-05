@@ -10,6 +10,7 @@ import { AvatarColorPicker, Button, FormField, Input } from "@/components/ui";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { AgentContextSettings } from "@/components/settings/agent-context-settings";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
+import { CodingAccounts } from "@/components/settings/coding-accounts";
 import { ChatAccounts } from "@/components/settings/chat-accounts";
 import { ForgetMe } from "@/components/memory/forget-me";
 import { SectionCard } from "@/components/settings/settings-section";
@@ -238,6 +239,8 @@ export default function ProfileSettingsPage() {
       <AppearanceSettings />
 
       <ChatAccounts />
+
+      <CodingAccounts />
 
       <ForgetMe userId={user.id} />
     </div>

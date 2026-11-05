@@ -1,5 +1,5 @@
 ---
-source_sha: "3e8627cbbe69"
+source_sha: "7b030822ee6c"
 ---
 
 # Protección de datos { #data-protection }
@@ -92,6 +92,7 @@ El límite total se comprueba en el savepoint de la modificación, bajo un bloqu
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Cuentas e inicios de sesión | Correo, nombre, avatar, contraseña con hash o el id de la cuenta de Google, hash del refresh token, dirección IP y user agent por sesión; lo que la persona dijo a los agents sobre sí misma - idioma de la consola, zona horaria, rol, en qué trabaja, horario laboral - y los primeros mensajes escritos para su chat vacío | Autenticación y autorización; lo que se le dice a cada agent sobre la persona |
 | `browser_sign_ins` | Los inicios de sesión que una persona guardó en sitios, para el navegador web | El sitio, la organización, cuándo se usó por última vez y la propia sesión (cookies y el `localStorage` del sitio), sellada en el vault en el ámbito de la persona | Un recorrido posterior en su nombre empieza ya con la sesión iniciada. La exportación de datos personales lista los sitios, nunca la sesión |
+| `coding_accounts` | Conexiones personales de Claude Code/Codex | Organización, propietario, nombre de cuenta, revisión de consentimiento y clave API o tokens ChatGPT sellados en el ámbito del usuario | Exportación de metadatos solo para el propietario; contenedor separado por tarea; desconectar elimina el permiso de la plataforma, no el del proveedor |
 | `conversations`, `messages`, `tool_calls` | Todos los chats en todas las superficies | El texto que la gente escribió, las respuestas y el razonamiento del modelo, argumentos y resultados de herramientas, un resumen continuo de los hilos largos | La función central del producto; el historial al que vuelve la persona |
 | `coding_task_changes` | Una tarea del agente de código con `edit` en una conversación | Los archivos que cambió la tarea y su parche, hasta 256 KiB: el código como era y como quedó | El diff de la tarea, mostrado en su panel; leído con el acceso de la conversación |
 | `voice_calls` | Cada conexión de una [llamada de voz](voice.md) | El id de usuario de quien llama (ninguno para un visitante), el agent, el run, la conversación y el embed a los que perteneció, el provider y el modelo, el id de la llamada en el provider, el id de la clave del vault con la que se sostuvo, el worker que la mantiene, su heartbeat, sus horas de inicio, fin y colgado, su coste, sus segundos y su número de activaciones de guardrails. **Ni audio ni transcripción** - las palabras de la llamada son filas normales de `messages`, cada una marcada con un `turn_id` y, cuando quien llama habló por encima, `interrupted` | Colgar una llamada cuyo proceso murió, y contar los minutos de llamada mensuales de la organización |

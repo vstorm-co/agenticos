@@ -4161,6 +4161,29 @@ class AgentRunnerService:
                 update={"instructions": f"{spec.instructions}\n\n{skills_context.briefing}"}
             )
 
+        from app.agents.capabilities.coding_agent._personal import PERSONAL_EXECUTOR
+        from app.services.personal_coding import PersonalCodingSessionFactory
+        from app.services.sandbox_workspace import project_sandbox, sandbox_config
+
+        personal_config = project_sandbox(project) if project is not None else sandbox_config(spec)
+        if (
+            routine is None
+            and surface in (RunSurface.WEB, RunSurface.API)
+            and not subject_is_publisher_fallback
+            and ctx.user_id is not None
+            and ctx.api_key_id is None
+            and ctx.key_scopes is None
+            and personal_config is not None
+            and personal_config.backend == "service"
+        ):
+            resources[PERSONAL_EXECUTOR] = PersonalCodingSessionFactory(
+                ctx=ctx,
+                spec=spec,
+                config=personal_config,
+                agent_id=agent.id,
+                project_id=project.id if project is not None else None,
+            )
+
         resources["background_tasks.model_profile_id"] = model_spec.profile_id
         if local is not None and local.coding_agent is not None:
             resources[LOCAL_CODING_PREFERENCES] = CodingPreferences(
@@ -5212,6 +5235,10 @@ class AgentRunnerService:
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             resources[WORKSPACE_SHARED_RESOURCE] = parent_resources.get(WORKSPACE_SHARED_RESOURCE)
+            from app.agents.capabilities.coding_agent._personal import PERSONAL_EXECUTOR
+
+            if PERSONAL_EXECUTOR in parent_resources:
+                resources[PERSONAL_EXECUTOR] = parent_resources[PERSONAL_EXECUTOR]
             # And the spill log with it: a delegate spilling to the shared
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).

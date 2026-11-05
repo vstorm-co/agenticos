@@ -211,6 +211,10 @@ class PersonalDataExport(BaseModel):
     notification_routes: list[dict[str, Any]] = Field(
         default_factory=list, description="Their explicit private notification destinations."
     )
+    coding_accounts: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Personal coding account metadata; never credentials or refresh tokens.",
+    )
     browser_sign_ins: list[dict[str, Any]] = Field(
         description=(
             "The sites they kept a browser sign-in to, and when it was last used. "

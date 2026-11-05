@@ -1,5 +1,5 @@
 ---
-source_sha: "3e8627cbbe69"
+source_sha: "7b030822ee6c"
 ---
 
 # Datenschutz { #data-protection }
@@ -94,6 +94,7 @@ Die Gesamtgrenze wird im Savepoint der Änderung unter einer Organisationssperre
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Konten und Anmeldungen | E-Mail, Name, Avatar, gehashtes Passwort oder die Google-Konto-Id, Refresh-Token-Hash, IP-Adresse und User-Agent je Session; was die Person Agents über sich gesagt hat - Sprache der Konsole, Zeitzone, Rolle, woran sie arbeitet, Arbeitszeiten - und die ersten Nachrichten, die für ihren leeren Chat geschrieben wurden | Authentifizierung und Autorisierung; was jeder Agent über die Person erfährt |
 | `browser_sign_ins` | Gespeicherte Anmeldungen einer Person bei Websites, für den Webbrowser | Die Website, die Organisation, wann sie zuletzt genutzt wurde, und die Sitzung selbst (Cookies und der `localStorage` der Website), über den Vault im eigenen Bereich der Person versiegelt | Ein späterer Durchlauf in ihrem Namen beginnt bereits angemeldet. Der Export personenbezogener Daten nennt die Websites, nie die Sitzung |
+| `coding_accounts` | Persönliche Claude-Code/Codex-Verbindungen | Organisation, Eigentümer, Kontobezeichnung, Zustimmungsrevision und im Benutzerbereich versiegelter API-Schlüssel oder ChatGPT-Tokenpaar | Metadatenexport nur für Eigentümer; eigener Container pro Aufgabe; Trennen entfernt die Plattformfreigabe, nicht die Anbieterfreigabe |
 | `conversations`, `messages`, `tool_calls` | Jeder Chat auf jeder Oberfläche | Der Text, den Menschen geschrieben haben, die Antworten und das Reasoning des Models, Tool-Argumente und -Ergebnisse, eine fortlaufende Zusammenfassung langer Threads | Die Kernfunktion des Produkts; die Historie, zu der ein Mensch zurückkehrt |
 | `coding_task_changes` | Eine Aufgabe des Coding-Agenten bei `edit` in einer Unterhaltung | Die Dateien, die die Aufgabe geändert hat, und ihr Patch, bis 256 KiB: der Code, wie er war und wie er wurde | Der Diff der Aufgabe, in ihrem Panel gezeigt; mit dem Zugriff der Unterhaltung gelesen |
 | `voice_calls` | Jede Verbindung eines [Sprachanrufs](voice.md) | Die Benutzer-ID des Anrufers (keine bei einem Besucher), der Agent, der Run, die Conversation und das Embed, zu denen er gehörte, Provider und Modell, die Anruf-ID des Providers, die ID des Vault-Schlüssels, mit dem er gehalten wurde, der Worker, der ihn hält, sein Heartbeat, die Zeiten von Beginn, Ende und Auflegen, seine Kosten, Sekunden und die Zahl der Guardrail-Treffer. **Kein Audio und kein Transkript** - die Worte des Anrufs sind gewöhnliche Zeilen in `messages`, jede mit einer `turn_id` markiert und, wenn der Anrufer dazwischengesprochen hat, mit `interrupted` | Einen Anruf auflegen, dessen Prozess gestorben ist, und die monatlichen Anrufminuten der Organisation zählen |

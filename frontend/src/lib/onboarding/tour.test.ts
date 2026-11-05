@@ -278,6 +278,7 @@ describe("stepsForPage", () => {
       "phone-contact",
       "phone-dial",
       "settings-tabs",
+      "personal-coding-accounts",
       "desktop-local-agents",
       "settings-appearance",
       "memory-views",

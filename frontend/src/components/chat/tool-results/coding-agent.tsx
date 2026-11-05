@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import type { TurnFileSource } from "@/types/chat";
+import { WorkspaceFileCard } from "./workspace";
 import type { ToolCall } from "@/types";
 import { cn } from "@/lib/utils";
 import { CollapsibleBlock } from "../collapsible-block";
@@ -39,6 +41,9 @@ interface CodingReport {
   refused?: string[];
   /** The change set the task left in the sandbox, read by `TaskChanges` (#2480). */
   changes_id?: string;
+  account_label?: string;
+  base_revision?: string;
+  result_archive?: string;
 }
 
 const STEP_ICON: Record<StepKind, LucideIcon> = {
@@ -81,9 +86,11 @@ export function parseCodingReport(text: string): CodingReport | null {
 export function CodingAgentResult({
   toolCall,
   resultText,
+  fileSource,
 }: {
   toolCall: ToolCall;
   resultText: string;
+  fileSource?: TurnFileSource;
 }) {
   const t = useTranslations("chat.tools.codingAgent");
   const task = typeof toolCall.args?.task === "string" ? toolCall.args.task : null;
@@ -101,13 +108,14 @@ export function CodingAgentResult({
           <p className="text-muted-foreground py-2 text-xs italic">{resultText}</p>
         )
       ) : (
-        <Report report={report} />
+        <Report report={report} fileSource={fileSource} />
       )}
     </div>
   );
 }
 
-function Report({ report }: { report: CodingReport }) {
+function Report({ report, fileSource }: { report: CodingReport; fileSource?: TurnFileSource }) {
+  const personal = useTranslations("codingAccounts");
   const t = useTranslations("chat.tools.codingAgent");
   const steps = report.steps ?? [];
   const files = report.files_changed ?? [];
@@ -140,6 +148,20 @@ function Report({ report }: { report: CodingReport }) {
       <div className="text-sm">
         <MarkdownContent content={report.answer} />
       </div>
+      {typeof report.account_label === "string" && (
+        <p className="text-muted-foreground text-xs">
+          {personal("personalAccount", { label: report.account_label })}
+        </p>
+      )}
+      {typeof report.base_revision === "string" && (
+        <p className="text-muted-foreground text-xs">
+          {personal("baseRevision", { revision: report.base_revision.slice(0, 12) })}
+        </p>
+      )}
+      {typeof report.result_archive === "string" &&
+        /^coding-results\/[a-f0-9-]{36}\.zip$/.test(report.result_archive) && (
+          <WorkspaceFileCard fileSource={fileSource} path={report.result_archive} />
+        )}
       {/* The diff, where one was kept, says everything the list of names did. */}
       {report.changes_id !== undefined ? (
         <TaskChanges changeId={report.changes_id} fallback={names} />

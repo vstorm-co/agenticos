@@ -289,6 +289,18 @@ class PersonalDataService:
                 await personal_data_repo.notification_routes_of(self.db, user_id),
                 ("id", "organization_id", "channel", "session_id", "created_at"),
             ),
+            coding_accounts=personal_data_repo.as_rows(
+                await personal_data_repo.coding_accounts_of(self.db, user_id),
+                (
+                    "id",
+                    "organization_id",
+                    "harness",
+                    "label",
+                    "secret_kind",
+                    "enabled",
+                    "created_at",
+                ),
+            ),
             browser_sign_ins=personal_data_repo.as_rows(
                 await personal_data_repo.browser_sign_ins_of(self.db, user_id), _SIGN_IN_FIELDS
             ),

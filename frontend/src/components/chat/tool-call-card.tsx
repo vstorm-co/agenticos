@@ -306,7 +306,7 @@ export function ToolCallCard({
       ) : renderer === "run-python" ? (
         <RunPythonResult toolCall={toolCall} resultText={resultText} />
       ) : renderer === "coding-agent" ? (
-        <CodingAgentResult toolCall={toolCall} resultText={resultText} />
+        <CodingAgentResult toolCall={toolCall} resultText={resultText} fileSource={fileSource} />
       ) : renderer === "loaded-skill" ? (
         <LoadedSkillResult result={toolCall.result} status={toolCall.status} />
       ) : renderer === "load-skill" ? (

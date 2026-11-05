@@ -5226,6 +5226,10 @@
       "org-system-agents": {
         "title": "Background services",
         "body": "Choose models and budgets for platform services and review their usage. Daily briefing settings are in Proactivity."
+      },
+      "personal-coding-accounts": {
+        "title": "Coding accounts",
+        "body": "Connect your coding account and explicitly allow its use here. Private cloud tasks return a diff and result archive without automatically changing shared project files."
       }
     },
     "chooseLanguage": "Language",
@@ -11766,7 +11770,14 @@
       },
       "runs_on": {
         "title": "Where it runs",
-        "description": "The agent's own sandbox, on a key stored here - or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key."
+        "description": "The agent's own sandbox, on a key stored here - or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key.",
+        "options": {
+          "personal_sandbox": {
+            "label": "Private cloud task with my account",
+            "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
+            "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
+          }
+        }
       }
     },
     "workflows": {
@@ -13325,5 +13336,37 @@
     "memoryModel": "Memory maintenance has no model selected. Choose one in AI & services → Background services to use automatic memory maintenance.",
     "architectModel": "The Architect needs a model. Open it in Agent Builder from AI & services and select one.",
     "mobilePush": "iPhone push notifications have no Apple key configured. Add your APNs key here if you use your own iOS app build."
+  },
+  "codingAccounts": {
+    "title": "Coding accounts",
+    "description": "Your own account for coding tasks you start in this organization. Other members cannot use it.",
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "connectNamed": "Connect {name}",
+    "label": "Account label",
+    "apiKey": "API key",
+    "chatGPT": "ChatGPT sign-in",
+    "oauthHelp": "Start a fresh sign-in, finish it in your browser, then paste the complete localhost callback address here. Do not import a CLI auth.json file.",
+    "continueOpenAI": "Continue at OpenAI",
+    "startSignIn": "Start sign-in",
+    "callback": "Callback address",
+    "credential": "API key or Claude setup token",
+    "keyHelp": "Claude Code accepts an Anthropic API key or setup token; Codex accepts an OpenAI API key. Personal accounts connect directly to their provider.",
+    "consent": "Allow agents in this organization to use this account for coding tasks I start.",
+    "sharing": "Private cloud tasks copy the workspace into an isolated container. Results are shared with chat readers; shared project files are not changed automatically.",
+    "connecting": "Connecting…",
+    "connect": "Connect",
+    "notConnected": "Not connected",
+    "enabled": "Enabled for my tasks",
+    "disabled": "Not enabled",
+    "disable": "Disable use",
+    "enable": "Enable use",
+    "disconnect": "Disconnect",
+    "loadFailed": "Could not load your coding accounts",
+    "retry": "Try again",
+    "localHelp": "In the Coding agent tool, choose Private cloud task with my account to use this profile. On this computer uses the local CLI sign-in and your approved folder instead; local credentials stay on your computer.",
+    "disconnectHelp": "Disconnect removes AgenticOS’s copy and stops its tasks. Revoke a ChatGPT grant at OpenAI from ChatGPT Settings. Scheduled and channel jobs do not use these accounts.",
+    "personalAccount": "Personal account: {label}",
+    "baseRevision": "Workspace snapshot: {revision}"
   }
 }

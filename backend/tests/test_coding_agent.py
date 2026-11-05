@@ -1727,7 +1727,7 @@ class TestChoosingAModel:
         assert when["field"] == "harness"
         assert CodingAgentConfig.model_json_schema()["properties"]["model"]["x-visible-when"] == {
             "field": "runs_on",
-            "equals": ["sandbox"],
+            "equals": ["sandbox", "personal_sandbox"],
         }
         assert all(model.startswith("anthropic:") for model in when["choices"]["claude_code"])
         assert all(model.startswith("openai:") for model in when["choices"]["codex"])
@@ -1769,7 +1769,7 @@ def test_coding_environment_uses_icon_choice_cards() -> None:
 
     field = CodingAgentConfig.model_json_schema()["properties"]["runs_on"]
     assert field["x-widget"] == "coding-environment"
-    assert field["enum"] == ["sandbox", "this_computer"]
+    assert field["enum"] == ["sandbox", "personal_sandbox", "this_computer"]
 
 
 @pytest.mark.parametrize("runs_on", ["sandbox", "this_computer"])
@@ -1809,3 +1809,30 @@ def test_invalid_coding_config_is_left_to_capability_field_validation() -> None:
         ],
     )
     assert _coding_agent_problems(spec) == []
+
+
+def test_private_cloud_coding_rejects_a_local_server_folder_at_publish() -> None:
+    from app.agents.spec import CapabilityBindingSpec
+    from app.services.agent_registry import _coding_agent_problems
+
+    spec = AgentSpec(
+        name="Private coder",
+        capabilities=[
+            CapabilityBindingSpec(id="coding_agent", config={"runs_on": "personal_sandbox"}),
+            CapabilityBindingSpec(
+                id="sandbox", config={"backend": "local", "include_execute": True}
+            ),
+        ],
+    )
+    assert "isolated task containers" in _coding_agent_problems(spec)[0]
+    service = spec.model_copy(
+        update={
+            "capabilities": [
+                spec.capabilities[0],
+                CapabilityBindingSpec(
+                    id="sandbox", config={"backend": "service", "include_execute": True}
+                ),
+            ]
+        }
+    )
+    assert _coding_agent_problems(service) == []

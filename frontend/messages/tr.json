@@ -5326,7 +5326,14 @@
       },
       "runs_on": {
         "title": "Nerede çalışır",
-        "description": "Burada saklanan key ile Agent'ın kendi sandbox'ında ya da kişinin desktop app'te kendi bilgisayarından seçtiği klasörde çalışır. İkinci durumda Claude Code ve Codex mevcut oturum açma bilgilerini kullanır, key gerekmez."
+        "description": "Burada saklanan key ile Agent'ın kendi sandbox'ında ya da kişinin desktop app'te kendi bilgisayarından seçtiği klasörde çalışır. İkinci durumda Claude Code ve Codex mevcut oturum açma bilgilerini kullanır, key gerekmez.",
+        "options": {
+          "personal_sandbox": {
+            "label": "Hesabımla özel bulut görevi",
+            "description": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez.",
+            "summary": "Profil hesabını yalıtılmış bir konteynerde kullanır. İncelenecek fark ve sonuç arşivi döndürür; paylaşılan dosyalar değişmez."
+          }
+        }
       }
     },
     "workflows": {
@@ -8483,6 +8490,10 @@
       "org-system-agents": {
         "title": "Arka plan hizmetleri",
         "body": "Platform hizmetlerinin modellerini ve bütçelerini seçin, kullanımı inceleyin. Günlük özet ayarları Proaktiflik sekmesindedir."
+      },
+      "personal-coding-accounts": {
+        "title": "Kodlama hesapları",
+        "body": "Kodlama hesabını bağla ve kullanımına açıkça izin ver. Özel bulut görevleri ortak proje dosyalarını otomatik değiştirmeden farkları ve sonuç arşivini döndürür."
       }
     }
   },
@@ -12777,5 +12788,37 @@
   },
   "outcomes": {
     "reviewApproval": "Onay isteğini incele"
+  },
+  "codingAccounts": {
+    "title": "Kodlama hesapları",
+    "description": "Bu kuruluşta başlattığın kodlama görevleri için kendi hesabın. Diğer üyeler kullanamaz.",
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "connectNamed": "{name} bağla",
+    "label": "Hesap etiketi",
+    "apiKey": "API anahtarı",
+    "chatGPT": "ChatGPT oturumu",
+    "oauthHelp": "Tarayıcıda yeni bir oturum aç ve localhost geri dönüş adresinin tamamını buraya yapıştır. CLI auth.json dosyasını içe aktarma.",
+    "continueOpenAI": "OpenAI ile devam et",
+    "startSignIn": "Oturum açmayı başlat",
+    "callback": "Geri dönüş adresi",
+    "credential": "API anahtarı veya Claude kurulum belirteci",
+    "keyHelp": "Claude Code, Anthropic API anahtarı veya kurulum belirteci; Codex ise OpenAI API anahtarı kabul eder. Kişisel hesaplar doğrudan sağlayıcılarına bağlanır.",
+    "consent": "Bu kuruluştaki ajanlar başlattığım kodlama görevleri için bu hesabı kullanabilsin.",
+    "sharing": "Özel bulut görevleri çalışma alanını yalıtılmış bir kapsayıcıya kopyalar. Sonuçlar sohbet okuyucularıyla paylaşılır; ortak proje dosyaları otomatik değiştirilmez.",
+    "connecting": "Bağlanıyor…",
+    "connect": "Bağla",
+    "notConnected": "Bağlı değil",
+    "enabled": "Görevlerim için etkin",
+    "disabled": "Etkin değil",
+    "disable": "Kullanımı devre dışı bırak",
+    "enable": "Kullanımı etkinleştir",
+    "disconnect": "Bağlantıyı kes",
+    "loadFailed": "Kodlama hesapların yüklenemedi",
+    "retry": "Tekrar dene",
+    "localHelp": "Profilini kullanmak için Coding agent aracında Hesabımla özel bulut görevi seçeneğini seç. Bu bilgisayarda seçeneği yerel CLI oturumunu ve onayladığın klasörü kullanır; yerel kimlik bilgileri bilgisayarında kalır.",
+    "disconnectHelp": "Bağlantıyı kesmek AgenticOS kopyasını kaldırır ve görevlerini durdurur. ChatGPT yetkisini OpenAI ChatGPT Ayarlarından iptal et. Zamanlanmış ve kanal görevleri bu hesapları kullanmaz.",
+    "personalAccount": "Kişisel hesap: {label}",
+    "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}"
   }
 }

@@ -339,6 +339,10 @@ def _coding_agent_problems(spec: AgentSpec) -> list[str]:
     if coding.runs_on == "this_computer":
         return []
     config = sandbox_config(spec)
+    if coding.runs_on == "personal_sandbox" and (config is None or config.backend != "service"):
+        return [
+            "Personal cloud coding requires a server sandbox connection for isolated task containers."
+        ]
     if config is None or config.backend not in {"service", "local"} or not config.include_execute:
         return [
             "The coding agent runs in the agent's sandbox, so it needs the Sandbox "

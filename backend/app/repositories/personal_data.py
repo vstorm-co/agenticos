@@ -28,6 +28,7 @@ from app.db.models.api_key import ApiKey
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
+from app.db.models.coding_account import CodingAccount
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
@@ -687,3 +688,8 @@ async def outcome_export_size(db: AsyncSession, user_id: UUID) -> int:
         ).where(Outcome.user_id == user_id)
     )
     return int(size or 0)
+
+
+async def coding_accounts_of(db: AsyncSession, user_id: UUID) -> list[CodingAccount]:
+    result = await db.execute(select(CodingAccount).where(CodingAccount.user_id == user_id))
+    return list(result.scalars().all())

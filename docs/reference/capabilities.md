@@ -1441,6 +1441,8 @@ than steered: a second attempt would be billed again.
 
 ## Coding agent { #coding-agent }
 
+**Personal cloud accounts.** In **Settings → Profile → Coding accounts**, connect an Anthropic API key/Claude setup token, OpenAI API key or a fresh ChatGPT sign-in, then explicitly enable it for this organization. Choose **Private cloud task with my account** in Coding agent. Only authenticated tasks you initiate in web/API chat can use it; schedules, channels, API keys and impersonation cannot. Another member cannot borrow your account. A separate run-scoped container receives a bounded source copy (500 files, 1 MiB per file, 16 MiB total; no symlinks or platform/cache folders). The final report identifies the account and snapshot, with a diff and ZIP in chat. Shared project files are not automatically changed. Account or project revocation cancels work; disconnect also requires revoking the external ChatGPT grant in ChatGPT Settings if desired. Existing tool-level organization credentials and approved desktop/local CLI sign-ins remain separate. Upgrade API/workers together after `0290_personal_coding_accounts.py`.
+
 `run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 
 Hands software work to **Claude Code** or **Codex**, running in the agent's own

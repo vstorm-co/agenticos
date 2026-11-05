@@ -2250,3 +2250,13 @@ def get_phone_webhooks(db: DBSession) -> PhoneWebhookService:
 PhonePolicySvc = Annotated[PhonePolicyService, Depends(get_phone_policy)]
 PhoneCallsSvc = Annotated[PhoneCallService, Depends(get_phone_calls)]
 PhoneWebhooksSvc = Annotated[PhoneWebhookService, Depends(get_phone_webhooks)]
+
+
+from app.services.coding_accounts import CodingAccountService
+
+
+def get_coding_account_service(db: DBSession) -> CodingAccountService:
+    return CodingAccountService(db)
+
+
+CodingAccountSvc = Annotated[CodingAccountService, Depends(get_coding_account_service)]

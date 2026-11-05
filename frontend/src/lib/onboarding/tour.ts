@@ -1071,6 +1071,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // opened help from. Ungated: everyone has their own settings.
   { id: "settings-tabs", page: SETTINGS_DETAIL, target: "settings-tabs" },
   {
+    id: "personal-coding-accounts",
+    page: SETTINGS_DETAIL,
+    target: "personal-coding-accounts",
+    optional: true,
+  },
+  {
     id: "desktop-local-agents",
     page: SETTINGS_DETAIL,
     target: "desktop-local-agents",

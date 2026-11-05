@@ -5104,6 +5104,10 @@
       "org-system-agents": {
         "title": "Hintergrunddienste",
         "body": "Modelle und Budgets für Plattformdienste wählen und deren Nutzung prüfen. Einstellungen für tägliche Briefings stehen unter Proaktivität."
+      },
+      "personal-coding-accounts": {
+        "title": "Coding-Konten",
+        "body": "Verbinde dein Programmierkonto und erlaube seine Nutzung ausdrücklich. Private Cloud-Aufgaben liefern einen Diff und ein Ergebnisarchiv, ohne gemeinsame Projektdateien automatisch zu ändern."
       }
     },
     "chooseLanguage": "Sprache",
@@ -11645,7 +11649,14 @@
       },
       "runs_on": {
         "title": "Wo es läuft",
-        "description": "In der eigenen Sandbox des Agenten, mit einem hier gespeicherten Schlüssel - oder im Ordner, den eine Person auf ihrem eigenen Computer in der Desktop-App wählt, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen."
+        "description": "In der eigenen Sandbox des Agenten, mit einem hier gespeicherten Schlüssel - oder im Ordner, den eine Person auf ihrem eigenen Computer in der Desktop-App wählt, wo Claude Code und Codex die vorhandene Anmeldung nutzen und keinen Schlüssel brauchen.",
+        "options": {
+          "personal_sandbox": {
+            "label": "Private Cloud-Aufgabe mit meinem Konto",
+            "description": "Verwendet Ihr Profilkonto in einem isolierten Container. Liefert einen Diff und ein Ergebnisarchiv zur Prüfung; gemeinsame Dateien bleiben unverändert.",
+            "summary": "Verwendet Ihr Profilkonto in einem isolierten Container. Liefert einen Diff und ein Ergebnisarchiv zur Prüfung; gemeinsame Dateien bleiben unverändert."
+          }
+        }
       }
     },
     "workflows": {
@@ -12997,5 +13008,37 @@
     "memoryModel": "Für Gedächtnispflege fehlt ein Modell. Unter KI und Dienste → Hintergrunddienste auswählen, um automatische Gedächtnispflege zu nutzen.",
     "architectModel": "Der Architect benötigt ein Modell. Unter KI und Dienste im Agent Builder öffnen und ein Modell auswählen.",
     "mobilePush": "Für iPhone-Push-Benachrichtigungen fehlt ein Apple-Schlüssel. Hier einen APNs-Schlüssel hinzufügen, wenn Sie einen eigenen iOS-App-Build nutzen."
+  },
+  "codingAccounts": {
+    "title": "Coding-Konten",
+    "description": "Dein eigenes Konto für Programmieraufgaben, die du in dieser Organisation startest. Andere Mitglieder können es nicht nutzen.",
+    "claude_code": "Claude Code",
+    "codex": "Codex",
+    "connectNamed": "{name} verbinden",
+    "label": "Kontobezeichnung",
+    "apiKey": "API-Schlüssel",
+    "chatGPT": "ChatGPT-Anmeldung",
+    "oauthHelp": "Starte eine neue Anmeldung im Browser und füge hier die vollständige localhost-Rückrufadresse ein. Importiere keine auth.json-Datei einer CLI.",
+    "continueOpenAI": "Bei OpenAI fortfahren",
+    "startSignIn": "Anmeldung starten",
+    "callback": "Rückrufadresse",
+    "credential": "API-Schlüssel oder Claude-Setup-Token",
+    "keyHelp": "Claude Code akzeptiert einen Anthropic-API-Schlüssel oder Setup-Token; Codex einen OpenAI-API-Schlüssel. Persönliche Konten verbinden sich direkt mit ihrem Anbieter.",
+    "consent": "Agenten dieser Organisation dürfen dieses Konto für Programmieraufgaben nutzen, die ich starte.",
+    "sharing": "Private Cloud-Aufgaben kopieren den Arbeitsbereich in einen isolierten Container. Ergebnisse sind für Chat-Leser sichtbar; gemeinsame Projektdateien werden nicht automatisch geändert.",
+    "connecting": "Verbindung wird hergestellt…",
+    "connect": "Verbinden",
+    "notConnected": "Nicht verbunden",
+    "enabled": "Für meine Aufgaben aktiviert",
+    "disabled": "Nicht aktiviert",
+    "disable": "Nutzung deaktivieren",
+    "enable": "Nutzung aktivieren",
+    "disconnect": "Trennen",
+    "loadFailed": "Deine Programmierkonten konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "localHelp": "Wähle im Werkzeug Coding agent die Option Private Cloud-Aufgabe mit meinem Konto. Auf diesem Computer nutzt stattdessen die lokale CLI-Anmeldung und deinen freigegebenen Ordner; lokale Zugangsdaten bleiben auf deinem Computer.",
+    "disconnectHelp": "Trennen entfernt die Kopie von AgenticOS und beendet ihre Aufgaben. Widerrufe eine ChatGPT-Freigabe in den ChatGPT-Einstellungen bei OpenAI. Zeitpläne und Kanalaufgaben nutzen diese Konten nicht.",
+    "personalAccount": "Persönliches Konto: {label}",
+    "baseRevision": "Arbeitsbereich-Snapshot: {revision}"
   }
 }

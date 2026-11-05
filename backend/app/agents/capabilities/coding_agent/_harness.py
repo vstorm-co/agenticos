@@ -108,6 +108,10 @@ class CodingReport(BaseModel):
     access: Access
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str
+    account_label: str | None = None
+    execution: Literal["isolated_task"] | None = None
+    base_revision: str | None = None
+    result_archive: str | None = None
     session_id: str | None = None
     steps: list[CodingStep] = []
     files_changed: list[str] = []

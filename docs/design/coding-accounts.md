@@ -1,100 +1,82 @@
 # Personal coding accounts and shared projects
 
-Status: proposal, 2026-11-04. Personal profile connections and isolated cloud
-coding tasks described below are not implemented by the starter-default change.
-The existing tool-level credential and desktop paths remain available.
+Status: implemented, 2026-11-05. Provider sign-in and real CLI acceptance tests
+remain manual; no live credential is required by the regression suite.
 
-## What exists
+## Account and execution contract
 
-- `coding_agent` can run in a server sandbox with a selected credential, or on
-  an approved desktop folder using that computer's coding-agent sign-in.
-- Desktop prepares a pinned private Node/ACP runtime. Installation/status probing
-  can find a system CLI, but coding sessions use the managed adapter; the exact
-  binary/version need not be the one on the person's shell PATH.
-- Local sessions are scoped to organization, initiating user, agent, conversation,
-  harness, access policy, approved root and desktop connection. AgenticOS does not
-  upload the local CLI's authentication files to the server.
-- The server refuses a ChatGPT subscription sign-in in a shared project, channel
-  or agent sandbox: shell commands in the same container could read another
-  person's tokens. A private directory alone is insufficient isolation.
-- Local folders and shared project files do not synchronize automatically.
-  Project membership grants no access to another member's disk.
-
-## Recommended product contract
-
-Keep three independent choices: the coding provider/account, where execution
-happens, and which project files it may read or change. An agent's spec chooses
-allowed execution modes and limits. The profile chooses the person's preferred
-coding account. A task binds one resolved choice and displays it before execution.
-
-| Execution | Credential | Workspace |
+| Execution | Credential | Workspace and result |
 | --- | --- | --- |
-| This computer | Initiator's local CLI sign-in | Their explicitly approved folder |
-| Personal cloud task | Initiator's explicit profile connection | Isolated task environment and private credential home |
-| Team automation | Explicit organization credential | Managed workspace under a defined service actor |
+| In the agent's sandbox | Explicit tool-level organization credential | Existing workspace; changes appear in the task diff |
+| Private cloud task with my account | Initiating person's enabled profile connection in this organization | Disposable run-scoped container; diff and ZIP returned to the conversation |
+| On this computer | Local CLI sign-in | Explicitly approved local folder; no automatic upload or cloud fallback |
 
-The local sign-in belongs to the operating-system account. A signed-in boolean
-from the CLI does not prove it belongs to the current AgenticOS profile. Show the
-selected harness/account explicitly; retain the existing grant reset on an
-AgenticOS account/server change rather than silently associating identities.
+Connect an Anthropic API key/Claude setup token, OpenAI API key, or a fresh ChatGPT
+sign-in under **Settings → Profile → Coding accounts**. Each person has at most
+one connection per harness per organization. Credentials use `VaultScope.user`;
+only owner metadata is returned by the API. Consent defaults off. Enable, disable
+and disconnect are owner-only and generation checked. An organization administrator
+cannot read or borrow another person's account. Vault rotation and personal data
+export include these accounts; export excludes credentials.
 
-A personal profile connection should be a user-owned credential sealed with the
-existing `VaultScope.user`. Enabling its use in an organization is explicit and
-revocable. Project access must not reveal or confer use of that credential.
-Retain tool-selected organization credentials for managed team work; never fall
-back from a missing personal sign-in to a different person's or a team credential.
+Choose `coding_agent.runs_on: personal_sandbox` in the agent's tool settings.
+It requires a service sandbox and an authenticated, person-initiated web/API
+conversation. API keys, impersonation, schedules, channel jobs and publisher
+fallbacks cannot use profile accounts. Delegates sharing that run's workspace
+inherit its initiating authority. Missing consent is an explicit refusal; neither
+the tool key nor somebody else's account is substituted.
 
-In a shared chat, the person whose message starts the task owns its authentication
-and usage. A later participant does not inherit that harness session. The audit
-record identifies initiator, organization/project, account reference, execution
-host, base revision and changes; it contains no tokens. Conversation transcripts
-can be shared only under their existing project/chat policy.
+## Shared project work
 
-## Concurrent project work
+The server copies source files into a **different run-scoped container**, never
+just a second directory in the shared container. The task receives a new harness
+session, its own credential home and a content/mode snapshot hash. Symlinks,
+platform directories, Git internals and dependency caches are excluded. Executable
+bits are retained. Limits are 500 files, 1 MiB per file and 16 MiB of source content.
+Oversized or invalid copies fail explicitly. The selected sandbox image must
+provide Python 3 and the selected coding harness.
 
-A personal cloud task needs a separate process/container security boundary,
-private credential home and writable checkout. Git worktrees isolate edits, not
-credentials; two worktrees in one shared Unix account are insufficient. Use a
-checkout or task environment per task, rooted in an explicitly recorded project
-revision. Each task returns a diff, tests and conflict status. Apply its result to
-the shared revision only through an explicit publish step with revision checking;
-never let two coding harnesses mutate the same working directory concurrently.
-Projects that are file stores need the equivalent snapshot-and-conditional-apply
-contract rather than an assumed Git repository.
+Results appear in chat as a final report, a bounded diff and
+`coding-results/<task-id>.zip`. The ZIP contains the resulting source snapshot;
+deletions are represented by the diff. Both follow the conversation's existing
+read policy. Shared source files are **not automatically changed**. Review the
+patch/archive before applying it. There is no conflict-resolving publish button,
+automatic merge or local/cloud synchronization.
 
-An unattended routine must name an allowed actor and credential policy explicitly.
-Using a personal account in background work requires separate consent, limits and
-revocation. Local execution needs the owner's paired device online and its current
-folder/operation grant; an offline device does not authorize cloud substitution.
-An administrator's approval does not lend the administrator's coding account.
+Personal tasks suppress live harness payloads until credential redaction can cover
+the initial and refreshed tokens. Known credential material is removed from reports
+and patches; an archive containing it is refused. This is not a general-purpose
+secret scanner. Private task containers are destroyed in terminal cleanup; cleanup
+failure is visible. The lease allows only one active task per profile connection
+across workers, so refresh writes are serialized. The latest token pair uses a
+compare-and-swap against the pair originally read and keeps the account identity.
 
-## Authentication research and implementation order
+While work runs, a two-second watcher rechecks organization membership, account
+consent/generation and project access. Revocation cancels work and prevents result
+export; cancellation and failure release the lease and close the container.
+A user's disable/disconnect removes the platform grant, not the provider's external
+grant. Revoke a ChatGPT grant in ChatGPT Settings at OpenAI as well.
 
-OpenAI documents an app-owned ChatGPT-plan OAuth registration and a Codex
-app-server integration. This is a candidate for a personal profile connection,
-not a reason to copy arbitrary existing CLI credential files. The SIWC registration
-and transport must be distinguished from the existing Codex-specific credential
-shape; do not feed a new registration into an older client's refresh path.
-Accounts must retain
-separate registration IDs, host IDs and refresh state. Model catalogs do not prove
-account entitlement; actual inference must establish it. Remote session transfer
-has documented attribution/revocation limitations that need a separate review.
+## Desktop and authentication boundaries
 
-1. Expose existing local harness status and preference coherently in profile/desktop
-   settings; preserve current local sign-in and folder grants.
-2. Add a typed user-owned connection, provider-specific registration/refresh/revoke
-   adapter, explicit organization-use policy and per-account refresh serialization.
-3. Add private cloud task isolation and revision-safe result application before
-   allowing personal subscription credentials to act on shared project material.
-4. Integrate task/account visibility, quotas and consented unattended execution.
-   Keep the existing shared-sandbox refusal until these guarantees are tested.
+Desktop continues to use its managed Node/ACP adapter, the local CLI's existing
+sign-in and approved folder. Its status/preferences are also available from the
+profile in the desktop shell. Local auth files are never imported into the server.
+A local signed-in status is not proof of identity equality with an AgenticOS user.
+Existing account/server changes continue to clear native grants.
 
-Sources checked on 2026-11-04:
+Cloud ChatGPT sign-in reuses the platform's existing caller/org-bound Codex OAuth
+flow and `OpenAICodexSecret` refresh contract. It does **not** implement a new dynamic
+SIWC client registration or import arbitrary CLI `auth.json`. Those protocols must
+not be mixed. No remote session transfer is implemented. Account entitlement and
+provider terms still need the user's real-provider acceptance test.
+
+Official sources checked on 2026-11-05:
 
 - [OpenAI account registrations and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
 - [OpenAI Codex app-server integration](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)
 - [OpenAI self-hosted VM credential transfer](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms)
-- Existing implementation: `desktop/src-tauri/src/local_agents.rs`,
-  `desktop/src-tauri/src/agent_session.rs`,
-  `backend/app/agents/capabilities/coding_agent/_toolset.py`,
-  `backend/app/services/openai_codex.py`, `docs/desktop.md` and `docs/projects.md`.
+
+Upgrade API and workers together after applying
+`0290_personal_coding_accounts.py`. Existing tool-level credentials and desktop
+bindings retain their behavior. Private cloud execution is opt-in.
