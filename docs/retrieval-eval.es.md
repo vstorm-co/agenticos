@@ -1,7 +1,7 @@
 ---
 title: "Evaluación de recuperación"
 description: "Un conjunto de preguntas sobre la documentación con respuestas conocidas, y el harness que mide la recuperación por categoría, top_k y expansión."
-source_sha: "57f6091a727f"
+source_sha: "8d2d762abe12"
 ---
 
 # Evaluación de recuperación { #retrieval-evaluation }
@@ -173,13 +173,15 @@ que compara solo ejecuciones con el mismo modelo de embeddings.
 Un modelo local para `multi_query`, `hyde` y `--answers` necesita el prefijo
 `openai-chat:`, porque `openai:` llama a la Responses API, que la mayoría de los
 servidores compatibles con OpenAI no tienen. `OPENAI_BASE_URL` dirige el
-provider al servidor y, sin `OPENAI_API_KEY`, envía una clave de relleno. Tras
+provider al servidor. Defínela solo para ese comando, como abajo: exportada,
+enviaría cada llamada `openai:` posterior, con su clave, al servidor local. Sin
+`OPENAI_API_KEY`, el provider envía una clave de relleno. Tras
 `ollama pull qwen3:8b`:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:11434/v1
-make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
-    --embedding-model bge-m3 --keyless --mode multi_query --llm-model openai-chat:qwen3:8b"
+OPENAI_BASE_URL=http://localhost:11434/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url http://localhost:11434/v1 --embedding-model bge-m3 --keyless \
+    --mode multi_query --llm-model openai-chat:qwen3:8b"
 ```
 
 Lo mismo vale para cualquier endpoint que solo ofrezca chat completions.

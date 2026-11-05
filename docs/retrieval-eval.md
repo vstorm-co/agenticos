@@ -163,13 +163,15 @@ compare runs with the same embedding model only.
 A local model for `multi_query`, `hyde` and `--answers` needs the
 `openai-chat:` prefix, because `openai:` calls the Responses API, which most
 OpenAI-compatible servers do not have. `OPENAI_BASE_URL` points the provider at
-the server, and without `OPENAI_API_KEY` it sends a placeholder key. After
+the server. Set it for the one command, as below: exported, it would send every
+later `openai:` call, and the key that goes with it, to the local server.
+Without `OPENAI_API_KEY` the provider sends a placeholder key. After
 `ollama pull qwen3:8b`:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:11434/v1
-make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
-    --embedding-model bge-m3 --keyless --mode multi_query --llm-model openai-chat:qwen3:8b"
+OPENAI_BASE_URL=http://localhost:11434/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url http://localhost:11434/v1 --embedding-model bge-m3 --keyless \
+    --mode multi_query --llm-model openai-chat:qwen3:8b"
 ```
 
 The same applies to any endpoint that offers chat completions only.

@@ -1,7 +1,7 @@
 ---
 title: Retrieval-Evaluierung
 description: Ein Fragenkatalog mit bekannten Antworten über die AgenticOS-Doku und ein Harness, der das Retrieval darauf misst, nach Kategorie, top_k und Abfrageerweiterung.
-source_sha: "57f6091a727f"
+source_sha: "8d2d762abe12"
 ---
 
 # Retrieval-Evaluierung { #retrieval-evaluation }
@@ -98,10 +98,10 @@ als grobes Signal.
 
 `--json` schreibt die abgerufenen Seiten und die Antwort jeder Frage für jeden,
 der sie lesen will, und die Abfragen, nach denen ein `multi_query`- oder
-`hyde`-Modus für sie gesucht hat. Die Datei hält auch fest, was den Lauf ergeben
-hat: wann er begann, einen SHA-256 des Fragensatzes, das Embedding-Modell und
-seine Dimension, die Chunk-Einstellungen und Parser sowie den Digest, den die
-Collection-Namen tragen.
+`hyde`-Modus für sie gesucht hat. Die Datei hält auch fest, wodurch der Lauf
+zustande kam: wann er begann, einen SHA-256 des Fragensatzes, das
+Embedding-Modell und seine Dimension, die Chunk-Einstellungen und Parser sowie
+den Digest, den die Collection-Namen tragen.
 
 ## Ausführen { #running-it }
 
@@ -174,13 +174,15 @@ Deployments verwenden, also vergleiche nur Läufe mit demselben Embedding-Modell
 Ein lokales Modell für `multi_query`, `hyde` und `--answers` braucht das Präfix
 `openai-chat:`, weil `openai:` die Responses API aufruft, die die meisten
 OpenAI-kompatiblen Server nicht haben. `OPENAI_BASE_URL` richtet den Provider
-auf den Server, und ohne `OPENAI_API_KEY` sendet er einen Platzhalterschlüssel.
+auf den Server. Setze sie nur für den einen Befehl, wie unten: exportiert würde
+sie jeden späteren `openai:`-Aufruf samt seinem Schlüssel an den lokalen Server
+schicken. Ohne `OPENAI_API_KEY` sendet der Provider einen Platzhalterschlüssel.
 Nach `ollama pull qwen3:8b`:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:11434/v1
-make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
-    --embedding-model bge-m3 --keyless --mode multi_query --llm-model openai-chat:qwen3:8b"
+OPENAI_BASE_URL=http://localhost:11434/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url http://localhost:11434/v1 --embedding-model bge-m3 --keyless \
+    --mode multi_query --llm-model openai-chat:qwen3:8b"
 ```
 
 Dasselbe gilt für jeden Endpunkt, der nur Chat Completions anbietet.

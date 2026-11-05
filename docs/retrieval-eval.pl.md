@@ -1,7 +1,7 @@
 ---
 title: Ewaluacja wyszukiwania
 description: Zestaw pytań o znanych odpowiedziach do dokumentacji AgenticOS i harness mierzący na nim wyszukiwanie wiedzy według kategorii, top_k i rozszerzania zapytań.
-source_sha: "57f6091a727f"
+source_sha: "8d2d762abe12"
 ---
 
 # Ewaluacja wyszukiwania { #retrieval-evaluation }
@@ -93,7 +93,7 @@ słów, więc traktuj je jako przybliżony sygnał.
 
 `--json` zapisuje pobrane strony i odpowiedź dla każdego pytania, dla każdego,
 kto chce je przeczytać, oraz zapytania, których szukał dla niego tryb
-`multi_query` lub `hyde`. Plik zapisuje też, co dało przebieg: kiedy się zaczął,
+`multi_query` lub `hyde`. Plik zapisuje też, co złożyło się na przebieg: kiedy się zaczął,
 SHA-256 zestawu pytań, model embeddingów i jego wymiar, ustawienia chunków i
 parsery oraz skrót, który niosą nazwy kolekcji.
 
@@ -165,13 +165,15 @@ tylko przebiegi z tym samym modelem embeddingów.
 
 Lokalny model dla `multi_query`, `hyde` i `--answers` potrzebuje prefiksu
 `openai-chat:`, bo `openai:` wywołuje Responses API, którego większość serwerów
-zgodnych z OpenAI nie ma. `OPENAI_BASE_URL` kieruje providera na serwer, a bez
-`OPENAI_API_KEY` wysyła on zastępczy klucz. Po `ollama pull qwen3:8b`:
+zgodnych z OpenAI nie ma. `OPENAI_BASE_URL` kieruje providera na serwer. Ustaw
+ją tylko dla jednego polecenia, jak niżej: wyeksportowana wysłałaby każde
+późniejsze wywołanie `openai:`, razem z jego kluczem, do lokalnego serwera. Bez
+`OPENAI_API_KEY` provider wysyła zastępczy klucz. Po `ollama pull qwen3:8b`:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:11434/v1
-make eval-retrieval EVAL_ARGS="--embedding-base-url http://localhost:11434/v1 \
-    --embedding-model bge-m3 --keyless --mode multi_query --llm-model openai-chat:qwen3:8b"
+OPENAI_BASE_URL=http://localhost:11434/v1 make eval-retrieval EVAL_ARGS="\
+    --embedding-base-url http://localhost:11434/v1 --embedding-model bge-m3 --keyless \
+    --mode multi_query --llm-model openai-chat:qwen3:8b"
 ```
 
 To samo dotyczy każdego endpointu, który oferuje tylko chat completions.
