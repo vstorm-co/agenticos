@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep highlighted dropdown, context-menu and select rows visible against dark popover surfaces, including action descriptions and keyboard focus. The chat composer menu now clearly indicates the full action under the pointer.
+
 - Reorganize organization Proactivity into independent feature cards, shared budget and delivery settings, explicit draft-save controls and collapsible background-service configuration. Clarify the minimum monitoring interval and retain visible usage and run history.
 
 - Allow the schedule time-zone list to scroll inside a dialog, with its own nested scroll lock and a list height constrained to the available space.

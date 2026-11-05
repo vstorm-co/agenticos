@@ -5,3 +5,7 @@ export const FORM_CONTROL =
 /** Shared trigger for toolbar filters, whether single- or multi-select. */
 export const FILTER_CONTROL =
   "border-foreground/[0.07] bg-foreground/[0.035] text-foreground/90 hover:border-foreground/12 hover:bg-foreground/[0.075] data-[state=open]:border-foreground/12 data-[state=open]:bg-foreground/[0.075] h-9 gap-1.5 rounded-lg px-2.5 py-1 text-[13px] font-normal focus-visible:border-foreground/30 focus-visible:ring-foreground/10 focus-visible:ring-[3px] focus-visible:outline-none";
+
+/** Highlight stays visible on both card and popover surfaces. */
+export const MENU_ITEM_FOCUS =
+  "focus:bg-foreground/[0.09] focus:text-foreground data-[highlighted]:bg-foreground/[0.09] data-[highlighted]:text-foreground focus:[&_.text-muted-foreground]:text-foreground/80 data-[highlighted]:[&_.text-muted-foreground]:text-foreground/80";

@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp, ListFilter, type LucideIcon } from "lucide-react";
-import { FILTER_CONTROL, FORM_CONTROL } from "./control-styles";
+import { FILTER_CONTROL, FORM_CONTROL, MENU_ITEM_FOCUS } from "./control-styles";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -146,7 +146,8 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "data-[state=checked]:bg-accent/60 focus:bg-accent focus:text-accent-foreground touch:min-h-11 relative flex min-h-9 w-full cursor-default touch-manipulation items-center rounded-lg py-2 pr-9 pl-3 text-[13px] outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:font-medium",
+      MENU_ITEM_FOCUS,
+      "data-[state=checked]:bg-foreground/[0.05] touch:min-h-11 relative flex min-h-9 w-full cursor-default touch-manipulation items-center rounded-lg py-2 pr-9 pl-3 text-[13px] outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[state=checked]:font-medium",
       className,
     )}
     {...props}
