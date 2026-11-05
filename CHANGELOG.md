@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.48.1] - 2026-11-05
+
 ### Fixed
 
 - Authenticate the GitHub metadata lookup used to publish the Homebrew cask, so a refusal of anonymous API access does not stop tap publication. SSH host-key checking and deploy-key cleanup remain enforced.
@@ -20018,7 +20020,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.48.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.48.1...HEAD
+[1.48.1]: https://github.com/vstorm-co/agenticos/compare/v1.48.0...v1.48.1
 [1.48.0]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...v1.48.0
 [1.47.3]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...v1.47.3
 [1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
