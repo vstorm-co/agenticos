@@ -156,6 +156,8 @@ Projects show descriptions, and agent rows use the same avatars as chat.
 
 Dashboard cards use the same compact rows, service marks and status labels. Counts and charts adapt to the card width, including custom layouts. Loading placeholders follow the kind of content being loaded; an unavailable briefing shows a retry instead of claiming that no proposals exist.
 
+Every agent’s empty chat shows **Needs your attention** and **Background work**, summarizing the member’s Inbox and active background tasks in the current organization. The greeting and opening messages still belong to the selected agent.
+
 ## The inbox { #the-inbox }
 
 **Inbox**, under Chat in the sidebar, is what the platform brought you on its

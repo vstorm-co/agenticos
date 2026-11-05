@@ -83,15 +83,27 @@ describe("ChatEmptyState", () => {
     expect(onPick).toHaveBeenCalledWith("Draft my email");
   });
 
-  it("keeps the person's first messages and suggestions to the starter agent", () => {
+  it("keeps personal first messages to the starter agent while sharing the workspace overview", () => {
     env.personal = ["Show my pipeline"];
     render(<ChatEmptyState onPick={vi.fn()} />);
 
     expect(screen.queryByText("Show my pipeline")).toBeNull();
-    expect(screen.queryByTestId("suggestions")).toBeNull();
-    // Nor asked for: another agent's empty chat may render with no query client.
+    expect(screen.getByTestId("suggestions")).toBeInTheDocument();
+    // Personalized openers are still fetched only for the starter agent.
     expect(asked.count).toBe(0);
   });
+
+  it.each(["architect", "coder", "custom-assistant"])(
+    "shows the workspace overview beside %s's own first messages",
+    (slug) => {
+      env.agents = [{ ...AGENT, slug, starters: ["My own opener"] }];
+      render(<ChatEmptyState onPick={vi.fn()} />);
+      expect(screen.getByTestId("suggestions")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "My own opener" })).toBeInTheDocument();
+      expect(screen.getByText("How can I help, Ada?")).toBeInTheDocument();
+      expect(asked.count).toBe(0);
+    },
+  );
 
   it("offers the chat's own to the starter agent before its first night", () => {
     env.agents = [{ ...AGENT, slug: "agenticos", starters: [] }];

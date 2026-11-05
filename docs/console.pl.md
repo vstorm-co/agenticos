@@ -1,5 +1,5 @@
 ---
-source_sha: "07314a789f01"
+source_sha: "2353dfc1e3f6"
 ---
 
 # Konsola { #the-console }
@@ -165,6 +165,8 @@ w _Your period_, aby zobaczyć przedział i wartość; koszty są kwotami. Proje
 pokazują opisy, a wiersze agentów używają tych samych avatarów co chat.
 
 Karty dashboardu korzystają ze spójnych, zwartych wierszy, oznaczeń usług i etykiet statusu. Liczniki i wykresy dostosowują się do szerokości karty, również we własnych układach. Placeholdery odpowiadają rodzajowi ładowanej zawartości; niedostępny briefing pokazuje możliwość ponowienia zamiast informacji o braku propozycji.
+
+Pusty czat każdego agenta pokazuje przegląd spraw wymagających uwagi oraz pracy w tle: Inbox członka i aktywne zadania w bieżącej organizacji. Powitanie i proponowane pierwsze wiadomości nadal pochodzą od wybranego agenta.
 
 ## Inbox { #the-inbox }
 

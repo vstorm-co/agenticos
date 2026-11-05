@@ -26,7 +26,7 @@ import type { Agent } from "@/types/agents";
 import { ChatWelcome, WelcomeIcon, type WelcomeSuggestion } from "./chat-welcome";
 import { WorkspacePulse } from "./workspace-pulse";
 
-/** The starter agent, whose empty chat carries what the platform proposes to the person. */
+/** The starter agent also offers personalized opening messages. */
 const STARTER_SLUG = "agenticos";
 
 /**
@@ -146,7 +146,7 @@ function Welcome({ agent, starters, onPick }: WelcomeProps) {
         )
       }
       suggestions={suggestions}
-      notice={isStarter && agent ? <WorkspacePulse /> : undefined}
+      notice={agent ? <WorkspacePulse /> : undefined}
       onPick={onPick}
       footer={
         <>

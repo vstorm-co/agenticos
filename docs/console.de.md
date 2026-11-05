@@ -1,5 +1,5 @@
 ---
-source_sha: "07314a789f01"
+source_sha: "2353dfc1e3f6"
 ---
 
 # Die Konsole { #the-console }
@@ -174,6 +174,8 @@ als Geldbetrag formatiert. Projekte zeigen Beschreibungen, Agentenzeilen dieselb
 Avatare wie im Chat.
 
 Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statusbezeichnungen. Kennzahlen und Diagramme passen sich der Kartenbreite an, auch in eigenen Anordnungen. Ladeplatzhalter entsprechen dem Inhaltstyp; ein nicht verfügbares Briefing bietet einen erneuten Versuch an, statt fälschlich keine Vorschläge zu melden.
+
+Der leere Chat jedes Agenten zeigt offene Anliegen und Hintergrundarbeit: den persönlichen Posteingang und aktive Hintergrundaufgaben in der aktuellen Organisation. Begrüßung und erste Nachrichtenvorschläge stammen weiterhin vom gewählten Agenten.
 
 ## Der Posteingang { #the-inbox }
 

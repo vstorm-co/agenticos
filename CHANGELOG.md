@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show the Inbox and background-work overview in every agent’s empty chat, while retaining agent-specific greetings and opening messages.
+
 - Apply the same visible hover and keyboard selection to model, member, sharing and workflow command pickers; retain readable destructive-action colors in agent menus.
 
 - Keep highlighted dropdown, context-menu and select rows visible against dark popover surfaces, including action descriptions and keyboard focus. The chat composer menu now clearly indicates the full action under the pointer.

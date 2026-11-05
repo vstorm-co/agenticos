@@ -1,5 +1,5 @@
 ---
-source_sha: "07314a789f01"
+source_sha: "2353dfc1e3f6"
 ---
 
 # La consola { #the-console }
@@ -173,6 +173,8 @@ muestran como importes. Los proyectos muestran descripciones y los agentes usan
 los mismos avatares que en el chat.
 
 Las tarjetas del panel usan filas compactas coherentes, símbolos de servicios y etiquetas de estado. Las cifras y los gráficos se adaptan al ancho de la tarjeta, también en diseños personalizados. Los indicadores de carga reflejan el tipo de contenido; un resumen no disponible permite reintentar en vez de afirmar que no hay propuestas.
+
+El chat vacío de cada agente muestra los asuntos que requieren atención y el trabajo en segundo plano: la bandeja del miembro y sus tareas activas en la organización actual. El saludo y las sugerencias de mensajes siguen siendo propios del agente seleccionado.
 
 ## La bandeja { #the-inbox }
 
