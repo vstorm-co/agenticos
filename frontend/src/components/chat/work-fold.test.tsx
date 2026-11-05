@@ -146,3 +146,25 @@ describe("waiting activity", () => {
     expect(screen.queryByText(/Working/)).toBeNull();
   });
 });
+
+it("updates one compact live disclosure without exposing its detailed steps", async () => {
+  const { rerender } = render(
+    <WorkFold steps={7} durationMs={18_000} running activity="List inbox cases">
+      <p>Detailed tool arguments</p>
+    </WorkFold>,
+  );
+  const toggle = screen.getByRole("button", { name: /Working for 18s/ });
+  expect(toggle).toHaveTextContent("List inbox cases");
+  expect(screen.queryByText("Detailed tool arguments")).toBeNull();
+  rerender(
+    <WorkFold steps={7} durationMs={19_000} running activity="Thinking...">
+      <p>Detailed tool arguments</p>
+    </WorkFold>,
+  );
+  expect(screen.getByRole("button", { name: /Working for 19s/ })).toBe(toggle);
+  expect(toggle).toHaveTextContent("Thinking...");
+  expect(screen.queryByText("List inbox cases")).toBeNull();
+  await userEvent.click(toggle);
+  expect(screen.getByText("Detailed tool arguments")).toBeVisible();
+  expect(screen.queryByText("Thinking...")).toBeNull();
+});

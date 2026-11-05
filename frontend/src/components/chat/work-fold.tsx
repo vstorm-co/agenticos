@@ -106,7 +106,7 @@ export function WorkFold({
   running = false,
   waiting,
   children,
-  preview,
+  activity,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
@@ -116,7 +116,8 @@ export function WorkFold({
   running?: boolean;
   waiting?: "awaiting_answer" | "awaiting_approval";
   children: ReactNode;
-  preview?: ReactNode;
+  /** A short live action label, never a streaming thought or a nested tool card. */
+  activity?: string;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
@@ -147,7 +148,7 @@ export function WorkFold({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 max-w-full items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
+        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
         <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
           {waiting === "awaiting_approval" ? (
@@ -162,7 +163,12 @@ export function WorkFold({
             <Check className="size-3.5" />
           )}
         </span>
-        <span className={cn("leading-5", (running || waiting) && "text-foreground/85")}>
+        <span
+          className={cn(
+            "shrink-0 leading-5 whitespace-nowrap tabular-nums",
+            (running || waiting) && "text-foreground/85",
+          )}
+        >
           {label}
         </span>
         <ChevronRight
@@ -172,13 +178,22 @@ export function WorkFold({
             open && "rotate-90",
           )}
         />
+        {!open && running && activity && (
+          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs" title={activity}>
+            {activity}
+          </span>
+        )}
         {running && steps > 0 && (
-          <span className="text-muted-foreground text-xs">
+          <span
+            className={cn(
+              "text-muted-foreground shrink-0 text-xs",
+              activity && !open && "hidden sm:inline",
+            )}
+          >
             {t("activityCount", { count: steps })}
           </span>
         )}
       </button>
-      {!open && running && preview && <div className="mt-1 pl-7">{preview}</div>}
       {open && <div className="mt-2 space-y-2">{children}</div>}
     </div>
   );

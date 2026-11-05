@@ -11,8 +11,8 @@ import { drawnUnderTheAnswer } from "@/lib/turn-extras";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
-import { answerPreview, type DelegateRef } from "@/lib/delegations";
-import type { McpServerRef } from "@/lib/tool-steps";
+import type { DelegateRef } from "@/lib/delegations";
+import { toolStep, type McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
@@ -86,20 +86,14 @@ export function TurnParts({
       ? "awaiting_approval"
       : undefined;
   const elapsed = useTurnElapsed(startedAt, isStreaming && !waiting);
+  const tChat = useTranslations("chat");
+  const tTools = useTranslations("chat.tools");
   const latest = parts.at(-1);
-  const preview =
-    latest?.type === "thinking" && latest.content ? (
-      <p className="text-muted-foreground line-clamp-3 max-w-2xl text-[13px] leading-relaxed whitespace-pre-line">
-        {answerPreview(latest.content.slice(-600))}
-      </p>
-    ) : latest?.toolCall ? (
-      <ToolCallCard
-        toolCall={latest.toolCall}
-        mcpServers={mcpServers}
-        agents={agents}
-        autoExpand={false}
-      />
-    ) : null;
+  const activity = latest?.toolCall
+    ? toolStep(latest.toolCall.name, latest.toolCall.args, false, tTools, mcpServers).label
+    : latest?.type === "thinking"
+      ? tChat("thinking")
+      : undefined;
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
   const render = (run: PartRun, visuals = true, afterWork = false) =>
@@ -201,7 +195,7 @@ export function TurnParts({
             durationMs={null}
             stopped={stopped && group.some((run) => run.isLast)}
             running={running}
-            preview={preview}
+            activity={activity}
             waiting={groupWaiting}
           >
             {group.map((run) => render(run, false))}
@@ -246,7 +240,7 @@ export function TurnParts({
         durationMs={durationMs ?? elapsed}
         stopped={stopped}
         running={isStreaming && !waiting}
-        preview={preview}
+        activity={activity}
         waiting={foldedWaiting}
       >
         {split.folded.map((run) => render(run, false))}

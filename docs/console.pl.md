@@ -1,5 +1,5 @@
 ---
-source_sha: "ce7f38627cac"
+source_sha: "6a0ac268c613"
 ---
 
 # Konsola { #the-console }
@@ -448,7 +448,7 @@ Ponowne otwarcie czatu odtwarza też zatwierdzenia i pytania narzędzi subagenta
 
 Napływający tekst pozostaje czytelny podczas ładowania modułu formatowania Markdown. Pole wiadomości ma nieprzezroczyste tło i delikatny stan fokusu, bez animowanej ramki i rozmywania treści pod spodem.
 
-Podczas pracy agenta widać podgląd ostatniego kroku lub rozumowania, a wcześniejsza aktywność pozostaje zwinięta. Segmenty samej aktywności z jednego uruchomienia mają wspólne podsumowanie i czas rozpoczęcia. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
+Podczas pracy agenta krótka nazwa czynności jest widoczna w wierszu statusu. Pozostaje w jednej linii; pełne kroki narzędzi i rozumowanie znajdują się pod rozwinięciem. Segmenty samej aktywności z jednego uruchomienia mają wspólne podsumowanie i czas rozpoczęcia. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
 
 Udane zapisy MCP pokazują karty z linkami do projektów, tabel, zadań, rekordów, agentów, workflow, skilli i Context. Błędy nie tworzą kart sukcesu. Wysłana wiadomość pojawia się blisko góry z miejscem na odpowiedź; ręczne przewijanie zachowuje pozycję. Listy Person i Agent przewijają się w oknie rekordu. Pytania działają także po wznowieniu czatu przez HTTP po zatwierdzeniu operacji.
 

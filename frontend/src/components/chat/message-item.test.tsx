@@ -1434,9 +1434,9 @@ describe("the work before an answer", () => {
     expect(screen.queryByTestId("tool-tc-read")).toBeNull();
   });
 
-  it("previews the latest live failure while keeping the history collapsed", async () => {
+  it("keeps a live failure inside the activity disclosure", async () => {
     item({ parts: [thought, call("bad", "error")], isStreaming: true });
-    expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
+    expect(screen.queryByTestId("tool-tc-bad")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Working/ }));
     expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
   });
