@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "3b3e2c94ada4"
 ---
 
 # Die Konsole { #the-console }
@@ -486,6 +486,8 @@ sodass eine Routine, die sie vorschlagen, in Ihren Tag fällt. Nichts wartet auf
 sie: Sie sind Wissen für den Agent, kein Zeitplan.
 
 Beim erneuten Öffnen eines Gesprächs sehen Sie die neuesten Nachrichten. Mit **Ältere Nachrichten laden** über dem Verlauf lesen Sie frühere Beiträge. Laufende Antworten und ungespeicherte Ergebnisse bleiben sichtbar, während der gespeicherte Verlauf aktualisiert wird.
+
+Wenn eine Antwort des Assistenten nicht gespeichert werden kann, fordert der Chat Sie auf, benötigten Text vor dem Verlassen des Gesprächs zu kopieren. Das gilt auch für Teilantworten aus unterbrochenen Ausführungen. Der live übertragene Text bleibt sichtbar, kann aber beim erneuten Öffnen des Gesprächs fehlen.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
