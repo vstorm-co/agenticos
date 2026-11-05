@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { usd } from "@/components/evals/format";
 import { ErrorState } from "@/components/states";
-import { ListCard, Skeleton } from "@/components/ui";
+import { Button, ListCard, Skeleton } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
@@ -38,12 +38,19 @@ export function ImproveSessions({
   sessions,
   isLoading,
   error,
+  more,
+  loadingMore,
+  onMore,
   versionLabel,
 }: {
   skillId: string;
   sessions: SkillImprovement[];
   isLoading: boolean;
   error: unknown;
+  /** Older sessions are left to read; how many is not known until they are. */
+  more: boolean;
+  loadingMore: boolean;
+  onMore: () => void;
   /** The applied version's name, when History has it on its page. */
   versionLabel: (versionId: string) => string | null;
 }) {
@@ -53,7 +60,13 @@ export function ImproveSessions({
   return (
     <ListCard
       title={t("title")}
-      counted={isLoading ? null : t("count", { count: sessions.length })}
+      counted={
+        isLoading
+          ? null
+          : more
+            ? t("countMore", { count: sessions.length })
+            : t("count", { count: sessions.length })
+      }
     >
       {error ? (
         <ErrorState description={getErrorMessage(error, tErrors)} />
@@ -98,6 +111,13 @@ export function ImproveSessions({
             );
           })}
         </ol>
+      )}
+      {more && (
+        <div className="px-4 pb-3">
+          <Button variant="outline" size="sm" loading={loadingMore} onClick={onMore}>
+            {t("more")}
+          </Button>
+        </div>
       )}
     </ListCard>
   );

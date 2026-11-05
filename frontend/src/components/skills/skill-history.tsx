@@ -205,6 +205,9 @@ export function SkillHistory({
           sessions={history.sessions}
           isLoading={history.isLoading}
           error={history.error}
+          more={history.more}
+          loadingMore={history.loadingMore}
+          onMore={history.loadMore}
           versionLabel={(id) => {
             const version = versions.find((item) => item.id === id);
             return version ? label(version.number) : null;

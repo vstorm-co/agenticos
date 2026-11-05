@@ -431,6 +431,8 @@ export const qk = {
     agents: (skillId: string) => ["skills", skillId, "agents"] as const,
     improvements: (skillId: string, forkId: string | null) =>
       ["skills", skillId, "improvements", forkId ?? "main"] as const,
+    improvementHistory: (skillId: string, forkId: string | null) =>
+      ["skills", skillId, "improvements", forkId ?? "main", "history"] as const,
     problems: (skillId: string, sessionId: string) =>
       ["skills", skillId, "problems", sessionId] as const,
     awaiting: () => ["skills", "improvements-awaiting"] as const,

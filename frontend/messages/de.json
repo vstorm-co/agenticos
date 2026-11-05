@@ -8412,7 +8412,9 @@
             "failed": "Fehlgeschlagen",
             "cancelled": "Beendet",
             "stopped": "Ohne Änderung gestoppt"
-          }
+          },
+          "countMore": "Neueste {count}",
+          "more": "Ältere Sitzungen zeigen"
         }
       },
       "tree": {

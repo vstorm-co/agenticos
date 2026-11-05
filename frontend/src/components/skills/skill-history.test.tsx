@@ -246,6 +246,33 @@ describe("SkillHistory", () => {
     access.runsView = false;
   });
 
+  it("reads older Improve sessions a page at a time", async () => {
+    access.runsView = true;
+    serve();
+    const versions = vi.mocked(apiClient.get).getMockImplementation()!;
+    const page = (from: number, count: number) =>
+      Array.from({ length: count }, (_, index) =>
+        skillSession({ id: `s-${from + index}`, status: "accepted", outcome: "discarded" }),
+      );
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/skills/s1/improvements") {
+        const skip = (options?.params as Record<string, string> | undefined)?.skip;
+        return skip === "0" ? page(0, 20) : page(20, 3);
+      }
+      return versions(path, options);
+    });
+    mount();
+
+    expect(await screen.findByText("Newest 20")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show older sessions" }));
+    expect(await screen.findByText("23 sessions")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show older sessions" })).toBeNull();
+    expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/improvements", {
+      params: { main: "true", skip: "20", limit: "20" },
+    });
+    access.runsView = false;
+  });
+
   it("says when the line's Improve sessions cannot be read", async () => {
     access.runsView = true;
     serve();
