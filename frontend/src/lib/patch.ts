@@ -67,3 +67,29 @@ export function capHunks(
   }
   return { hunks: shown, hidden };
 }
+
+/** How many lines one task's diffs draw between them, across all its files. */
+export const MAX_CHANGE_SET_LINES = 2000;
+
+/**
+ * Each file with its capped hunks, out of one budget for the whole change set.
+ *
+ * `capHunks` bounds a file, but a patch near its ceiling can be spread over
+ * hundreds of files, each under that bound: a file drawn after the budget is
+ * spent shows no lines and counts them all.
+ */
+export function capChangeSet<File extends { patch: string | null }>(
+  files: File[],
+  perFile = MAX_PATCH_LINES,
+  total = MAX_CHANGE_SET_LINES,
+): { file: File; hunks: Hunk[]; hidden: number }[] {
+  let left = total;
+  return files.map((file) => {
+    const capped = capHunks(
+      file.patch === null ? [] : hunksOf(file.patch),
+      Math.min(perFile, left),
+    );
+    left -= capped.hunks.reduce((drawn, hunk) => drawn + hunk.lines.length, 0);
+    return { file, ...capped };
+  });
+}

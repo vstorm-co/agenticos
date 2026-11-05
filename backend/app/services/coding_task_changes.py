@@ -55,9 +55,7 @@ class CodingTaskChangeService:
         Raises:
             NotFoundError: If there is no such change set the caller may read.
         """
-        missing = NotFoundError(
-            message="Change set not found", details={"change_id": str(change_id)}
-        )
+        missing = NotFoundError(message="Change set not found", details={"change_id": change_id})
         if ctx.user_id is None:
             raise missing
         change = await change_repo.get_in_organization(

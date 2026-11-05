@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Complete the coding-task diff integration from PR #2728: bound rendering to 2,000 lines across a change set, retry transient fetch failures once, keep sandbox stderr out of snapshot failure logs, and preserve UUIDs in refusal details.
+
 - Remove the standalone Tables capability and its UI and toolset. Table operations use AgenticOS MCP. Stored specs migrate to version 14: existing app table grants are retained as `table_bindings`, and project trackers connect MCP instead of adding Tables. Operators must explicitly connect platform MCP on old agents that do not already have it; existing connection restrictions and approvals are preserved.
 
 - Recover every pending approval batch after worker continuations and refresh parked chat turns on run updates without replacing live drafts. Keep live activity grouping stable, avoid marking pending steps Done, and update elapsed labels once per second. Page long skill references, prioritize exact tool names over nested schemas, and avoid requesting duplicate Tables tools when AgenticOS MCP already provides record operations.

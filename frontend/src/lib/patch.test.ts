@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { capHunks, hunksOf } from "./patch";
+import { capChangeSet, capHunks, hunksOf } from "./patch";
 
 describe("hunksOf", () => {
   it("drops the header and reads each hunk's lines by their mark", () => {
@@ -72,5 +72,33 @@ describe("capHunks", () => {
 
   it("leaves a short diff as it is", () => {
     expect(capHunks([hunk("@@ a", 2)])).toEqual({ hunks: [hunk("@@ a", 2)], hidden: 0 });
+  });
+});
+
+describe("capChangeSet", () => {
+  const patch = (count: number) => ({
+    patch: `@@ -0,0 +1,${count} @@\n${Array.from({ length: count }, (_, index) => `+${index}\n`).join("")}`,
+  });
+  const shown = (capped: ReturnType<typeof capChangeSet>) =>
+    capped.map(({ hunks, hidden }) => [
+      hunks.reduce((total, hunk) => total + hunk.lines.length, 0),
+      hidden,
+    ]);
+
+  it("caps each file, and the whole change set, at its own limit", () => {
+    // Many files near the patch ceiling must not draw a table row per line.
+    expect(shown(capChangeSet([patch(5), patch(5), patch(5), patch(5)], 4, 10))).toEqual([
+      [4, 1],
+      [4, 1],
+      [2, 3],
+      [0, 5],
+    ]);
+  });
+
+  it("reads a file with no patch as no lines", () => {
+    expect(shown(capChangeSet([{ patch: null }, patch(2)]))).toEqual([
+      [0, 0],
+      [2, 0],
+    ]);
   });
 });

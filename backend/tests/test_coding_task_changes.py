@@ -530,10 +530,26 @@ class TestWhenItCannotBeTaken:
     async def test_a_snapshot_that_failed_is_logged_and_the_store_removed(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        shell = _Answering({_changes.BEGIN: CommandResult(exit_code=1, stdout="", stderr="no")})
+        shell = _Answering(
+            {_changes.BEGIN: CommandResult(exit_code=1, stdout="", stderr="SECRET=hunter2")}
+        )
         assert await _changes.begin(_ctx(shell)) is None
-        assert "could not be snapshotted (exit 1): no" in caplog.text
+        assert "could not be snapshotted (exit 1)" in caplog.text
+        # The sandbox writes stderr, and a task can make git print the workspace.
+        assert "hunter2" not in caplog.text
         assert shell.ran[-1] == _changes.DISCARD
+
+    @pytest.mark.security
+    async def test_a_failed_diff_logs_its_exit_code_and_not_the_sandboxs_stderr(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        shell = _Answering(
+            {_changes.FINISH: CommandResult(exit_code=1, stdout="", stderr="SECRET=hunter2")}
+        )
+        baseline = _changes.Baseline(store="/tmp/agenticos-changes/x", tree="a" * 40)  # noqa: S108
+        assert await _changes.finish(_ctx(shell), baseline) is None
+        assert "could not be read (exit 1)" in caplog.text
+        assert "hunter2" not in caplog.text
 
     async def test_a_sandbox_that_refused_the_snapshot_costs_only_the_diff(self) -> None:
         shell = _Answering({_changes.BEGIN: WorkspaceError("gone")})
@@ -618,9 +634,12 @@ class TestReadingIt:
         self, repo: AsyncMock, conversations: AsyncMock
     ) -> None:
         repo.get_in_organization.return_value = None
-        with pytest.raises(NotFoundError):
-            await CodingTaskChangeService(MagicMock()).get(CTX, uuid4())
+        change_id = uuid4()
+        with pytest.raises(NotFoundError) as refused:
+            await CodingTaskChangeService(MagicMock()).get(CTX, change_id)
         conversations.get_conversation.assert_not_awaited()
+        # The id itself: the handler encodes `details` as response models are.
+        assert refused.value.details == {"change_id": change_id}
 
     @pytest.mark.security
     async def test_one_in_a_conversation_the_caller_may_not_read_is_missing(
