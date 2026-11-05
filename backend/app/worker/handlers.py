@@ -71,6 +71,7 @@ def production() -> Handlers:
     return by_kind(
         [
             *ingest().values(),
+            Handler(jobs.PROCESS_CHANNEL_DELIVERY, channel_tasks.process_channel_delivery),
             Handler(jobs.PROCESS_EMAIL_DELIVERY, channel_tasks.process_email_delivery),
             Handler(jobs.DELIVER_CHANNEL_HANDBACK, channel_tasks.deliver_handback),
             Handler(jobs.FIRE_TRIGGER, trigger_tasks.fire_trigger),

@@ -1836,3 +1836,33 @@ def test_private_cloud_coding_rejects_a_local_server_folder_at_publish() -> None
         }
     )
     assert _coding_agent_problems(service) == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("access", ["read_only", "edit"])
+@pytest.mark.parametrize("shared", ["workspace", "room"])
+async def test_personal_cloud_refuses_shared_sources_before_opening_credentials(
+    access: str, shared: str
+) -> None:
+    from unittest.mock import MagicMock
+
+    executor = MagicMock()
+    shell = _Shell()
+    ctx = _ctx(
+        shell,
+        audience=RunAudience(user_id=RUNNER, room_key="room:slack:C1")
+        if shared == "room"
+        else None,
+    )
+    tool = _tools(
+        "codex",
+        access=access,
+        api_key=None,
+        runs_on="personal_sandbox",
+        personal_executor=executor,
+        shared_sandbox=shared == "workspace",
+    )["run_coding_agent"]
+    answer = await tool.function(ctx, task="Run the repository's tests")
+    assert "sources from a shared workspace" in answer
+    executor.session.assert_not_called()
+    assert shell.commands == []

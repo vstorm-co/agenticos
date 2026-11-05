@@ -368,6 +368,11 @@ class ProjectService:
             resource_type=PROJECT.key,
             resource_id=project.id,
         )
+        from app.services.tasks import TaskService
+
+        await TaskService(self.db).purge_scope(
+            "project", project.id, organization_id=ctx.organization_id
+        )
         await project_repo.delete(self.db, project)
         await record_audit(
             self.db,

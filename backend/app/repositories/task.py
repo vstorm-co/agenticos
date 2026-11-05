@@ -2,13 +2,13 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.outcome import Outcome
 from app.db.models.suggestion import Suggestion
 from app.db.models.task_board import TaskBoard, TaskLink
-from app.db.models.virtual_table import VirtualTableRecord
+from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
 
 
 async def boards(db: AsyncSession, organization_id: UUID) -> list[TaskBoard]:
@@ -117,3 +117,25 @@ async def finding_for_case(
             Suggestion.user_id == user_id,
         )
     )
+
+
+async def in_scope(
+    db: AsyncSession, kind: str, scope_id: UUID, organization_id: UUID | None
+) -> list[TaskBoard]:
+    query = select(TaskBoard).where(TaskBoard.scope_kind == kind, TaskBoard.scope_id == scope_id)
+    if organization_id is not None:
+        query = query.where(TaskBoard.organization_id == organization_id)
+    return list(await db.scalars(query.order_by(TaskBoard.organization_id)))
+
+
+async def board_links(db: AsyncSession, board: TaskBoard) -> list[TaskLink]:
+    return list(await db.scalars(select(TaskLink).where(TaskLink.board_id == board.id)))
+
+
+async def purge_table(db: AsyncSession, board: TaskBoard) -> None:
+    await db.execute(
+        delete(VirtualTable).where(
+            VirtualTable.id == board.table_id, VirtualTable.organization_id == board.organization_id
+        )
+    )
+    await db.flush()

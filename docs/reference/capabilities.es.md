@@ -1,5 +1,5 @@
 ---
-source_sha: "2483572bdd9d"
+source_sha: "6054383d8e14"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1534,7 +1534,11 @@ segundo intento se cobraría de nuevo.
 
 ## Coding agent { #coding-agent }
 
-**Cuentas personales en la nube.** En **Settings → Profile → Coding accounts**, conecta una clave de Anthropic/token de configuración de Claude, una clave de OpenAI o un nuevo inicio de sesión de ChatGPT y habilita su uso explícitamente en esta organización. Elige **Private cloud task with my account** en Coding agent. Solo las tareas autenticadas que inicies en el chat web/API pueden usarla; no horarios, canales, claves API ni suplantación. Otros miembros no pueden tomar prestada tu cuenta. Un contenedor independiente recibe una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos compartidos del proyecto no cambian automáticamente. Revocar acceso a la cuenta o al proyecto cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+**Cuentas personales en la nube.** En **Settings → Profile → Coding accounts**, conecta una clave de Anthropic/token de configuración de Claude, una clave de OpenAI o un nuevo inicio de sesión de ChatGPT y habilita su uso explícitamente en esta organización. Elige **Private cloud task with my account** en Coding agent. Solo las tareas autenticadas que inicies en el chat web/API pueden usarla; no horarios, canales, claves API ni suplantación. Otros miembros no pueden tomar prestada tu cuenta.
+
+Un contenedor independiente recibe una copia limitada del código (500 archivos, 1 MiB por archivo, 16 MiB en total; sin enlaces simbólicos ni carpetas de plataforma o caché). El informe final identifica cuenta y snapshot, con diff y ZIP en el chat. Los archivos de origen no cambian automáticamente. Revocar el acceso a la cuenta cancela el trabajo. También puedes revocar el permiso externo de ChatGPT en sus ajustes. Las credenciales organizativas existentes y los inicios de sesión CLI locales siguen separados. Actualiza API y workers juntos después de `0290_personal_coding_accounts.py`.
+
+El modo personal en la nube solo acepta workspaces de origen privados. Rechaza proyectos, workspaces de agente/canal, chats grupales y conversaciones compartidas para editar antes de cargar credenciales o copiar archivos. Un contenedor privado de destino no convierte en fiable el código controlado por colaboradores. Usa el modo de programación configurado por la organización para proyectos compartidos. La redacción del resultado no protege credenciales frente al código ejecutable.
 
 `run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 

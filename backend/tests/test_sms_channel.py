@@ -203,18 +203,14 @@ class TestTheWebhook:
             "MediaContentType0": "image/png",
             "MediaUrl0": f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages/{message}/Media/{media}",
         }
-        event = AsyncMock()
-        answer = AsyncMock(return_value="an-approval")
+        queued, answer = AsyncMock(), AsyncMock()
         with (
             patch(
                 "app.api.routes.v1.sms_webhook.unseal_bot_token",
                 return_value=f"{sid}:secret-token:+15550001111",
             ),
-            patch(
-                "app.api.routes.v1.sms_webhook.spawn", side_effect=lambda coro, name: coro.close()
-            ),
-            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=event),
-            patch("app.api.routes.v1.sms_webhook.sms_prompts.answer", new=answer),
+            patch("app.services.channel_bot.ChannelBotService.queue_delivery", new=queued),
+            patch("app.services.channels.sms_prompts.answer", new=answer),
         ):
             async with _client(bot) as client:
                 response = await client.post(
@@ -224,21 +220,17 @@ class TestTheWebhook:
                 )
         assert response.status_code == 200
         answer.assert_not_awaited()
-        event.assert_called_once()
-        incoming = event.call_args.args[0]
+        queued.assert_awaited_once()
+        incoming = queued.await_args.args[2]
         assert incoming.text == body and incoming.attachments[0].handle == params["MediaUrl0"]
 
     async def test_a_signed_text_is_acknowledged_and_handed_to_the_router(self) -> None:
         bot = self._bot()
         params = {"From": "+15559998888", "Body": "hello", "MessageSid": "SM1"}
-        spawned: list[object] = []
+        queued = AsyncMock()
         with (
             patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
-            patch(
-                "app.api.routes.v1.sms_webhook.spawn",
-                side_effect=lambda coro, name: (spawned.append(name), coro.close()),
-            ),
-            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=MagicMock()),
+            patch("app.services.channel_bot.ChannelBotService.queue_delivery", new=queued),
         ):
             async with _client(bot) as client:
                 response = await client.post(
@@ -246,17 +238,19 @@ class TestTheWebhook:
                     content=urlencode(params),
                     headers=_signed(bot.id, params),
                 )
-
         assert response.status_code == 200 and "<Response/>" in response.text
         assert response.headers["content-type"].startswith("text/xml")
-        assert spawned == [f"sms_event:{bot.id}"]
+        queued.assert_awaited_once()
+        assert queued.await_args.args[1] == params
 
     async def test_an_unsigned_or_wrongly_signed_text_is_refused_and_runs_nothing(self) -> None:
         bot = self._bot()
         params = {"From": "+15559998888", "Body": "hello"}
         with (
             patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
-            patch("app.api.routes.v1.sms_webhook.spawn") as spawn,
+            patch(
+                "app.services.channel_bot.ChannelBotService.queue_delivery", new=AsyncMock()
+            ) as queued,
         ):
             async with _client(bot) as client:
                 forged = await client.post(
@@ -267,9 +261,8 @@ class TestTheWebhook:
                 unsigned = await client.post(
                     f"{self.ROOT}/{bot.id}/webhook", content=urlencode(params)
                 )
-
         assert forged.status_code == 403 and unsigned.status_code == 403
-        assert not spawn.called
+        queued.assert_not_awaited()
 
     async def test_a_bot_whose_token_cannot_sign_refuses_rather_than_trusting(self) -> None:
         bot = self._bot()
@@ -297,7 +290,9 @@ class TestTheWebhook:
         params = {"From": "+15559998888", "Body": ""}
         with (
             patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
-            patch("app.api.routes.v1.sms_webhook.spawn") as spawn,
+            patch(
+                "app.services.channel_bot.ChannelBotService.queue_delivery", new=AsyncMock()
+            ) as queued,
         ):
             async with _client(bot) as client:
                 response = await client.post(
@@ -305,8 +300,8 @@ class TestTheWebhook:
                     content=urlencode(params),
                     headers=_signed(bot.id, params),
                 )
-
-        assert response.status_code == 200 and not spawn.called
+        assert response.status_code == 200
+        queued.assert_not_awaited()
 
 
 def test_the_adapter_is_the_one_registered_for_sms() -> None:
@@ -607,49 +602,26 @@ class TestNumberedAnswers:
         self, prompts: _Redis
     ) -> None:
         from app.services.channels import sms_prompts
+        from app.services.channels.prompts import ChannelPrompts
+        from app.services.channels.router import ChannelMessageRouter
+        from app.worker.tasks.channel_tasks import _route_inbound
 
-        bot = MagicMock(id=uuid4(), platform="sms")
-        await sms_prompts.remember(str(bot.id), "+15559998888", ["aos:a:0", "aos:a:1"], start=1)
-        params = {"From": "+15559998888", "Body": "2", "MessageSid": "SM9"}
-        spawned: list[str] = []
-        pressed = MagicMock()
-        with (
-            patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
-            patch(
-                "app.api.routes.v1.sms_webhook.claim_delivery",
-                new=AsyncMock(side_effect=[True, False]),
-            ),
-            patch(
-                "app.api.routes.v1.sms_webhook.spawn",
-                side_effect=lambda coro, name: (spawned.append(name), coro.close()),
-            ),
-            patch(
-                "app.api.routes.v1.sms_webhook.link_has_lapsed", new=AsyncMock(return_value=False)
-            ),
-            patch("app.api.routes.v1.sms_webhook.process_channel_press", new=pressed),
-            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=MagicMock()),
-        ):
-            async with _client(bot) as client:
-                response = await client.post(
-                    f"{settings.API_V1_STR}/sms/{bot.id}/webhook",
-                    content=urlencode(params),
-                    headers=_signed(bot.id, params),
-                )
-                duplicate = await client.post(
-                    f"{settings.API_V1_STR}/sms/{bot.id}/webhook",
-                    content=urlencode(params),
-                    headers=_signed(bot.id, params),
-                )
-
-        assert duplicate.status_code == 200
-        assert pressed.call_count == 1
-        assert response.status_code == 200 and spawned == [f"sms_press:{bot.id}"]
-        press = pressed.call_args.args[0]
-        assert (press.platform, press.value, press.platform_user_id) == (
-            "sms",
-            "aos:a:1",
-            "+15559998888",
+        bot_id = str(uuid4())
+        await sms_prompts.remember(bot_id, "+15559998888", ["aos:a:0", "aos:a:1"], start=1)
+        incoming = SmsAdapter().parse_incoming(
+            {"From": "+15559998888", "Body": "2", "MessageSid": "SM9"}, bot_id
         )
+        assert incoming is not None
+        with (
+            patch(
+                "app.services.channels.sms_links.link_has_lapsed", new=AsyncMock(return_value=False)
+            ),
+            patch.object(ChannelPrompts, "press", new=AsyncMock()) as pressed,
+            patch.object(ChannelMessageRouter, "route", new=AsyncMock()) as routed,
+        ):
+            await _route_inbound(incoming, MagicMock())
+        routed.assert_not_awaited()
+        assert pressed.await_args.args[0].value == "aos:a:1"
 
 
 class TestALinkedNumberExpires:
@@ -842,32 +814,27 @@ class TestASettledPromptIsForgotten:
         self, prompts: _Redis
     ) -> None:
         from app.services.channels import sms_prompts
+        from app.services.channels.prompts import ChannelPrompts
+        from app.services.channels.router import ChannelMessageRouter
+        from app.worker.tasks.channel_tasks import _route_inbound
 
-        bot = MagicMock(id=uuid4(), platform="sms")
-        await sms_prompts.remember(str(bot.id), "+15559998888", ["aos:a:0"], start=1)
-        params = {"From": "+15559998888", "Body": "1", "MessageSid": "SM9"}
-        spawned: list[str] = []
+        bot_id = str(uuid4())
+        await sms_prompts.remember(bot_id, "+15559998888", ["aos:a:0"], start=1)
+        incoming = SmsAdapter().parse_incoming(
+            {"From": "+15559998888", "Body": "1", "MessageSid": "SM9"}, bot_id
+        )
+        assert incoming is not None
         with (
-            patch("app.api.routes.v1.sms_webhook.unseal_bot_token", return_value=TOKEN),
             patch(
-                "app.api.routes.v1.sms_webhook.link_has_lapsed", new=AsyncMock(return_value=True)
+                "app.services.channels.sms_links.link_has_lapsed", new=AsyncMock(return_value=True)
             ),
-            patch(
-                "app.api.routes.v1.sms_webhook.spawn",
-                side_effect=lambda coro, name: (spawned.append(name), coro.close()),
-            ),
-            patch("app.api.routes.v1.sms_webhook.process_channel_press", new=MagicMock()),
-            patch("app.api.routes.v1.sms_webhook.process_channel_event", new=MagicMock()),
+            patch.object(ChannelPrompts, "press", new=AsyncMock()) as pressed,
+            patch.object(ChannelMessageRouter, "route", new=AsyncMock()) as routed,
         ):
-            async with _client(bot) as client:
-                response = await client.post(
-                    f"{settings.API_V1_STR}/sms/{bot.id}/webhook",
-                    content=urlencode(params),
-                    headers=_signed(bot.id, params),
-                )
-
-        assert response.status_code == 200 and spawned == [f"sms_event:{bot.id}"]
-        assert await sms_prompts.answer(str(bot.id), "+15559998888", "1") is None
+            await _route_inbound(incoming, MagicMock())
+        pressed.assert_not_awaited()
+        routed.assert_awaited_once()
+        assert await sms_prompts.answer(bot_id, "+15559998888", "1") is None
 
     async def test_the_lapse_check_reads_the_numbers_identity(self) -> None:
         from datetime import UTC, datetime, timedelta

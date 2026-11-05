@@ -7,13 +7,9 @@ from uuid import UUID
 from pydantic import JsonValue, TypeAdapter, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.background import spawn_after_commit
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.services.channel_bot import ChannelBotService, unseal_webhook_secret
-from app.services.channels import get_adapter, sms_prompts
-from app.services.channels.base import IncomingPress
-from app.services.channels.dedupe import claim_delivery
-from app.worker.background.channel import process_channel_event, process_channel_press
+from app.services.channels import get_adapter
 
 _PAYLOAD = TypeAdapter(dict[str, JsonValue])
 _MAX_BYTES = 256 * 1024
@@ -51,28 +47,4 @@ class ImessageWebhookService:
         incoming = adapter.parse_incoming(payload, str(bot_id))
         if incoming is None:
             return
-        choice = (
-            await sms_prompts.answer(
-                str(bot_id), incoming.platform_chat_id, incoming.text, platform="imessage"
-            )
-            if not incoming.attachments
-            else None
-        )
-        if choice is not None:
-            if not await claim_delivery(incoming):
-                return
-            press = IncomingPress(
-                platform="imessage",
-                bot_id=str(bot_id),
-                platform_user_id=incoming.platform_user_id,
-                platform_chat_id=incoming.platform_chat_id,
-                value=choice,
-                message_id=incoming.message_id,
-            )
-            spawn_after_commit(
-                self._db, process_channel_press(press), name=f"imessage_press:{bot_id}"
-            )
-        else:
-            spawn_after_commit(
-                self._db, process_channel_event(incoming), name=f"imessage_event:{bot_id}"
-            )
+        await ChannelBotService(self._db).queue_delivery(bot, payload, incoming)

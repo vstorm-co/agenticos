@@ -798,6 +798,8 @@ checklist stays internal to a run and does not create scheduled commitments.
 
 Group membership permits reading the group’s task board; writes additionally require table-edit permission or an explicit edit grant. If a reminder’s assigned reviewer loses access, the task becomes blocked and its creator receives an Inbox case to arrange a handoff. New working conversations for project tasks stay in that project. A table quota can prevent the optional task projection of a routine finding, but its working chat, Inbox case and notification are still delivered.
 
+Project task-board writes require project access and table-edit permission or an explicit table Edit grant. Removing a project, group or private owner cancels queued task work, resolves task cases and purges that scope’s managed table, records, history and media in the same transaction. Other scopes remain intact. The tasks panel falls back to an accessible private board if the selected board disappears.
+
 ## Default view {#default-view}
 
 An editor can choose **Set as default** in the table toolbar. The current layout,

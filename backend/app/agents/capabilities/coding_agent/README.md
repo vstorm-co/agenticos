@@ -143,3 +143,10 @@ chat already draws and a stop reason becoming the outcome.
   Codex selects its native read-only mode before prompting. This also applies on session load.
 - **Usage.** A subscription session reports no tokens, so each task is booked as one unpriced
   call and the run's cost says it is a floor.
+
+
+Personal cloud coding refuses collaborator-controlled source workspaces before
+loading the initiating person's credentials: projects, agent/channel scopes,
+group chats and conversations shared for editing. Copying files into a disposable
+private container isolates output writes; it does not make executable source
+trusted. Shared project work uses the organization-configured coding mode.

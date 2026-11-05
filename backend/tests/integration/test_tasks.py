@@ -673,3 +673,201 @@ async def test_a_reminder_notifies_its_creator_when_the_assignee_loses_access(
 
     finding = await db.scalar(select(Suggestion).where(Suggestion.outcome_id == case.id))
     assert "no longer has access" in finding.detail
+
+
+async def test_project_use_does_not_grant_operator_table_edits(db: AsyncSession) -> None:
+    from app.core.permissions import Perm
+    from app.db.models.project import Project
+    from app.db.models.resource_grant import ResourceGrant
+    from app.schemas.virtual_table import RecordCreate
+
+    data = await world(db)
+    project = Project(
+        organization_id=data.org.id,
+        owner_user_id=data.users[0].id,
+        name="Shared",
+        visibility="org",
+        backend="state",
+    )
+    db.add(project)
+    await db.flush()
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0], TaskCreate(scope="project", scope_id=project.id, title="Review")
+    )
+    operator = AuthContext(
+        user_id=data.users[1].id, organization_id=data.org.id, role=OrgRoleName.OPERATOR
+    )
+    assert operator.has(Perm.PROJECTS_USE) and not operator.has(Perm.TABLES_EDIT)
+    assert (await service.get(operator, task.id)).id == task.id
+    table = await db.get(TaskBoard, task.board_id)
+    tables = VirtualTableService(db)
+    with pytest.raises(NotFoundError):
+        await tables.create_record(
+            operator, task.table_id, RecordCreate(values={table.column_ids["title"]: "Injected"})
+        )
+    with pytest.raises(NotFoundError):
+        await tables.update_record(
+            operator,
+            task.table_id,
+            task.id,
+            RecordUpdate(
+                values={table.column_ids["title"]: "Changed"}, expected_revision=task.revision
+            ),
+        )
+    with pytest.raises(NotFoundError):
+        await tables.delete_record(
+            operator, task.table_id, task.id, expected_revision=task.revision
+        )
+    db.add(
+        ResourceGrant(
+            organization_id=data.org.id,
+            resource_type="table",
+            resource_id=task.table_id,
+            subject_user_id=operator.user_id,
+            level="edit",
+        )
+    )
+    await db.flush()
+    changed = await tables.update_record(
+        operator,
+        task.table_id,
+        task.id,
+        RecordUpdate(
+            values={table.column_ids["title"]: "Authorized"}, expected_revision=task.revision
+        ),
+    )
+    assert changed.record.id == task.id
+
+
+@pytest.mark.parametrize("kind", ["private", "project", "group"])
+async def test_removing_scope_purges_managed_table_and_cancels_its_wakeups(
+    db: AsyncSession, kind: str
+) -> None:
+    from app.db.models.background_job import BackgroundJob
+    from app.db.models.project import Project
+    from app.db.models.virtual_table import VirtualTable, VirtualTableRecord
+    from app.services.group import GroupService
+    from app.services.personal_data import PersonalDataService
+    from app.services.project import ProjectService
+
+    data = await world(db)
+    scope_id = data.users[0].id
+    if kind == "project":
+        project = Project(
+            organization_id=data.org.id,
+            owner_user_id=data.users[0].id,
+            name="Delete me",
+            backend="state",
+        )
+        db.add(project)
+        await db.flush()
+        scope_id = project.id
+    elif kind == "group":
+        group = Group(organization_id=data.org.id, name="Delete me")
+        db.add(group)
+        await db.flush()
+        db.add(GroupMember(group_id=group.id, user_id=data.users[0].id))
+        scope_id = group.id
+        await db.flush()
+    service = TaskService(db)
+    other = await service.ensure_board(data.contexts[1], BoardEnsure())
+    task = await service.create(
+        data.contexts[0],
+        TaskCreate(
+            scope=kind,
+            scope_id=scope_id,
+            title="Reminder",
+            start_at=datetime.now(UTC) + timedelta(days=1),
+        ),
+    )
+    review = await service.create(
+        data.contexts[0],
+        TaskCreate(
+            scope=kind, scope_id=scope_id, title="Pending review", status="waiting_for_user"
+        ),
+    )
+    review_link = await db.get(TaskLink, review.id)
+    case_id = review_link.outcome_id
+    board_id, table_id = task.board_id, task.table_id
+    if kind == "project":
+        await ProjectService(db).delete(data.contexts[0], scope_id)
+    elif kind == "group":
+        await GroupService(db).delete(data.contexts[0], scope_id)
+    else:
+        await PersonalDataService(db).purge(scope_id)
+    from app.db.models.outcome import Outcome
+
+    assert (await db.get(Outcome, case_id)).status == "resolved"
+    assert await db.scalar(select(TaskBoard).where(TaskBoard.id == board_id)) is None
+    assert await db.scalar(select(VirtualTable).where(VirtualTable.id == table_id)) is None
+    assert (
+        await db.scalar(select(VirtualTableRecord).where(VirtualTableRecord.table_id == table_id))
+        is None
+    )
+    jobs = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.kind == "wake-task",
+                BackgroundJob.payload["task_id"].astext == str(task.id),
+            )
+        )
+    )
+    assert jobs and all(job.status == "cancelled" for job in jobs)
+    assert (
+        await db.scalar(select(VirtualTable).where(VirtualTable.id == other.table_id)) is not None
+    )
+
+
+async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: AsyncSession) -> None:
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.db.models.background_job import BackgroundJob
+    from app.db.models.project import Project
+
+    data = await world(db)
+    agent = Agent(
+        organization_id=data.org.id,
+        owner_user_id=data.users[0].id,
+        name="Worker",
+        slug=f"worker-{uuid4().hex}",
+    )
+    project = Project(organization_id=data.org.id, owner_user_id=data.users[0].id, name="Tasks")
+    db.add_all([agent, project])
+    await db.flush()
+    version = AgentVersion(
+        organization_id=data.org.id,
+        agent_id=agent.id,
+        version=1,
+        spec=AgentSpec(name="Worker").model_dump(mode="json"),
+    )
+    db.add(version)
+    await db.flush()
+    agent.current_version_id, agent.status = version.id, "published"
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0],
+        TaskCreate(
+            scope="project",
+            scope_id=project.id,
+            title="Work",
+            next_actor="agent",
+            assignee_agent_id=agent.id,
+        ),
+    )
+    link = await db.get(TaskLink, task.id)
+    trigger_id = link.trigger_id
+    assert trigger_id is not None
+    await service.purge_scope("project", project.id, organization_id=data.org.id)
+    trigger = await db.get(AgentTrigger, trigger_id)
+    assert trigger is not None and not trigger.is_active
+    jobs = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.kind == "fire-trigger",
+                BackgroundJob.payload["trigger_id"].astext == str(trigger_id),
+            )
+        )
+    )
+    assert jobs and all(job.status == "cancelled" for job in jobs)

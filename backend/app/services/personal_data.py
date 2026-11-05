@@ -383,9 +383,11 @@ class PersonalDataService:
     async def purge(self, user_id: UUID) -> PersonalDataPurge:
         """Remove what no cascade reaches, before the user row goes.
 
-        Three tables hold data *about* a person with no foreign key that would
-        take it with them:
+        These resources hold data *about* a person without a user foreign key
+        that would remove their contents:
 
+        - private task boards, keyed by a scope UUID; their managed tables and
+          queued lifecycle work are removed before deleting the account;
         - `agent_memory_files`, keyed by the string `person:<user_id>` - notes
           every agent wrote about them, in every organization, which a deleted
           account left behind entirely;
@@ -411,6 +413,9 @@ class PersonalDataService:
         # commit. A memory write for the same person takes it too, so the two
         # cannot interleave into a note that survives the account it is about.
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id)
+        from app.services.tasks import TaskService
+
+        await TaskService(self.db).purge_scope("private", user_id)
         await personal_data_repo.purge_routine_authority(self.db, user_id)
         notes = await personal_data_repo.purge_memory_about(self.db, person_owner_key(user_id))
         identities = await personal_data_repo.purge_identities_of(self.db, user_id)

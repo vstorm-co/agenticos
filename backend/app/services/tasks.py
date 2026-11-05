@@ -49,6 +49,38 @@ class TaskService:
         self.db = db
         self.tables = VirtualTableService(db)
 
+    async def purge_scope(
+        self, kind: str, scope_id: UUID, *, organization_id: UUID | None = None
+    ) -> None:
+        """Remove managed task data and queued work with the scope that authorized it."""
+        from app.repositories import resource_grant_repo
+        from app.services.task_execution import TaskExecution
+
+        if organization_id is not None:
+            await hold_subject(
+                self.db, LockScope.TASK_BOARD, uuid5(organization_id, f"{kind}:{scope_id}")
+            )
+        for board in await task_repo.in_scope(self.db, kind, scope_id, organization_id):
+            if organization_id is None:
+                await hold_subject(
+                    self.db,
+                    LockScope.TASK_BOARD,
+                    uuid5(board.organization_id, f"{kind}:{scope_id}"),
+                )
+            table = await virtual_table_repo.get_table(
+                self.db, board.table_id, organization_id=board.organization_id, for_update=True
+            )
+            if table is None:
+                continue
+            await TaskExecution(self.db).purge_board(board)
+            await resource_grant_repo.delete_for_resource(
+                self.db,
+                organization_id=board.organization_id,
+                resource_type="table",
+                resource_id=board.table_id,
+            )
+            await task_repo.purge_table(self.db, board)
+
     async def ensure_board(self, ctx: AuthContext, data: BoardEnsure) -> TaskBoard:
         scope_id = data.scope_id
         if data.scope == "private":
@@ -59,11 +91,17 @@ class TaskService:
             self.db, ctx, data.scope, scope_id, edit=True
         ):
             raise NotFoundError(message="Task scope not found")
+        if data.scope == "private":
+            await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, scope_id)
+            if await user_repo.get_by_id(self.db, scope_id) is None:
+                raise NotFoundError(message="Task scope not found")
         # The binding, not a person's idempotency receipt: two project members
         # opening Tasks together must get the same board.
         await hold_subject(
             self.db, LockScope.TASK_BOARD, uuid5(ctx.organization_id, f"{data.scope}:{scope_id}")
         )
+        if not await scope_allows(self.db, ctx, data.scope, scope_id, edit=True):
+            raise NotFoundError(message="Task scope not found")
         board = await task_repo.for_scope(self.db, ctx.organization_id, data.scope, scope_id)
         if board is not None:
             return board

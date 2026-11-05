@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { Perm } from "@/types/permissions";
+import { qk } from "@/lib/query-keys";
 import { TasksPanel } from "./tasks-panel";
 import { TaskBoardButton } from "./task-board-button";
 const state = vi.hoisted(() => ({ permissions: new Set<string>(), push: vi.fn() }));
@@ -96,6 +97,66 @@ describe("durable tasks", () => {
       }),
     );
     await waitFor(() => expect(state.push).toHaveBeenCalledWith("/tables/board"));
+  });
+  it("returns to the private board when access to the selected board is lost", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = {
+      id: "private",
+      scope_kind: "private",
+      scope_id: "me",
+      table_id: "own-table",
+      can_edit: true,
+      scope_name: null,
+    };
+    const project = {
+      id: "project",
+      scope_kind: "project",
+      scope_id: "project",
+      table_id: "project-table",
+      can_edit: true,
+      scope_name: "Launch",
+    };
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/tasks/boards") return [own, project];
+      return {
+        items: [
+          {
+            id: "task",
+            title:
+              new URLSearchParams(options?.params).get("table_id") === "project-table"
+                ? "Project item"
+                : "Private item",
+            status: "planned",
+            next_actor: "user",
+          },
+        ],
+        has_more: false,
+      };
+    });
+    render(<TasksPanel />, {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    expect(await screen.findByText("Private item")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "Task board" }));
+    await userEvent.click(screen.getByRole("option", { name: /Launch/ }));
+    expect(await screen.findByText("Project item")).toBeInTheDocument();
+    vi.mocked(apiClient.get).mockClear();
+    act(() => client.setQueryData(qk.durableTasks.boards("me:org"), [own]));
+    expect(await screen.findByText("Private item")).toBeInTheDocument();
+    expect(screen.queryByText("Project item")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open table" })).toHaveAttribute(
+      "href",
+      "/tables/own-table",
+    );
+    expect(
+      vi
+        .mocked(apiClient.get)
+        .mock.calls.every(
+          ([, options]) => new URLSearchParams(options?.params).get("table_id") !== "project-table",
+        ),
+    ).toBe(true);
   });
   it("shows a query failure instead of an empty state", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("Unavailable"));

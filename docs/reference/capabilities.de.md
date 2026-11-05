@@ -1,5 +1,5 @@
 ---
-source_sha: "2483572bdd9d"
+source_sha: "6054383d8e14"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1598,7 +1598,11 @@ Versuch würde erneut abgerechnet.
 
 ## Coding Agent { #coding-agent }
 
-**Persönliche Cloud-Konten.** Verbinde unter **Settings → Profile → Coding accounts** einen Anthropic-API-Schlüssel/Claude-Setup-Token, OpenAI-API-Schlüssel oder eine neue ChatGPT-Anmeldung und aktiviere die Nutzung ausdrücklich für diese Organisation. Wähle in Coding agent **Private cloud task with my account**. Nur selbst gestartete, authentifizierte Web/API-Chat-Aufgaben dürfen das Konto nutzen; Zeitpläne, Kanäle, API-Schlüssel und Identitätswechsel nicht. Andere Mitglieder können es nicht ausleihen. Ein eigener Container erhält eine begrenzte Quellkopie (500 Dateien, 1 MiB je Datei, 16 MiB insgesamt; keine Symlinks, Plattform- oder Cache-Ordner). Der Abschlussbericht nennt Konto und Snapshot; Diff und ZIP erscheinen im Chat. Gemeinsame Projektdateien ändern sich nicht automatisch. Entzogener Konto- oder Projektzugriff bricht die Arbeit ab. Eine externe ChatGPT-Freigabe lässt sich zusätzlich in den ChatGPT-Einstellungen widerrufen. Bestehende Organisationsschlüssel und freigegebene lokale CLI-Anmeldungen bleiben getrennt. Aktualisiere API und Worker nach `0290_personal_coding_accounts.py` gemeinsam.
+**Persönliche Cloud-Konten.** Verbinde unter **Settings → Profile → Coding accounts** einen Anthropic-API-Schlüssel/Claude-Setup-Token, OpenAI-API-Schlüssel oder eine neue ChatGPT-Anmeldung und aktiviere die Nutzung ausdrücklich für diese Organisation. Wähle in Coding agent **Private cloud task with my account**. Nur selbst gestartete, authentifizierte Web/API-Chat-Aufgaben dürfen das Konto nutzen; Zeitpläne, Kanäle, API-Schlüssel und Identitätswechsel nicht. Andere Mitglieder können es nicht ausleihen.
+
+Ein eigener Container erhält eine begrenzte Quellkopie (500 Dateien, 1 MiB je Datei, 16 MiB insgesamt; keine Symlinks, Plattform- oder Cache-Ordner). Der Abschlussbericht nennt Konto und Snapshot; Diff und ZIP erscheinen im Chat. Quelldateien ändern sich nicht automatisch. Entzogener Kontozugriff bricht die Arbeit ab. Eine externe ChatGPT-Freigabe lässt sich zusätzlich in den ChatGPT-Einstellungen widerrufen. Bestehende Organisationsschlüssel und freigegebene lokale CLI-Anmeldungen bleiben getrennt. Aktualisiere API und Worker nach `0290_personal_coding_accounts.py` gemeinsam.
+
+Der persönliche Cloud-Modus akzeptiert nur private Quell-Workspaces. Er verweigert Projekte, Agenten-/Kanal-Workspaces, Gruppenchats und zur Bearbeitung freigegebene Unterhaltungen, bevor Anmeldedaten geladen oder Dateien kopiert werden. Ein privater Zielcontainer macht von Mitarbeitern kontrollierten Quellcode nicht vertrauenswürdig. Nutze für gemeinsame Projektarbeit den organisationsseitig konfigurierten Coding-Modus. Die Schwärzung der Ausgabe schützt Anmeldedaten nicht vor ausführbarem Quellcode.
 
 `run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 

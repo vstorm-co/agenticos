@@ -34,17 +34,17 @@ function TasksView() {
   const [creating, setCreating] = useState(false);
   const user = useAuthStore((state) => state.user?.id);
   const { can } = usePermissions();
-  const tasks = useDurableTasks(selected, skip);
+  const tasks = useDurableTasks();
   const board = tasks.boards.data?.find((item) => item.table_id === selected);
-  const selectedTasks = useDurableTasks(
-    selected ??
-      tasks.boards.data?.find((item) => item.scope_kind === "private" && item.scope_id === user)
-        ?.table_id,
-    skip,
-  );
   const activeBoard =
     board ??
     tasks.boards.data?.find((item) => item.scope_kind === "private" && item.scope_id === user);
+  const lostSelection = selected !== undefined && tasks.boards.data !== undefined && !board;
+  const selectedTasks = useDurableTasks(activeBoard?.table_id, lostSelection ? 0 : skip);
+  if (lostSelection) {
+    setSelected(undefined);
+    setSkip(0);
+  }
   const records = selectedTasks.records;
   return (
     <section className="bg-card flex min-h-80 flex-col rounded-xl border" data-tour="durable-tasks">

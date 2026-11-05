@@ -300,9 +300,13 @@ class TestCreatingAndChanging:
             patch.object(module.project_repo, "detach_conversations", AsyncMock()) as detached,
             patch.object(module.resource_grant_repo, "delete_for_resource", AsyncMock()) as grants,
             patch.object(module.project_repo, "delete", AsyncMock()) as deleted,
+            patch("app.services.tasks.TaskService.purge_scope", new=AsyncMock()) as purged,
             patch.object(module, "record_audit", AsyncMock()),
         ):
             await service.delete(_ctx(), project.id)
+        purged.assert_awaited_once_with(
+            "project", project.id, organization_id=_ctx().organization_id
+        )
         service.workspaces.purge_project.assert_awaited_once()
         # The chats deleted with it take their files: nothing else would unlink them.
         assert forgot.await_args.args[1] == [orphan]

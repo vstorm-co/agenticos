@@ -235,16 +235,21 @@ class TaskExecution:
         link = await task_repo.link(self.db, record.id)
         if link is None:
             return
-        await self._stop(link, ctx.organization_id)
+        await self._forget_link(link, ctx.organization_id)
+
+    async def purge_board(self, board: TaskBoard) -> None:
+        for link in await task_repo.board_links(self.db, board):
+            await self._forget_link(link, board.organization_id)
+
+    async def _forget_link(self, link: TaskLink, organization_id: UUID) -> None:
+        await self._stop(link, organization_id)
         if link.outcome_id is not None:
             from app.services.outcome import OutcomeService
 
             outcome_id = link.outcome_id
             link.outcome_id = None
             await task_repo.flush(self.db)
-            await OutcomeService(self.db).resolve_task(
-                outcome_id, organization_id=ctx.organization_id
-            )
+            await OutcomeService(self.db).resolve_task(outcome_id, organization_id=organization_id)
 
     async def wake(self, payload: WakeTask) -> None:
         record = await task_repo.record(

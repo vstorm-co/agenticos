@@ -30,34 +30,41 @@ async def scope_allows(
             or await group_repo.get_member(db, group_id=scope_id, user_id=ctx.user_id) is None
         ):
             return False
-        if not edit or ctx.has(Perm.TABLES_EDIT):
-            return True
-        # Membership defines the audience; it does not promote a Viewer to editor.
-        board = await task_repo.for_scope(db, ctx.organization_id, kind, scope_id)
-        if board is None:
-            return False
-        from app.db.models.resource_grant import GRANT_ORDER, GrantLevel
-
-        granted = await resource_grant_repo.get_level(
-            db,
-            organization_id=ctx.organization_id,
-            subject_user_id=ctx.user_id,
-            resource_type="table",
-            resource_id=board.table_id,
-        )
-        return granted is not None and GRANT_ORDER[granted] >= GRANT_ORDER[GrantLevel.EDIT]
+        return not edit or await _may_edit_table(db, ctx, kind, scope_id)
     if kind == "project":
         from app.services.access import PROJECT, resolve_access
 
         project = await project_repo.get(db, scope_id, organization_id=ctx.organization_id)
-        return project is not None and await resolve_access(
-            db,
-            ctx,
-            project,
-            Perm.PROJECTS_USE if edit else Perm.PROJECTS_VIEW,
-            resource_type=PROJECT,
+        return (
+            project is not None
+            and (not edit or await _may_edit_table(db, ctx, kind, scope_id))
+            and await resolve_access(
+                db,
+                ctx,
+                project,
+                Perm.PROJECTS_USE if edit else Perm.PROJECTS_VIEW,
+                resource_type=PROJECT,
+            )
         )
     return False
+
+
+async def _may_edit_table(db: AsyncSession, ctx: AuthContext, kind: str, scope_id: UUID) -> bool:
+    if ctx.has(Perm.TABLES_EDIT):
+        return True
+    board = await task_repo.for_scope(db, ctx.organization_id, kind, scope_id)
+    if board is None or ctx.user_id is None:
+        return False
+    from app.db.models.resource_grant import GRANT_ORDER, GrantLevel
+
+    granted = await resource_grant_repo.get_level(
+        db,
+        organization_id=ctx.organization_id,
+        subject_user_id=ctx.user_id,
+        resource_type="table",
+        resource_id=board.table_id,
+    )
+    return granted is not None and GRANT_ORDER[granted] >= GRANT_ORDER[GrantLevel.EDIT]
 
 
 async def board_allows(db: AsyncSession, ctx: AuthContext, board: TaskBoard, perm: Perm) -> bool:

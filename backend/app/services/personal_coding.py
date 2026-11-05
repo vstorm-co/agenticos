@@ -24,7 +24,7 @@ from app.core.vault import VaultScope
 from app.db.models.coding_account import CodingAccount
 from app.db.session import get_db_context
 from app.repositories import coding_account as account_repo
-from app.repositories import member_repo
+from app.repositories import conversation_share_repo, member_repo
 from app.services.coding_account_lease import account_lease
 from app.services.coding_accounts import account_owner
 from app.services.personal_codex import PersonalCodexCredentials
@@ -99,6 +99,22 @@ class PersonalCodingSessionFactory:
         if self.config.backend != "service" or ctx.deps.conversation_id is None:
             raise BadRequestError(
                 message="Personal cloud coding requires a server sandbox and a conversation"
+            )
+        if (
+            self.project_id is not None
+            or self.config.session_scope in {"agent", "channel"}
+            or (ctx.deps.audience is not None and ctx.deps.audience.room_key is not None)
+        ):
+            raise AuthorizationError(
+                message="Personal coding accounts require a private unshared source workspace"
+            )
+        async with get_db_context() as db:
+            shares = await conversation_share_repo.get_shares_for_conversation(
+                db, ctx.deps.conversation_id, organization_id=self.ctx.organization_id
+            )
+        if any(share.shared_with is not None and share.permission == "edit" for share in shares):
+            raise AuthorizationError(
+                message="Personal coding accounts cannot use a conversation collaborators can edit"
             )
         account = await self._account(harness)
         lease_key = f"personal-coding:{self.ctx.organization_id}:{owner}:{account.id}"

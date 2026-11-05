@@ -341,7 +341,7 @@ async def list_schema_versions(
 async def count_tables(db: AsyncSession, *, organization_id: UUID) -> int:
     """Every table the organization has, archived ones included.
 
-    Archived ones count because nothing deletes a table: its records and history stay,
+    Archived ones count because ordinary tables retain their records and history,
     so it goes on costing what it cost.
     """
     count = await db.scalar(

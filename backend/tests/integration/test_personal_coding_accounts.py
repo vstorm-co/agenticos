@@ -564,3 +564,59 @@ async def test_membership_teardown_removes_coding_consent_without_affecting_othe
     assert await service.mine(context(owner, org)) == []
     with pytest.raises(NotFoundError):
         await service.own(context(owner, org), previous_id)
+
+
+@pytest.mark.parametrize("source", ["project", "agent", "channel", "conversation"])
+async def test_factory_refuses_collaborator_sources_before_loading_a_personal_account(
+    engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, source: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.db.models.conversation import Conversation
+    from app.db.models.conversation_share import ConversationShare
+
+    @asynccontextmanager
+    async def connection() -> AsyncGenerator[AsyncSession]:
+        async with AsyncSession(engine, expire_on_commit=False) as db:
+            yield db
+            await db.commit()
+
+    monkeypatch.setattr(coding_module, "get_db_context", connection)
+    async with connection() as db:
+        owner, collaborator = await person(db), await person(db)
+        org = await organization(db, owner)
+        db.add(OrganizationMember(organization_id=org.id, user_id=collaborator.id, role="member"))
+        chat = Conversation(organization_id=org.id, user_id=owner.id, title="Source")
+        db.add(chat)
+        await db.flush()
+        if source == "conversation":
+            db.add(
+                ConversationShare(
+                    conversation_id=chat.id,
+                    shared_with=collaborator.id,
+                    shared_by=owner.id,
+                    permission="edit",
+                )
+            )
+    factory = PersonalCodingSessionFactory(
+        context(owner, org),
+        AgentSpec(name="Test"),
+        SandboxConfig(
+            backend="service",
+            session_scope=source if source in {"agent", "channel"} else "conversation",
+        ),
+        uuid4(),
+        project_id=uuid4() if source == "project" else None,
+    )
+    run = RunContext(
+        deps=AgentDeps(organization_id=org.id, user_id=str(owner.id), conversation_id=chat.id),
+        model=TestModel(),
+        usage=RunUsage(),
+        prompt="Task",
+    )
+    load = AsyncMock()
+    monkeypatch.setattr(coding_module.PersonalCodingSessionFactory, "_account", load)
+    with pytest.raises(AuthorizationError, match="Personal coding accounts"):
+        async with factory.session(run, harness="codex", timeout_seconds=60):
+            pytest.fail("Shared source admitted")
+    load.assert_not_awaited()

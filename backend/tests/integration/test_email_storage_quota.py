@@ -244,3 +244,87 @@ async def test_concurrent_relay_retries_share_one_committed_receipt(engine: Asyn
         await redis.delete("channel:email:thread:bot@example.com:retry@example.com")
         email_state.configure(None)
         await redis.close()
+
+
+@pytest.mark.parametrize("platform", ["sms", "imessage"])
+async def test_sms_and_imessage_receipts_are_durable_and_rollback_remains_retriable(
+    db: AsyncSession, engine: AsyncEngine, platform: str
+) -> None:
+    from contextlib import asynccontextmanager
+    from unittest.mock import AsyncMock
+
+    from app.db.models.channel_bot import ChannelBot
+    from app.services.channel_bot import ChannelBotService
+    from app.services.channels.imessage import ImessageAdapter
+    from app.services.channels.sms import SmsAdapter
+    from app.worker.jobs import ChannelDelivery
+    from app.worker.tasks import channel_tasks
+
+    bot = ChannelBot(
+        id=uuid4(),
+        organization_id=uuid4(),
+        platform=platform,
+        name="Inbox",
+        is_active=True,
+        webhook_mode=True,
+    )
+    payload = (
+        {"From": "+15559998888", "Body": "hello", "MessageSid": "SM-durable"}
+        if platform == "sms"
+        else {
+            "type": "new-message",
+            "data": {
+                "guid": "durable-guid",
+                "text": "hello",
+                "isFromMe": False,
+                "handle": {"address": "ada@example.com"},
+                "chats": [{"guid": "iMessage;-;ada@example.com"}],
+            },
+        }
+    )
+    adapter = SmsAdapter() if platform == "sms" else ImessageAdapter()
+    incoming = adapter.parse_incoming(payload, str(bot.id))
+    assert incoming is not None
+    try:
+        await ChannelBotService(db).queue_delivery(bot, payload, incoming)
+        await db.rollback()
+        assert (
+            await db.scalar(
+                select(BackgroundJob).where(BackgroundJob.organization_id == bot.organization_id)
+            )
+            is None
+        )
+        await ChannelBotService(db).queue_delivery(bot, payload, incoming)
+        await db.commit()
+        await ChannelBotService(db).queue_delivery(bot, payload, incoming)
+        await db.commit()
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        async with sessions() as fresh:
+            rows = list(
+                await fresh.scalars(
+                    select(BackgroundJob).where(
+                        BackgroundJob.organization_id == bot.organization_id
+                    )
+                )
+            )
+        assert len(rows) == 1 and rows[0].payload["payload"] == payload
+
+        @asynccontextmanager
+        async def connection():
+            async with sessions() as fresh:
+                yield fresh
+
+        with (
+            patch.object(channel_tasks, "get_db_context", connection),
+            patch(
+                "app.repositories.channel_bot_repo.get_for_inbound", new=AsyncMock(return_value=bot)
+            ),
+            patch.object(channel_tasks, "_route_inbound", new=AsyncMock()) as routed,
+        ):
+            await channel_tasks.process_channel_delivery(
+                ChannelDelivery.model_validate(rows[0].payload)
+            )
+        routed.assert_awaited_once()
+        assert routed.await_args.args[0].platform == platform
+    finally:
+        await adapter.aclose()

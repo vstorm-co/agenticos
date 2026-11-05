@@ -1,5 +1,5 @@
 ---
-source_sha: "d5cbffe0a7ba"
+source_sha: "04a676a5dcd5"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -804,6 +804,8 @@ AgenticOS MCP ofrece `list_task_boards`, `ensure_task_board`, `list_tasks`, `get
 
 
 La pertenencia al grupo permite leer su tablero de tareas; escribir requiere además permiso para editar tablas o una concesión explícita de edición. Si la persona asignada a un recordatorio pierde acceso, la tarea queda bloqueada y su creador recibe un caso en Inbox para transferirla. Las conversaciones nuevas de tareas de proyecto pertenecen al proyecto. La cuota de tablas puede impedir la tarea opcional de un resultado de rutina, pero su chat de trabajo, caso de Inbox y notificación siguen entregándose.
+
+Escribir en tableros de proyecto requiere acceso al proyecto y permiso de edición de tablas o una concesión Edit explícita. Eliminar un proyecto, grupo o propietario privado cancela las tareas en cola, resuelve sus casos y elimina la tabla gestionada de ese ámbito con registros, historial y medios en la misma transacción. Los demás ámbitos permanecen intactos. El panel vuelve a un tablero privado accesible si desaparece el seleccionado.
 
 ## Vista predeterminada {#default-view}
 

@@ -184,6 +184,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Persist accepted SMS/iMessage deliveries before acknowledging their webhooks; enforce table-edit authority on project tasks, purge managed boards with deleted scopes, and recover the task selector after access loss.
+
+- Refuse personal cloud coding accounts on shared source workspaces before credential loading, including project snapshots and conversations shared for editing.
+
 - Persist accepted inbound emails and their attachments in transactional background jobs before acknowledging the relay, and require API-key scope plus personal consent when deleting watches.
 
 - Release inbound email attachment capacity when files are consumed, expire or processing fails; store delivery batches atomically and bound file counts.

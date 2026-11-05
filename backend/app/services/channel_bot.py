@@ -7,13 +7,15 @@ happily - the token itself is what talks to Slack or Telegram as that
 organization, so that was a tenant boundary with nothing behind it.
 """
 
+import hashlib
 import logging
 import secrets
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
-from pydantic import SecretStr
+from pydantic import JsonValue, SecretStr
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.background import spawn_after_commit
@@ -47,6 +49,7 @@ from app.services.channels import (
     get_adapter,
     inbound_webhook_url,
 )
+from app.services.channels.base import IncomingMessage
 from app.services.channels.email import is_address
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.imessage import TAPBACK_REACTIONS
@@ -186,8 +189,8 @@ class ChannelBotService:
     `organization_id` is the tenant every management call is scoped to. It is
     `None` only on the inbound path (webhook / poller), where no member is
     making the request and the bot row itself carries the organization - those
-    callers may use :meth:`find_active` and :meth:`get_decrypted_token` and
-    nothing else.
+    callers may use :meth:`find_active`, :meth:`get_decrypted_token` and
+    :meth:`queue_delivery`.
     """
 
     def __init__(self, db: AsyncSession, organization_id: UUID | None = None) -> None:
@@ -247,6 +250,58 @@ class ChannelBotService:
             ),
             name=f"open_channel_stream:{bot_id}",
         )
+
+    async def queue_delivery(
+        self, bot: ChannelBot, payload: dict[str, JsonValue], incoming: IncomingMessage
+    ) -> None:
+        """Persist an authenticated SMS/iMessage before the provider receives its acknowledgement."""
+        from app.repositories import background_job as job_repo
+        from app.services.background_jobs import enqueue
+        from app.worker.jobs import PROCESS_CHANNEL_DELIVERY, ChannelDelivery
+
+        if bot.platform not in {"sms", "imessage"}:
+            raise ValueError("This delivery queue accepts SMS and iMessage only")
+        job = ChannelDelivery.model_validate(
+            {
+                "organization_id": bot.organization_id,
+                "bot_id": bot.id,
+                "platform": bot.platform,
+                "payload": payload,
+            }
+        )
+        key = (
+            f"channel:{bot.id}:{hashlib.sha256(incoming.message_id.encode()).hexdigest()}"
+            if incoming.message_id
+            else None
+        )
+        if (
+            key is not None
+            and await job_repo.get_by_idempotency_key(
+                self.db, organization_id=bot.organization_id, idempotency_key=key
+            )
+            is not None
+        ):
+            return
+        try:
+            async with self.db.begin_nested():
+                await enqueue(
+                    self.db,
+                    PROCESS_CHANNEL_DELIVERY,
+                    job,
+                    organization_id=bot.organization_id,
+                    idempotency_key=key,
+                    concurrency_key=f"channel:{bot.id}:{hashlib.sha256(incoming.platform_chat_id.encode()).hexdigest()}",
+                )
+        except IntegrityError:
+            if (
+                key is not None
+                and await job_repo.get_by_idempotency_key(
+                    self.db, organization_id=bot.organization_id, idempotency_key=key
+                )
+                is not None
+            ):
+                return
+            raise
 
     async def create(self, data: ChannelBotCreate) -> ChannelBot:
         """Create a new channel bot with its credentials sealed, and open its stream.

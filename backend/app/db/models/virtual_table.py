@@ -89,7 +89,8 @@ class VirtualTable(Base, TimestampMixin):
     )
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     # Archiving keeps the rows and the history readable and refuses writes. A
-    # table is never dropped: a workflow or a view may still name it.
+    # ordinary table stays because a workflow or view may still name it. Managed
+    # task tables are purged when their owning scope is deleted.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (

@@ -2,8 +2,8 @@
 
 import base64
 import json
-from collections.abc import AsyncIterator, Coroutine
-from unittest.mock import AsyncMock
+from collections.abc import AsyncIterator
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import httpx
@@ -130,7 +130,7 @@ async def test_nonmessage_does_not_dispatch(
     def forbidden(*_args: object, **_kwargs: object) -> None:
         pytest.fail("Receipt must not start an agent")
 
-    monkeypatch.setattr(receiver, "spawn_after_commit", forbidden)
+    monkeypatch.setattr(receiver.ChannelBotService, "queue_delivery", forbidden)
     await service.receive(bot.id, _AUTH, chunks(b'{"type":"updated-message"}'))
 
 
@@ -167,42 +167,44 @@ async def test_messages_and_numbered_answers_use_existing_handlers_after_commit(
     choice: str | None,
     attachment: bool,
 ) -> None:
+    from app.services.channels import sms_prompts
+    from app.services.channels.prompts import ChannelPrompts
+    from app.services.channels.router import ChannelMessageRouter
+    from app.worker.tasks.channel_tasks import _route_inbound
+
+    queued = AsyncMock()
+    monkeypatch.setattr(receiver.ChannelBotService, "queue_delivery", queued)
     answer = AsyncMock(return_value=choice)
-    message, press = AsyncMock(), AsyncMock()
-    monkeypatch.setattr(receiver.sms_prompts, "answer", answer)
-    monkeypatch.setattr(receiver, "process_channel_event", message)
-    monkeypatch.setattr(receiver, "process_channel_press", press)
-    pending: list[Coroutine[object, object, None]] = []
-
-    def defer(_db: AsyncSession, coro: Coroutine[object, object, None], *, name: str) -> None:
-        assert name.startswith("imessage_")
-        pending.append(coro)
-
-    monkeypatch.setattr(receiver, "spawn_after_commit", defer)
-    await service.receive(bot.id, _AUTH, chunks(event(attachment=attachment)))
-    assert len(pending) == 1
-    message.assert_not_awaited()
-    press.assert_not_awaited()
-    await pending[0]
-    if choice is not None:
-        message.assert_not_called()
-        sent = press.await_args.args[0]
-        assert sent.value == choice and sent.platform == "imessage"
-    else:
-        press.assert_not_called()
-        assert message.await_args.args[0].platform_user_id == "ada@example.com"
-    if attachment:
+    with (
+        patch.object(sms_prompts, "answer", new=answer),
+        patch.object(ChannelMessageRouter, "route", new=AsyncMock()) as message,
+        patch.object(ChannelPrompts, "press", new=AsyncMock()) as press,
+    ):
+        await service.receive(bot.id, _AUTH, chunks(event(attachment=attachment)))
+        queued.assert_awaited_once()
+        message.assert_not_awaited()
+        press.assert_not_awaited()
         answer.assert_not_awaited()
-    else:
-        answer.assert_awaited_once_with(
-            str(bot.id), "iMessage;-;ada@example.com", "7", platform="imessage"
-        )
+        await _route_inbound(queued.await_args.args[2], MagicMock())
+        if choice is not None:
+            message.assert_not_awaited()
+            assert press.await_args.args[0].value == choice
+        else:
+            press.assert_not_awaited()
+            assert message.await_args.args[0].platform_user_id == "ada@example.com"
+        if attachment:
+            answer.assert_not_awaited()
+        else:
+            answer.assert_awaited_once_with(
+                str(bot.id), "iMessage;-;ada@example.com", "7", platform="imessage"
+            )
 
 
-async def test_duplicate_numbered_reply_never_dispatches_another_toggle(service, monkeypatch):
-    dispatch = AsyncMock()
-    monkeypatch.setattr(receiver.sms_prompts, "answer", AsyncMock(return_value="question:choice"))
-    monkeypatch.setattr(receiver, "claim_delivery", AsyncMock(return_value=False))
-    monkeypatch.setattr(receiver, "spawn_after_commit", dispatch)
-    await service.receive(uuid4(), _AUTH, chunks(event()))
-    dispatch.assert_not_called()
+async def test_queue_failure_does_not_acknowledge_a_message(service, monkeypatch, bot):
+    monkeypatch.setattr(
+        receiver.ChannelBotService,
+        "queue_delivery",
+        AsyncMock(side_effect=RuntimeError("queue unavailable")),
+    )
+    with pytest.raises(RuntimeError, match="queue unavailable"):
+        await service.receive(bot.id, _AUTH, chunks(event()))

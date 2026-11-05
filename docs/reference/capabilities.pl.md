@@ -1,5 +1,5 @@
 ---
-source_sha: "2483572bdd9d"
+source_sha: "6054383d8e14"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1506,7 +1506,11 @@ do modelu: druga próba zostałaby rozliczona ponownie.
 
 ## Coding agent { #coding-agent }
 
-**Osobiste konta w chmurze.** W **Settings → Profile → Coding accounts** podłącz klucz Anthropic lub token konfiguracji Claude, klucz OpenAI albo nowe logowanie ChatGPT, a następnie jawnie włącz użycie w tej organizacji. W Coding agent wybierz **Private cloud task with my account**. Konto obsługuje tylko uwierzytelnione zadania rozpoczęte przez Ciebie w czacie web/API; nie harmonogramy, kanały, klucze API ani podszywanie się. Inni członkowie nie mogą pożyczyć konta. Osobny kontener zadania dostaje ograniczoną kopię źródeł (500 plików, 1 MiB na plik, 16 MiB łącznie; bez dowiązań, katalogów platformy i pamięci podręcznej). Raport wskazuje konto i snapshot oraz pokazuje diff i ZIP w czacie. Wspólne pliki projektu nie zmieniają się automatycznie. Cofnięcie dostępu do konta lub projektu anuluje pracę; zewnętrzną zgodę ChatGPT można dodatkowo cofnąć w ustawieniach ChatGPT. Dotychczasowe konta organizacyjne w toolu oraz zatwierdzone foldery i logowania lokalnej CLI pozostają osobnymi trybami. Po `0290_personal_coding_accounts.py` zaktualizuj API i workery razem.
+**Osobiste konta w chmurze.** W **Settings → Profile → Coding accounts** podłącz klucz Anthropic lub token konfiguracji Claude, klucz OpenAI albo nowe logowanie ChatGPT, a następnie jawnie włącz użycie w tej organizacji. W Coding agent wybierz **Private cloud task with my account**. Konto obsługuje tylko uwierzytelnione zadania rozpoczęte przez Ciebie w czacie web/API; nie harmonogramy, kanały, klucze API ani podszywanie się. Inni członkowie nie mogą pożyczyć konta.
+
+Osobny kontener zadania dostaje ograniczoną kopię źródeł (500 plików, 1 MiB na plik, 16 MiB łącznie; bez dowiązań, katalogów platformy i pamięci podręcznej). Raport wskazuje konto i snapshot oraz pokazuje diff i ZIP w czacie. Pliki źródłowe nie zmieniają się automatycznie. Cofnięcie dostępu do konta anuluje pracę; zewnętrzną zgodę ChatGPT można dodatkowo cofnąć w ustawieniach ChatGPT. Dotychczasowe konta organizacyjne w toolu oraz zatwierdzone foldery i logowania lokalnej CLI pozostają osobnymi trybami. Po `0290_personal_coding_accounts.py` zaktualizuj API i workery razem.
+
+Osobisty tryb chmurowy przyjmuje tylko prywatne źródłowe workspace. Odrzuca projekty, workspace agenta lub kanału, rozmowy grupowe i chaty udostępnione do edycji, zanim odczyta poświadczenie lub skopiuje pliki. Prywatny kontener docelowy nie nadaje zaufania kodowi kontrolowanemu przez współpracowników. Do wspólnej pracy projektowej użyj trybu z kontem organizacji. Redakcja wyniku nie chroni poświadczeń przed wykonywanym kodem źródłowym.
 
 `run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 

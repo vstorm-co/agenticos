@@ -6,21 +6,17 @@ from urllib.parse import parse_qsl
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from pydantic import JsonValue
 
 from app.api.deps import ChannelBotSvc, SmsMediaSvc
-from app.core.background import spawn
 from app.services.channel_bot import unseal_bot_token
-from app.services.channels import get_adapter, inbound_webhook_url, sms_prompts
-from app.services.channels.base import IncomingPress
-from app.services.channels.dedupe import claim_delivery
+from app.services.channels import get_adapter, inbound_webhook_url
 from app.services.channels.sms import (
     SIGNATURE_HEADER,
     SIGNED_URL_HEADER,
     read_webhook_body,
     split_credentials,
 )
-from app.services.channels.sms_links import link_has_lapsed
-from app.worker.background.channel import process_channel_event, process_channel_press
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +30,8 @@ _EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response/>'
 async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc) -> Response:
     """Receive a text sent to a bot's number.
 
-    Answers an empty TwiML document straight away and runs the agent in the
-    background, replying through Twilio's REST API when it has an answer: a run takes
+    Commits a durable delivery before answering an empty TwiML document and runs the agent in a
+    worker, replying through Twilio's REST API when it has an answer: a run takes
     longer than the seconds Twilio waits. A request whose signature does not verify is
     refused before anything is read from it.
     """
@@ -55,35 +51,11 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
     }
     if not adapter.verify_webhook_signature(headers, auth_token, body):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
-    incoming = adapter.parse_incoming(dict(parse_qsl(body, keep_blank_values=True)), str(bot_id))
+    payload: dict[str, JsonValue] = dict(parse_qsl(body, keep_blank_values=True))
+    incoming = adapter.parse_incoming(payload, str(bot_id))
     if incoming is None:
         return Response(content=_EMPTY_TWIML, media_type="text/xml")
-    # A lone digit that fits what was last asked of this number is the answer to it.
-    chosen = (
-        await sms_prompts.answer(str(bot_id), incoming.platform_chat_id, incoming.text)
-        if not incoming.attachments
-        else None
-    )
-    if chosen is not None and await link_has_lapsed(incoming.platform_user_id):
-        # Not a press: a prompt sent just before the link lapsed would otherwise stay
-        # answerable, approvals included, for as long as the prompt lives. As a message it
-        # goes through the router, which unlinks the number and asks to link again.
-        await sms_prompts.forget(str(bot_id), incoming.platform_chat_id)
-        chosen = None
-    if chosen is not None:
-        if not await claim_delivery(incoming):
-            return Response(content=_EMPTY_TWIML, media_type="text/xml")
-        press = IncomingPress(
-            platform="sms",
-            bot_id=str(bot_id),
-            platform_user_id=incoming.platform_user_id,
-            platform_chat_id=incoming.platform_chat_id,
-            value=chosen,
-            message_id=incoming.message_id,
-        )
-        spawn(process_channel_press(press), name=f"sms_press:{bot_id}")
-    else:
-        spawn(process_channel_event(incoming), name=f"sms_event:{bot_id}")
+    await bot_service.queue_delivery(bot, payload, incoming)
     return Response(content=_EMPTY_TWIML, media_type="text/xml")
 
 

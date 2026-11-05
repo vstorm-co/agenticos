@@ -75,6 +75,13 @@ def project_move_generation(transfer_id: UUID, attempt: int) -> UUID:
     return uuid5(transfer_id, str(attempt))
 
 
+class ChannelDelivery(Payload):
+    organization_id: UUID
+    bot_id: UUID
+    platform: Literal["sms", "imessage"]
+    payload: dict[str, JsonValue]
+
+
 class EmailDelivery(Payload):
     organization_id: UUID
     bot_id: UUID
@@ -596,6 +603,15 @@ MOVE_PROJECT_WORKSPACE = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROCESS_CHANNEL_DELIVERY = Task(
+    kind="process-channel-delivery",
+    payload_type=ChannelDelivery,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(hours=1),
+    priority=Priority.INTERACTIVE,
+)
+
 PROCESS_EMAIL_DELIVERY = Task(
     kind="process-email-delivery",
     payload_type=EmailDelivery,
@@ -617,6 +633,7 @@ DELIVER_CHANNEL_HANDBACK = Task(
 TASKS: dict[str, TaskKind] = {
     task.kind: task
     for task in (
+        PROCESS_CHANNEL_DELIVERY,
         PROCESS_EMAIL_DELIVERY,
         DELIVER_CHANNEL_HANDBACK,
         MOVE_PROJECT_WORKSPACE,

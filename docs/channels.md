@@ -1097,6 +1097,8 @@ Inbound attachments share a live cache limit of 64 MiB of encoded data and 1,024
 
 The webhook commits a `process-email-delivery` job before returning 200. The job retains the validated message body, including attachments, so an API restart or an expired cache cannot erase accepted work. Message-ID deduplication commits with that job; a rolled-back request remains retriable. Workers recheck the bot and organization, serialize deliveries to the same correspondent, and record failed attempts in Admin → Background jobs. Finished job payloads follow `BACKGROUND_JOB_RETENTION_DAYS`; deployment administrators can inspect them.
 
+SMS and iMessage webhooks commit a `process-channel-delivery` job before acknowledging a valid message. The payload and Message-ID receipt share one database transaction, so rollback permits retry and API restarts preserve accepted work. Workers recheck the bot’s organization, platform and active state, then resolve numbered replies against current prompts; expired SMS identities cannot approve old requests. Delivery payloads follow the background-job retention policy and are visible to deployment administrators.
+
 **Who is writing.** The signature proves the relay sent the request, not who wrote the mail: an
 address is a claim. A person acts with their own permissions only once they have linked that address to
 their account like any other channel identity. Every message must include

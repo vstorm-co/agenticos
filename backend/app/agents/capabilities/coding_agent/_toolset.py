@@ -211,6 +211,13 @@ def build_coding_toolset(
             and `steps`, what it read and ran. Answer the person from `answer`.
         """
         if runs_on == "personal_sandbox":
+            if shared_sandbox or _in_room(ctx.deps):
+                return (
+                    "Personal coding accounts cannot run on sources from a shared workspace, "
+                    "project or group chat. Copying those files into a private container does "
+                    "not make their code trusted. Use a private unshared conversation workspace "
+                    "for personal-account work, or the organization's configured coding mode."
+                )
             if personal_executor is None:
                 return steer(
                     ctx,
