@@ -1571,6 +1571,138 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("submits a batch only once when two clicks arrive before a render", async () => {
+    let finish!: (value: object) => void;
+    const decision = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ status: "completed", output: "Done." })
+        : decision,
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    const submit = result.current.sendResumeDecisions;
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = submit([{ type: "approve" }]);
+      second = submit([{ type: "approve" }]);
+    });
+    expect(post.mock.calls.filter(([url]) => url === "/approvals/ar-1")).toHaveLength(1);
+    await act(async () => {
+      finish({});
+      await Promise.all([first, second]);
+    });
+    expect(post.mock.calls.filter(([url]) => url.endsWith("/resume"))).toHaveLength(1);
+  });
+
+  it("does not restore the second HTTP approval batch while its decision is in flight", async () => {
+    const parked = {
+      id: "ar-2",
+      tool_call_id: "tc-2",
+      tool_name: "execute",
+      tool_args: { cmd: "ls" },
+    };
+    get.mockImplementation(async (url: string) => (url.endsWith("/parked") ? [parked] : {}));
+    let finish!: (value: object) => void;
+    const decision = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    let resumes = 0;
+    post.mockImplementation((url: string) => {
+      if (url === "/approvals/ar-2") return decision;
+      if (url.endsWith("/resume")) {
+        resumes += 1;
+        return Promise.resolve(
+          resumes === 1
+            ? {
+                status: "awaiting_approval",
+                output: "",
+                parked: [parked],
+                steps: [
+                  { tool_call_id: "tc-2", tool_name: "execute", args: { cmd: "ls" }, result: null },
+                ],
+              }
+            : { status: "completed", output: "Done.", parked: [] },
+        );
+      }
+      return Promise.resolve({});
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper: decider });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("ar-2");
+    let submitting!: Promise<void>;
+    await act(async () => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    expect(result.current.pendingApproval).toBeNull();
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(0);
+    await act(async () => {
+      finish({});
+      await submitting;
+    });
+    expect(result.current.pendingApproval).toBeNull();
+    expect(post.mock.calls.filter(([url]) => url === "/approvals/ar-2")).toHaveLength(1);
+  });
+
+  it("does not show a late approval continuation in another conversation", async () => {
+    let finish!: (value: object) => void;
+    const decision = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ status: "completed", output: "Old conversation result." })
+        : decision,
+    );
+    const { result, rerender } = renderHook(({ conversationId }) => useChat({ conversationId }), {
+      initialProps: { conversationId: "first" },
+      wrapper,
+    });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    let submitting!: Promise<void>;
+    act(() => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    rerender({ conversationId: "second" });
+    receive("tool_approval_required", {
+      run_id: "r-2",
+      action_requests: [{ id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    await act(async () => {
+      finish({});
+      await submitting;
+    });
+    expect(result.current.pendingApproval?.runId).toBe("r-2");
+    expect(
+      useChatStore
+        .getState()
+        .messages.some((message) => message.content === "Old conversation result."),
+    ).toBe(false);
+  });
+
   it("keeps a rejected step refused when a chat run's batch mixes both", async () => {
     post.mockImplementation((url: string) =>
       Promise.resolve(url.startsWith("/approvals/") ? { continues_in_chat: true } : {}),

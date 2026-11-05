@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Prevent already-approved chat requests from reappearing during HTTP continuations, and submit each in-flight approval batch only once.
+
 - Prevent duplicate chat answers and setup cards when stored history arrives before the live message receives its saved ID. Collapse answered questions by default and give approval details full-width nested sections and readable descriptions.
 
 - Mark installed shipped gallery skills, including starter-agent skills such as `agent-budgets`, as built-in on existing installations without changing their content.

@@ -314,6 +314,7 @@ export function useChat(options: UseChatOptions = {}) {
   // steps stop reading `awaiting_approval`, which is exactly the state the
   // effect reads as "a reloaded parked run".
   const offeredApprovalBatchesRef = useRef<Set<string>>(new Set());
+  const decidingApprovalRef = useRef<object | null>(null);
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // Set when those questions belong to a run parked on them - asked of somebody
   // who left before answering - so the answer continues the run over HTTP
@@ -1714,6 +1715,7 @@ export function useChat(options: UseChatOptions = {}) {
     setParkedQuestion(null);
     setPendingConnection(null);
     offeredApprovalBatchesRef.current = new Set();
+    decidingApprovalRef.current = null;
     questionOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
@@ -1800,6 +1802,7 @@ export function useChat(options: UseChatOptions = {}) {
     setSandboxPreparing(false);
     setPersonalGaps([]);
     offeredApprovalBatchesRef.current = new Set();
+    decidingApprovalRef.current = null;
     // Both, or a question read for this conversation and dropped because the
     // person had moved on is never offered when they come back to it.
     questionOfferedForRef.current = new Set();
@@ -1836,7 +1839,7 @@ export function useChat(options: UseChatOptions = {}) {
   // failed is left alone too: the approvals queue holds the same rows, and an
   // error toast over a transcript somebody is reading buys nothing.
   useEffect(() => {
-    if (pendingApproval !== null || !canDecide) return;
+    if (pendingApproval !== null || !canDecide || decidingApprovalRef.current) return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
       if (message.role !== "assistant" || !message.runId || calls.length === 0) return [];
@@ -1853,7 +1856,7 @@ export function useChat(options: UseChatOptions = {}) {
         offeredApprovalBatchesRef.current.add(key);
         try {
           const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
-          if (disposed || panelsBelongTo.current !== conversation) {
+          if (disposed || panelsBelongTo.current !== conversation || decidingApprovalRef.current) {
             offeredApprovalBatchesRef.current.delete(key);
             return;
           }
@@ -2027,6 +2030,9 @@ export function useChat(options: UseChatOptions = {}) {
         });
       }
       if (parkedAgain.length > 0) {
+        offeredApprovalBatchesRef.current.add(
+          JSON.stringify([runId, parkedAgain.map((call) => call.tool_call_id ?? "").sort()]),
+        );
         setPendingApproval({
           actionRequests: parkedAgain.map((call) => ({
             id: call.id,
@@ -2131,14 +2137,23 @@ export function useChat(options: UseChatOptions = {}) {
 
   const sendResumeDecisions = useCallback(
     async (decisions: Decision[]) => {
-      if (stoppingRef.current !== null) return;
+      if (stoppingRef.current !== null || decidingApprovalRef.current) return;
       // Read from state and listed in the deps below. A ref would avoid
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      setPendingApproval(null);
-
       if (parked === null) return;
+      // A click consumes the batch before React can render another handler.
+      // HTTP continuations can park again without a WebSocket approval frame.
+      const decisionToken = {};
+      decidingApprovalRef.current = decisionToken;
+      offeredApprovalBatchesRef.current.add(
+        JSON.stringify([
+          parked.runId,
+          parked.actionRequests.map((request) => request.tool_call_id).sort(),
+        ]),
+      );
+      setPendingApproval(null);
 
       // The same endpoints the approvals queue uses. This used to send a
       // `resume` frame over the WebSocket, which the server silently ignores -
@@ -2171,8 +2186,10 @@ export function useChat(options: UseChatOptions = {}) {
           // results when the worker executes them.
           // Delegation panels are left alone: none of them says which run it
           // belongs to, and closing by guess would relabel another run's.
-          onTurnInterrupted?.();
-          toast.info(t("continuesInTheChat"));
+          if (decidingApprovalRef.current === decisionToken) {
+            onTurnInterrupted?.();
+            toast.info(t("continuesInTheChat"));
+          }
           return;
         }
         // Once, after all of them: the run continues when nothing is left
@@ -2201,12 +2218,15 @@ export function useChat(options: UseChatOptions = {}) {
             }
           }
         }
-        showContinuation(
-          resumed,
-          parked.runId,
-          new Set(parked.actionRequests.map((request) => request.tool_call_id)),
-        );
+        if (decidingApprovalRef.current === decisionToken) {
+          showContinuation(
+            resumed,
+            parked.runId,
+            new Set(parked.actionRequests.map((request) => request.tool_call_id)),
+          );
+        }
       } catch (error) {
+        if (decidingApprovalRef.current !== decisionToken) return;
         const terminalStatus = resumeFailureStatus(error);
         if (terminalStatus !== null) {
           // The continuation itself failed. The backend recorded the run terminal
@@ -2225,6 +2245,8 @@ export function useChat(options: UseChatOptions = {}) {
         // they unblocked it, and the retry can now succeed.
         setPendingApproval(parked);
         toast.error(getErrorMessage(error, tErrors));
+      } finally {
+        if (decidingApprovalRef.current === decisionToken) decidingApprovalRef.current = null;
       }
     },
     [
