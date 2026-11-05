@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
+import { draftsAsText, draftsOf } from "@/lib/drafts";
 import * as motion from "@/lib/motion";
 import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
@@ -437,6 +438,61 @@ describe("which runs refuse to fold", () => {
 });
 
 describe("the ordered timeline", () => {
+  describe("a turn with a draft", () => {
+    const write: ToolCall = {
+      id: "tc-d",
+      name: "write_draft",
+      status: "completed",
+      result: "Drafted Reply.",
+      args: {
+        title: "Reply to Marta",
+        kind: "email",
+        versions: [{ fields: [{ text: "Hi Marta," }] }],
+      },
+    };
+    const drafted = (result: string): MessagePart[] => [
+      { id: "p-1", type: "text", content: "Here's a reply." },
+      { id: "p-2", type: "tool", toolCall: { ...write, result } },
+      { id: "p-3", type: "text", content: "Want it shorter?" },
+    ];
+
+    it("shows the card after the work and before what follows", () => {
+      item({ parts: drafted("Drafted Reply.") });
+
+      const before = screen.getByRole("button", { name: /^Worked/ });
+      const card = screen.getByText("Reply to Marta");
+      const after = screen.getByText("Want it shorter?");
+      expect(before.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(card.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getAllByText("Reply to Marta")).toHaveLength(1);
+    });
+
+    it("shows no card for a refusal", () => {
+      item({ parts: drafted("Each version needs a label.") });
+
+      expect(screen.queryByText("Reply to Marta")).toBeNull();
+    });
+
+    it("copies the answer and the draft with the message's own action", async () => {
+      item({ content: "Here you go.", toolCalls: [write] });
+
+      // The card's own copy buttons come first; the message's action is last.
+      await userEvent.click(screen.getAllByRole("button", { name: "Copy to clipboard" }).at(-1)!);
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        "Here you go.\n\n" + draftsAsText(draftsOf([write])),
+      );
+    });
+
+    it("offers the copy action when the draft is all the turn produced", async () => {
+      item({ content: "", parts: [{ id: "p-d", type: "tool", toolCall: write }] });
+
+      await userEvent.click(screen.getAllByRole("button", { name: "Copy to clipboard" }).at(-1)!);
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(draftsAsText(draftsOf([write])));
+    });
+  });
+
   it("renders each part in the order it arrived", () => {
     // Reasoning, then the tool it led to, then the answer. Rendering them by kind
     // instead of by arrival would put the answer above the work behind it.

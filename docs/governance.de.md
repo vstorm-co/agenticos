@@ -1,5 +1,5 @@
 ---
-source_sha: "c8babc3ac8d9"
+source_sha: "0d9d393678fa"
 ---
 
 # Governance { #governance }
@@ -1122,7 +1122,9 @@ ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
 Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
 und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
 Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
-Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+Run hält wie immer für die Person an. Ebenso Rückfragen, Delegationen und
+Tools, deren Aufruf das ist, was die Person sieht (Entwürfe, Diagramme,
+Zeichnungen). Die Run-Ansicht listet jedes Skript und
 jeden Aufruf, den es gemacht hat.
 
 ### Berichte { #reporting }

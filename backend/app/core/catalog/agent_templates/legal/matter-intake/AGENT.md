@@ -4,6 +4,7 @@ description: Captures a new matter completely and runs the conflict and limitati
   questions before anything else.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - context

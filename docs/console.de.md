@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3e2c94ada4"
+source_sha: "659aee690fb0"
 ---
 
 # Die Konsole { #the-console }
@@ -529,6 +529,12 @@ Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheb
 fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
 Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
 gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
+
+**Entwürfe.** Ein Agent mit [Entwürfen](reference/capabilities.md#drafts) zeigt Text,
+den Sie anderswo versenden oder einfügen - eine E-Mail, eine Antwort, einen Beitrag -
+als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen Text
+kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
+**Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
 öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.

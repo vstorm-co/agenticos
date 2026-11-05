@@ -48,6 +48,7 @@ import { KeptImage } from "./kept-image";
 import { isRenderSafeImage } from "@/lib/file-kinds";
 import { FileCard, FileIcon } from "@/components/files";
 import { extractSources, toolCallsOf } from "@/lib/chat-sources";
+import { draftsOf, withDraftText } from "@/lib/drafts";
 import type { DelegateRef } from "@/lib/delegations";
 import { publishedApps, PublishedArtifactResult } from "./tool-results/artifact";
 import { TurnFiles } from "./turn-files";
@@ -164,6 +165,8 @@ export const MessageItem = memo(function MessageItem({
   const canShowActions = !message.isStreaming && hasBody && endsTurn;
   const hasSources = sources.length > 0 && !message.isStreaming;
   const apps = !isUser ? publishedApps(toolCallsOf(message)) : [];
+  // What the Copy action takes: the answer and the drafts the turn wrote, as plain text.
+  const copyText = withDraftText(message.content, isUser ? [] : draftsOf(toolCallsOf(message)));
   const onCiteClick = hasSources ? (index: number) => openSources(sources, index) : undefined;
 
   const avatar = (
@@ -459,9 +462,9 @@ export const MessageItem = memo(function MessageItem({
                 )}
               </span>
             )}
-            {message.content && (
+            {copyText && (
               <CopyButton
-                text={message.content}
+                text={copyText}
                 className={cn(TURN_ACTION, "p-0 sm:opacity-0 sm:group-hover:opacity-100")}
               />
             )}

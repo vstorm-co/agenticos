@@ -29,6 +29,8 @@ PLUMBING = frozenset(
         "background_tools",
         "clock",
         "compaction",
+        # It changes how a draft is shown, not what the agent can do.
+        "drafts",
         "guardrails",
         "media",
         "system_reminders",

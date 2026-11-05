@@ -4,6 +4,7 @@ description: Runs the handover so the next shift starts informed, and logs safet
   observations blamelessly.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - context

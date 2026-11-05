@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3e2c94ada4"
+source_sha: "659aee690fb0"
 ---
 
 # Konsola { #the-console }
@@ -485,6 +485,12 @@ skopiowania SVG jako obrazu, powiększenia i zapisu jako
 agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
 pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
 rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
+
+**Wersje robocze.** Agent z [Wersjami roboczymi](reference/capabilities.md#drafts)
+pokazuje tekst, który wyślesz lub wkleisz gdzie indziej - e-mail, odpowiedź, wpis -
+jako kartę w swojej odpowiedzi. Każda część ma własną ikonę kopiowania, która
+kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w jednej
+karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
 otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.

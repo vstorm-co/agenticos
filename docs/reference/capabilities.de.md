@@ -1,5 +1,5 @@
 ---
-source_sha: "9990e62dfb03"
+source_sha: "b9c6d9c6f25b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -100,6 +100,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
+| `drafts` | Entwürfe | utility | `write_draft` | — | — | nicht verfügbar |
 | `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
@@ -2896,7 +2897,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Kante | Liest | Schwärzen | Blockieren |
 |---|---|---|---|
 | Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| Ausgabe | die Antwort des Agents und den Text, den seine Entwürfe, Zeichnungen, Diagramme, Seiten und Fragen zeigen | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | Tool-Argumente | was der Agent einem Tool übergibt, bevor das Tool läuft | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2974,7 +2975,14 @@ Stream, und ein gesperrtes Stichwort beendet den Run, bevor ein Tool aufgerufen
 wird. Getrennt von der Ausgabeprüfung, weil das Schwärzen eines Arguments ändert,
 was das Tool tut: Eine E-Mail geht mit einem Platzhalter statt des Schlüssels
 hinaus. Solange sie aktiv ist, werden die Argumente eines Aufrufs zurückgehalten,
-bis der Aufruf vollständig ist, wie die Antwort.
+bis der Aufruf vollständig ist, wie die Antwort. Die Ausnahme ist, was ein Aufruf der Person zeigt - ein
+[Entwurf](#drafts), eine Zeichnung, ein Diagramm, eine Seite oder eine Frage: Die
+Ausgabe-Kante prüft seinen Text wie die Antwort, ob diese Kante aktiv ist oder nicht. In
+einer Zeichnung oder Seite sind das der Text, die lesbaren Attribute (`alt`, `title`,
+`aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, außer einem eingebetteten Bild oder einer Base64-`data:`-URI) und die Strings in einem Skript; Tags,
+Kommentare, Stile und Code bleiben unverändert. Eine Zeichnung oder Seite erscheint,
+wenn der Aufruf vollständig ist, nicht beim Schreiben.
 
 **Ein Delegat streamt unter der Ausgabeprüfung des delegierenden Runs.** Text und
 Reasoning, die ein Delegat im Delegationspanel schreibt, durchlaufen dieselbe
@@ -3019,8 +3027,7 @@ in die Schleife gelangen — eine abgerufene Seite, eine Datei, die Antwort eine
 MCP-Servers —, wo eine Prompt-Injection-Nutzlast das Modell sonst ungelesen
 erreichen würde.
 
-Zwei Dinge stehen bewusst außerhalb des Umfangs. **Tool-Argumente** sind eine
-strukturierte Abbildung ohne Textdetektor, deshalb sind sie keine Kante. Und das
+Eine Sache steht bewusst außerhalb des Umfangs: Das
 `approve`-Urteil des Harness für ein Tool ist nicht portiert:
 [Genehmigungen](../governance.md) parken einen Run bereits pro Tool für eine
 menschliche Entscheidung, und ein zweiter, regelgetriebener Pfad zu demselben
@@ -3097,6 +3104,75 @@ stehen blieb. Antworten kann nur die gefragte Person, über
 zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
+
+## Entwürfe { #drafts }
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+Bittet jemand um eine E-Mail, eine Antwort auf Slack, einen Beitrag oder eine
+Ticket-Beschreibung, legt der Agent den Text in eine eigene Karte, statt ihn in die
+Antwort zu mischen. So muss nichts von Hand markiert oder am Ziel aufgeräumt
+werden.
+
+Die Karte hat einen Titel und eine Art (Email, Slack message, Post). Ein
+Text mit Teilen, die an verschiedenen Stellen eingefügt werden - Betreff und Inhalt
+einer E-Mail - hat ein Segment pro Teil, und jedes Segment hat ein eigenes
+Kopiersymbol in der Ecke. Ein Segment zeigt seinen Namen nur dort, wo er die Teile
+unterscheidbar macht, und einen kleinen Typhinweis in der unteren Ecke: standardmäßig
+`text`, `markdown`, wenn die Person es wollte, oder eine Sprache für ein Snippet,
+das der Text mitbringt.
+
+Kopieren legt **reinen Text** in die Zwischenablage: genau den Text des Segments,
+ohne dessen Namen und ohne Leerzeilen am Anfang und Ende. Nie HTML oder
+formatierten Text, er wird also in der Schrift und den Farben des Ziels eingefügt.
+Ein Feld wird so gezeigt, wie es getippt wurde, und `<b>` wird nie interpretiert.
+Ein `markdown`-Teil hat eine Schaltfläche Vorschau, die ihn gerendert zeigt: Links
+funktionieren, Bilder erscheinen als Links und werden nicht geladen; Quelle führt
+zum Text zurück. Kopieren liefert immer die Quelle.
+
+Muss die Person eine Angabe selbst ergänzen, die der Agent nicht kennt, schreibt er
+statt einer Erfindung einen kurzen Platzhalter in eckigen Klammern, etwa `[Ihr Name]`
+oder `[Datum]`. Die Karte zeigt jeden Text in eckigen Klammern, der einen Buchstaben
+enthält, rot an, außer Links, Fußnoten, zitierte Zeilen und Code, damit nichts
+unausgefüllt verschickt wird, außer in der Vorschau eines Markdown-Teils. Kopieren
+behält die Klammern.
+
+Zwei bis fünf Varianten desselben Entwurfs („gib mir zwei Versionen") kommen in einem
+Aufruf als **Varianten** und erscheinen als Tabs mit ein bis zwei Wörtern als Name
+(„Kurz", „Mit Details"). Die Grenzen: ein Titel bis 120 Zeichen, bis zu 10 Felder je
+Variante, bis zu 20.000 Zeichen je Feld und kein leeres Feld, keinen leeren Titel und keine leere Art. Ein Aufruf, der eine
+Grenze verletzt, wird mit einer Meldung abgelehnt, die nennt, was zu korrigieren
+ist; das Modell versucht es erneut, und eine leere Karte erscheint nie.
+
+Die [Ausgabe-Kante](#guardrails) eines Agents prüft einen Entwurf wie seine Antwort:
+Ein Geheimnis oder personenbezogene Daten, die sie schwärzt, sind auch in der Karte
+geschwärzt, und ein gesperrtes Stichwort stoppt den Run. Entwürfe, die gespeichert
+wurden, bevor der Agent diese Schutzmaßnahme hatte, werden nicht umgeschrieben.
+
+Die Karte wird aus den Argumenten des gespeicherten Aufrufs neu aufgebaut; wer die
+Unterhaltung wieder öffnet, sieht dieselbe Karte. Eine per Link geteilte
+Unterhaltung trägt ihre Entwürfe ebenfalls (die neuesten 50, zusammen höchstens 500.000
+Zeichen, da jeder mit dem Link sie laden kann). Ein abgelehnter Aufruf oder einer,
+dessen Argumente sich nicht mehr lesen lassen, zeigt keine Karte.
+
+Angeboten wird sie **nur im Web-Chat**, weil nur diese Oberfläche die Karte
+zeichnet. Die Desktop- und die Telefon-App laden dieselbe Konsole und bekommen sie
+daher auch, einschließlich Quick Ask. Auf jeder anderen Oberfläche - gehostete
+Seiten und das eingebettete Widget, Chat-Kanäle, die API, Zeitpläne, Workflows, Hintergrund-Topics, Sprache - und
+für einen Subagent, dessen Ausgabe zum übergeordneten Modell geht und nicht zur
+Person, sieht der Agent das Tool nicht und schreibt den Text wie bisher in seine
+Antwort.
+
+Sie ist in jedem neuen Agent, jeder Vorlage und den vom Architect erstellten Agents
+standardmäßig an, und ein Autor kann sie abschalten. Bestehende Agents bleiben
+unverändert, bis ihr Autor sie einschaltet und eine neue Version veröffentlicht.
+
+!!! note "Grenze: ein umbenanntes Tool"
+    Die Konsole findet die Karte am Namen des Tools, wie bei `draw` und
+    `create_chart`. Eine Bindung, die `write_draft` umbenennt, verliert die Karte:
+    der Aufruf erscheint als gewöhnlicher Schritt. Verfolgt in
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Nächste Schritte { #follow-ups }
 

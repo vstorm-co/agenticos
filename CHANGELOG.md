@@ -21,18 +21,26 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- A new Drafts capability: when the web chat is asked for text to send or paste elsewhere, such as an e-mail, a reply or a post, the agent shows it as a card with one segment per part, a plain-text copy icon on each, versions as tabs and a small type hint. Reopening a conversation or opening it by shared link shows the same card. Details the agent leaves for the person to fill in, written in square brackets such as `[Your Name]`, show in red so a draft is not sent unfilled. A markdown part has a Preview button that shows it rendered, with images not loaded; copy always gives the source. New agents, every template and the agents the Architect creates have it on; existing agents are unchanged until their author switches it on and publishes. (#2737)
 - A `.zip` or `.tar.gz` (`.tgz`) can be attached to a chat. For an agent with a workspace it is unpacked into `uploads/<id>-<name>/` with its folders kept, so a repository goes in as a tree the coding agent can run its tests in; an agent without a workspace says it cannot open it. Each archive is read whole at upload and refused with a 400 before it is stored if a member leads outside it (`../`, an absolute path), is a link or a device file, is encrypted, or the archive passes `WORKSPACE_ARCHIVE_MAX_ENTRIES` (5000), `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB unpacked) or `WORKSPACE_ARCHIVE_MAX_RATIO` (100x its compressed size), or one file in it passes `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB). Archives sent through Slack, Telegram, Mattermost or Teams take the same path, and a refused one is named in the bot's reply. A workflow started by an email still skips archive attachments. (#2479)
 - **Download as .zip** in a chat's **Files** panel, for one folder or the whole workspace, from the new `GET /api/v1/conversations/{id}/workspace/archive?path=`. It is authorised as `/workspace/raw` is, streamed one file at a time, keeps folders as entries so an empty one comes back out (downloaded on its own, an empty folder is a zip of that folder), leaves out the tooling folders the panel hides (`.git`, `node_modules`, `.venv`, ...), and refuses a folder past the same entry and byte limits with a 413 before anything is sent. A file the host will not serve once the download has started, such as one over its 8 MiB read limit, is left out and named in a `NOT-INCLUDED.txt` in the zip. (#2479)
 - Workflow trigger input fields support **List of text**: validated JSON arrays of strings through the API, one item per line in run and public forms, and typed array bindings for downstream steps.
 
 ### Fixed
 
+- With code mode on, charts and drawings were run from scripts and never appeared; they now stay ordinary calls.
 - Web chat now warns when an assistant reply cannot be saved, including partial replies from interrupted runs, while keeping the streamed text visible. (#2732)
 - Keep PDF chat uploads working when extracted text contains NUL characters.
+- Book Stav's billed request cost from response bodies or headers, including
+  streamed Chat Completions and Responses, so models absent from the price
+  snapshot count towards budget caps. USD is used directly; **operators using
+  NOK billing must set `STAV_NOK_PER_USD`** (NOK per dollar) in the backend
+  environment. No rate is guessed or fetched; without conversion and without a
+  catalog price, costs remain visibly partial. (#2729)
 
 ### Security
 
-- The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403. (#2619)
+- The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403, and an API key issued for edit without view can still change the sharing of a resource it may edit. (#2619)
 
 ## [1.47.3] - 2026-11-04
 
