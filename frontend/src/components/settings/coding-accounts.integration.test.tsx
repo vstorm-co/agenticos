@@ -31,13 +31,13 @@ const account = {
   enabled: false,
   generation: "g-1",
 };
-function mount() {
+function mount(compact = false) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <CodingAccounts />
+      <CodingAccounts compact={compact} />
     </QueryClientProvider>,
   );
 }
@@ -119,4 +119,14 @@ it("starts a fresh ChatGPT flow and submits its callback", async () => {
       enabled: true,
     }),
   );
+});
+
+it("offers branded accounts and the connect dialog in compact chat controls", async () => {
+  mount(true);
+  const section = screen.getByRole("region", { name: "Coding accounts" });
+  expect(section.querySelectorAll("svg")).toHaveLength(2);
+  const buttons = await screen.findAllByRole("button", { name: "Connect" });
+  await waitFor(() => expect(buttons[1]).toBeEnabled());
+  await userEvent.click(buttons[1]!);
+  expect(screen.getByRole("dialog", { name: "Connect Codex" })).toBeVisible();
 });

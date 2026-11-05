@@ -196,6 +196,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "chat-coding-accounts",
+    page: ROUTES.CHAT,
+    target: "chat-coding-accounts",
+    activate: "chat-settings",
+    optional: true,
+  },
+  {
     id: "chat-local-coding",
     page: ROUTES.CHAT,
     target: "chat-local-coding",

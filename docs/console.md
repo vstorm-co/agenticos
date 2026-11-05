@@ -870,3 +870,6 @@ Muting notifications has a bell icon; the composer no longer repeats the local f
 List footers stay at the bottom of their panel, with a solid background and consistent spacing. Paged administration tables scroll their rows independently while keeping column headers and pagination visible. Empty and failed reads stay inside the same scroll area.
 
 The administration organization directory shows the uploaded organization picture, or initials in its chosen color when no image is set. Image access is limited to deployment administrators; the regular organization avatar route continues to require membership.
+
+
+**Chat controls → Model → Coding accounts** shows your Claude Code and Codex connections with their logos and consent status. Connect or manage an account without leaving the chat; the same accounts appear under **Settings → Profile**. Connecting does not change the agent’s execution mode: private cloud tasks still require **Private cloud task with my account**, while desktop coding uses its separate local sign-in.

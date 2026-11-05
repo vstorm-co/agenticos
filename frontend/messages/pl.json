@@ -6814,6 +6814,10 @@
       "personal-coding-accounts": {
         "title": "Konta do programowania",
         "body": "Podłącz własne konto do kodowania i jawnie zezwól na jego użycie. Prywatne zadania w chmurze zwracają diff i archiwum wyników bez automatycznej zmiany wspólnych plików projektu."
+      },
+      "chat-coding-accounts": {
+        "title": "Twoje konta coding",
+        "body": "Podłącz Codex lub Claude Code bez wychodzenia z chatu. To Twoje prywatne konta do zadań w chmurze; lokalne narzędzia desktopowe mają osobne logowanie."
       }
     },
     "chooseLanguage": "Język",
@@ -13123,6 +13127,7 @@
     "localHelp": "Aby użyć profilu, w narzędziu Coding agent wybierz prywatne zadanie chmurowe z moim kontem. Opcja Ten komputer korzysta z lokalnego logowania CLI i zatwierdzonego folderu; poświadczenia zostają na komputerze.",
     "disconnectHelp": "Odłączenie usuwa kopię poświadczeń z AgenticOS i zatrzymuje zadania. Grant ChatGPT unieważnisz też w ustawieniach ChatGPT. Zadania harmonogramów i kanałów nie korzystają z tych kont.",
     "personalAccount": "Konto osobiste: {label}",
-    "baseRevision": "Snapshot workspace: {revision}"
+    "baseRevision": "Snapshot workspace: {revision}",
+    "chatHelp": "Podłącz tutaj swoje konto do prywatnych zadań coding w chmurze. Tool Coding agent musi używać trybu Private cloud task with my account. Lokalny coding na desktopie korzysta z osobnego logowania."
   }
 }

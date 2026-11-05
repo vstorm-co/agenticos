@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Promote personal coding accounts directly in Chat controls, with shared profile
+  connections, inline setup and Claude Code/Codex branding.
+
 - Connect personal Claude Code/Codex accounts in Profile with explicit organization consent, user-sealed credentials and serialized ChatGPT refresh. Private cloud tasks use disposable containers and return a redacted report, diff and ZIP without changing shared project files automatically. Apply `0290_personal_coding_accounts.py` and update API/workers together; schedules, channels, API keys and impersonation cannot use personal accounts. Existing organization-key and desktop-local modes remain available.
 
 - Import PR #2728: show bounded per-task coding diffs, changed files and Copy patch in chat, with conversation-scoped access and cascading deletion. Apply `0289_coding_task_changes.py`; desktop-local tasks do not yet record a diff. Reverting a task is not offered.

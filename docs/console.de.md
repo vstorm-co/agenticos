@@ -1,5 +1,5 @@
 ---
-source_sha: "aca7aa176169"
+source_sha: "56bfee8a869f"
 ---
 
 # Die Konsole { #the-console }
@@ -971,3 +971,6 @@ Die Benachrichtigungsstummschaltung hat ein Glockensymbol; das Eingabefeld wiede
 Listenfußzeilen bleiben am unteren Rand ihres Panels mit einheitlichen Abständen und deckendem Hintergrund. Paginierte Verwaltungstabellen scrollen ihre Zeilen unabhängig, während Spaltenüberschriften und Seitennavigation sichtbar bleiben. Leere Ergebnisse und Fehler bleiben im selben Scrollbereich.
 
 Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder Initialen in der gewählten Farbe, wenn kein Bild hinterlegt ist. Der Bildzugriff in diesem Bereich bleibt auf Deployment-Administratoren beschränkt; der reguläre Avatar-Endpunkt verlangt weiterhin eine Mitgliedschaft.
+
+
+**Chat controls → Model → Coding accounts** zeigt deine Claude-Code- und Codex-Verbindungen mit Logos und Zustimmungsstatus. Verbinde oder verwalte ein Konto direkt im Chat; dieselben Konten stehen unter **Settings → Profile**. Das Verbinden ändert den Ausführungsmodus des Agenten nicht: Private Cloud-Aufgaben benötigen weiterhin **Private cloud task with my account**, während Desktop-Coding eine separate lokale Anmeldung verwendet.

@@ -8466,6 +8466,10 @@
       "personal-coding-accounts": {
         "title": "Kodlama hesapları",
         "body": "Kodlama hesabını bağla ve kullanımına açıkça izin ver. Özel bulut görevleri ortak proje dosyalarını otomatik değiştirmeden farkları ve sonuç arşivini döndürür."
+      },
+      "chat-coding-accounts": {
+        "title": "Kodlama hesapların",
+        "body": "Sohbetten ayrılmadan Codex veya Claude Code bağla. Bunlar özel bulut hesaplarındır; yerel masaüstü araçları kendi oturumlarını kullanır."
       }
     }
   },
@@ -12801,6 +12805,7 @@
     "localHelp": "Profilini kullanmak için Coding agent aracında Hesabımla özel bulut görevi seçeneğini seç. Bu bilgisayarda seçeneği yerel CLI oturumunu ve onayladığın klasörü kullanır; yerel kimlik bilgileri bilgisayarında kalır.",
     "disconnectHelp": "Bağlantıyı kesmek AgenticOS kopyasını kaldırır ve görevlerini durdurur. ChatGPT yetkisini OpenAI ChatGPT Ayarlarından iptal et. Zamanlanmış ve kanal görevleri bu hesapları kullanmaz.",
     "personalAccount": "Kişisel hesap: {label}",
-    "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}"
+    "baseRevision": "Çalışma alanı anlık görüntüsü: {revision}",
+    "chatHelp": "Özel bulut kodlama görevleri için hesabını buradan bağla. Agent’ın Coding agent aracı Private cloud task with my account modunu kullanmalıdır. Yerel masaüstü kodlaması kendi oturumunu kullanır."
   }
 }

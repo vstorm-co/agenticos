@@ -61,6 +61,10 @@ vi.mock("@/stores", () => ({
 // The agent's own-account section is tested on its own, and reads hooks this
 // file does not stage.
 vi.mock("./your-connections", () => ({ YourConnections: () => null }));
+vi.mock("@/components/settings/coding-accounts", () => ({
+  CodingAccounts: ({ compact }: { compact?: boolean }) =>
+    compact ? <section aria-label="Coding accounts" /> : null,
+}));
 
 // The picker is tested on its own; here it only needs to be able to choose.
 vi.mock("./chat-model-picker", () => ({
@@ -387,4 +391,10 @@ it("uses an anchored panel without blocking the rest of the chat", async () => {
   expect(trigger()).toHaveAttribute("aria-expanded", "true");
   expect(document.querySelector("[data-radix-popper-content-wrapper]")).toBeInTheDocument();
   expect(document.body.style.pointerEvents).not.toBe("none");
+});
+
+it("promotes coding accounts in the web chat model tab", async () => {
+  open();
+  await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
+  expect(screen.getByRole("region", { name: "Coding accounts" })).toBeVisible();
 });

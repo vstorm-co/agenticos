@@ -9,6 +9,7 @@ import { Check, HelpCircle, SlidersHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodingAccounts } from "@/components/settings/coding-accounts";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
@@ -164,7 +165,12 @@ export function ChatControls({
         // focus and its overlay takes the pointer - both outside - and closing on
         // either left the next stop pinned to a section that had gone.
         onInteractOutside={(event) => {
-          if (document.querySelector(".driver-popover")) event.preventDefault();
+          if (
+            document.querySelector(".driver-popover") ||
+            (event.target instanceof Element &&
+              event.target.closest("[data-coding-account-connect]"))
+          )
+            event.preventDefault();
         }}
       >
         <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-3">
@@ -216,6 +222,7 @@ export function ChatControls({
                 </button>
               )}
 
+              <CodingAccounts compact />
               {desktop && (
                 <div className="mt-5 border-t pt-4">
                   <p className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">

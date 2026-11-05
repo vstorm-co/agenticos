@@ -5229,6 +5229,10 @@
       "personal-coding-accounts": {
         "title": "Coding accounts",
         "body": "Connect your coding account and explicitly allow its use here. Private cloud tasks return a diff and result archive without automatically changing shared project files."
+      },
+      "chat-coding-accounts": {
+        "title": "Your coding accounts",
+        "body": "Connect Codex or Claude Code without leaving the chat. These are your private cloud accounts; local desktop tools keep their own sign-in."
       }
     },
     "chooseLanguage": "Language",
@@ -13348,6 +13352,7 @@
     "localHelp": "In the Coding agent tool, choose Private cloud task with my account to use this profile. On this computer uses the local CLI sign-in and your approved folder instead; local credentials stay on your computer.",
     "disconnectHelp": "Disconnect removes AgenticOS’s copy and stops its tasks. Revoke a ChatGPT grant at OpenAI from ChatGPT Settings. Scheduled and channel jobs do not use these accounts.",
     "personalAccount": "Personal account: {label}",
-    "baseRevision": "Workspace snapshot: {revision}"
+    "baseRevision": "Workspace snapshot: {revision}",
+    "chatHelp": "Connect your account here for private cloud coding. The agent’s Coding agent tool must use Private cloud task with my account. Local desktop coding uses its own sign-in."
   }
 }

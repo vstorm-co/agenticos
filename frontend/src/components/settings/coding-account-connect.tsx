@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useId, type FormEvent } from "react";
+import { BrandIcon } from "@/components/icons/brand-icon";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
@@ -70,9 +71,12 @@ export function CodingAccountConnect({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" data-coding-account-connect>
         <DialogHeader>
-          <DialogTitle>{t("connectNamed", { name: t(harness) })}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <BrandIcon name={harness} className="size-5" />
+            {t("connectNamed", { name: t(harness) })}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={(event) => void submit(event)} className="space-y-4">
           <FormField label={t("label")} htmlFor={`${formId}-label`}>

@@ -242,6 +242,7 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-local-skills",
+      "chat-coding-accounts",
       "chat-local-coding",
       "chat-coding-settings",
       "chat-background-tasks",

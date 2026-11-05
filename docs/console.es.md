@@ -1,5 +1,5 @@
 ---
-source_sha: "aca7aa176169"
+source_sha: "56bfee8a869f"
 ---
 
 # La consola { #the-console }
@@ -924,3 +924,6 @@ Silenciar notificaciones tiene un icono de campana; el compositor ya no repite l
 Los pies de lista permanecen en el borde inferior del panel, con espaciado uniforme y fondo opaco. Las tablas de administración paginadas desplazan sus filas de forma independiente, manteniendo visibles las cabeceras y la paginación. Los resultados vacíos y los errores permanecen en la misma zona de desplazamiento.
 
 El directorio de organizaciones de administración muestra la imagen cargada o las iniciales en el color elegido si no hay imagen. El acceso a las imágenes en esta vista se limita a administradores del despliegue; el endpoint normal de avatares sigue requiriendo pertenencia a la organización.
+
+
+**Chat controls → Model → Coding accounts** muestra tus conexiones de Claude Code y Codex con sus logotipos y el estado del consentimiento. Conecta o gestiona una cuenta sin salir del chat; las mismas cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.

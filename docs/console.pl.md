@@ -1,5 +1,5 @@
 ---
-source_sha: "aca7aa176169"
+source_sha: "56bfee8a869f"
 ---
 
 # Konsola { #the-console }
@@ -899,3 +899,6 @@ Wyciszanie powiadomień ma ikonę dzwonka; pole wiadomości nie powtarza już pl
 Stopki list pozostają przy dolnej krawędzi panelu, ze spójnymi odstępami i kryjącym tłem. Stronicowane tabele administracyjne przewijają same wiersze, zachowując widoczne nagłówki kolumn i paginację. Puste wyniki i błędy pozostają w tym samym obszarze przewijania.
 
 Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybranym kolorze, jeśli zdjęcia nie ustawiono. Dostęp do obrazów w tym widoku mają tylko administratorzy wdrożenia; zwykły endpoint avatarów organizacji nadal wymaga członkostwa.
+
+
+**Chat controls → Model → Coding accounts** pokazuje konta Claude Code i Codex z logotypami oraz stanem zgody. Możesz podłączyć konto lub nim zarządzać bez wychodzenia z chatu; te same konta są w **Settings → Profile**. Podłączenie nie zmienia trybu wykonania agenta: prywatne zadania w chmurze nadal wymagają **Private cloud task with my account**, a coding na desktopie korzysta z osobnego lokalnego logowania.

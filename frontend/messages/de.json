@@ -5107,6 +5107,10 @@
       "personal-coding-accounts": {
         "title": "Coding-Konten",
         "body": "Verbinde dein Programmierkonto und erlaube seine Nutzung ausdrücklich. Private Cloud-Aufgaben liefern einen Diff und ein Ergebnisarchiv, ohne gemeinsame Projektdateien automatisch zu ändern."
+      },
+      "chat-coding-accounts": {
+        "title": "Deine Coding-Konten",
+        "body": "Verbinde Codex oder Claude Code, ohne den Chat zu verlassen. Dies sind deine privaten Cloud-Konten; lokale Desktop-Werkzeuge behalten ihre eigene Anmeldung."
       }
     },
     "chooseLanguage": "Sprache",
@@ -13020,6 +13024,7 @@
     "localHelp": "Wähle im Werkzeug Coding agent die Option Private Cloud-Aufgabe mit meinem Konto. Auf diesem Computer nutzt stattdessen die lokale CLI-Anmeldung und deinen freigegebenen Ordner; lokale Zugangsdaten bleiben auf deinem Computer.",
     "disconnectHelp": "Trennen entfernt die Kopie von AgenticOS und beendet ihre Aufgaben. Widerrufe eine ChatGPT-Freigabe in den ChatGPT-Einstellungen bei OpenAI. Zeitpläne und Kanalaufgaben nutzen diese Konten nicht.",
     "personalAccount": "Persönliches Konto: {label}",
-    "baseRevision": "Arbeitsbereich-Snapshot: {revision}"
+    "baseRevision": "Arbeitsbereich-Snapshot: {revision}",
+    "chatHelp": "Verbinde hier dein Konto für private Coding-Aufgaben in der Cloud. Das Coding-agent-Tool muss Private cloud task with my account verwenden. Lokales Coding in der Desktop-App nutzt eine eigene Anmeldung."
   }
 }
