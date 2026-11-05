@@ -634,9 +634,12 @@ class TestReadingIt:
         self, repo: AsyncMock, conversations: AsyncMock
     ) -> None:
         repo.get_in_organization.return_value = None
-        with pytest.raises(NotFoundError):
-            await CodingTaskChangeService(MagicMock()).get(CTX, uuid4())
+        change_id = uuid4()
+        with pytest.raises(NotFoundError) as refused:
+            await CodingTaskChangeService(MagicMock()).get(CTX, change_id)
         conversations.get_conversation.assert_not_awaited()
+        # The id itself: the handler encodes `details` as response models are.
+        assert refused.value.details == {"change_id": change_id}
 
     @pytest.mark.security
     async def test_one_in_a_conversation_the_caller_may_not_read_is_missing(
