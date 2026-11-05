@@ -164,6 +164,14 @@ def _generate(model: str | None, usage: RunUsage) -> GenerateText | None:
     return generate
 
 
+_CONFIG_FIELD = re.compile(r"\b(?:chunk_size|chunk_overlap|chunking_strategy)\b")
+
+
+def _flag(field: str) -> str:
+    """The option that sets an `IngestionConfig` field: `chunk_size` is `--chunk-size`."""
+    return "--" + field.replace("_", "-")
+
+
 def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
     """The pipeline a knowledge base configured with the run's chunk flags would get.
 
@@ -180,9 +188,11 @@ def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
         )
     except ValidationError as error:
         problems = [
-            f"--{'-'.join(str(part) for part in e['loc']).replace('_', '-')}: {e['msg']}"
+            f"{_flag(str(e['loc'][0]))}: {e['msg']}"
             if e["loc"]
-            else str(e.get("ctx", {}).get("error", e["msg"]))
+            else _CONFIG_FIELD.sub(
+                lambda match: _flag(match[0]), str(e.get("ctx", {}).get("error", e["msg"]))
+            )
             for e in error.errors(include_url=False)
         ]
         raise SystemExit("; ".join(problems)) from None
@@ -398,7 +408,7 @@ def provenance(
     return {
         "dataset": str(arguments.dataset),
         "dataset_version": dataset.version,
-        "dataset_sha256": hashlib.sha256(Path(arguments.dataset).read_bytes()).hexdigest(),
+        "dataset_sha256": dataset.sha256,
         "started_at": started_at.isoformat(),
         "questions": len(dataset.items),
         "locales": list(locales),

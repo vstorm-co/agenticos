@@ -215,14 +215,19 @@ class TestTheQuestionSet:
         ("text", "message"),
         [
             (None, "cannot be read"),
+            (b"version: 1\nitems: \xff\xfe\n", "is not UTF-8 text"),
             ("items: [", "is not YAML"),
             ("- a\n- b\n", "is not a valid question set:\n  Input should be a valid dictionary"),
         ],
     )
     def test_a_file_that_is_no_question_set_is_refused_by_name(
-        self, tmp_path: Path, text: str | None, message: str
+        self, tmp_path: Path, text: str | bytes | None, message: str
     ):
-        path = tmp_path / "questions.yaml" if text is None else _write(tmp_path, text)
+        path = tmp_path / "questions.yaml"
+        if isinstance(text, bytes):
+            path.write_bytes(text)
+        elif text is not None:
+            _write(tmp_path, text)
 
         with pytest.raises(dataset.DatasetError, match=message) as refused:
             dataset.load_dataset(path)
@@ -237,8 +242,10 @@ class TestTheQuestionSet:
             "  - {id: a, category: factual, language: en, question: q, expected_pages: [x.md]}\n",
         )
 
-        with pytest.raises(dataset.DatasetError, match=r"a: x\.md in en"):
+        with pytest.raises(dataset.DatasetError, match=r"a: x\.md in en") as refused:
             dataset.load_dataset(path, docs_root=tmp_path / "docs")
+
+        assert str(refused.value).startswith(f"{path}: expected pages missing under docs/")
 
 
 class TestTheCommittedSetCannotBeGamed:
@@ -727,6 +734,7 @@ class TestRefusals:
             text=True,
             check=False,
             cwd=REPO_ROOT / "backend",
+            timeout=120,
         )
 
         assert finished.returncode == 1
@@ -766,7 +774,10 @@ class TestIngestionFlags:
     @pytest.mark.parametrize(
         ("argv", "message"),
         [
-            (["--chunk-overlap", "3000"], "chunk_overlap (3000) must be smaller than chunk_size"),
+            (
+                ["--chunk-overlap", "3000"],
+                "--chunk-overlap (3000) must be smaller than --chunk-size (2500)",
+            ),
             (["--chunk-size", "10"], "--chunk-size: Input should be greater than or equal to 64"),
         ],
     )
@@ -797,9 +808,13 @@ class TestProvenance:
         settings = run.rag_settings(arguments)
         started = datetime(2026, 11, 5, 12, 0, tzinfo=UTC)
 
+        loaded = dataset.load_dataset(path)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        path.unlink()
+
         exported = run.provenance(
             arguments,
-            dataset=dataset.load_dataset(path),
+            dataset=loaded,
             settings=settings,
             locales=("en",),
             collections={"en": "c_en"},
@@ -807,7 +822,7 @@ class TestProvenance:
             reports=[],
         )
 
-        assert exported["dataset_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+        assert exported["dataset_sha256"] == digest, "the bytes that were loaded, read once"
         assert exported["started_at"] == "2026-11-05T12:00:00+00:00"
         assert exported["embedding_dim"] == 1536
         assert exported["ingestion"] == {
@@ -820,5 +835,10 @@ class TestProvenance:
         assert exported["collection_digest"] == run.collection_digest(
             settings, arguments.embedding_base_url
         )
-        for kept in ("dataset", "dataset_version", "questions", "collections", "configurations"):
-            assert kept in exported
+        assert (exported["dataset"], exported["dataset_version"], exported["questions"]) == (
+            str(path),
+            1,
+            1,
+        )
+        assert exported["collections"] == {"en": "c_en"}
+        assert exported["configurations"] == []

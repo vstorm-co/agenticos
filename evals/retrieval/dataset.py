@@ -12,12 +12,13 @@ result quoted against version 1 is never silently compared with one measured
 against a different question set.
 """
 
+import hashlib
 import re
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError, model_validator
 
 Category = Literal["factual", "negative", "cross_language"]
 Locale = Literal["en", "pl", "de", "es"]
@@ -156,6 +157,12 @@ class Dataset(BaseModel):
 
     version: Literal[1]
     items: tuple[Item, ...] = Field(min_length=1)
+    _sha256: str = PrivateAttr(default="")
+
+    @property
+    def sha256(self) -> str:
+        """SHA-256 of the file's bytes as `load_dataset` read them; empty for a set built in code."""
+        return self._sha256
 
     @model_validator(mode="after")
     def _unique_ids(self) -> Self:
@@ -184,9 +191,15 @@ def load_dataset(
             for each problem, the item it is in.
     """
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        content = path.read_bytes()
     except OSError as error:
         raise DatasetError(f"{path} cannot be read: {error.strerror or error}") from None
+    try:
+        raw = yaml.safe_load(content.decode("utf-8"))
+    except UnicodeDecodeError as error:
+        raise DatasetError(
+            f"{path} is not UTF-8 text: {error.reason} at byte {error.start}"
+        ) from None
     except yaml.YAMLError as error:
         raise DatasetError(f"{path} is not YAML: {error}") from None
     try:
@@ -208,7 +221,10 @@ def load_dataset(
             if not exists(page, "en") or not any(exists(page, locale) for locale in searched)
         ]
         if missing:
-            raise DatasetError("Expected pages missing under docs/: " + "; ".join(sorted(missing)))
+            raise DatasetError(
+                f"{path}: expected pages missing under docs/: " + "; ".join(sorted(missing))
+            )
+    dataset._sha256 = hashlib.sha256(content).hexdigest()
     return dataset
 
 
