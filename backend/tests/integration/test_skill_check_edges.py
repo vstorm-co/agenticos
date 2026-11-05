@@ -1528,3 +1528,102 @@ def test_rows_say_what_they_are() -> None:
 
     assert "main" in repr(check) and "better" in repr(row)
     assert "fork=" in repr(SkillCheck(fork_id=uuid.uuid4()))
+
+
+class TestStageCounts:
+    """Each stage's counts are kept when the agent is judged, so a result with many agents
+    reads them from the check rather than comparing every run again."""
+
+    async def test_each_stage_counts_what_its_comparison_found(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db,
+            lab,
+            evals,
+            {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(broken=1)},
+            mode="thorough",
+        )
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        a = next(row for row in read.agents if row.agent.id == lab.a.id)
+        assert [stage.kind for stage in a.stages] == ["skill_set", "dataset"]
+        for stage in a.stages:
+            assert stage.counts is not None
+            assert stage.eval_run_id is not None
+            held = evals.runs[stage.eval_run_id].held_out
+            assert stage.counts.model_dump() == {
+                "compared": held,
+                "fixed": 2,
+                "broken": 0,
+                "unchanged": held - 2,
+                "unknown": 0,
+            }
+        assert sum(stage.counts.fixed for stage in a.stages if stage.counts) == a.fixed
+        assert sum(stage.counts.compared for stage in a.stages if stage.counts) == a.held_out
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        stored = next(row for row in rows if row.agent_id == lab.a.id).stages
+        assert [entry["dataset_id"] for entry in stored] == [
+            str(stage.dataset_id) for stage in a.stages
+        ]
+
+    async def test_an_agent_the_reader_may_not_see_shows_no_counts(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(
+            db, lab, evals, {lab.a.id: Outcome(fixed=2), lab.b.id: Outcome(broken=1)}
+        )
+        _deny(monkeypatch, Perm.AGENTS_VIEW, lab.b.id)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        assert lab.b.id not in {row.agent.id for row in read.agents}
+        assert read.hidden == 1
+
+    async def test_a_dataset_the_reader_may_not_see_shows_no_counts(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=2)})
+        _deny_datasets(monkeypatch)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        assert {stage.counts for row in read.agents for stage in row.stages} == {None}
+
+    async def test_an_agent_with_no_stage_run_keeps_none(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals(refuse_start={lab.c.id})
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=2)})
+
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+
+        c = next(row for row in rows if row.agent_id == lab.c.id)
+        assert c.state == AgentState.UNKNOWN.value
+        assert c.stages == []
+
+    async def test_a_check_judged_before_counts_were_kept_reads_none(self, db, monkeypatch):
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=2)})
+        rows = await skill_check_repo.list_agents(
+            db, [check.id], organization_id=lab.ctx.organization_id
+        )
+        for row in rows:
+            row.stages = []
+        await db.flush()
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+
+        stages = [stage for row in read.agents for stage in row.stages]
+        assert stages and all(stage.eval_run_id is not None for stage in stages)
+        assert {stage.counts for stage in stages} == {None}

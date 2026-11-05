@@ -317,6 +317,13 @@ class SkillCheckAgent(Base):
     noisy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     expected_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     at_most_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    stages: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    """What each stage's held-out questions came to when the agent was judged: its
+    `kind`, `dataset_id` and `eval_run_id`, and how many were `compared`, `fixed`,
+    `broken`, `unchanged` and left `unknown`. Empty until then, and for a check judged
+    before these were kept."""
 
     __table_args__ = (
         ForeignKeyConstraint(
