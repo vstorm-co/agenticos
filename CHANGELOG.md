@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Link Inbox task titles to their tables instead of displaying a separate Open table button.
+
 - Keep queued chat turns from moving the reader to each new question, and keep
   sidebar clocks and completed statuses consistent with the local conversation.
 

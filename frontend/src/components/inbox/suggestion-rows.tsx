@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ExternalLink, MessageSquare, ListTodo } from "lucide-react";
+import { Check, ExternalLink, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -34,7 +34,6 @@ export function SuggestionRows({
 }) {
   const t = useTranslations("chat.suggestions");
   const tInbox = useTranslations("inbox");
-  const tTasks = useTranslations("durableTasks");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const sourceOf = useSuggestionSource();
@@ -44,7 +43,13 @@ export function SuggestionRows({
     <>
       <ul aria-label={t("label")} className={cn("divide-border divide-y", className)}>
         {urgentFirst(items).map((suggestion) => {
-          const url = suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : "";
+          const tableId = suggestion.payload.table_id;
+          const tableUrl =
+            typeof tableId === "string" && /^[0-9a-f-]{36}$/i.test(tableId)
+              ? `/tables/${tableId}`
+              : null;
+          const url =
+            tableUrl ?? (suggestion.kind === "finding" ? findingUrl(suggestion.payload.url) : null);
           const source = sourceOf(suggestion)?.name ?? tInbox(`source.${suggestion.kind}`);
           return (
             <li
@@ -66,10 +71,10 @@ export function SuggestionRows({
                     )}
                   >
                     {url ? (
-                      <a
+                      <Link
                         href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target={tableUrl ? undefined : "_blank"}
+                        rel={tableUrl ? undefined : "noopener noreferrer"}
                         className="underline-offset-4 hover:underline"
                       >
                         {suggestion.title}
@@ -77,7 +82,7 @@ export function SuggestionRows({
                           className="text-muted-foreground ml-1.5 inline size-3"
                           aria-hidden
                         />
-                      </a>
+                      </Link>
                     ) : (
                       suggestion.title
                     )}
@@ -116,15 +121,6 @@ export function SuggestionRows({
                   dense ? "mt-0.5" : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
-                {typeof suggestion.payload.table_id === "string" &&
-                  /^[0-9a-f-]{36}$/i.test(suggestion.payload.table_id) && (
-                    <Button asChild size="sm" variant="outline" className="h-8">
-                      <Link href={`/tables/${suggestion.payload.table_id}`}>
-                        <ListTodo className="size-3.5" aria-hidden />
-                        {tTasks("openTable")}
-                      </Link>
-                    </Button>
-                  )}
                 {suggestion.kind === "finding" &&
                   typeof suggestion.payload.conversation_id === "string" &&
                   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(

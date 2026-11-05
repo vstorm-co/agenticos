@@ -177,3 +177,14 @@ it("does not turn a malformed working chat reference into a navigation link", ()
   );
   expect(screen.queryByRole("link", { name: "Open conversation" })).toBeNull();
 });
+
+it("links task titles to their table without a separate Open table action", () => {
+  const table = "00000000-0000-4000-8000-000000000123";
+  render(
+    <SuggestionRows items={[item("task", { kind: "finding", payload: { table_id: table } })]} />,
+  );
+  const link = screen.getByRole("link", { name: "Title task" });
+  expect(link).toHaveAttribute("href", `/tables/${table}`);
+  expect(link).not.toHaveAttribute("target");
+  expect(screen.queryByText("Open table")).not.toBeInTheDocument();
+});
