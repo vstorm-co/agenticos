@@ -221,11 +221,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         `test_agent_draft`, then `publish_agent` - or the person does both in the
         console.
         """
-        # Able to ask the person questions, like every agent the console creates.
+        # Able to ask the person questions and to show a draft as a card, like every
+        # agent the console creates.
         spec: dict[str, Any] = {
             "name": name,
             "instructions": instructions,
-            "capabilities": _merge_capabilities([], ["ask_user", *(capabilities or [])]),
+            "capabilities": _merge_capabilities([], ["ask_user", "drafts", *(capabilities or [])]),
         }
         if description:
             spec["description"] = description

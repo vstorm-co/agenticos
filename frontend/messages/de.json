@@ -1785,6 +1785,8 @@
       "videoNotStored": "Das Video wurde erzeugt, aber nicht gespeichert.",
       "suggestingNextSteps": "Schlägt nächste Schritte vor",
       "nextSteps": "Nächste Schritte",
+      "writingDraft": "Schreibt einen Text zum Versenden",
+      "draft": "Text zum Versenden",
       "requestingCapability": "Bittet um eine Capability",
       "capabilityRequest": "Bitte um eine Capability",
       "proposingSetup": "Schlage vor, was sich einrichten lässt",
@@ -10787,6 +10789,14 @@
       "example2": "Eine animierte Fassung eines erzeugten Logos",
       "needs": "Ein API-Schlüssel des Videoanbieters im Vault. Jeden Clip rechnet dieser Anbieter ab, pro Sekunde.",
       "never": "Veröffentlicht nie ein Video; es erscheint im Gespräch."
+    },
+    "drafts": {
+      "name": "Texte zum Versenden",
+      "does": "Zeigt Text, den der Agent zum Versenden schreibt - eine E-Mail, eine Chat-Antwort, einen Beitrag - als Karte mit einem Kopieren-Button an jedem Teil.",
+      "example1": "Antwort an Marta zur Q4-Präsentation",
+      "example2": "Zwei Versionen einer Slack-Ankündigung",
+      "needs": "Nichts weiter. Die Karte erscheint im Web-Chat.",
+      "never": "Sendet nie etwas - du kopierst den Text und schickst ihn selbst."
     },
     "follow_ups": {
       "name": "Nächste Schritte",

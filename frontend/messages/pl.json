@@ -829,6 +829,8 @@
       "videoNotStored": "Wideo powstało, ale go nie zapisano.",
       "suggestingNextSteps": "Proponuje następne kroki",
       "nextSteps": "Następne kroki",
+      "writingDraft": "Pisze tekst do wysłania",
+      "draft": "Tekst do wysłania",
       "requestingCapability": "Prosi o capability",
       "capabilityRequest": "Prośba o capability",
       "proposingSetup": "Proponuję, co ustawić",
@@ -11594,6 +11596,14 @@
       "example2": "Animowana wersja wygenerowanego logo",
       "needs": "Klucz API dostawcy wideo w vault. Każdy klip rozlicza ten dostawca, za sekundę.",
       "never": "Nigdy nigdzie nie publikuje wideo; pojawia się ono w rozmowie."
+    },
+    "drafts": {
+      "name": "Teksty do wysłania",
+      "does": "Pokazuje tekst, który agent pisze do wysłania - e-mail, odpowiedź na czacie, wpis - jako kartę z przyciskiem kopiowania przy każdej części.",
+      "example1": "Odpowiedź do Marty w sprawie prezentacji Q4",
+      "example2": "Dwie wersje ogłoszenia na Slacku",
+      "needs": "Nic dodatkowego. Karta pojawia się w czacie w przeglądarce.",
+      "never": "Nigdy niczego nie wysyła - kopiujesz tekst i wysyłasz go sam."
     },
     "follow_ups": {
       "name": "Następne kroki",

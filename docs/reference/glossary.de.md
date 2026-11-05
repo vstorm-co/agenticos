@@ -1,5 +1,5 @@
 ---
-source_sha: "2f4c1c6cf441"
+source_sha: "341a7d51db73"
 ---
 
 # Glossar { #glossary }
@@ -66,6 +66,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 |---|---|
 | Apps | `artifacts` |
 | Rückfragen | `ask_user` |
+| Texte zum Versenden | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
 | Diagramme | `charts` |
