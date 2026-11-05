@@ -120,3 +120,25 @@ class TestLocalBm25:
         ]
         tools.append(ToolDefinition(name="refund_create", description="Issue a refund"))
         assert rank_tools(ctx, ["search refund"], tools)[0] == "refund_create"
+
+
+def test_exact_platform_operation_beats_unrelated_nested_configuration_schemas() -> None:
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import RunContext, ToolDefinition
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.capabilities.tool_search._ranking import rank_tools
+
+    ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+    tools = [
+        ToolDefinition(
+            name="agenticos_update_agent_draft",
+            description="Update an agent",
+            parameters_json_schema={
+                "properties": {"config": {"description": "get virtual table " * 100}}
+            },
+        ),
+        ToolDefinition(name="agenticos_get_virtual_table", description="Read a table schema"),
+    ]
+    assert rank_tools(ctx, ["get_virtual_table"], tools)[0] == "agenticos_get_virtual_table"
+    assert rank_tools(ctx, ["table schema"], tools)[0] == "agenticos_get_virtual_table"

@@ -27,7 +27,7 @@ def rank_tools(
         Counter(
             _terms(
                 f"{tool.name} {tool.name} {tool.name} {tool.description or ''} "
-                f"{json.dumps(tool.parameters_json_schema, ensure_ascii=False)}"
+                f"{json.dumps(list(tool.parameters_json_schema.get('properties', {})), ensure_ascii=False)}"
             )
         )
         for tool in tools
@@ -45,6 +45,11 @@ def rank_tools(
                     1 + (len(tools) - frequency[term] + 0.5) / (frequency[term] + 0.5)
                 )
                 score += rarity * count * 2.2 / (count + 1.2 * (0.25 + 0.75 * length / average))
+        identifiers = _terms(tool.name)
+        for raw in queries:
+            terms = _terms(raw)
+            if terms and (terms == identifiers or terms == identifiers[1:]):
+                score += 100.0
         if score > 0:
             scores.append((score, tool.name))
     return [name for _, name in sorted(scores, key=lambda item: (-item[0], item[1]))]

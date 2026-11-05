@@ -1,5 +1,5 @@
 ---
-source_sha: "bbc7f8f0b4db"
+source_sha: "a9300213bf9b"
 ---
 
 # Skills { #skills }
@@ -92,6 +92,8 @@ cada conversación relevante.
 `legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills.
 No tiene ningún efecto sobre lo que ve el agent — el modelo elige por
 `description`, nunca por categoría.
+
+Los recursos de texto largos se paginan para no incluir manuales completos en cada solicitud al modelo: 8.000 caracteres por defecto y un máximo de 20.000. Pasa `args` con `offset` y `limit` a `read_skill_resource`; la respuesta indica el siguiente desplazamiento. Lee solo los fragmentos pertinentes y reutiliza el material ya cargado.
 
 ## Cómo lee uno un agent { #how-an-agent-reads-one }
 

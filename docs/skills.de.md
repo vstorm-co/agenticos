@@ -1,5 +1,5 @@
 ---
-source_sha: "bbc7f8f0b4db"
+source_sha: "a9300213bf9b"
 ---
 
 # Skills { #skills }
@@ -92,6 +92,8 @@ relevante Unterhaltung lädt.
 `finance`, `legal`, `security`, `marketing`, …) und steuert den Filter in der
 Skill-Liste. Auf das, was der Agent sieht, hat sie keine Wirkung — das Modell
 wählt über `description`, nie über die Kategorie.
+
+Lange Textressourcen werden seitenweise gelesen, damit nicht jedes Modell-Request das ganze Handbuch enthält: standardmäßig 8.000, höchstens 20.000 Zeichen. Übergib `args` mit `offset` und `limit` an `read_skill_resource`; die Antwort nennt den nächsten Offset. Lies nur relevante Bereiche und verwende bereits geladenes Material erneut.
 
 ## Wie ein Agent einen liest { #how-an-agent-reads-one }
 

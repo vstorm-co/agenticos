@@ -1598,7 +1598,7 @@ describe("useChat - approvals and questions", () => {
       .getState()
       .messages.flatMap((message) => message.parts ?? [])
       .map((part) => part.toolCall);
-    expect(steps.find((call) => call?.id === "tc-1")?.status).toBe("completed");
+    expect(steps.find((call) => call?.id === "tc-1")?.status).toBe("running");
     expect(steps.find((call) => call?.id === "tc-2")).toMatchObject({
       status: "error",
       result: "Refused",
@@ -1666,10 +1666,10 @@ describe("useChat - approvals and questions", () => {
       .filter((part) => part.toolCall !== undefined)
       .map((part) => part.toolCall);
     expect(steps.find((call) => call?.id === "tc-1")).toMatchObject({
-      status: "completed",
-      result: "Continued in the chat this was asked in",
+      status: "running",
+      result: undefined,
     });
-    expect(steps.some((call) => call?.status === "running")).toBe(false);
+    expect(steps.some((call) => call?.status === "running")).toBe(true);
     // A panel is not tied to a run, so a decision on a chat run leaves it alone.
     expect(result.current.delegations[0]?.status).toBe("running");
     expect(toast.info).toHaveBeenCalledWith(
@@ -2183,7 +2183,7 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
-  it("waits for the turn in flight before asking", async () => {
+  it("can recover an older parked approval while another turn is in flight", async () => {
     // While a turn is processing the parked state on screen is the live one,
     // and the live frame is what will carry the panel.
     get.mockResolvedValue([]);
@@ -2194,7 +2194,7 @@ describe("useChat - approvals and questions", () => {
       useChatStore.getState().addMessage(parkedTurn());
     });
     await act(async () => {});
-    expect(get).not.toHaveBeenCalled();
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
 
     receive("complete", {});
     receive("session_ready", {});
@@ -5295,4 +5295,42 @@ it("does not file a pending local origin under a newly selected organization", (
   act(() => useOrgStore.setState({ activeOrgId: organization }));
   expect(store.fileRootFor("late-source")).toBeUndefined();
   useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
+});
+
+it("recovers a second approval batch of the same run after a server continuation", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  const { result } = renderHook(() => useChat(), { wrapper: decider });
+  receive("tool_approval_required", {
+    run_id: "r-1",
+    action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "write", args: {} }],
+    review_configs: [],
+  });
+  post.mockResolvedValue({ continues_in_chat: true });
+  await act(async () => {
+    await result.current.sendResumeDecisions([{ type: "approve" }]);
+  });
+  get.mockResolvedValue([
+    { id: "ar-2", tool_call_id: "tc-2", tool_name: "create_task", tool_args: {} },
+  ]);
+  act(() =>
+    useChatStore.getState().addMessage({
+      ...parkedTurn(),
+      id: "m-2",
+      toolCalls: [{ id: "tc-2", name: "create_task", args: {}, status: "awaiting_approval" }],
+    }),
+  );
+  await waitFor(() => expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("ar-2"));
+});
+
+it("finds an older pending run when the latest parked-looking run has no approvals", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useChatStore.getState().addMessage({ ...parkedTurn(), id: "older", runId: "older-run" });
+  useChatStore.getState().addMessage(parkedTurn());
+  get.mockImplementation(async (url: string) =>
+    url === "/runs/older-run/parked"
+      ? [{ id: "older-approval", tool_call_id: "tc-1", tool_name: "write", tool_args: {} }]
+      : [],
+  );
+  const { result } = renderHook(() => useChat(), { wrapper: decider });
+  await waitFor(() => expect(result.current.pendingApproval?.runId).toBe("older-run"));
 });

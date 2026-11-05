@@ -1500,6 +1500,7 @@ describe("routine answers arriving in the open source conversation", () => {
   it("rereads a matching private delivery in place and deduplicates repeated announcements", async () => {
     const original = {
       id: "before-routine",
+      run_id: "worker-run",
       role: "assistant",
       content: "Already here",
       conversation_id: "source-chat",
@@ -1507,14 +1508,12 @@ describe("routine answers arriving in the open source conversation", () => {
     };
     useConversationStore.getState().setCurrentConversationId("source-chat");
     useConversationStore.getState().setCurrentMessages([original] as never);
+    let deliveredText = "Approved routine result";
     const fallback = get.getMockImplementation()!;
     get.mockImplementation((path: string) =>
       path.startsWith("/conversations/source-chat/messages")
         ? Promise.resolve({
-            items: [
-              original,
-              { ...original, id: "routine-result", content: "Approved routine result" },
-            ],
+            items: [original, { ...original, id: "routine-result", content: deliveredText }],
             total: 2,
             cost: null,
           })
@@ -1540,6 +1539,9 @@ describe("routine answers arriving in the open source conversation", () => {
     expect(await screen.findByText("Approved routine result")).toBeVisible();
     await act(async () => announceChange(delivered));
     await waitFor(() => expect(screen.getAllByText("Approved routine result")).toHaveLength(1));
+    deliveredText = "Worker continuation reached another approval";
+    await act(async () => announceChange({ ...delivered, resource: "run", id: "worker-run" }));
+    expect(await screen.findByText(deliveredText)).toBeVisible();
     expect(useConversationStore.getState().currentConversationId).toBe("source-chat");
   });
 });

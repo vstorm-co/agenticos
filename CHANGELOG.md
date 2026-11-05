@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Recover every pending approval batch after worker continuations and refresh parked chat turns on run updates without replacing live drafts. Keep live activity grouping stable, avoid marking pending steps Done, and update elapsed labels once per second. Page long skill references, prioritize exact tool names over nested schemas, and avoid requesting duplicate Tables tools when AgenticOS MCP already provides record operations.
+
 - Use muted, theme-aware table option colors with readable ink in explicit Light mode even on a dark OS, and place Kanban grouping alongside filters and sorting in the view toolbar.
 
 - Route approval notifications to real decisions, hide duplicate chat notices when their run already has an approval panel, and refresh outcomes when approvals change.

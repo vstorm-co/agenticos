@@ -85,6 +85,8 @@ loads.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 
+Long text resources are paged to keep reference manuals out of every model request: the default page is 8,000 characters, with a maximum of 20,000. Pass `args` with `offset` and `limit` to `read_skill_resource`; its reply gives the next offset. Read only the relevant ranges and reuse material already loaded.
+
 ## How an agent reads one
 
 Through the [`skills` capability](reference/capabilities.md#skills). Each skill

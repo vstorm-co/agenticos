@@ -24,9 +24,9 @@ export function useTurnElapsed(startedAt: Date | undefined, running: boolean): n
   useEffect(() => {
     if (!running || start === undefined) return;
     const tick = () => setElapsed(Date.now() - start);
-    // A quarter-second beat, so a second boundary shows within one: on a 1s
-    // beat out of phase with the clock, a display lags by almost a second.
-    const id = window.setInterval(tick, 250);
+    // The label only shows whole seconds; rebuilding a long activity timeline
+    // four times a second adds renders without conveying more progress.
+    const id = window.setInterval(tick, 1000);
     return () => {
       window.clearInterval(id);
       // The last reading stands as the turn's duration once it stops.

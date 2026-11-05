@@ -2315,7 +2315,6 @@
       "chosen": "{agent} · {folder}"
     },
     "continuesInTheChat": "Decided. Once nothing else is waiting, the agent goes on in the chat this was asked in and answers there.",
-    "continuedInTheChat": "Continued in the chat this was asked in",
     "answerAlsoInTheChat": "The answer is also sent to the chat this was asked in.",
     "reasoning": {
       "levels": {

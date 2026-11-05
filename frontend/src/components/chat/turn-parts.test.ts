@@ -63,3 +63,25 @@ describe("which calls contribute to a browse summary", () => {
     expect(browseCalls(runs).map((call) => call.id)).toEqual(["look", "act", "open", "again"]);
   });
 });
+
+it("keeps narration in place when more work arrives during a live turn", async () => {
+  const { foldWork, runsOf } = await import("./turn-parts");
+  const narration: MessagePart = {
+    id: "narration",
+    type: "text",
+    content: "Checking the existing board.",
+  };
+  const before = foldWork(runsOf([tool("first", "search_tools"), narration]), false, true);
+  const after = foldWork(
+    runsOf([tool("first", "search_tools"), narration, tool("second", "read_file")]),
+    false,
+    true,
+  );
+  expect(before?.shown.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
+    "narration",
+  ]);
+  expect(after?.shown.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
+    "narration",
+  ]);
+  expect(after?.steps).toBe(2);
+});

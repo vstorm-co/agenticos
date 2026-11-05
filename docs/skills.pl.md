@@ -1,5 +1,5 @@
 ---
-source_sha: "bbc7f8f0b4db"
+source_sha: "a9300213bf9b"
 ---
 
 # Skille { #skills }
@@ -90,6 +90,8 @@ części rozmów nie musi siedzieć w treści, którą wczytuje każda istotna r
 `legal`, `security`, `marketing`, …) i steruje filtrem na liście skilli. Nie ma
 wpływu na to, co widzi agent — model wybiera po `description`, nigdy po
 kategorii.
+
+Długie zasoby tekstowe są stronicowane, aby całe podręczniki nie trafiały do każdego żądania modelu: domyślna strona ma 8 000 znaków, maksymalnie 20 000. Przekaż `args` z `offset` i `limit` do `read_skill_resource`; odpowiedź podaje kolejny offset. Czytaj potrzebne fragmenty i wykorzystuj już wczytany materiał.
 
 ## Jak agent go czyta { #how-an-agent-reads-one }
 

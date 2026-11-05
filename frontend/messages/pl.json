@@ -1453,7 +1453,6 @@
       "chosen": "{agent} · {folder}"
     },
     "continuesInTheChat": "Zdecydowano. Gdy nic innego nie czeka, agent kontynuuje i odpowie w czacie, w którym o to poproszono.",
-    "continuedInTheChat": "Kontynuowano w czacie, w którym o to poproszono",
     "answerAlsoInTheChat": "Odpowiedź trafi też do czatu, w którym o to poproszono.",
     "reasoning": {
       "levels": {

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, type MouseEvent } from "react";
+import { memo, useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
 import type { TurnFileSource } from "@/types/chat";
 import type { ToolCall } from "@/types";
@@ -79,7 +79,7 @@ interface ToolCallCardProps {
  * defaults are the calls whose whole value is the thing they produced - a chart, a
  * question waiting on an answer, code that ran, and a file that was written.
  */
-export function ToolCallCard({
+export const ToolCallCard = memo(function ToolCallCard({
   toolCall,
   fileSource,
   mcpServers,
@@ -332,4 +332,4 @@ export function ToolCallCard({
       )}
     </AgentStep>
   );
-}
+});

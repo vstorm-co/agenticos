@@ -85,6 +85,8 @@ loads.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 
+Long text resources are paged to keep reference manuals out of every model request: the default page is 8,000 characters, with a maximum of 20,000. Pass `args` with `offset` and `limit` to `read_skill_resource`; its reply gives the next offset. Read only the relevant ranges and reuse material already loaded.
+
 ## How an agent reads one
 
 Through the [`skills` capability](reference/capabilities.md#skills). Each skill
@@ -200,6 +202,8 @@ turn or prevent its status and spend from being recorded.
 whole library, including platform-building procedures, durable work, research,
 visual design, Apps and presentation skills. The Skills page marks these copies
 `built-in`. They are ordinary organization-owned skills, not remote registry links.
+
+The `built-in` badge also identifies installed copies from the shipped skill gallery, including skills attached by the starter agents. It describes their shipped origin, not whether the organization installed them automatically. Gallery installation remains opt-in and existing customizations remain editable.
 
 Existing installations receive new built-ins when their shipped agents refresh
 on opening the console; creating an agent from the default starter also performs

@@ -207,7 +207,8 @@ export function ChatContainer({
     currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
-  const { rereadMessages } = useChatStore();
+  const rereadMessages = useChatStore((state) => state.rereadMessages);
+  const chatApi = useChatStore.useApi();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
   const { modelProfileId } = useSavedChatControls();
@@ -397,20 +398,29 @@ export function ChatContainer({
     void refreshConversations();
   }, [refreshConversations]);
 
-  useEffect(
-    () =>
-      onRemoteChange((event) => {
-        if (
-          event.resource === "conversation" &&
-          event.id === currentConversationId &&
-          event.id !== null &&
-          event.organization_id === useOrgStore.getState().activeOrgId
-        ) {
-          void rereadConversation(event.id);
-        }
-      }),
-    [currentConversationId, rereadConversation],
-  );
+  useEffect(() => {
+    let refresh: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = onRemoteChange((event) => {
+      if (!currentConversationId || event.organization_id !== useOrgStore.getState().activeOrgId)
+        return;
+      const transcript = chatApi.getState().messages;
+      const changedThread = event.resource === "conversation" && event.id === currentConversationId;
+      const changedRun =
+        event.resource === "run" &&
+        event.id !== null &&
+        transcript.some((message) => message.runId === event.id);
+      if (!changedThread && !changedRun) return;
+      // The live socket owns its current draft. Worker continuations and parked
+      // runs arrive through persisted updates, not that foreground socket.
+      if (transcript.some((message) => message.isStreaming)) return;
+      clearTimeout(refresh);
+      refresh = setTimeout(() => void rereadConversation(currentConversationId), 150);
+    });
+    return () => {
+      unsubscribe();
+      clearTimeout(refresh);
+    };
+  }, [currentConversationId, rereadConversation, chatApi]);
 
   // The socket went away mid-answer. The turn is still being written server-side
   // and the transcript is where it lands, so re-read it - once now, and again

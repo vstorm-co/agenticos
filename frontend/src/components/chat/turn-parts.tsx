@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Lightbulb, MessageCircleQuestion } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -90,7 +91,20 @@ export function TurnParts({
     run.kind === "tools" ? (
       <div key={run.parts[0].id} className="w-full">
         {/* The outer activity disclosure owns folding; avoid nested earlier-step groups. */}
-        <AgentSteps showAll done={run.parts.length > 1 && !isStreaming && !stopped}>
+        <AgentSteps
+          showAll
+          done={
+            run.parts.length > 1 &&
+            !isStreaming &&
+            !stopped &&
+            !run.parts.some(
+              (part) =>
+                part.toolCall?.status === "awaiting_approval" ||
+                part.toolCall?.status === "awaiting_answer" ||
+                part.toolCall?.status === "running",
+            )
+          }
+        >
           {run.parts.map((part, step) => (
             <ToolCallCard
               key={part.id}
@@ -171,7 +185,7 @@ export function TurnParts({
   );
 }
 
-export function ThinkingBlock({
+export const ThinkingBlock = memo(function ThinkingBlock({
   text,
   open,
   isStreaming,
@@ -207,7 +221,7 @@ export function ThinkingBlock({
       </div>
     </details>
   );
-}
+});
 
 /**
  * What the person sent into the running task (#2087), drawn as their every other
@@ -507,6 +521,28 @@ export function foldWork(
   stopped = false,
   active = false,
 ): { folded: PartRun[]; shown: PartRun[]; steps: number } | null {
+  if (active) {
+    const folded: PartRun[] = [];
+    const shown: PartRun[] = [];
+    for (const run of runs) {
+      if (run.kind === "tools") {
+        const routine = run.parts.filter((part) => !mustShowEveryStep([part]));
+        const attention = run.parts.filter((part) => mustShowEveryStep([part]));
+        if (routine.length) folded.push({ ...run, parts: [routine[0]!, ...routine.slice(1)] });
+        if (attention.length) shown.push({ ...run, parts: [attention[0]!, ...attention.slice(1)] });
+      } else if (run.part.type === "thinking") folded.push(run);
+      else shown.push(run);
+    }
+    if (!folded.some(isWork)) return null;
+    return {
+      folded,
+      shown,
+      steps: folded.reduce(
+        (count, run) => count + (run.kind === "tools" ? run.parts.length : 0),
+        0,
+      ),
+    };
+  }
   let lastText = runs.findLastIndex((run) => run.kind === "other" && run.part.type === "text");
   while (lastText > 0) {
     const previous = runs[lastText - 1]!;

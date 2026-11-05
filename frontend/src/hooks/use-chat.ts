@@ -308,12 +308,12 @@ export function useChat(options: UseChatOptions = {}) {
     [],
   );
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
-  // Runs this hook has already put an approval panel up for, live or restored.
+  // Approval batches this hook has already offered, live or restored.
   // What keeps the restore effect below from re-opening a panel somebody is in
   // the middle of deciding: `sendResumeDecisions` clears the panel before the
   // steps stop reading `awaiting_approval`, which is exactly the state the
   // effect reads as "a reloaded parked run".
-  const approvalOfferedForRef = useRef<Set<string>>(new Set());
+  const offeredApprovalBatchesRef = useRef<Set<string>>(new Set());
   const [pendingQuestions, setPendingQuestions] = useState<AskUserQuestion[] | null>(null);
   // Set when those questions belong to a run parked on them - asked of somebody
   // who left before answering - so the answer continues the run over HTTP
@@ -1101,7 +1101,9 @@ export function useChat(options: UseChatOptions = {}) {
             review_configs: ReviewConfig[];
             run_id: string;
           };
-          approvalOfferedForRef.current.add(run_id);
+          offeredApprovalBatchesRef.current.add(
+            JSON.stringify([run_id, action_requests.map((request) => request.tool_call_id).sort()]),
+          );
           setPendingApproval({
             actionRequests: action_requests,
             reviewConfigs: review_configs,
@@ -1711,7 +1713,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingQuestions(null);
     setParkedQuestion(null);
     setPendingConnection(null);
-    approvalOfferedForRef.current = new Set();
+    offeredApprovalBatchesRef.current = new Set();
     questionOfferedForRef.current = new Set();
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
@@ -1797,7 +1799,7 @@ export function useChat(options: UseChatOptions = {}) {
     setCompactionImpossible(null);
     setSandboxPreparing(false);
     setPersonalGaps([]);
-    approvalOfferedForRef.current = new Set();
+    offeredApprovalBatchesRef.current = new Set();
     // Both, or a question read for this conversation and dropped because the
     // person had moved on is never offered when they come back to it.
     questionOfferedForRef.current = new Set();
@@ -1826,7 +1828,7 @@ export function useChat(options: UseChatOptions = {}) {
   // way to finish the run was the approvals queue on another page (#601). This
   // asks the backend what the run is still waiting on and puts the panel back.
   //
-  // Guarded per run so it never reopens a panel mid-decision:
+  // Guarded per batch so a second park of the same run remains actionable:
   // `sendResumeDecisions` clears the panel before the steps stop reading
   // `awaiting_approval`, which is exactly the state this effect would otherwise
   // read as a reloaded parked run. Empty rows are left alone - a run decided
@@ -1834,50 +1836,52 @@ export function useChat(options: UseChatOptions = {}) {
   // failed is left alone too: the approvals queue holds the same rows, and an
   // error toast over a transcript somebody is reading buys nothing.
   useEffect(() => {
-    if (pendingApproval !== null || isProcessing || !canDecide) return;
-    const parkedMessage = [...messages]
-      .reverse()
-      .find(
-        (message) =>
-          message.role === "assistant" &&
-          (message.toolCalls ?? []).some((call) => call.status === "awaiting_approval"),
-      );
-    // No `runId` is a turn stored before runs were stamped on messages: its
-    // step still says it is waiting, but there is no run to ask about.
-    if (parkedMessage === undefined || parkedMessage.runId === undefined) return;
-    const runId = parkedMessage.runId;
-    if (approvalOfferedForRef.current.has(runId)) return;
-    approvalOfferedForRef.current.add(runId);
+    if (pendingApproval !== null || !canDecide) return;
+    const candidates = [...messages].reverse().flatMap((message) => {
+      const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
+      if (message.role !== "assistant" || !message.runId || calls.length === 0) return [];
+      const key = JSON.stringify([message.runId, calls.map((call) => call.id).sort()]);
+      return offeredApprovalBatchesRef.current.has(key)
+        ? []
+        : [{ message, key, runId: message.runId }];
+    });
     const conversation = activeConversationId;
+    let disposed = false;
     void (async () => {
-      try {
-        const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
-        // An answer that lands after the reader has moved on is dropped: a
-        // panel drawn under another conversation's transcript is the stale,
-        // actionable state the conversation-switch effect above exists to
-        // prevent, and this fetch can resolve on the far side of that switch.
-        if (parked.length === 0 || panelsBelongTo.current !== conversation) return;
-        setPendingApproval({
-          actionRequests: parked.map((call) => ({
-            id: call.id,
-            tool_call_id: call.tool_call_id ?? "",
-            tool_name: call.tool_name,
-            args: call.tool_args,
-            capability_tool_id: call.capability_tool_id,
-            context: call.context,
-            account: call.account,
-          })),
-          // The same shape the live frame carries: editing a parked call is not
-          // offered, because the arguments were recorded on the row being decided.
-          reviewConfigs: parked.map((call) => ({ tool_name: call.tool_name, allow_edit: false })),
-          runId,
-          messageId: parkedMessage.id,
-        });
-      } catch {
-        // Deliberately quiet - see above.
+      for (const { message, key, runId } of candidates) {
+        if (disposed || panelsBelongTo.current !== conversation) return;
+        offeredApprovalBatchesRef.current.add(key);
+        try {
+          const parked = await apiClient.get<ParkedCall[]>(`/runs/${runId}/parked`);
+          if (disposed || panelsBelongTo.current !== conversation) {
+            offeredApprovalBatchesRef.current.delete(key);
+            return;
+          }
+          if (parked.length === 0) continue;
+          setPendingApproval({
+            actionRequests: parked.map((call) => ({
+              id: call.id,
+              tool_call_id: call.tool_call_id ?? "",
+              tool_name: call.tool_name,
+              args: call.tool_args,
+              capability_tool_id: call.capability_tool_id,
+              context: call.context,
+              account: call.account,
+            })),
+            reviewConfigs: parked.map((call) => ({ tool_name: call.tool_name, allow_edit: false })),
+            runId,
+            messageId: message.id,
+          });
+          return;
+        } catch {
+          offeredApprovalBatchesRef.current.delete(key);
+        }
       }
     })();
-  }, [messages, pendingApproval, isProcessing, canDecide, activeConversationId]);
+    return () => {
+      disposed = true;
+    };
+  }, [messages, pendingApproval, canDecide, activeConversationId]);
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
@@ -2162,20 +2166,12 @@ export function useChat(options: UseChatOptions = {}) {
           }
         }
         if (continuesInChat) {
-          // Nothing is left `running`: live updates do not refetch an open
-          // thread's messages, so a step set running here would spin for ever.
-          if (parked.messageId !== null) {
-            for (const [index, request] of parked.actionRequests.entries()) {
-              if (decisions[index]?.type === "approve") {
-                updateToolCallPart(parked.messageId, request.tool_call_id, {
-                  status: "completed",
-                  result: t("continuedInTheChat"),
-                });
-              }
-            }
-          }
+          // Approval queues the continuation; it does not complete the tool.
+          // Persisted run updates replace these pending steps with their actual
+          // results when the worker executes them.
           // Delegation panels are left alone: none of them says which run it
           // belongs to, and closing by guess would relabel another run's.
+          onTurnInterrupted?.();
           toast.info(t("continuesInTheChat"));
           return;
         }
@@ -2231,7 +2227,16 @@ export function useChat(options: UseChatOptions = {}) {
         toast.error(getErrorMessage(error, tErrors));
       }
     },
-    [pendingApproval, updateToolCallPart, decideApproval, resumeRun, showContinuation, tErrors, t],
+    [
+      pendingApproval,
+      updateToolCallPart,
+      decideApproval,
+      resumeRun,
+      showContinuation,
+      onTurnInterrupted,
+      tErrors,
+      t,
+    ],
   );
 
   /** Answer a question a run parked on, which continues the run (#2064). */
