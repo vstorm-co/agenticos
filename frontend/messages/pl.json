@@ -8379,7 +8379,8 @@
         },
         "never": "Jeszcze nie",
         "pick": "Agenci na wykresie",
-        "pickNone": "Wybierz agenta powyżej, żeby narysować jego linię."
+        "pickNone": "Wybierz agenta powyżej, żeby narysować jego linię.",
+        "noLoads": "Wybrani agenci nie wczytali skilla w ostatnich 30 dniach."
       },
       "catchUp": "Dogoń main w forku „{name}”",
       "toMain": "Przenieś „{name}” do main",
@@ -12736,6 +12737,8 @@
     "proposedSkill": "v{version} + proponowany skill",
     "proposedContext": "v{version} + proponowany plik kontekstu",
     "skillCurrent": "{agent} · obecny skill",
+    "skillCurrentVersion": "{agent} · obecny skill (v{version})",
+    "skillCurrentFork": "{agent} · obecny skill (fork „{fork}” v{version})",
     "skillProposed": "{agent} · proponowany skill",
     "version": "v{version}",
     "status": {

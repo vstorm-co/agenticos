@@ -780,6 +780,32 @@ describe("CaseDetail", () => {
     expect(screen.getByText("not graded: judge_new_reason")).toBeInTheDocument();
   });
 
+  it("heads a skill check's answers with the agent and which skill each side read", () => {
+    render(
+      <CaseDetail
+        arms={[
+          arm({ version_number: 1, source: "explicit" }),
+          arm({ id: "arm-2", role: "baseline", version_number: 1 }),
+        ]}
+        attempts={[attempt(), attempt({ id: "att-2", arm_id: "arm-2" })]}
+        check={{
+          kind: "skill",
+          base_version: 1,
+          on_draft: false,
+          suggestions: 0,
+          agent: "Online returns desk",
+          current: { number: 3, fork_name: null },
+        }}
+        datasetId="ds-1"
+        caseId="case-1"
+        expectation={null}
+      />,
+    );
+
+    expect(screen.getByText(/Online returns desk · proposed skill/)).toBeInTheDocument();
+    expect(screen.getByText(/Online returns desk · current skill \(v3\)/)).toBeInTheDocument();
+  });
+
   it("puts what the case expects above the answers, and the way to its dataset", () => {
     render(
       <CaseDetail

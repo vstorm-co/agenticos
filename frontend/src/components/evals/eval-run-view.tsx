@@ -106,10 +106,18 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
   const candidate = candidates.find((item) => item.id === focus);
   // A skill's check runs one agent on both sides, so each side is named by that agent.
+  const checked = run.arms.find((item) => item.role === "candidate")?.skill_ids?.[0];
   const check: SideCheck | null | undefined =
     run.proposal_check?.kind === "skill" && agent
-      ? { ...run.proposal_check, agent: agent.name }
+      ? {
+          ...run.proposal_check,
+          agent: agent.name,
+          current: run.arms
+            .find((item) => item.role === "baseline")
+            ?.skill_versions?.find((served) => served.skill_id === checked),
+        }
       : run.proposal_check;
+  const named = { ...run, proposal_check: check };
   const brokenIds = (comparison?.cases ?? [])
     .filter((item) => item.flip === "regression")
     .map((item) => item.case_id);
@@ -128,7 +136,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
       {run.review && <ReviewReevaluationNote review={run.review} />}
       <VerdictHeader
         agentId={agentId}
-        run={{ ...run, proposal_check: check }}
+        run={named}
         candidate={candidate}
         canPublish={agent?.can_publish === true}
         comparison={live ? undefined : comparison}
@@ -180,7 +188,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             <SelectContent>
               {candidates.map((item) => (
                 <SelectItem key={item.id} value={item.id}>
-                  {t("sideModel", { name: sideName(item, t), model: item.model_label })}
+                  {t("sideModel", { name: sideName(item, t, check), model: item.model_label })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -220,7 +228,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
       )}
       <div ref={cases}>
         <CaseTable
-          run={run}
+          run={named}
           arm={focus}
           comparison={live ? undefined : comparison}
           tag={tag}

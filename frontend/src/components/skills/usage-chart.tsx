@@ -21,6 +21,15 @@ const UsageLinesImpl = dynamic(
 /** How many agents the chart overlays before anyone picks: the ones that used it most. */
 const FIRST_PICKED = 5;
 
+/**
+ * The days from the first one any picked agent loaded the skill on, through the last
+ * day counted; none when the picked agents loaded it on no day at all.
+ */
+export function fromFirstLoad(days: UsageDay[], picked: ReadonlySet<string>): UsageDay[] {
+  const first = days.findIndex((day) => [...picked].some((key) => Number(day[key]) > 0));
+  return first === -1 ? [] : days.slice(first);
+}
+
 /** How an agent's face is drawn: its handle, and the picture or colour it chose. */
 export interface Face {
   slug: string;
@@ -54,6 +63,7 @@ export function UsageChart({
       ),
   );
   const lineOf = new Map(lines.map((line) => [line.key, line]));
+  const shown = fromFirstLoad(days, picked);
   const toggle = (id: string) => {
     const next = new Set(picked);
     if (!next.delete(id)) next.add(id);
@@ -94,12 +104,12 @@ export function UsageChart({
         })}
       </div>
       <div className={cn("h-56", CHART_MIN_HEIGHT)} role="img" aria-label={t("chart")}>
-        {picked.size === 0 ? (
+        {picked.size === 0 || shown.length === 0 ? (
           <p className="text-muted-foreground flex h-full items-center justify-center text-sm">
-            {t("pickNone")}
+            {picked.size === 0 ? t("pickNone") : t("noLoads")}
           </p>
         ) : (
-          <UsageLinesImpl lines={lines.filter((line) => picked.has(line.key))} days={days} />
+          <UsageLinesImpl lines={lines.filter((line) => picked.has(line.key))} days={shown} />
         )}
       </div>
     </div>

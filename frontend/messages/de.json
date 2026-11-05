@@ -8497,7 +8497,8 @@
         },
         "never": "Noch nicht",
         "pick": "Agents im Diagramm",
-        "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen."
+        "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen.",
+        "noLoads": "Die gewählten Agents haben den Skill in den letzten 30 Tagen nicht geladen."
       },
       "catchUp": "„{name}“ auf main nachziehen",
       "toMain": "„{name}“ nach main übernehmen",
@@ -13276,6 +13277,8 @@
     "proposedSkill": "v{version} + vorgeschlagener Skill",
     "proposedContext": "v{version} + vorgeschlagene Kontextdatei",
     "skillCurrent": "{agent} · aktueller Skill",
+    "skillCurrentVersion": "{agent} · aktueller Skill (v{version})",
+    "skillCurrentFork": "{agent} · aktueller Skill (Fork „{fork}“ v{version})",
     "skillProposed": "{agent} · vorgeschlagener Skill",
     "version": "v{version}",
     "status": {

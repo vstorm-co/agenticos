@@ -8619,7 +8619,8 @@
         },
         "never": "Not yet",
         "pick": "Agents on the chart",
-        "pickNone": "Pick an agent above to draw its line."
+        "pickNone": "Pick an agent above to draw its line.",
+        "noLoads": "The agents picked did not load the skill in the last 30 days."
       },
       "catchUp": "Catch “{name}” up with main",
       "toMain": "Move “{name}” to main",
@@ -13604,6 +13605,8 @@
     "proposedSkill": "v{version} + proposed skill",
     "proposedContext": "v{version} + proposed context file",
     "skillCurrent": "{agent} · current skill",
+    "skillCurrentVersion": "{agent} · current skill (v{version})",
+    "skillCurrentFork": "{agent} · current skill (fork “{fork}” v{version})",
     "skillProposed": "{agent} · proposed skill",
     "version": "v{version}",
     "status": {

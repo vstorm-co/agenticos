@@ -257,6 +257,14 @@ class EvalUngradedCaseRead(BaseSchema):
     input: str
 
 
+class ArmSkillVersionRead(BaseSchema):
+    """A stored skill version one side of a run was served."""
+
+    skill_id: UUID
+    number: int
+    fork_name: str | None = Field(description="The fork the version belongs to; null on main")
+
+
 class EvalRunArmRead(BaseSchema):
     id: UUID
     role: ArmRole
@@ -275,6 +283,14 @@ class EvalRunArmRead(BaseSchema):
     context_ids: list[UUID] = Field(
         default_factory=list,
         description="The context files this side served a proposed body for instead of the stored one",
+    )
+    skill_versions: list[ArmSkillVersionRead] = Field(
+        default_factory=list,
+        description=(
+            "The stored version of each skill this side was served, once per skill. A "
+            "skill check's baseline names the version its candidate's proposal is weighed "
+            "against"
+        ),
     )
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
