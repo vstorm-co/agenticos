@@ -17,7 +17,7 @@ not see is a row like any other, so the rule reads every agent; the API counts i
 instead of naming it.
 
 **A decision is final.** A check ends in at most one outcome - applied, applied
-with the agents that got worse pinned, forked for the agents it helped, or
+with the agents that got worse pinned, forked for the agents a person picked, or
 discarded - and `decided_at` is set once.
 """
 

@@ -22,7 +22,7 @@ no path by which a check runs an agent its starter could not.
 
 **Deciding.** `skill_check_rules` reads the result. A person then applies the
 change - pinning first, in the same transaction, the agents it made worse to the
-version they read now - makes it a fork for the agents it helped, or discards it.
+version they read now - makes it a fork for the agents they pick, or discards it.
 """
 
 import hashlib
@@ -1237,9 +1237,7 @@ class SkillCheckService:
                     outcomes=(
                         rules.update_outcomes(verdict)
                         if check.agent_id is not None
-                        else rules.outcomes(
-                            verdict, fork=check.fork_id is not None, helped=_helped(mine)
-                        )
+                        else rules.outcomes(verdict, fork=check.fork_id is not None)
                     )
                     if status is CheckStatus.DONE and verdict is not None
                     else [],
@@ -1489,9 +1487,7 @@ class SkillCheckService:
         if outcome is not None and outcome not in (
             rules.update_outcomes(CheckVerdict(check.verdict))
             if check.agent_id is not None
-            else rules.outcomes(
-                CheckVerdict(check.verdict), fork=check.fork_id is not None, helped=_helped(rows)
-            )
+            else rules.outcomes(CheckVerdict(check.verdict), fork=check.fork_id is not None)
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1696,7 +1692,7 @@ class SkillCheckService:
             )
         outcome = CheckOutcome.APPLY_AND_PIN if blocked else CheckOutcome.APPLY
         if outcome not in rules.outcomes(
-            CheckVerdict(check.verdict), fork=check.fork_id is not None, helped=_helped(rows)
+            CheckVerdict(check.verdict), fork=check.fork_id is not None
         ):
             raise BadRequestError(
                 message="This check's result does not offer that",
@@ -1840,15 +1836,39 @@ class SkillCheckService:
         *,
         from_session: bool = False,
     ) -> SkillCheckForked:
-        """Make the checked text a new fork, and move the agents it helped onto it.
+        """Make the checked text a new fork, and move the agents `data.agent_ids` names onto it.
 
-        Main stays as it is. An agent the caller may publish moves at once; one they
-        may only edit moves in its draft; one they may not edit stays on main.
+        Main stays as it is. With no `agent_ids` the agents the change helped move, and
+        one of them the caller may not edit stays on main; an empty list moves none. An
+        agent the caller may publish moves at once; one they may only edit moves in its
+        draft.
+
+        Raises:
+            AuthorizationError: `agent_ids` names an agent the caller may not edit.
+            BadRequestError: `agent_ids` names an agent the check did not ask or the
+                caller may not see, or one reading the skill through a specialist.
         """
         skill, check, rows = await self._decidable(
             ctx, skill_id, check_id, CheckOutcome.FORK_FOR_HELPED, from_session=from_session
         )
         self._refuse_unacknowledged(check, rows, data.acknowledge_unknown)
+        chosen = _chosen_for_fork(
+            rows if data.agent_ids is None else await self._seen(ctx, rows), data.agent_ids
+        )
+        agents = await agent_repo.get_many(
+            self.db, [row.agent_id for row in chosen], organization_id=ctx.organization_id
+        )
+        editable = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_EDIT, resource_type=AGENT
+        )
+        if data.agent_ids is not None and (
+            refused := [row.agent_id for row in chosen if row.agent_id not in editable]
+        ):
+            named = sorted(agents[agent_id].name for agent_id in refused)
+            raise AuthorizationError(
+                message=f"You may not edit {', '.join(named)}. Pick only agents you may edit",
+                details={"agent_ids": refused, "agents": named},
+            )
         created = await self.versions.create_fork(
             ctx, skill.id, SkillForkCreate(name=data.name, from_version_id=check.base_version_id)
         )
@@ -1891,16 +1911,9 @@ class SkillCheckService:
             source=version_source(proposal) if proposal is not None else _source_of(check),
             proposal_id=check.proposal_id,
         )
-        helped = [row for row in rows if _movable_helped(row)]
-        agents = await agent_repo.get_many(
-            self.db, [row.agent_id for row in helped], organization_id=ctx.organization_id
-        )
-        editable = await accessible_ids(
-            self.db, ctx, list(agents.values()), Perm.AGENTS_EDIT, resource_type=AGENT
-        )
         moved: list[AgentRef] = []
         draft_only: list[AgentRef] = []
-        for row in helped:
+        for row in chosen:
             if row.agent_id not in editable:
                 continue
             changed = await self.agents.change_binding(
@@ -1920,6 +1933,18 @@ class SkillCheckService:
         forks = await self.versions.list_forks(ctx, skill.id)
         read = next(item for item in forks.items if item.id == fork.id)
         return SkillCheckForked(fork=read, moved=moved, draft_only=draft_only)
+
+    async def _seen(
+        self, ctx: AuthContext, rows: Sequence[SkillCheckAgent]
+    ) -> list[SkillCheckAgent]:
+        """The check's rows of agents the caller may see; a hidden one is never confirmed."""
+        agents = await agent_repo.get_many(
+            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+        )
+        visible = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        return [row for row in rows if row.agent_id in visible]
 
     async def discard(
         self, ctx: AuthContext, skill_id: UUID, check_id: UUID, *, from_session: bool = False
@@ -2076,14 +2101,28 @@ class SkillCheckService:
         return created
 
 
-def _movable_helped(row: SkillCheckAgent) -> bool:
-    """An agent the change helped that a fork can move: one reading the skill through a
-    specialist is moved in its Builder."""
-    return row.state == AgentState.BETTER.value and not row.via_specialist
+def _chosen_for_fork(
+    rows: Sequence[SkillCheckAgent], agent_ids: Sequence[UUID] | None
+) -> list[SkillCheckAgent]:
+    """The check's agents a fork moves: the ones it helped, unless the person picked.
 
-
-def _helped(rows: Sequence[SkillCheckAgent]) -> bool:
-    return any(_movable_helped(row) for row in rows)
+    One reading the skill through a specialist is moved in its Builder, never here.
+    """
+    if agent_ids is None:
+        return [
+            row for row in rows if row.state == AgentState.BETTER.value and not row.via_specialist
+        ]
+    by_agent = {row.agent_id: row for row in rows}
+    picked = list(dict.fromkeys(agent_ids))
+    if unknown := [agent_id for agent_id in picked if agent_id not in by_agent]:
+        raise refused_field("agent_ids", "Pick agents this check asked", agent_ids=unknown)
+    if via := [agent_id for agent_id in picked if by_agent[agent_id].via_specialist]:
+        raise refused_field(
+            "agent_ids",
+            "An agent reading the skill through a specialist moves in its Builder",
+            agent_ids=via,
+        )
+    return [by_agent[agent_id] for agent_id in picked]
 
 
 def _per_agent(users: Sequence[LineAgent]) -> list[LineAgent]:

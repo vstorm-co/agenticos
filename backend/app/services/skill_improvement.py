@@ -1042,7 +1042,8 @@ class SkillImprovementService:
     async def fork(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, data: SkillImprovementFork
     ) -> SkillImprovementForked:
-        """Make the checked text a fork for the agents it helped; main stays as it is."""
+        """Make the checked text a fork for the agents the person picked, by default the ones it
+        helped; main stays as it is."""
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         if run.purpose != Purpose.IMPROVE.value:
             raise BadRequestError(
@@ -1054,7 +1055,11 @@ class SkillImprovementService:
             ctx,
             skill_id,
             check_id,
-            SkillCheckFork(name=data.name, acknowledge_unknown=data.acknowledge_unknown),
+            SkillCheckFork(
+                name=data.name,
+                acknowledge_unknown=data.acknowledge_unknown,
+                agent_ids=data.agent_ids,
+            ),
             from_session=True,
         )
         await self._decide(

@@ -59,11 +59,11 @@ export function useSkillUsage(skillId: string, days: number) {
 }
 
 export function useSkillAgents(skillId: string) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: qk.skills.agents(skillId),
     queryFn: () => listSkillAgents(skillId),
   });
-  return { agents: data, isLoading, error };
+  return { agents: data, isLoading, error, retry: refetch, retrying: isFetching };
 }
 
 /**

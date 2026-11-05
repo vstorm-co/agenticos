@@ -493,7 +493,7 @@ class TestReadingSessions:
 
         assert session["next_actions"] == [
             "Apply to main and keep Gift shop counter on v1",
-            "Make a fork for Online returns desk",
+            "Make a fork for Online returns desk, or for the agents the person picks",
             "Improve further (attempt 2 of 3)",
             "End the session",
         ]
@@ -664,7 +664,7 @@ class TestReadingSessions:
 
         assert read["next_actions"][:2] == [
             "Apply to main and keep the agents it made worse on v1",
-            "Make a fork for the agents it helped",
+            "Make a fork for the agents the person picks, or none",
         ]
 
     async def test_a_stale_result_drops_its_old_verdict(
@@ -1041,6 +1041,38 @@ class TestDeciding:
         assert forked["moved"] == ["Online returns desk"]
         assert forked["only_in_drafts"] == ["Draft desk"]
         assert forked["fork"]["name"] == "Wholesale"
+
+    async def test_a_fork_moves_the_agents_the_person_picked(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("POST", f"{SESSION_PATH}/fork"): {
+                    "session": _session("accepted"),
+                    "fork": FORK_READ,
+                    "moved": [],
+                    "draft_only": [],
+                }
+            }
+        )
+
+        forked = await _call(
+            server,
+            "accept_skill_improvement",
+            skill_id=SKILL,
+            session_id=SESSION,
+            outcome="fork_for_helped",
+            fork_name="Online",
+            fork_agent_ids=[WHOLESALE],
+        )
+
+        assert _sent(api, "POST", f"{SESSION_PATH}/fork") == {
+            "confirmed": True,
+            "name": "Online",
+            "acknowledge_unknown": False,
+            "agent_ids": [WHOLESALE],
+        }
+        assert forked["moved"] == []
 
     @pytest.mark.parametrize(("status", "route"), [("running", "cancel"), ("ready", "discard")])
     async def test_ending_stops_a_running_session_and_discards_any_other(

@@ -1,5 +1,5 @@
 ---
-source_sha: "41521755e403"
+source_sha: "d80090c01ab6"
 ---
 
 # Skills { #skills }
@@ -339,9 +339,12 @@ esa sesión, y Check on agents lleva a ella. En main una persona aún puede:
   pase a producción, así que ninguno lo sirve ni una vez. Fijarlos requiere poder
   publicar cada uno, y un entorno que espera una promoción debe recibir antes la
   versión fijada;
-- **crear un fork para los agents a los que ayudó**, cuando alguno mejoró,
-  dejando main como está - en el paso Aceptar de [Improve](#improving-a-skill) o a
-  través de la API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **crear un fork**, dejando main como está - se ofrece sea cual sea el
+  resultado, en el paso Aceptar de [Improve](#improving-a-skill) o a través de la
+  API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Pasan al fork los agents
+  a los que ayudó, salvo que elijas otros con `agent_ids`; una lista vacía no mueve
+  a ninguno, y un agent que lee el skill a través de un especialista se mueve en su
+  Builder;
 - **descartarlo**.
 
 En un fork solo quedan seguir mejorando y descartar: fijar nombra una versión de
@@ -542,7 +545,7 @@ petición se rechaza, nombrando los agents, cuando:
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Mueve los agents de un fork de vuelta a main y archiva el fork cuando nadie lo lee |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Comprueba la versión más reciente de main en un agent fijado, o da el precio de esa comprobación |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Calcula el precio de una sesión Improve en main o en un fork y la inicia |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents a los que ayudó, o lo descarta |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Aplica el resultado de una sesión, fijando o no los agents que empeoraron, lo convierte en un fork para los agents elegidos, o lo descarta |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Comprueba un resultado de nuevo en la línea tal como está ahora |
 | `GET /api/v1/skill-improvements/awaiting` | Las sesiones de skills que esperan a una persona |
 
@@ -798,10 +801,12 @@ abras.
 Lo que ofrece Aceptar depende del resultado:
 
 - **Nadie peor** y alguien mejor: aplícalo como la siguiente versión de la línea.
-- **Alguien peor:** aplícalo y deja a esos agents fijados en su versión, crea un
-  fork con el cambio para los agents a los que ayudó, sigue mejorándolo o
-  descártalo. En un fork solo quedan seguir mejorando y descartar, porque un fork
-  no se puede fijar ni bifurcar de nuevo.
+- **Alguien peor:** aplícalo y deja a esos agents fijados en su versión, sigue
+  mejorándolo o descártalo. En un fork solo quedan seguir mejorando y descartar,
+  porque un fork no se puede fijar.
+- **Sea cual sea el resultado**, en main, **Guardar como fork** crea un fork con
+  el cambio: le pones nombre y eliges los agents que pasan a él - de entrada los
+  que ayudó, otros o ninguno. Un fork nunca se bifurca de nuevo.
 - **Los agents desconocidos** hay que confirmarlos antes de aplicar nada. **Añadir
   preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
   de respuestas en las que los agents lo cargaron, para poder comprobarlos la

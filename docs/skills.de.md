@@ -1,5 +1,5 @@
 ---
-source_sha: "41521755e403"
+source_sha: "d80090c01ab6"
 ---
 
 # Skills { #skills }
@@ -353,10 +353,12 @@ eine Person dennoch:
   ausliefert. Das Festsetzen erfordert, jeden von ihnen veröffentlichen zu dürfen,
   und eine Umgebung, die auf Beförderung wartet, muss zuerst die festgesetzte
   Version übernehmen;
-- **einen Fork für die Agents anlegen, denen sie geholfen hat**, wenn einer
-  besser wurde, und main lassen, wie es ist - im Schritt Annehmen von
-  [Verbessern](#improving-a-skill) oder über die API,
-  `POST /api/v1/skills/{id}/checks/{check_id}/fork`;
+- **einen Fork anlegen** und main lassen, wie es ist - angeboten, was immer das
+  Ergebnis ist, im Schritt Annehmen von [Verbessern](#improving-a-skill) oder über
+  die API, `POST /api/v1/skills/{id}/checks/{check_id}/fork`. Auf den Fork wechseln
+  die Agents, denen sie geholfen hat, außer Sie wählen andere mit `agent_ids`; eine
+  leere Liste verschiebt keinen, und ein Agent, der den Skill über einen
+  Spezialisten liest, wird in seinem Builder verschoben;
 - sie **verwerfen**.
 
 Auf einem Fork bleiben nur Weiterverbessern und Verwerfen: Ein Festsetzen nennt
@@ -574,7 +576,7 @@ sich. Die ganze Anfrage wird abgelehnt, mit den Namen der Agents, wenn:
 | `POST /api/v1/skills/{id}/forks/{fork_id}/return-to-main` | Verschiebt die Agents eines Forks zurück auf main und archiviert den Fork, sobald ihn niemand mehr liest |
 | `POST /api/v1/skills/{id}/agents/{agent_id}/update-check`, `…/estimate` | Prüft die neueste Version von main an einem festgesetzten Agent oder nennt den Preis dafür |
 | `POST /api/v1/skills/{id}/improvements/estimate`, `POST /api/v1/skills/{id}/improvements` | Berechnet den Preis einer Verbessern-Sitzung auf main oder einem Fork und startet sie |
-| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die Agents, denen es half, oder verwirft es |
+| `POST /api/v1/skills/{id}/improvements/{session_id}/apply`, `…/fork`, `…/discard` | Übernimmt das Ergebnis einer Sitzung, mit oder ohne Festsetzen der schlechteren Agents, macht daraus einen Fork für die gewählten Agents oder verwirft es |
 | `POST /api/v1/skills/{id}/improvements/{session_id}/recheck` | Prüft ein Ergebnis erneut auf der Linie, wie sie jetzt ist |
 | `GET /api/v1/skill-improvements/awaiting` | Die Skill-Sitzungen, die auf einen Menschen warten |
 
@@ -846,9 +848,12 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
 
 - **Niemand schlechter** und jemand besser: als nächste Version der Linie anwenden.
 - **Jemand schlechter:** anwenden und diese Agents auf ihrer Version festsetzen,
-  einen Fork mit der Änderung für die Agents anlegen, denen sie half, weiter
-  verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern und
-  Verwerfen, weil ein Fork weder festgesetzt noch erneut geforkt werden kann.
+  weiter verbessern oder verwerfen. Auf einem Fork bleiben nur Weiterverbessern
+  und Verwerfen, weil ein Fork nicht festgesetzt werden kann.
+- **Was immer das Ergebnis ist**, legt **Als Fork speichern** auf main einen Fork
+  mit der Änderung an: Sie benennen ihn und wählen die Agents, die auf ihn
+  wechseln - zu Beginn die, denen sie half, andere oder keine. Ein Fork wird nie
+  erneut geforkt.
 - **Unbekannte Agents** müssen bestätigt werden, bevor etwas angewendet wird.
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
