@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
 import {
@@ -38,18 +38,35 @@ export function useSkillImprovements(skillId: string, origin: SkillImprovementOr
   };
 }
 
-/** A line's sessions, newest first, read only for someone who may read runs. */
+/** How many sessions History reads at a time. */
+export const HISTORY_PAGE = 20;
+
+/**
+ * A line's sessions, newest first, a page at a time, read only for someone who may
+ * read runs. A short page is the last one; the list does not say how many there are.
+ */
 export function useSkillImprovementHistory(
   skillId: string,
   forkId: string | null,
   { enabled = true } = {},
 ) {
-  const query = useQuery({
-    queryKey: qk.skills.improvements(skillId, forkId),
-    queryFn: () => listSkillImprovements(skillId, forkId),
+  const query = useInfiniteQuery({
+    queryKey: qk.skills.improvementHistory(skillId, forkId),
+    queryFn: ({ pageParam }) =>
+      listSkillImprovements(skillId, forkId, { skip: pageParam, limit: HISTORY_PAGE }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) =>
+      last.length < HISTORY_PAGE ? undefined : pages.length * HISTORY_PAGE,
     enabled,
   });
-  return { sessions: query.data ?? [], isLoading: query.isLoading, error: query.error };
+  return {
+    sessions: query.data?.pages.flat() ?? [],
+    more: query.hasNextPage,
+    loadMore: () => void query.fetchNextPage(),
+    loadingMore: query.isFetchingNextPage,
+    isLoading: query.isLoading,
+    error: query.error,
+  };
 }
 
 /** The problems a session found, each with the agents it occurs in. */

@@ -8534,7 +8534,9 @@
             "failed": "Failed",
             "cancelled": "Ended",
             "stopped": "Stopped without a change"
-          }
+          },
+          "countMore": "Newest {count}",
+          "more": "Show older sessions"
         }
       },
       "tree": {

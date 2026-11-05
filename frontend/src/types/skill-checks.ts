@@ -34,14 +34,16 @@ export interface CheckStage {
    * The stage's held-out questions, candidate against baseline, kept when the agent
    * was judged; null before that, for an older check, or a dataset the reader may not see.
    */
-  counts?: StageCounts | null;
+  counts: StageCounts | null;
 }
 
 export interface StageCounts {
+  /** Answered and graded on both sides: fixed, broken or unchanged. */
   compared: number;
   fixed: number;
   broken: number;
   unchanged: number;
+  /** Held out but not compared: unanswered or ungraded on a side, or changed between. */
   unknown: number;
 }
 

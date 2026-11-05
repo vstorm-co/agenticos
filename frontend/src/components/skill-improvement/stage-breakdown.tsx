@@ -5,7 +5,23 @@ import { useTranslations } from "next-intl";
 
 import { useEvalComparison } from "@/hooks/use-eval-runs";
 import { ROUTES } from "@/lib/constants";
+import type { EvalComparison, Flip } from "@/types/eval-runs";
 import type { CheckStage, StageCounts } from "@/types/skill-checks";
+
+/** A stage's counts read off its run, for a check judged before they were kept. */
+export function countsOf(comparison: EvalComparison): StageCounts {
+  const flips = (flip: Flip) => comparison.cases.filter((item) => item.flip === flip).length;
+  const fixed = flips("fixed");
+  const broken = flips("regression");
+  const unchanged = flips("unchanged");
+  return {
+    compared: fixed + broken + unchanged,
+    fixed,
+    broken,
+    unchanged,
+    unknown: flips("incomplete") + comparison.not_compared,
+  };
+}
 
 /**
  * What one stage of an agent's check found on its questions: how many came out
@@ -15,25 +31,8 @@ import type { CheckStage, StageCounts } from "@/types/skill-checks";
 export function StageBreakdown({ agentId, stage }: { agentId: string; stage: CheckStage }) {
   const t = useTranslations("skillImprovement.agents");
   const runId = stage.eval_run_id!;
-  const kept = stage.counts ?? null;
-  // A check judged before counts were kept is read off its run, only for this row.
-  const { comparison, error } = useEvalComparison(runId, { enabled: kept === null });
-  const counts: StageCounts | null =
-    kept ??
-    (comparison
-      ? {
-          compared: comparison.compared,
-          fixed: comparison.fixed_confirmed + comparison.fixed_unconfirmed,
-          broken: comparison.regressions_confirmed + comparison.regressions_unconfirmed,
-          unchanged:
-            comparison.compared -
-            comparison.fixed_confirmed -
-            comparison.fixed_unconfirmed -
-            comparison.regressions_confirmed -
-            comparison.regressions_unconfirmed,
-          unknown: comparison.not_compared,
-        }
-      : null);
+  const { comparison, error } = useEvalComparison(runId, { enabled: stage.counts === null });
+  const counts = stage.counts ?? (comparison ? countsOf(comparison) : null);
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs">
       <Link

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { checkAgent, skillCheck } from "@/test-utils/skill-improvement";
 import type { EvalComparison } from "@/types/eval-runs";
+import { ReadOnlyProvider } from "@/components/improvement/read-only";
 import { CheckAgents } from "./check-agents";
 
 const compared = vi.hoisted(() => ({
@@ -196,19 +197,23 @@ describe("CheckAgents", () => {
     );
   });
 
-  it("breaks each stage down into better, same, worse and not known", async () => {
+  it("breaks an older check's stages down from their runs, an unfinished case as not known", async () => {
+    const flip = (kind: string) => ({ flip: kind });
     compared.comparison = {
-      fixed_confirmed: 1,
-      fixed_unconfirmed: 1,
-      regressions_confirmed: 1,
-      regressions_unconfirmed: 0,
-      compared: 7,
+      cases: [
+        flip("fixed"),
+        flip("fixed"),
+        flip("regression"),
+        flip("unchanged"),
+        flip("incomplete"),
+      ] as EvalComparison["cases"],
       not_compared: 2,
     };
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     await openAll();
 
-    expect(screen.getByText("2 better · 4 same · 1 worse · 2 not known")).toBeInTheDocument();
+    expect(screen.getByText("2 better · 1 same · 1 worse · 3 not known")).toBeInTheDocument();
+    expect(asked.enabled).toContain(true);
   });
 
   it("reads a stage's kept counts without asking its run, and says where agents broke", async () => {
@@ -322,6 +327,20 @@ describe("CheckAgents", () => {
       await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
       await userEvent.click(screen.getByRole("checkbox", { name: "Only the ones not looked at" }));
       expect(names()).not.toContain("Refunds");
+    });
+
+    it("offers writing test questions only to someone who may edit the skill", () => {
+      render(
+        <ReadOnlyProvider value="viewOnly">
+          <CheckAgents check={many()} />
+        </ReadOnlyProvider>,
+      );
+      expect(
+        screen.getByText(
+          "Not checked: it has no test questions where it loaded the skill, and the skill has none of its own.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Add questions to k1")).toBeNull();
     });
 
     it("says when nothing worse or unknown is left to look at", () => {

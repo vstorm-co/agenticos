@@ -8294,7 +8294,9 @@
             "failed": "Nie powiodła się",
             "cancelled": "Zakończona",
             "stopped": "Zatrzymana bez zmiany"
-          }
+          },
+          "countMore": "Najnowsze {count}",
+          "more": "Pokaż starsze sesje"
         }
       },
       "tree": {
