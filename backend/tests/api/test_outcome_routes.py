@@ -18,7 +18,7 @@ from app.main import app
 
 pytestmark = pytest.mark.anyio
 
-PERSON, ORG, OUTCOME, CHAT = uuid4(), uuid4(), uuid4(), uuid4()
+PERSON, ORG, OUTCOME, CHAT, RUN = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
 
 
 def _row(status: str = "open") -> SimpleNamespace:
@@ -28,6 +28,7 @@ def _row(status: str = "open") -> SimpleNamespace:
         summary="Found it",
         context_url="/inbox",
         status=status,
+        source_run_id=RUN,
         source_conversation_id=CHAT,
         created_at=datetime.now(UTC),
         settled_at=None,
@@ -57,6 +58,7 @@ async def test_a_viewer_lists_their_open_outcomes_for_one_chat() -> None:
 
     assert response.status_code == 200
     (item,) = response.json()["items"]
+    assert item["source_run_id"] == str(RUN)
     assert (item["id"], item["status"], item["summary"]) == (str(OUTCOME), "open", "Found it")
     assert listed.await_args.kwargs == {"open_only": True, "conversation_id": CHAT}
 

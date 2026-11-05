@@ -26,9 +26,16 @@ describe("staleQueries", () => {
       qk.assistant(change("organization").organization_id),
     ]);
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
-    expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
+    expect(staleQueries(change("notification"))).toEqual([
+      qk.notifications.all(),
+      qk.outcomes.all(),
+    ]);
     expect(staleQueries(change("conversation"))).toEqual([qk.conversations.all()]);
-    expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
+    expect(staleQueries(change("run"))).toEqual([
+      qk.runs.all(),
+      qk.conversations.list(),
+      qk.outcomes.all(),
+    ]);
   });
 
   it("refreshes the sharing panels with every row somebody can share", () => {

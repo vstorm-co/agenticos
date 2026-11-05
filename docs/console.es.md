@@ -1,5 +1,5 @@
 ---
-source_sha: "3abb8ea0fa2e"
+source_sha: "cf7ebdb903c1"
 ---
 
 # La consola { #the-console }
@@ -453,6 +453,8 @@ Las listas de conversaciones conservan el agente principal y también muestran C
 El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
 
 El razonamiento en directo y las llamadas habituales a herramientas comparten una única sección de actividad contraída en todos los tamaños de pantalla. Ábrela para revisar los pasos; los argumentos y resultados habituales permanecen cerrados hasta seleccionarlos. Las respuestas, preguntas, solicitudes de aprobación, errores y resultados visuales siguen visibles fuera de la sección. Una pregunta o aprobación pendiente muestra un estado de espera en lugar del contador de trabajo. Al salir de un chat con una pregunta sin responder, se guarda para responder al volver.
+
+Las notificaciones de aprobación del chat enlazan a la cola de aprobaciones y no ofrecen **Visto**, **Hecho** ni **No volver a preguntar**. Si esa ejecución ya tiene un panel de decisión junto al editor, se oculta su notificación duplicada; las demás ejecuciones pendientes siguen visibles. La campana también lleva las aprobaciones a la cola de decisiones. Solo aprobar o rechazar la solicitud real decide la operación; los eventos de notificaciones y ejecuciones actualizan el estado mostrado.
 
 **Debajo de una respuesta.** Un agent con
 [Follow-ups](reference/capabilities.md#follow-ups) ofrece debajo de su respuesta

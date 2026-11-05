@@ -1,5 +1,5 @@
 ---
-source_sha: "3abb8ea0fa2e"
+source_sha: "cf7ebdb903c1"
 ---
 
 # Konsola { #the-console }
@@ -437,6 +437,8 @@ Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Code
 Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 
 Rozumowanie i zwykłe wywołania narzędzi trafiają do jednej zwiniętej sekcji aktywności na każdym rozmiarze ekranu. Rozwiń ją, aby przejrzeć kroki; argumenty i wyniki zwykłych narzędzi otwierasz osobno. Odpowiedzi, pytania, prośby o zatwierdzenie, błędy i wyniki wizualne pozostają widoczne poza sekcją. Oczekujące pytanie lub zatwierdzenie pokazuje stan oczekiwania zamiast licznika pracy. Wyjście z czatu z pytaniem bez odpowiedzi zapisuje je do udzielenia odpowiedzi po powrocie.
+
+Powiadomienia o zatwierdzeniu w czacie prowadzą do kolejki zatwierdzeń i nie mają przycisków **Widziane**, **Zrobione** ani **Nie pytaj więcej**. Gdy dany run ma już panel decyzji przy polu wiadomości, jego powielone powiadomienie jest ukryte; inne oczekujące runy pozostają widoczne. Dzwonek również kieruje do kolejki decyzji. Dopiero zatwierdzenie lub odrzucenie właściwego żądania rozstrzyga operację; zdarzenia powiadomień i runów odświeżają wyświetlany stan.
 
 **Pod odpowiedzią.** Agent z [Następnymi krokami](reference/capabilities.md#follow-ups)
 proponuje pod najnowszą odpowiedzią do trzech następnych kroków jako przyciski, a

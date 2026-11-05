@@ -16,6 +16,7 @@ export interface Outcome {
   summary: string;
   context_url: string | null;
   status: OutcomeStatus;
+  source_run_id?: string | null;
   source_conversation_id: string | null;
   created_at: string;
   settled_at: string | null;

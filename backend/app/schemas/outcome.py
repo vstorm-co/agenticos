@@ -25,6 +25,7 @@ class OutcomeRead(BaseSchema):
     summary: str
     context_url: str | None = None
     status: OutcomeStatusName
+    source_run_id: UUID | None = None
     source_conversation_id: UUID | None = None
     created_at: datetime
     settled_at: datetime | None = None

@@ -54,14 +54,16 @@ export function OutcomeActions({
 }
 
 /**
- * What still needs the person, from this chat: a card above the transcript for each,
- * with the three answers in it. Nothing at all when nothing does.
+ * Open outcomes from this chat. Approval notices lead to decisions and disappear
+ * when that same run already has a decision panel; other outcomes keep their actions.
  */
 export function OutcomeCards({
   conversationId,
   className,
+  approvalRunId,
 }: {
   conversationId: string;
+  approvalRunId?: string;
   className?: string;
 }) {
   const t = useTranslations("outcomes");
@@ -74,10 +76,18 @@ export function OutcomeCards({
         className={className}
       />
     );
-  if (outcomes.length === 0) return null;
+  const visible = outcomes.filter(
+    (outcome) =>
+      !(
+        outcome.kind === "approval_requested" &&
+        approvalRunId &&
+        outcome.source_run_id === approvalRunId
+      ),
+  );
+  if (visible.length === 0) return null;
   return (
     <ul aria-label={t("label")} className={cn("space-y-2", className)}>
-      {outcomes.map((outcome) => (
+      {visible.map((outcome) => (
         <li
           key={outcome.id}
           aria-label={outcome.summary}
@@ -86,7 +96,7 @@ export function OutcomeCards({
           <BellRing className="text-muted-foreground size-4 shrink-0" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-pretty">{outcome.summary}</p>
-            {outcome.context_url && (
+            {outcome.kind !== "approval_requested" && outcome.context_url && (
               <Link
                 href={outcome.context_url}
                 prefetch={false}
@@ -96,7 +106,17 @@ export function OutcomeCards({
               </Link>
             )}
           </div>
-          <OutcomeActions id={outcome.id} via="chat" />
+          {outcome.kind === "approval_requested" ? (
+            <Link
+              href={outcome.context_url ?? "/runs?tab=approvals"}
+              prefetch={false}
+              className="text-foreground hover:bg-accent rounded-md border px-3 py-2 text-sm font-medium"
+            >
+              {t("reviewApproval")}
+            </Link>
+          ) : (
+            <OutcomeActions id={outcome.id} via="chat" />
+          )}
         </li>
       ))}
     </ul>

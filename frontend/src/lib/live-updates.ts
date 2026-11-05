@@ -33,7 +33,7 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   trigger: () => [qk.triggers.all()],
   // A bot is also the surface an agent is exposed on.
   channel: () => [qk.channelBots.list(), qk.exposures.all()],
-  notification: () => [qk.notifications.all()],
+  notification: () => [qk.notifications.all(), qk.outcomes.all()],
   secret: () => [qk.secrets.all(), qk.sharing.all()],
   mcp_connection: () => [
     qk.mcpConnections.all(),
@@ -45,7 +45,7 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // list reads its running, unread and order state off runs too - a run started
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
-  run: () => [qk.runs.all(), qk.conversations.list()],
+  run: () => [qk.runs.all(), qk.conversations.list(), qk.outcomes.all()],
   conversation: () => [qk.conversations.all()],
 };
 

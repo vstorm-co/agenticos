@@ -1342,7 +1342,11 @@ function ChatUI({
               {/* What still needs the person from this chat: one outcome shared with the bell
                 and the mail, so answering here closes them too (#2575). */}
               {conversationId && !compact && (
-                <OutcomeCards conversationId={conversationId} className="mb-3" />
+                <OutcomeCards
+                  conversationId={conversationId}
+                  approvalRunId={onResumeDecisions ? pendingApproval?.runId : undefined}
+                  className="mb-3"
+                />
               )}
               {isLoadingConversation ? (
                 <ConversationSkeleton />

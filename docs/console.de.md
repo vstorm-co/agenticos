@@ -1,5 +1,5 @@
 ---
-source_sha: "3abb8ea0fa2e"
+source_sha: "cf7ebdb903c1"
 ---
 
 # Die Konsole { #the-console }
@@ -473,6 +473,8 @@ Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude 
 Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
 Laufende Überlegungen und gewöhnliche Werkzeugaufrufe stehen auf allen Bildschirmgrößen in einem gemeinsamen eingeklappten Aktivitätsbereich. Öffne ihn, um die Schritte zu prüfen; Argumente und Ergebnisse gewöhnlicher Werkzeuge bleiben bis zur Auswahl geschlossen. Antworten, Fragen, Freigabeanfragen, Fehler und visuelle Ergebnisse bleiben außerhalb sichtbar. Ausstehende Fragen oder Freigaben zeigen einen Wartestatus statt einer laufenden Zeitanzeige. Verlässt du einen Chat mit einer unbeantworteten Frage, wird sie gespeichert und bei der Rückkehr wieder zur Beantwortung angeboten.
+
+Freigabebenachrichtigungen im Chat führen zur Freigabewarteschlange und bieten keine Schaltflächen **Gesehen**, **Erledigt** oder **Nicht mehr fragen**. Hat dieser Lauf bereits ein Entscheidungspanel am Eingabefeld, wird seine doppelte Benachrichtigung ausgeblendet; andere wartende Läufe bleiben sichtbar. Auch die Glocke führt bei Freigaben zur Entscheidungswarteschlange. Erst das Genehmigen oder Ablehnen der eigentlichen Anfrage entscheidet über die Aktion; Benachrichtigungs- und Laufereignisse aktualisieren die Anzeige.
 
 **Unter einer Antwort.** Ein Agent mit
 [Nächsten Schritten](reference/capabilities.md#follow-ups) bietet unter seiner

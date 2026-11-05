@@ -12801,7 +12801,8 @@
     "mute": "Nie pytaj więcej",
     "open": "Otwórz",
     "loadFailed": "Nie udało się wczytać spraw wymagających uwagi",
-    "retry": "Spróbuj ponownie"
+    "retry": "Spróbuj ponownie",
+    "reviewApproval": "Przejrzyj zatwierdzenie"
   },
   "routineNotifications": {
     "label": "Powiadomienia dla tej rutyny",

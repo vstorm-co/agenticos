@@ -424,6 +424,8 @@ The Files panel groups files by folder, keeping identical names in different dir
 
 Live reasoning and routine tool calls share one collapsed activity section on every screen size. Open it to inspect the steps; ordinary tool arguments and results stay closed until selected. Answers, questions, approval requests, errors and visual results remain visible outside the section. A pending question or approval shows a waiting status instead of a running timer. Leaving a chat with an unanswered question saves it for answering when you return.
 
+Approval notifications in a chat link to the approval queue and do not offer **Seen**, **Done** or **Stop asking**. When that run already has a decision panel beside the composer, its duplicate notification is hidden; other pending runs remain visible. The bell also directs approval notifications to the decision queue. Only approving or rejecting the actual request decides the operation; notification and run events refresh the displayed state.
+
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)
 offers up to three next steps as buttons under its latest answer, and a click
 sends one. A line says what it noted about you, or forgot, with **Manage** for

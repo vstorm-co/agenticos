@@ -52,6 +52,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Route approval notifications to real decisions, hide duplicate chat notices when their run already has an approval panel, and refresh outcomes when approvals change.
+
 - Group chat reasoning and routine actions into one collapsed activity section, keep tool details closed until selected, restore unanswered questions after leaving a chat, announce new conversations before live-room setup, and show waiting states separately from active work.
 
 - **Breaking:** inbound email relays must attest to an aligned DMARC pass for the exact From address in `sender_authentication`. Upgrade relays to supply the trusted receiver verdict before updating the API; signed messages without it are ignored.

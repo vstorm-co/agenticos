@@ -12698,7 +12698,8 @@
     "mute": "Nicht mehr fragen",
     "open": "Öffnen",
     "loadFailed": "Offene Anliegen konnten nicht geladen werden",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "reviewApproval": "Freigabe prüfen"
   },
   "routineNotifications": {
     "label": "Benachrichtigungen für diese Routine",

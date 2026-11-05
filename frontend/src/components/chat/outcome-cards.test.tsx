@@ -30,7 +30,7 @@ vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
 const outcome = (overrides: Record<string, unknown> = {}) => ({
   id: "o-1",
-  kind: "approval_requested",
+  kind: "finding",
   summary: "Finance is waiting on your approval",
   context_url: "/runs?tab=approvals",
   status: "open",
@@ -71,6 +71,48 @@ describe("OutcomeCards", () => {
       expect(state.settle).toHaveBeenCalledWith({ id: "o-1", action: "resolve" }),
     );
     expect(state.via).toBe("chat");
+  });
+  it("offers only the actual approval destination for an approval notification", () => {
+    state.outcomes = [outcome({ kind: "approval_requested" })];
+    render(<OutcomeCards conversationId="c-1" />);
+    expect(screen.getByRole("link", { name: "reviewApproval" })).toHaveAttribute(
+      "href",
+      "/runs?tab=approvals",
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(state.settle).not.toHaveBeenCalled();
+  });
+
+  it("hides only the approval run already shown in the decision panel", () => {
+    state.outcomes = [
+      outcome({ kind: "approval_requested", source_run_id: "r-1" }),
+      outcome({
+        id: "o-other",
+        kind: "approval_requested",
+        source_run_id: "r-2",
+        summary: "Another approval",
+      }),
+      outcome({ id: "o-finding", summary: "A finding" }),
+    ];
+    render(<OutcomeCards conversationId="c-1" approvalRunId="r-1" />);
+    expect(screen.queryByText("Finance is waiting on your approval")).toBeNull();
+    expect(screen.getByText("Another approval")).toBeVisible();
+    expect(screen.getByText("A finding")).toBeVisible();
+  });
+
+  it("keeps a legacy approval reachable when its source or link is absent", () => {
+    state.outcomes = [outcome({ kind: "approval_requested", context_url: null })];
+    render(<OutcomeCards conversationId="c-1" approvalRunId="r-1" />);
+    expect(screen.getByRole("link", { name: "reviewApproval" })).toHaveAttribute(
+      "href",
+      "/runs?tab=approvals",
+    );
+  });
+
+  it("renders no empty list when the decision panel handles the only outcome", () => {
+    state.outcomes = [outcome({ kind: "approval_requested", source_run_id: "r-1" })];
+    const { container } = render(<OutcomeCards conversationId="c-1" approvalRunId="r-1" />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

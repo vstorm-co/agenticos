@@ -13026,7 +13026,8 @@
     "mute": "Stop asking",
     "open": "Open",
     "loadFailed": "Could not load items needing your attention",
-    "retry": "Try again"
+    "retry": "Try again",
+    "reviewApproval": "Review approval"
   },
   "routineNotifications": {
     "label": "Notifications for this routine",

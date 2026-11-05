@@ -373,7 +373,7 @@ function NotificationRow({
     // outer click in whichever direction the browser resolves it.
     <li className="group relative">
       {body}
-      {item.outcome_id && (
+      {item.outcome_id && item.event_type !== "approval_requested" && (
         <OutcomeActions id={item.outcome_id} via="inbox" className="px-3 pb-3 pl-14" />
       )}
       <button

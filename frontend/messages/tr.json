@@ -12759,5 +12759,8 @@
     "memoryModel": "Bellek bakımı için model seçilmedi. Otomatik bellek bakımı için Yapay zekâ ve hizmetler → Arka plan hizmetleri bölümünde model seçin.",
     "architectModel": "Architect bir model gerektiriyor. Yapay zekâ ve hizmetler üzerinden Agent Builder’da açın ve bir model seçin.",
     "mobilePush": "iPhone anlık bildirimleri için Apple anahtarı yapılandırılmadı. Kendi iOS uygulama derlemenizi kullanıyorsanız buraya APNs anahtarınızı ekleyin."
+  },
+  "outcomes": {
+    "reviewApproval": "Onay isteğini incele"
   }
 }
