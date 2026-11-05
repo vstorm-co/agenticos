@@ -123,6 +123,8 @@ export interface ConversationMessage {
    * one, so without this the reader believes the agent said all it had to say.
    */
   run_status?: string | null;
+  run_started_at?: string | null;
+  run_duration_ms?: number | null;
   /** Which configured agent answered. Null for the general assistant. */
   agent_id?: string | null;
   tool_calls?: ConversationToolCall[];

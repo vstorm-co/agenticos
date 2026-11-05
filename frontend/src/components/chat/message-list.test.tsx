@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MessageList,
+  coalesceActivity,
   continuesTurn,
   endsTurn,
   lastToolTurnIndex,
@@ -603,4 +604,39 @@ it("reads group identities linearly even for one long segmented turn", () => {
   expect(layout[0]?.groupPosition).toBe("first");
   expect(layout[500]?.groupPosition).toBe("middle");
   expect(layout[999]?.groupPosition).toBe("last");
+});
+
+describe("activity-only run segments", () => {
+  it("keeps one activity history and the delegate when later segments arrive", () => {
+    const task = {
+      id: "task-1",
+      name: "task",
+      args: { subagent_type: "architect" },
+      status: "completed" as const,
+      result: "Recommendation",
+    };
+    const first = message({ id: "segment-1", runId: "run-1", content: "", toolCalls: [task] });
+    const next = message({
+      id: "segment-2",
+      runId: "run-1",
+      content: "",
+      toolCalls: [{ id: "create", name: "agenticos_create_task", args: {}, status: "completed" }],
+    });
+    const final = message({ id: "segment-3", runId: "run-1", content: "Finished." });
+    const result = coalesceActivity([first, next, final]);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.toolCalls?.map((call) => call.id)).toEqual(["task-1", "create"]);
+    expect(result[0]?.content).toBe("Finished.");
+    expect(result[0]?.renderKey).toBe("segment-1");
+    expect(result[0]?.id).toBe("segment-3");
+    expect(first.toolCalls).toEqual([task]);
+  });
+  it("preserves intermediate prose and different runs", () => {
+    const messages = [
+      message({ runId: "r1", content: "Checking the project." }),
+      message({ id: "m2", runId: "r1", content: "" }),
+      message({ id: "m3", runId: "r2", content: "Next turn" }),
+    ];
+    expect(coalesceActivity(messages)).toEqual(messages);
+  });
 });

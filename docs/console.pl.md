@@ -1,5 +1,5 @@
 ---
-source_sha: "4dd9c3f1ff4e"
+source_sha: "7887ce9be71f"
 ---
 
 # Konsola { #the-console }
@@ -445,6 +445,10 @@ Rozumowanie i wywołania narzędzi są domyślnie zwinięte na każdym rozmiarze
 Zatwierdzenia w czacie pozostają jedną prostą kartą przy polu wiadomości: operacja, jej ikona i tytuł zadania lub obiektu, a dodatkowe argumenty pod Details. Przyciski Approve i Reject są obok żądania, a na wąskim ekranie pod nim. Zakończona aktywność ma spokojny znacznik ukończenia, oczekujące kroki osobny status, a działające kroki zachowują ikonę operacji zamiast osobnej animowanej kuli przy każdym wywołaniu.
 
 Ponowne otwarcie czatu odtwarza też zatwierdzenia i pytania narzędzi subagenta, których nie ma na osi głównego agenta. W trakcie zatwierdzonego wznowienia przez HTTP wstrzymany subagent jest pokazywany jako pracujący. Zakończony opublikowany subagent zachowuje własny wynik, gdy agent nadrzędny zatrzyma się na kolejnej decyzji.
+
+Podczas pracy agenta widać podgląd ostatniego kroku lub rozumowania, a wcześniejsza aktywność pozostaje zwinięta. Segmenty samej aktywności z jednego uruchomienia mają wspólne podsumowanie i czas rozpoczęcia. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
+
+Udane zapisy MCP pokazują karty z linkami do projektów, tabel, zadań, rekordów, agentów, workflow, skilli i Context. Błędy nie tworzą kart sukcesu. Wysłana wiadomość pojawia się blisko góry z miejscem na odpowiedź; ręczne przewijanie zachowuje pozycję. Listy Person i Agent przewijają się w oknie rekordu. Pytania działają także po wznowieniu czatu przez HTTP po zatwierdzeniu operacji.
 
 Powiadomienia o wynikach również są przy polu wiadomości. Powiadomienia o zatwierdzeniu są ukryte, gdy widoczny jest panel decyzji lub agent pracuje, także dla starszych przebiegów. W pozostałych przypadkach prowadzą do kolejki zatwierdzeń. Nie mają przycisków Widziane, Zrobione ani Nie pytaj więcej: operację rozstrzyga wyłącznie zatwierdzenie lub odrzucenie właściwego żądania. Inbox i dzwonek zachowują własne powiadomienia.
 

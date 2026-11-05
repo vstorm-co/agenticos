@@ -3317,6 +3317,7 @@ class TestParking:
         """Without the message history, "approve" has nothing to resume into."""
         service = AgentRunnerService(_db())
         prepared = _prepared()
+        prepared.built.deps.ask_questions = None
         prepared.approvals.parked = {"approval-1": "call-1"}
         result = MagicMock(output=DeferredToolRequests())
         result.all_messages = MagicMock(return_value=[])
@@ -3358,6 +3359,7 @@ class TestParking:
             # What the request asked for, so the continuation is the same run rather
             # than a default-mode one wearing its id (#1326, #1343, #788).
             "admitted_as": {
+                "can_ask_questions": False,
                 "local": None,
                 "approval_mode": "follow_agent",
                 "acts_for_sender": False,
@@ -3849,6 +3851,25 @@ class TestResume:
             await service.resume(resumer, run.id, run_limit_usd=run_limit_usd)
 
         return build
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("can_ask", [True, False])
+    async def test_resume_preserves_whether_the_surface_can_ask_questions(self, can_ask: bool):
+        build = await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {"can_ask_questions": can_ask},
+            }
+        )
+        callback = build.return_value.deps.ask_questions
+        assert (callback is park_the_question) is can_ask
+        if can_ask:
+            from pydantic_ai.exceptions import CallDeferred
+            from pydantic_ai_harness.ask_user import AskUserRequest
+
+            with pytest.raises(CallDeferred):
+                await callback(AskUserRequest(questions=[]))
 
     @pytest.mark.anyio
     @pytest.mark.security

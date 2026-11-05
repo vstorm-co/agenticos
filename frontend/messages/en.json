@@ -2335,6 +2335,16 @@
         "interrupted": "Interrupted; not restarted"
       },
       "emptyTitle": "Delegate work while you keep talking"
+    },
+    "platformObjects": {
+      "project": "Project",
+      "table": "Table",
+      "task": "Task",
+      "record": "Table record",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "skill": "Skill",
+      "context": "Context file"
     }
   },
   "common": {

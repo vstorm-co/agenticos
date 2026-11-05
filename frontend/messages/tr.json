@@ -9671,6 +9671,16 @@
         "ultra": "Ultra",
         "xhigh": "Çok yüksek"
       }
+    },
+    "platformObjects": {
+      "project": "Proje",
+      "table": "Tablo",
+      "task": "Görev",
+      "record": "Tablo kaydı",
+      "agent": "Ajan",
+      "workflow": "İş akışı",
+      "skill": "Beceri",
+      "context": "Bağlam dosyası"
     }
   },
   "admin": {

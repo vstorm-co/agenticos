@@ -106,6 +106,7 @@ export function WorkFold({
   running = false,
   waiting,
   children,
+  preview,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
@@ -115,6 +116,7 @@ export function WorkFold({
   running?: boolean;
   waiting?: "awaiting_answer" | "awaiting_approval";
   children: ReactNode;
+  preview?: ReactNode;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
@@ -176,6 +178,7 @@ export function WorkFold({
           </span>
         )}
       </button>
+      {!open && running && preview && <div className="mt-1 pl-7">{preview}</div>}
       {open && <div className="mt-2 space-y-2">{children}</div>}
     </div>
   );

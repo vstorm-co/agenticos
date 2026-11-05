@@ -1345,6 +1345,7 @@ class ConversationService:
                 outcome = outcomes.get(msg.run_id) if msg.run_id else None
                 msg_schema.run_status = outcome.status if outcome else None
                 msg_schema.run_duration_ms = outcome.duration_ms if outcome else None
+                msg_schema.run_started_at = outcome.started_at if outcome else None
                 enriched.append(msg_schema)
             return enriched, total, cost
         return list(items), total, cost

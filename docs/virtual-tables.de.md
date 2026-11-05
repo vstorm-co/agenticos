@@ -1,5 +1,5 @@
 ---
-source_sha: "00805a24f941"
+source_sha: "e80e99c6fd80"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -836,6 +836,8 @@ Integrationstest, der einen Datensatz des neuen Typs schreibt, filtert und sorti
 Beim Erstellen einer leeren Tabelle benötigen Pflichtspalten keine Vorgaben: Jeder neue Datensatz muss ihre Werte liefern. Neue Pflichtspalten in einem bestehenden Schema benötigen weiterhin einen Standardwert zum Schutz vorhandener Datensätze.
 
 ## Dauerhafte Aufgaben {#durable-tasks}
+
+Sie können Projektaufgaben aus privaten Unterhaltungen außerhalb des Projekts erstellen. Lassen Sie die Arbeitsunterhaltung offen: Die Aufgabe öffnet ihre eigene Unterhaltung im Projekt, ohne Ihr privates Transkript zu verknüpfen. Eine ausdrücklich verknüpfte Unterhaltung aus einem anderen Projekt wird abgelehnt.
 
 **Hintergrundarbeit** (`/work`) zeigt dauerhafte Aufgaben neben laufenden Hintergrundchats. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
 

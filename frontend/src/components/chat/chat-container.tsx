@@ -45,7 +45,7 @@ import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
-import { MessageList } from "./message-list";
+import { MessageList, coalesceActivity } from "./message-list";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
@@ -91,6 +91,7 @@ import { useOnline } from "@/hooks/use-online";
 import { offlineAvailable } from "@/lib/offline/device-cache";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
+import { useSentTurnAnchor } from "@/hooks/use-sent-turn-anchor";
 import { useReaderScrolledUp } from "@/hooks/use-reader-scrolled-up";
 import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { Beam } from "@/components/ui/beam";
@@ -599,6 +600,15 @@ export function ChatContainer({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
   const userScrolledUpRef = useRef(false);
+  const sentTurnAnchoredRef = useRef(false);
+  const sentTurnSpacerRef = useRef<HTMLDivElement>(null);
+  useSentTurnAnchor(
+    messages,
+    scrollContainerRef,
+    transcriptRef,
+    sentTurnSpacerRef,
+    sentTurnAnchoredRef,
+  );
 
   // Clear messages when conversation changes, but NOT when going from null to a new ID
   // (that happens when a new chat is saved - we want to keep the messages)
@@ -676,7 +686,10 @@ export function ChatContainer({
   }, [empty]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
-  const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
+  const holdFollow = useCallback(
+    () => emptyRef.current || userScrolledUpRef.current || sentTurnAnchoredRef.current,
+    [],
+  );
   useFollowContent(scrollContainerRef, transcriptRef, holdFollow);
   // A turn starting here is a thread at work in the list beside it; asked once as
   // it starts, the row shows it at once, and the listing then polls until it ends.
@@ -824,6 +837,8 @@ export function ChatContainer({
       transcriptRef={transcriptRef}
       scrollContainerRef={scrollContainerRef}
       userScrolledUpRef={userScrolledUpRef}
+      sentTurnAnchoredRef={sentTurnAnchoredRef}
+      sentTurnSpacerRef={sentTurnSpacerRef}
       pendingApproval={pendingApproval}
       onResumeDecisions={sendResumeDecisions}
       pendingQuestions={pendingQuestions}
@@ -946,6 +961,8 @@ interface ChatUIProps {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   /** Whether the reader scrolled up, and the scroller should stay where they left it. */
   userScrolledUpRef: React.RefObject<boolean>;
+  sentTurnAnchoredRef: React.RefObject<boolean>;
+  sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
   pendingQuestions?: AskUserQuestion[] | null;
@@ -1011,6 +1028,8 @@ function ChatUI({
   transcriptRef,
   scrollContainerRef,
   userScrolledUpRef,
+  sentTurnAnchoredRef,
+  sentTurnSpacerRef,
   pendingApproval,
   onResumeDecisions,
   pendingQuestions,
@@ -1211,7 +1230,7 @@ function ChatUI({
   );
   const railEntries = useMemo(
     () =>
-      messages.map((message) => ({
+      coalesceActivity(messages).map((message) => ({
         id: message.id,
         author:
           message.role === "user"
@@ -1271,9 +1290,17 @@ function ChatUI({
   useLayoutEffect(() => {
     const scroller = scrollContainerRef.current;
     const empty = messages.length === 0 && voice.call.phase === "idle";
-    if (scroller === null || userScrolledUpRef.current || empty) return;
+    if (scroller === null || userScrolledUpRef.current || sentTurnAnchoredRef.current || empty)
+      return;
     scroller.scrollTop = scroller.scrollHeight;
-  }, [dockHeight, scrollContainerRef, userScrolledUpRef, messages.length, voice.call.phase]);
+  }, [
+    dockHeight,
+    scrollContainerRef,
+    userScrolledUpRef,
+    sentTurnAnchoredRef,
+    messages.length,
+    voice.call.phase,
+  ]);
   const callReady = offerCall && readiness?.available === true;
   const callShown = offerCall && (readiness !== null || readinessFailed);
   // Hidden, not unmounted, during a call: the pill holds its controls, and focus
@@ -1436,6 +1463,7 @@ function ChatUI({
                   />
                 )}
               />
+              <div ref={sentTurnSpacerRef} aria-hidden className="pointer-events-none" />
             </div>
           </div>
           {/* The floating dock: banners, the composer, the caption. Over the

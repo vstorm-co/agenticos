@@ -432,6 +432,10 @@ Chat approvals stay in one compact card beside the composer: the operation, its 
 
 Reopening a chat also restores approvals and questions for delegated tools absent from the parent timeline. A paused delegate is shown as working during its approved HTTP continuation. A finished published delegate keeps its own outcome when the parent stops on another decision.
 
+While an agent works, the latest step or reasoning preview stays visible beneath its collapsed activity. Adjacent activity-only segments from the same run share one summary and the run’s start time. Finished and nested agent exchanges remain available, including coding-agent reports; open an exchange to inspect its instructions, response and collapsed reasoning.
+
+Successful MCP writes show linked cards for projects, tables, tasks, records, agents, workflows, skills and Context. Errors do not become success cards. After sending a message, the chat places it near the top with space for the answer; scrolling manually keeps your position. Person and Agent pickers scroll inside record dialogs. Questions remain available after an approval resumes a chat through HTTP.
+
 Outcome notices also sit beside the composer. Approval notices are hidden while a decision panel is visible or the chat is working, including notices from older runs. Otherwise they link to the approval queue. They never offer Seen, Done or Stop asking: only approving or rejecting the actual request decides the operation. The Inbox and bell retain their own approval notifications.
 
 **Under an answer.** An agent with [Follow-ups](reference/capabilities.md#follow-ups)

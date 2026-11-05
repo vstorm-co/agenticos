@@ -39,7 +39,11 @@ export function DelegationChat({
     delegate: delegateOf(delegation, agents),
     status: delegation.status,
     brief: delegation.prompt,
-    answer: delegation.text,
+    answer: delegation.text || delegation.error || "",
+    thinking: delegation.thinking,
+    costUsd: delegation.costUsd,
+    parentTaskId: delegation.parentTaskId,
+    depth: delegation.depth,
     steps: delegation.steps,
   }));
 
@@ -47,7 +51,11 @@ export function DelegationChat({
     <div className="space-y-3 pb-2" role="log" aria-label={t("teamAtWork")}>
       {items.map((item, beat) => {
         const working = item.status === "running";
-        const preview = answerPreview(item.answer);
+        const preview = answerPreview(item.answer || (working ? item.thinking : ""));
+        const parentDelegation = delegations.find(
+          (delegation) => delegation.taskId === item.parentTaskId,
+        );
+        const sender = parentDelegation ? delegateOf(parentDelegation, agents) : asker;
         // What it is doing this moment, while it works and has said so - a coding
         // harness names every file it reads and command it runs.
         const latest = item.steps.at(-1);
@@ -56,14 +64,18 @@ export function DelegationChat({
             ? delegationStep(latest, tTools)
             : null;
         return (
-          <div key={item.key} className="step-in space-y-1.5">
+          <div
+            key={item.key}
+            className="step-in space-y-1.5"
+            style={{ marginLeft: Math.min(item.depth, 3) * 16 }}
+          >
             <div className="flex items-start gap-2">
-              <Face who={asker} className="h-6 w-6" />
+              <Face who={sender} className="h-6 w-6" />
               <div className="min-w-0">
                 <p className="text-muted-foreground text-[11px]">
-                  {t("askedBy", { from: asker.name, to: item.delegate.name })}
+                  {t("askedBy", { from: sender.name, to: item.delegate.name })}
                 </p>
-                <p className="bg-foreground/[0.05] text-foreground/85 max-w-xl min-w-0 rounded-[4px_14px_14px_14px] px-3 py-1.5 text-[13px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                <p className="bg-foreground/[0.05] text-foreground/85 line-clamp-2 max-w-xl min-w-0 rounded-[4px_14px_14px_14px] px-3 py-1.5 text-[13px] leading-relaxed [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
                   {item.brief}
                 </p>
               </div>
@@ -99,12 +111,14 @@ export function DelegationChat({
                 <span className="bg-foreground/[0.05] group-hover/reply:bg-foreground/[0.08] block max-w-xl rounded-[4px_14px_14px_14px] px-3 py-1.5 text-[13px] leading-relaxed transition-colors">
                   {preview !== "" ? (
                     <span className="text-foreground/85 line-clamp-2">{preview}</span>
-                  ) : (
+                  ) : working ? (
                     <span className="typing-dots" aria-label={t(STATUS_KEY[item.status])}>
                       <i />
                       <i />
                       <i />
                     </span>
+                  ) : (
+                    <span>{t(STATUS_KEY[item.status])}</span>
                   )}
                 </span>
               </span>

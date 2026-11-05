@@ -38,6 +38,20 @@ meaning. Keep both Person and Agent while Next step selects who acts. Start at
 launches work or a reminder; Due at is the deadline. Assignment does not grant
 access to another person's account. An agent result waits for human review.
 
+## Use the managed task contract directly
+
+Discover `list_task_boards`, `ensure_task_board`, `create_task`, `update_task`
+and `get_virtual_table` by those exact tool names. Prefer the task operations for
+managed commitments; generic record edits are for custom table fields, not a way
+to bypass a refused task operation. Omit `conversation_id` unless this chat belongs
+to that project. A project task created from a personal chat can get a separate
+project working conversation when it runs.
+
+Read back the result once and preserve lifecycle changes: an assigned agent can
+already be In progress. Do not reset it to Planned merely to reproduce its initial
+state. Use `/projects/{project_id}` and `/tables/{table_id}` for console links;
+these routes do not require tool search or reading the full platform guide.
+
 ## Write and evolve safely
 
 Use the platform table tools for discovery and record operations. For schema

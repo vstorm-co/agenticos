@@ -434,6 +434,10 @@ class TaskService:
         if ctx.source_conversation_id is not None and conversation_id != ctx.source_conversation_id:
             raise AuthorizationError(message="A chat can link tasks only to itself")
         if board.scope_kind == "project" and conversation.project_id != board.scope_id:
+            if requested is None:
+                # A personal chat may create project work, but is not that
+                # project's shared working conversation. Let task execution open one.
+                return None
             raise BadRequestError(message="Choose a conversation in the task's project")
         return conversation_id
 

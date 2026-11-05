@@ -514,3 +514,40 @@ async def test_restoring_a_muted_task_case_reopens_the_task_without_replaying_no
     restored = await service.get(data.contexts[0], task.id)
     assert restored.status == "waiting_for_user" and restored.outcome_id == task.outcome_id
     assert await db.scalar(select(func.count()).select_from(Notification)) == count
+
+
+async def test_personal_chat_can_create_project_tasks_without_linking_its_private_transcript(
+    db: AsyncSession,
+) -> None:
+    from dataclasses import replace
+
+    from app.db.models.conversation import Conversation
+    from app.db.models.project import Project
+
+    data = await world(db)
+    personal = Conversation(
+        organization_id=data.org.id, user_id=data.users[0].id, title="Personal chat"
+    )
+    project = Project(
+        organization_id=data.org.id, owner_user_id=data.users[0].id, name="Launch", backend="state"
+    )
+    db.add_all([personal, project])
+    await db.flush()
+    ctx = replace(data.contexts[0], source_conversation_id=personal.id)
+    service = TaskService(db)
+    task = await service.create(
+        ctx, TaskCreate(scope="project", scope_id=project.id, title="Prepare report")
+    )
+    assert task.scope == "project" and task.scope_id == project.id
+    assert task.conversation_id is None
+    # An explicit link to an incompatible transcript remains a refusal.
+    with pytest.raises(BadRequestError, match="task's project"):
+        await service.create(
+            ctx,
+            TaskCreate(
+                scope="project",
+                scope_id=project.id,
+                title="Wrong link",
+                conversation_id=personal.id,
+            ),
+        )

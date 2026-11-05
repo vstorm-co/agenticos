@@ -497,15 +497,18 @@ describe("the chat container - delegation panels across a conversation switch", 
     // The delegate's own name and cost, not the chrome around them: every page here
     // renders its empty state when a query fails, so an assertion on a heading is an
     // assertion on nothing.
-    expect(await screen.findByText("Quarterly report researcher")).toBeInTheDocument();
-    expect(screen.getByText("$0.0042")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /Quarterly report researcher/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Quarterly report researcher/ }));
+    expect(screen.getByText(/\$0\.0042/)).toBeInTheDocument();
 
     act(() => {
       useConversationStore.getState().setCurrentConversationId("c-b");
     });
 
     expect(screen.queryByText("Quarterly report researcher")).not.toBeInTheDocument();
-    expect(screen.queryByText("$0.0042")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.0042/)).not.toBeInTheDocument();
   });
 
   it("keeps the panels of the turn that is still streaming when it names its conversation", async () => {
@@ -527,9 +530,11 @@ describe("the chat container - delegation panels across a conversation switch", 
 
     receive("conversation_created", { conversation_id: "c-new" });
 
-    expect(await screen.findByText("Quarterly report researcher")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /Quarterly report researcher/ }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Quarterly report researcher/ }));
-    expect(screen.getByText("read the three filings and list what changed")).toBeInTheDocument();
+    expect(screen.getAllByText("read the three filings and list what changed")).toHaveLength(2);
   });
 });
 

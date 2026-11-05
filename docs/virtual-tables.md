@@ -751,6 +751,8 @@ When creating an empty table, required columns do not need defaults: every new r
 
 ## Durable tasks {#durable-tasks}
 
+You can create a project task from a private conversation outside that project. Leave the working conversation unspecified: the task opens its own conversation in the project, without linking your private transcript. Explicitly linking a conversation from another project is refused.
+
 **Background work** (`/work`) shows durable commitments beside running background
 chats. A task is a Virtual Table record, with a working-chat link and one Inbox
 case when attention is needed. Table and Kanban edits use the same revision as

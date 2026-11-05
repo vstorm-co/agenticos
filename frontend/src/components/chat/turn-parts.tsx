@@ -11,7 +11,7 @@ import { drawnUnderTheAnswer } from "@/lib/turn-extras";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
-import type { DelegateRef } from "@/lib/delegations";
+import { answerPreview, type DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { TurnFileSource } from "@/types/chat";
@@ -86,6 +86,20 @@ export function TurnParts({
       ? "awaiting_approval"
       : undefined;
   const elapsed = useTurnElapsed(startedAt, isStreaming && !waiting);
+  const latest = parts.at(-1);
+  const preview =
+    latest?.type === "thinking" && latest.content ? (
+      <p className="text-muted-foreground line-clamp-3 max-w-2xl text-[13px] leading-relaxed whitespace-pre-line">
+        {answerPreview(latest.content.slice(-600))}
+      </p>
+    ) : latest?.toolCall ? (
+      <ToolCallCard
+        toolCall={latest.toolCall}
+        mcpServers={mcpServers}
+        agents={agents}
+        autoExpand={false}
+      />
+    ) : null;
   // A browse is shown in the turn whether or not the steps around it fold:
   // inside a folded run it would be a live browser nobody can see is running.
   const render = (run: PartRun, visuals = true, afterWork = false) =>
@@ -187,6 +201,7 @@ export function TurnParts({
             durationMs={null}
             stopped={stopped && group.some((run) => run.isLast)}
             running={running}
+            preview={preview}
             waiting={groupWaiting}
           >
             {group.map((run) => render(run, false))}
@@ -231,6 +246,7 @@ export function TurnParts({
         durationMs={durationMs ?? elapsed}
         stopped={stopped}
         running={isStreaming && !waiting}
+        preview={preview}
         waiting={foldedWaiting}
       >
         {split.folded.map((run) => render(run, false))}

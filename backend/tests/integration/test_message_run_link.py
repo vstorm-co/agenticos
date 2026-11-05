@@ -375,7 +375,7 @@ class TestHowEachRunEnded:
 
         outcomes = await conversation_repo.run_outcomes(db, {finished.id, still_running.id})
 
-        assert outcomes[finished.id] == conversation_repo.RunOutcome("completed", 12_400)
+        assert outcomes[finished.id] == conversation_repo.RunOutcome("completed", 12_400, _START)
         # Nothing to measure yet, which is not the same claim as "took no time".
         assert outcomes[still_running.id].duration_ms is None
 

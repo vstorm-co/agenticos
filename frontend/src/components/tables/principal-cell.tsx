@@ -84,6 +84,7 @@ export function PrincipalCell({
   };
   return (
     <Popover
+      modal
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
@@ -113,7 +114,7 @@ export function PrincipalCell({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-80 space-y-2 p-2"
+        className="flex max-h-[min(24rem,var(--radix-popover-content-available-height))] w-80 flex-col gap-2 overflow-hidden p-2"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           searchField.current?.focus();
@@ -159,7 +160,7 @@ export function PrincipalCell({
             tabIndex={-1}
             aria-label={label}
             aria-multiselectable={multiple}
-            className="max-h-64 overflow-auto"
+            className="max-h-64 min-h-0 touch-pan-y overflow-y-auto overscroll-contain"
           >
             {matches.map((item) => (
               <button

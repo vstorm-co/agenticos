@@ -1313,6 +1313,7 @@ class RunOutcome(NamedTuple):
 
     status: str
     duration_ms: int | None
+    started_at: datetime | None = None
 
 
 async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID, RunOutcome]:
@@ -1334,6 +1335,7 @@ async def run_outcomes(db: AsyncSession, run_ids: Collection[UUID]) -> dict[UUID
     return {
         run_id: RunOutcome(
             status=status,
+            started_at=started,
             duration_ms=(
                 round((ended - started).total_seconds() * 1000)
                 if started is not None and ended is not None

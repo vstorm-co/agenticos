@@ -21,6 +21,7 @@ import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
 import { AskedResult, parseAsked } from "./tool-results/asked";
+import { platformCallError } from "./tool-results/platform-objects";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
 import { CodingAgentResult } from "./tool-results/coding-agent";
@@ -195,7 +196,7 @@ export const ToolCallCard = memo(function ToolCallCard({
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.
   const isParked = toolCall.status === "awaiting_approval" || toolCall.status === "awaiting_answer";
-  const isError = toolCall.status === "error";
+  const isError = toolCall.status === "error" || platformCallError(toolCall) !== null;
   // The servers are what turn `linear_create_issue` into "Linear · Create issue".
   // Nothing on a tool call says where it came from, so the prefix is matched against
   // the connections this caller has - see `useMcpToolServers`.

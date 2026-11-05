@@ -56,6 +56,7 @@ export interface RawMessage {
   run_id?: string | null;
   run_status?: string | null;
   run_duration_ms?: number | null;
+  run_started_at?: string | null;
   /** The version number of the frozen spec that produced it. */
   agent_version?: number | null;
   tool_calls?: RawToolCall[] | null;
@@ -241,6 +242,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
+    runStartedAt: msg.run_started_at ? new Date(msg.run_started_at) : undefined,
     runWaitingFor:
       msg.run_status === "awaiting_approval"
         ? "approval"

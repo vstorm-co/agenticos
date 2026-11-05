@@ -1,5 +1,5 @@
 ---
-source_sha: "4dd9c3f1ff4e"
+source_sha: "7887ce9be71f"
 ---
 
 # La consola { #the-console }
@@ -461,6 +461,10 @@ El razonamiento y las llamadas a herramientas se contraen por defecto en todos l
 Las aprobaciones del chat siguen siendo una tarjeta compacta junto al editor: operación, icono y título de la tarea u objeto, con argumentos adicionales bajo Details. Approve y Reject están al lado de la solicitud o debajo en pantallas estrechas. La actividad terminada muestra una marca discreta, los pasos en espera un estado propio y los pasos activos conservan su icono en lugar de una esfera animada por llamada.
 
 Al volver a abrir un chat también se restauran las aprobaciones y preguntas de herramientas delegadas ausentes de la cronología del agente principal. Un subagente pausado se muestra trabajando durante su continuación HTTP aprobada. Un subagente publicado que ha terminado conserva su propio resultado cuando el agente principal se detiene ante otra decisión.
+
+Durante el trabajo se muestra una vista previa del último paso o razonamiento; la actividad anterior sigue contraída. Los segmentos de solo actividad de una ejecución comparten un resumen y su hora de inicio. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación. Abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
+
+Las escrituras MCP confirmadas muestran tarjetas enlazadas de proyectos, tablas, tareas, registros, agentes, workflows, skills y Context. Los errores no generan tarjetas de éxito. Los mensajes enviados aparecen cerca del borde superior con espacio para la respuesta; el desplazamiento manual conserva tu posición. Las listas Person y Agent se desplazan dentro del diálogo del registro. Las preguntas siguen funcionando tras las continuaciones HTTP aprobadas.
 
 Los avisos de resultados también están junto al editor. Mientras hay un panel de decisión visible o el chat está trabajando, se ocultan los avisos de aprobación incluso de ejecuciones anteriores. En los demás casos, enlazan a la cola de aprobaciones. Nunca ofrecen Visto, Hecho ni No volver a preguntar: solo aprobar o rechazar la solicitud real decide la operación. Inbox y la campana conservan sus notificaciones.
 

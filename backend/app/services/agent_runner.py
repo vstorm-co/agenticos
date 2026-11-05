@@ -718,6 +718,10 @@ class AdmittedAs(BaseModel):
             "rejected (#1326)."
         ),
     )
+    can_ask_questions: bool = Field(
+        default=False,
+        description="Whether the original surface could put questions to its person, preserved across HTTP continuations",
+    )
     acts_for_sender: bool = Field(
         default=False,
         description=(
@@ -5849,7 +5853,9 @@ class AgentRunnerService:
                 # the delegation frames are: `finish` is the one place both
                 # surfaces pass through, and a surface that had to remember it
                 # would be the surface that forgot (#1326, #1343).
-                "admitted_as": prepared.admitted_as,
+                "admitted_as": prepared.admitted_as.model_copy(
+                    update={"can_ask_questions": prepared.built.deps.ask_questions is not None}
+                ),
                 "output_schema": prepared.output_schema,
                 "run_limit_usd": prepared.run_limit_usd,
                 "delegated_approvals": {
@@ -6463,6 +6469,16 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
+        can_ask = state.admitted_as.can_ask_questions or (
+            "can_ask_questions" not in state.admitted_as.model_fields_set
+            and run.surface == RunSurface.WEB.value
+            and run.conversation_id is not None
+            and run.user_id is not None
+            and not state.admitted_as.public_origin
+        )
+        if can_ask:
+            prepared.built.deps.ask_questions = park_the_question
+            prepared.built.deps.parks_questions = True
 
         # Out of the queue once the build has succeeded, and before anything is
         # replayed. Two different things keep two different resumes out, which is

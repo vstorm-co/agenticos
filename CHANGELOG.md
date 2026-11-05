@@ -184,6 +184,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep completed and nested agent exchanges visible, show the latest live step, combine activity-only chat segments and use the actual run start time. Render confirmed MCP writes as linked resource cards, anchor newly sent messages near the top, and restore scrolling in record Person/Agent pickers.
+- Preserve question support after HTTP approval continuations and allow project task creation from a private source chat without linking its transcript; guide agents toward managed task tools and stable console links.
+
 - Focus the chat composer after every New chat action, including when the editor is reused or the preceding draft is already empty.
 
 - Allow chat approval waivers by default in new organizations while preserving existing organization choices and per-conversation consent.

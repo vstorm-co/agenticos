@@ -1,5 +1,5 @@
 ---
-source_sha: "00805a24f941"
+source_sha: "e80e99c6fd80"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -789,6 +789,8 @@ integración que escribe, filtra y ordena un registro del tipo nuevo.
 Al crear una tabla vacía, las columnas obligatorias no necesitan valores predeterminados: cada registro nuevo debe proporcionar sus valores. Añadir una columna obligatoria a un esquema existente sigue requiriendo un valor predeterminado para proteger los registros existentes.
 
 ## Tareas duraderas {#durable-tasks}
+
+Puedes crear tareas de proyecto desde conversaciones privadas fuera del proyecto. Deja sin especificar la conversación de trabajo: la tarea abre su propia conversación en el proyecto sin enlazar tu transcripción privada. Se rechaza el enlace explícito a una conversación de otro proyecto.
 
 **Trabajo en segundo plano** (`/work`) muestra compromisos duraderos junto a los chats en ejecución. Una tarea es un registro de Virtual Table con un chat de trabajo y un caso de Inbox cuando requiere atención. Tabla, Kanban y API comparten la misma revisión, sin otra lista TODO sincronizada.
 

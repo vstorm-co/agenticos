@@ -461,3 +461,15 @@ describe("a pause inside a delegated task", () => {
     );
   });
 });
+
+it("preserves the parent run start instead of using the segment save time", () => {
+  const converted = conversationMessageToChatMessage({
+    id: "segment",
+    role: "assistant",
+    content: "",
+    conversation_id: "chat",
+    created_at: "2026-11-05T18:11:53Z",
+    run_started_at: "2026-11-05T18:11:13Z",
+  });
+  expect(converted.runStartedAt?.toISOString()).toBe("2026-11-05T18:11:13.000Z");
+});

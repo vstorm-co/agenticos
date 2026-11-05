@@ -2335,6 +2335,16 @@
         "interrupted": "Unterbrochen; nicht neu gestartet"
       },
       "emptyTitle": "Delegiere Arbeit und sprich weiter"
+    },
+    "platformObjects": {
+      "project": "Projekt",
+      "table": "Tabelle",
+      "task": "Aufgabe",
+      "record": "Tabelleneintrag",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "skill": "Skill",
+      "context": "Kontextdatei"
     }
   },
   "common": {

@@ -655,10 +655,10 @@ describe("an app the turn published", () => {
     expect(card).toHaveAttribute("href", "/apps/app-1?version=v-2");
   });
 
-  it("waits for the turn to finish", () => {
+  it("shows an already published app while the parent continues", () => {
     item({ ...publishing, isStreaming: true });
 
-    expect(screen.queryByRole("link", { name: /Revenue dashboard/ })).toBeNull();
+    expect(screen.getByRole("link", { name: /Revenue dashboard/ })).toBeVisible();
   });
 });
 
@@ -1434,9 +1434,9 @@ describe("the work before an answer", () => {
     expect(screen.queryByTestId("tool-tc-read")).toBeNull();
   });
 
-  it("keeps live failures in a collapsed activity group", async () => {
+  it("previews the latest live failure while keeping the history collapsed", async () => {
     item({ parts: [thought, call("bad", "error")], isStreaming: true });
-    expect(screen.queryByTestId("tool-tc-bad")).toBeNull();
+    expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: /Working/ }));
     expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
   });

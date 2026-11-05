@@ -1484,6 +1484,16 @@
         "interrupted": "Przerwane; bez ponownego uruchomienia"
       },
       "emptyTitle": "Deleguj pracę i kontynuuj rozmowę"
+    },
+    "platformObjects": {
+      "project": "Projekt",
+      "table": "Tabela",
+      "task": "Zadanie",
+      "record": "Rekord tabeli",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "skill": "Umiejętność",
+      "context": "Plik kontekstu"
     }
   },
   "errors": {

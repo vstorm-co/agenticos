@@ -431,6 +431,9 @@ class MessageRead(MessageBase, TimestampSchema):
             "half-written answer that reads exactly like a complete one."
         ),
     )
+    run_started_at: datetime | None = Field(
+        default=None, description="The parent run start shared by transcript and sidebar timers"
+    )
     run_duration_ms: int | None = Field(
         default=None,
         description=(

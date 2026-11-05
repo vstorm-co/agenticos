@@ -1,5 +1,5 @@
 ---
-source_sha: "4dd9c3f1ff4e"
+source_sha: "7887ce9be71f"
 ---
 
 # Die Konsole { #the-console }
@@ -481,6 +481,10 @@ Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen i
 Chat-Freigaben bleiben eine kompakte Karte neben dem Eingabefeld: Operation, Symbol und Aufgaben- oder Objekttitel, weitere Argumente unter Details. Approve und Reject stehen daneben, auf schmalen Bildschirmen darunter. Abgeschlossene Aktivität erhält ein dezentes Abschlusszeichen, wartende Schritte einen eigenen Status. Laufende Schritte behalten ihr Operationssymbol statt einer animierten Kugel pro Aufruf.
 
 Beim erneuten Öffnen eines Chats werden auch Freigaben und Fragen delegierter Werkzeuge wiederhergestellt, die in der Zeitleiste des übergeordneten Agenten fehlen. Während seiner genehmigten HTTP-Fortsetzung wird ein pausierter Subagent als arbeitend angezeigt. Ein abgeschlossener veröffentlichter Unteragent behält sein eigenes Ergebnis, wenn der übergeordnete Agent auf eine weitere Entscheidung wartet.
+
+Während der Arbeit bleibt eine Vorschau des letzten Schritts oder der Überlegungen sichtbar, frühere Aktivität bleibt eingeklappt. Reine Aktivitätssegmente desselben Laufs teilen eine Zusammenfassung und dessen Startzeit. Abgeschlossene und verschachtelte Agentenaustausche bleiben erhalten, auch Coding-Agent-Berichte. Öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Überlegungen.
+
+Erfolgreiche MCP-Schreibvorgänge zeigen verlinkte Karten für Projekte, Tabellen, Aufgaben, Datensätze, Agenten, Workflows, Skills und Context. Fehler erzeugen keine Erfolgskarten. Gesendete Nachrichten stehen nahe am oberen Rand mit Platz für die Antwort; manuelles Scrollen behält Ihre Position bei. Person- und Agent-Listen scrollen im Datensatzdialog. Fragen funktionieren auch nach genehmigten HTTP-Fortsetzungen.
 
 Auch Ergebnisbenachrichtigungen stehen neben dem Eingabefeld. Solange ein Entscheidungspanel sichtbar ist oder der Chat arbeitet, werden Freigabebenachrichtigungen auch älterer Läufe ausgeblendet. Andernfalls führen sie zur Freigabewarteschlange. Sie bieten niemals Gesehen, Erledigt oder Nicht mehr fragen: Nur die eigentliche Genehmigung oder Ablehnung entscheidet über die Operation. Inbox und Glocke behalten ihre Benachrichtigungen.
 

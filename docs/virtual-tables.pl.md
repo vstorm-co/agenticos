@@ -1,5 +1,5 @@
 ---
-source_sha: "00805a24f941"
+source_sha: "e80e99c6fd80"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -783,6 +783,8 @@ integracyjnego, który zapisuje, filtruje i sortuje rekord nowego typu.
 Przy tworzeniu pustej tabeli wymagane kolumny nie potrzebują wartości domyślnych: każdy nowy rekord musi podać ich wartości. Dodanie wymaganej kolumny do istniejącego schematu nadal wymaga wartości domyślnej, aby chronić istniejące rekordy.
 
 ## Trwałe zadania {#durable-tasks}
+
+Zadanie projektowe można utworzyć z prywatnej rozmowy spoza projektu. Pozostaw rozmowę roboczą niewskazaną: zadanie otworzy własną rozmowę w projekcie, bez podpinania prywatnego transkryptu. Jawne wskazanie rozmowy z innego projektu zostanie odrzucone.
 
 **Praca w tle** (`/work`) pokazuje trwałe zobowiązania obok uruchomionych rozmów w tle. Zadanie jest rekordem Virtual Table z odnośnikiem do rozmowy roboczej i jedną sprawą w Inbox, gdy potrzebna jest reakcja. Tabela, Kanban i API używają tej samej rewizji; nie ma osobnej synchronizowanej listy TODO.
 
