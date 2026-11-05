@@ -186,9 +186,9 @@ def load_dataset(
     reason that has nothing to do with retrieval.
 
     Raises:
-        DatasetError: The file cannot be read, is not a valid question set, or
-            names a page that is not there. The message names the file and,
-            for each problem, the item it is in.
+        DatasetError: The file cannot be read, is not UTF-8 YAML, is not a
+            valid question set, or names a page that is not there. The
+            message names the file and, for each problem, the item it is in.
     """
     try:
         content = path.read_bytes()

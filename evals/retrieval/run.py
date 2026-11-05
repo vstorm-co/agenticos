@@ -164,7 +164,7 @@ def _generate(model: str | None, usage: RunUsage) -> GenerateText | None:
     return generate
 
 
-_CONFIG_FIELD = re.compile(r"\b(?:chunk_size|chunk_overlap|chunking_strategy)\b")
+_CONFIG_FIELD = re.compile(r"\b(?:chunk_size|chunk_overlap)\b")
 
 
 def _flag(field: str) -> str:
