@@ -298,7 +298,8 @@ not run when a surface is assembling its prompt.
 
 Chat attachments are read with **PyMuPDF**, and that is not configurable. An
 attachment belongs to no collection, so there is no stored configuration to read
-a parser choice from.
+a parser choice from. NUL characters are removed from the extracted text before
+it is stored so PostgreSQL can accept the upload. The original PDF bytes are kept.
 
 The `CHAT_PDF_PARSER` variable that used to select between three parsers is
 gone. Both alternatives were wrapped in `except Exception: return

@@ -431,6 +431,8 @@ knowledge for the agent, not a schedule.
 
 Reopening a conversation shows its newest messages first. Use **Load earlier messages** above the transcript to read older turns. Live answers and unsaved results stay visible while stored history refreshes.
 
+If an assistant reply cannot be saved, the chat tells you to copy any text you need before leaving. This also applies to partial replies from interrupted runs. The streamed text stays visible, but it may be missing when you reopen the conversation.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into

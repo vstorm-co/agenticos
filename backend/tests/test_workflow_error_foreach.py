@@ -333,6 +333,21 @@ async def test_a_well_formed_loop_publishes_and_its_body_may_read_what_ran_befor
     assert await _problems(graph) == []
 
 
+@pytest.mark.parametrize(
+    "trigger_id", ["core.input", "trigger.manual", "trigger.form", "trigger.workflow_call"]
+)
+async def test_a_declared_text_list_binds_to_a_foreach_at_publish(trigger_id: str) -> None:
+    shape = _LoopGraph()
+    shape.entry = shape.entry.model_copy(
+        update={
+            "definition_id": trigger_id,
+            "config": {"fields": [{"name": "xs", "type": "string_list"}]},
+        }
+    )
+    graph = shape.graph(bindings=(_bind(shape.yield_, "value", shape.item, "out", "item"),))
+    assert await _problems(graph) == []
+
+
 async def test_a_body_that_reads_the_loop_it_runs_inside_is_refused():
     shape = _LoopGraph()
     graph = shape.graph(bindings=(_bind(shape.yield_, "value", shape.loop, "done", "results"),))

@@ -5421,6 +5421,7 @@
       },
       "startRunOptional": "optional",
       "startRunChoose": "Choose…",
+      "startRunListHint": "One item per line. Blank lines are ignored.",
       "startRunFieldProblem": {
         "required": "Fill this in.",
         "number": "This has to be a number.",
@@ -8909,6 +8910,7 @@
       "add": "Add field",
       "types": {
         "text": "Text",
+        "string_list": "List of text",
         "number": "Number",
         "integer": "Integer",
         "boolean": "Yes or no",

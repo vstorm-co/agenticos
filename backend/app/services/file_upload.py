@@ -548,7 +548,10 @@ class DocumentText:
             try:
                 total = doc.page_count
                 read = min(total, _PDF_MAX_PAGES)
-                pages = (doc[index].get_text("text").strip() for index in range(read))
+                # PostgreSQL text columns cannot store NULs from PDF extraction.
+                pages = (
+                    doc[index].get_text("text").replace("\x00", "").strip() for index in range(read)
+                )
                 text = _join_within((page for page in pages if page), "\n\n", max_chars)
             finally:
                 doc.close()

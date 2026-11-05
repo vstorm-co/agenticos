@@ -357,7 +357,8 @@ export interface ArtifactView {
 }
 
 /** The input type a workflow's trigger declares for one field. */
-export type ActionFieldType = "text" | "number" | "integer" | "boolean" | "date" | "choice";
+export type ActionFieldType =
+  "text" | "string_list" | "number" | "integer" | "boolean" | "date" | "choice";
 
 /** One value an action's workflow asks for. */
 export interface ArtifactActionField {

@@ -1,5 +1,5 @@
 ---
-source_sha: "e8235f6fa34d"
+source_sha: "92cb2595f5d1"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -344,7 +344,9 @@ zusammenbaut.
 
 Chat-Anhänge werden mit **PyMuPDF** gelesen, und das ist nicht konfigurierbar.
 Ein Anhang gehört zu keiner Collection, es gibt also keine gespeicherte
-Konfiguration, aus der eine Parser-Wahl gelesen werden könnte.
+Konfiguration, aus der eine Parser-Wahl gelesen werden könnte. NUL-Zeichen
+werden vor dem Speichern aus dem extrahierten Text entfernt, damit PostgreSQL
+den Upload annehmen kann. Die Originalbytes der PDF-Datei bleiben erhalten.
 
 Die Variable `CHAT_PDF_PARSER`, die früher zwischen drei Parsern wählte, gibt es
 nicht mehr. Beide Alternativen waren in `except Exception: return

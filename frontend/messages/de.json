@@ -6866,6 +6866,7 @@
       },
       "startRunOptional": "optional",
       "startRunChoose": "Auswählen…",
+      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.",
       "startRunFieldProblem": {
         "required": "Bitte ausfüllen.",
         "number": "Das muss eine Zahl sein.",
@@ -8788,6 +8789,7 @@
       "add": "Feld hinzufügen",
       "types": {
         "text": "Text",
+        "string_list": "Liste von Texten",
         "number": "Zahl",
         "integer": "Ganzzahl",
         "boolean": "Ja oder nein",
