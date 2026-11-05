@@ -1,5 +1,5 @@
 ---
-source_sha: "67159a2b0696"
+source_sha: "3b3e2c94ada4"
 ---
 
 # La consola { #the-console }
@@ -462,6 +462,8 @@ trabajas, para que una rutina que propongan caiga dentro de tu día. Nada espera
 por él: es conocimiento para el agent, no un calendario.
 
 Al volver a abrir una conversación, ves los mensajes más recientes. Usa **Load earlier messages** encima del historial para leer turnos más antiguos. Las respuestas en curso y los resultados sin guardar siguen visibles mientras se actualiza el historial guardado.
+
+Si no se puede guardar una respuesta del asistente, el chat te pide que copies el texto que necesites antes de salir de la conversación. Esto también se aplica a las respuestas parciales de ejecuciones interrumpidas. El texto transmitido sigue visible, pero puede faltar al volver a abrir la conversación.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina

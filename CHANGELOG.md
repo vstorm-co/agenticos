@@ -21,7 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Web chat now warns when an assistant reply cannot be saved, including partial replies from interrupted runs, while keeping the streamed text visible. (#2732)
 - Keep PDF chat uploads working when extracted text contains NUL characters.
+
+### Security
+
+- The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403. (#2619)
 
 ## [1.47.3] - 2026-11-04
 
