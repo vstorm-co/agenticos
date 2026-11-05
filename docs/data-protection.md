@@ -17,6 +17,8 @@ deployment has actually decided.
 
 The capability inventory also includes the selectable per-conversation desktop coding-agent override, even when the published spec has no coding-agent binding or uses a sandbox. That row describes a possible route, not evidence that it was used.
 
+Personal-data exports include coding-task filenames and patches from the conversations in the export; their JSON payload counts toward the preflight size limit. Ending organization membership removes that person’s coding connections in the same transaction. Rejoining requires a new connection and fresh consent; it cannot revive the previous grant.
+
 ## What leaves by default { #nothing-leaves-by-default }
 
 A fresh deployment holds everything in its own PostgreSQL and on its own disk or

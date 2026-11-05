@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import AuthContext, Perm
 from app.db.models.task_board import TaskBoard
-from app.repositories import group_repo, project_repo
+from app.repositories import group_repo, project_repo, resource_grant_repo
 from app.repositories import task as task_repo
 
 
@@ -25,10 +25,27 @@ async def scope_allows(
         )
     if kind == "group":
         group = await group_repo.get(db, group_id=scope_id, organization_id=ctx.organization_id)
-        return (
-            group is not None
-            and await group_repo.get_member(db, group_id=scope_id, user_id=ctx.user_id) is not None
+        if (
+            group is None
+            or await group_repo.get_member(db, group_id=scope_id, user_id=ctx.user_id) is None
+        ):
+            return False
+        if not edit or ctx.has(Perm.TABLES_EDIT):
+            return True
+        # Membership defines the audience; it does not promote a Viewer to editor.
+        board = await task_repo.for_scope(db, ctx.organization_id, kind, scope_id)
+        if board is None:
+            return False
+        from app.db.models.resource_grant import GRANT_ORDER, GrantLevel
+
+        granted = await resource_grant_repo.get_level(
+            db,
+            organization_id=ctx.organization_id,
+            subject_user_id=ctx.user_id,
+            resource_type="table",
+            resource_id=board.table_id,
         )
+        return granted is not None and GRANT_ORDER[granted] >= GRANT_ORDER[GrantLevel.EDIT]
     if kind == "project":
         from app.services.access import PROJECT, resolve_access
 

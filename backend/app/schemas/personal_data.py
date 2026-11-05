@@ -130,6 +130,20 @@ class PhoneCallExport(BaseModel):
     finished_at: datetime | None
 
 
+class CodingTaskChangeExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    organization_id: UUID
+    conversation_id: UUID
+    tool_call_id: str | None
+    harness: str
+    files: list[dict[str, object]]
+    omitted: int
+    truncated: bool
+    created_at: datetime
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -146,6 +160,7 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    coding_task_changes: list[CodingTaskChangeExport] = Field(default_factory=list)
     outcomes: list[OutcomeExport] = Field(default_factory=list)
     phone_contacts: list[PhoneContactExport] = Field(default_factory=list)
     phone_case_attempts: list[PhoneCaseAttemptExport] = Field(default_factory=list)

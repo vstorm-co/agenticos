@@ -1,5 +1,5 @@
 ---
-source_sha: "7b030822ee6c"
+source_sha: "3fefdeb42780"
 ---
 
 # Protección de datos { #data-protection }
@@ -21,6 +21,8 @@ que el software puede hacer y lo que un deployment ha decidido de verdad.
     como algo que se da por supuesto.
 
 El inventario de capabilities incluye también el coding agent local seleccionable por conversación, aunque el spec publicado no tenga ese binding o use un sandbox. Esa fila describe una ruta posible, no demuestra que se haya utilizado.
+
+Las exportaciones de datos personales incluyen nombres de archivo y parches de tareas de programación de las conversaciones exportadas; su JSON cuenta para el límite de tamaño comprobado previamente. Al terminar la pertenencia a una organización se eliminan las conexiones personales de programación en la misma transacción. Volver a unirse requiere una conexión nueva y consentimiento nuevo; no reactiva el permiso anterior.
 
 ## Qué sale por defecto { #nothing-leaves-by-default }
 

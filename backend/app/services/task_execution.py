@@ -167,6 +167,7 @@ class TaskExecution:
                         organization_id=ctx.organization_id,
                         user_id=ctx.subject_id,
                         title=fields.title,
+                        project_id=board.scope_id if board.scope_kind == "project" else None,
                     )
                 )
                 link.conversation_id = conversation.id
@@ -285,6 +286,16 @@ class TaskExecution:
         if recipient_ctx is None or not await board_allows(
             self.db, recipient_ctx, board, Perm.TABLES_VIEW
         ):
+            await self._stop(link, payload.organization_id)
+            await self._project(board, record, "blocked", actor=None)
+            await self._attention(
+                board,
+                record,
+                link,
+                link.creator_user_id,
+                fields.title,
+                detail="The assigned reviewer no longer has access. Choose another person for the next step.",
+            )
             return
         await self._state(
             ctx,

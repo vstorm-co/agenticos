@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from uuid import UUID
 
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,4 +52,15 @@ async def create(db: AsyncSession, row: CodingAccount) -> CodingAccount:
 
 async def delete(db: AsyncSession, row: CodingAccount) -> None:
     await db.delete(row)
+    await db.flush()
+
+
+async def delete_for_member(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> None:
+    """Remove consent and credentials together; an old task generation cannot be revived."""
+    await db.execute(
+        sa_delete(CodingAccount).where(
+            CodingAccount.organization_id == organization_id,
+            CodingAccount.user_id == user_id,
+        )
+    )
     await db.flush()

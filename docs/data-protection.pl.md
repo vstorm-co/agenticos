@@ -1,5 +1,5 @@
 ---
-source_sha: "7b030822ee6c"
+source_sha: "3fefdeb42780"
 ---
 
 # Ochrona danych { #data-protection }
@@ -20,6 +20,8 @@ oprogramowanie potrafi, a tym, co wdrożenie faktycznie postanowiło.
     coś do zdobycia i zweryfikowania, nigdy jako coś założonego.
 
 Inwentarz capability uwzględnia też lokalnego coding agenta wybieranego dla konwersacji, nawet gdy opublikowany spec nie ma takiego bindingu albo używa sandboxa. Ten wiersz opisuje możliwą ścieżkę, a nie dowód jej użycia.
+
+Eksport danych osobowych zawiera nazwy plików i patche zadań kodujących z rozmów objętych eksportem; ich JSON wlicza się do limitu rozmiaru przed pobraniem. Zakończenie członkostwa w organizacji usuwa osobiste połączenia kodujące w tej samej transakcji. Ponowne dołączenie wymaga nowego połączenia i nowej zgody; nie przywraca poprzedniego uprawnienia.
 
 ## Co wychodzi domyślnie { #nothing-leaves-by-default }
 

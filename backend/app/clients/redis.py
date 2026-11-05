@@ -28,13 +28,64 @@ redis.call('set', KEYS[1], last + tonumber(ARGV[2]), 'EX', ARGV[3])
 return last + 1
 """
 
-_RESERVE_CAPACITY = """
-local used = tonumber(redis.call('get', KEYS[1]) or '0')
-local amount = tonumber(ARGV[1])
-if used + amount > tonumber(ARGV[2]) then return 0 end
-redis.call('set', KEYS[1], used + amount, 'EX', ARGV[3])
+_PRUNE_BOUNDED_VALUES = """
+local now = tonumber(redis.call('TIME')[1])
+local used = tonumber(redis.call('GET', KEYS[3]) or '0')
+for _, handle in ipairs(redis.call('ZRANGEBYSCORE', KEYS[2], '-inf', now)) do
+  used = used - tonumber(redis.call('HGET', KEYS[1], handle) or '0')
+  redis.call('HDEL', KEYS[1], handle)
+  redis.call('ZREM', KEYS[2], handle)
+  redis.call('DEL', ARGV[1] .. handle)
+end
+used = math.max(0, used)
+local function save()
+  if redis.call('HLEN', KEYS[1]) == 0 then
+    redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
+  else
+    redis.call('SET', KEYS[3], used, 'EX', ARGV[2])
+    redis.call('EXPIRE', KEYS[1], ARGV[2])
+    redis.call('EXPIRE', KEYS[2], ARGV[2])
+  end
+end
+"""
+
+_CACHE_BOUNDED_VALUES = (
+    _PRUNE_BOUNDED_VALUES
+    + """
+local amount = 0
+local added = 0
+for i = 5, #ARGV, 2 do
+  local previous = redis.call('HGET', KEYS[1], ARGV[i])
+  amount = amount + #ARGV[i + 1] - tonumber(previous or '0')
+  if not previous then added = added + 1 end
+end
+if used + amount > tonumber(ARGV[3]) or
+  redis.call('HLEN', KEYS[1]) + added > tonumber(ARGV[4]) then
+  save()
+  return 0
+end
+for i = 5, #ARGV, 2 do
+  redis.call('SET', ARGV[1] .. ARGV[i], ARGV[i + 1], 'EX', ARGV[2])
+  redis.call('HSET', KEYS[1], ARGV[i], #ARGV[i + 1])
+  redis.call('ZADD', KEYS[2], now + tonumber(ARGV[2]), ARGV[i])
+end
+used = used + amount
+save()
 return 1
 """
+)
+
+_TAKE_BOUNDED_VALUE = (
+    _PRUNE_BOUNDED_VALUES
+    + """
+local value = redis.call('GETDEL', ARGV[1] .. ARGV[3])
+used = math.max(0, used - tonumber(redis.call('HGET', KEYS[1], ARGV[3]) or '0'))
+redis.call('HDEL', KEYS[1], ARGV[3])
+redis.call('ZREM', KEYS[2], ARGV[3])
+save()
+return value
+"""
+)
 
 _UPDATE_MAPPING = """
 local values = cjson.decode(redis.call('get', KEYS[1]) or '{}')
@@ -137,12 +188,46 @@ class RedisClient:
             raise TypeError("Redis returned an invalid number reservation")
         return result
 
-    async def reserve_capacity(self, key: str, *, amount: int, capacity: int, ttl: int) -> bool:
-        """Reserve a bounded amount atomically until the last accepted reservation expires."""
-        if amount <= 0 or capacity <= 0 or ttl <= 0:
-            raise ValueError("Capacity reservations require positive amounts, capacity and TTL")
-        reserved = await self.raw.eval(_RESERVE_CAPACITY, 1, key, amount, capacity, ttl)
-        return bool(reserved)
+    async def cache_bounded_values(
+        self, key: str, *, values: dict[str, str], capacity: int, ttl: int, max_items: int
+    ) -> bool:
+        """Store a batch atomically; expired or consumed entries never retain capacity."""
+        if capacity <= 0 or ttl <= 0 or max_items <= 0:
+            raise ValueError("Bounded caches require positive capacity, TTL and item limit")
+        if not values:
+            return True
+        entries = [part for handle, value in values.items() for part in (handle, value)]
+        stored = await self.raw.eval(
+            _CACHE_BOUNDED_VALUES,
+            3,
+            f"{key}:sizes",
+            f"{key}:expires",
+            f"{key}:used",
+            f"{key}:file:",
+            ttl,
+            capacity,
+            max_items,
+            *entries,
+        )
+        return bool(stored)
+
+    async def take_bounded_value(self, key: str, handle: str, *, ttl: int) -> str | None:
+        """Consume and release an entry exactly once, including concurrent readers."""
+        if ttl <= 0:
+            raise ValueError("Bounded caches require a positive TTL")
+        value = await self.raw.eval(
+            _TAKE_BOUNDED_VALUE,
+            3,
+            f"{key}:sizes",
+            f"{key}:expires",
+            f"{key}:used",
+            f"{key}:file:",
+            ttl,
+            handle,
+        )
+        if value is not None and not isinstance(value, str):
+            raise TypeError("Redis returned invalid cached text")
+        return value
 
     async def update_mapping(
         self, key: str, *, updates: dict[str, str], remove: Sequence[str] = (), ttl: int

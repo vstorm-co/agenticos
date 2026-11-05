@@ -20,7 +20,8 @@ from app.services.channels.email import (
     keep_inbound,
     read_webhook_body,
 )
-from app.worker.background.channel import process_channel_event, process_channel_press
+from app.worker.background.channel import process_channel_press
+from app.worker.background.channel import process_email_event as process_channel_event
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ async def email_inbound(bot_id: UUID, request: Request, bot_service: ChannelBotS
                 platform=PLATFORM,
             )
             if chosen is not None:
+                await email_state.discard_attachments(item.handle for item in incoming.attachments)
                 press = IncomingPress(
                     platform=PLATFORM,
                     bot_id=str(bot_id),
@@ -96,6 +98,7 @@ async def email_inbound(bot_id: UUID, request: Request, bot_service: ChannelBotS
             else:
                 spawn(process_channel_event(incoming), name=f"email_event:{bot_id}")
     except BaseException:
+        await email_state.discard_attachments(item.handle for item in incoming.attachments)
         await email_state.release_delivery(str(bot_id), incoming.message_id)
         raise
     return Response(status_code=200)

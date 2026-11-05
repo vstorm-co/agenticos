@@ -58,12 +58,32 @@ class _Redis:
     async def getdel(self, key: str) -> str | None:
         return self.data.pop(key, None)
 
-    async def reserve_capacity(self, key: str, *, amount: int, capacity: int, ttl: int) -> bool:
-        used = int(self.data.get(key, "0"))
-        if used + amount > capacity:
+    async def cache_bounded_values(
+        self, key: str, *, values: dict[str, str], capacity: int, ttl: int, max_items: int
+    ) -> bool:
+        prefix = f"{key}:file:"
+        used = int(self.data.get(f"{key}:used", "0"))
+        amount = sum(
+            len(value.encode()) - len(self.data.get(prefix + handle, "").encode())
+            for handle, value in values.items()
+        )
+        count = sum(name.startswith(prefix) for name in self.data)
+        if (
+            used + amount > capacity
+            or count + sum(prefix + handle not in self.data for handle in values) > max_items
+        ):
             return False
-        self.data[key] = str(used + amount)
+        self.data.update({prefix + handle: value for handle, value in values.items()})
+        self.data[f"{key}:used"] = str(used + amount)
         return True
+
+    async def take_bounded_value(self, key: str, handle: str, *, ttl: int) -> str | None:
+        value = self.data.pop(f"{key}:file:{handle}", None)
+        if value is not None:
+            self.data[f"{key}:used"] = str(
+                max(0, int(self.data.get(f"{key}:used", "0")) - len(value.encode()))
+            )
+        return value
 
     async def reserve_range(self, key: str, *, minimum: int, count: int, ttl: int) -> int:
         last = max(int(self.data.get(key, "0")), minimum)
@@ -299,7 +319,7 @@ class TestSending:
 
     async def test_without_redis_there_is_no_thread_and_no_state(self, provider: _Provider) -> None:
         await email_state.remember_thread("a", "b", subject="s", message_id=None, references=[])
-        await email_state.stash_attachment("h", "x")
+        assert not await email_state.stash_attachments("bot", {"h": "x"})
 
         assert await email_state.thread_of("a", "b") is None
         assert await email_state.take_attachment("h") is None
@@ -349,11 +369,11 @@ class TestPromptsAndFiles:
 
     async def test_an_attachment_is_removed_after_consumption(self, redis: _Redis) -> None:
         handle = "bot:<1>:0"
-        await email_state.stash_attachment(handle, base64.b64encode(b"hello").decode())
+        await email_state.stash_attachments("bot", {handle: base64.b64encode(b"hello").decode()})
         item = IncomingAttachment(filename="a", mime_type="text/plain", size=5, handle=handle)
 
         assert await EmailAdapter().download_attachment(BOT_ADDRESS, item) == b"hello"
-        assert f"channel:email:file:{handle}" not in redis.data
+        assert f"channel:email:attachments:bot:file:{handle}" not in redis.data
         with pytest.raises(ValueError, match="no longer available"):
             await EmailAdapter().download_attachment(BOT_ADDRESS, item)
 
@@ -441,7 +461,9 @@ class TestTheWebhook:
         thread = await email_state.thread_of("agent@mail.acme.com", "ada@acme.com")
         assert thread is not None and thread.subject == "Invoice"
         assert thread.references == ["<0@acme>", "<1@acme>"]
-        files = [key for key in redis.data if key.startswith(f"channel:email:file:{bot.id}:")]
+        files = [
+            key for key in redis.data if key.startswith(f"channel:email:attachments:{bot.id}:file:")
+        ]
         assert len(files) == 1 and await redis.get(files[0]) == "aGk="
 
     @pytest.mark.parametrize("reply", ["1\n> Send it?", "1\n\n--\nAda"])
@@ -626,7 +648,9 @@ async def test_parallel_replies_keep_their_inbound_thread(
 async def test_email_storage_quota_refuses_before_caching_and_allows_retry(redis: _Redis) -> None:
     webhook = TestTheWebhook()
     bot = webhook._bot()
-    redis.data[f"channel:email:capacity:{bot.id}"] = str(email_state.MAX_CACHED_ATTACHMENT_BYTES)
+    redis.data[f"channel:email:attachments:{bot.id}:used"] = str(
+        email_state.MAX_CACHED_ATTACHMENT_BYTES
+    )
     payload = {
         "from": "ada@acme.com",
         "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
@@ -637,9 +661,9 @@ async def test_email_storage_quota_refuses_before_caching_and_allows_retry(redis
     async with webhook._wired(bot) as spawned, _client(bot) as client:
         response = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
         assert response.status_code == 429 and spawned == []
-        assert not any(key.startswith("channel:email:file:") for key in redis.data)
+        assert not any(":file:" in key for key in redis.data)
         assert await email_state.thread_of(BOT_ADDRESS.lower(), "ada@acme.com") is None
-        redis.data.pop(f"channel:email:capacity:{bot.id}")
+        redis.data.pop(f"channel:email:attachments:{bot.id}:used")
         retried = await client.post(f"{webhook.ROOT}/{bot.id}/inbound", **_post(payload))
         assert retried.status_code == 200 and len(spawned) == 1
 
@@ -714,3 +738,55 @@ async def test_folded_subject_is_unfolded_before_outbound_serialization(redis: _
     assert "\n" not in str(message["Subject"])
     assert thread.references == ["<previous>", "<current>"]
     assert message.as_bytes()
+
+
+async def test_consuming_or_rejecting_mail_releases_attachment_capacity(redis: _Redis) -> None:
+    from app.services.channels.email import keep_inbound
+    from app.worker.background import channel
+
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "text": "File",
+        "attachments": [{"content_base64": "aGk="}],
+    }
+    incoming = EmailAdapter().parse_incoming(payload, "bot")
+    assert incoming is not None
+    assert await keep_inbound(BOT_ADDRESS, incoming, payload) is not None
+    assert redis.data["channel:email:attachments:bot:used"] == "4"
+    with (
+        patch.object(
+            channel, "process_channel_event", new=AsyncMock(side_effect=RuntimeError("failed"))
+        ),
+        pytest.raises(RuntimeError),
+    ):
+        await channel.process_email_event(incoming)
+    assert redis.data["channel:email:attachments:bot:used"] == "0"
+    assert await email_state.take_attachment(incoming.attachments[0].handle) is None
+
+
+async def test_thread_storage_failure_does_not_keep_file_capacity(redis: _Redis) -> None:
+    from app.services.channels.email import keep_inbound
+
+    payload = {
+        "from": "ada@acme.com",
+        "sender_authentication": {"dmarc": "pass", "from": "ada@acme.com"},
+        "text": "File",
+        "attachments": [{"content_base64": "aGk="}],
+    }
+    incoming = EmailAdapter().parse_incoming(payload, "bot")
+    assert incoming is not None
+    with (
+        patch.object(
+            email_state, "remember_thread", new=AsyncMock(side_effect=RuntimeError("failed"))
+        ),
+        pytest.raises(RuntimeError),
+    ):
+        await keep_inbound(BOT_ADDRESS, incoming, payload)
+    assert redis.data["channel:email:attachments:bot:used"] == "0"
+
+
+async def test_pending_legacy_files_can_still_be_read_after_upgrade(redis: _Redis) -> None:
+    await redis.set("channel:email:file:bot:legacy", "aGk=")
+    assert await email_state.take_attachment("bot:legacy") == "aGk="
+    assert await email_state.take_attachment("bot:legacy") is None

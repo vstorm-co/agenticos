@@ -309,12 +309,6 @@ async def keep_inbound(
     bot_token: str, incoming: IncomingMessage, payload: dict[str, Any]
 ) -> email_state.Thread | None:
     """Remember what the reply needs: the thread to answer into, and the files to read."""
-    encoded_bytes = sum(
-        len(payload["attachments"][int(item.handle.rsplit(":", 1)[1])]["content_base64"].encode())
-        for item in incoming.attachments
-    )
-    if not await email_state.reserve_attachments(incoming.bot_id, encoded_bytes):
-        return None
     chain = _reference_ids(payload.get("references"))
     if chain is None:
         raise ValueError("Inbound email references must be validated before storage")
@@ -326,18 +320,28 @@ async def keep_inbound(
             -email_state.MAX_REFERENCES :
         ],
     )
-    await email_state.remember_thread(
-        bot_token.strip().lower(),
-        incoming.platform_chat_id,
-        subject=subject,
-        message_id=incoming.message_id,
-        references=chain,
-    )
-    for attachment in incoming.attachments:
-        index = int(attachment.handle.rsplit(":", 1)[1])
-        await email_state.stash_attachment(
-            attachment.handle, payload["attachments"][index]["content_base64"]
+    files = {
+        attachment.handle: payload["attachments"][int(attachment.handle.rsplit(":", 1)[1])][
+            "content_base64"
+        ]
+        for attachment in incoming.attachments
+    }
+    if not await email_state.stash_attachments(incoming.bot_id, files):
+        return None
+    try:
+        await email_state.remember_thread(
+            bot_token.strip().lower(),
+            incoming.platform_chat_id,
+            subject=subject,
+            message_id=incoming.message_id,
+            references=chain,
         )
+    except BaseException:
+        import anyio
+
+        with anyio.CancelScope(shield=True):
+            await email_state.discard_attachments(files)
+        raise
     return thread
 
 

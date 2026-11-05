@@ -18,6 +18,7 @@ from app.repositories import (
     resource_grant_repo,
     user_repo,
 )
+from app.repositories import coding_account as coding_account_repo
 from app.services.organization import OrganizationService
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,9 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
     )
     await api_key_repo.revoke_for_member(
         db, organization_id=organization_id, user_id=user_id, at=at
+    )
+    await coding_account_repo.delete_for_member(
+        db, organization_id=organization_id, user_id=user_id
     )
     await member_repo.delete(db, membership)
     # The editor keeps what they could always do on the leaver's pages; only the owner's

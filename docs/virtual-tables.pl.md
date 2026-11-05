@@ -1,5 +1,5 @@
 ---
-source_sha: "e80e99c6fd80"
+source_sha: "d5cbffe0a7ba"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -796,6 +796,8 @@ Wyniki routines kierowane do Inbox zachowują jedno prywatne zadanie na sprawę 
 
 AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`, `get_task`, `create_task` i `update_task`. Stałe `external_id` deduplikuje źródła. Aktualizacja wymaga `expected_revision`; nieaktualna edycja zwraca 409. HTTP używa `/tasks/boards`, `/tasks` i `/tasks/{id}` pod `/api/v1`. Podstawowe pola i stany zachowują tożsamość; można dodawać własne kolumny, ale nie zmieniać typów ani archiwizować podstawowych. Tabela otrzymuje widoki Board, Planned, Agent tasks i Waiting for review. Checklista `write_plan` pozostaje wewnętrznym planem wykonania i nie planuje trwałych zobowiązań.
 
+
+Członkostwo w grupie pozwala czytać jej tablicę zadań; zapis wymaga dodatkowo uprawnienia do edycji tabel lub jawnego grantu edycji. Gdy osoba przypisana do przypomnienia traci dostęp, zadanie zostaje zablokowane, a twórca otrzymuje sprawę w Inbox do przekazania pracy. Nowe rozmowy robocze zadań projektowych należą do tego projektu. Limit tabel może zablokować opcjonalne zadanie z wyniku routine, ale rozmowa robocza, sprawa Inbox i powiadomienie nadal są dostarczane.
 
 ## Domyślny widok {#default-view}
 

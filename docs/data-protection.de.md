@@ -1,5 +1,5 @@
 ---
-source_sha: "7b030822ee6c"
+source_sha: "3fefdeb42780"
 ---
 
 # Datenschutz { #data-protection }
@@ -22,6 +22,8 @@ und dem, was ein Deployment tatsächlich entschieden hat.
     beschaffen und zu prüfen ist, nie als etwas Angenommenes.
 
 Das Capability-Inventar enthält auch den pro Konversation auswählbaren lokalen Coding-Agent, selbst wenn der veröffentlichte Spec keinen solchen Binding enthält oder eine Sandbox nutzt. Diese Zeile beschreibt einen möglichen Weg, keinen Nachweis seiner Nutzung.
+
+Personendatenexporte enthalten Dateinamen und Patches der Coding-Aufgaben aus den exportierten Unterhaltungen; deren JSON zählt zur vorab geprüften Größenbegrenzung. Das Ende einer Organisationsmitgliedschaft entfernt die persönlichen Coding-Verbindungen in derselben Transaktion. Ein erneuter Beitritt erfordert eine neue Verbindung und Zustimmung; die bisherige Freigabe lebt nicht wieder auf.
 
 ## Was standardmäßig das System verlässt { #nothing-leaves-by-default }
 

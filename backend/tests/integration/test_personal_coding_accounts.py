@@ -519,3 +519,48 @@ async def test_a_private_task_refuses_a_wrong_harness_or_non_coding_credential(
     with pytest.raises(TypeError):
         async with factory._isolated(run, row, "codex"):
             pytest.fail("Non-coding credential admitted")
+
+
+async def test_membership_teardown_removes_coding_consent_without_affecting_other_accounts(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import select
+
+    from app.services.member import end_membership
+
+    owner, other = await person(db), await person(db)
+    org, elsewhere = await organization(db, owner), await organization(db, owner)
+    db.add(OrganizationMember(organization_id=org.id, user_id=other.id, role="builder"))
+    await db.flush()
+    service = CodingAccountService(db)
+    previous = await service.create(context(owner, org), request(enabled=True))
+    other_account = await service.create(context(other, org), request(enabled=True))
+    elsewhere_account = await service.create(context(owner, elsewhere), request(enabled=True))
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == org.id, OrganizationMember.user_id == owner.id
+        )
+    )
+    previous_id = previous.id
+    await end_membership(db, membership)
+    assert (
+        await account_repo.get(db, organization_id=org.id, user_id=owner.id, account_id=previous_id)
+        is None
+    )
+    assert (
+        await account_repo.get(
+            db, organization_id=org.id, user_id=other.id, account_id=other_account.id
+        )
+        is not None
+    )
+    assert (
+        await account_repo.get(
+            db, organization_id=elsewhere.id, user_id=owner.id, account_id=elsewhere_account.id
+        )
+        is not None
+    )
+    db.add(OrganizationMember(organization_id=org.id, user_id=owner.id, role="owner"))
+    await db.flush()
+    assert await service.mine(context(owner, org)) == []
+    with pytest.raises(NotFoundError):
+        await service.own(context(owner, org), previous_id)

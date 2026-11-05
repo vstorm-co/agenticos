@@ -8,9 +8,11 @@ import logging
 from typing import Any
 from uuid import UUID
 
+import anyio
+
 from app.db.session import get_db_context
 from app.repositories import channel_bot_repo
-from app.services.channels.base import FeedbackComment, read_feedback
+from app.services.channels.base import FeedbackComment, IncomingMessage, read_feedback
 from app.services.channels.feedback import ChannelFeedback
 from app.services.channels.next_steps import ChannelNextSteps, read_next
 from app.services.channels.prompts import ChannelPrompts
@@ -32,6 +34,20 @@ async def process_channel_event(incoming: Any) -> None:
             await ChannelMessageRouter().route(incoming, db)
     except Exception:
         logger.exception("channel_event_processing_failed")
+
+
+async def process_email_event(incoming: IncomingMessage) -> None:
+    """The webhook hands ownership of its temporary files to this handler."""
+    from app.services.channels import email_state
+
+    try:
+        await process_channel_event(incoming)
+    finally:
+        with anyio.CancelScope(shield=True):
+            try:
+                await email_state.discard_attachments(item.handle for item in incoming.attachments)
+            except Exception:
+                logger.exception("email_attachment_cleanup_failed")
 
 
 async def refusal_before_publishing(incoming: Any) -> str | None:

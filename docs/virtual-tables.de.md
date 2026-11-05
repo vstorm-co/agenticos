@@ -1,5 +1,5 @@
 ---
-source_sha: "e80e99c6fd80"
+source_sha: "d5cbffe0a7ba"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -849,6 +849,8 @@ Routine-Ergebnisse in der Inbox behalten eine private Aufgabe je Quellfall. Neue
 
 AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get_task`, `create_task` und `update_task`. Eine stabile `external_id` verhindert Quellduplikate. Änderungen benötigen `expected_revision`; veraltete Änderungen liefern 409. HTTP verwendet `/tasks/boards`, `/tasks` und `/tasks/{id}` unter `/api/v1`. Kernfelder und Zustände behalten ihre Identität; eigene Spalten sind möglich, aber Kerntypen und Archivierung bleiben geschützt. Die Ansichten Board, Planned, Agent tasks und Waiting for review werden angelegt. `write_plan` bleibt die interne Checkliste einer Ausführung und plant keine dauerhaften Verpflichtungen.
 
+
+Gruppenmitglieder dürfen das Aufgabenboard ihrer Gruppe lesen; Schreibzugriff erfordert zusätzlich Tabellen-Bearbeitungsrechte oder eine ausdrückliche Bearbeitungsfreigabe. Verliert die zugewiesene prüfende Person den Zugriff, wird die Erinnerung blockiert und ihr Ersteller erhält einen Inbox-Fall zur Übergabe. Neue Arbeitsunterhaltungen für Projektaufgaben gehören zum Projekt. Eine Tabellenquote kann die optionale Aufgabe eines Routine-Ergebnisses verhindern; Arbeitschat, Inbox-Fall und Benachrichtigung werden dennoch zugestellt.
 
 ## Standardansicht {#default-view}
 

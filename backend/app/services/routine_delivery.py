@@ -1,6 +1,7 @@
 """Queue a resumed answer with its terminal write, never another model call."""
 
 import hashlib
+import logging
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
@@ -20,6 +21,8 @@ from app.services.change_feed import announce_conversation
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
 from app.worker.jobs import DELIVER_ROUTINE_ANSWER, DeliverRoutineAnswer
+
+logger = logging.getLogger(__name__)
 
 
 class RoutineDeliveryService:
@@ -182,19 +185,26 @@ class RoutineFindingService:
 
         owner = await member_context(self.db, organization_id=run.organization_id, user_id=user_id)
         if owner is not None and owner.has(Perm.TABLES_CREATE):
-            task = await TaskService(self.db).finding(
-                owner,
-                outcome_id=outcome.id,
-                conversation_id=conversation.id,
-                title=item.title,
-                description=item.detail or "",
-                agent_id=run.agent_id,
-            )
-            finding.payload = {
-                **finding.payload,
-                "task_id": str(task.id),
-                "table_id": str(task.table_id),
-            }
+            from app.services.virtual_tables.exceptions import QuotaExceededError
+
+            try:
+                async with self.db.begin_nested():
+                    task = await TaskService(self.db).finding(
+                        owner,
+                        outcome_id=outcome.id,
+                        conversation_id=conversation.id,
+                        title=item.title,
+                        description=item.detail or "",
+                        agent_id=run.agent_id,
+                    )
+            except QuotaExceededError:
+                logger.info("routine_task_projection_quota", extra={"run_id": str(run.id)})
+            else:
+                finding.payload = {
+                    **finding.payload,
+                    "task_id": str(task.id),
+                    "table_id": str(task.table_id),
+                }
         await conversation_repo.create_message(
             self.db,
             conversation_id=conversation.id,

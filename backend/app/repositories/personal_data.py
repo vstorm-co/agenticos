@@ -29,6 +29,7 @@ from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.coding_account import CodingAccount
+from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.memory import AgentMemoryFile
@@ -693,3 +694,29 @@ async def outcome_export_size(db: AsyncSession, user_id: UUID) -> int:
 async def coding_accounts_of(db: AsyncSession, user_id: UUID) -> list[CodingAccount]:
     result = await db.execute(select(CodingAccount).where(CodingAccount.user_id == user_id))
     return list(result.scalars().all())
+
+
+async def coding_changes_in(
+    db: AsyncSession, conversation_ids: list[UUID]
+) -> list[CodingTaskChange]:
+    if not conversation_ids:
+        return []
+    return list(
+        await db.scalars(
+            select(CodingTaskChange)
+            .where(CodingTaskChange.conversation_id.in_(conversation_ids))
+            .order_by(CodingTaskChange.created_at, CodingTaskChange.id)
+        )
+    )
+
+
+async def coding_change_export_size(db: AsyncSession, conversation_ids: list[UUID]) -> int:
+    if not conversation_ids:
+        return 0
+    size = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(CodingTaskChange.files, Text))), 0)
+            + func.count(CodingTaskChange.id) * 1024
+        ).where(CodingTaskChange.conversation_id.in_(conversation_ids))
+    )
+    return int(size or 0)

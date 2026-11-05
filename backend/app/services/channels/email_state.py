@@ -15,7 +15,7 @@ worker than the one that received the message.
 """
 
 import json
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass
@@ -25,6 +25,7 @@ from app.clients.redis import RedisClient
 THREAD_TTL_SECONDS = 30 * 24 * 60 * 60
 ATTACHMENT_TTL_SECONDS = 15 * 60
 MAX_CACHED_ATTACHMENT_BYTES = 64 * 1024 * 1024
+MAX_CACHED_ATTACHMENTS = 1024
 SEEN_TTL_SECONDS = 24 * 60 * 60
 MAX_REFERENCES = 20
 """Headers grow with every reply; a mail server refuses a long enough `References`."""
@@ -60,18 +61,24 @@ def replying_to(bot_address: str, chat_id: str, thread: Thread) -> Generator[Non
         _reply_thread.reset(token)
 
 
-async def reserve_attachments(bot_id: str, encoded_bytes: int) -> bool:
-    """Bound all unconsumed inbound files for a bot, even before sender admission."""
-    if encoded_bytes == 0:
+async def stash_attachments(bot_id: str, values: dict[str, str]) -> bool:
+    """Atomically admit and store one delivery; no reservation survives a failed stash."""
+    if not values:
         return True
     if _redis is None:
         return False
-    return await _redis.reserve_capacity(
-        f"channel:email:capacity:{bot_id}",
-        amount=encoded_bytes,
+    return await _redis.cache_bounded_values(
+        f"channel:email:attachments:{bot_id}",
+        values=values,
         capacity=MAX_CACHED_ATTACHMENT_BYTES,
         ttl=ATTACHMENT_TTL_SECONDS,
+        max_items=MAX_CACHED_ATTACHMENTS,
     )
+
+
+async def discard_attachments(handles: Iterable[str]) -> None:
+    for handle in handles:
+        await take_attachment(handle)
 
 
 async def release_delivery(bot_id: str, message_id: str | None) -> None:
@@ -113,17 +120,16 @@ async def thread_of(bot_address: str, chat_id: str) -> Thread | None:
     return Thread(**json.loads(stored)) if stored else None
 
 
-async def stash_attachment(handle: str, content_base64: str) -> None:
-    """Hold one inbound file until the router has read it."""
-    if _redis is not None:
-        await _redis.set(f"channel:email:file:{handle}", content_base64, ttl=ATTACHMENT_TTL_SECONDS)
-
-
 async def take_attachment(handle: str) -> str | None:
-    """The base64 content of a stashed file, or `None` once it has expired."""
+    """Consume a file and its capacity together, or return None after expiry."""
     if _redis is None:
         return None
-    return await _redis.getdel(f"channel:email:file:{handle}")
+    bot_id = handle.split(":", 1)[0]
+    value = await _redis.take_bounded_value(
+        f"channel:email:attachments:{bot_id}", handle, ttl=ATTACHMENT_TTL_SECONDS
+    )
+    # Drain files queued before the bounded-cache upgrade (at most fifteen minutes).
+    return value if value is not None else await _redis.getdel(f"channel:email:file:{handle}")
 
 
 async def first_delivery(bot_id: str, message_id: str | None) -> bool:

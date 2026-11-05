@@ -1078,11 +1078,47 @@ async def test_export_includes_every_owned_outcome_and_bounds_the_full_content(
     service = PersonalDataService(db)
     export = await service.export(user.id, actor_user_id=user.id)
     assert {row.id for row in export.outcomes} == {records[0].id, records[1].id}
-    assert export.outcomes[0].last_observed_at == now
+    assert next(row for row in export.outcomes if row.id == records[0].id).last_observed_at == now
     assert {row.id for row in export.phone_case_attempts} == {records[1].id}
     records[0].summary = "x" * 50_000
     records[0].context_url = "https://example.com/" + "x" * 50_000
     await db.flush()
     monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 80_000)
+    with pytest.raises(BadRequestError, match="more conversation text"):
+        await service.export(user.id, actor_user_id=user.id)
+
+
+async def test_coding_changes_are_exported_only_with_accessible_conversations_and_bounded(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.coding_task_change import CodingTaskChange
+
+    user = await _person(db, f"coding-{uuid4()}@example.com")
+    other = await _person(db, f"other-coding-{uuid4()}@example.com")
+    org, _ = await _org_and_agent(db)
+    chats = [
+        Conversation(organization_id=org.id, user_id=person.id, title="Coding")
+        for person in (user, other)
+    ]
+    db.add_all(chats)
+    await db.flush()
+    changes = [
+        CodingTaskChange(
+            organization_id=org.id,
+            conversation_id=chat.id,
+            harness="codex",
+            files=[{"path": "report.py", "patch": "+print('hello')"}],
+        )
+        for chat in chats
+    ]
+    db.add_all(changes)
+    await db.flush()
+    service = PersonalDataService(db)
+    exported = await service.export(user.id, actor_user_id=user.id)
+    assert [row.id for row in exported.coding_task_changes] == [changes[0].id]
+    assert exported.coding_task_changes[0].files[0]["patch"] == "+print('hello')"
+    changes[0].files = [{"path": "report.py", "patch": "x" * 50_000}]
+    await db.flush()
+    monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 40_000)
     with pytest.raises(BadRequestError, match="more conversation text"):
         await service.export(user.id, actor_user_id=user.id)

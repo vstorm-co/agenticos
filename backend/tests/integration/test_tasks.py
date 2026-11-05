@@ -218,9 +218,11 @@ async def test_rescheduling_reminder_reopens_the_same_case(db: AsyncSession) -> 
 
 
 @pytest.mark.parametrize("delay", [0, 300])
+@pytest.mark.parametrize("scope", ["private", "project"])
 async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_review(
     db: AsyncSession,
     delay: int,
+    scope: str,
 ) -> None:
     from app.agents.spec import AgentSpec
     from app.db.models.agent import Agent, AgentVersion
@@ -248,10 +250,18 @@ async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_revi
     agent.current_version_id = version.id
     agent.status = "published"
     await db.flush()
+    from app.db.models.conversation import Conversation
+    from app.db.models.project import Project
+
+    project = Project(organization_id=data.org.id, owner_user_id=data.users[0].id, name="Launch")
+    db.add(project)
+    await db.flush()
     service = TaskService(db)
     task = await service.create(
         data.contexts[0],
         TaskCreate(
+            scope=scope,
+            scope_id=project.id if scope == "project" else None,
             title="Prepare reply",
             assignee_agent_id=agent.id,
             start_at=datetime.now(UTC) + timedelta(seconds=delay - 1),
@@ -259,6 +269,8 @@ async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_revi
     )
     link = await db.get(TaskLink, task.id)
     assert link is not None and link.trigger_id is not None and task.conversation_id is not None
+    working = await db.get(Conversation, task.conversation_id)
+    assert working.project_id == (project.id if scope == "project" else None)
     trigger = await db.get(AgentTrigger, link.trigger_id)
     assert trigger is not None and trigger.one_shot and trigger.pinned_version_id == version.id
     triggers = AgentTriggerService(db)
@@ -551,3 +563,113 @@ async def test_personal_chat_can_create_project_tasks_without_linking_its_privat
                 conversation_id=personal.id,
             ),
         )
+
+
+async def test_group_membership_does_not_grant_a_viewer_table_writes(db: AsyncSession) -> None:
+    from app.db.models.resource_grant import ResourceGrant
+    from app.schemas.virtual_table import RecordCreate
+
+    data = await world(db)
+    group = Group(organization_id=data.org.id, name="Reviews")
+    db.add(group)
+    await db.flush()
+    members = [GroupMember(group_id=group.id, user_id=user.id) for user in data.users]
+    db.add_all(members)
+    await db.flush()
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0], TaskCreate(title="Review", scope="group", scope_id=group.id)
+    )
+    viewer = AuthContext(
+        user_id=data.users[1].id, organization_id=data.org.id, role=OrgRoleName.VIEWER
+    )
+    tables = VirtualTableService(db)
+    board = await db.get(TaskBoard, task.board_id)
+    assert (await service.get(viewer, task.id)).id == task.id
+    with pytest.raises(NotFoundError):
+        await tables.create_record(
+            viewer, task.table_id, RecordCreate(values={board.column_ids["title"]: "Injected"})
+        )
+    with pytest.raises(NotFoundError):
+        await tables.update_record(
+            viewer,
+            task.table_id,
+            task.id,
+            RecordUpdate(
+                values={board.column_ids["title"]: "Changed"}, expected_revision=task.revision
+            ),
+        )
+    with pytest.raises(NotFoundError):
+        await tables.delete_record(viewer, task.table_id, task.id, expected_revision=task.revision)
+    db.add(
+        ResourceGrant(
+            organization_id=data.org.id,
+            resource_type="table",
+            resource_id=task.table_id,
+            subject_user_id=viewer.user_id,
+            level="edit",
+        )
+    )
+    await db.flush()
+    await tables.update_record(
+        viewer,
+        task.table_id,
+        task.id,
+        RecordUpdate(
+            values={board.column_ids["title"]: "Explicitly shared"}, expected_revision=task.revision
+        ),
+    )
+    assert (await service.get(viewer, task.id)).title == "Explicitly shared"
+    await db.delete(members[1])
+    await db.flush()
+    with pytest.raises(NotFoundError):
+        await service.get(viewer, task.id)
+
+
+@pytest.mark.parametrize("lost_membership", ["group", "organization"])
+async def test_a_reminder_notifies_its_creator_when_the_assignee_loses_access(
+    db: AsyncSession, lost_membership: str
+) -> None:
+    from app.db.models.outcome import Outcome
+
+    data = await world(db)
+    group = Group(organization_id=data.org.id, name="Reviews")
+    db.add(group)
+    await db.flush()
+    members = [GroupMember(group_id=group.id, user_id=user.id) for user in data.users]
+    db.add_all(members)
+    await db.flush()
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0],
+        TaskCreate(
+            title="Review",
+            scope="group",
+            scope_id=group.id,
+            assignee_user_id=data.users[1].id,
+            start_at=datetime.now(UTC) - timedelta(minutes=1),
+        ),
+    )
+    removed = (
+        members[1]
+        if lost_membership == "group"
+        else await db.scalar(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == data.org.id,
+                OrganizationMember.user_id == data.users[1].id,
+            )
+        )
+    )
+    await db.delete(removed)
+    await db.flush()
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    current = await service.get(data.contexts[0], task.id)
+    link = await db.get(TaskLink, task.id)
+    case = await db.get(Outcome, link.outcome_id)
+    assert current.status == "blocked" and case.user_id == data.users[0].id
+    from app.db.models.suggestion import Suggestion
+
+    finding = await db.scalar(select(Suggestion).where(Suggestion.outcome_id == case.id))
+    assert "no longer has access" in finding.detail

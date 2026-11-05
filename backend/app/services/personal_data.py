@@ -34,6 +34,7 @@ from app.core.memory_keys import person_owner_key
 from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import (
+    CodingTaskChangeExport,
     OutcomeExport,
     PersonalDataExport,
     PersonalDataPurge,
@@ -205,6 +206,10 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            coding_task_changes=[
+                CodingTaskChangeExport.model_validate(row)
+                for row in await personal_data_repo.coding_changes_in(self.db, conversation_ids)
+            ],
             outcomes=[
                 OutcomeExport.model_validate(row)
                 for row in await personal_data_repo.outcomes_of(self.db, user_id)
@@ -356,6 +361,7 @@ class PersonalDataService:
                 operator can act on it.
         """
         size = await personal_data_repo.export_size(self.db, conversation_ids)
+        size += await personal_data_repo.coding_change_export_size(self.db, conversation_ids)
         size += await personal_data_repo.routine_answer_export_size(self.db, user_id)
         size += await personal_data_repo.routine_device_wait_export_size(self.db, user_id)
         size += await personal_data_repo.routine_health_export_size(self.db, user_id)

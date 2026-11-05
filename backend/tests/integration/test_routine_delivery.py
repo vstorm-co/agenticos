@@ -406,3 +406,47 @@ async def test_a_saved_answer_announces_its_conversation_only_after_commit(
         start_deferred(db)
         await drain(timeout=1)
     assert len(await messages(db, world)) == 1
+
+
+async def test_table_quota_does_not_lose_a_routine_finding(
+    db: AsyncSession, world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import settings
+    from app.core.permissions import AuthContext
+    from app.db.models.outcome import Outcome
+    from app.db.models.task_board import TaskBoard
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.schemas.virtual_table import TableCreate
+    from app.services.virtual_tables import VirtualTableService
+
+    ctx = AuthContext(user_id=world.user.id, organization_id=world.org.id, role="owner")
+    await VirtualTableService(db).create_table(ctx, TableCreate(name="Existing data"))
+    # Quota audits use a separate committed transaction, as in a later routine run.
+    await db.commit()
+    monkeypatch.setattr(settings, "TABLES_MAX_PER_ORGANIZATION", 1)
+    from app.services.routine_delivery import RoutineFindingService
+
+    service = RoutineFindingService(db)
+    chat_id = await service.publish(
+        run=world.run,
+        user_id=world.user.id,
+        origin_id=world.trigger.id,
+        origin_kind="trigger",
+        item=RoutineFinding(
+            key="mail:123", revision="v1", title="Review draft", content="Draft reply"
+        ),
+    )
+    assert chat_id is not None
+    assert await db.scalar(select(Message).where(Message.conversation_id == chat_id)) is not None
+    assert (
+        await db.scalar(select(Outcome).where(Outcome.source_conversation_id == chat_id))
+        is not None
+    )
+    assert (
+        await db.scalar(select(Notification).where(Notification.recipient_user_id == world.user.id))
+        is not None
+    )
+    assert (
+        await db.scalar(select(TaskBoard).where(TaskBoard.organization_id == world.org.id)) is None
+    )
+    await db.commit()

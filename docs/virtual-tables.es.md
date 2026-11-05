@@ -1,5 +1,5 @@
 ---
-source_sha: "e80e99c6fd80"
+source_sha: "d5cbffe0a7ba"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -802,6 +802,8 @@ Los resultados de routines en Inbox mantienen una tarea privada por caso de orig
 
 AgenticOS MCP ofrece `list_task_boards`, `ensure_task_board`, `list_tasks`, `get_task`, `create_task` y `update_task`. Una `external_id` estable evita duplicados. Las modificaciones requieren `expected_revision`; una revisión antigua devuelve 409. HTTP usa `/tasks/boards`, `/tasks` y `/tasks/{id}` bajo `/api/v1`. Los campos y estados básicos conservan su identidad; se permiten columnas propias sin cambiar tipos ni archivar los campos básicos. Se crean las vistas Board, Planned, Agent tasks y Waiting for review. `write_plan` sigue siendo una lista interna de la ejecución y no programa compromisos duraderos.
 
+
+La pertenencia al grupo permite leer su tablero de tareas; escribir requiere además permiso para editar tablas o una concesión explícita de edición. Si la persona asignada a un recordatorio pierde acceso, la tarea queda bloqueada y su creador recibe un caso en Inbox para transferirla. Las conversaciones nuevas de tareas de proyecto pertenecen al proyecto. La cuota de tablas puede impedir la tarea opcional de un resultado de rutina, pero su chat de trabajo, caso de Inbox y notificación siguen entregándose.
 
 ## Vista predeterminada {#default-view}
 
