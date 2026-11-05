@@ -633,16 +633,8 @@ export function foldWork(
     (count, run) => count + (run.kind === "tools" ? run.parts.length : 0),
     0,
   );
-  const tail = runs.at(-1);
-  const trailingWork =
-    tail !== undefined && isWork(tail) && !(tail.kind === "tools" && mustShowEveryStep(tail.parts));
-  const lastTextRun = runs[lastText];
-  const narrationBeforeWork =
-    lastTextRun?.kind === "other" && lastTextRun.content.length <= NARRATION_CHARS && trailingWork;
   const answer =
-    (lastText < 0 && (active || stopped || toolCount > 1)) ||
-    (active && narrationBeforeWork) ||
-    (lastText <= 0 && stopped)
+    (lastText < 0 && (stopped || toolCount > 1)) || (lastText <= 0 && stopped)
       ? runs.length
       : lastText;
   if (answer <= 0) return null;

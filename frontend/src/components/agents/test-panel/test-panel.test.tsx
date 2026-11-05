@@ -207,6 +207,35 @@ describe("the Builder's test panel", () => {
     expect(screen.getByRole("complementary")).toHaveStyle("--test-panel-width: 440px");
   });
 
+  it("opens comparison in a full workspace and keeps the conversation when leaving it", async () => {
+    open();
+    const original = chat("draft");
+    await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
+    expect(screen.getByRole("complementary")).toHaveAttribute("data-expanded", "true");
+    expect(chat("draft")).toBe(original);
+    const prompt = screen.getByRole("textbox", { name: "Prompt" });
+    await userEvent.type(prompt, "An unsent comparison");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("complementary")).toHaveAttribute("data-expanded", "false");
+    expect(chat("draft")).toBe(original);
+    expect(prompt).toHaveValue("An unsent comparison");
+    await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(screen.getByRole("complementary")).toHaveAttribute("data-expanded", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Compare two side by side" }));
+    expect(screen.getByRole("complementary")).toHaveAttribute("data-expanded", "false");
+    expect(chat("draft")).toBe(original);
+  });
+
+  it("can expand a single test without resetting it", async () => {
+    open();
+    const original = chat("draft");
+    await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
+    expect(screen.getByRole("complementary")).toHaveAttribute("data-expanded", "true");
+    await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
+    expect(screen.getByRole("complementary")).toHaveAttribute("data-expanded", "false");
+    expect(chat("draft")).toBe(original);
+  });
+
   it("compares the draft with an environment when an environment answers", async () => {
     writeTestPanel("a1", {
       open: true,

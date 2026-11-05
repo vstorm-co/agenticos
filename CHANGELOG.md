@@ -184,6 +184,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Give agent test comparisons a full workspace, preserve chats and unsent text when returning to the Builder, and separate version selection from test actions.
+
 - Fit the agent configuration map into its canvas, keep large groups compact with complete details on demand, and restore the workflow minimap’s graph coordinates.
 
 - Limit expanded chat activity to a keyboard-accessible scrolling region instead of stretching long tool histories across the transcript.
