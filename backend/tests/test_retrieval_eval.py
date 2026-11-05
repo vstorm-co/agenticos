@@ -10,8 +10,10 @@ Imported by path, the way `test_loadtest_harness.py` reaches `loadtest/`.
 
 import hashlib
 import importlib.util
+import subprocess
 import sys
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -176,6 +178,67 @@ class TestTheQuestionSet:
     def test_an_inconsistent_item_is_refused(self, overrides: dict[str, object], message: str):
         with pytest.raises(ValueError, match=message):
             _item(**overrides)
+
+    def test_a_refused_item_is_one_message_naming_it(self, tmp_path: Path):
+        """Not pydantic's report, and not its second error about an `items` left empty."""
+        path = _write(
+            tmp_path,
+            "version: 1\nitems:\n"
+            "  - {id: a, category: factual, language: en, question: q,"
+            " expected_pages: [directory.md, directory.md]}\n",
+        )
+
+        with pytest.raises(dataset.DatasetError) as refused:
+            dataset.load_dataset(path)
+
+        assert str(refused.value) == (
+            f"{path} is not a valid question set:\n  item a: an expected page is listed twice"
+        )
+
+    def test_a_field_error_names_the_item_and_the_field(self, tmp_path: Path):
+        path = _write(
+            tmp_path,
+            "version: 1\nitems:\n"
+            "  - {id: a, category: factual, language: en, expected_pages: [x.md]}\n"
+            "  - {category: factual, language: en, question: q, expected_pages: [x.md]}\n",
+        )
+
+        with pytest.raises(dataset.DatasetError) as refused:
+            dataset.load_dataset(path)
+
+        assert str(refused.value).splitlines()[1:] == [
+            "  item a, question: Field required",
+            "  item #2, id: Field required",
+        ]
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            (None, "cannot be read"),
+            ("items: [", "is not YAML"),
+            ("- a\n- b\n", "is not a valid question set:\n  Input should be a valid dictionary"),
+        ],
+    )
+    def test_a_file_that_is_no_question_set_is_refused_by_name(
+        self, tmp_path: Path, text: str | None, message: str
+    ):
+        path = tmp_path / "questions.yaml" if text is None else _write(tmp_path, text)
+
+        with pytest.raises(dataset.DatasetError, match=message) as refused:
+            dataset.load_dataset(path)
+
+        assert str(refused.value).startswith(str(path))
+
+    def test_a_missing_page_is_a_dataset_error(self, tmp_path: Path):
+        (tmp_path / "docs").mkdir()
+        path = _write(
+            tmp_path,
+            "version: 1\nitems:\n"
+            "  - {id: a, category: factual, language: en, question: q, expected_pages: [x.md]}\n",
+        )
+
+        with pytest.raises(dataset.DatasetError, match=r"a: x\.md in en"):
+            dataset.load_dataset(path, docs_root=tmp_path / "docs")
 
 
 class TestTheCommittedSetCannotBeGamed:
@@ -386,6 +449,20 @@ class TestEvaluate:
         assert "`saml` lacks Keycloak*" in report
         assert exported["items"][0]["retrieved_pages"] == ["about/dify.md"]
         assert exported["items"][0]["answer_correct"] is False
+        assert exported["items"][0]["queries"] is None
+
+    async def test_the_export_carries_each_item_s_planned_queries(self):
+        questions = dataset.Dataset(version=1, items=(_item(),))
+
+        async def retrieve(item: object) -> list[object]:
+            return [_chunk("directory.md")]
+
+        results = await scoring.evaluate(questions, retrieve)
+        exported = scoring.as_json(
+            "label", 5, "hyde", results, queries={"saml": ["A passage about SAML."]}
+        )
+
+        assert exported["items"][0]["queries"] == ["A passage about SAML."]
 
     async def test_a_report_without_answers_has_no_answer_column(self):
         questions = dataset.Dataset(version=1, items=(_item(),))
@@ -618,3 +695,130 @@ class TestQueryPlans:
 
         assert len(prompts) == 1
         assert retrieval.queries == [item.question, "rephrasing 1"] * 2
+
+
+class TestRefusals:
+    """A question set the harness refuses ends the run with one message, not a traceback."""
+
+    def _bad_set(self, tmp_path: Path) -> Path:
+        return _write(
+            tmp_path,
+            "version: 1\nitems:\n"
+            "  - {id: a, category: factual, language: en, question: q,"
+            " expected_pages: [directory.md, directory.md]}\n",
+        )
+
+    async def test_a_refused_question_set_stops_the_run_with_its_message(self, tmp_path: Path):
+        path = self._bad_set(tmp_path)
+
+        with pytest.raises(SystemExit) as stopped:
+            await run.measure(run.parse(["--dataset", str(path)]))
+
+        assert stopped.value.code == (
+            f"{path} is not a valid question set:\n  item a: an expected page is listed twice"
+        )
+
+    def test_the_command_prints_the_refusal_without_a_traceback(self, tmp_path: Path):
+        path = self._bad_set(tmp_path)
+
+        finished = subprocess.run(
+            [sys.executable, str(HARNESS / "run.py"), "--dataset", str(path)],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=REPO_ROOT / "backend",
+        )
+
+        assert finished.returncode == 1
+        assert "Traceback" not in finished.stderr
+        assert "item a: an expected page is listed twice" in finished.stderr
+
+
+class TestIngestionFlags:
+    def test_the_chunk_flags_reach_the_pipeline_and_its_collections(self):
+        default = run.rag_settings(run.parse([]))
+        changed = run.rag_settings(
+            run.parse(
+                [
+                    "--chunk-size",
+                    "1200",
+                    "--chunk-overlap",
+                    "100",
+                    "--chunking-strategy",
+                    "markdown",
+                ]
+            )
+        )
+
+        assert (default.chunk_size, default.chunk_overlap, default.chunking_strategy) == (
+            2500,
+            200,
+            "recursive",
+        )
+        assert (changed.chunk_size, changed.chunk_overlap, changed.chunking_strategy) == (
+            1200,
+            100,
+            "markdown",
+        )
+        assert changed.embeddings_config.model == "text-embedding-3-small"
+        assert run.collection_digest(default, "u") != run.collection_digest(changed, "u")
+
+    @pytest.mark.parametrize(
+        ("argv", "message"),
+        [
+            (["--chunk-overlap", "3000"], "chunk_overlap (3000) must be smaller than chunk_size"),
+            (["--chunk-size", "10"], "--chunk-size: Input should be greater than or equal to 64"),
+        ],
+    )
+    def test_a_chunk_setting_a_collection_would_refuse_is_refused(
+        self, argv: list[str], message: str
+    ):
+        with pytest.raises(SystemExit) as stopped:
+            run.rag_settings(run.parse(argv))
+
+        assert message in str(stopped.value.code)
+
+    def test_an_unknown_dimension_is_taken_from_the_flag(self):
+        settings = run.rag_settings(
+            run.parse(["--embedding-model", "my-model", "--embedding-dim", "384"])
+        )
+
+        assert settings.embeddings_config.dim == 384
+
+
+class TestProvenance:
+    def test_the_export_records_what_shaped_the_run(self, tmp_path: Path):
+        path = _write(
+            tmp_path,
+            "version: 1\nitems:\n"
+            "  - {id: a, category: factual, language: en, question: q, expected_pages: [x.md]}\n",
+        )
+        arguments = run.parse(["--dataset", str(path), "--chunk-size", "1200"])
+        settings = run.rag_settings(arguments)
+        started = datetime(2026, 11, 5, 12, 0, tzinfo=UTC)
+
+        exported = run.provenance(
+            arguments,
+            dataset=dataset.load_dataset(path),
+            settings=settings,
+            locales=("en",),
+            collections={"en": "c_en"},
+            started_at=started,
+            reports=[],
+        )
+
+        assert exported["dataset_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+        assert exported["started_at"] == "2026-11-05T12:00:00+00:00"
+        assert exported["embedding_dim"] == 1536
+        assert exported["ingestion"] == {
+            "chunk_size": 1200,
+            "chunk_overlap": 200,
+            "chunking_strategy": "recursive",
+            "document_parser": "python_native",
+            "pdf_parser": "pymupdf",
+        }
+        assert exported["collection_digest"] == run.collection_digest(
+            settings, arguments.embedding_base_url
+        )
+        for kept in ("dataset", "dataset_version", "questions", "collections", "configurations"):
+            assert kept in exported

@@ -19,7 +19,7 @@ the JSON output for anyone who wants to read them.
 """
 
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 
 from dataset import CATEGORIES, Dataset, Item
@@ -189,8 +189,20 @@ def render_markdown(label: str, results: Sequence[ItemResult]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def as_json(label: str, top_k: int, mode: str, results: Sequence[ItemResult]) -> dict[str, object]:
-    """One configuration's results in a shape a later run can be diffed against."""
+def as_json(
+    label: str,
+    top_k: int,
+    mode: str,
+    results: Sequence[ItemResult],
+    *,
+    queries: Mapping[str, Sequence[str]] | None = None,
+) -> dict[str, object]:
+    """One configuration's results in a shape a later run can be diffed against.
+
+    `queries` is what the mode searched for each item id - `multi_query`'s
+    question and its rephrasings, `hyde`'s passage. An item's `queries` is
+    `null` when the mode generated nothing (`off`).
+    """
     return {
         "label": label,
         "top_k": top_k,
@@ -205,6 +217,7 @@ def as_json(label: str, top_k: int, mode: str, results: Sequence[ItemResult]) ->
                 "retrieved_pages": [chunk.page for chunk in r.retrieved],
                 "answer": r.answer,
                 "answer_correct": r.answer_correct,
+                "queries": None if queries is None else list(queries.get(r.item.id, ())),
             }
             for r in results
         ],

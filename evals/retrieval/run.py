@@ -26,10 +26,12 @@ import json
 import os
 import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import get_args
 
-from dataset import Dataset, Item, Locale, corpus_files, load_dataset, page_key
+from dataset import Dataset, DatasetError, Item, Locale, corpus_files, load_dataset, page_key
+from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.usage import RunUsage
 from scoring import Answer, Retrieve, Retrieved, as_json, evaluate, render_markdown
@@ -37,6 +39,7 @@ from scoring import Answer, Retrieve, Retrieved, as_json, evaluate, render_markd
 from app.db.session import close_db, get_db_context
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH, VectorScope
 from app.repositories import knowledge_base_repo
+from app.services.ingestion_config import ChunkingStrategy, IngestionConfig, rag_settings_for
 from app.services.rag.config import EmbeddingsConfig, RAGSettings
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.embeddings import EmbeddingService
@@ -161,6 +164,43 @@ def _generate(model: str | None, usage: RunUsage) -> GenerateText | None:
     return generate
 
 
+def rag_settings(arguments: argparse.Namespace) -> RAGSettings:
+    """The pipeline a knowledge base configured with the run's chunk flags would get.
+
+    The flags go through `IngestionConfig`, the model a collection's ingestion
+    form saves, so a value the product refuses - an overlap as large as the
+    chunk, a size outside its bounds - is refused here too, and the rest of the
+    settings are that model's defaults.
+    """
+    try:
+        config = IngestionConfig(
+            chunk_size=arguments.chunk_size,
+            chunk_overlap=arguments.chunk_overlap,
+            chunking_strategy=ChunkingStrategy(arguments.chunking_strategy),
+        )
+    except ValidationError as error:
+        problems = [
+            f"--{'-'.join(str(part) for part in e['loc']).replace('_', '-')}: {e['msg']}"
+            if e["loc"]
+            else str(e.get("ctx", {}).get("error", e["msg"]))
+            for e in error.errors(include_url=False)
+        ]
+        raise SystemExit("; ".join(problems)) from None
+    settings = rag_settings_for(config)
+    settings.embeddings_config = EmbeddingsConfig(model=arguments.embedding_model)
+    if arguments.embedding_dim:
+        settings.embeddings_config.dim = arguments.embedding_dim
+    return settings
+
+
+def collection_digest(settings: RAGSettings, base_url: str) -> str:
+    """A short hash of everything that shaped a collection's vectors."""
+    identity = json.dumps(
+        {"base_url": base_url, "settings": settings.model_dump(mode="json")}, sort_keys=True
+    )
+    return hashlib.sha256(identity.encode()).hexdigest()[:10]
+
+
 def collection_names(
     prefix: str, settings: RAGSettings, base_url: str, locales: tuple[Locale, ...]
 ) -> dict[Locale, str]:
@@ -174,10 +214,7 @@ def collection_names(
     get two collections. A change to parser *code* is not in it: pass
     `--reingest` after one.
     """
-    identity = json.dumps(
-        {"base_url": base_url, "settings": settings.model_dump(mode="json")}, sort_keys=True
-    )
-    digest = hashlib.sha256(identity.encode()).hexdigest()[:10]
+    digest = collection_digest(settings, base_url)
     label = re.sub(r"[^a-z0-9]+", "_", settings.embeddings_config.model.lower()).strip("_")[:12]
     names: dict[Locale, str] = {locale: f"{prefix}_{label}_{digest}_{locale}" for locale in locales}
     too_long = [name for name in names.values() if len(name) > MAX_COLLECTION_NAME_LENGTH]
@@ -254,7 +291,12 @@ def answerer(model: str, usage: RunUsage) -> Answer:
 async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]]:
     docs_root = Path(arguments.docs).resolve()
     locales = tuple(dict.fromkeys(LOCALES[name] for name in arguments.locale or ("en", "pl")))
-    dataset: Dataset = load_dataset(Path(arguments.dataset), docs_root=docs_root, locales=locales)
+    started_at = datetime.now(UTC)
+    try:
+        dataset = load_dataset(Path(arguments.dataset), docs_root=docs_root, locales=locales)
+    except DatasetError as error:
+        raise SystemExit(str(error)) from None
+    settings = rag_settings(arguments)
     needed = {locale for item in dataset.items for locale in (item.search_locales or ())}
     if not needed <= set(locales):
         raise SystemExit(
@@ -269,9 +311,6 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
     if arguments.llm_model is None and (arguments.answers or set(arguments.mode or ()) - {"off"}):
         raise SystemExit("multi_query, hyde and --answers need --llm-model")
 
-    settings = RAGSettings(embeddings_config=EmbeddingsConfig(model=arguments.embedding_model))
-    if arguments.embedding_dim:
-        settings.embeddings_config.dim = arguments.embedding_dim
     embedder = EmbeddingService(
         settings,
         api_key=api_key,
@@ -321,25 +360,64 @@ async def measure(arguments: argparse.Namespace) -> tuple[str, dict[str, object]
             )
             results = await evaluate(dataset, search, answer)
             sections.append(render_markdown(label, results))
-            reports.append(as_json(label, top_k, mode, results))
+            planned = None if mode == "off" else {i.id: plans[(i.id, mode)] for i in dataset.items}
+            reports.append(as_json(label, top_k, mode, results, queries=planned))
     if arguments.llm_model is not None:
         sections.append(
             f"Model calls ({arguments.llm_model}): {usage.requests} requests, "
             f"{usage.input_tokens} input and {usage.output_tokens} output tokens.\n"
         )
-    provenance: dict[str, object] = {
+    exported = provenance(
+        arguments,
+        dataset=dataset,
+        settings=settings,
+        locales=locales,
+        collections=collections,
+        started_at=started_at,
+        reports=reports,
+    )
+    return "\n".join(sections), exported
+
+
+def provenance(
+    arguments: argparse.Namespace,
+    *,
+    dataset: Dataset,
+    settings: RAGSettings,
+    locales: tuple[Locale, ...],
+    collections: dict[Locale, str],
+    started_at: datetime,
+    reports: list[dict[str, object]],
+) -> dict[str, object]:
+    """What `--json` writes: the results, and enough to say what produced them.
+
+    Keys are only ever added, so a file written by an earlier run still reads.
+    `dataset_sha256` tells two edits of one `version` apart; `ingestion` and
+    `collection_digest` are what the collection names were derived from.
+    """
+    return {
         "dataset": str(arguments.dataset),
         "dataset_version": dataset.version,
+        "dataset_sha256": hashlib.sha256(Path(arguments.dataset).read_bytes()).hexdigest(),
+        "started_at": started_at.isoformat(),
         "questions": len(dataset.items),
         "locales": list(locales),
         "embedding_model": arguments.embedding_model,
+        "embedding_dim": settings.embeddings_config.dim,
         "embedding_base_url": arguments.embedding_base_url,
+        "ingestion": {
+            "chunk_size": settings.chunk_size,
+            "chunk_overlap": settings.chunk_overlap,
+            "chunking_strategy": settings.chunking_strategy,
+            "document_parser": settings.document_parser.method,
+            "pdf_parser": settings.pdf_parser.method,
+        },
+        "collection_digest": collection_digest(settings, arguments.embedding_base_url),
         "collections": collections,
         "llm_model": arguments.llm_model,
         "max_variants": arguments.max_variants,
         "configurations": reports,
     }
-    return "\n".join(sections), provenance
 
 
 def parse(argv: list[str] | None = None) -> argparse.Namespace:
@@ -365,6 +443,25 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--max-variants", type=int, default=3, help="multi_query's rephrasings (default 3)"
     )
+    defaults = IngestionConfig()
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=defaults.chunk_size,
+        help=f"characters per chunk (default {defaults.chunk_size})",
+    )
+    parser.add_argument(
+        "--chunk-overlap",
+        type=int,
+        default=defaults.chunk_overlap,
+        help=f"characters a chunk repeats from the last (default {defaults.chunk_overlap})",
+    )
+    parser.add_argument(
+        "--chunking-strategy",
+        choices=[strategy.value for strategy in ChunkingStrategy],
+        default=defaults.chunking_strategy.value,
+        help=f"default {defaults.chunking_strategy.value}",
+    )
     parser.add_argument("--embedding-model", default="text-embedding-3-small")
     parser.add_argument(
         "--embedding-dim", type=int, help="only for a model the catalog does not know"
@@ -374,7 +471,11 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--keyless", action="store_true", help="the endpoint takes no key (a local Ollama)"
     )
-    parser.add_argument("--llm-model", help="a Pydantic AI model name, e.g. openai:gpt-4.1-mini")
+    parser.add_argument(
+        "--llm-model",
+        help="a Pydantic AI model name, e.g. openai:gpt-4.1-mini; openai-chat:<model> for "
+        "a chat-completions-only or local OpenAI-compatible endpoint",
+    )
     parser.add_argument(
         "--answers", action="store_true", help="also answer each question and check its facts"
     )

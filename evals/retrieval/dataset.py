@@ -17,7 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 Category = Literal["factual", "negative", "cross_language"]
 Locale = Literal["en", "pl", "de", "es"]
@@ -117,38 +117,36 @@ class Item(BaseModel):
     @model_validator(mode="after")
     def _consistent(self) -> Self:
         if len(set(self.expected_pages)) != len(self.expected_pages):
-            raise ValueError(f"{self.id}: an expected page is listed twice")
+            raise ValueError("an expected page is listed twice")
         for page in self.expected_pages:
             key, locale = page_key(page)
             if locale != "en" or key != page or not _matches_page_key(page):
-                raise ValueError(f"{self.id}: expected page {page!r} is not a page key")
+                raise ValueError(f"expected page {page!r} is not a page key")
             if not is_published(page):
                 raise ValueError(
-                    f"{self.id}: expected page {page!r} is not published, so it is not in the corpus"
+                    f"expected page {page!r} is not published, so it is not in the corpus"
                 )
         if any(
             not group or not all(alternative.strip() for alternative in group)
             for group in self.expected_facts
         ):
-            raise ValueError(f"{self.id}: an expected fact group is empty")
+            raise ValueError("an expected fact group is empty")
         if self.category == "cross_language":
             if not self.search_locales:
-                raise ValueError(
-                    f"{self.id}: a cross_language item names the locales it is searched in"
-                )
+                raise ValueError("a cross_language item names the locales it is searched in")
             if self.language in self.search_locales:
-                raise ValueError(
-                    f"{self.id}: a cross_language item is not searched in its own language"
-                )
+                raise ValueError("a cross_language item is not searched in its own language")
         elif self.search_locales is not None:
-            raise ValueError(
-                f"{self.id}: only a cross_language item narrows the locales it is searched in"
-            )
+            raise ValueError("only a cross_language item narrows the locales it is searched in")
         return self
 
 
 def _matches_page_key(page: str) -> bool:
     return _PAGE_KEY.fullmatch(page) is not None and ".." not in PurePosixPath(page).parts
+
+
+class DatasetError(ValueError):
+    """A question set the harness refuses, with one message saying which item and why."""
 
 
 class Dataset(BaseModel):
@@ -181,10 +179,22 @@ def load_dataset(
     reason that has nothing to do with retrieval.
 
     Raises:
-        ValueError: The file is not a valid question set, or names a page that
-            is not there.
+        DatasetError: The file cannot be read, is not a valid question set, or
+            names a page that is not there. The message names the file and,
+            for each problem, the item it is in.
     """
-    dataset = Dataset.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise DatasetError(f"{path} cannot be read: {error.strerror or error}") from None
+    except yaml.YAMLError as error:
+        raise DatasetError(f"{path} is not YAML: {error}") from None
+    try:
+        dataset = Dataset.model_validate(raw)
+    except ValidationError as error:
+        raise DatasetError(
+            f"{path} is not a valid question set:\n  " + "\n  ".join(_problems(error, raw))
+        ) from None
     if docs_root is not None:
 
         def exists(page: str, locale: Locale) -> bool:
@@ -198,5 +208,39 @@ def load_dataset(
             if not exists(page, "en") or not any(exists(page, locale) for locale in searched)
         ]
         if missing:
-            raise ValueError("Expected pages missing under docs/: " + "; ".join(sorted(missing)))
+            raise DatasetError("Expected pages missing under docs/: " + "; ".join(sorted(missing)))
     return dataset
+
+
+def _problems(error: ValidationError, raw: object) -> list[str]:
+    """Each validation error as `item <id>[, <field>]: <what is wrong>`.
+
+    pydantic drops an item that failed and then checks the length of what is
+    left, so a set whose only item is refused also reports `items` as empty.
+    That second error is a consequence of the first, and is left out.
+    """
+    errors = error.errors(include_url=False)
+    an_item_failed = any(len(e["loc"]) > 1 and e["loc"][0] == "items" for e in errors)
+    problems: list[str] = []
+    for e in errors:
+        loc = e["loc"]
+        if an_item_failed and loc == ("items",) and e["type"] == "too_short":
+            continue
+        where: list[str] = []
+        if len(loc) > 1 and loc[0] == "items" and isinstance(loc[1], int):
+            where.append(f"item {_item_label(raw, loc[1])}")
+            loc = loc[2:]
+        if loc:
+            where.append(".".join(str(part) for part in loc))
+        cause = e.get("ctx", {}).get("error")
+        message = str(cause) if e["type"] == "value_error" and cause is not None else e["msg"]
+        problems.append(f"{', '.join(where)}: {message}" if where else message)
+    return problems
+
+
+def _item_label(raw: object, index: int) -> str:
+    """The item's id as written, or its 1-based position when it has none."""
+    items = raw.get("items") if isinstance(raw, dict) else None
+    entry = items[index] if isinstance(items, list) and index < len(items) else None
+    identifier = entry.get("id") if isinstance(entry, dict) else None
+    return identifier if isinstance(identifier, str) and identifier else f"#{index + 1}"
