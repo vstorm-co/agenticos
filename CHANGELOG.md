@@ -31,6 +31,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Security
 
 - The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403. (#2619)
+- **Skills** → **Changes** (`GET /skill-changes` and `GET /skill-changes/{id}`) now lists and opens an agent's proposed change only for a person who may edit the skill it targets, including through a grant. A proposal for a new skill is still shown to anyone holding `skills:edit`. Until now anyone with `skills:edit` at any scope could list and read the full proposed body for every skill in the organization, including private skills of other people, and could discard those proposals. A proposal for a skill the caller cannot edit now answers 404, the same as an id that does not exist. (#2422)
 
 ## [1.47.3] - 2026-11-04
 
