@@ -15393,7 +15393,8 @@
         "pending": "W trakcie ({count})",
         "same": "Bez zmian ({count})",
         "better": "Lepiej ({count})"
-      }
+      },
+      "brokeOnSkill": "{broke} z {total} zepsuło się na własnych pytaniach skilla, wspólnych dla wszystkich agentów."
     },
     "testSet": {
       "has": "{count, plural, one {Skill ma # pytanie testowe} few {Skill ma # pytania testowe} many {Skill ma # pytań testowych} other {Skill ma # pytania testowego}}",

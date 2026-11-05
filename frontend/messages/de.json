@@ -15291,7 +15291,8 @@
         "pending": "In Prüfung ({count})",
         "same": "Unverändert ({count})",
         "better": "Besser ({count})"
-      }
+      },
+      "brokeOnSkill": "{broke} von {total} sind auf den eigenen Fragen des Skills schlechter geworden, die alle Agents teilen."
     },
     "testSet": {
       "has": "{count, plural, =1 {Der Skill hat 1 Testfrage} other {Der Skill hat # Testfragen}}",

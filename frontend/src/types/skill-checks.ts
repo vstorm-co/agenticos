@@ -30,6 +30,19 @@ export interface CheckStage {
   dataset_name: string | null;
   cases: number;
   eval_run_id: string | null;
+  /**
+   * The stage's held-out questions, candidate against baseline, kept when the agent
+   * was judged; null before that, for an older check, or a dataset the reader may not see.
+   */
+  counts?: StageCounts | null;
+}
+
+export interface StageCounts {
+  compared: number;
+  fixed: number;
+  broken: number;
+  unchanged: number;
+  unknown: number;
 }
 
 export interface SkillCheckAgent {

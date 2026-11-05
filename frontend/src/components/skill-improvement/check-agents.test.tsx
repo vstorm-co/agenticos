@@ -10,7 +10,13 @@ const compared = vi.hoisted(() => ({
   comparison: undefined as Partial<EvalComparison> | undefined,
   error: null as Error | null,
 }));
-vi.mock("@/hooks/use-eval-runs", () => ({ useEvalComparison: () => compared }));
+const asked = vi.hoisted(() => ({ enabled: [] as boolean[] }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalComparison: (_run: string, options: { enabled?: boolean } = {}) => {
+    asked.enabled.push(options.enabled ?? true);
+    return compared;
+  },
+}));
 vi.mock("./add-test-questions", () => ({
   AddTestQuestions: ({ skillId }: { skillId: string }) => <p>Add questions to {skillId}</p>,
 }));
@@ -26,6 +32,7 @@ beforeEach(() => {
   localStorage.clear();
   compared.comparison = undefined;
   compared.error = null;
+  asked.enabled = [];
 });
 
 describe("CheckAgents", () => {
@@ -202,6 +209,34 @@ describe("CheckAgents", () => {
     await openAll();
 
     expect(screen.getByText("2 better · 4 same · 1 worse · 2 not known")).toBeInTheDocument();
+  });
+
+  it("reads a stage's kept counts without asking its run, and says where agents broke", async () => {
+    const counts = (broken: number) => ({
+      compared: 6,
+      fixed: 1,
+      broken,
+      unchanged: 4,
+      unknown: 2,
+    });
+    const worse = (name: string, broken: number) => {
+      const row = checkAgent(name, "worse");
+      row.stages = [{ ...row.stages[0]!, kind: "skill_set", counts: counts(broken) }];
+      return row;
+    };
+    render(<CheckAgents check={skillCheck({ agents: [worse("Refunds", 1), worse("Desk", 0)] })} />);
+
+    expect(
+      screen.getByText("1 of 2 broke on the skill's own questions, which every agent shares."),
+    ).toBeVisible();
+    await openAll();
+    expect(screen.getByText("1 better · 4 same · 1 worse · 2 not known")).toBeInTheDocument();
+    expect(asked.enabled.every((enabled) => !enabled)).toBe(true);
+  });
+
+  it("says nothing of where agents broke until each one's counts are kept", () => {
+    render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
+    expect(screen.queryByText(/broke on the skill's own questions/)).toBeNull();
   });
 
   it("says while a stage's results are read, and when they cannot be", async () => {

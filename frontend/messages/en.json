@@ -15619,7 +15619,8 @@
         "pending": "Still checking ({count})",
         "same": "No change ({count})",
         "better": "Better ({count})"
-      }
+      },
+      "brokeOnSkill": "{broke} of {total} broke on the skill's own questions, which every agent shares."
     },
     "testSet": {
       "has": "{count, plural, =1 {The skill has 1 test question} other {The skill has # test questions}}",

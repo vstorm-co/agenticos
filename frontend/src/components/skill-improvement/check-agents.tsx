@@ -181,6 +181,7 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
               />
               {t(`group.${bucket}`, { count: members.length })}
             </button>
+            {bucket === "worse" && <WhereItBroke worse={members} />}
             {open &&
               (bucket === "unknown" ? (
                 REASONS.map((reason) => {
@@ -212,6 +213,23 @@ export function CheckAgents({ check }: { check: SkillCheck }) {
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * How many of the worse agents asked the skill's own questions broke on them. Every
+ * agent shares those, so a regression there points at the skill; one on an agent's
+ * own set points at that agent. Said only once each of them has its counts kept.
+ */
+function WhereItBroke({ worse }: { worse: SkillCheckAgent[] }) {
+  const t = useTranslations("skillImprovement.agents");
+  const asked = worse.flatMap((row) => row.stages.filter((stage) => stage.kind === "skill_set"));
+  if (asked.length === 0 || asked.some((stage) => !stage.counts)) return null;
+  const broke = asked.filter((stage) => stage.counts!.broken > 0).length;
+  return (
+    <p className="text-muted-foreground pl-5 text-xs">
+      {t("brokeOnSkill", { broke, total: asked.length })}
+    </p>
   );
 }
 
