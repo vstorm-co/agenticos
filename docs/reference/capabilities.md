@@ -1252,6 +1252,8 @@ consent must finish in the same browser and signed-in account that started it.
 
 Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL seed list must be on the deployment allowlist. MongoDB and GridFS require one `mongodb://` host: the platform forces `directConnection=true` and refuses SRV discovery. Unlinked channel senders require approval for every Mirage tool, including reads; linking an account restores the author’s ordinary folder policy.
 
+PostgreSQL mounts require a password in the vault DSN, including an explicit empty password for a trust-authenticated server. They do not fall back to `PGPASSWORD` or `.pgpass`. DSN parameters naming host credential or TLS files (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) are refused.
+
 SSH uses an explicit username and a password referenced from the vault. Supply the server’s trusted public `host_key`; the adapter pins that key and disables local SSH configuration, local private keys and the SSH agent. Passwordless ambient authentication is not available.
 
 ## Charts

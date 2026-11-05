@@ -1,5 +1,5 @@
 ---
-source_sha: "b812d7b4a64d"
+source_sha: "6a8f9a255977"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1394,6 +1394,8 @@ Identität abgeschlossen werden, mit der sie begonnen wurde.
 
 
 Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
+
+PostgreSQL-Mounts benötigen ein Passwort im Vault-DSN, auch ein ausdrücklich leeres Passwort für einen Server mit Trust-Authentifizierung. Sie greifen nicht auf `PGPASSWORD` oder `.pgpass` zurück. DSN-Parameter für Zugangsdaten- oder TLS-Dateien auf dem Host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) werden abgelehnt.
 
 SSH verwendet einen ausdrücklich angegebenen Benutzernamen und ein Passwort aus dem Vault. Der vertrauenswürdige öffentliche `host_key` des Servers wird fest geprüft; lokale SSH-Konfiguration, lokale private Schlüssel und der SSH-Agent sind deaktiviert. Eine automatische Anmeldung mit Zugangsdaten der Umgebung ist nicht verfügbar.
 

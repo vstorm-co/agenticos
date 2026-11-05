@@ -7,7 +7,7 @@ sentence the model reads, rather than failing a run whose other folders work.
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -646,3 +646,59 @@ async def test_mongo_srv_discovery_cannot_expand_an_allowed_seed(ctx, vault, acc
 def test_a_direct_mongo_target_must_be_a_sealed_vault_value() -> None:
     with pytest.raises(mirage_mounts._Unmountable, match="not a vault credential"):
         mirage_mounts._direct_mongo("mongodb://not-a-resolved-secret/db")
+
+
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "postgresql://u@db.acme.internal/sales",
+        "postgresql://u@db.acme.internal/sales?passfile=/host/credentials",
+        "postgresql://u:pw@db.acme.internal/sales?sslkey=/host/key",
+        "postgresql://u:pw@db.acme.internal/sales?sslcert=/host/cert",
+        "postgresql://u:pw@db.acme.internal/sales?sslrootcert=/host/root",
+        "postgresql://u:pw@db.acme.internal/sales?sslcrl=/host/crl",
+        "postgresql://u:pw@db.acme.internal/sales?servicefile=/host/service",
+    ],
+)
+async def test_postgres_cannot_read_host_credential_files_or_inherit_a_host_password(
+    ctx: AuthContext,
+    vault: dict[UUID, ApiKeySecret | EntraAppSecret],
+    monkeypatch: pytest.MonkeyPatch,
+    dsn: str,
+) -> None:
+    vault[DSN] = ApiKeySecret(api_key=dsn)
+    monkeypatch.setenv("PGPASSWORD", "host-only-password")
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["db.acme.internal"])
+    terminal = await MirageMountService(AsyncMock()).resolve(
+        ctx,
+        _config({"path": "/db/", "backend": "postgres", "secrets": {"dsn": str(DSN)}}),
+        person_id=None,
+    )
+    assert terminal.mounts == ()
+    assert "vault DSN" in terminal.notes[0]
+    assert "/host/" not in terminal.notes[0] and "host-only-password" not in terminal.notes[0]
+
+
+@pytest.mark.parametrize(
+    "dsn",
+    [
+        "postgresql://u:@db.acme.internal/sales",
+        "postgresql://u@db.acme.internal/sales?password=",
+    ],
+)
+async def test_postgres_can_use_an_explicit_empty_password_without_host_fallback(
+    ctx: AuthContext,
+    vault: dict[UUID, ApiKeySecret | EntraAppSecret],
+    monkeypatch: pytest.MonkeyPatch,
+    dsn: str,
+) -> None:
+    vault[DSN] = ApiKeySecret(api_key=dsn)
+    monkeypatch.setenv("PGPASSWORD", "host-only-password")
+    monkeypatch.setattr(settings, "MIRAGE_ALLOWED_HOSTS", ["db.acme.internal"])
+    terminal = await MirageMountService(AsyncMock()).resolve(
+        ctx,
+        _config({"path": "/db/", "backend": "postgres", "secrets": {"dsn": str(DSN)}}),
+        person_id=None,
+    )
+    assert len(terminal.mounts) == 1 and terminal.notes == ()
+    assert terminal.mounts[0].config["dsn"] == SecretStr(dsn)

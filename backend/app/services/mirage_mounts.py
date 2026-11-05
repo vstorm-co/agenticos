@@ -321,6 +321,17 @@ def _check_hosts(info: BackendInfo, options: Mapping[str, MountValue]) -> None:
                 f"its {field} names a host this deployment does not allow"
                 f"{f' ({", ".join(hosts)})' if hosts else ''}."
             )
+        if info.name == "postgres" and field == "dsn":
+            parsed = urlsplit(text)
+            parameters = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            host_files = {"passfile", "servicefile", "sslkey", "sslcert", "sslrootcert", "sslcrl"}
+            # asyncpg otherwise reads PGPASSWORD or a host-side .pgpass file.
+            if (
+                parsed.password is None and "password" not in parameters
+            ) or host_files.intersection(key.lower() for key in parameters):
+                raise _Unmountable(
+                    "its vault DSN must supply a password and cannot name host credential files."
+                )
 
 
 async def _graph_token(app: EntraAppSecret) -> str:
