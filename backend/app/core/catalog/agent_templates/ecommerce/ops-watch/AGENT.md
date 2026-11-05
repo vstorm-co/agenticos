@@ -4,6 +4,7 @@ description: Watches stock cover and supplier commitments, and turns both into d
   with dates.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - code_execution

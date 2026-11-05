@@ -1322,18 +1322,22 @@ class McpConnectionService:
                     message="A connection with this name already exists",
                     details={"name": name},
                 )
-            # Sealed at the row's own key version: one row, one version, so the
-            # pending payload stays readable alongside a token sealed before a
-            # rotation moved the row on.
+            # An abandoned account has no live grant to preserve, so restarting
+            # consent must not depend on a master key that was already retired.
+            # Other rows retain their version alongside their live credential.
+            pending = (
+                seal(payload.model_dump_json(), scope=vault_scope)
+                if existing.purpose == "account" and existing.oauth_payload is None
+                else _seal_for(existing, payload.model_dump_json())
+            )
             await mcp_connection_repo.update(
                 self.db,
                 db_connection=existing,
                 update_data={
                     "is_enabled": True,
                     "oauth_state": state,
-                    "oauth_pending_payload": _seal_for(
-                        existing, payload.model_dump_json()
-                    ).ciphertext,
+                    "oauth_pending_payload": pending.ciphertext,
+                    "secret_key_version": pending.key_version,
                 },
             )
         else:

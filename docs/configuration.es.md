@@ -1,5 +1,5 @@
 ---
-source_sha: "441a25fca336"
+source_sha: "81e337178b21"
 ---
 
 # Configuración { #configuration }
@@ -77,10 +77,15 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Tope del tamaño descomprimido por miembro de un archivo de oficina basado en ZIP (ODF, PPTX) |
 | `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Tope del tamaño descomprimido total de un archivo de oficina basado en ZIP |
 | `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Tope del número de miembros de un archivo de oficina basado en ZIP |
+| `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Máximo de archivos y carpetas que puede contener un `.zip`/`.tar.gz` adjunto, y de archivos en el zip de una carpeta del workspace |
+| `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Máximo que puede ocupar un archivo comprimido adjunto una vez descomprimido, y que puede llevar el zip de una carpeta del workspace |
+| `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Máximo que puede ocupar un archivo comprimido adjunto una vez descomprimido, como múltiplo de su tamaño comprimido; por encima se rechaza como bomba de descompresión |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Máximo que puede ocupar un archivo dentro de un archivo comprimido adjunto una vez descomprimido; es lo que la descompresión mantiene en memoria a la vez |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Tope del texto extraído almacenado, para que un ZIP/OLE pequeño no infle la fila |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | El techo de gasto mensual con el que arranca una organización **nueva**, en USD, para que no esté a un agent desbocado de una factura sorpresa. Se aplica solo en la creación; las organizaciones existentes no se tocan y a cualquier organización se le puede quitar el tope después. Tiene que ser positivo; déjalo **vacío** para que las organizaciones empiecen sin tope (la postura anterior, de adhesión voluntaria) |
+| `STAV_NOK_PER_USD` | vacío | NOK por USD mantenidas por el operador para los costes facturados por Stav. Finito y positivo; por ejemplo, `10` divide NOK entre 10 (ejemplo, no tipo actual). USD no requiere ajuste. No se consulta ningún tipo; sin conversión se usa el catálogo y los modelos desconocidos siguen con coste parcial |
 
 Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
 

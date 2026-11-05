@@ -4,6 +4,7 @@ description: Handles appointment preparation and administrative questions from p
   and escalates anything clinical.
 capabilities:
 - ask_user
+- drafts
 - id: knowledge
   config:
     default_top_k: 3

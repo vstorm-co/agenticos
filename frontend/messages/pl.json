@@ -376,6 +376,9 @@
     "delete": "Usuń",
     "describeIssue": "Opisz problem... (opcjonalnie)",
     "download": "Pobierz",
+    "drafts": {
+      "versions": "Warianty tej wersji roboczej"
+    },
     "dropFilesAttach": "Upuść pliki, aby załączyć",
     "edit": "Edytuj",
     "editMeans": "Edit pozwala zmienić nazwę, zarchiwizować i usunąć tę konwersację oraz dopisywać do niej tury.",
@@ -428,7 +431,10 @@
       "storedSuffix": "zapisano {size}",
       "title": "Pliki",
       "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie.",
-      "onThisComputer": "W {folder} na tym komputerze"
+      "onThisComputer": "W {folder} na tym komputerze",
+      "downloadAll": "Pobierz jako .zip",
+      "downloadFolder": "Pobierz {name} jako .zip",
+      "zipFailed": "Nie udało się pobrać folderu."
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
@@ -829,6 +835,8 @@
       "videoNotStored": "Wideo powstało, ale go nie zapisano.",
       "suggestingNextSteps": "Proponuje następne kroki",
       "nextSteps": "Następne kroki",
+      "writingDraft": "Pisze wersję roboczą",
+      "draft": "Napisał wersję roboczą",
       "requestingCapability": "Prosi o capability",
       "capabilityRequest": "Prośba o capability",
       "proposingSetup": "Proponuję, co ustawić",
@@ -3499,6 +3507,7 @@
       },
       "startRunOptional": "opcjonalne",
       "startRunChoose": "Wybierz…",
+      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane.",
       "startRunFieldProblem": {
         "required": "Uzupełnij to pole.",
         "number": "To musi być liczba.",
@@ -9622,6 +9631,7 @@
       "add": "Dodaj pole",
       "types": {
         "text": "Tekst",
+        "string_list": "Lista tekstów",
         "number": "Liczba",
         "integer": "Całkowita",
         "boolean": "Tak lub nie",
@@ -11624,6 +11634,14 @@
       "example2": "Animowana wersja wygenerowanego logo",
       "needs": "Klucz API dostawcy wideo w vault. Każdy klip rozlicza ten dostawca, za sekundę.",
       "never": "Nigdy nigdzie nie publikuje wideo; pojawia się ono w rozmowie."
+    },
+    "drafts": {
+      "name": "Wersje robocze",
+      "does": "Pokazuje wersję roboczą tekstu, który agent pisze do wysłania - e-mail, odpowiedź na czacie, wpis - jako kartę z przyciskiem kopiowania przy każdej części.",
+      "example1": "Odpowiedź do Marty w sprawie prezentacji Q4",
+      "example2": "Dwie wersje ogłoszenia na Slacku",
+      "needs": "Nic dodatkowego. Karta pojawia się w czacie w przeglądarce.",
+      "never": "Nigdy niczego nie wysyła - kopiujesz tekst i wysyłasz go sam."
     },
     "follow_ups": {
       "name": "Następne kroki",

@@ -1,5 +1,5 @@
 ---
-source_sha: "5002bf9a9ce1"
+source_sha: "b812d7b4a64d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -100,6 +100,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | niedostępna |
 | `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
+| `drafts` | Wersje robocze | narzędzia | `write_draft` | — | — | niedostępna |
 | `follow_ups` | Następne kroki | narzędzia | `suggest_next_steps`, `propose_setup` | — | — | niedostępna |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
@@ -2765,7 +2766,7 @@ pythonowego strażnika.
 | Krawędź | Czyta | Redagowanie | Blokowanie |
 |---|---|---|---|
 | wejście | prompt użytkownika | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| wyjście | odpowiedź agenta | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| wyjście | odpowiedź agenta i tekst, który pokazują jego wersje robocze, rysunki, wykresy, strony i pytania | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | wynik narzędzia | to, co zwróciło narzędzie, zanim przeczyta to model | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | argumenty narzędzia | to, co agent przekazuje narzędziu, zanim narzędzie zadziała | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2840,7 +2841,13 @@ stream, a zablokowane słowo kończy run, zanim jakiekolwiek narzędzie zostanie
 wywołane. To osobna krawędź, a nie część kontroli wyjścia, bo redakcja argumentu
 zmienia to, co robi narzędzie: e-mail wychodzi z zamiennikiem w miejscu klucza.
 Gdy jest włączona, argumenty wywołania są wstrzymywane, aż wywołanie będzie
-kompletne, tak jak odpowiedź.
+kompletne, tak jak odpowiedź. Wyjątkiem jest to, co wywołanie pokazuje osobie - [wersja robocza](#drafts), rysunek,
+wykres, strona lub pytanie: krawędź wyjścia sprawdza jego tekst tak jak odpowiedź,
+niezależnie od tego, czy ta krawędź jest włączona. W rysunku lub stronie jest to tekst,
+czytelne atrybuty (`alt`, `title`, `aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, poza osadzonym obrazem lub URI `data:` w base64) i napisy w
+skrypcie; znaczniki, komentarze, style i kod nie są zmieniane. Rysunek lub strona
+pojawia się, gdy wywołanie jest kompletne, nie w trakcie pisania.
 
 **Delegat streamuje pod kontrolą wyjścia runu, który go wywołał.** Tekst i
 rozumowanie, które delegat pisze w panelu delegacji, przechodzą tę samą kontrolę co
@@ -2882,8 +2889,7 @@ najwięcej.** Jest jedynym strażnikiem nad niezaufaną treścią wchodzącą do
 pobraną stroną, plikiem, odpowiedzią serwera MCP — gdzie ładunek z prompt injection
 inaczej dotarłby do modelu nieprzeczytany.
 
-Dwie rzeczy są celowo poza zakresem. **Argumenty narzędzi** to ustrukturyzowane
-mapowanie bez detektora tekstu, więc nie są krawędzią. A werdykt `approve` z
+Jedna rzecz jest celowo poza zakresem: werdykt `approve` z
 narzędzi harnessu nie jest przeniesiony: [zatwierdzenia](../governance.md) już
 parkują run per narzędzie na decyzję człowieka, a druga, sterowana regułami droga do
 tego samego mechanizmu to dokładnie to, czego unika się jednymi drzwiami.
@@ -2954,6 +2960,71 @@ może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
 `GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
 (`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
 osoba nie odpowiedziała na czas.
+
+## Wersje robocze { #drafts }
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+Gdy ktoś prosi o e-mail, odpowiedź na Slacku, wpis albo opis zgłoszenia, agent
+umieszcza tekst w osobnej karcie zamiast mieszać go z odpowiedzią, więc nic nie
+trzeba zaznaczać ręcznie ani poprawiać po wklejeniu.
+
+Karta ma tytuł i rodzaj
+(Email, Slack message, Post). Tekst z częściami wklejanymi w różne miejsca - temat
+i treść e-maila - ma jeden segment na część, a każdy segment ma własną ikonę
+kopiowania w rogu. Segment pokazuje nazwę tylko tam, gdzie pomaga odróżnić części,
+oraz małą wskazówkę typu w dolnym rogu: domyślnie `text`, `markdown`, gdy osoba o
+to poprosiła, albo nazwę języka dla fragmentu kodu, który niesie tekst.
+
+Kopiowanie wkłada do schowka **zwykły tekst**: dokładnie tekst segmentu, bez jego
+nazwy i bez pustych linii na początku i końcu. Nigdy HTML ani tekst sformatowany,
+więc wkleja się w czcionce i kolorach miejsca docelowego. Pole jest pokazywane tak,
+jak zostało wpisane, a `<b>` nigdy nie jest interpretowane. Część `markdown` ma przycisk
+Podgląd, który pokazuje ją zrenderowaną: linki działają, a obrazy są pokazane jako
+linki i nie są ładowane; Źródło wraca do tekstu. Kopiowanie zawsze daje źródło.
+
+Gdy osoba musi sama uzupełnić szczegół, którego agent nie zna, agent zamiast go
+zmyślać wpisuje krótki symbol zastępczy w nawiasach kwadratowych, na przykład
+`[Twoje imię]` lub `[data]`. Karta pokazuje na czerwono każdy tekst w nawiasach
+kwadratowych z literą, z wyjątkiem linków, przypisów, cytowanych wierszy i kodu,
+aby nic nie poszło nieuzupełnione, poza podglądem części markdown. Kopiowanie
+zachowuje nawiasy.
+
+Od dwóch do pięciu wariantów tej samej wersji roboczej („daj mi dwie wersje")
+trafia do jednego wywołania jako **warianty** i jest pokazywane jako zakładki w
+jednej karcie o nazwach z jednego lub dwóch słów („Krótka", „Ze szczegółami"). Limity: tytuł do
+120 znaków, do 10 pól w wariancie, do 20 000 znaków w polu i żadnego pustego pola, tytułu ani rodzaju.
+Wywołanie, które przekracza limit, jest odrzucane z komunikatem wskazującym, co
+poprawić, więc model ponawia próbę i pusta karta nigdy się nie pojawia.
+
+[Krawędź wyjścia](#guardrails) agenta sprawdza wersję roboczą tak jak jego odpowiedź:
+sekret lub dane osobowe, które zredaguje, są zredagowane także na karcie, a
+zablokowane słowo zatrzymuje run. Wersje robocze zapisane, zanim agent miał to
+zabezpieczenie, nie są przepisywane.
+
+Karta jest odtwarzana z argumentów zapisanego wywołania, więc po ponownym
+otwarciu rozmowy widać tę samą kartę. Rozmowa udostępniona linkiem też niesie swoje
+wersje robocze (do 50 najnowszych i do 500 000 znaków tekstu łącznie, bo każdy z linkiem
+może ją wczytywać). Wywołanie odrzucone albo takie, którego argumentów nie da się
+już odczytać, nie pokazuje karty.
+
+Jest oferowane **tylko w czacie w przeglądarce**, bo to jedyna powierzchnia, która
+rysuje kartę. Aplikacje na komputer i telefon ładują tę samą konsolę, więc też ją
+mają, razem z szybkim pytaniem. Na każdej innej powierzchni - strony hostowane i
+widżet osadzony, kanały czatu, API, harmonogramy, workflowy, tematy w tle, głos - oraz dla subagenta, którego
+wynik trafia do modelu nadrzędnego, a nie do osoby, agent nie widzi narzędzia i
+pisze tekst w odpowiedzi jak dotąd.
+
+Jest domyślnie włączone w każdym nowym agencie, każdym szablonie i agentach
+tworzonych przez Architekta, a autor może je wyłączyć. Istniejące agenty się nie
+zmieniają, dopóki autor ich nie włączy i nie opublikuje nowej wersji.
+
+!!! note "Ograniczenie: zmieniona nazwa narzędzia"
+    Konsola znajduje kartę po nazwie narzędzia, tak jak dla `draw` i
+    `create_chart`. Powiązanie, które zmienia nazwę `write_draft`, traci kartę:
+    wywołanie pokazuje się jako zwykły krok. Śledzone w
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Następne kroki { #follow-ups }
 

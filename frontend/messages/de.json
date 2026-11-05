@@ -1331,6 +1331,9 @@
     "delete": "Löschen",
     "describeIssue": "Beschreiben Sie das Problem … (optional)",
     "download": "Herunterladen",
+    "drafts": {
+      "versions": "Varianten dieses Entwurfs"
+    },
     "dropFilesAttach": "Dateien zum Anhängen hierher ziehen",
     "edit": "Bearbeiten",
     "editMeans": "Bearbeiten erlaubt, diese Unterhaltung umzubenennen, zu archivieren, zu löschen und ihr Züge hinzuzufügen.",
@@ -1383,7 +1386,10 @@
       "storedSuffix": "{size} gespeichert",
       "title": "Dateien",
       "beforeStart": "Dateien, die Sie anhängen, und Dateien, die der Agent schreibt, erscheinen hier, sobald das Gespräch beginnt.",
-      "onThisComputer": "In {folder} auf diesem Computer"
+      "onThisComputer": "In {folder} auf diesem Computer",
+      "downloadAll": "Als .zip herunterladen",
+      "downloadFolder": "{name} als .zip herunterladen",
+      "zipFailed": "Der Ordner konnte nicht heruntergeladen werden."
     },
     "generateShareLink": "Freigabelink erzeugen",
     "helpful": "Hilfreich",
@@ -1785,6 +1791,8 @@
       "videoNotStored": "Das Video wurde erzeugt, aber nicht gespeichert.",
       "suggestingNextSteps": "Schlägt nächste Schritte vor",
       "nextSteps": "Nächste Schritte",
+      "writingDraft": "Schreibt einen Entwurf",
+      "draft": "Hat einen Entwurf geschrieben",
       "requestingCapability": "Bittet um eine Capability",
       "capabilityRequest": "Bitte um eine Capability",
       "proposingSetup": "Schlage vor, was sich einrichten lässt",
@@ -6879,6 +6887,7 @@
       },
       "startRunOptional": "optional",
       "startRunChoose": "Auswählen…",
+      "startRunListHint": "Ein Eintrag pro Zeile. Leere Zeilen werden ignoriert.",
       "startRunFieldProblem": {
         "required": "Bitte ausfüllen.",
         "number": "Das muss eine Zahl sein.",
@@ -8801,6 +8810,7 @@
       "add": "Feld hinzufügen",
       "types": {
         "text": "Text",
+        "string_list": "Liste von Texten",
         "number": "Zahl",
         "integer": "Ganzzahl",
         "boolean": "Ja oder nein",
@@ -10803,6 +10813,14 @@
       "example2": "Eine animierte Fassung eines erzeugten Logos",
       "needs": "Ein API-Schlüssel des Videoanbieters im Vault. Jeden Clip rechnet dieser Anbieter ab, pro Sekunde.",
       "never": "Veröffentlicht nie ein Video; es erscheint im Gespräch."
+    },
+    "drafts": {
+      "name": "Entwürfe",
+      "does": "Zeigt einen Entwurf des Textes, den der Agent zum Versenden schreibt - eine E-Mail, eine Chat-Antwort, einen Beitrag - als Karte mit einem Kopieren-Button an jedem Teil.",
+      "example1": "Antwort an Marta zur Q4-Präsentation",
+      "example2": "Zwei Versionen einer Slack-Ankündigung",
+      "needs": "Nichts weiter. Die Karte erscheint im Web-Chat.",
+      "never": "Sendet nie etwas - du kopierst den Text und schickst ihn selbst."
     },
     "follow_ups": {
       "name": "Nächste Schritte",

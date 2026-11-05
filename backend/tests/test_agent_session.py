@@ -800,16 +800,40 @@ class TestATurnThatFinished:
         assert _frame_types(session) == ["user_prompt", "complete"]
         assert _sent_events(session)[-1] == ("complete", {"conversation_id": None, "usage": None})
 
-    async def test_an_assistant_message_that_did_not_save_is_not_announced_as_saved(self):
-        """`message_saved` is what swaps the client's temporary id for the real
-        one. Sending it without an id would leave the message unratable and
-        unreloadable, pointing at `null`."""
+    @pytest.mark.parametrize("parked", [False, True])
+    async def test_an_unsaved_answer_warns_the_reader_before_the_turn_completes(
+        self, parked: bool
+    ) -> None:
         session = _session()
+        turn = _finished_turn(
+            usage=UsageReport(input_tokens=1200, output_tokens=300, cost_usd=Decimal("0.0125")),
+            parked=_parked_call() if parked else (),
+            summarized_history=[{"kind": "request"}],
+            overhead_tokens=1200,
+        )
 
-        with _chat(AsyncMock(return_value=_finished_turn()), message_id=None):
+        with _chat(AsyncMock(return_value=turn), message_id=None) as chat:
             await session.process_message(_message())
 
-        assert _frame_types(session) == ["user_prompt", "complete"]
+        assert _frame_types(session) == [
+            "user_prompt",
+            *(["tool_approval_required"] if parked else []),
+            "error",
+            "complete",
+        ]
+        assert _sent_events(session)[-2] == (
+            "error",
+            {
+                "message": "The assistant's reply could not be saved. "
+                "Copy any text you need before leaving this conversation.",
+                "code": "message_save_failed",
+            },
+        )
+        assert _sent_events(session)[-1][1]["usage"]["cost_usd"] == "0.0125"
+        # A failed save must not retry in finally and risk duplicating the reply.
+        chat.answer.assert_awaited_once()
+        chat.conversations.keep_summary.assert_not_awaited()
+        chat.conversations.keep_overhead.assert_not_awaited()
 
     async def test_the_thread_the_database_holds_is_what_the_model_is_told(self):
         """The history comes from the transcript, not from this socket (#771).
@@ -2127,6 +2151,31 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
         # produced - a transcript naming no model cannot answer "which one said
         # this" for the turn most likely to be asked about.
         assert written.args[2] == "gpt-4.1"
+
+    async def test_an_unsaved_partial_reply_reports_the_save_failure_too(self) -> None:
+        session = _session()
+
+        with _chat(
+            self._interrupted(BadRequestError(message="The run was refused"), run=self._opened()),
+            message_id=None,
+        ) as chat:
+            await session.process_message(_message())
+
+        assert chat.answer.await_args.args[1] == "Two are open."
+        assert _sent_events(session)[-2:] == [
+            ("error", {"message": "The run was refused"}),
+            (
+                "error",
+                {
+                    "message": "The assistant's reply could not be saved. "
+                    "Copy any text you need before leaving this conversation.",
+                    "code": "message_save_failed",
+                },
+            ),
+        ]
+        assert "complete" not in _frame_types(session)
+        assert session._current_timeline is None
+        chat.answer.assert_awaited_once()
 
     async def test_no_cost_is_invented_for_a_turn_that_never_reported_one(self):
         """The accounting is on the run row, written by `finish`. A figure guessed

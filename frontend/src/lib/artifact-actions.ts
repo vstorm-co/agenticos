@@ -73,7 +73,15 @@ export function resolveAction(
 
 /** Why one value does not fit the field it was given for. */
 export type ProblemKind =
-  "required" | "unknown" | "text" | "number" | "integer" | "boolean" | "date" | "choice";
+  | "required"
+  | "unknown"
+  | "text"
+  | "string_list"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "date"
+  | "choice";
 
 export interface InputProblem {
   /** The field's name, as the workflow declares it. */
@@ -87,6 +95,13 @@ function fits(field: ArtifactActionField, value: unknown): ProblemKind | null {
   switch (field.type) {
     case "text":
       return typeof value === "string" ? null : "text";
+    case "string_list":
+      if (!Array.isArray(value)) return "string_list";
+      // Sparse slots become null in JSON; reject them before confirmation serializes the list.
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.hasOwn(value, index) || typeof value[index] !== "string") return "string_list";
+      }
+      return null;
     case "number":
       return typeof value === "number" && Number.isFinite(value) ? null : "number";
     case "integer":

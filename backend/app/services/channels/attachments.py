@@ -37,6 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.channel_tools import ChannelDirectory
 from app.agents.capabilities.sandbox._permissions import workspace_ruleset
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
+from app.core.exceptions import BadRequestError
 from app.db.models.chat_file import ChatFile
 from app.services.channels.base import (
     ChannelAdapter,
@@ -244,14 +245,20 @@ class ChannelAttachmentService:
                 refusals.append(f"{attachment.filename}: {error}")
                 continue
 
-            stored.append(
-                await self.uploads.upload(
+            # An archive is read whole only here, at upload, so its refusal - a
+            # `../` member, a link, a bomb - arrives as an exception rather than
+            # from the checks above. It is one file refused, not a failed turn.
+            try:
+                chat_file = await self.uploads.upload(
                     user_id=user_id,
                     file_data=data,
                     filename=attachment.filename,
                     content_type=attachment.mime_type,
                 )
-            )
+            except BadRequestError as refused:
+                refusals.append(f"{attachment.filename}: {refused.message}")
+                continue
+            stored.append(chat_file)
 
         return stored, refusals
 

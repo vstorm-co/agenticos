@@ -63,7 +63,12 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
-from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
+from app.agents.capabilities.guardrails import (
+    ANSWER_TOOLS_RESOURCE,
+    GuardrailsConfig,
+    answer_tools,
+    input_screen,
+)
 from app.agents.capabilities.media import (
     CONVERSATION_RESOURCE as MEDIA_CONVERSATION_RESOURCE,
 )
@@ -372,6 +377,9 @@ def build_agent(
             # Where the agent's web readers may go: a drawing fetches an image by
             # address only from a host one of them would itself reach.
             WEB_REACH_RESOURCE: web_reach(bindings),
+            # Which tools' arguments are what the person is shown, so the output
+            # guardrails screen them the way they screen the text around them.
+            ANSWER_TOOLS_RESOURCE: answer_tools(bindings),
         },
         secrets=secrets,
     )

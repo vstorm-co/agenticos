@@ -174,6 +174,8 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "compaction",
         "context",
         "conversation_search",
+        # The draft goes to the person's own screen, as a card in the answer.
+        "drafts",
         # Next steps go to the person's own screen, under the answer.
         "follow_ups",
         "guardrails",

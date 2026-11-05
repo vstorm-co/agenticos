@@ -2,6 +2,8 @@ import { MessageSquare } from "lucide-react";
 
 import { formatDateTime } from "@/lib/utils";
 import { getTranslations } from "next-intl/server";
+import { DraftCardView } from "@/components/chat/draft-card";
+import type { DraftCard } from "@/lib/drafts";
 import { SharedVisuals, type SharedVisual } from "@/components/chat/shared-visuals";
 
 interface SharedConversationPageProps {
@@ -60,6 +62,7 @@ export default async function SharedConversationPage({ params }: SharedConversat
             content: string;
             created_at: string;
             visuals?: SharedVisual[];
+            drafts?: DraftCard[];
           }) => (
             <div
               key={msg.id}
@@ -74,6 +77,9 @@ export default async function SharedConversationPage({ params }: SharedConversat
                 <p className="mt-1 text-xs opacity-60">{formatDateTime(msg.created_at, locale)}</p>
               </div>
               {msg.visuals && msg.visuals.length > 0 && <SharedVisuals visuals={msg.visuals} />}
+              {msg.drafts?.map((draft) => (
+                <DraftCardView key={draft.id} card={draft} />
+              ))}
             </div>
           ),
         )}

@@ -581,6 +581,17 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
   get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
 
+  // drafts - the card draws in the turn; the step stays a line, since opening it
+  // would print the draft's arguments as JSON under the card. Not hidden: a hidden
+  // step is dropped from the turn's runs and no card would be drawn.
+  write_draft: {
+    kind: "write",
+    render: "generic",
+    captionKey: "writingDraft",
+    displayNameKey: "draft",
+    staysClosed: true,
+  },
+
   // follow_ups - next steps, drawn as buttons under the answer (#2301).
   suggest_next_steps: {
     kind: "tool",

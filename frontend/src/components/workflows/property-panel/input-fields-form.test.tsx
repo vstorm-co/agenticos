@@ -47,6 +47,24 @@ const EMAIL = {
 };
 
 describe("InputFieldsForm", () => {
+  it("offers a list of text and preserves it across subsequent edits", async () => {
+    const update = vi.fn();
+    render(
+      <Live
+        initial={{ fields: [{ ...EMAIL, type: "choice", options: ["a"] }] }}
+        onUpdate={update}
+      />,
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Type" }));
+    await userEvent.click(screen.getByRole("option", { name: "List of text" }));
+    expect(update).toHaveBeenLastCalledWith("n1", { fields: [{ ...EMAIL, type: "string_list" }] });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "devices" } });
+    expect(update).toHaveBeenLastCalledWith("n1", {
+      fields: [{ ...EMAIL, name: "devices", type: "string_list" }],
+    });
+    expect(screen.getByText("payload.devices")).toBeVisible();
+  });
+
   it("says a trigger with no fields takes any object, and adds one under a free name", async () => {
     const update = vi.fn();
     render(

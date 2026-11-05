@@ -1,5 +1,5 @@
 ---
-source_sha: "45b8ddef8277"
+source_sha: "14464b543991"
 ---
 
 # Skille { #skills }
@@ -167,7 +167,8 @@ inny agent, wewnątrz rozmowy, której nikt nie przegląda, a kolejny czytelnik 
 miałby jak odróżnić przemyślanego ulepszenia od zahalucynowanego.
 
 Dlatego zapis staje się **propozycją** i pojawia się nad listą na stronie Skills
-każdemu, kto ma `skills:edit`:
+każdemu, kto może edytować ten skill. Propozycja nowego skilla pojawia się każdemu,
+kto ma `skills:edit`. Nikt inny nie może jej zobaczyć na liście ani otworzyć:
 
 - **Apply** przepisuje skilla i podbija jego wersję, która dociera do każdego
   podpiętego agenta przy jego następnym runie.

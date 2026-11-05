@@ -1,5 +1,5 @@
 ---
-source_sha: "441a25fca336"
+source_sha: "81e337178b21"
 ---
 
 # Konfiguration { #configuration }
@@ -76,10 +76,15 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `CHAT_ARCHIVE_MEMBER_MAX_BYTES` | `52428800` (50 MiB) | Obergrenze der entpackten Größe pro Member einer ZIP-basierten Office-Datei (ODF, PPTX) |
 | `CHAT_ARCHIVE_TOTAL_MAX_BYTES` | `104857600` (100 MiB) | Obergrenze der gesamten entpackten Größe einer ZIP-basierten Office-Datei |
 | `CHAT_ARCHIVE_MAX_MEMBERS` | `2000` | Obergrenze der Member-Anzahl einer ZIP-basierten Office-Datei |
+| `WORKSPACE_ARCHIVE_MAX_ENTRIES` | `5000` | Höchstzahl an Dateien und Ordnern in einem angehängten `.zip`/`.tar.gz` und an Dateien im Zip eines Workspace-Ordners |
+| `WORKSPACE_ARCHIVE_MAX_BYTES` | `209715200` (200 MiB) | Höchstens so viel darf ein angehängtes Archiv entpackt ergeben und das Zip eines Workspace-Ordners tragen |
+| `WORKSPACE_ARCHIVE_MAX_RATIO` | `100` | Höchstens so viel darf ein angehängtes Archiv entpackt ergeben, als Vielfaches seiner komprimierten Größe — darüber wird es als Dekompressionsbombe abgelehnt |
+| `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` | `52428800` (50 MiB) | Höchstens so viel darf eine Datei in einem angehängten Archiv entpackt ergeben — so viel hält das Entpacken auf einmal im Speicher |
 | `CHAT_PARSED_TEXT_MAX_CHARS` | `1000000` | Obergrenze für gespeicherten extrahierten Text, damit ein kleines ZIP/OLE die Zeile nicht aufbläht |
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Obergrenze pro Datei für den in einen Prompt ohne Workspace eingefügten geparsten Text |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Gesamtobergrenze für Anhangstext über eine Runde |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Die monatliche Ausgabenobergrenze, mit der eine **neue** Organisation startet, in USD, damit sie nicht einen entlaufenen Agent von einer überraschenden Rechnung entfernt ist. Gilt nur bei der Erstellung; bestehende Organisationen bleiben unberührt, und jede Organisation lässt sich danach wieder auf kein Cap zurücksetzen. Muss positiv sein; lassen Sie den Wert **leer**, damit Organisationen ohne Cap starten (die ältere Opt-in-Haltung) |
+| `STAV_NOK_PER_USD` | leer | Vom Betreiber gepflegte NOK pro USD für von Stav berechnete Kosten. Endlich und positiv; etwa `10` teilt NOK durch 10 (nur ein Beispiel, kein aktueller Kurs). USD braucht keine Einstellung. Kein Kursabruf; ohne Umrechnung gilt der Preiskatalog und unbekannte Modelle bleiben unvollständig bepreist |
 
 Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
 

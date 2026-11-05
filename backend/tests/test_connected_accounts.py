@@ -148,6 +148,50 @@ async def test_an_impersonating_administrator_cannot_connect_as_the_member(
     repo.create.assert_not_called()
 
 
+@pytest.mark.parametrize("for_organization", [False, True])
+async def test_abandoned_account_consent_can_restart_after_its_master_key_is_removed(
+    ctx: AuthContext,
+    repo: MagicMock,
+    client: GoogleOAuthAppSecret,
+    monkeypatch: pytest.MonkeyPatch,
+    for_organization: bool,
+) -> None:
+    from app.core.config import settings
+    from app.core.vault import unseal
+
+    pending = _account(
+        scope="org" if for_organization else "user",
+        user_id=None if for_organization else ctx.subject_id,
+        organization_id=ctx.organization_id if for_organization else None,
+        secret_key_version=1,
+        oauth_pending_payload="old-unreadable-consent",
+    )
+    repo.get_pending_account.return_value = pending
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: "replacement-test-master-key"})
+
+    url = await McpConnectionService(AsyncMock()).account_start(
+        ctx, for_organization=for_organization, browser_nonce=NONCE
+    )
+
+    assert url.startswith(google_oauth.AUTHORIZE_ENDPOINT)
+    written = repo.update.await_args.kwargs["update_data"]
+    assert written["secret_key_version"] == 2
+    payload = McpOAuthPayload.model_validate_json(
+        unseal(
+            written["oauth_pending_payload"],
+            scope=connection_scope(pending),
+            key_version=written["secret_key_version"],
+        )
+    )
+    assert payload.client_id == client.client_id
+    assert payload.account_initiator_id == ctx.subject_id
+    assert payload.browser_nonce_digest == hashlib.sha256(NONCE.encode()).hexdigest()
+    assert payload.access_token is None and payload.refresh_token is None
+    assert "oauth_payload" not in written
+    repo.create.assert_not_awaited()
+    repo.create_org_scoped.assert_not_awaited()
+
+
 # -- the callback names the account ------------------------------------------
 
 

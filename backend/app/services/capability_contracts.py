@@ -161,10 +161,11 @@ def _documentation_secret(definition: Any) -> ApiKeySecret | None:
 def probe_context(built: AbstractCapability[Any]) -> RunContext[AgentDeps]:
     """A run context that reaches nothing, for listing `built`'s tools.
 
-    `get_tools` takes one because a capability may vary its list by the run - and
-    none of them varies it by anything this carries. Deps are empty, so a
-    capability reading them for a tenant or an audience sees the same "nothing" a
-    run outside a conversation would.
+    `get_tools` takes one because a capability may vary its list by the run. Deps
+    are empty, so a capability reading them for a tenant or an audience sees the
+    same "nothing" a run outside a conversation would - except that the probe
+    documents the widest surface, the web chat, so the tools it alone offers
+    (`write_draft`) are listed.
 
     It does carry what a run registers: every capability in `built`'s tree. A
     combination - the `sandbox` binding is a workspace and a console - attributes
@@ -182,7 +183,7 @@ def probe_context(built: AbstractCapability[Any]) -> RunContext[AgentDeps]:
         elif isinstance(capability, WrapperCapability):
             pending.append(capability.wrapped)
     return RunContext(
-        deps=AgentDeps(),
+        deps=AgentDeps(shows_drafts=True),
         model=TestModel(),
         usage=RunUsage(),
         retry=0,

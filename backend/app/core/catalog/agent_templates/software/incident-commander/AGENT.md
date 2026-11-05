@@ -4,6 +4,7 @@ description: Turns an alert into a severity, an owner and a first testable hypot
   and keeps the updates flowing.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - web_fetch

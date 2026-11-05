@@ -1,5 +1,5 @@
 ---
-source_sha: "c8babc3ac8d9"
+source_sha: "46f379e3c504"
 ---
 
 # Governance { #governance }
@@ -176,7 +176,18 @@ petición siguiente.
 
 ### Un coste que no se pudo medir lo dice { #a-cost-that-could-not-be-measured-says-so }
 
-`genai-prices` no conoce todos los modelos. Cuando un run llega a uno del que no
+El coste facturado por Stav prevalece sobre el catálogo: `usage.cost` con
+`cost_currency`, o las cabeceras `x-stav-cost` y `x-stav-cost-currency`. Incluye
+Chat Completions y Responses, también con streaming. USD se usa directamente;
+NOK requiere `STAV_NOK_PER_USD` ([configuración](configuration.md)), mantenido
+por el operador. Indica NOK por dólar: `10` dividiría NOK entre 10; no es una
+recomendación de tipo actual. No se consulta ningún tipo automáticamente.
+Usage conserva el importe, la moneda, el tipo y el coste en USD; el ledger
+marca la fuente como informada por el proveedor. Los importes inválidos, las
+monedas no admitidas o la conversión ausente mantienen el catálogo como respaldo.
+
+Sin un coste utilizable informado por el proveedor, se usa `genai-prices`.
+El paquete no conoce todos los modelos. Cuando un run llega a uno del que no
 tiene entrada, esa petición se apunta a cero y el run se marca con
 `cost_is_partial` — el total se queda corto exactamente por lo que costaron esas
 peticiones, y la lectura honesta es la de un **suelo**.
@@ -1042,7 +1053,9 @@ juntas.
 Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
 las mismas comprobaciones de permisos que una llamada directa. Una herramienta
 que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
-se detiene para la persona como siempre. La vista del run lista cada script y
+se detiene para la persona como siempre. Lo mismo vale para preguntas,
+delegaciones y herramientas cuya llamada es lo que ve la persona (borradores,
+gráficos, dibujos). La vista del run lista cada script y
 cada llamada que hizo.
 
 ### Informes { #reporting }

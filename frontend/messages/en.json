@@ -1331,6 +1331,9 @@
     "delete": "Delete",
     "describeIssue": "Describe the issue... (optional)",
     "download": "Download",
+    "drafts": {
+      "versions": "Versions of this draft"
+    },
     "dropFilesAttach": "Drop files to attach",
     "edit": "Edit",
     "editMeans": "Edit lets them rename, archive and delete this conversation, and add turns to it.",
@@ -1383,7 +1386,10 @@
       "storedSuffix": "{size} stored",
       "title": "Files",
       "beforeStart": "Files you attach and files the agent writes appear here once the conversation starts.",
-      "onThisComputer": "In {folder} on this computer"
+      "onThisComputer": "In {folder} on this computer",
+      "downloadAll": "Download as .zip",
+      "downloadFolder": "Download {name} as .zip",
+      "zipFailed": "The folder could not be downloaded."
     },
     "generateShareLink": "Generate share link",
     "helpful": "Helpful",
@@ -1785,6 +1791,8 @@
       "videoNotStored": "The video was made but not saved.",
       "suggestingNextSteps": "Suggesting next steps",
       "nextSteps": "Next steps",
+      "writingDraft": "Writing a draft",
+      "draft": "Wrote a draft",
       "requestingCapability": "Asking for a capability",
       "capabilityRequest": "Capability request",
       "proposingSetup": "Proposing what to set up",
@@ -5418,6 +5426,7 @@
       },
       "startRunOptional": "optional",
       "startRunChoose": "Choose…",
+      "startRunListHint": "One item per line. Blank lines are ignored.",
       "startRunFieldProblem": {
         "required": "Fill this in.",
         "number": "This has to be a number.",
@@ -8922,6 +8931,7 @@
       "add": "Add field",
       "types": {
         "text": "Text",
+        "string_list": "List of text",
         "number": "Number",
         "integer": "Integer",
         "boolean": "Yes or no",
@@ -10924,6 +10934,14 @@
       "example2": "An animated version of a generated logo",
       "needs": "An API key for the video provider in the vault. Each clip is billed by that provider, per second.",
       "never": "Never posts a video anywhere; it appears in the conversation."
+    },
+    "drafts": {
+      "name": "Drafts",
+      "does": "Shows text the agent writes for you to send - an e-mail, a chat reply, a post - as a card with a copy button on each part.",
+      "example1": "Reply to Marta about the Q4 deck",
+      "example2": "Two versions of a Slack announcement",
+      "needs": "Nothing extra. The card shows in the web chat.",
+      "never": "Never sends anything - you copy the text and send it yourself."
     },
     "follow_ups": {
       "name": "Follow-ups",

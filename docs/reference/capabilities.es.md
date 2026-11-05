@@ -1,5 +1,5 @@
 ---
-source_sha: "5002bf9a9ce1"
+source_sha: "b812d7b4a64d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -100,6 +100,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact`, `list_artifacts`, `preview_artifact`, `share_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | no disponible |
 | `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
+| `drafts` | Borradores | utility | `write_draft` | — | — | no disponible |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | no disponible |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
@@ -2842,7 +2843,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 | Borde | Lee | Censura | Bloqueo |
 |---|---|---|---|
 | entrada | el prompt del usuario | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| salida | la respuesta del agent | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| salida | la respuesta del agent y el texto que muestran sus borradores, dibujos, gráficos, páginas y preguntas | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | resultado de herramienta | lo que devolvió una herramienta, antes de que lo lea el modelo | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | argumentos de herramienta | lo que el agent pasa a una herramienta, antes de que se ejecute | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2916,7 +2917,15 @@ guarda la transcripción y lo que muestra el stream, y una palabra bloqueada ter
 el run antes de llamar a ninguna herramienta. Va aparte de la revisión de salida
 porque redactar un argumento cambia lo que hace la herramienta: un correo sale con
 un marcador donde estaba la clave. Mientras está activo, los argumentos de una
-llamada se retienen hasta que la llamada está completa, como la respuesta.
+llamada se retienen hasta que la llamada está completa, como la respuesta. La
+excepción es lo que una llamada muestra a la persona - un [borrador](#drafts), un dibujo,
+un gráfico, una página o una pregunta: el borde de salida revisa su texto como revisa la
+respuesta, tenga o no activo este borde. En un dibujo o una página es el texto,
+los atributos legibles (`alt`, `title`, `aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, salvo una imagen incrustada o un URI `data:` en base64) y las
+cadenas de un script; las etiquetas, los comentarios, los estilos y el código no se
+cambian. Un dibujo o una página aparece cuando la llamada está completa, no mientras se
+escribe.
 
 **Un delegado transmite bajo la revisión de salida del run que delega.** El texto y
 el razonamiento que un delegado escribe en el panel de delegación pasan la misma
@@ -2959,8 +2968,7 @@ más importa.** Es la única guarda sobre el contenido no confiable que entra en
 bucle — una página descargada, un archivo, la respuesta de un servidor MCP — donde si
 no una carga de inyección de prompt llegaría al modelo sin leerse.
 
-Dos cosas quedan deliberadamente fuera de alcance. Los **argumentos de herramienta**
-son un mapeo estructurado sin detector de texto, así que no son un borde. Y el
+Una cosa queda deliberadamente fuera de alcance: el
 veredicto `approve` de herramienta del harness no se ha portado: las
 [aprobaciones](../governance.md) ya aparcan un run por herramienta para una decisión
 humana, y una segunda vía, guiada por reglas, al mismo mecanismo es justo lo que evita
@@ -3032,6 +3040,73 @@ detuvo. Solo la persona a quien se preguntó puede responder, mediante
 `POST /runs/{run_id}/answers`; `GET /runs/{run_id}/questions` vuelve a leer la
 tarjeta. Pasado un día (`QUESTION_EXPIRY_HOURS`, 24) el run termina como
 cancelado y el paso registra que la persona no respondió a tiempo.
+
+## Borradores { #drafts }
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+Cuando alguien pide un correo, una respuesta en Slack, una publicación o la
+descripción de una incidencia, el agent pone el texto en una tarjeta propia en lugar
+de mezclarlo con la respuesta, así que no hay que seleccionar nada a mano ni
+limpiarlo donde se pega.
+
+La tarjeta tiene un título y un tipo (Email, Slack message,
+Post). Un texto con partes que se pegan en sitios distintos - el asunto y el cuerpo
+de un correo - tiene un segmento por parte, y cada segmento tiene su propio icono de
+copiar en la esquina. Un segmento muestra su nombre solo donde sirve para distinguir
+las partes, y una pequeña pista de tipo en la esquina inferior: `text` por defecto,
+`markdown` cuando la persona lo pidió, o un lenguaje para un fragmento que el texto
+lleva consigo.
+
+Copiar pone **texto plano** en el portapapeles: exactamente el texto del segmento,
+sin su nombre y sin líneas en blanco al principio ni al final. Nunca HTML ni texto
+enriquecido, así que se pega con la fuente y los colores del destino. Un campo se
+muestra tal como se escribió y `<b>` nunca se interpreta. Una parte `markdown` tiene un
+botón Preview que la muestra renderizada: los enlaces funcionan y las imágenes
+aparecen como enlaces, sin cargarse; Source vuelve al texto. Copiar siempre da la fuente.
+
+Cuando la persona debe aportar un dato que el agente no conoce, este escribe un
+marcador breve entre corchetes, como `[Tu nombre]` o `[fecha]`, en lugar de
+inventarlo. La tarjeta muestra en rojo todo texto entre corchetes que contenga una
+letra, salvo enlaces, notas al pie, líneas citadas y código, para que nada se envíe
+sin rellenar, salvo en la vista previa de una parte markdown. Copiar conserva los
+corchetes.
+
+De dos a cinco variantes del mismo borrador («dame dos versiones») van en una sola
+llamada como **variantes** y se muestran como pestañas con un nombre de una o dos
+palabras («Corta», «Con detalles»). Los límites: un título de hasta 120 caracteres,
+hasta 10 campos por variante, hasta 20.000 caracteres por campo y ningún campo, título o tipo vacío.
+Una llamada que rompe un límite se rechaza con un mensaje que dice qué corregir, así
+que el modelo reintenta y nunca se dibuja una tarjeta vacía.
+
+El [borde de salida](#guardrails) de un agent revisa un borrador como revisa su respuesta:
+un secreto o dato personal que redacta queda redactado también en la tarjeta, y una
+palabra bloqueada detiene el run. Los borradores guardados antes de que el agent
+tuviera la protección no se reescriben.
+
+La tarjeta se reconstruye a partir de los argumentos de la llamada guardada, así que
+al reabrir una conversación se ve la misma tarjeta. Una conversación compartida por
+enlace también lleva sus borradores (hasta los 50 más recientes y 500.000 caracteres de
+texto entre todos, porque cualquiera con el enlace puede cargarla). Una llamada
+rechazada, o cuyos argumentos ya no se pueden leer, no muestra tarjeta.
+
+Se ofrece **solo en el chat web**, porque es la única superficie que dibuja la
+tarjeta. Las apps de escritorio y de teléfono cargan la misma consola, así que
+también la tienen, incluida la consulta rápida. En cualquier otra superficie -
+páginas alojadas y el widget incrustado, canales de chat, la API, programaciones,
+workflows, topics en segundo plano, voz - y para un subagente, cuya salida va al modelo padre y no a la persona, el agent
+no ve la herramienta y escribe el texto en su respuesta como hasta ahora.
+
+Está activada por defecto en cada agent nuevo, cada plantilla y los agents que crea
+el Architect, y un autor puede desactivarla. Los agents existentes no cambian hasta
+que su autor la active y publique una versión nueva.
+
+!!! note "Límite: una herramienta renombrada"
+    La consola encuentra la tarjeta por el nombre de la herramienta, igual que con
+    `draw` y `create_chart`. Un binding que renombra `write_draft` pierde la
+    tarjeta: la llamada se muestra como un paso corriente. Seguimiento en
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Follow-ups { #follow-ups }
 

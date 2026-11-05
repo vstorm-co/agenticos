@@ -1092,6 +1092,19 @@ class ApprovalChannel:
         return ApprovalPending()
 
 
+def _draws_drafts(run: AgentRun, state: PausedRunState) -> bool:
+    """Whether a resumed run is the console's own turn, which draws a draft as a card.
+
+    A delegate's run and a background topic's run were never offered the tool
+    when they started, so a resume must not offer it either.
+    """
+    return (
+        RunSurface(run.surface) is RunSurface.WEB
+        and run.parent_run_id is None
+        and state.admitted_as.conversation_task_id is None
+    )
+
+
 def _delegation_frames(
     parked: Sequence[ParkedDelegation],
     registered: Mapping[str | None, Sequence[RegisteredSpecialist]],
@@ -6174,6 +6187,7 @@ class AgentRunnerService:
         prepared.admitted_as.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.conversation_task_id = state.admitted_as.conversation_task_id
         prepared.built.deps.generated_files.update(state.generated_files)
+        prepared.built.deps.shows_drafts = _draws_drafts(run, state)
 
         # Out of the queue once the build has succeeded, and before anything is
         # replayed. Two different things keep two different resumes out, which is

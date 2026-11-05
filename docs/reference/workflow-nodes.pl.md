@@ -1,5 +1,5 @@
 ---
-source_sha: "7e54b3f5be8a"
+source_sha: "a380a5b5a5cd"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -49,12 +49,24 @@ powierzchnię w `triggered_by`.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
-Jego **pola wejścia** robią z wejścia kontrakt. Pole ma nazwę, typ - tekst, liczba,
+Jego **pola wejścia** robią z wejścia kontrakt. Pole ma nazwę, typ - tekst, lista tekstów, liczba,
 liczba całkowita, tak lub nie, data albo wybór - i to, czy jest wymagane. Bez pól run
 przyjmuje dowolny obiekt JSON. Z polami **Start a run** prosi o każde po nazwie, run,
 którego wejściu brakuje pola, który wysyła pole złego typu albo niezadeklarowane,
 jest odrzucany przed startem błędem `WORKFLOW_RUN_INPUT_INVALID`, a binding do
 `payload.<pole>` jest sprawdzany pod kątem typu przy publikacji.
+
+**Lista tekstów** (`string_list`) przyjmuje tablicę ciągów znaków JSON, na przykład
+`{"devices": ["leaf-01", "leaf-02"]}`. Wartości skalarne i elementy inne niż ciągi znaków są odrzucane.
+API przyjmuje pustą tablicę; wymagane pole musi być obecne i nie może mieć wartości
+`null`, a opcjonalne można pominąć lub ustawić na `null`. Kolejne kroki odczytują
+`payload.devices` jako tablicę ciągów znaków.
+
+W **Start a run**, **Test draft** i formularzach publicznych wpisz jeden element w wierszu.
+Formularz usuwa białe znaki na końcach każdego wiersza i pomija puste wiersze, zachowując kolejność i duplikaty.
+Pusta wymagana lista wymaga elementu; pusta opcjonalna lista jest pomijana. Wartości z API
+są zachowywane dokładnie, w tym białe znaki i puste ciągi znaków. Ten sam typ pola
+jest dostępny w wyzwalaczach Manual, Form i Called by a workflow.
 
 ::: app.workflows.contracts.fields.InputField
 

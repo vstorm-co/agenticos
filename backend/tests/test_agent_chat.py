@@ -1297,6 +1297,15 @@ class TestAddingToTheTurnAndAskingAside:
         assert prepared.deps.steering is inbox
 
 
+class TestDrafts:
+    async def test_the_web_chat_draws_drafts(self):
+        prepared = _prepared()
+        with _runner(prepared):
+            await _run(_db())
+
+        assert prepared.deps.shows_drafts is True
+
+
 class TestSayingTheSandboxIsStillOpening:
     """#2222: preparing the run already opens the sandbox session, so the chat's
     sink has to be handed to `prepare` - attached afterwards, it missed the build."""
