@@ -152,6 +152,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Apply the same visible hover and keyboard selection to model, member, sharing and workflow command pickers; retain readable destructive-action colors in agent menus.
+
 - Keep highlighted dropdown, context-menu and select rows visible against dark popover surfaces, including action descriptions and keyboard focus. The chat composer menu now clearly indicates the full action under the pointer.
 
 - Reorganize organization Proactivity into independent feature cards, shared budget and delivery settings, explicit draft-save controls and collapsible background-service configuration. Clarify the minimum monitoring interval and retain visible usage and run history.

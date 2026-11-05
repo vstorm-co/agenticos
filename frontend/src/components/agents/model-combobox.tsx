@@ -5,7 +5,7 @@ import { Command } from "cmdk";
 import { Check, ChevronsUpDown, Pencil } from "lucide-react";
 
 import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { FORM_CONTROL } from "@/components/ui/control-styles";
+import { COMMAND_ITEM_FOCUS, FORM_CONTROL } from "@/components/ui/control-styles";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -154,7 +154,10 @@ export function ModelCombobox({
               <Command.Item
                 value={custom}
                 onSelect={() => pick(custom)}
-                className="aria-selected:bg-accent flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm"
+                className={cn(
+                  COMMAND_ITEM_FOCUS,
+                  "flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm",
+                )}
               >
                 <Pencil className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">
@@ -174,7 +177,10 @@ export function ModelCombobox({
                 // "opus" is the name and "claude-opus" is the id.
                 value={`${option.id} ${option.name}`}
                 onSelect={() => pick(option.id)}
-                className="aria-selected:bg-accent flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm"
+                className={cn(
+                  COMMAND_ITEM_FOCUS,
+                  "flex cursor-pointer items-start gap-2 rounded-md px-2 py-2 text-sm",
+                )}
               >
                 <Check
                   className={cn(

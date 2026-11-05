@@ -8,4 +8,8 @@ export const FILTER_CONTROL =
 
 /** Highlight stays visible on both card and popover surfaces. */
 export const MENU_ITEM_FOCUS =
-  "focus:bg-foreground/[0.09] focus:text-foreground data-[highlighted]:bg-foreground/[0.09] data-[highlighted]:text-foreground focus:[&_.text-muted-foreground]:text-foreground/80 data-[highlighted]:[&_.text-muted-foreground]:text-foreground/80";
+  "focus:bg-foreground/[0.09] focus:text-foreground data-[highlighted]:bg-foreground/[0.09] focus:[&_.text-muted-foreground]:text-foreground/80 data-[highlighted]:[&_.text-muted-foreground]:text-foreground/80";
+
+/** Command palettes retain the same highlight while focus stays in their search field. */
+export const COMMAND_ITEM_FOCUS =
+  "aria-selected:bg-foreground/[0.09] aria-selected:text-foreground data-[selected=true]:bg-foreground/[0.09] data-[selected=true]:text-foreground aria-selected:[&_.text-muted-foreground]:text-foreground/80 data-[selected=true]:[&_.text-muted-foreground]:text-foreground/80";

@@ -211,7 +211,10 @@ export function AgentCard({
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className={cn(DESCRIBED_ITEM, "text-destructive focus:text-destructive")}
+                      className={cn(
+                        DESCRIBED_ITEM,
+                        "text-destructive-ink focus:text-destructive-ink",
+                      )}
                       onSelect={actions.onDelete}
                     >
                       <Trash2 className="h-4 w-4" />
