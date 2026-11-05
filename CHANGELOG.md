@@ -56,6 +56,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep chat outcome notices beside the composer instead of at the top of the transcript, and suppress approval notices whenever the chat already shows its approval decision panel.
+
 - Complete the coding-task diff integration from PR #2728: bound rendering to 2,000 lines across a change set, retry transient fetch failures once, keep sandbox stderr out of snapshot failure logs, and preserve UUIDs in refusal details.
 
 - Remove the standalone Tables capability and its UI and toolset. Table operations use AgenticOS MCP. Stored specs migrate to version 14: existing app table grants are retained as `table_bindings`, and project trackers connect MCP instead of adding Tables. Operators must explicitly connect platform MCP on old agents that do not already have it; existing connection restrictions and approvals are preserved.

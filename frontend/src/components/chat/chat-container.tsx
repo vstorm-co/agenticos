@@ -1349,15 +1349,6 @@ function ChatUI({
                   className="sticky top-2 z-20 mb-3"
                 />
               )}
-              {/* What still needs the person from this chat: one outcome shared with the bell
-                and the mail, so answering here closes them too (#2575). */}
-              {conversationId && !compact && (
-                <OutcomeCards
-                  conversationId={conversationId}
-                  approvalRunId={onResumeDecisions ? pendingApproval?.runId : undefined}
-                  className="mb-3"
-                />
-              )}
               {isLoadingConversation ? (
                 <ConversationSkeleton />
               ) : messages.length === 0 && voice.call.phase === "idle" ? (
@@ -1478,6 +1469,15 @@ function ChatUI({
               compact && "bg-background",
             )}
           >
+            {/* Actionable notices belong beside the composer, outside the transcript.
+              The approval panel replaces approval notices, including older runs. */}
+            {conversationId && !compact && (
+              <OutcomeCards
+                conversationId={conversationId}
+                hasApprovalPanel={!!pendingApproval && !!onResumeDecisions}
+                className="pointer-events-auto mx-auto max-h-40 w-full max-w-5xl overflow-y-auto overscroll-contain px-2 pb-2 sm:px-4"
+              />
+            )}
             {personalGaps.length > 0 && (
               <div className="chat-composer-suggestions pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
                 <ConnectServicesCard gaps={personalGaps} />

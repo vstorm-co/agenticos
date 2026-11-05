@@ -83,7 +83,7 @@ describe("OutcomeCards", () => {
     expect(state.settle).not.toHaveBeenCalled();
   });
 
-  it("hides only the approval run already shown in the decision panel", () => {
+  it("hides approval notices from every run while the decision panel is visible", () => {
     state.outcomes = [
       outcome({ kind: "approval_requested", source_run_id: "r-1" }),
       outcome({
@@ -94,24 +94,31 @@ describe("OutcomeCards", () => {
       }),
       outcome({ id: "o-finding", summary: "A finding" }),
     ];
-    render(<OutcomeCards conversationId="c-1" approvalRunId="r-1" />);
+    render(<OutcomeCards conversationId="c-1" hasApprovalPanel />);
     expect(screen.queryByText("Finance is waiting on your approval")).toBeNull();
-    expect(screen.getByText("Another approval")).toBeVisible();
+    expect(screen.queryByText("Another approval")).toBeNull();
     expect(screen.getByText("A finding")).toBeVisible();
   });
 
   it("keeps a legacy approval reachable when its source or link is absent", () => {
     state.outcomes = [outcome({ kind: "approval_requested", context_url: null })];
-    render(<OutcomeCards conversationId="c-1" approvalRunId="r-1" />);
+    render(<OutcomeCards conversationId="c-1" />);
     expect(screen.getByRole("link", { name: "reviewApproval" })).toHaveAttribute(
       "href",
       "/runs?tab=approvals",
     );
   });
 
+  it("also hides a legacy approval without a source run while decisions are visible", () => {
+    state.outcomes = [outcome({ kind: "approval_requested", context_url: null })];
+    const { container } = render(<OutcomeCards conversationId="c-1" hasApprovalPanel />);
+    expect(container).toBeEmptyDOMElement();
+    expect(state.settle).not.toHaveBeenCalled();
+  });
+
   it("renders no empty list when the decision panel handles the only outcome", () => {
     state.outcomes = [outcome({ kind: "approval_requested", source_run_id: "r-1" })];
-    const { container } = render(<OutcomeCards conversationId="c-1" approvalRunId="r-1" />);
+    const { container } = render(<OutcomeCards conversationId="c-1" hasApprovalPanel />);
     expect(container).toBeEmptyDOMElement();
   });
 });

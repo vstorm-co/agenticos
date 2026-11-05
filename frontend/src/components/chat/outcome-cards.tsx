@@ -55,15 +55,15 @@ export function OutcomeActions({
 
 /**
  * Open outcomes from this chat. Approval notices lead to decisions and disappear
- * when that same run already has a decision panel; other outcomes keep their actions.
+ * while the chat has a decision panel; other outcomes keep their actions.
  */
 export function OutcomeCards({
   conversationId,
   className,
-  approvalRunId,
+  hasApprovalPanel = false,
 }: {
   conversationId: string;
-  approvalRunId?: string;
+  hasApprovalPanel?: boolean;
   className?: string;
 }) {
   const t = useTranslations("outcomes");
@@ -76,13 +76,10 @@ export function OutcomeCards({
         className={className}
       />
     );
+  // Several runs can leave notices in the same chat. The decision panel owns
+  // approvals here; duplicating older or source-less notices adds no action.
   const visible = outcomes.filter(
-    (outcome) =>
-      !(
-        outcome.kind === "approval_requested" &&
-        approvalRunId &&
-        outcome.source_run_id === approvalRunId
-      ),
+    (outcome) => !(outcome.kind === "approval_requested" && hasApprovalPanel),
   );
   if (visible.length === 0) return null;
   return (

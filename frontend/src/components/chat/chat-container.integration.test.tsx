@@ -1558,3 +1558,29 @@ it("keeps the draft focused when tapping dock buttons while leaving keyboard foc
   expect(send).toHaveFocus();
   expect(messageOf(editor)).toBe("An unsent phone draft");
 });
+
+it("keeps actionable outcome notices beside the composer instead of above the transcript", async () => {
+  const originalGet = get.getMockImplementation();
+  get.mockImplementation((url: string, ...args: unknown[]) =>
+    url.startsWith("/outcomes?")
+      ? Promise.resolve({
+          items: [
+            {
+              id: "notice",
+              kind: "approval_requested",
+              summary: "Review the pending operation",
+              status: "open",
+              context_url: "/runs?tab=approvals",
+              source_conversation_id: "c-notice",
+            },
+          ],
+        })
+      : originalGet?.(url, ...args),
+  );
+  useConversationStore.getState().setCurrentConversationId("c-notice");
+  mount();
+  const notice = await screen.findByText("Review the pending operation");
+  const dock = screen.getByRole("textbox").closest(".absolute");
+  expect(dock).toContainElement(notice);
+  expect(document.querySelector("[data-transcript]")).not.toContainElement(notice);
+});
