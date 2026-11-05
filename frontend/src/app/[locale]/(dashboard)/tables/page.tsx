@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { TableIcon as Table2 } from "@/components/icons/product-icons";
 
+import { TaskBoardButton } from "@/components/tasks/task-board-button";
 import { ErrorState } from "@/components/states";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { type CsvStart, CreateTableDialog } from "@/components/tables/create-table-dialog";
@@ -82,11 +83,14 @@ export default function TablesPage() {
         title={t("title")}
         description={t("description")}
         actions={
-          canCreate ? (
-            <Button data-tour="tables-new" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> {t("newTable")}
-            </Button>
-          ) : undefined
+          <>
+            <TaskBoardButton scope="private" />
+            {canCreate && (
+              <Button data-tour="tables-new" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-4 w-4" /> {t("newTable")}
+              </Button>
+            )}
+          </>
         }
       />
 

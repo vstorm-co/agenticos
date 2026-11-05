@@ -36,6 +36,8 @@ export function useSettleOutcome(via: "inbox" | "chat") {
     onSettled: () =>
       Promise.all([
         client.invalidateQueries({ queryKey: qk.outcomes.all() }),
+        client.invalidateQueries({ queryKey: qk.durableTasks.root() }),
+        client.invalidateQueries({ queryKey: qk.tables.all() }),
         client.invalidateQueries({ queryKey: qk.notifications.all() }),
         client.invalidateQueries({ queryKey: qk.suggestions.mine() }),
         client.invalidateQueries({ queryKey: qk.watches.mine() }),

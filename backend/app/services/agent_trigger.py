@@ -267,8 +267,10 @@ def _next_fire(
     return now + timedelta(seconds=cast(int, interval_seconds))
 
 
-def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime:
+def _next_fire_from(trigger: AgentTrigger, *, now: datetime) -> datetime | None:
     """When this trigger should next fire, measured from `now` - either kind."""
+    if trigger.one_shot is True:
+        return None
     return _next_fire(
         schedule_kind=trigger.schedule_kind,
         interval_seconds=trigger.interval_seconds,
@@ -511,6 +513,7 @@ class AgentTriggerService:
         rows = await agent_trigger_repo.list_for_agent(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
+        rows = [row for row in rows if row.one_shot is not True]
         can_run = await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
         can_edit = await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
         reads: list[TriggerRead] = []
@@ -737,7 +740,14 @@ class AgentTriggerService:
             return []
         return await adapter.list_preset_targets(access_token=token)
 
-    async def create(self, ctx: AuthContext, agent_id: UUID, data: TriggerCreate) -> AgentTrigger:
+    async def create(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        data: TriggerCreate,
+        *,
+        run_once_at: datetime | None = None,
+    ) -> AgentTrigger:
         """Schedule the agent to run itself, or fire it on an incoming event.
 
         A schedule is given its next fire, never an immediate one - creating a
@@ -799,6 +809,8 @@ class AgentTriggerService:
                 details={"agent_id": agent_id},
             )
 
+        if run_once_at is not None and data.trigger_type != "schedule":
+            raise BadRequestError(message="One-time work requires a schedule")
         now = datetime.now(UTC)
         event_source: str | None = None
         event_config: dict[str, Any] = {}
@@ -915,7 +927,8 @@ class AgentTriggerService:
             secret_key_version=secret_key_version,
             environment_id=data.environment_id,
             pinned_version_id=data.pinned_version_id,
-            next_fire_at=next_fire_at,
+            next_fire_at=run_once_at or next_fire_at,
+            one_shot=run_once_at is not None,
             connection_id=connection_id,
             portal_key=portal_key,
             delivery_mode=delivery_mode,
@@ -2673,6 +2686,12 @@ class AgentTriggerService:
         # Empty unless the run answered: a fire recovered from an error below has
         # nothing to tell its creator.
         answer = ""
+        if trigger.one_shot is True:
+            from app.services.task_execution import TaskExecution
+
+            if not await TaskExecution(self.db).started(ctx, trigger):
+                await self._disable(trigger, reason="task_unavailable")
+                return
         try:
             answer, run = await runner.execute(
                 ctx,
@@ -2866,7 +2885,11 @@ class AgentTriggerService:
         # runs it made, because only `claim_and_advance` used to set it.
         trigger.last_fired_at = datetime.now(UTC)
         await self.db.flush()
-        if run.status == RunStatus.COMPLETED.value and trigger.result_mode != "inbox":
+        if (
+            run.status == RunStatus.COMPLETED.value
+            and trigger.result_mode != "inbox"
+            and trigger.one_shot is not True
+        ):
             await NotificationService(self.db).routine_finished(
                 run,
                 agent=agent,
@@ -2875,6 +2898,10 @@ class AgentTriggerService:
                 answer=answer,
                 source_conversation_id=delivery.conversation_id,
             )
+        if trigger.one_shot is True:
+            from app.services.task_execution import TaskExecution
+
+            await TaskExecution(self.db).finished(trigger, run)
         logger.info(
             "trigger_fired",
             extra={"trigger_id": str(trigger.id), "run_id": str(run.id), "status": run.status},
@@ -2978,6 +3005,10 @@ class AgentTriggerService:
         )
         if trigger.last_run_id == run.id:
             trigger.last_delivery_status = delivered.status.value
+        if trigger.one_shot is True:
+            from app.services.task_execution import TaskExecution
+
+            await TaskExecution(self.db).finished(trigger, run)
         if await self._expire_if_ended(trigger):
             return
         observation = run.ended_at or run.started_at
@@ -3002,7 +3033,7 @@ class AgentTriggerService:
                 reason="delivery",
                 recovered_at=observation,
             )
-        if trigger.result_mode != "inbox":
+        if trigger.result_mode != "inbox" and trigger.one_shot is not True:
             await NotificationService(self.db).routine_finished(
                 run,
                 agent=agent,
@@ -3098,6 +3129,10 @@ class AgentTriggerService:
         the run-completed notification, since both need the email-template build.)
         """
         trigger.is_active = False
+        if trigger.one_shot is True:
+            from app.services.task_execution import TaskExecution
+
+            await TaskExecution(self.db).unavailable(trigger)
         await self.db.flush()
         await device_wait_repo.cancel_for_trigger(self.db, trigger_id=trigger.id, reason=reason)
         if reason == "ended":
@@ -3443,7 +3478,11 @@ class AgentTriggerService:
         trigger = await agent_trigger_repo.get(
             self.db, trigger_id, organization_id=ctx.organization_id, for_update=for_update
         )
-        if trigger is None or trigger.agent_id != agent.id:
+        if (
+            trigger is None
+            or trigger.agent_id != agent.id
+            or (trigger.one_shot is True and trigger.created_by_user_id != ctx.subject_id)
+        ):
             raise NotFoundError(
                 message="Trigger not found", details={"trigger_id": str(trigger_id)}
             )

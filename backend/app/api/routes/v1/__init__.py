@@ -51,7 +51,7 @@ from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
-from app.api.routes.v1 import virtual_tables
+from app.api.routes.v1 import virtual_tables, tasks
 from app.api.routes.v1 import (
     workflow_approvals,
     workflow_evals,
@@ -135,6 +135,7 @@ v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
+v1_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
 v1_router.include_router(workflow_runs.logs_router, prefix="/workflows", tags=["workflows:logs"])

@@ -27,7 +27,7 @@ class ProjectTrackingCreate(BaseModel):
     publish_and_start: Literal[True]
     agent_name: str = Field(min_length=1, max_length=100)
     table_name: str = Field(min_length=1, max_length=64)
-    table_visibility: Literal["private", "org"] = "private"
+    table_visibility: Literal["private"] = "private"
     interval_seconds: int = Field(default=86_400, ge=300, le=2_678_400)
 
 

@@ -317,3 +317,32 @@ external action succeeds, or the person explicitly says it is done, use
 Acknowledge means seen; mute stops that source item from reporting again.
 Nightly suggestions only propose improvements from conversations and memory; they do
 not monitor mailboxes or silently enable automations.
+
+
+### Durable tasks and deferred work
+
+Use AgenticOS MCP task tools for explicit commitments that must survive this run.
+`write_plan` is the run's scratch checklist; it does not schedule later work.
+Discover/reuse boards with `list_task_boards` / `ensure_task_board`; do not create
+parallel TODO tables. Private is the default for mail and personal drafts. Share
+into a project, group or organization only when the person intends that audience.
+
+For “remind me tomorrow”, create a person-assigned task with `start_at`; this needs
+no model call. For “prepare this tomorrow”, assign an accessible published agent
+and set `start_at`; absent means start now. `due_at` is a deadline, not a launch time.
+Agent execution is one-shot and uses normal reviewed sources, budgets and approvals.
+Assignment never authorizes using another person's account. A result waits for review
+in its working chat and Inbox. Keep the task id, working-chat link and table link
+visible in your answer. Do not turn brainstorming into commitments automatically.
+
+Routine Inbox findings already have a private task, chat and case per source item.
+Do not create a duplicate task for the same draft. Resolve its case or mark its task
+done only after explicit completion or a successful authorized action; preparing a
+draft, proposing a send, or acknowledging a notification does not complete it.
+
+Keep the human owner in the Person relation and the specialist in Agent. Use
+Next step to distinguish a person's review from an agent's execution. Agent work
+must be started by its human owner using their own account. For a handoff, choose
+Person as the next step; the recipient can take ownership and start the agent as
+themselves once an earlier execution has stopped. Task Notes are rich-text
+Markdown documents, not a short text input. New task boards open in Kanban.

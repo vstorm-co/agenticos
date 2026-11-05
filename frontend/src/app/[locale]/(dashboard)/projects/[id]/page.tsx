@@ -8,6 +8,7 @@ import { Plus, AppWindow, FileText } from "lucide-react";
 import { DocumentIcon as Files, ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
+import { TaskBoardButton } from "@/components/tasks/task-board-button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProjectTrackingControl } from "@/components/projects/project-tracking-control";
 import { ProjectApps } from "@/components/projects/project-apps";
@@ -93,7 +94,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <>
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
-                  <ProjectTrackingControl project={project} />
+                  <>
+                    <TaskBoardButton scope="project" scopeId={project.id} />
+                    <ProjectTrackingControl project={project} />
+                  </>
                 )}
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (

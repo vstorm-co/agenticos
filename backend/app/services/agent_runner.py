@@ -6659,6 +6659,10 @@ class AgentRunnerService:
             else "Stopped: its workflow run ended",
             paused_state=None,
         )
+        if run.routine_kind == "trigger" and run.routine_origin_id is not None:
+            from app.services.routine_delivery import RoutineDeliveryService
+
+            await RoutineDeliveryService(self.db).queue(run, answer="")
         return previous_status
 
     async def _cancel_delegations(

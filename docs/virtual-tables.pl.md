@@ -1,5 +1,5 @@
 ---
-source_sha: "03a31d127513"
+source_sha: "e41233127d5d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -781,3 +781,22 @@ w trzech katalogach komunikatów. Testy należą do
 integracyjnego, który zapisuje, filtruje i sortuje rekord nowego typu.
 
 Przy tworzeniu pustej tabeli wymagane kolumny nie potrzebują wartości domyślnych: każdy nowy rekord musi podać ich wartości. Dodanie wymaganej kolumny do istniejącego schematu nadal wymaga wartości domyślnej, aby chronić istniejące rekordy.
+
+## Trwałe zadania {#durable-tasks}
+
+**Praca w tle** (`/work`) pokazuje trwałe zobowiązania obok uruchomionych rozmów w tle. Zadanie jest rekordem Virtual Table z odnośnikiem do rozmowy roboczej i jedną sprawą w Inbox, gdy potrzebna jest reakcja. Tabela, Kanban i API używają tej samej rewizji; nie ma osobnej synchronizowanej listy TODO.
+
+Tabela zadań powstaje przy pierwszym użyciu dla **osoby**, **projektu**, **grupy** lub **organizacji** i jest używana ponownie. Projects i Groups mają akcję **Zadania**, a Tables otwiera prywatną tabelę. Instalacja ani nowe członkostwo nie tworzą pustych tabel. Pierwsze utworzenie wymaga `tables:create`. Dostęp projektowy i członkostwo grupowe są sprawdzane na bieżąco; prywatne zadania są ukryte również przed innym właścicielem organizacji. Dotyczy to także zwykłego API tabel, odnośników i zapisanych widoków. Istniejące własne tabele zadań i presety śledzenia projektu nie są automatycznie konwertowane.
+
+Zadanie ma tytuł, notatki rich text, stan, osobne relacje **Osoba** i **Agent**, **Następny krok**, czas **Rozpocznij** i **Termin**. Termin jest wyłącznie datą wykonania. Rozpoczęcie zadania osoby planuje przypomnienie w Inbox bez modelu. Rozpoczęcie zadania agenta planuje jedno wykonanie przypiętej wersji przez obecny runner routines; brak czasu oznacza teraz. Nadal obowiązują sprawdzone źródła, aktualne uprawnienia, budżety i zgody. Przypisanie nie udostępnia kont innej osoby. Wynik agenta trafia do powiązanej rozmowy roboczej albo nowej prywatnej rozmowy i czeka na sprawdzenie. Błąd blokuje zadanie.
+
+Wyniki routines kierowane do Inbox zachowują jedno prywatne zadanie na sprawę źródłową. Nowa rewizja źródła używa tego samego zadania i rozmowy. Oznaczenie zadania jako zrobione zamyka sprawę; zamknięcie sprawy kończy zadanie. Potwierdzenie odczytania tego nie robi. Anulowanie lub usunięcie wycofuje oczekujące przypomnienia i zatrzymuje kolejne narzędzia agenta; nie cofa działania już wysłanego do zewnętrznego dostawcy. Draft maila nie jest wysłany: najpierw zleć wysłanie w rozmowie, a zadanie zakończ dopiero po sukcesie.
+
+AgenticOS MCP udostępnia `list_task_boards`, `ensure_task_board`, `list_tasks`, `get_task`, `create_task` i `update_task`. Stałe `external_id` deduplikuje źródła. Aktualizacja wymaga `expected_revision`; nieaktualna edycja zwraca 409. HTTP używa `/tasks/boards`, `/tasks` i `/tasks/{id}` pod `/api/v1`. Podstawowe pola i stany zachowują tożsamość; można dodawać własne kolumny, ale nie zmieniać typów ani archiwizować podstawowych. Tabela otrzymuje widoki Board, Planned, Agent tasks i Waiting for review. Checklista `write_plan` pozostaje wewnętrznym planem wykonania i nie planuje trwałych zobowiązań.
+
+
+## Domyślny widok {#default-view}
+
+Edytor tabeli może wybrać **Ustaw jako domyślny** na pasku narzędzi. Bieżący układ, filtry i grupowanie zapisują się jako współdzielony widok. Otwiera się on przy wejściu bez jawnych parametrów `view` lub `viewId`. Nowe tabele zadań zaczynają od Kanbana. Domyślny widok musi należeć do tej tabeli i być współdzielony; przed ustawieniem go jako prywatny trzeba wybrać inny domyślny widok. Usunięcie przywraca zwykły układ tabeli. API używa `PATCH /tables/{id}` z `default_view_id`; null usuwa wybór.
+
+Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem jak inne komórki dokumentowe. Osobne relacje **Osoba** i **Agent** mogą zachować człowieka odpowiedzialnego za zadanie i wykonującego je agenta. **Następny krok** wskazuje osobę albo agenta; po przygotowaniu wyniku wraca do osoby. Pracę agenta uruchamia odpowiedzialna osoba na własnym koncie. Przekazując zadanie, wybierz najpierw osobę jako następny krok i pozwól odbiorcy rozpocząć pracę na swoim koncie.

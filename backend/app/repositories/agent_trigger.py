@@ -172,7 +172,7 @@ async def list_for_organization(
     surfaces must not disagree with it. The join onto `agents` also supplies the
     name each surface shows beside a row displayed away from its agent's page.
     """
-    where = [AgentTrigger.organization_id == organization_id]
+    where = [AgentTrigger.organization_id == organization_id, AgentTrigger.one_shot.is_(False)]
     if not see_all:
         where.append(
             or_(
@@ -234,11 +234,13 @@ async def create(
     notification_channels: Sequence[str] | None = None,
     monthly_budget_usd: Decimal | None = None,
     pinned_version_id: UUID | None = None,
+    one_shot: bool = False,
     is_active: bool = True,
     project_id: UUID | None = None,
 ) -> AgentTrigger:
     trigger = AgentTrigger(
         project_id=project_id,
+        one_shot=one_shot,
         is_active=is_active,
         max_failures=max_failures,
         organization_id=organization_id,

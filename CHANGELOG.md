@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Choose a shared saved view as the table default, with explicit URL overrides; start task boards in Kanban and use rich-text notes plus linked Person/Agent references and an explicit next-step actor.
+
+- Durable tasks share one Virtual Table record across scoped boards, working chats and Inbox. Provision personal, project, group and organization boards on first use; schedule model-free reminders or one-shot agent work with existing routine authority, retain review state, and settle the same commitment from Tables or Inbox.
+
 - Manage scheduled tasks, event tasks and read-only monitoring in one Routines list. Choose reports on every run or quiet Inbox cases with full drafts in private working chats; deduplicate source revisions, reopen the same case on new replies, and settle it from chat through AgenticOS MCP. Monitoring no longer requires a nightly-suggestions model.
 
 - Choose icons and short titles for an agent's first-message suggestions in the Builder, persist them in published specs and YAML, and display equal-height suggestion cards in chat.

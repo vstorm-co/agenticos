@@ -743,3 +743,57 @@ async def test_private_chat_mcp_lists_and_resolves_only_its_own_inbox_cases(
     await db.refresh(cases[1])
     assert cases[0].settled_via == "chat"
     assert cases[1].status == "open"
+
+
+async def test_tasks_mcp_reuses_scope_tables_and_updates_the_same_record(
+    db: AsyncSession, served: None
+):
+    key, organization = await _owner_key(db, Perm.TABLES_VIEW, Perm.TABLES_EDIT, Perm.TABLES_CREATE)
+    await db.commit()
+    async with _connected(key) as session:
+        first = await session.call_tool(
+            "create_task",
+            {"task": {"title": "Prepare the monthly summary", "external_id": "monthly-summary"}},
+        )
+        assert not first.is_error, first
+        task = _content(first)
+        replay = await session.call_tool(
+            "create_task",
+            {"task": {"title": "Prepare the monthly summary", "external_id": "monthly-summary"}},
+        )
+        assert not replay.is_error and _content(replay)["id"] == task["id"]
+        boards = await session.call_tool("list_task_boards", {})
+        assert not boards.is_error and len(_content(boards)["items"]) == 1
+        listed = await session.call_tool("list_tasks", {"table_id": task["table_id"]})
+        assert not listed.is_error and _content(listed)["items"][0]["id"] == task["id"]
+        fields = {
+            name: task[name]
+            for name in (
+                "title",
+                "description",
+                "assignee_user_id",
+                "assignee_agent_id",
+                "start_at",
+                "due_at",
+            )
+        }
+        updated = await session.call_tool(
+            "update_task",
+            {
+                "task_id": task["id"],
+                "task": {**fields, "status": "done", "expected_revision": task["revision"]},
+            },
+        )
+        assert not updated.is_error and _content(updated)["status"] == "done"
+        stale = await session.call_tool(
+            "update_task",
+            {
+                "task_id": task["id"],
+                "task": {**fields, "status": "cancelled", "expected_revision": task["revision"]},
+            },
+        )
+        assert stale.is_error and "409" in str(stale.content)
+        foreign_scope = await session.call_tool(
+            "ensure_task_board", {"scope": "private", "scope_id": str(uuid.uuid4())}
+        )
+        assert foreign_scope.is_error

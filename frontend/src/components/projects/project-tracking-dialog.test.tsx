@@ -106,19 +106,19 @@ it("drops confirmation when a refreshed review describes different authority", a
   expect(screen.getByRole("checkbox", { name: /I approve these sources/ })).not.toBeChecked();
   expect(screen.getByRole("button", { name: "Publish and start" })).toBeDisabled();
 });
-it("makes table sharing an explicit choice and rejects empty names", async () => {
+it("inherits project access and rejects empty names", async () => {
   mount();
   await choose();
   await userEvent.click(screen.getByRole("checkbox", { name: /I approve these sources/ }));
-  await userEvent.click(
-    screen.getByRole("checkbox", { name: "Make the task table visible to the organization" }),
-  );
+  expect(
+    screen.queryByRole("checkbox", { name: "Make the task table visible to the organization" }),
+  ).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Task table name"), { target: { value: "   " } });
   expect(screen.getByRole("button", { name: "Publish and start" })).toBeDisabled();
   fireEvent.change(screen.getByLabelText("Task table name"), { target: { value: "Team tasks" } });
   await userEvent.click(screen.getByRole("button", { name: "Publish and start" }));
   expect(save).toHaveBeenCalledWith(
-    expect.objectContaining({ table_visibility: "org", table_name: "Team tasks" }),
+    expect.objectContaining({ table_visibility: "private", table_name: "Team tasks" }),
     close,
   );
 });

@@ -60,9 +60,11 @@ describe("useSettleOutcome", () => {
     await act(() => result.current.settle({ id: "o-1", action: "mute" }));
 
     expect(settleOutcome).toHaveBeenCalledWith("o-1", "mute", "chat");
-    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(invalidate).toHaveBeenCalledTimes(6));
     expect(invalidate.mock.calls.map((call) => call[0]?.queryKey)).toEqual([
       ["outcomes"],
+      ["durable-tasks"],
+      ["tables"],
       ["notifications"],
       ["suggestions"],
       ["watches"],

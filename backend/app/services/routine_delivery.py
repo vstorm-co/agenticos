@@ -28,6 +28,26 @@ class RoutineDeliveryService:
 
     async def queue(self, run: AgentRun, *, answer: str) -> None:
         if (
+            run.status
+            not in {
+                RunStatus.COMPLETED.value,
+                RunStatus.RUNNING.value,
+                RunStatus.AWAITING_APPROVAL.value,
+                RunStatus.AWAITING_ANSWER.value,
+            }
+            and run.parent_run_id is None
+            and run.routine_kind == "trigger"
+            and run.routine_origin_id is not None
+        ):
+            from app.repositories import agent_trigger_repo
+            from app.services.task_execution import TaskExecution
+
+            trigger = await agent_trigger_repo.get(
+                self.db, run.routine_origin_id, organization_id=run.organization_id
+            )
+            if trigger is not None and trigger.one_shot is True:
+                await TaskExecution(self.db).finished(trigger, run)
+        if (
             run.status != RunStatus.COMPLETED.value
             or run.parent_run_id is not None
             or run.routine_kind != "trigger"
@@ -156,6 +176,25 @@ class RoutineFindingService:
             "routine_id": str(origin_id),
             "routine_kind": origin_kind,
         }
+        from app.core.permissions import Perm
+        from app.services.access import member_context
+        from app.services.tasks import TaskService
+
+        owner = await member_context(self.db, organization_id=run.organization_id, user_id=user_id)
+        if owner is not None and owner.has(Perm.TABLES_CREATE):
+            task = await TaskService(self.db).finding(
+                owner,
+                outcome_id=outcome.id,
+                conversation_id=conversation.id,
+                title=item.title,
+                description=item.detail or "",
+                agent_id=run.agent_id,
+            )
+            finding.payload = {
+                **finding.payload,
+                "task_id": str(task.id),
+                "table_id": str(task.table_id),
+            }
         await conversation_repo.create_message(
             self.db,
             conversation_id=conversation.id,

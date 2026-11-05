@@ -117,7 +117,15 @@ async def test_preset_creates_real_views_private_copy_and_project_conversation(d
     views = list(
         await db.scalars(select(TableView).where(TableView.table_id == installed.table_id))
     )
-    assert {view.name for view in views} == {"All tasks", "Board", "Open tasks", "Blocked"}
+    assert {view.name for view in views} == {
+        "All tasks",
+        "Board",
+        "Open tasks",
+        "Blocked",
+        "Planned",
+        "Waiting for review",
+        "Agent tasks",
+    }
     assert {view.kind for view in views} == {"table", "kanban", "list"}
     assert all(view.visibility == "shared" for view in views)
     assert (await db.get(VirtualTable, installed.table_id)).visibility == "private"

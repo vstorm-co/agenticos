@@ -51,7 +51,6 @@ export function ProjectTrackingDialog({
     t("tableDefault", { name: project.name }).slice(0, 64),
   );
   const [interval, setInterval] = useState("86400");
-  const [shared, setShared] = useState(false);
   const [confirmedReview, setConfirmedReview] = useState<string | null>(null);
   const selected = agents.find(
     (agent) =>
@@ -152,15 +151,7 @@ export function ProjectTrackingDialog({
               </SelectContent>
             </Select>
           </FormField>
-          <div className="flex items-start gap-2">
-            <Checkbox
-              id="tracking-table-share"
-              checked={shared}
-              disabled={pending}
-              onCheckedChange={(checked) => setShared(checked === true)}
-            />
-            <Label htmlFor="tracking-table-share">{t("shareTable")}</Label>
-          </div>
+          <p className="text-muted-foreground text-sm">{t("scopeHint")}</p>
           {review.isFetching ? (
             <Spinner />
           ) : review.error ? (
@@ -214,7 +205,7 @@ export function ProjectTrackingDialog({
                     publish_and_start: true,
                     agent_name: agentName.trim(),
                     table_name: tableName.trim(),
-                    table_visibility: shared ? "org" : "private",
+                    table_visibility: "private",
                     interval_seconds: Number(interval),
                   },
                   onClose,

@@ -267,6 +267,9 @@ class OutcomeService:
             ConflictError: It is already closed, and `action` would change how.
         """
         await self._require_private_chat(ctx)
+        from app.repositories import task as task_repo
+
+        await task_repo.lock_case_task(self.db, outcome_id, ctx.organization_id)
         outcome = await outcome_repo.get_own_for_update(
             self.db,
             organization_id=ctx.organization_id,
@@ -287,6 +290,16 @@ class OutcomeService:
             )
         return await self._move(outcome, target, via=via)
 
+    async def resolve_task(
+        self, outcome_id: UUID, *, organization_id: UUID, project_task: bool = True
+    ) -> None:
+        """Project an authorized task completion onto its linked attention case."""
+        from app.repositories import task as task_repo
+
+        case = await task_repo.case(self.db, outcome_id, organization_id)
+        if case is not None and case.status not in _FINAL:
+            await self._move(case, OutcomeStatus.RESOLVED, via="task", project_task=project_task)
+
     async def resolve_run_approvals(self, run_id: UUID, *, via: str = "approval") -> int:
         """The run's approvals were decided: whoever was still being asked is not any more."""
         settled = 0
@@ -297,7 +310,9 @@ class OutcomeService:
             settled += 1
         return settled
 
-    async def _move(self, outcome: Outcome, target: OutcomeStatus, *, via: str) -> Outcome:
+    async def _move(
+        self, outcome: Outcome, target: OutcomeStatus, *, via: str, project_task: bool = True
+    ) -> Outcome:
         now = datetime.now(UTC)
         closing = target is not OutcomeStatus.ACKNOWLEDGED
         await outcome_repo.set_status(
@@ -324,6 +339,10 @@ class OutcomeService:
         from app.repositories import telephony as phone_repo
 
         await phone_repo.cancel_case_calls(self.db, outcome.id, at=now)
+        if project_task and target in (OutcomeStatus.RESOLVED, OutcomeStatus.MUTED):
+            from app.services.task_execution import TaskExecution
+
+            await TaskExecution(self.db).settled(outcome)
         return outcome
 
     async def track_finding(
@@ -336,6 +355,10 @@ class OutcomeService:
         """The finding and every delivery share one case, including nonurgent findings."""
         if finding.kind != SuggestionKind.FINDING.value:
             raise ConflictError(message="Only a finding can have a finding outcome")
+        from app.repositories import task as task_repo
+
+        if finding.outcome_id is not None:
+            await task_repo.lock_case_task(self.db, finding.outcome_id, finding.organization_id)
         outcome = await outcome_repo.open_or_find(
             self.db,
             organization_id=finding.organization_id,
@@ -369,6 +392,11 @@ class OutcomeService:
             raise NotFoundError(message="No such dismissed finding")
         await outcome_repo.set_status(
             self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
+        )
+        from app.services.task_execution import TaskExecution
+
+        await TaskExecution(self.db).restored(
+            ctx, outcome, task_id=_uuid_of(finding.payload, "task_id")
         )
 
     async def routine_failure_occurrence(

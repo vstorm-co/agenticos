@@ -48,6 +48,12 @@ class Payload(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class WakeTask(Payload):
+    organization_id: UUID
+    task_id: UUID
+    revision: int = Field(ge=1)
+
+
 class MoveProjectWorkspacePayload(Payload):
     transfer_id: UUID
     project_id: UUID
@@ -374,6 +380,14 @@ SYNC_SOURCE = Task(
 # and a worker that died under it may already have paid for its model calls and
 # made its tools' side effects. The dead job waits on Admin -> Background jobs,
 # where somebody who knows what the run did can retry it.
+WAKE_TASK = Task(
+    kind="wake-task",
+    payload_type=WakeTask,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(seconds=60),
+    priority=Priority.SCHEDULED,
+)
 FIRE_TRIGGER = Task(
     kind="fire-trigger",
     payload_type=FireTrigger,
@@ -593,6 +607,7 @@ TASKS: dict[str, TaskKind] = {
         SYNC_COLLECTION,
         SYNC_SOURCE,
         FIRE_TRIGGER,
+        WAKE_TASK,
         DIAL_PHONE,
         DELIVER_ROUTINE_ANSWER,
         RUN_AGENT,

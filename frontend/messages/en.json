@@ -7465,7 +7465,12 @@
         "makeShared": "Share with everyone who can open the table",
         "makePrivate": "Make private, visible only to you",
         "nowShared": "View shared",
-        "nowPrivate": "View made private"
+        "nowPrivate": "View made private",
+        "defaultName": "Default {kind}",
+        "defaultSaved": "Default view saved",
+        "defaultHint": "Open this view by default for everyone with access to the table. The saved view will be shared.",
+        "setDefault": "Set as default",
+        "isDefault": "Default view"
       },
       "noDescription": "No description yet.",
       "readOnly": "Read only",
@@ -12185,7 +12190,6 @@
       "hourly": "Every hour",
       "daily": "Every day",
       "weekly": "Every week",
-      "shareTable": "Make the task table visible to the organization",
       "sources": "Review resources and accounts",
       "tableRights": "The new task table grants read, create and update access. All tasks, Board, Open tasks and Blocked views are included. External action approvals still apply.",
       "unavailable": "Check these sources first: {names}",
@@ -12194,7 +12198,8 @@
       "cancel": "Cancel",
       "retry": "Try again",
       "loadFailed": "Retry project tracker",
-      "openTasks": "Task table"
+      "openTasks": "Task table",
+      "scopeHint": "The project reuses one task board. Access follows the project; people and agents are linked records, and the next-step field controls handoff."
     }
   },
   "voiceGlow": {
@@ -13245,5 +13250,52 @@
     "check": "Checklist",
     "globe": "Web",
     "sparkles": "Sparkles"
+  },
+  "durableTasks": {
+    "tasks": "Tasks",
+    "newTask": "New task",
+    "hint": "Commitments for you and your agents. The table, working chat and Inbox share one task.",
+    "board": "Task board",
+    "openTable": "Open table",
+    "title": "Task",
+    "description": "Instructions or context",
+    "assignee": "Who takes the next step?",
+    "me": "Me",
+    "start": "Start at",
+    "due": "Due at",
+    "reminderHint": "Optional: remind me in Inbox at this time.",
+    "startHint": "Optional: run once at this time. Leave empty to start now.",
+    "dueHint": "A deadline, separate from when work starts.",
+    "localTime": "Dates use your device’s time zone.",
+    "createHint": "Save a commitment, schedule work or leave yourself a reminder. Agent results wait for your review in a working chat.",
+    "agentsUnavailable": "Agents could not be loaded. You can still assign this task to yourself.",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "create": "Create task",
+    "retry": "Try again",
+    "empty": "No tasks here yet",
+    "emptyHint": "Ask an agent to plan something for later, or create your first task. Private tables are created automatically.",
+    "openChat": "Open working chat",
+    "done": "Mark done",
+    "previous": "Previous",
+    "next": "Next",
+    "scope": {
+      "private": "My tasks",
+      "project": "Project tasks",
+      "group": "Group tasks",
+      "organization": "Organization tasks"
+    },
+    "status": {
+      "planned": "Planned",
+      "in_progress": "In progress",
+      "waiting_for_user": "Waiting for you",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "nextActor": {
+      "user": "Next step: person",
+      "agent": "Next step: agent"
+    }
   }
 }

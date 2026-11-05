@@ -96,6 +96,7 @@ from app.services.device_pairing import DevicePairingService
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
 from app.services.conversation_tasks import ConversationTaskService
+from app.services.tasks import TaskService
 from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
@@ -1010,6 +1011,13 @@ def get_system_agent_service(db: DBSession) -> SystemAgentService:
 
 
 SystemAgentSvc = Annotated[SystemAgentService, Depends(get_system_agent_service)]
+
+
+def get_durable_task_service(db: DBSession) -> TaskService:
+    return TaskService(db)
+
+
+DurableTaskSvc = Annotated[TaskService, Depends(get_durable_task_service)]
 
 
 def get_outcome_service(db: DBSession) -> OutcomeService:

@@ -70,6 +70,7 @@ from app.schemas.virtual_table import (
 )
 from app.services import rate_limit
 from app.services.access import TABLE, resolve_access
+from app.services.task_columns import normalize_task_cells
 from app.services.virtual_tables import quotas
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.computed import (
@@ -1218,6 +1219,9 @@ class RecordOperations(Operations):
             await self._tell_triggers(
                 ctx, table, record, DELETED_EVENT, before=snapshot, after=None
             )
+            from app.services.task_execution import TaskExecution
+
+            await TaskExecution(self.db).deleted(ctx, record)
             await virtual_table_repo.delete_record(self.db, record)
             return DeleteOutcome(record_id=record_id)
 
@@ -1385,7 +1389,9 @@ class RecordOperations(Operations):
     ) -> VirtualTableRecord | None:
         """Insert a record with its history and created event, or `None` if the id is taken."""
         columns = await self._columns(table)
-        merged = _merge(columns, values, None)
+        merged = await normalize_task_cells(
+            self.db, ctx.organization_id, table.id, _merge(columns, values, None)
+        )
         problems = await principal_problems(
             self.db,
             ctx,
@@ -1439,6 +1445,9 @@ class RecordOperations(Operations):
                 **_causation(),
             },
         )
+        from app.services.tasks import TaskLifecycle
+
+        await TaskLifecycle(self.db).changed(ctx, record)
         return record
 
     async def _lock_record(
@@ -1480,7 +1489,9 @@ class RecordOperations(Operations):
         self._check_revision(record, expected_revision)
         before = dict(record.values)
         columns = await self._columns(table)
-        merged = _merge(columns, values, before)
+        merged = await normalize_task_cells(
+            self.db, ctx.organization_id, table.id, _merge(columns, values, before)
+        )
         if merged == before:
             # Nothing to record. Bumping the revision and keeping a full before-and-after
             # snapshot, and a receipt holding a whole copy, for a request that changed
@@ -1519,3 +1530,6 @@ class RecordOperations(Operations):
             **_changed_cells(before, merged),
         )
         await self._tell_triggers(ctx, table, record, UPDATED_EVENT, before=before, after=merged)
+        from app.services.tasks import TaskLifecycle
+
+        await TaskLifecycle(self.db).changed(ctx, record)

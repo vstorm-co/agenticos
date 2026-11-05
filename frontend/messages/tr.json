@@ -3252,7 +3252,12 @@
         "makeShared": "Tabloyu açabilen herkesle paylaş",
         "makePrivate": "Özel yap; yalnızca siz görün",
         "nowShared": "Görünüm paylaşıldı",
-        "nowPrivate": "Görünüm özel yapıldı"
+        "nowPrivate": "Görünüm özel yapıldı",
+        "defaultName": "Varsayılan: {kind}",
+        "defaultSaved": "Varsayılan görünüm kaydedildi",
+        "defaultHint": "Tabloya erişimi olan herkes için bu görünümü varsayılan yap. Kayıtlı görünüm paylaşılacaktır.",
+        "setDefault": "Varsayılan yap",
+        "isDefault": "Varsayılan görünüm"
       },
       "noDescription": "Henüz açıklama yok.",
       "readOnly": "Salt okunur",
@@ -12696,5 +12701,52 @@
     "rootFolder": "Kök klasör",
     "untagged": "Etiketsiz",
     "visibleNotes": "Görünür not sayısı: {visible}/{total}"
+  },
+  "durableTasks": {
+    "tasks": "Görevler",
+    "newTask": "Yeni görev",
+    "hint": "Siz ve ajanlarınız için kalıcı görevler. Tablo, çalışma sohbeti ve gelen kutusu aynı göreve bağlıdır.",
+    "board": "Görev tablosu",
+    "openTable": "Tabloyu aç",
+    "title": "Görev",
+    "description": "Talimatlar veya bağlam",
+    "assignee": "Sonraki adımı kim atacak?",
+    "me": "Ben",
+    "start": "Başlangıç",
+    "due": "Son tarih",
+    "reminderHint": "İsteğe bağlı: bu saatte gelen kutusunda hatırlat.",
+    "startHint": "İsteğe bağlı: bu saatte bir kez çalıştır. Boş bırakırsanız şimdi başlar.",
+    "dueHint": "Son tarih, çalışmanın başlangıcından ayrıdır.",
+    "localTime": "Tarihler cihazınızın saat dilimini kullanır.",
+    "createHint": "Bir görev, ileri tarihli çalışma veya hatırlatıcı kaydedin. Ajan sonuçları incelemeniz için çalışma sohbetinde bekler.",
+    "agentsUnavailable": "Ajanlar yüklenemedi. Görevi yine de kendinize atayabilirsiniz.",
+    "cancel": "İptal",
+    "saving": "Kaydediliyor…",
+    "create": "Görev oluştur",
+    "retry": "Tekrar dene",
+    "empty": "Henüz görev yok",
+    "emptyHint": "Bir ajandan daha sonra yapılacak bir iş planlamasını isteyin veya görev oluşturun. Özel tablo otomatik oluşturulur.",
+    "openChat": "Çalışma sohbetini aç",
+    "done": "Tamamlandı olarak işaretle",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "scope": {
+      "private": "Görevlerim",
+      "project": "Proje görevleri",
+      "group": "Grup görevleri",
+      "organization": "Kuruluş görevleri"
+    },
+    "status": {
+      "planned": "Planlandı",
+      "in_progress": "Devam ediyor",
+      "waiting_for_user": "Sizi bekliyor",
+      "blocked": "Engellendi",
+      "done": "Tamamlandı",
+      "cancelled": "İptal edildi"
+    },
+    "nextActor": {
+      "user": "Sonraki adım: kişi",
+      "agent": "Sonraki adım: ajan"
+    }
   }
 }

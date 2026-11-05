@@ -25,7 +25,7 @@ export interface ProjectTrackingCreate {
   publish_and_start: true;
   agent_name: string;
   table_name: string;
-  table_visibility: "private" | "org";
+  table_visibility: "private";
   interval_seconds: number;
 }
 const path = (projectId: string) => `/projects/${projectId}/tracking`;

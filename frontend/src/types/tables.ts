@@ -195,6 +195,7 @@ export interface ColumnInput {
 }
 
 export interface TableSummary {
+  default_view_id?: string | null;
   id: string;
   name: string;
   description: string | null;
@@ -241,6 +242,7 @@ export interface TableCreate {
 }
 
 export interface TableUpdate {
+  default_view_id?: string | null;
   name?: string;
   description?: string | null;
   visibility?: TableVisibility;

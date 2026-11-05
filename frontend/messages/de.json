@@ -6744,7 +6744,12 @@
         "makeShared": "Mit allen teilen, die die Tabelle öffnen können",
         "makePrivate": "Privat machen, nur für Sie sichtbar",
         "nowShared": "Ansicht geteilt",
-        "nowPrivate": "Ansicht ist jetzt privat"
+        "nowPrivate": "Ansicht ist jetzt privat",
+        "defaultName": "Standard: {kind}",
+        "defaultSaved": "Standardansicht gespeichert",
+        "defaultHint": "Diese Ansicht für alle mit Tabellenzugriff standardmäßig öffnen. Die gespeicherte Ansicht wird geteilt.",
+        "setDefault": "Als Standard festlegen",
+        "isDefault": "Standardansicht"
       },
       "noDescription": "Noch keine Beschreibung.",
       "readOnly": "Nur lesen",
@@ -12064,7 +12069,6 @@
       "hourly": "Stündlich",
       "daily": "Täglich",
       "weekly": "Wöchentlich",
-      "shareTable": "Aufgabentabelle für die Organisation sichtbar machen",
       "sources": "Ressourcen und Konten prüfen",
       "tableRights": "Die neue Aufgabentabelle erlaubt Lesen, Erstellen und Aktualisieren. Ansichten für alle Aufgaben, Board, offene und blockierte Aufgaben sind enthalten. Externe Aktionsfreigaben gelten weiterhin.",
       "unavailable": "Prüfen Sie zuerst diese Quellen: {names}",
@@ -12073,7 +12077,8 @@
       "cancel": "Abbrechen",
       "retry": "Erneut versuchen",
       "loadFailed": "Projektbegleiter erneut laden",
-      "openTasks": "Aufgabentabelle"
+      "openTasks": "Aufgabentabelle",
+      "scopeHint": "Das Projekt verwendet eine gemeinsame Aufgabentabelle. Der Zugriff folgt dem Projekt; Personen und Agenten sind verknüpfte Datensätze, und das Feld für den nächsten Schritt steuert die Übergabe."
     }
   },
   "voiceGlow": {
@@ -12917,5 +12922,52 @@
     "check": "Checkliste",
     "globe": "Web",
     "sparkles": "Funkeln"
+  },
+  "durableTasks": {
+    "tasks": "Aufgaben",
+    "newTask": "Neue Aufgabe",
+    "hint": "Verbindliche Aufgaben für Sie und Ihre Agenten. Tabelle, Arbeitschat und Inbox gehören zur selben Aufgabe.",
+    "board": "Aufgabentabelle",
+    "openTable": "Tabelle öffnen",
+    "title": "Aufgabe",
+    "description": "Anweisungen oder Kontext",
+    "assignee": "Wer übernimmt den nächsten Schritt?",
+    "me": "Ich",
+    "start": "Startzeit",
+    "due": "Frist",
+    "reminderHint": "Optional: zu dieser Zeit in der Inbox erinnern.",
+    "startHint": "Optional: einmal zu dieser Zeit ausführen. Leer bedeutet jetzt.",
+    "dueHint": "Die Frist ist unabhängig vom Arbeitsbeginn.",
+    "localTime": "Datumsangaben verwenden die Zeitzone Ihres Geräts.",
+    "createHint": "Eine Aufgabe, spätere Arbeit oder Erinnerung speichern. Agentenergebnisse warten in einem Arbeitschat auf Ihre Prüfung.",
+    "agentsUnavailable": "Agenten konnten nicht geladen werden. Sie können sich die Aufgabe weiterhin selbst zuweisen.",
+    "cancel": "Abbrechen",
+    "saving": "Wird gespeichert…",
+    "create": "Aufgabe erstellen",
+    "retry": "Erneut versuchen",
+    "empty": "Noch keine Aufgaben",
+    "emptyHint": "Bitten Sie einen Agenten, etwas für später zu planen, oder erstellen Sie eine Aufgabe. Private Tabellen entstehen automatisch.",
+    "openChat": "Arbeitschat öffnen",
+    "done": "Als erledigt markieren",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "scope": {
+      "private": "Meine Aufgaben",
+      "project": "Projektaufgaben",
+      "group": "Gruppenaufgaben",
+      "organization": "Organisationsaufgaben"
+    },
+    "status": {
+      "planned": "Geplant",
+      "in_progress": "In Arbeit",
+      "waiting_for_user": "Wartet auf Sie",
+      "blocked": "Blockiert",
+      "done": "Erledigt",
+      "cancelled": "Abgebrochen"
+    },
+    "nextActor": {
+      "user": "Nächster Schritt: Person",
+      "agent": "Nächster Schritt: Agent"
+    }
   }
 }

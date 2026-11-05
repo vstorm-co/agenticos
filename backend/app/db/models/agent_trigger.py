@@ -309,6 +309,10 @@ class AgentTrigger(Base, TimestampMixin):
     # The input each fire sends. A triggered run has no human turn, so the message
     # the agent answers is stored here; an event fire appends the payload's
     # rendered context to it so the agent knows which issue or email set it off.
+    one_shot: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     result_mode: Mapped[str] = mapped_column(
         String(16), nullable=False, default="report", server_default="report"
     )
@@ -494,7 +498,7 @@ class AgentTrigger(Base, TimestampMixin):
         # secret and was born `manual`, so creating a Gmail trigger handed out a
         # webhook URL for a door that refuses it (#1068).
         CheckConstraint(
-            "(trigger_type = 'schedule' AND next_fire_at IS NOT NULL "
+            "(trigger_type = 'schedule' AND (next_fire_at IS NOT NULL OR one_shot) "
             "AND event_source IS NULL "
             "AND ((schedule_kind = 'interval' AND interval_seconds IS NOT NULL "
             "AND cron_expression IS NULL) "

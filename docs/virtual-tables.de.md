@@ -1,5 +1,5 @@
 ---
-source_sha: "03a31d127513"
+source_sha: "e41233127d5d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -834,3 +834,22 @@ Validator in `backend/tests/test_virtual_table_types.py` und in einen
 Integrationstest, der einen Datensatz des neuen Typs schreibt, filtert und sortiert.
 
 Beim Erstellen einer leeren Tabelle benötigen Pflichtspalten keine Vorgaben: Jeder neue Datensatz muss ihre Werte liefern. Neue Pflichtspalten in einem bestehenden Schema benötigen weiterhin einen Standardwert zum Schutz vorhandener Datensätze.
+
+## Dauerhafte Aufgaben {#durable-tasks}
+
+**Hintergrundarbeit** (`/work`) zeigt dauerhafte Aufgaben neben laufenden Hintergrundchats. Eine Aufgabe ist ein Virtual-Table-Datensatz mit Arbeitschat und einem Inbox-Fall, wenn Aufmerksamkeit nötig ist. Tabelle, Kanban und Aufgaben-API verwenden dieselbe Revision, ohne eine zweite synchronisierte TODO-Liste.
+
+Eine Aufgabentabelle entsteht bei der ersten Nutzung für eine **Person**, ein **Projekt**, eine **Gruppe** oder eine **Organisation** und wird wiederverwendet. Projects und Groups bieten **Aufgaben**; Tables öffnet die private Tabelle. Installation und neue Mitgliedschaften erzeugen keine leeren Tabellen. Die erste Erstellung erfordert `tables:create`. Aktuelle Projektberechtigungen und Gruppenmitgliedschaften gelten auch für Tabellen-API, Verknüpfungen und gespeicherte Ansichten. Private Aufgaben bleiben selbst vor einem anderen Organisationseigentümer verborgen. Eigene bestehende Aufgabentabellen und Projektverfolgungs-Presets werden nicht automatisch umgewandelt.
+
+Eine Aufgabe hat Titel, Rich-Text-Notizen, Status, getrennte Verknüpfungen für **Person** und **Agent**, **Nächster Schritt**, **Startzeit** und **Frist**. Die Frist startet keine Arbeit. Ein Personen-Start plant eine Inbox-Erinnerung ohne Modellaufruf. Ein Agenten-Start plant genau eine Ausführung einer festgelegten Version über den bestehenden Routine-Runner; ohne Startzeit beginnt sie sofort. Geprüfte Quellen, aktuelle Rechte, Budgets und Freigaben gelten weiterhin. Eine Zuweisung gewährt keinen Zugriff auf fremde Konten. Ergebnisse warten im verknüpften Arbeitschat oder einem neuen privaten Chat auf Prüfung; Fehler blockieren die Aufgabe.
+
+Routine-Ergebnisse in der Inbox behalten eine private Aufgabe je Quellfall. Neue Quellrevisionen verwenden dieselbe Aufgabe und denselben Chat. Das Erledigen schließt den Inbox-Fall und umgekehrt; Bestätigen bedeutet nur gelesen. Abbrechen oder Löschen zieht wartende Erinnerungen zurück und stoppt weitere Agentenwerkzeuge, macht aber bereits an externe Anbieter gesendete Aktionen nicht rückgängig. Ein E-Mail-Entwurf ist nicht versendet: den Versand im Chat autorisieren und erst nach Erfolg abschließen.
+
+AgenticOS MCP bietet `list_task_boards`, `ensure_task_board`, `list_tasks`, `get_task`, `create_task` und `update_task`. Eine stabile `external_id` verhindert Quellduplikate. Änderungen benötigen `expected_revision`; veraltete Änderungen liefern 409. HTTP verwendet `/tasks/boards`, `/tasks` und `/tasks/{id}` unter `/api/v1`. Kernfelder und Zustände behalten ihre Identität; eigene Spalten sind möglich, aber Kerntypen und Archivierung bleiben geschützt. Die Ansichten Board, Planned, Agent tasks und Waiting for review werden angelegt. `write_plan` bleibt die interne Checkliste einer Ausführung und plant keine dauerhaften Verpflichtungen.
+
+
+## Standardansicht {#default-view}
+
+Tabelleneditoren können **Als Standard festlegen** in der Werkzeugleiste wählen. Layout, Filter und Gruppierung werden als geteilte Ansicht gespeichert und bei Besuchen ohne ausdrückliche URL-Parameter `view` oder `viewId` geöffnet. Neue Aufgabentabellen starten mit Kanban. Die Standardansicht muss geteilt sein und zur Tabelle gehören. Vor dem Privatmachen muss ein anderer Standard gewählt werden. Löschen stellt das einfache Tabellenlayout wieder her. Die API verwendet `PATCH /tables/{id}` mit `default_view_id`; null entfernt den Standard.
+
+Aufgabennotizen sind Markdown-Dokumente mit demselben Rich-Text-Editor und derselben Vorschau wie andere Dokumentzellen. Separate Beziehungen **Person** und **Agent** behalten die verantwortliche Person und den ausführenden Agenten. **Nächster Schritt** wählt Person oder Agent und kehrt nach einem Ergebnis zur Person zurück. Die verantwortliche Person startet Agentenarbeit mit ihrem eigenen Konto. Für eine Übergabe zuerst die Person als nächsten Schritt wählen und den Empfänger selbst starten lassen.

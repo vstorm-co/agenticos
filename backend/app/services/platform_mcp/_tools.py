@@ -22,6 +22,7 @@ from pydantic import JsonValue
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
 from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
+from app.schemas.task import BoardEnsure, TaskCreate, TaskUpdate
 from app.schemas.user import ConsoleLocale
 from app.schemas.virtual_table import (
     ColumnInput,
@@ -468,6 +469,69 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         An agent names one as its `model_profile_id`. Needs `agents:view`.
         """
         return await api.request("GET", "/providers/model-profiles")
+
+    async def list_task_boards() -> dict[str, object]:
+        """Discover task tables the caller can currently access. Needs tables:view.
+
+        Private, project, group and organization boards are provisioned only when
+        first needed. Reuse their table ids; do not create parallel TODO tables.
+        """
+        return {"items": await api.request("GET", "/tasks/boards")}
+
+    async def ensure_task_board(
+        scope: Literal["private", "project", "group", "organization"] = "private",
+        scope_id: UUID | None = None,
+    ) -> dict[str, object]:
+        """Get or create the one task table for a scope. Needs tables:create on first use.
+
+        Private is the default for personal mail and drafts. Sharing is explicit:
+        supply a project/group id only when the user wants the task shared there.
+        Membership is rechecked on subsequent reads and edits.
+        """
+        data = BoardEnsure(scope=scope, scope_id=scope_id)
+        return await api.request("POST", "/tasks/boards", json=data.model_dump(mode="json"))
+
+    async def list_tasks(table_id: UUID, skip: int = 0, limit: int = 50) -> dict[str, object]:
+        """List durable commitments in a task board. Needs tables:view.
+
+        Use has_more/skip for pagination. This is not the agent's internal plan.
+        Table and Kanban edits change these same records and revisions.
+        """
+        return await api.request(
+            "GET", "/tasks", params={"table_id": str(table_id), "skip": skip, "limit": limit}
+        )
+
+    async def get_task(task_id: UUID) -> dict[str, object]:
+        """Read a task, its revision, working conversation and Inbox case. Needs tables:view."""
+        return await api.request("GET", f"/tasks/{task_id}")
+
+    async def create_task(task: TaskCreate) -> dict[str, object]:
+        """Save an explicit durable commitment, automatically reusing its scope's table.
+
+        Keep a person as the human owner/reviewer and optionally attach an agent.
+        next_actor says who takes the next step; creating with an agent defaults
+        to agent unless next_actor is explicitly user. For a person, start_at schedules an
+        Inbox reminder without a model call. For an agent it schedules one run,
+        immediately when start_at is absent, with normal budgets and approvals.
+        due_at is only a deadline. Agent results wait for user review in a working
+        chat; a draft is not sent. Private is the default. Use external_id for a
+        stable source item so retries do not create duplicate tasks. An existing
+        external_id returns its current task unchanged; use update_task for changes.
+        Do not turn
+        brainstorming or the run's scratch plan into durable tasks without intent.
+        """
+        return await api.request("POST", "/tasks", json=task.model_dump(mode="json"))
+
+    async def update_task(task_id: UUID, task: TaskUpdate) -> dict[str, object]:
+        """Replace a task's fields at expected_revision. Read it first; preserve other fields.
+
+        Needs tables:edit on its scope. Done/cancelled stops deferred work and
+        closes its Inbox case. Acknowledging a notification does not finish it.
+        Mark done after user confirmation or successful authorized external action,
+        never merely after preparing a draft. Only its creator may schedule a
+        new agent execution using their identity; assignment grants no credentials.
+        """
+        return await api.request("PUT", f"/tasks/{task_id}", json=task.model_dump(mode="json"))
 
     async def list_inbox_cases(conversation_id: UUID | None = None) -> dict[str, object]:
         """List the caller's open Inbox cases, optionally for the current working chat.
@@ -1328,6 +1392,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (create_watch, True),
         (update_watch, True),
         (delete_watch, True),
+        (list_task_boards, False),
+        (ensure_task_board, True),
+        (list_tasks, False),
+        (get_task, False),
+        (create_task, True),
+        (update_task, True),
         (list_inbox_cases, False),
         (settle_inbox_case, True),
         (list_routines, False),

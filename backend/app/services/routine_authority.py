@@ -265,6 +265,15 @@ class RoutineAuthority:
             db, self.routine_id, organization_id=self.organization_id
         )
         trigger = self._require_trigger(trigger)
+        if trigger.one_shot is True:
+            from app.services.access import member_context
+            from app.services.task_access import execution_allows
+
+            ctx = await member_context(
+                db, organization_id=self.organization_id, user_id=self.user_id
+            )
+            if ctx is None or not await execution_allows(db, ctx, trigger.id):
+                raise _refused()
         assert self.source_policy is not None
         await require_bound_sources(
             db, organization_id=self.organization_id, policy=self.source_policy

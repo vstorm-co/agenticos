@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, ExternalLink, MessageSquare } from "lucide-react";
+import { Check, ExternalLink, MessageSquare, ListTodo } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import {
@@ -34,6 +34,7 @@ export function SuggestionRows({
 }) {
   const t = useTranslations("chat.suggestions");
   const tInbox = useTranslations("inbox");
+  const tTasks = useTranslations("durableTasks");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const sourceOf = useSuggestionSource();
@@ -115,6 +116,15 @@ export function SuggestionRows({
                   dense ? "mt-0.5" : "md:col-start-3 md:row-start-1 md:self-center",
                 )}
               >
+                {typeof suggestion.payload.table_id === "string" &&
+                  /^[0-9a-f-]{36}$/i.test(suggestion.payload.table_id) && (
+                    <Button asChild size="sm" variant="outline" className="h-8">
+                      <Link href={`/tables/${suggestion.payload.table_id}`}>
+                        <ListTodo className="size-3.5" aria-hidden />
+                        {tTasks("openTable")}
+                      </Link>
+                    </Button>
+                  )}
                 {suggestion.kind === "finding" &&
                   typeof suggestion.payload.conversation_id === "string" &&
                   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(

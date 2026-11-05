@@ -1,5 +1,5 @@
 ---
-source_sha: "03a31d127513"
+source_sha: "e41233127d5d"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -787,3 +787,22 @@ tabla, y su etiqueta en los tres catálogos de mensajes. Las pruebas van en
 integración que escribe, filtra y ordena un registro del tipo nuevo.
 
 Al crear una tabla vacía, las columnas obligatorias no necesitan valores predeterminados: cada registro nuevo debe proporcionar sus valores. Añadir una columna obligatoria a un esquema existente sigue requiriendo un valor predeterminado para proteger los registros existentes.
+
+## Tareas duraderas {#durable-tasks}
+
+**Trabajo en segundo plano** (`/work`) muestra compromisos duraderos junto a los chats en ejecución. Una tarea es un registro de Virtual Table con un chat de trabajo y un caso de Inbox cuando requiere atención. Tabla, Kanban y API comparten la misma revisión, sin otra lista TODO sincronizada.
+
+Se crea una tabla de tareas al primer uso para una **persona**, **proyecto**, **grupo** u **organización** y luego se reutiliza. Projects y Groups ofrecen **Tareas**; Tables abre la tabla privada. La instalación y las nuevas membresías no crean tablas vacías. La primera creación requiere `tables:create`. Los permisos actuales del proyecto y las membresías del grupo también se comprueban en la API de tablas, enlaces y vistas guardadas. Las tareas privadas permanecen ocultas incluso para otro propietario de la organización. Las tablas propias existentes y los ajustes de seguimiento de proyectos no se convierten automáticamente.
+
+Una tarea contiene título, notas de texto enriquecido, estado, relaciones separadas de **Persona** y **Agente**, **Siguiente paso**, **Inicio** y **Vencimiento**. El vencimiento no inicia trabajo. El inicio de una tarea personal programa un recordatorio en Inbox sin llamar a un modelo. El de un agente programa una ejecución de una versión fijada mediante el runner de routines existente; sin inicio, comienza ahora. Siguen vigentes las fuentes revisadas, permisos actuales, presupuestos y aprobaciones. Asignar no da acceso a cuentas ajenas. El resultado espera revisión en el chat vinculado o uno privado nuevo; los errores bloquean la tarea.
+
+Los resultados de routines en Inbox mantienen una tarea privada por caso de origen. Las nuevas revisiones reutilizan la tarea y el chat. Completar la tarea cierra el caso y resolver el caso completa la tarea; confirmar solo significa visto. Cancelar o eliminar retira recordatorios pendientes y detiene herramientas posteriores del agente, pero no revierte acciones enviadas a un proveedor externo. Un borrador de correo no está enviado: autoriza el envío en el chat y completa solo después de su éxito.
+
+AgenticOS MCP ofrece `list_task_boards`, `ensure_task_board`, `list_tasks`, `get_task`, `create_task` y `update_task`. Una `external_id` estable evita duplicados. Las modificaciones requieren `expected_revision`; una revisión antigua devuelve 409. HTTP usa `/tasks/boards`, `/tasks` y `/tasks/{id}` bajo `/api/v1`. Los campos y estados básicos conservan su identidad; se permiten columnas propias sin cambiar tipos ni archivar los campos básicos. Se crean las vistas Board, Planned, Agent tasks y Waiting for review. `write_plan` sigue siendo una lista interna de la ejecución y no programa compromisos duraderos.
+
+
+## Vista predeterminada {#default-view}
+
+Los editores pueden elegir **Establecer como predeterminada** en la barra de herramientas. El diseño, los filtros y la agrupación se guardan como vista compartida y se abren al visitar la tabla sin parámetros explícitos `view` o `viewId`. Las tablas nuevas de tareas empiezan en Kanban. La vista predeterminada debe ser compartida y pertenecer a la tabla; antes de hacerla privada hay que elegir otra. Eliminarla restaura el diseño de tabla simple. La API usa `PATCH /tables/{id}` con `default_view_id`; null elimina la selección.
+
+Las notas de tareas son documentos Markdown con el mismo editor rich text y vista previa que otras celdas documentales. Las relaciones separadas **Persona** y **Agente** conservan a la persona responsable y al agente que trabaja. **Siguiente paso** elige persona o agente y vuelve a la persona después del resultado. La persona responsable inicia el agente con su propia cuenta. Para transferir una tarea, elige primero a la persona como siguiente paso y deja que el destinatario inicie el trabajo con su cuenta.

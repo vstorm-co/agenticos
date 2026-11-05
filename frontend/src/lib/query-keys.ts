@@ -10,6 +10,13 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  durableTasks: {
+    root: () => ["durable-tasks"] as const,
+    all: (scope: string) => ["durable-tasks", scope] as const,
+    boards: (scope: string) => ["durable-tasks", scope, "boards"] as const,
+    records: (scope: string, table: string | undefined, skip: number) =>
+      ["durable-tasks", scope, "records", table, skip] as const,
+  },
   phone: {
     all: (org: string) => ["phone", org] as const,
     settings: (org: string) => ["phone", org, "settings"] as const,

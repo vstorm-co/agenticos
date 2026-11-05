@@ -19,7 +19,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
 from app.db.models.virtual_table import VirtualTable
 from app.db.updates import writable
-from app.repositories import virtual_table_repo
+from app.repositories import table_view_repo, virtual_table_repo
 from app.schemas.virtual_table import (
     MAX_LABEL,
     MAX_OPTIONS,
@@ -39,6 +39,7 @@ from app.schemas.virtual_table import (
     TableUpdate,
 )
 from app.services.access import TABLE, accessible_ids, visible_resource_ids
+from app.services.task_access import table_audience
 from app.services.virtual_tables._base import Operations
 from app.services.virtual_tables.conversions import convert, option_labels
 from app.services.virtual_tables.deadline import ReadDeadline
@@ -166,12 +167,15 @@ class TableOperations(Operations):
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=TABLE, perm=Perm.TABLES_VIEW
         )
+        managed, excluded = await table_audience(self.db, ctx)
         items, total = await virtual_table_repo.list_tables_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
             shared_ids=shared or [],
+            managed_ids=managed,
+            excluded_ids=excluded,
             include_archived=include_archived,
             search=search,
             sort=sort,
@@ -252,6 +256,14 @@ class TableOperations(Operations):
         table = await self._load_table(ctx, table_id, Perm.TABLES_EDIT, lock=True)
         self._ensure_live(table)
         changes = writable(data, over=VirtualTable)
+        if data.default_view_id is not None:
+            view = await table_view_repo.get(
+                self.db, organization_id=ctx.organization_id, view_id=data.default_view_id
+            )
+            if view is None or view.table_id != table.id or view.visibility != "shared":
+                raise BadRequestError(
+                    message="Choose a shared saved view of this table as its default"
+                )
         if "name" in changes and changes["name"] != table.name:
             await self._claim_name(ctx, changes["name"])
         table = await virtual_table_repo.update_table(self.db, table=table, update_data=changes)
@@ -358,6 +370,9 @@ class TableOperations(Operations):
             )
         previous = await self._columns(table)
         columns = build_columns(data.columns, previous)
+        from app.services.tasks import TaskLifecycle
+
+        await TaskLifecycle(self.db).protect_schema(ctx, table_id, columns)
         if columns == previous:
             # Identical to what the table has, ids, order, labels and options included.
             # A new version, an audit row and a bumped `schema_version` would make every other

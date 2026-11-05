@@ -22,19 +22,11 @@ from app.schemas.project_tracking import (
     ProjectTrackingRead,
     ProjectTrackingReview,
 )
-from app.schemas.table_view import TableViewConfig, TableViewCreate
-from app.schemas.virtual_table import (
-    ColumnInput,
-    OptionInput,
-    RecordFilter,
-    RecordSort,
-    TableCreate,
-)
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_trigger import AgentTriggerService
 from app.services.project import ProjectService
 from app.services.routine_sources import RoutineSourceService, RoutineSourceSnapshot, read_policy
-from app.services.virtual_tables import TableViewService, VirtualTableService
+from app.services.virtual_tables import VirtualTableService
 
 
 @dataclass(frozen=True)
@@ -190,61 +182,18 @@ class ProjectTrackingService:
             raise ConflictError(
                 message="The project's sources changed. Review them again before publishing the tracker."
             )
-        table = await VirtualTableService(self.db).create_table(
-            ctx,
-            TableCreate(
-                name=data.table_name,
-                visibility=data.table_visibility,
-                description=f"Task state for {project.name}",
-                columns=[
-                    ColumnInput(label="Task", type="text", nullable=False),
-                    ColumnInput(
-                        label="Status",
-                        type="single_select",
-                        default="Planned",
-                        options=[
-                            OptionInput(label="Planned"),
-                            OptionInput(label="In progress"),
-                            OptionInput(label="Blocked"),
-                            OptionInput(label="Done"),
-                        ],
-                    ),
-                    ColumnInput(label="Owner", type="text"),
-                    ColumnInput(label="Due", type="date"),
-                    ColumnInput(label="Context", type="text"),
-                    ColumnInput(label="Next action", type="text"),
-                    ColumnInput(label="Waiting until", type="datetime"),
-                ],
-            ),
+        from app.schemas.task import BoardEnsure
+        from app.schemas.virtual_table import TableUpdate
+        from app.services.tasks import TaskService
+
+        board = await TaskService(self.db).ensure_board(
+            ctx, BoardEnsure(scope="project", scope_id=project.id)
         )
-        columns = {column.label: column.id for column in table.columns}
-        status = next(column for column in table.columns if column.label == "Status")
-        choices = {option.label: option.id for option in status.options}
-        blocked, done = choices["Blocked"], choices["Done"]
-        views = TableViewService(self.db)
-        for name, kind, config in (
-            ("All tasks", "table", TableViewConfig()),
-            ("Board", "kanban", TableViewConfig(group_by=columns["Status"])),
-            (
-                "Open tasks",
-                "table",
-                TableViewConfig(
-                    filters=[RecordFilter(column_id=columns["Status"], op="ne", value=str(done))],
-                    sort=RecordSort(by=str(columns["Due"])),
-                ),
-            ),
-            (
-                "Blocked",
-                "list",
-                TableViewConfig(
-                    filters=[RecordFilter(column_id=columns["Status"], op="eq", value=str(blocked))]
-                ),
-            ),
-        ):
-            await views.create_view(
-                ctx,
-                table.id,
-                TableViewCreate(name=name, kind=kind, visibility="shared", config=config),
+        table = await VirtualTableService(self.db).describe_table(ctx, board.table_id)
+        # The explicit preset's name also names the project's one shared task board.
+        if table.name != data.table_name:
+            table = await VirtualTableService(self.db).update_table(
+                ctx, table.id, TableUpdate(name=data.table_name)
             )
         spec = _with_task_table(reviewed.spec, table.id, name=data.agent_name)
         agent = await self.agents.create(ctx, spec, choose_model=False)
@@ -264,6 +213,7 @@ class ProjectTrackingService:
                 prompt=(
                     f"Keep this project on track using task table {table.id}. Read its current records first. "
                     "Use only the explicitly reviewed project sources to verify progress, owners, blockers and due dates. "
+                    "Use the Person and Agent relations, Next step for the current actor, and Notes for rich-text context. Do not switch Next step to Agent unless execution was explicitly requested; an agent reference may identify who prepared work while a person reviews it. "
                     "Update task state and next actions only from evidence. Compare due dates and waiting deadlines with the current time; "
                     "do not invent replies or completed actions. Leave missing evidence visible as a blocker. "
                     "Report actionable changes and upcoming or missed deadlines in this project conversation. "

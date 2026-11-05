@@ -76,6 +76,17 @@ class VirtualTable(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    default_view_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey(
+            "table_views.id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="virtual_tables_default_view_id_fkey",
+        ),
+        nullable=True,
+        index=True,
+    )
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     # Archiving keeps the rows and the history readable and refuses writes. A
     # table is never dropped: a workflow or a view may still name it.

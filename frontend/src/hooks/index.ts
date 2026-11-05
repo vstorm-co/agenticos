@@ -95,7 +95,7 @@ export { useBrandingNotice } from "./use-branding-notice";
 export { useTables, useTable, useAllTables } from "./use-tables";
 export { useTableRecords } from "./use-table-records";
 export { useTableRecordCount, useTableRecordPages } from "./use-table-record-pages";
-export { useTableViews } from "./use-table-views";
+export { useTableViews, useTableDefaultView } from "./use-table-views";
 export { useRecordMutation, isRevisionConflict } from "./use-record-mutation";
 export {
   useLocalSandboxService,
@@ -193,3 +193,5 @@ export { useNotificationRoutes } from "./use-notification-routes";
 export { useRoutineLocalWork } from "./use-routine-local-work";
 
 export { useWikiGraph } from "./use-wiki-graph";
+
+export { useDurableTasks } from "./use-durable-tasks";

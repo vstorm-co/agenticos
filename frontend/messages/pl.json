@@ -3499,7 +3499,12 @@
         "makeShared": "Udostępnij wszystkim, którzy mogą otworzyć tabelę",
         "makePrivate": "Ustaw jako prywatny, widoczny tylko dla Ciebie",
         "nowShared": "Udostępniono widok",
-        "nowPrivate": "Widok jest teraz prywatny"
+        "nowPrivate": "Widok jest teraz prywatny",
+        "defaultName": "Domyślny: {kind}",
+        "defaultSaved": "Zapisano domyślny widok",
+        "defaultHint": "Otwieraj ten widok domyślnie dla wszystkich z dostępem do tabeli. Zapisany widok będzie współdzielony.",
+        "setDefault": "Ustaw jako domyślny",
+        "isDefault": "Widok domyślny"
       },
       "noDescription": "Brak opisu.",
       "readOnly": "Tylko odczyt",
@@ -9608,7 +9613,6 @@
       "hourly": "Co godzinę",
       "daily": "Codziennie",
       "weekly": "Co tydzień",
-      "shareTable": "Udostępnij tabelę zadań całej organizacji",
       "sources": "Przejrzyj zasoby i konta",
       "tableRights": "Nowa tabela zadań pozwala na odczyt, tworzenie i aktualizację rekordów. Zawiera widoki wszystkich zadań, tablicy, zadań otwartych i zablokowanych. Zewnętrzne działania nadal wymagają zwykłych zgód.",
       "unavailable": "Najpierw sprawdź źródła: {names}",
@@ -9617,7 +9621,8 @@
       "cancel": "Anuluj",
       "retry": "Spróbuj ponownie",
       "loadFailed": "Ponów odczyt opiekuna",
-      "openTasks": "Tabela zadań"
+      "openTasks": "Tabela zadań",
+      "scopeHint": "Projekt używa jednej wspólnej tabeli zadań. Dostęp wynika z projektu; osoby i agenci są powiązani z rekordami, a pole następnego kroku wskazuje przekazanie pracy."
     }
   },
   "voiceGlow": {
@@ -13020,5 +13025,52 @@
     "check": "Lista zadań",
     "globe": "Internet",
     "sparkles": "Iskry"
+  },
+  "durableTasks": {
+    "tasks": "Zadania",
+    "newTask": "Nowe zadanie",
+    "hint": "Zobowiązania Twoje i agentów. Tabela, rozmowa robocza i Inbox łączą się z tym samym zadaniem.",
+    "board": "Tabela zadań",
+    "openTable": "Otwórz tabelę",
+    "title": "Zadanie",
+    "description": "Instrukcje lub kontekst",
+    "assignee": "Kto robi następny krok?",
+    "me": "Ja",
+    "start": "Rozpocznij",
+    "due": "Termin",
+    "reminderHint": "Opcjonalnie: przypomnij w Inbox o tej godzinie.",
+    "startHint": "Opcjonalnie: uruchom raz o tej godzinie. Puste pole oznacza teraz.",
+    "dueHint": "Termin wykonania, niezależny od rozpoczęcia pracy.",
+    "localTime": "Daty używają strefy czasowej Twojego urządzenia.",
+    "createHint": "Zapisz zobowiązanie, zaplanuj pracę lub przypomnienie. Wynik pracy agenta czeka na sprawdzenie w rozmowie roboczej.",
+    "agentsUnavailable": "Nie udało się wczytać agentów. Nadal możesz przypisać zadanie sobie.",
+    "cancel": "Anuluj",
+    "saving": "Zapisywanie…",
+    "create": "Utwórz zadanie",
+    "retry": "Spróbuj ponownie",
+    "empty": "Nie ma tu jeszcze zadań",
+    "emptyHint": "Poproś agenta o zaplanowanie czegoś na później lub utwórz zadanie. Prywatna tabela powstanie automatycznie.",
+    "openChat": "Otwórz rozmowę roboczą",
+    "done": "Oznacz jako zrobione",
+    "previous": "Poprzednia",
+    "next": "Następna",
+    "scope": {
+      "private": "Moje zadania",
+      "project": "Zadania projektu",
+      "group": "Zadania grupy",
+      "organization": "Zadania organizacji"
+    },
+    "status": {
+      "planned": "Zaplanowane",
+      "in_progress": "W toku",
+      "waiting_for_user": "Czeka na Ciebie",
+      "blocked": "Zablokowane",
+      "done": "Zrobione",
+      "cancelled": "Anulowane"
+    },
+    "nextActor": {
+      "user": "Następny krok: osoba",
+      "agent": "Następny krok: agent"
+    }
   }
 }

@@ -93,8 +93,10 @@ import {
   useTableRecordPages,
   useTableRecords,
   useTableViews,
+  useTableDefaultView,
 } from "@/hooks";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
+import { useDurableTasks } from "@/hooks/use-durable-tasks";
 import { useUrlState } from "@/hooks/use-url-state";
 import { COMPUTED_TYPES, emptyViewConfig } from "@/types/tables";
 import type {
@@ -128,11 +130,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const tTriggers = useTranslations("pages.tables.triggers");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
+  const tTasks = useTranslations("durableTasks");
+  const taskBoards = useDurableTasks().boards;
+  const taskBoard = taskBoards.data?.find((board) => board.table_id === id);
   const tMenu = useTranslations("tables.columnMenu");
 
   const [tabParam, setTabParam] = useUrlState("view");
-  const tab = parseTab(tabParam);
-  const setTab = (next: ViewKind) => setTabParam(next === "table" ? null : next);
+  const setTab = (next: ViewKind) => setTabParam(next);
   const [viewIdParam, setViewIdParam] = useUrlState("viewId");
 
   const {
@@ -146,10 +150,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   } = useTable(id);
   const {
     views,
+    isLoading: viewsLoading,
     create: createView,
     update: updateView,
     remove: removeView,
-  } = useTableViews(id, tab);
+  } = useTableViews(id);
 
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -171,7 +176,10 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [openRecord, setOpenRecord] = useState<RecordRead | null>(null);
   const [page, setPage] = useState(0);
   const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
-  const activeView = views.find((view) => view.id === viewIdParam) ?? null;
+  const defaultView = useTableDefaultView(id);
+  const effectiveViewId = viewIdParam ?? (tabParam === null ? table?.default_view_id : null);
+  const activeView = views.find((view) => view.id === effectiveViewId) ?? null;
+  const tab = tabParam === null && activeView ? activeView.kind : parseTab(tabParam);
   const [sort, setSort] = useState<RecordSort>(activeView?.config.sort ?? DEFAULT_SORT);
   const [filters, setFilters] = useState<RecordFilter[]>(activeView?.config.filters ?? []);
   const [searchDraft, setSearchDraft] = useState(activeView?.config.search ?? "");
@@ -248,7 +256,8 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   });
   const matching = useTableRecordCount(id, { filters: applied, search });
 
-  if (isLoading) return <LoadingState variant="skeleton-panel" rows={3} />;
+  if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
+    return <LoadingState variant="skeleton-panel" rows={3} />;
   if (error || !table) return <ErrorState />;
 
   const canEdit = table.can_edit;
@@ -343,7 +352,9 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
         badges={
           <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
             <VisibilityIcon aria-hidden="true" className="size-3.5" />
-            {t(`visibility.${table.visibility}`)}
+            {taskBoard
+              ? tTasks(`scope.${taskBoard.scope_kind}`)
+              : t(`visibility.${table.visibility}`)}
             {matching && (
               <>
                 <span aria-hidden="true">·</span>
@@ -387,9 +398,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setShareOpen(true)}>
-                  <Share2 className="h-4 w-4" /> {t("share")}
-                </DropdownMenuItem>
+                {!taskBoard && (
+                  <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                    <Share2 className="h-4 w-4" /> {t("share")}
+                  </DropdownMenuItem>
+                )}
 
                 {canEdit && (
                   <DropdownMenuItem onSelect={() => setImporting(true)}>
@@ -491,8 +504,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             <ViewSelect
               kind={tab}
               views={views}
-              activeViewId={viewIdParam}
-              onSelect={setViewIdParam}
+              activeViewId={activeView?.id ?? null}
+              onSelect={(value) => {
+                setViewIdParam(value);
+                setTab(views.find((view) => view.id === value)?.kind ?? tab);
+              }}
               canCreate={canEdit}
               onCreate={async (name, visibility) => {
                 const created = await createView.mutateAsync({
@@ -549,6 +565,34 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 onShow={(column) => setShown(column.id, true)}
                 onShowAll={() => setVisible(null)}
               />
+            )}
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={
+                  defaultView.isPending || (!!activeView && activeView.id === table.default_view_id)
+                }
+                title={tViews("defaultHint")}
+                onClick={() =>
+                  defaultView.mutate(
+                    {
+                      view: activeView,
+                      kind: tab,
+                      config: { ...emptyViewConfig(), ...working },
+                      names: views.map((view) => view.name),
+                    },
+                    {
+                      onSuccess: (view) => {
+                        setViewIdParam(view.id);
+                        setTab(view.kind);
+                      },
+                    },
+                  )
+                }
+              >
+                {tViews(activeView?.id === table.default_view_id ? "isDefault" : "setDefault")}
+              </Button>
             )}
             <ViewSettingsPopover
               columns={allColumns}

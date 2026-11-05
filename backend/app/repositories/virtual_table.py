@@ -208,6 +208,8 @@ async def list_tables_visible(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
+    managed_ids: list[UUID] | None = None,
+    excluded_ids: list[UUID] | None = None,
     include_archived: bool = False,
     search: str | None = None,
     sort: Literal["name", "updated_at"] = "name",
@@ -221,6 +223,8 @@ async def list_tables_visible(
     org-visible ones and those explicitly shared with them (`shared_ids`).
     """
     where = [VirtualTable.organization_id == organization_id]
+    if excluded_ids:
+        where.append(VirtualTable.id.not_in(excluded_ids))
     if not include_archived:
         where.append(VirtualTable.archived_at.is_(None))
     if not see_all:
@@ -228,7 +232,7 @@ async def list_tables_visible(
             or_(
                 VirtualTable.owner_user_id == user_id,
                 VirtualTable.visibility == Visibility.ORG.value,
-                VirtualTable.id.in_(shared_ids) if shared_ids else false(),
+                VirtualTable.id.in_((shared_ids or []) + (managed_ids or [])),
             )
         )
     if search:

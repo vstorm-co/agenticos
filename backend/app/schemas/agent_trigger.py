@@ -799,6 +799,8 @@ class TriggerUpdate(BaseSchema):
 
 
 class TriggerRead(BaseSchema, TimestampSchema):
+    one_shot: bool = False
+
     project_id: UUID | None = None
     max_failures: int | None = Field(
         default=3,
