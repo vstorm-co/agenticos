@@ -7013,7 +7013,23 @@
       "storedCount": "{count, plural, =1 {1 key stored} other {# keys stored}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure."
+      "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure.",
+      "connectedAccounts": {
+        "personalTitle": "Your connected accounts",
+        "organizationTitle": "The organization's connected accounts",
+        "count": "{count, plural, one {# account} other {# accounts}}",
+        "connect": "Connect Google account",
+        "noneYet": "No accounts connected yet",
+        "personalDetail": "An agent whose virtual terminal reads each person's own accounts mounts these when you talk to it.",
+        "organizationDetail": "An agent's virtual terminal can read one of these for everybody who talks to it.",
+        "needsReconnect": "Its sign-in stopped working. Connect it again.",
+        "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
+        "reconnect": "Reconnect",
+        "disconnect": "Disconnect {email}",
+        "disconnectTitle": "Disconnect {email}?",
+        "disconnectDetail": "Agents that read this account lose its folders on their next run. The grant is deleted from the vault.",
+        "disconnectConfirm": "Disconnect"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
@@ -10957,6 +10973,15 @@
       "needs": "A published console agent, an active member, and an approved folder for local work.",
       "never": "Does not copy the full conversation, waive approvals, restart interrupted actions, or start watches and routines.",
       "example1": "Investigate the export bug in a new topic while we continue planning the release."
+    },
+    "mirage": {
+      "name": "Mirage (virtual terminal)",
+      "does": "Mounts the services you choose - a Drive, a GitHub repository, Notion, a database, an SSH server - as folders, so the agent lists, searches and reads them with a shell, and writes where you allow it.",
+      "example1": "Find every contract in a Drive folder that mentions a client",
+      "example2": "Search a repository and a Notion workspace in one go",
+      "example3": "Read a table from your database and summarise it",
+      "needs": "The services' credentials in the vault, or a connected Google account. A deployment installs the terminal with the mirage extra, and an operator allows the hosts of any server you type.",
+      "never": "Never writes to a folder you mounted read-only, and asks a person before each write where you said so."
     }
   },
   "capabilityCategories": {
@@ -11566,6 +11591,20 @@
       "preview": {
         "title": "Live preview",
         "description": "Show the desktop live in the chat while the agent works it."
+      }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Folders",
+        "description": "What the terminal mounts, each as a folder."
+      },
+      "allowed_commands": {
+        "title": "Allowed commands",
+        "description": "Only these commands run, e.g. ls, cat, grep. Empty allows virtual commands; direct curl/wget are disabled."
+      },
+      "hidden_paths": {
+        "title": "Hidden paths",
+        "description": "Paths the agent cannot see at all, e.g. /drive/HR/."
       }
     }
   },
@@ -12685,5 +12724,31 @@
     "rootFolder": "Root folder",
     "untagged": "Untagged",
     "visibleNotes": "{visible} of {total} notes visible"
+  },
+  "mirage": {
+    "folders": "Folders",
+    "foldersDetail": "Add an integration for each source, then choose its service, credentials and access. Each integration becomes a folder the agent can list, search and read.",
+    "addFolder": "Add integration",
+    "folder": "Folder",
+    "service": "Integration",
+    "servicePlaceholder": "Choose a service ({name} is not available here)",
+    "removeFolder": "Remove {folder}",
+    "writable": "The agent may write here",
+    "approveWrites": "Approve each write",
+    "secretFor": "Secret for {field}",
+    "entraApp": "Entra app",
+    "chooseSecret": "Choose a secret",
+    "noSecret": "None",
+    "noSecrets": "No suitable secret yet. Add one in the <link>vault</link>.",
+    "account": "Account",
+    "chooseAccount": "Choose an account",
+    "personalAccounts": "Each person's own accounts",
+    "personalAccountsDetail": "Each person who talks to the agent sees their own accounts, one folder per account. They connect them in the <link>vault</link>.",
+    "organizationAccountsDetail": "Everybody who talks to the agent reads this account. The organization connects accounts in the <link>vault</link>.",
+    "backendsUnavailable": "The list of services could not be loaded.",
+    "notInstalled": "This deployment does not have the virtual terminal installed. An operator installs it with the mirage extra.",
+    "jsonLabel": "{name} (JSON)",
+    "jsonHint": "Edit as JSON. Valid changes are saved; incomplete JSON keeps the last valid value.",
+    "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   }
 }

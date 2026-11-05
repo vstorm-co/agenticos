@@ -258,6 +258,11 @@ browser = [
 kerberos = [
     "gssapi>=1.9.0",
 ]
+# Mirage is optional; its exact pin is shared with the test environment.
+# The S3 family remains unavailable because aioboto3 pins an incompatible boto3.
+mirage = [
+    "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
+]
 
 # PEP 735 dependency group — installed by `uv sync` / `uv sync --dev` and
 # excluded by `--no-dev`. (A `dev` extra under [project.optional-dependencies]
@@ -265,6 +270,8 @@ kerberos = [
 # could skip it on some uv versions and leave pre-commit/ruff/ty unspawnable.)
 [dependency-groups]
 dev = [
+    # The `mirage` extra's pin, for the suite - see the extra.
+    "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
     "pytest>=9.0.0",
     "anyio[trio]>=4.15.1",
     "pytest-cov>=6.1.0",
@@ -835,6 +842,7 @@ include = [
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.
@@ -1538,6 +1546,7 @@ include = [
     "app/services/portals/outlook_calendar.py",
     "app/services/portals/registry.py",
     "app/services/mcp_connection.py",
+    "app/services/mirage_mounts.py",
     # Which providers can draw an image, derived from the SDK. What it decides is
     # what the Builder offers, and a probe that quietly starts answering "no"
     # would empty that picker without a single test failing.

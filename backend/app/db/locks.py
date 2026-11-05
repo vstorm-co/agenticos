@@ -31,6 +31,7 @@ class LockScope(IntEnum):
     #: How many organizations one account may own.
     CONVERSATION_TURN = 23
     CONVERSATION_TASKS = 24
+    CONNECTED_ACCOUNTS = 25
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2

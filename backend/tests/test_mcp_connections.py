@@ -173,6 +173,7 @@ def _connection(**overrides) -> McpConnection:
         "is_enabled": True,
         "include_instructions": False,
         "auth_type": "bearer",
+        "purpose": "mcp",
         "oauth_state": None,
         "oauth_payload": None,
         "oauth_pending_payload": None,

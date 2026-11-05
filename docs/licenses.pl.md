@@ -1,5 +1,5 @@
 ---
-source_sha: "445f16218979"
+source_sha: "448790f4bd52"
 ---
 
 # Licencje i noty stron trzecich { #licences-and-third-party-notices }
@@ -38,6 +38,12 @@ Narzędzi deweloperskich i dokumentacyjnych (`uv sync --dev`, grupa zależności
 `docs`, `devDependencies`) nie ma ani w obrazach, ani w notach. Narzędzia
 budowania, które działają w etapie buildera i których nie ma w warstwie końcowej,
 takie jak `uv`, są zapisane w `licenses/components.toml` jako niedystrybuowane.
+
+Opcjonalnych extras `kerberos` i `mirage` nie ma w publikowanych obrazach,
+więc notki ich nie obejmują. Publikowany backend zawiera `browser`. Operator, który buduje obraz z `EXTRAS`,
+dystrybuuje również te pakiety, na ich własnych licencjach. Extra `mirage` wnosi
+[Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) i klienty usług, z
+których korzystają jego backendy.
 
 ## Inwentarz { #the-inventory }
 

@@ -152,6 +152,11 @@ from app.agents.capabilities.guardrails import (
     output_screen,
 )
 from app.agents.capabilities.media import offloaded_history
+from app.agents.capabilities.mirage import (
+    MIRAGE_CAPABILITY_ID,
+    MIRAGE_MOUNTS_RESOURCE,
+    MirageConfig,
+)
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -326,6 +331,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
+from app.services.mirage_mounts import MirageMountService
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import ModelProfileService, reaches_a_sign_in
 from app.services.notifications import NotificationService
@@ -2323,20 +2329,36 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     )
 
 
-def _with_channel_mcp_approval(
+def _with_channel_service_approval(
     spec: AgentSpec, surface: RunSurface, *, linked_sender: bool = False
 ) -> AgentSpec:
     """Require approval for channel writes, preserving an operator's stricter policy.
 
     Linked senders use web chat's read-only classification. An unlinked room
-    participant still needs approval for every MCP call; no member vouched for
-    releasing organization data to them. An explicit `all` still includes reads.
+    participant needs approval for every MCP or Mirage call; no member vouched
+    for releasing organization data to them. An explicit `all` still includes reads.
     This also applies to delegates and resumed runs through the shared factory.
     """
     if surface not in _CHANNEL_SURFACES:
         return spec
     return spec.model_copy(
         update={
+            "capabilities": [
+                binding.model_copy(
+                    update={
+                        "approval": "required",
+                        "tool_approval": {
+                            **binding.tool_approval,
+                            **dict.fromkeys(
+                                capability_def(MIRAGE_CAPABILITY_ID).tool_ids, "required"
+                            ),
+                        },
+                    }
+                )
+                if not linked_sender and binding.id == MIRAGE_CAPABILITY_ID
+                else binding
+                for binding in spec.capabilities
+            ],
             "mcp_servers": [
                 ref.model_copy(
                     update={
@@ -2346,7 +2368,7 @@ def _with_channel_mcp_approval(
                     }
                 )
                 for ref in spec.mcp_servers
-            ]
+            ],
         }
     )
 
@@ -2804,6 +2826,14 @@ def _browser_step_profile(spec: AgentSpec) -> UUID | None:
         if binding.id == BROWSER_CAPABILITY_ID and binding.enabled:
             config = WebBrowserConfig.model_validate(binding.config)
             return config.step_model_profile_id
+    return None
+
+
+def _mirage_config(spec: AgentSpec) -> MirageConfig | None:
+    """The agent's virtual terminal, when it binds one."""
+    for binding in spec.capabilities:
+        if binding.id == MIRAGE_CAPABILITY_ID and binding.enabled:
+            return MirageConfig.model_validate(binding.config)
     return None
 
 
@@ -3583,7 +3613,7 @@ class AgentRunnerService:
             if acts_for_sender and not subject_is_publisher_fallback
             else None
         )
-        spec = _with_channel_mcp_approval(
+        spec = _with_channel_service_approval(
             spec, surface, linked_sender=personal_mcp_user_id is not None
         )
         # Whether a signed-in person is behind this run even where a personal
@@ -3628,6 +3658,7 @@ class AgentRunnerService:
             )
         spec = _with_personal_service_gaps(spec, briefed, surface, sender_present=sender_present)
         spec = _with_account_notes(spec, resolved.accounts)
+        await self._add_mirage_terminal(resources, ctx, spec, person_id=personal_mcp_user_id)
 
         run = existing_run
         if run is None:
@@ -4653,8 +4684,15 @@ class AgentRunnerService:
                 shared,
             )
         )
+        spec = _with_channel_service_approval(
+            spec, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
+        )
         own_resources = await self._delegate_resources(
-            ctx, spec, shared=shared, parent_resources=resources
+            ctx,
+            spec,
+            shared=shared,
+            parent_resources=resources,
+            person_id=delegation.personal_mcp_user_id,
         )
         return ResolvedSubagent(
             name=specialist.name,
@@ -4779,7 +4817,11 @@ class AgentRunnerService:
         pinned = _with_shared(published, shared)
         pinned = await self.registry.with_assistant_guidance(delegate, pinned)
         delegate_resources = await self._delegate_resources(
-            ctx, pinned, shared=shared, parent_resources=resources
+            ctx,
+            pinned,
+            shared=shared,
+            parent_resources=resources,
+            person_id=delegation.personal_mcp_user_id,
         )
         runnable = pinned
         nested_config = _delegation_config(pinned)
@@ -4838,7 +4880,7 @@ class AgentRunnerService:
                 # other.
                 runnable = _without_delegation(pinned)
 
-        runnable = _with_channel_mcp_approval(
+        runnable = _with_channel_service_approval(
             runnable, delegation.surface, linked_sender=delegation.personal_mcp_user_id is not None
         )
         model = await self.models.resolve(
@@ -4903,6 +4945,7 @@ class AgentRunnerService:
         *,
         shared: list[CapabilityBindingSpec],
         parent_resources: dict[str, Any],
+        person_id: UUID | None,
     ) -> dict[str, Any]:
         """A resource dict of the delegate's own, resolved from the delegate's spec.
 
@@ -4943,7 +4986,29 @@ class AgentRunnerService:
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).
             resources[SPILL_LOG_RESOURCE] = parent_resources.get(SPILL_LOG_RESOURCE)
+        await self._add_mirage_terminal(resources, ctx, spec, person_id=person_id)
         return resources
+
+    async def _add_mirage_terminal(
+        self,
+        resources: dict[str, Any],
+        ctx: AuthContext,
+        spec: AgentSpec,
+        *,
+        person_id: UUID | None,
+    ) -> None:
+        """The virtual terminal's folders, when the spec binds one.
+
+        Resolved here for the reason collection names are: which secret and which
+        account a folder reaches is the server's decision, made before the model
+        is called. Every credential arrives as a `SecretStr`, which a log line
+        that prints the resource shows as asterisks.
+        """
+        config = _mirage_config(spec)
+        if config is not None:
+            resources[MIRAGE_MOUNTS_RESOURCE] = await MirageMountService(self.db).resolve(
+                ctx, config, person_id=person_id
+            )
 
     async def _workspace_shared(
         self, ctx: AuthContext, scope: str, conversation_id: UUID | None

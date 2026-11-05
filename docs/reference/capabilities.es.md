@@ -1,5 +1,5 @@
 ---
-source_sha: "b9c6d9c6f25b"
+source_sha: "970dcbba6cd6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -78,6 +78,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
+| `mirage` | Terminal virtual | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | por carpeta, con el extra `mirage` | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
@@ -1257,6 +1258,91 @@ Esos archivos son escribibles, y lo que el agent escribe **no** se convierte en 
 skill. Un skill son instrucciones que sigue en cada run todo agent vinculado a él,
 así que un cambio se registra como una propuesta y alguien con `skills:edit` la
 acepta o la descarta; consulta [Skills](../skills.md).
+
+## Mirage (terminal virtual) { #mirage }
+
+Las siete herramientas de `sandbox`, con el prefijo `mirage_`, sobre los servicios
+que monta un autor: un Google Drive, un repositorio de GitHub, Notion, una base de
+datos Postgres, un servidor SSH, un buzón de correo.
+[Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) monta cada servicio como
+una carpeta y ejecuta la shell sobre ella a través de la propia API del servicio,
+así que el agent responde «¿qué contratos mencionan a Acme?» con un `grep` sobre una
+carpeta de Drive. No arranca ningún contenedor. Un agent puede tener esta
+capability y una sandbox a la vez: las herramientas del terminal siempre llegan al
+terminal, y `execute` sigue llegando a la sandbox.
+
+| Configuración | Por defecto | Valores |
+|---|---|---|
+| `mounts` | obligatorio | De una a diez carpetas, cada una descrita abajo |
+| `allowed_commands` | comandos virtuales salvo `curl`/`wget` | Nombres de comandos que la shell puede ejecutar, como `ls`, `cat`, `grep` |
+| `hidden_paths` | ninguno | Rutas absolutas que el agent no ve en absoluto, como `/drive/HR/` |
+
+**Una carpeta es una ruta, un servicio y una forma de iniciar sesión.** La ruta es
+un nombre en minúsculas entre barras (`/drive/`). El servicio es uno de los
+backends que el deployment puede montar, con sus propias opciones: un
+repositorio, un id de carpeta, un host. Una carpeta es de solo lectura salvo que
+el autor permita escribir. Una carpeta con escritura pide a una persona que
+apruebe cada escritura salvo que el autor lo desactive. El Builder lista todos los
+servicios que trae Mirage y da el motivo de cada uno que este deployment no puede
+montar.
+
+**Cómo inicia sesión una carpeta depende del servicio:**
+
+| Credencial | Servicios | Qué guarda el spec |
+|---|---|---|
+| Claves del vault | GitHub, Notion, Linear, Slack, Postgres, SSH, correo IMAP y el resto | Un secreto `api_key` por cada campo de credencial (`token`, `dsn`, `password`) |
+| Una app de Entra | OneDrive, SharePoint | Un secreto `entra_app`, como el que el run inicia sesión para obtener un token de Microsoft Graph |
+| Una cuenta de Google | Drive, Docs, Sheets, Slides, Gmail, Calendar | Una de las [cuentas conectadas](../secrets.md#connected-accounts) de la organización, o las propias de cada persona |
+| Ninguna | Espacio temporal (`ram`) | Nada |
+
+**Las cuentas propias de cada persona se buscan cuando esa persona habla con el
+agent.** Quien tiene dos cuentas de Google recibe dos carpetas bajo el punto de
+montaje, cada una con el nombre de su dirección. Quien no tiene ninguna, como una
+clave de API o una programación, no recibe carpeta, y el agent lo sabe. Una cuenta
+de la organización responde por todos los que hablan con el agent.
+
+**Un spec nunca guarda una credencial, un endpoint sustituido ni una ruta en el
+host de la API.** La publicación rechaza un secreto que quien publica no puede
+prestar, un secreto del tipo equivocado y una cuenta que la organización no tiene.
+Un host que escribe el autor tiene que estar en
+[`MIRAGE_ALLOWED_HOSTS`](../configuration.md), como un servidor SSH o el host de un
+DSN. La publicación comprueba el host escrito, y el run comprueba los hosts
+guardados dentro de los secretos.
+
+**La aprobación es por carpeta, no por herramienta.** `mirage_execute ls` y
+`mirage_execute rm /drive/q3.pdf` son la misma herramienta, así que aprobar la
+herramienta preguntaría por las dos. En su lugar, una llamada que escribiría en una
+carpeta marcada «Aprobar cada escritura» pasa por la
+[aprobación](../governance.md) antes de ejecutarse. Para `mirage_write_file` y
+`mirage_edit_file` decide el `path` de la llamada. Para `mirage_execute`, Mirage
+ensaya antes la línea de comandos, así que una redirección, `cp`, `tee` y `rm` se
+detectan. Una escritura que ningún ensayo previó, como `echo x > $TARGET`, se
+rechaza salvo que la llamada se haya aprobado.
+
+**Límites y continuación tras la aprobación.** Mirage 0.0.8 limita la caché de
+archivos a 16 MiB y la memoria del workspace a 16 MiB. Cada comando devuelve
+como máximo 64 KiB por flujo de salida; después se detiene la lectura y se indica
+que el resultado está incompleto. Las carpetas RAM se conservan en los metadatos
+de mensajes del run pausado y se restauran tras aprobarlo, también en los
+delegados. No se incluyen credenciales ni cachés de servicios externos. La
+carpeta de cada cuenta personal incluye su ID estable para evitar que direcciones
+de correo similares sobrescriban otras cuentas.
+
+**Es una instalación opcional.** Instala el extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 ya no requiere el antiguo paso de compilación del analizador de shell. Sin el extra, el Builder indica que falta el terminal y rechaza un spec que lo vincule. La familia S3 sigue sin estar disponible porque su SDK asíncrono entra en conflicto con las dependencias AWS actuales; el Builder explica el motivo. Todos los hosts configurables, incluidos los valores predeterminados de los backends, deben estar permitidos en `MIRAGE_ALLOWED_HOSTS`.
+
+**Box y LanceDB.** Box utiliza una cuenta de servicio mediante Client Credentials: proporciona `client_id`, `enterprise_id` y un secreto API key del vault (propósito `custom`) para `client_secret`. No admite tokens de desarrollo ni refresh tokens OAuth rotatorios. LanceDB solo funciona como Cloud/Enterprise: requiere `uri: db://database-name`, un endpoint HTTPS `host_override` permitido en `MIRAGE_ALLOWED_HOSTS` y un secreto API key (`custom`) para `api_key`. Rechaza rutas locales, URI de almacenamiento de objetos y `storage_options`. El extra incluye LanceDB y PyArrow, lo que aumenta el tamaño de la imagen.
+
+Qdrant y Langfuse están disponibles con el extra. Qdrant permite listar y leer
+archivos y usar grep de texto; la búsqueda semántica con modelos no está habilitada.
+El consentimiento debe terminar en el mismo navegador y con la misma cuenta
+iniciadora de AgenticOS.
+
+
+Los secretos del vault deben corresponder al propósito del backend; `custom` permite una integración propia de forma explícita. OneDrive y SharePoint aceptan una aplicación Entra con propósito `sharepoint`, y los servicios de Hugging Face aceptan `huggingface`. La publicación y la ejecución aplican la misma regla. Cada host de una lista de servidores PostgreSQL debe figurar en la lista permitida del despliegue. MongoDB y GridFS requieren un único host `mongodb://`: la plataforma fuerza `directConnection=true` y rechaza el descubrimiento SRV. Los remitentes de canales sin cuenta vinculada necesitan aprobación para cada herramienta Mirage, incluso las lecturas; al vincular la cuenta se aplica la política habitual de carpetas del autor.
+
+Los montajes PostgreSQL requieren una contraseña no vacía en el DSN de la bóveda; no se admiten contraseñas vacías ni autenticación sin contraseña. No recurren a `PGPASSWORD` ni a `.pgpass`. Se rechazan los parámetros DSN que apuntan a archivos de credenciales o TLS del host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`).
+
+SSH usa un nombre de usuario explícito y una contraseña del vault. Proporciona el `host_key` público de confianza del servidor; el adaptador fija esa clave y desactiva la configuración SSH local, las claves privadas locales y el agente SSH. No se permite la autenticación automática con credenciales del entorno.
 
 ## Gráficos { #charts }
 

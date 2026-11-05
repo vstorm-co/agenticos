@@ -57,7 +57,7 @@ from app.agents.voice import VoiceOptions
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
-from app.db.models.agent_run import RunStatus
+from app.db.models.agent_run import RunStatus, RunSurface
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID
 from app.services.agent_runner import (
     AdmittedAs,
@@ -289,6 +289,8 @@ async def _prepare(
     agent_id: uuid.UUID | None = None,
     profiles: list[MagicMock] | None = None,
     voice: VoiceRun | None = None,
+    surface: RunSurface = RunSurface.API,
+    acts_for_sender: bool = False,
 ) -> _Prepared:
     """Prepare a run of `spec` with every database read answered from memory.
 
@@ -379,7 +381,9 @@ async def _prepare(
         patch(f"{RUNNER}.agent_run_repo.create_run", new=AsyncMock(return_value=run)),
         patch(f"{RUNNER}.build_agent") as build,
     ):
-        prepared = await service.prepare(ctx, agent.id, voice=voice)
+        prepared = await service.prepare(
+            ctx, agent.id, voice=voice, surface=surface, acts_for_sender=acts_for_sender
+        )
 
     return _Prepared(prepared, build, fetch_version, list_profiles, resolved)
 
@@ -2254,3 +2258,32 @@ class TestADelegateIsBriefedOnWhatItCannotReach:
         assert built["spec"].instructions.startswith("Search Notion.\n\n")
         assert "has not connected their own Notion" in built["spec"].instructions
         assert built["extra_toolsets"] == []
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("linked", [False, True])
+@pytest.mark.parametrize(
+    "surface", [RunSurface.SLACK, RunSurface.MATTERMOST, RunSurface.TEAMS, RunSurface.TELEGRAM]
+)
+async def test_inline_mirage_cannot_bypass_an_unlinked_channel_gate(
+    surface: RunSurface, linked: bool
+):
+    from app.agents.capabilities import get
+    from app.agents.capabilities.approval import approval_required_tools
+
+    tools = get("mirage").tool_ids
+    specialist = _specialist(
+        capabilities=[
+            {
+                "id": "mirage",
+                "approval": "never",
+                "tool_approval": dict.fromkeys(tools, "never"),
+                "config": {"mounts": [{"path": "/data/", "backend": "ram"}]},
+            }
+        ]
+    )
+    prepared = await _prepare(
+        _delegating(inline=[specialist]), surface=surface, acts_for_sender=linked
+    )
+    built = prepared.built("summariser")["spec"]
+    assert approval_required_tools(built) == (frozenset() if linked else tools)

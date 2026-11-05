@@ -1,5 +1,5 @@
 ---
-source_sha: "b9c6d9c6f25b"
+source_sha: "970dcbba6cd6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -78,6 +78,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
+| `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
@@ -1234,6 +1235,87 @@ Te pliki są zapisywalne, a to, co agent zapisze, **nie** staje się skillem. Sk
 to instrukcje, za którymi idzie każdy powiązany z nim agent przy każdym runie, więc
 zmiana jest zapisywana jako propozycja, a ktoś z `skills:edit` ją przyjmuje albo
 odrzuca — zobacz [Skille](../skills.md).
+
+## Mirage (wirtualny terminal) { #mirage }
+
+Siedem narzędzi `sandbox` z prefiksem `mirage_`, działających na usługach, które
+autor montuje: Dysk Google, repozytorium GitHub, Notion, baza Postgres, serwer SSH,
+skrzynka pocztowa. [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0)
+montuje każdą usługę jako folder i uruchamia na nim powłokę przez API samej
+usługi, więc agent odpowiada na pytanie „które umowy wspominają Acme?” poleceniem
+`grep` po folderze na Dysku. Żaden kontener się nie uruchamia. Agent może mieć
+jednocześnie tę capability i sandbox: narzędzia terminala zawsze trafiają do
+terminala, a `execute` nadal trafia do sandboksa.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `mounts` | wymagane | Od jednego do dziesięciu folderów, każdy opisany niżej |
+| `allowed_commands` | polecenia wirtualne poza `curl`/`wget` | Nazwy poleceń, które powłoka może uruchomić, np. `ls`, `cat`, `grep` |
+| `hidden_paths` | brak | Ścieżki bezwzględne, których agent w ogóle nie widzi, np. `/drive/HR/` |
+
+**Folder to ścieżka, usługa i sposób logowania.** Ścieżka to jedna nazwa małymi
+literami między ukośnikami (`/drive/`). Usługa to jeden z backendów, które
+wdrożenie potrafi zamontować, z jej własnymi opcjami: repozytorium, id folderu,
+host. Folder jest tylko do odczytu, chyba że autor pozwoli w nim zapisywać.
+Folder z zapisem prosi osobę o zatwierdzenie każdego zapisu, chyba że autor to
+wyłączy. Builder pokazuje każdą usługę, którą ma Mirage, i podaje powód przy
+każdej, której to wdrożenie nie może zamontować.
+
+**Sposób logowania folderu zależy od usługi:**
+
+| Poświadczenie | Usługi | Co zawiera spec |
+|---|---|---|
+| Klucze w vaulcie | GitHub, Notion, Linear, Slack, Postgres, SSH, poczta IMAP i pozostałe | Sekret `api_key` dla każdego pola poświadczenia (`token`, `dsn`, `password`) |
+| Aplikacja Entra | OneDrive, SharePoint | Sekret `entra_app`, jako który run loguje się po token Microsoft Graph |
+| Konto Google | Dysk, Dokumenty, Arkusze, Prezentacje, Gmail, Kalendarz | Jedno z [podłączonych kont](../secrets.md#connected-accounts) organizacji albo własne konta każdej osoby |
+| Brak | Przestrzeń robocza (`ram`) | Nic |
+
+**Własne konta każdej osoby są wyszukiwane, gdy ta osoba rozmawia z agentem.**
+Ktoś z dwoma kontami Google dostaje pod punktem montowania dwa foldery, nazwane
+od każdego adresu. Ktoś bez konta, np. klucz API albo harmonogram, nie dostaje
+folderu, a agent dowiaduje się o tym. Konto organizacji odpowiada za każdego,
+kto rozmawia z agentem.
+
+**Spec nigdy nie zawiera poświadczenia, nadpisanego endpointu ani ścieżki na
+hoście API.** Publikacja odrzuca sekret, którego publikujący nie może użyczyć,
+sekret złego rodzaju i konto, którego organizacja nie ma. Host wpisany przez
+autora musi być w [`MIRAGE_ALLOWED_HOSTS`](../configuration.md), np. serwer SSH
+albo host w DSN. Publikacja sprawdza wpisany host, a run sprawdza hosty zapisane
+w sekretach.
+
+**Zatwierdzanie działa per folder, a nie per narzędzie.** `mirage_execute ls` i
+`mirage_execute rm /drive/q3.pdf` to to samo narzędzie, więc bramka na narzędziu
+pytałaby o oba. Zamiast tego wywołanie, które zapisałoby do folderu z
+zatwierdzaniem każdego zapisu, trafia do [bramki zatwierdzeń](../governance.md),
+zanim się wykona. Dla `mirage_write_file` i `mirage_edit_file` decyduje `path`
+wywołania. Dla `mirage_execute` Mirage najpierw wykonuje linię poleceń na sucho,
+więc przekierowanie, `cp`, `tee` i `rm` są wychwytywane. Zapis, którego żadna
+próba na sucho nie przewidziała, np. `echo x > $TARGET`, jest odrzucany, chyba
+że wywołanie zatwierdzono.
+
+**Limity i wznowienie po zatwierdzeniu.** Mirage 0.0.8 ma limit 16 MiB pamięci
+podręcznej plików oraz 16 MiB pamięci workspace. Polecenie zwraca maksymalnie
+64 KiB na strumień wyjściowy; po przekroczeniu limitu odczyt jest zatrzymywany,
+a wynik oznaczany jako niepełny. Foldery RAM są zachowywane w metadanych
+wiadomości zaparkowanego runu i odtwarzane po zatwierdzeniu, również u delegatów.
+Nie obejmuje to poświadczeń ani cache usług zewnętrznych. Folder konta osobistego
+zawiera jego stały identyfikator, więc podobne adresy e-mail nie nadpisują kont.
+
+**To instalacja opcjonalna.** Zainstaluj extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 nie wymaga już poprzedniego kroku kompilacji parsera powłoki. Bez extra Builder informuje o braku terminala, a publikacja odrzuca spec, który go wiąże. Rodzina S3 pozostaje niedostępna: jej asynchroniczny SDK koliduje z obecnymi zależnościami AWS; Builder wyjaśnia przyczynę. Wszystkie konfigurowalne hosty, także domyślne adresy backendów, muszą znajdować się na `MIRAGE_ALLOWED_HOSTS`.
+
+**Box i LanceDB.** Box korzysta z konta serwisowego przez Client Credentials: podaj `client_id`, `enterprise_id` i sekret typu API key z vaulta (przeznaczenie `custom`) jako `client_secret`. Tokeny deweloperskie i rotujące tokeny odświeżania OAuth nie są obsługiwane. LanceDB działa wyłącznie jako Cloud/Enterprise: podaj `uri: db://database-name`, wymagany endpoint HTTPS `host_override` dopuszczony w `MIRAGE_ALLOWED_HOSTS` i sekret API key (`custom`) jako `api_key`. Lokalne ścieżki, URI magazynów obiektowych i `storage_options` są odrzucane. Extra zawiera LanceDB i PyArrow, więc obraz z tą opcją jest większy.
+
+Qdrant i Langfuse są dostępne w extra. Qdrant obsługuje listowanie i odczyt plików
+oraz tekstowy grep; semantyczne wyszukiwanie wymagające modelu nie jest włączone.
+Zgodę na połączenie konta należy dokończyć w tej samej przeglądarce i na tym samym
+zalogowanym koncie, na którym ją rozpoczęto.
+
+
+Sekret z vaulta musi odpowiadać przeznaczeniu backendu; `custom` pozwala świadomie użyć własnej integracji. OneDrive i SharePoint przyjmują aplikację Entra o przeznaczeniu `sharepoint`, a usługi Hugging Face — `huggingface`. Ta sama reguła obowiązuje przy publikacji i uruchomieniu. Każdy host z listy serwerów PostgreSQL musi znajdować się na liście dozwolonych hostów deploymentu. MongoDB i GridFS wymagają jednego hosta `mongodb://`: platforma wymusza `directConnection=true` i odrzuca odkrywanie przez SRV. Nadawca z kanału bez połączonego konta wymaga zgody na każde narzędzie Mirage, także odczyt; połączenie konta przywraca zwykłe zasady folderów ustalone przez autora.
+
+Montowania PostgreSQL wymagają niepustego hasła w DSN z vaulta; puste hasła i uwierzytelnianie bez hasła nie są obsługiwane. Nie korzystają zastępczo z `PGPASSWORD` ani `.pgpass`. Parametry DSN wskazujące pliki poświadczeń lub TLS na hoście (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) są odrzucane.
+
+SSH używa jawnej nazwy użytkownika i hasła wskazanego w vaulcie. Podaj zaufany publiczny `host_key` serwera; adapter przypina ten klucz oraz wyłącza lokalną konfigurację SSH, lokalne klucze prywatne i agenta SSH. Automatyczne uwierzytelnianie danymi środowiska nie jest dostępne.
 
 ## Wykresy { #charts }
 

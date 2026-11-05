@@ -3956,7 +3956,23 @@
       "storedCount": "{count, plural, one {1 zapisany klucz} few {# zapisane klucze} many {# zapisanych kluczy} other {# zapisanego klucza}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje."
+      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje.",
+      "connectedAccounts": {
+        "personalTitle": "Twoje podłączone konta",
+        "organizationTitle": "Podłączone konta organizacji",
+        "count": "{count, plural, one {# konto} few {# konta} many {# kont} other {# konta}}",
+        "connect": "Podłącz konto Google",
+        "noneYet": "Nie podłączono jeszcze żadnego konta",
+        "personalDetail": "Agent, którego wirtualny terminal czyta własne konta każdej osoby, montuje je, gdy z nim rozmawiasz.",
+        "organizationDetail": "Wirtualny terminal agenta może czytać jedno z tych kont dla każdego, kto z nim rozmawia.",
+        "needsReconnect": "Logowanie przestało działać. Podłącz konto ponownie.",
+        "scopes": "{count, plural, one {# przyznane uprawnienie} few {# przyznane uprawnienia} many {# przyznanych uprawnień} other {# przyznanego uprawnienia}}",
+        "reconnect": "Podłącz ponownie",
+        "disconnect": "Odłącz {email}",
+        "disconnectTitle": "Odłączyć {email}?",
+        "disconnectDetail": "Agenci czytający to konto stracą jego foldery przy następnym uruchomieniu. Zgoda zostanie usunięta z vault.",
+        "disconnectConfirm": "Odłącz"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Nie udało się wczytać workspace",
@@ -8960,6 +8976,20 @@
         "title": "Podgląd na żywo",
         "description": "Pokazuj pulpit na żywo w czacie, gdy agent na nim pracuje."
       }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Foldery",
+        "description": "Co terminal montuje, każde jako folder."
+      },
+      "allowed_commands": {
+        "title": "Dozwolone polecenia",
+        "description": "Uruchamiaj tylko te polecenia, np. ls, cat, grep. Pusta lista dopuszcza polecenia wirtualne; bezpośrednie curl/wget są wyłączone."
+      },
+      "hidden_paths": {
+        "title": "Ukryte ścieżki",
+        "description": "Ścieżki, których agent w ogóle nie widzi, np. /drive/HR/."
+      }
     }
   },
   "apiReference": {
@@ -11643,6 +11673,15 @@
       "needs": "Opublikowany agent w konsoli, aktywny członek organizacji i zatwierdzony folder do pracy lokalnej.",
       "never": "Nie kopiuje całej rozmowy, nie pomija zgód, nie powtarza przerwanych działań ani nie tworzy watchów i rutyn.",
       "example1": "Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy planowanie wydania."
+    },
+    "mirage": {
+      "name": "Mirage (wirtualny terminal)",
+      "does": "Montuje wybrane usługi - Dysk, repozytorium GitHub, Notion, bazę danych, serwer SSH - jako foldery, więc agent przegląda je, przeszukuje i czyta w powłoce, a pisze tam, gdzie mu pozwolisz.",
+      "example1": "Znajdź w folderze na Dysku każdą umowę, która wspomina klienta",
+      "example2": "Przeszukaj naraz repozytorium i przestrzeń w Notion",
+      "example3": "Odczytaj tabelę z bazy danych i ją podsumuj",
+      "needs": "Dane dostępowe usług w vaulcie albo połączone konto Google. Wdrożenie instaluje terminal z extra mirage, a operator zezwala na hosty serwerów, które wpiszesz.",
+      "never": "Nigdy nie pisze w folderze zamontowanym tylko do odczytu i pyta osobę przed każdym zapisem tam, gdzie tak ustawisz."
     }
   },
   "capabilityCategories": {
@@ -12460,5 +12499,31 @@
     "rootFolder": "Folder główny",
     "untagged": "Bez tagów",
     "visibleNotes": "Widoczne notatki: {visible} z {total}"
+  },
+  "mirage": {
+    "folders": "Foldery",
+    "foldersDetail": "Każde źródło dodajesz osobno: wybierz integrację, dane dostępowe i uprawnienia. Integracja staje się folderem, który agent może przeglądać, przeszukiwać i czytać.",
+    "addFolder": "Dodaj integrację",
+    "folder": "Folder",
+    "service": "Integracja",
+    "servicePlaceholder": "Wybierz usługę ({name} nie jest tu dostępna)",
+    "removeFolder": "Usuń {folder}",
+    "writable": "Agent może tu zapisywać",
+    "approveWrites": "Zatwierdzaj każdy zapis",
+    "secretFor": "Sekret dla {field}",
+    "entraApp": "Aplikacja Entra",
+    "chooseSecret": "Wybierz sekret",
+    "noSecret": "Brak",
+    "noSecrets": "Nie ma jeszcze pasującego sekretu. Dodaj go w <link>vault</link>.",
+    "account": "Konto",
+    "chooseAccount": "Wybierz konto",
+    "personalAccounts": "Własne konta każdej osoby",
+    "personalAccountsDetail": "Każda osoba rozmawiająca z agentem widzi własne konta, po jednym folderze na konto. Podłącza je w <link>vault</link>.",
+    "organizationAccountsDetail": "Każdy, kto rozmawia z agentem, czyta to konto. Organizacja podłącza konta w <link>vault</link>.",
+    "backendsUnavailable": "Nie udało się wczytać listy usług.",
+    "notInstalled": "To wdrożenie nie ma zainstalowanego wirtualnego terminala. Operator instaluje go z dodatkiem mirage.",
+    "jsonLabel": "{name} (JSON)",
+    "jsonHint": "Edytuj jako JSON. Poprawne zmiany są zapisywane; niepełny JSON zachowuje ostatnią poprawną wartość.",
+    "jsonInvalid": "Wpisz poprawny JSON wymaganego typu. Ostatnia poprawna wartość pozostaje bez zmian."
   }
 }
