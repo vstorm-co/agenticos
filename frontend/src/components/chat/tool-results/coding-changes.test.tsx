@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskChanges } from "./coding-changes";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
 import type { ChangedFile, CodingTaskChanges } from "@/lib/coding-changes-api";
 
 vi.mock("@/lib/api-client", () => ({
@@ -156,6 +157,29 @@ describe("TaskChanges", () => {
     expect(screen.getByText("50 more lines - Copy patch has them.")).toBeInTheDocument();
   });
 
+  it("stops drawing lines once the change set has drawn its share", async () => {
+    // Five files fill the budget at 400 lines each; the sixth draws none.
+    const lines = Array.from({ length: 450 }, (_, index) => `+line ${index}\n`).join("");
+    show(
+      changes({
+        files: Array.from({ length: 6 }, (_, index) =>
+          file({
+            path: `gen-${index}.txt`,
+            status: "added",
+            additions: 450,
+            patch: `@@ -0,0 +1,450 @@\n${lines}`,
+          }),
+        ),
+      }),
+    );
+
+    expect(await screen.findByText("Changed 6 files")).toBeInTheDocument();
+    expect(screen.getAllByText("line 399")).toHaveLength(5);
+    expect(screen.getAllByText("50 more lines - Copy patch has them.")).toHaveLength(5);
+    expect(screen.getByText("450 more lines - Copy patch has them.")).toBeInTheDocument();
+    expect(screen.queryByText(/did not change/)).not.toBeInTheDocument();
+  });
+
   it("names a renamed, a binary and a mode-only file without inventing lines", async () => {
     show(
       changes({
@@ -202,7 +226,7 @@ describe("TaskChanges", () => {
     expect(screen.getByText("Loading what the task changed…")).toBeInTheDocument();
     unmount();
 
-    show(new Error("404"));
+    show(new ApiError(404, "Change set not found"));
     expect(
       await screen.findByText("What the task changed could not be loaded."),
     ).toBeInTheDocument();

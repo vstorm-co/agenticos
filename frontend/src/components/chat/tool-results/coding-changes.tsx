@@ -2,13 +2,13 @@
 
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { Button } from "@/components/ui";
 import { useCodingChanges } from "@/hooks/use-coding-changes";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import type { ChangedFile, CodingTaskChanges } from "@/lib/coding-changes-api";
-import { capHunks, hunksOf } from "@/lib/patch";
+import { capChangeSet, type Hunk } from "@/lib/patch";
 import { cn } from "@/lib/utils";
 import { CollapsibleBlock } from "../collapsible-block";
 
@@ -26,6 +26,7 @@ export function TaskChanges({
 }) {
   const t = useTranslations("chat.tools.codingAgent");
   const { changes, isLoading, failed } = useCodingChanges(changeId);
+  const diffs = useMemo(() => (changes === null ? [] : capChangeSet(changes.files)), [changes]);
 
   if (isLoading) return <p className="text-muted-foreground text-xs">{t("changesLoading")}</p>;
   if (failed || changes === null) {
@@ -44,8 +45,13 @@ export function TaskChanges({
     <CollapsibleBlock label={t("changes", { count })} open>
       <div className="space-y-3 p-3">
         <FileList changes={changes} />
-        {changes.files.map((file) => (
-          <FileDiff key={`${file.old_path ?? ""}:${file.path}`} file={file} />
+        {diffs.map(({ file, hunks, hidden }) => (
+          <FileDiff
+            key={`${file.old_path ?? ""}:${file.path}`}
+            file={file}
+            hunks={hunks}
+            hidden={hidden}
+          />
         ))}
       </div>
     </CollapsibleBlock>
@@ -111,9 +117,8 @@ function Counts({ file }: { file: ChangedFile }) {
   );
 }
 
-function FileDiff({ file }: { file: ChangedFile }) {
+function FileDiff({ file, hunks, hidden }: { file: ChangedFile; hunks: Hunk[]; hidden: number }) {
   const t = useTranslations("chat.tools.codingAgent");
-  const { hunks, hidden } = capHunks(file.patch === null ? [] : hunksOf(file.patch));
   // Cut before its first hunk is cut, not unchanged.
   const empty =
     file.patch === null || file.truncated
@@ -127,7 +132,10 @@ function FileDiff({ file }: { file: ChangedFile }) {
         {file.path}
       </h4>
       {hunks.length === 0 ? (
-        <p className="text-muted-foreground px-3 py-2 text-xs">{empty}</p>
+        <p className="text-muted-foreground px-3 py-2 text-xs">
+          {/* Lines past the change set's budget, not a file without any. */}
+          {hidden > 0 ? t("moreLines", { count: hidden }) : empty}
+        </p>
       ) : (
         <div className="max-h-96 overflow-auto">
           <table className="w-full border-collapse font-mono text-xs leading-5">
@@ -152,7 +160,7 @@ function FileDiff({ file }: { file: ChangedFile }) {
 
 const MARK = { added: "+", removed: "−", context: "", note: "" } as const;
 
-function HunkRows({ header, lines }: ReturnType<typeof hunksOf>[number]) {
+function HunkRows({ header, lines }: Hunk) {
   return (
     <>
       <tr className="bg-muted/60 text-muted-foreground">
