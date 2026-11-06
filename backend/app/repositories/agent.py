@@ -1118,3 +1118,12 @@ async def delegation_candidates(
     if after is not None:
         where.append(Agent.id > after)
     return list(await db.scalars(select(Agent).where(*where).order_by(Agent.id).limit(limit)))
+
+
+async def fence_deletion(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> None:
+    """Conflict with trigger FK key-share locks before checking whether deletion is safe."""
+    await db.scalar(
+        select(Agent.id)
+        .where(Agent.id == agent_id, Agent.organization_id == organization_id)
+        .with_for_update()
+    )

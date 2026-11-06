@@ -12,6 +12,7 @@ from app.db.models.organization import MembershipSource, OrganizationMember, Org
 from app.repositories import (
     api_key_repo,
     group_repo,
+    mcp_connection_repo,
     member_repo,
     oauth_repo,
     organization_repo,
@@ -41,6 +42,9 @@ async def end_membership(db: AsyncSession, membership: OrganizationMember) -> No
         db, organization_id=organization_id, user_id=user_id, at=at
     )
     await coding_account_repo.delete_for_member(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    await mcp_connection_repo.delete_accounts_for_member(
         db, organization_id=organization_id, user_id=user_id
     )
     await member_repo.delete(db, membership)

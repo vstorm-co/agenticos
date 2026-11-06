@@ -7,9 +7,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.drafts._spec import (
-    DRAFT_IDENTITY,
     DRAFTED,
-    WRITE_DRAFT,
     parse_draft_card,
 )
 from app.core.exceptions import (
@@ -74,7 +72,7 @@ def shared_drafts(conversation: Conversation) -> dict[UUID, list[SharedDraft]]:
         for call in _in_turn_order(message)
         if call.status == "completed"
         and (call.result or "").startswith(DRAFTED)
-        and (call.tool_name == WRITE_DRAFT or (call.result or "").endswith(DRAFT_IDENTITY))
+        and call.presentation_kind == "draft"
     ]
     shared: dict[UUID, list[SharedDraft]] = {}
     budget = SHARED_MAX_DRAFT_CHARS

@@ -10,7 +10,6 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.drafts._spec import (
-    DRAFT_IDENTITY,
     DRAFTED,
     WRITE_DRAFT,
     DraftCard,
@@ -124,5 +123,5 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
             )
         return (
             f"{DRAFTED}{card.title!r}. The person can already see the draft in full as a "
-            f"card: do not write it out again in your answer, and say at most one short line. {DRAFT_IDENTITY}"
+            f"card: do not write it out again in your answer, and say at most one short line."
         )

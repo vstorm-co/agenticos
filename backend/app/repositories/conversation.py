@@ -1734,6 +1734,7 @@ async def create_tool_call(
     started_at: datetime,
     status: str = "running",
     mcp_connection_id: UUID | None = None,
+    presentation_kind: Literal["draft"] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -1751,6 +1752,7 @@ async def create_tool_call(
         started_at=started_at,
         status=status,
         mcp_connection_id=mcp_connection_id,
+        presentation_kind=presentation_kind,
     )
     db.add(tool_call)
     await db.flush()

@@ -160,6 +160,7 @@ describe("conversationMessageToChatMessage", () => {
           {
             tool_call_id: "tc-1",
             tool_name: "write_draft",
+            presentation_kind: "draft",
             args: {
               title: "Reply",
               kind: "email",

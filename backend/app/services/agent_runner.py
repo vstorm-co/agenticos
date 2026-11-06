@@ -145,6 +145,7 @@ from app.agents.capabilities.coding_agent import (
     CodingPreferences,
 )
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE, context_config
+from app.agents.capabilities.drafts._spec import draft_tool_names
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
@@ -6732,7 +6733,11 @@ class AgentRunnerService:
         return result
 
     async def stop_parked_for_workflow(
-        self, run_ids: Sequence[UUID], *, organization_id: UUID
+        self,
+        run_ids: Sequence[UUID],
+        *,
+        organization_id: UUID,
+        reason: str = "Stopped: its workflow run ended",
     ) -> list[ParkedStop]:
         """Stop the parked runs workflow steps wait on, because that workflow run ended.
 
@@ -6755,7 +6760,7 @@ class AgentRunnerService:
                 RunStatus.AWAITING_APPROVAL.value,
             ):
                 continue
-            previous_status = await self._close_parked(run, actor_user_id=None)
+            previous_status = await self._close_parked(run, actor_user_id=None, reason=reason)
             stops.append(ParkedStop(run.id, run.organization_id, previous_status))
         return stops
 
@@ -6786,7 +6791,13 @@ class AgentRunnerService:
         )
         return STOPPED_TOOL_RESULT
 
-    async def _close_parked(self, run: AgentRun, *, actor_user_id: UUID | None) -> str:
+    async def _close_parked(
+        self,
+        run: AgentRun,
+        *,
+        actor_user_id: UUID | None,
+        reason: str = "Stopped: its workflow run ended",
+    ) -> str:
         """Close a parked run the caller has locked and checked, keeping its spend.
 
         Returns the status it was parked in. Writes no audit entry: see
@@ -6823,9 +6834,7 @@ class AgentRunnerService:
             cost_usd=run.cost_usd,
             cost_is_partial=run.cost_is_partial,
             ended_at=at,
-            error="Stopped by user"
-            if actor_user_id is not None
-            else "Stopped: its workflow run ended",
+            error="Stopped by user" if actor_user_id is not None else reason,
             paused_state=None,
         )
         if run.routine_kind == "trigger" and run.routine_origin_id is not None:
@@ -7329,6 +7338,7 @@ class AgentRunnerService:
                     parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),
                     model_label=prepared.built.model_label,
                     mcp_origins=prepared.mcp_origins,
+                    draft_tools=draft_tool_names(prepared.spec),
                     # The last request's own size, for the anchor a replayed history
                     # is measured against - see `build_message_history`.
                     context_used_tokens=prepared.built.context.latest,

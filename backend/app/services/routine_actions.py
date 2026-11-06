@@ -91,13 +91,34 @@ async def instruction_fingerprint(
     spec: AgentSpec,
     project_id: UUID | None,
 ) -> str | None:
-    if not spec.skill_ids and not spec.context_ids and project_id is None:
+    skills, contexts = set(spec.skill_ids), set(spec.context_ids)
+    pending = list(spec.subagents)
+    seen: set[UUID] = set()
+    while pending:
+        delegate = pending.pop()
+        if delegate.agent_version_id in seen:
+            continue
+        if len(seen) >= 64:
+            raise BadRequestError(message="A routine can review at most 64 delegate versions")
+        seen.add(delegate.agent_version_id)
+        version = await agent_repo.get_version(
+            db, delegate.agent_version_id, organization_id=organization_id
+        )
+        if version is None or version.agent_id != delegate.agent_id:
+            raise BadRequestError(
+                message="A pinned delegate is no longer available for routine consent"
+            )
+        child = AgentSpec.model_validate(version.spec)
+        skills.update(child.skill_ids)
+        contexts.update(child.context_ids)
+        pending.extend(child.subagents)
+    if not skills and not contexts and project_id is None:
         return None
     material = await agent_repo.mutable_instruction_material(
         db,
         organization_id=organization_id,
-        skill_ids=spec.skill_ids,
-        context_ids=spec.context_ids,
+        skill_ids=sorted(skills),
+        context_ids=sorted(contexts),
         project_id=project_id,
     )
     return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()

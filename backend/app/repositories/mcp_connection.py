@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -639,6 +640,7 @@ async def list_accounts(
     )
     result = await db.execute(
         select(McpConnection)
+        .execution_options(populate_existing=True)
         .where(
             owner,
             McpConnection.purpose == "account",
@@ -653,9 +655,9 @@ async def list_accounts(
 async def get_account(db: AsyncSession, account_id: UUID) -> McpConnection | None:
     """One connected account by id, whoever owns it - the caller checks the owner."""
     result = await db.execute(
-        select(McpConnection).where(
-            McpConnection.id == account_id, McpConnection.purpose == "account"
-        )
+        select(McpConnection)
+        .execution_options(populate_existing=True)
+        .where(McpConnection.id == account_id, McpConnection.purpose == "account")
     )
     return result.scalar_one_or_none()
 
@@ -699,3 +701,19 @@ async def lock_account_owner(
         raise ValueError("An account has exactly one owner")
     subject = f"user:{user_id}" if user_id is not None else f"org:{organization_id}"
     await hold_name(db, LockScope.CONNECTED_ACCOUNTS, subject)
+
+
+async def delete_accounts_for_member(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> None:
+    """A later invitation must not resurrect a former member's copied OAuth client."""
+    await lock_account_owner(db, user_id=user_id)
+    await db.execute(
+        sql_delete(McpConnection).where(
+            McpConnection.scope == "user",
+            McpConnection.purpose == "account",
+            McpConnection.user_id == user_id,
+            McpConnection.account_source_organization_id == organization_id,
+        )
+    )
+    await db.flush()

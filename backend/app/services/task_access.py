@@ -97,7 +97,7 @@ async def execution_allows(db: AsyncSession, ctx: AuthContext, trigger_id: UUID)
 
     link = await task_repo.for_trigger(db, trigger_id)
     if link is None:
-        return True
+        return False
     record = await task_repo.record(db, link.record_id, ctx.organization_id)
     if record is None:
         return False

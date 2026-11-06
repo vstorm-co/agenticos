@@ -779,6 +779,7 @@ class AgentSession:
                     timeline=timeline,
                     tool_calls=collected_tool_calls,
                     prompt=user_message,
+                    draft_tools=lambda: opened[0].draft_tools if opened else (),
                 )
 
                 turn = await ChatAgentRunner(db).run(
@@ -850,6 +851,7 @@ class AgentSession:
                     parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
                     | set(turn.questions),
                     mcp_origins=turn.mcp_origins,
+                    draft_tools=turn.draft_tools,
                 )
                 # The save was attempted, so `finally` must not retry an uncertain
                 # write. A failure is reported below, before the turn completes.
@@ -1047,6 +1049,7 @@ class AgentSession:
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
             mcp_origins=run.mcp_origins,
+            draft_tools=run.draft_tools,
         )
         if assistant_msg_id is None:
             await self._emit(

@@ -546,3 +546,20 @@ class TestWhatAVisitorsFrameCannotChoose:
 
         assert answered.await_args is not None
         assert answered.await_args.args == ("hello", [])
+
+
+@pytest.mark.parametrize("tool_name,expected", [("save_reply", "draft"), ("external", None)])
+async def test_streamed_draft_identity_comes_from_the_server_binding(
+    tool_name: str, expected: str | None
+) -> None:
+    frames: list[dict[str, object]] = []
+
+    async def emit(kind: str, payload: dict[str, object]) -> None:
+        if kind == "tool_call":
+            frames.append(payload)
+
+    async def events() -> AsyncIterator[FunctionToolCallEvent]:
+        yield FunctionToolCallEvent(ToolCallPart(tool_name=tool_name, args={}, tool_call_id="c1"))
+
+    await RunFrames(emit=emit, draft_tools=lambda: {"save_reply"}).tools(events())
+    assert len(frames) == 1 and frames[0].get("presentation_kind") == expected

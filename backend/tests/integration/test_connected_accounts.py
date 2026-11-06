@@ -229,3 +229,77 @@ async def test_same_person_can_connect_one_address_through_two_tenants(db: Async
         (await db.scalars(select(McpConnection.id).where(McpConnection.id.in_(identifiers)))).all()
     )
     assert remaining == [identifiers[1]]
+
+
+@pytest.mark.security
+async def test_removing_and_reinviting_a_member_does_not_restore_google_grants(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import select
+
+    from app.db.models.organization import OrganizationMember
+    from app.services.member import end_membership
+
+    user = await _person(db)
+    first, second = await _organization(db, user), await _organization(db, user)
+    member = OrganizationMember(organization_id=first.id, user_id=user.id, role="member")
+    db.add(member)
+    accounts = []
+    for org in (first, second):
+        account = McpConnection(
+            user_id=user.id,
+            account_source_organization_id=org.id,
+            name=f"google:{org.id}",
+            url="https://www.googleapis.com",
+            secret_key_version=1,
+            purpose="account",
+            catalog_key="google",
+            account_email="same@example.com",
+            oauth_payload="sealed",
+        )
+        db.add(account)
+        accounts.append(account)
+    await db.flush()
+    identifiers = [row.id for row in accounts]
+    await end_membership(db, member)
+    db.add(OrganizationMember(organization_id=first.id, user_id=user.id, role="member"))
+    await db.flush()
+    remaining = list(
+        await db.scalars(select(McpConnection.id).where(McpConnection.id.in_(identifiers)))
+    )
+    assert remaining == [identifiers[1]]
+
+
+@pytest.mark.security
+async def test_reconsented_account_is_fresh_in_an_existing_session(
+    db: AsyncSession, engine
+) -> None:
+    from sqlalchemy import update
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    user = await _person(db)
+    account = McpConnection(
+        user_id=user.id,
+        name="google:session",
+        url="https://www.googleapis.com",
+        purpose="account",
+        catalog_key="google",
+        account_email="session@example.com",
+        secret_key_version=1,
+        oauth_payload="first",
+    )
+    db.add(account)
+    await db.commit()
+    before = (await mcp_connection_repo.get_account(db, account.id)).authorization_generation
+    generation = uuid.uuid4()
+    async with async_sessionmaker(engine)() as other:
+        await other.execute(
+            update(McpConnection)
+            .where(McpConnection.id == account.id)
+            .values(authorization_generation=generation)
+        )
+        await other.commit()
+    assert (
+        await mcp_connection_repo.get_account(db, account.id)
+    ).authorization_generation == generation
+    assert generation != before

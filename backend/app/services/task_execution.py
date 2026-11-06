@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.outcome import Outcome
@@ -228,7 +228,17 @@ class TaskExecution:
             trigger = await agent_trigger_repo.get_by_id(self.db, link.trigger_id)
             if trigger is not None:
                 trigger.is_active = False
+            from app.services.agent_runner import AgentRunnerService
+
+            runner = AgentRunnerService(self.db)
+            run_ids = await task_repo.parked_runs(self.db, organization_id, link.trigger_id)
+            await runner.stop_parked_for_workflow(
+                run_ids, organization_id=organization_id, reason="Stopped: task execution changed"
+            )
             link.trigger_id = None
+            await task_repo.flush(self.db)
+            # Task record revisions retain the user action that ended these runs.
+            # No audit lock here: the enclosing mutation still owns row work.
         link.execution_hash = None
 
     async def deleted(self, ctx: AuthContext, record: VirtualTableRecord) -> None:
@@ -252,6 +262,8 @@ class TaskExecution:
             await OutcomeService(self.db).resolve_task(outcome_id, organization_id=organization_id)
 
     async def wake(self, payload: WakeTask) -> None:
+        from app.services.task_access import board_allows
+
         record = await task_repo.record(
             self.db, payload.task_id, payload.organization_id, lock=True
         )
@@ -259,7 +271,7 @@ class TaskExecution:
             return
         link = await task_repo.link(self.db, record.id)
         board = await task_repo.for_table(self.db, record.table_id, payload.organization_id)
-        if board is None or link is None or link.creator_user_id is None:
+        if board is None or link is None:
             return
         fields = from_cells(board, record.values)
         # Edits invalidate a queued occurrence; there is no scan of everyone's TODOs.
@@ -271,13 +283,35 @@ class TaskExecution:
             or fields.start_at > datetime.now(UTC)
         ):
             return
-        ctx = await member_context(
-            self.db, organization_id=payload.organization_id, user_id=link.creator_user_id
+        ctx = (
+            (
+                await member_context(
+                    self.db, organization_id=payload.organization_id, user_id=link.creator_user_id
+                )
+            )
+            if link.creator_user_id is not None
+            else None
         )
         if ctx is None:
+            await self._stop(link, payload.organization_id)
+            await self._project(board, record, "blocked", actor=None)
+            recipient = fields.assignee_user_id
+            if recipient is not None:
+                reviewer = await member_context(
+                    self.db, organization_id=payload.organization_id, user_id=recipient
+                )
+                if reviewer is not None and await board_allows(
+                    self.db, reviewer, board, Perm.TABLES_EDIT
+                ):
+                    await self._attention(
+                        board,
+                        record,
+                        link,
+                        recipient,
+                        fields.title,
+                        detail="The reminder's creator left this organization. Review this blocked task and take over its next step.",
+                    )
             return
-        from app.core.permissions import Perm
-        from app.services.task_access import board_allows
 
         table = await self._live_table(board)
         if not table or not await board_allows(self.db, ctx, board, Perm.TABLES_EDIT):
@@ -289,7 +323,7 @@ class TaskExecution:
             self.db, organization_id=payload.organization_id, user_id=recipient
         )
         if recipient_ctx is None or not await board_allows(
-            self.db, recipient_ctx, board, Perm.TABLES_VIEW
+            self.db, recipient_ctx, board, Perm.TABLES_EDIT
         ):
             await self._stop(link, payload.organization_id)
             await self._project(board, record, "blocked", actor=None)
@@ -297,7 +331,7 @@ class TaskExecution:
                 board,
                 record,
                 link,
-                link.creator_user_id,
+                ctx.subject_id,
                 fields.title,
                 detail="The assigned reviewer no longer has access. Choose another person for the next step.",
             )
@@ -325,7 +359,7 @@ class TaskExecution:
             return False
         link = await task_repo.for_trigger(self.db, trigger.id)
         if link is None:
-            return True
+            return False
         record = await task_repo.record(self.db, link.record_id, ctx.organization_id, lock=True)
         if record is None:
             return False
@@ -393,14 +427,14 @@ class TaskExecution:
         reviewer = await member_context(
             self.db, organization_id=trigger.organization_id, user_id=recipient
         )
-        if reviewer is None or not await board_allows(self.db, reviewer, board, Perm.TABLES_VIEW):
+        if reviewer is None or not await board_allows(self.db, reviewer, board, Perm.TABLES_EDIT):
             await self._stop(link, trigger.organization_id)
             await self._project(board, record, "blocked", actor=None)
             await self._attention(
                 board,
                 record,
                 link,
-                link.creator_user_id,
+                ctx.subject_id,
                 fields.title,
                 detail="The assigned reviewer no longer has access. Choose another person for the next step.",
             )

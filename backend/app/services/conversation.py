@@ -10,7 +10,7 @@ member's request reaches.
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -1513,6 +1513,7 @@ class ConversationService:
         *,
         parked: bool = False,
         mcp_connection_id: UUID | None = None,
+        presentation_kind: Literal["draft"] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -1532,6 +1533,7 @@ class ConversationService:
             started_at=data.started_at or datetime.now(UTC),
             status=parked_status(data.tool_name) if parked else "running",
             mcp_connection_id=mcp_connection_id,
+            presentation_kind=presentation_kind,
         )
 
     async def complete_tool_call(

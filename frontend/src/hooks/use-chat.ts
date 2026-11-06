@@ -912,14 +912,16 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "tool_call": {
           if (currentMessageIdRef.current) {
-            const { tool_name, args, tool_call_id } = wsEvent.data as {
+            const { tool_name, args, tool_call_id, presentation_kind } = wsEvent.data as {
               tool_name: string;
+              presentation_kind?: "draft";
               args: Record<string, unknown>;
               tool_call_id: string;
             };
             const toolCall: ToolCall = {
               id: tool_call_id,
               name: tool_name,
+              presentation_kind,
               args,
               status: "running",
             };

@@ -259,6 +259,7 @@ class TranscriptService:
         model_label: str | None = None,
         context_used_tokens: int | None = None,
         mcp_origins: Mapping[str, UUID] | None = None,
+        draft_tools: Collection[str] = (),
     ) -> None:
         """Write whatever this run produced, and never fail the run for it.
 
@@ -368,6 +369,7 @@ class TranscriptService:
                         model_label=model_label,
                         context_used_tokens=context_used_tokens,
                         mcp_origins=mcp_origins or {},
+                        draft_tools=draft_tools,
                     )
         except Exception:
             # `exception`, not `warning`: this is the only place in this file that
@@ -444,6 +446,7 @@ class TranscriptService:
         model_label: str | None,
         context_used_tokens: int | None,
         mcp_origins: Mapping[str, UUID],
+        draft_tools: Collection[str],
     ) -> None:
         """The assistant turn and the calls it made, attributed to the version.
 
@@ -494,6 +497,7 @@ class TranscriptService:
                 started_at=now,
                 status=parked_status(call.tool_name) if call.tool_call_id in parked else "running",
                 mcp_connection_id=mcp_origins.get(call.tool_name),
+                presentation_kind="draft" if call.tool_name in draft_tools else None,
             )
             if call.result is not None:
                 await conversation_repo.complete_tool_call(

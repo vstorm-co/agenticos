@@ -1010,3 +1010,64 @@ async def test_recreated_skill_resource_cannot_reactivate_its_previous_consent(
     db.add(SkillResource(skill_id=skill.id, name="policy.md", content="Original policy"))
     await db.flush()
     assert (await authority.action_policy(world.agent.id, world.spec, tool())).consented_by is None
+
+
+@pytest.mark.parametrize("binding", ["skill", "context"])
+async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
+    db: AsyncSession, world: World, binding: str
+) -> None:
+    from app.agents.spec import AgentSpec, SubagentRef
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.context import ContextFile
+    from app.db.models.skill import Skill
+    from app.services.routine_actions import instruction_fingerprint
+
+    if binding == "context":
+        target = ContextFile(
+            organization_id=world.org.id,
+            owner_user_id=world.ctx.user_id,
+            name="Delegate instructions",
+            content="Original",
+        )
+    else:
+        target = Skill(
+            organization_id=world.org.id,
+            owner_user_id=world.ctx.user_id,
+            name="delegate-instructions",
+            description="Delegate instructions",
+            content="Original",
+        )
+    db.add(target)
+    await db.flush()
+    child = Agent(
+        organization_id=world.org.id,
+        owner_user_id=world.ctx.user_id,
+        name="Delegate",
+        slug=f"delegate-{uuid4().hex}",
+    )
+    db.add(child)
+    await db.flush()
+    spec = AgentSpec(
+        name="Delegate",
+        context_ids=[target.id] if binding == "context" else [],
+        skill_ids=[target.id] if binding == "skill" else [],
+    )
+    version = AgentVersion(
+        organization_id=world.org.id,
+        agent_id=child.id,
+        version=1,
+        spec=spec.model_dump(mode="json"),
+    )
+    db.add(version)
+    await db.flush()
+    world.spec.subagents = [SubagentRef(agent_id=child.id, agent_version_id=version.id)]
+    before = await instruction_fingerprint(
+        db, organization_id=world.org.id, spec=world.spec, project_id=None
+    )
+    target.content = "Changed delegate instructions"
+    target.updated_at = datetime.now(UTC)
+    await db.flush()
+    after = await instruction_fingerprint(
+        db, organization_id=world.org.id, spec=world.spec, project_id=None
+    )
+    assert before is not None and after != before

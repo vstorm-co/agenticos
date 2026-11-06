@@ -3458,6 +3458,7 @@ class AgentRegistryService:
         from app.services.agent_trigger import AgentTriggerService
         from app.services.tasks import TaskService
 
+        await agent_repo.fence_deletion(self.db, agent.id, organization_id=ctx.organization_id)
         await TaskService(self.db).require_no_agent_execution(ctx, agent.id)
         await AgentTriggerService(self.db).deregister_agent_webhooks(ctx, agent.id)
         # The grant table is generic and has no foreign key to the agent, so

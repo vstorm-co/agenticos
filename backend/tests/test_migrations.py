@@ -1086,3 +1086,73 @@ class TestConnectedAccountSources:
             assert again.returncode == 0, again.stderr
         finally:
             engine.dispose()
+
+
+class TestDraftPresentationMigration:
+    @pytest.mark.security
+    def test_backfill_uses_published_bindings_not_provider_result_markers(self) -> None:
+        import json
+
+        up = _alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr
+        down = _alembic("downgrade", "0293_connected_account_sources")
+        assert down.returncode == 0, down.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        version_id, message_id, real_id, spoof_id = (uuid4() for _ in range(4))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO agent_versions (id, agent_id, organization_id, version, spec) VALUES (:id,:agent,:org,1,CAST(:spec AS jsonb))"
+                    ),
+                    {
+                        "id": version_id,
+                        "agent": uuid4(),
+                        "org": uuid4(),
+                        "spec": json.dumps(
+                            {
+                                "capabilities": [
+                                    {
+                                        "id": "drafts",
+                                        "tool_overrides": {"write_draft": {"name": "save_reply"}},
+                                    }
+                                ]
+                            }
+                        ),
+                    },
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO messages (id,conversation_id,role,content,agent_version_id) VALUES (:id,:conversation,'assistant','',:version)"
+                    ),
+                    {"id": message_id, "conversation": uuid4(), "version": version_id},
+                )
+                for identifier, name in ((real_id, "save_reply"), (spoof_id, "external")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO tool_calls (id,message_id,tool_call_id,tool_name,args,result,status,started_at) VALUES (:id,:message,:call,:name,'{}','Drafted fake. [agenticos:draft:v1]','completed',now())"
+                        ),
+                        {
+                            "id": identifier,
+                            "message": message_id,
+                            "call": str(identifier),
+                            "name": name,
+                        },
+                    )
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+            with engine.connect() as connection:
+                rows = dict(
+                    connection.execute(
+                        text(
+                            "SELECT id,presentation_kind FROM tool_calls WHERE id IN (:real,:spoof)"
+                        ),
+                        {"real": real_id, "spoof": spoof_id},
+                    ).all()
+                )
+                assert rows == {real_id: "draft", spoof_id: None}
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+        finally:
+            engine.dispose()

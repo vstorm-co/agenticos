@@ -160,6 +160,7 @@ export interface ChatMessage {
 }
 
 export interface ToolCall {
+  presentation_kind?: "draft" | null;
   id: string;
   name: string;
   args: Record<string, unknown>;

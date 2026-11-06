@@ -47,6 +47,7 @@ from app.repositories import mcp_connection_repo, organization_secret_repo
 from app.services.mcp_connection import (
     AccountGrant,
     McpConnectionService,
+    account_client_identity,
     account_source_organization,
 )
 from app.services.organization_secret import OrganizationSecretService
@@ -99,10 +100,19 @@ class MirageMountService:
                     accounts = await self._accounts(ctx, mount, person_id)
                 except _Unmountable:
                     accounts = []
-                material.extend(
-                    (f"account:{mount.path}:{account.id}", str(account.authorization_generation))
-                    for account in accounts
-                )
+                for account in accounts:
+                    material.append(
+                        (
+                            f"account:{mount.path}:{account.id}",
+                            str(account.authorization_generation),
+                        )
+                    )
+                    client = account_client_identity(account)
+                    if client is not None:
+                        generation = await organization_secret_repo.authorization_generation(
+                            self.db, client[1], organization_id=ctx.organization_id
+                        )
+                        material.append((f"client:{client[1]}:{client[2]}", str(generation)))
         return hashlib.sha256(json.dumps(sorted(material)).encode()).hexdigest()
 
     async def resolve(

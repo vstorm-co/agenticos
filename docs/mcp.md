@@ -1296,3 +1296,5 @@ A Google account connected through an organization's OAuth client can only be us
 Migration `0293_connected_account_sources.py` leaves unverifiable older personal grants disconnected until reconsent. Downgrading it removes personal connected-account grants because older versions cannot enforce their source tenant; ordinary MCP connections remain.
 
 Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.
+
+Removing a member permanently revokes their personal grants issued through this organization; inviting them back requires new consent.

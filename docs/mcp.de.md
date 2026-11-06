@@ -1,5 +1,5 @@
 ---
-source_sha: "93fff3b44d1d"
+source_sha: "7a4618e328b7"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1399,3 +1399,5 @@ Ein über den OAuth-Client einer Organisation verbundenes Google-Konto funktioni
 Die Migration `0293_connected_account_sources.py` verlangt erneute Zustimmung für ältere persönliche Konten ohne überprüfbare Herkunft. Ein Downgrade entfernt persönliche Kontofreigaben, da ältere Versionen deren Herkunftsorganisation nicht durchsetzen können; gewöhnliche MCP-Verbindungen bleiben erhalten.
 
 Mirage-Freigabepausen binden Kontoidentitäten und Geheimnisgenerationen. Änderungen während der Pause erfordern einen neuen Lauf mit Freigabe. Routinenprüfungen binden dieselben Generationen; Terminalschreibvorgänge und Befehle brauchen die Zustimmung zu Routinenaktionen, auch wenn Schreibfreigaben des Mounts deaktiviert sind.
+
+Das Entfernen eines Mitglieds widerruft dessen persönliche Freigaben über diese Organisation dauerhaft; eine erneute Einladung erfordert eine neue Zustimmung.

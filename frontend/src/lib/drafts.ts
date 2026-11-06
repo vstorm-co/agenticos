@@ -9,7 +9,6 @@
 import type { ToolCall } from "@/types";
 
 export const WRITE_DRAFT = "write_draft";
-export const DRAFT_IDENTITY = "[agenticos:draft:v1]";
 
 export interface DraftField {
   name: string | null;
@@ -72,8 +71,7 @@ export function draftOf(call: ToolCall): DraftCard | null {
   if (
     call.status !== "completed" ||
     !wroteDraft(call.result) ||
-    (call.name !== WRITE_DRAFT &&
-      !(typeof call.result === "string" && call.result.endsWith(DRAFT_IDENTITY)))
+    call.presentation_kind !== "draft"
   ) {
     return null;
   }

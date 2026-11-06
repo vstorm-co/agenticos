@@ -22,11 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Bind Google account grants to their OAuth client’s organization and current credential generation; preserve that authority across terminal approval pauses and routine source reviews. Include safe account metadata in personal exports and audit organization account changes. Older unverifiable personal grants need reconnecting after migration 0293.
-- Keep draft cards and shared drafts visible when their tool is renamed.
-
-
-### Fixed
-
+- Preserve renamed draft cards with server-owned presentation provenance (migration `0294_tool_presentation.py`); provider-controlled tool results cannot mark arbitrary arguments as public drafts.
+- Cancel parked approvals when task execution ends, block reminders whose creator has left, require actionable reviewer access, fence agent deletion against task assignment, and recheck delegate instructions and account authority after pauses. Removing a member revokes their tenant-bound Google grants permanently.
 - Refuse deleting an agent while a managed task still depends on its scheduled execution; reassign or settle the task first.
 
 ### Added

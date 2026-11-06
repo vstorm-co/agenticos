@@ -416,6 +416,7 @@ describe("the ordered timeline", () => {
     const write: ToolCall = {
       id: "tc-d",
       name: "write_draft",
+      presentation_kind: "draft",
       status: "completed",
       result: "Drafted Reply.",
       args: {

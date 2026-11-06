@@ -153,3 +153,21 @@ async def has_agent_execution(db: AsyncSession, organization_id: UUID, agent_id:
         .limit(1)
     )
     return result.scalar_one_or_none() is not None
+
+
+async def parked_runs(db: AsyncSession, organization_id: UUID, trigger_id: UUID) -> list[UUID]:
+    from app.db.models.agent_run import AgentRun, RunStatus
+
+    return list(
+        (
+            await db.scalars(
+                select(AgentRun.id).where(
+                    AgentRun.organization_id == organization_id,
+                    AgentRun.trigger_id == trigger_id,
+                    AgentRun.status.in_(
+                        [RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value]
+                    ),
+                )
+            )
+        ).all()
+    )

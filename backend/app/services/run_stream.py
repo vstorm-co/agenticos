@@ -22,7 +22,7 @@ somebody, and only the surface knows whether it has one.
 """
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from typing import Any
 
 from pydantic_ai import (
@@ -76,11 +76,13 @@ class RunFrames:
         timeline: TurnTimeline | None = None,
         tool_calls: list[dict[str, Any]] | None = None,
         prompt: str = "",
+        draft_tools: Callable[[], Collection[str]] | None = None,
     ) -> None:
         self.emit = emit
         self.timeline = timeline if timeline is not None else TurnTimeline()
         self.tool_calls = tool_calls if tool_calls is not None else []
         self.prompt = prompt
+        self.draft_tools = draft_tools
 
     async def drive(self, agent_run: Any) -> None:
         """Iterate the run, dispatching each node to its streaming half.
@@ -201,6 +203,8 @@ class RunFrames:
                     "tool_name": tool_event.part.tool_name,
                     "args": tool_event.part.args_as_dict(raise_if_invalid=False),
                 }
+                if self.draft_tools is not None and tool_event.part.tool_name in self.draft_tools():
+                    call["presentation_kind"] = "draft"
                 self.tool_calls.append(call)
                 self.timeline.add_tool(tool_event.part.tool_call_id)
                 pending[tool_event.part.tool_call_id] = call

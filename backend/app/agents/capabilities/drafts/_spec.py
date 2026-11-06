@@ -8,12 +8,26 @@ a delivery layer can read the format without pulling a toolset in behind it.
 
 import re
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
+if TYPE_CHECKING:
+    from app.agents.spec import AgentSpec
+
 DRAFTS_CAPABILITY_ID = "drafts"
 WRITE_DRAFT = "write_draft"
-DRAFT_IDENTITY = "[agenticos:draft:v1]"
+
+
+def draft_tool_names(spec: AgentSpec) -> frozenset[str]:
+    for binding in spec.capabilities:
+        if binding.id == DRAFTS_CAPABILITY_ID and binding.enabled:
+            override = binding.tool_overrides.get(WRITE_DRAFT)
+            return frozenset(
+                {override.name if override is not None and override.name else WRITE_DRAFT}
+            )
+    return frozenset()
+
 
 DRAFTED = "Drafted "
 """What a tool result opens with when a card was made. Anything else is a refusal."""

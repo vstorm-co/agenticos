@@ -518,7 +518,7 @@ class TaskLifecycle:
                 self.db, organization_id=ctx.organization_id, user_id=fields.assignee_user_id
             )
             if reviewer is None or not await board_allows(
-                self.db, reviewer, board, Perm.TABLES_VIEW
+                self.db, reviewer, board, Perm.TABLES_EDIT
             ):
                 raise BadRequestError(message="Choose a person who can access this task's scope")
         await self._schedule(ctx, board, record, link, fields)

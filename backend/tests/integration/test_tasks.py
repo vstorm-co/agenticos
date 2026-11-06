@@ -879,3 +879,167 @@ async def test_scope_teardown_disables_its_agent_and_cancels_queued_fire(db: Asy
         )
     )
     assert jobs and all(job.status == "cancelled" for job in jobs)
+
+
+async def test_a_reminder_from_a_departed_creator_becomes_blocked_for_its_reviewer(
+    db: AsyncSession,
+) -> None:
+    from sqlalchemy import delete
+
+    from app.db.models.outcome import Outcome
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0],
+        TaskCreate(
+            scope="organization",
+            scope_id=data.org.id,
+            title="Take over reminder",
+            assignee_user_id=data.users[1].id,
+            start_at=datetime.now(UTC) - timedelta(minutes=1),
+        ),
+    )
+    await db.execute(
+        delete(OrganizationMember).where(
+            OrganizationMember.organization_id == data.org.id,
+            OrganizationMember.user_id == data.users[0].id,
+        )
+    )
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    current = await service.get(data.contexts[1], task.id)
+    assert current.status == "blocked"
+    link = await db.get(TaskLink, task.id)
+    assert link is not None
+    case = await db.get(Outcome, link.outcome_id)
+    assert case is not None and case.user_id == data.users[1].id and case.status == "open"
+
+
+async def test_a_detached_task_trigger_cannot_execute(db: AsyncSession) -> None:
+    from app.services.task_access import execution_allows
+
+    data = await world(db)
+    assert not await execution_allows(db, data.contexts[0], uuid4())
+
+
+async def test_cancelling_a_task_expires_its_parked_approval(db: AsyncSession) -> None:
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import Agent, AgentVersion
+    from app.db.models.agent_run import ToolApproval
+    from app.repositories import agent_run_repo
+
+    data = await world(db)
+    agent = Agent(
+        organization_id=data.org.id,
+        owner_user_id=data.users[0].id,
+        name="Worker",
+        slug=f"worker-{uuid4().hex}",
+    )
+    db.add(agent)
+    await db.flush()
+    version = AgentVersion(
+        organization_id=data.org.id,
+        agent_id=agent.id,
+        version=1,
+        spec=AgentSpec(name="Worker").model_dump(mode="json"),
+    )
+    db.add(version)
+    await db.flush()
+    agent.current_version_id, agent.status = version.id, "published"
+    service = TaskService(db)
+    task = await service.create(
+        data.contexts[0], TaskCreate(title="Paused task", assignee_agent_id=agent.id)
+    )
+    link = await db.get(TaskLink, task.id)
+    assert link is not None and link.trigger_id is not None
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=data.org.id,
+        agent_id=agent.id,
+        agent_version_id=version.id,
+        user_id=data.users[0].id,
+        conversation_id=task.conversation_id,
+        surface="schedule",
+        model_label="test",
+        started_at=datetime.now(UTC),
+        trigger_id=link.trigger_id,
+    )
+    run.status = "awaiting_approval"
+    run.paused_state = {"messages": [], "tool_call_ids": {}}
+    approval = ToolApproval(
+        organization_id=data.org.id, run_id=run.id, agent_id=agent.id, tool_id="write", tool_args={}
+    )
+    db.add(approval)
+    await db.flush()
+    await service.update(
+        data.contexts[0],
+        task.id,
+        TaskUpdate(title=task.title, status="cancelled", expected_revision=task.revision),
+    )
+    assert run.status == "cancelled" and run.paused_state is None
+    assert approval.status == "expired"
+    assert link.trigger_id is None
+
+
+async def test_deletion_fence_blocks_a_concurrent_trigger_assignment(
+    db: AsyncSession, engine
+) -> None:
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.db.models.agent import Agent
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.repositories import agent_repo
+
+    data = await world(db)
+    agent = Agent(
+        organization_id=data.org.id,
+        owner_user_id=data.users[0].id,
+        name="Deleting",
+        slug=f"deleting-{uuid4().hex}",
+    )
+    db.add(agent)
+    await db.commit()
+    await agent_repo.fence_deletion(db, agent.id, organization_id=data.org.id)
+    async with async_sessionmaker(engine)() as assignment:
+        await assignment.execute(text("SET LOCAL lock_timeout = '200ms'"))
+        assignment.add(
+            AgentTrigger(
+                organization_id=data.org.id,
+                agent_id=agent.id,
+                created_by_user_id=data.users[0].id,
+                prompt="Task",
+                interval_seconds=3600,
+                next_fire_at=datetime.now(UTC),
+            )
+        )
+        with pytest.raises(DBAPIError) as refused:
+            await assignment.flush()
+        assert refused.value.orig.sqlstate == "55P03"
+
+
+async def test_a_read_only_member_cannot_be_assigned_an_actionable_task(db: AsyncSession) -> None:
+    data = await world(db)
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == data.org.id,
+            OrganizationMember.user_id == data.users[1].id,
+        )
+    )
+    assert membership is not None
+    membership.role = "viewer"
+    await db.flush()
+    with pytest.raises(BadRequestError, match="Choose a person"):
+        await TaskService(db).create(
+            data.contexts[0],
+            TaskCreate(
+                scope="organization",
+                scope_id=data.org.id,
+                title="Review",
+                assignee_user_id=data.users[1].id,
+                status="waiting_for_user",
+            ),
+        )

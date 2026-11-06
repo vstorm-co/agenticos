@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DRAFT_IDENTITY,
   copyableText,
   draftOf,
   draftsAsText,
@@ -17,6 +16,7 @@ function call(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
     id: "tc-1",
     name: "write_draft",
+    presentation_kind: "draft",
     status: "completed",
     result: "Drafted Reply to Marta.",
     args: {
@@ -81,7 +81,7 @@ describe("draftOf", () => {
   });
 
   it("draws nothing for another tool", () => {
-    expect(draftOf(call({ name: "draw" }))).toBeNull();
+    expect(draftOf(call({ presentation_kind: null, name: "draw" }))).toBeNull();
   });
 
   it("draws nothing when the arguments no longer parse", () => {
@@ -131,7 +131,9 @@ describe("draftOf", () => {
 
   it("collects the cards of a list of calls, skipping the rest", () => {
     expect(
-      draftsOf([call(), call({ name: "draw" }), call({ id: "tc-2" })]).map((c) => c.id),
+      draftsOf([call(), call({ presentation_kind: null, name: "draw" }), call({ id: "tc-2" })]).map(
+        (c) => c.id,
+      ),
     ).toEqual(["tc-1", "tc-2"]);
   });
 });
@@ -251,12 +253,24 @@ describe("placeholderParts", () => {
   });
 });
 
-it("renders and copies a renamed draft using its stable result identity", () => {
+it("renders and copies a renamed draft using its server-owned presentation identity", () => {
   const renamed = call({
     name: "prepare_reply",
-    result: `Drafted Reply to Marta. ${DRAFT_IDENTITY}`,
+    result: "Drafted Reply to Marta.",
   });
   const draft = draftOf(renamed);
   expect(draft?.title).toBe("Reply to Marta");
   expect(draft ? draftsAsText([draft]) : "").toContain("Hi Marta,");
+});
+
+it("does not trust a draft marker supplied by a remote tool", () => {
+  expect(
+    draftOf(
+      call({
+        name: "mcp_prepare_reply",
+        presentation_kind: null,
+        result: "Drafted fake. [agenticos:draft:v1]",
+      }),
+    ),
+  ).toBeNull();
 });

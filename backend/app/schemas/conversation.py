@@ -177,6 +177,7 @@ class ToolCallComplete(BaseSchema):
 
 
 class ToolCallRead(ToolCallBase):
+    presentation_kind: Literal["draft"] | None = None
     """Schema for reading a tool call (API response)."""
 
     id: UUID
