@@ -1,5 +1,5 @@
 ---
-source_sha: "a5ee439d5dab"
+source_sha: "8c15d7e07ff0"
 ---
 
 # Die Konsole { #the-console }
@@ -480,9 +480,9 @@ Unterhaltungslisten behalten den Hauptagenten bei und nennen zusätzlich Claude 
 
 Das Files-Panel gruppiert Dateien nach Ordnern und unterscheidet gleiche Namen in verschiedenen Verzeichnissen. HTML-Vorschauen laden lokale Stylesheets und ihre verschachtelten Ressourcen über denselben Dateizugriff wie die Seite. Vorschau und Quelltext bleiben getrennt; Skripte sind deaktiviert. Ist ein Stylesheet nicht lesbar, nennt die Vorschau die betroffene Datei. Unter einer Antwort stehen Links zu den in diesem Turn geänderten Dateien, anhand der von erfolgreichen Schreib-/Bearbeitungswerkzeugen oder dem Coding-Harness gemeldeten Pfade. Die Links öffnen aktuelle Workspace-Dateien, keine versionierte Kopie.
 
-Überlegungen und Werkzeugaufrufe sind auf allen Bildschirmgrößen standardmäßig eingeklappt, auch nach einer Agentennachricht. Aufeinanderfolgende Aktivität teilt einen aufklappbaren Bereich; Nachrichten trennen die Gruppen. Öffne eine Gruppe, um Schritte, Fehler und optionale Werkzeugdetails zu prüfen. Antworten, Freigabekarten und visuelle Ergebnisse bleiben außerhalb der Gruppen sichtbar. Bereits beantwortete Fragen sind separat eingeklappt; öffne eine Frage, um die Antwort zu lesen. Ausstehende Fragen oder Freigaben zeigen einen Wartestatus statt einer laufenden Zeitanzeige. Verlässt du einen Chat mit einer unbeantworteten Frage, wird sie gespeichert und bei der Rückkehr wieder zur Beantwortung angeboten.
+Während der Arbeit erscheinen Fortschrittsmeldungen und die jeweils folgenden Tool-Aufrufe in ihrer Eingangsreihenfolge in einem aufgeklappten Verlauf. Erst nach Abschluss wird der Verlauf unter einem „Worked for…“- oder „Thought for…“-Schalter eingeklappt; darunter bleibt nur die finale Antwort. Aufklappen zeigt dieselben Nachrichten und Tool-Gruppen wieder chronologisch. Begründungen bleiben separat aufklappbar; ihre Überschriften erzeugen keine Prozessphasen. Fragen und Freigaben behalten ihren Wartestatus bis zur Entscheidung, auch bei delegierten Anfragen. Aktive Freigabekarten und visuelle Ergebnisse bleiben außerhalb des abgeschlossenen Verlaufs sichtbar.
 
-Eigenständige Überschriften in der Begründung bilden benannte Prozessphasen im aufgeklappten Arbeitsverlauf. Jede Phase bündelt ihre Erläuterung und die folgenden Tools bis zur nächsten Überschrift oder Agent-Nachricht. Phasendetails sind zunächst eingeklappt; Begründungen ohne Überschrift behalten ihre bisherige Darstellung.
+Aufeinanderfolgende Tool-Aufrufe zwischen Nachrichten bilden eine eingeklappte Gruppe; öffnen Sie diese für einzelne Aufrufe.
 
 Chat-Freigaben bleiben eine kompakte Karte neben dem Eingabefeld: Operation, Symbol und Aufgaben- oder Objekttitel, weitere Argumente unter Details. Approve und Reject stehen daneben, auf schmalen Bildschirmen darunter. Abgeschlossene Aktivität erhält ein dezentes Abschlusszeichen, wartende Schritte einen eigenen Status. Laufende Schritte behalten ihr Operationssymbol statt einer animierten Kugel pro Aufruf.
 
@@ -490,7 +490,7 @@ Beim erneuten Öffnen eines Chats werden auch Freigaben und Fragen delegierter W
 
 Eingehender Text bleibt lesbar, während das Markdown-Modul lädt. Das Eingabefeld hat eine undurchsichtige Fläche und einen dezenten Fokuszustand, ohne bewegten Rahmen oder Hintergrundunschärfe.
 
-Während der Arbeit steht eine kurze Aktivitätsbezeichnung in der Statuszeile. Sie bleibt einzeilig; vollständige Werkzeugschritte und Überlegungen stehen im aufklappbaren Verlauf. Der geöffnete Verlauf hat eine begrenzte Höhe und einen eigenen Scrollbereich; die Schaltfläche zum Einklappen bleibt darüber. Reine Aktivitätssegmente desselben Laufs teilen eine Zusammenfassung und dessen Startzeit. Abgeschlossene und verschachtelte Agentenaustausche bleiben erhalten, auch Coding-Agent-Berichte. Öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Überlegungen.
+Der laufende Verlauf folgt dem Seitenfluss; der aufgeklappte abgeschlossene Verlauf hat eine begrenzte Höhe und einen eigenen Scrollbereich. Aufeinanderfolgende Segmente desselben Agentenlaufs teilen Zusammenfassung und Startzeit, einschließlich Fortschrittsmeldungen zwischen Tools und Fortsetzungen nach Freigaben. Ein anderer Agent oder eine dazwischenliegende Nutzernachricht beginnt einen eigenen Turn. Abgeschlossene und verschachtelte Agentenaustausche bleiben verfügbar, einschließlich Coding-Agent-Berichten; öffnen Sie einen Austausch für Anweisungen, Antwort und eingeklappte Begründung.
 
 Erfolgreiche MCP-Schreibvorgänge zeigen verlinkte Karten für Projekte, Tabellen, Aufgaben, Datensätze, Agenten, Workflows, Skills und Context. Fehler erzeugen keine Erfolgskarten. Gesendete Nachrichten stehen nahe am oberen Rand mit Platz für die Antwort; manuelles Scrollen behält Ihre Position bei. Person- und Agent-Listen scrollen im Datensatzdialog. Fragen funktionieren auch nach genehmigten HTTP-Fortsetzungen.
 

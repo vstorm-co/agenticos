@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
 import * as motion from "@/lib/motion";
-import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
+import { foldWork, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
 import { useWorkingStore } from "@/stores/working-store";
@@ -410,42 +410,6 @@ describe("a turn in the narrow chat beside a page (the Architect, the test panel
   });
 });
 
-describe("which runs refuse to fold", () => {
-  /** A tool part, which is what a run is made of. */
-  const step = (overrides: Partial<ToolCall> = {}): MessagePart => ({
-    id: `p-${overrides.id ?? "1"}`,
-    type: "tool",
-    toolCall: { id: "tc-1", name: "search_documents", args: {}, status: "completed", ...overrides },
-  });
-
-  it("folds ordinary work away", () => {
-    // The default, and the right one: three reads and a grep are work nobody asked
-    // to watch, and the rail shows the last of them.
-    expect(mustShowEveryStep([step(), step({ id: "2" })])).toBe(false);
-  });
-
-  it("shows every step when one of them failed", () => {
-    expect(mustShowEveryStep([step(), step({ id: "2", status: "error" })])).toBe(true);
-  });
-
-  it("shows every step when one is waiting to be approved", () => {
-    expect(mustShowEveryStep([step({ status: "awaiting_approval" })])).toBe(true);
-  });
-
-  it("shows every step when one of them is a chart", () => {
-    // A turn that drew three charts folded two of them into "2 earlier steps", so
-    // the same turn showed three pictures live and one after a reload. Three
-    // charts are three answers.
-    expect(mustShowEveryStep([step({ name: "create_chart" }), step({ id: "2" })])).toBe(true);
-  });
-
-  it("ignores a part carrying no call at all", () => {
-    // `runsOf` only puts a tool part in a run when it has a call, so this is the
-    // contract holding rather than a case the transcript produces.
-    expect(mustShowEveryStep([{ id: "p-1", type: "tool" }])).toBe(false);
-  });
-});
-
 describe("the ordered timeline", () => {
   it("renders each part in the order it arrived", () => {
     // Reasoning, then the tool it led to, then the answer. Rendering them by kind
@@ -527,8 +491,10 @@ describe("the ordered timeline", () => {
     // A thinking block left open on every past turn buries the answers.
     const parts: ChatMessage["parts"] = [{ id: "p-1", type: "thinking", content: "Checking." }];
     const { container, unmount } = item({ parts, isStreaming: true, content: "" });
-    expect(container.querySelector("details")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Working/ }));
+    expect(screen.getByRole("button", { name: /Working/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     expect(container.querySelector("details")).not.toHaveAttribute("open");
     unmount();
 
@@ -558,7 +524,7 @@ describe("the ordered timeline", () => {
       ],
     });
 
-    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector("details")).not.toHaveAttribute("open");
   });
 
   it("shows a cursor on the part being written, and on no other", () => {
@@ -1195,8 +1161,12 @@ describe("the step a reopened turn leaves open", () => {
       />,
     );
 
-    expect(screen.queryByTestId("tool-tc-a")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Working/ }));
+    expect(screen.getByRole("button", { name: /Working/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByTestId("tool-tc-a")).not.toBeVisible();
+    fireEvent.click(screen.getByText("2 actions", { selector: "summary span" }));
     expect(screen.getByTestId("tool-tc-a")).toBeVisible();
     expect(screen.getByTestId("tool-tc-b")).toBeVisible();
   });
@@ -1343,45 +1313,58 @@ describe("the work before an answer", () => {
     expect(split?.shown).toHaveLength(1);
   });
 
-  it("folds nothing without an answer, or without work in front of it", () => {
-    expect(foldWork(runsOf([call("a")]))).toBeNull();
+  it("folds tool-only work and leaves plain answers alone", () => {
+    expect(foldWork(runsOf([call("a")]))).toMatchObject({ steps: 1, shown: [] });
     expect(foldWork(runsOf([text("ans", "Hello.")]))).toBeNull();
     expect(foldWork(runsOf([text("n", "First."), text("ans", "Second.")]))).toBeNull();
   });
 
-  it("keeps on the page what a person has to see", () => {
-    // A failure, a long passage that is an answer of its own, a question the agent
-    // asked and what the person added mid-run all stay where they were.
+  it("keeps long progress, questions and errors in history before the final answer", () => {
+    // All progress stays chronological inside the one completed history.
     const long = text("long", "x".repeat(401));
     const asked: MessagePart = { id: "p-q", type: "ask_user", question: "Which?", answer: "A" };
     const steer: MessagePart = { id: "p-s", type: "steer", content: "Also B." };
     const split = foldWork(
       runsOf([call("a"), long, asked, steer, call("bad", "error"), text("ans", "Done.")]),
     );
-    expect(split?.steps).toBe(1);
-    expect(split?.shown).toHaveLength(5);
+    expect(split?.steps).toBe(2);
+    expect(split?.shown).toHaveLength(1);
+    expect(split?.folded).toHaveLength(5);
   });
 
-  it("folds routine calls across reasoning blocks while keeping a neighboring failure visible", () => {
+  it("keeps routine and failed calls in the same live history", () => {
     const split = foldWork(
       runsOf([call("a"), thought, call("b"), call("bad", "error")]),
       false,
       true,
     );
-    expect(split?.steps).toBe(2);
-    expect(split?.shown).toHaveLength(1);
-    expect(split?.shown[0]?.kind).toBe("tools");
+    expect(split?.steps).toBe(3);
+    expect(split?.shown).toHaveLength(0);
     expect(split?.folded).toHaveLength(3);
   });
 
   it("does not show Working above a question that is waiting for an answer", () => {
     item({ parts: [call("question", "awaiting_answer", "ask_user_question")], isStreaming: true });
     expect(screen.queryByText(/Working/)).toBeNull();
-    expect(screen.queryByTestId("tool-tc-question")).toBeNull();
+    expect(screen.getByTestId("tool-tc-question")).toBeVisible();
     expect(screen.getByRole("button", { name: /Waiting for an answer/ })).toHaveAttribute(
       "aria-expanded",
-      "false",
+      "true",
     );
+  });
+
+  it("does not settle a turn while a delegate still needs approval", () => {
+    item({
+      parts: [text("progress", "Waiting for the specialist."), call("delegate")],
+      isStreaming: false,
+      runWaitingFor: "approval",
+    });
+    expect(screen.getByRole("button", { name: /Waiting for approval/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByText("Waiting for the specialist.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Worked/ })).toBeNull();
   });
 
   it("times a reloaded turn by its run, under its last segment only", () => {
@@ -1423,46 +1406,27 @@ describe("the work before an answer", () => {
     expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
   });
 
-  it("collapses each activity block while keeping narration visible", async () => {
-    const parts = [
-      thought,
-      call("read"),
-      text("answer", "Here is the result."),
-      call("approve", "awaiting_approval"),
-    ];
-    const view = item({ parts, isStreaming: true });
-    expect(screen.queryByTestId("tool-tc-read")).toBeNull();
-    expect(screen.getByText("Here is the result.")).toBeVisible();
-    expect(screen.queryByTestId("tool-tc-approve")).toBeNull();
-    const approvalToggle = screen.getByRole("button", { name: /Waiting for approval/ });
-    expect(approvalToggle).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(approvalToggle);
-    expect(screen.getByTestId("tool-tc-approve")).toBeVisible();
-    const toggle = screen.getByRole("button", { name: /Worked/ });
-    await userEvent.click(toggle);
+  it("keeps failures and pending tools in the same chronological live timeline", async () => {
+    item({
+      parts: [
+        thought,
+        call("read"),
+        text("n", "Checking permissions."),
+        call("bad", "error"),
+        call("approve", "awaiting_approval"),
+      ],
+      isStreaming: true,
+    });
+    expect(screen.getByText("Checking permissions.")).toBeVisible();
     expect(screen.getByTestId("tool-tc-read")).toBeVisible();
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    view.rerender(
-      <MessageItem
-        message={message({
-          parts: [...parts, { ...thought, id: "new-thought" }],
-          isStreaming: true,
-        })}
-      />,
-    );
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await userEvent.click(toggle);
-    expect(screen.queryByTestId("tool-tc-read")).toBeNull();
-  });
-
-  it("keeps a live failure inside the activity disclosure", async () => {
-    item({ parts: [thought, call("bad", "error")], isStreaming: true });
-    expect(screen.queryByTestId("tool-tc-bad")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Working/ }));
+    expect(screen.getByTestId("tool-tc-bad")).not.toBeVisible();
+    await userEvent.click(screen.getByText("2 actions", { selector: "summary span" }));
     expect(screen.getByTestId("tool-tc-bad")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-approve")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /Waiting for approval/ })).toHaveLength(1);
   });
 
-  it("folds thinking and trailing tool calls together after a message", async () => {
+  it("folds the whole interrupted sequence rather than promoting narration to a final answer", async () => {
     item({
       parts: [
         call("before"),
@@ -1472,46 +1436,73 @@ describe("the work before an answer", () => {
         call("last"),
       ],
     });
+    expect(screen.queryByText("The board already exists.")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Worked/ });
+    await userEvent.click(toggle);
     expect(screen.getByText("The board already exists.")).toBeVisible();
-    expect(screen.queryByTestId("tool-tc-after")).toBeNull();
-    expect(screen.queryByText("Thought about it")).toBeNull();
-    const folds = screen.getAllByRole("button", { name: /Worked/ });
-    expect(folds).toHaveLength(2);
-    await userEvent.click(folds[1]!);
-    expect(screen.getByText("Thought about it")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-before")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-after")).not.toBeVisible();
+    await userEvent.click(screen.getByText("2 actions", { selector: "summary span" }));
     expect(screen.getByTestId("tool-tc-after")).toBeVisible();
     expect(screen.getByTestId("tool-tc-last")).toBeVisible();
-    expect(screen.queryByTestId("tool-tc-before")).toBeNull();
   });
 
-  it("groups the tools following each reasoning heading inside its own process phase", async () => {
+  it("keeps progress messages beside their tools live, then folds everything except the final answer", async () => {
+    const parts = [
+      text("first", "I will check Poland first."),
+      call("poland"),
+      text("second", "Now I will compare Norway and Australia."),
+      call("norway"),
+      call("australia"),
+      text("final", "Here is the final comparison."),
+    ];
+    const view = item({ parts, isStreaming: true });
+    const first = screen.getByText("I will check Poland first.");
+    const firstTool = screen.getByTestId("tool-tc-poland");
+    const second = screen.getByText("Now I will compare Norway and Australia.");
+    const secondTool = screen.getByTestId("tool-tc-norway");
+    expect(
+      first.compareDocumentPosition(firstTool) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      firstTool.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      second.compareDocumentPosition(secondTool) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Working/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    view.rerender(<MessageItem message={message({ parts, isStreaming: false })} />);
+    expect(screen.getByText("Here is the final comparison.")).toBeVisible();
+    expect(screen.queryByText("I will check Poland first.")).toBeNull();
+    const toggle = screen.getByRole("button", { name: /Worked/ });
+    expect(screen.getAllByRole("button", { name: /Worked/ })).toHaveLength(1);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByText("I will check Poland first.")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-poland")).toBeVisible();
+    expect(screen.getByText("Here is the final comparison.").closest('[role="region"]')).toBeNull();
+  });
+
+  it("does not interpret headings in reasoning as process steps", async () => {
     item({
       parts: [
         {
-          id: "phase-a",
+          id: "reason",
           type: "thinking",
-          content: "**Investigating project details**\nRead the project instructions.",
+          content: "**Investigating project details**\nRead the instructions.",
         },
-        call("project"),
-        {
-          id: "phase-b",
-          type: "thinking",
-          content: "### Comparing task boards\nLook for blockers.",
-        },
-        call("board"),
-        text("answer", "Here are the priorities."),
+        call("read"),
+        text("final", "Ready."),
       ],
     });
-    expect(screen.getByText("Here are the priorities.")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: /Worked/ }));
-    expect(screen.getByText("Investigating project details")).toBeVisible();
-    expect(screen.getByText("Comparing task boards")).toBeVisible();
-    expect(screen.getByTestId("tool-tc-project")).not.toBeVisible();
-    await userEvent.click(screen.getByText("Investigating project details"));
-    expect(screen.getByText("Read the project instructions.")).toBeVisible();
-    expect(screen.getByTestId("tool-tc-project")).toBeVisible();
-    expect(screen.getByTestId("tool-tc-board")).not.toBeVisible();
-    expect(screen.queryByText("Thought about it")).toBeNull();
+    expect(screen.getByText("Thought about it")).toBeVisible();
+    expect(screen.getByTestId("tool-tc-read")).toBeVisible();
+    expect(screen.queryByText("Investigating project details")).toBeNull();
   });
 
   it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "a5ee439d5dab"
+source_sha: "8c15d7e07ff0"
 ---
 
 # Konsola { #the-console }
@@ -444,9 +444,9 @@ Listy rozmów zachowują głównego agenta i pokazują też Claude Code lub Code
 
 Panel Files grupuje pliki według folderów, rozróżniając identyczne nazwy w różnych katalogach. Podgląd HTML wczytuje lokalne arkusze stylów i ich zagnieżdżone zasoby przez ten sam mechanizm dostępu co stronę. Podgląd i Źródło pozostają oddzielne, a skrypty są wyłączone. Jeśli arkusza nie można odczytać, podgląd wskazuje, który plik zawiódł. Pliki zmienione w turze mają skróty pod odpowiedzią, na podstawie ścieżek zgłoszonych przez pomyślne narzędzia zapisu/edycji lub coding harness. Skróty otwierają bieżące pliki workspace, a nie wersjonowaną kopię.
 
-Rozumowanie i wywołania narzędzi są domyślnie zwinięte na każdym rozmiarze ekranu, także po wiadomości agenta. Sąsiadujące kroki tworzą jedną rozwijaną grupę; wiadomości oddzielają grupy aktywności. Rozwiń grupę, aby przejrzeć kroki, błędy i opcjonalne szczegóły narzędzi. Odpowiedzi, karty zatwierdzania i wyniki wizualne pozostają widoczne poza grupami. Historia pytań ma osobne, domyślnie zwinięte sekcje; rozwiń pytanie, aby przeczytać odpowiedź. Oczekujące pytanie lub zatwierdzenie pokazuje stan oczekiwania zamiast licznika pracy. Wyjście z czatu z pytaniem bez odpowiedzi zapisuje je do udzielenia odpowiedzi po powrocie.
+Podczas pracy agenta komunikaty o postępie i następujące po nich wywołania narzędzi pojawiają się w kolejności nadejścia w jednej rozwiniętej osi czasu. Zakończenie uruchomienia zwija historię pod jednym „Worked for…” lub „Thought for…”, pozostawiając pod spodem tylko finalną odpowiedź. Rozwinięcie historii przywraca tę samą kolejność wiadomości i grup narzędzi. Rozumowanie ma osobne, opcjonalne rozwinięcie; jego nagłówki nie tworzą etapów procesu. Pytania i zatwierdzenia zachowują stan oczekiwania do rozwiązania, także przy delegacji. Aktywne karty zatwierdzania i wyniki wizualne pozostają poza zakończoną historią.
 
-Samodzielne nagłówki rozumowania tworzą nazwane etapy procesu w rozwiniętej historii pracy. Każdy etap grupuje wyjaśnienie i kolejne narzędzia do następnego nagłówka lub komunikatu agenta. Szczegóły etapów są domyślnie zwinięte; zwykłe rozumowanie bez nagłówka zachowuje dotychczasowy wygląd.
+Kolejne narzędzia między wiadomościami tworzą zwiniętą grupę; rozwiń ją, aby zobaczyć poszczególne wywołania.
 
 Zatwierdzenia w czacie pozostają jedną prostą kartą przy polu wiadomości: operacja, jej ikona i tytuł zadania lub obiektu, a dodatkowe argumenty pod Details. Przyciski Approve i Reject są obok żądania, a na wąskim ekranie pod nim. Zakończona aktywność ma spokojny znacznik ukończenia, oczekujące kroki osobny status, a działające kroki zachowują ikonę operacji zamiast osobnej animowanej kuli przy każdym wywołaniu.
 
@@ -454,7 +454,7 @@ Ponowne otwarcie czatu odtwarza też zatwierdzenia i pytania narzędzi subagenta
 
 Napływający tekst pozostaje czytelny podczas ładowania modułu formatowania Markdown. Pole wiadomości ma nieprzezroczyste tło i delikatny stan fokusu, bez animowanej ramki i rozmywania treści pod spodem.
 
-Podczas pracy agenta krótka nazwa czynności jest widoczna w wierszu statusu. Pozostaje w jednej linii; pełne kroki narzędzi i rozumowanie znajdują się pod rozwinięciem. Rozwinięta historia ma ograniczoną wysokość i własne przewijanie, a przycisk zwijania pozostaje nad nią. Segmenty samej aktywności z jednego uruchomienia mają wspólne podsumowanie i czas rozpoczęcia. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
+Oś czasu w trakcie pracy jest częścią strony. Rozwinięta historia zakończonej pracy ma ograniczoną wysokość i własne przewijanie. Sąsiadujące segmenty jednego agenta i uruchomienia mają wspólne podsumowanie oraz czas rozpoczęcia, także gdy zawierają komunikaty między narzędziami i wznowienia po zatwierdzeniu. Inny agent lub wiadomość użytkownika pomiędzy segmentami rozpoczyna osobny turn. Zakończone i zagnieżdżone wymiany agentów pozostają dostępne, także raporty agentów programistycznych. Otwórz wymianę, aby przeczytać instrukcje, odpowiedź i zwinięte rozumowanie.
 
 Udane zapisy MCP pokazują karty z linkami do projektów, tabel, zadań, rekordów, agentów, workflow, skilli i Context. Błędy nie tworzą kart sukcesu. Wysłana wiadomość pojawia się blisko góry z miejscem na odpowiedź; ręczne przewijanie zachowuje pozycję. Listy Person i Agent przewijają się w oknie rekordu. Pytania działają także po wznowieniu czatu przez HTTP po zatwierdzeniu operacji.
 

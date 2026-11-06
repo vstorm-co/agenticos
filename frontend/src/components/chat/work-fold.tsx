@@ -107,6 +107,7 @@ export function WorkFold({
   waiting,
   children,
   activity,
+  live = false,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
@@ -118,10 +119,12 @@ export function WorkFold({
   children: ReactNode;
   /** A short live action label, never a streaming thought or a nested tool card. */
   activity?: string;
+  /** Show progress in place until the run settles; finished history stays scrollable. */
+  live?: boolean;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(live);
   const historyId = useId();
   const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
@@ -206,7 +209,10 @@ export function WorkFold({
           // Focus lets keyboard users scroll to steps outside the visible region.
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
-          className="focus-visible:ring-ring mt-2 max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain rounded-lg p-1 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+          className={cn(
+            "focus-visible:ring-ring mt-2 rounded-lg p-1 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+            !live && "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
+          )}
         >
           <div className="space-y-2">{children}</div>
         </div>

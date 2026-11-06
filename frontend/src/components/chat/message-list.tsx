@@ -83,8 +83,8 @@ export function endsTurn(messages: ChatMessage[], index: number): boolean {
   return !continuesTurn(messages, index + 1);
 }
 
-/** Fold adjacent activity-only segments without changing the stored transcript.
- * Prose, questions and conversation boundaries retain their original position.
+/** One chronological timeline per adjacent run, without rewriting stored messages.
+ * Progress text stays beside its tools, and the last segment supplies the answer.
  */
 export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
   const result: ChatMessage[] = [];
@@ -99,11 +99,10 @@ export function coalesceActivity(messages: ChatMessage[]): ChatMessage[] {
       previous.role !== "assistant" ||
       message.role !== "assistant" ||
       !sameRun ||
-      previous.content.trim() ||
       previous.files?.length ||
       previous.fileIds?.length ||
       previous.replyTo ||
-      previous.parts?.some((part) => !["tool", "thinking", "text"].includes(part.type))
+      previous.agentId !== message.agentId
     ) {
       result.push(message);
       continue;

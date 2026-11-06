@@ -1,0 +1,61 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+
+import type { ToolCall } from "@/types";
+import { ToolGroup } from "./tool-group";
+
+const search = (id: string): ToolCall => ({
+  id,
+  name: "web_search",
+  args: { query: id },
+  status: "completed",
+});
+
+describe("consecutive tool groups", () => {
+  it("keeps a single call as its own step", () => {
+    render(
+      <ToolGroup calls={[search("one")]} mcpServers={[]}>
+        <p>One search</p>
+      </ToolGroup>,
+    );
+    expect(screen.getByText("One search")).toBeVisible();
+    expect(screen.queryByText("1 action")).toBeNull();
+  });
+
+  it("collapses repeated searches and keeps the group open as results arrive", async () => {
+    const view = render(
+      <ToolGroup calls={[search("Poland"), search("Norway")]} mcpServers={[]}>
+        <p>Search results</p>
+      </ToolGroup>,
+    );
+    expect(screen.getByText("2 actions")).toBeVisible();
+    expect(screen.getByText("Search results")).not.toBeVisible();
+    await userEvent.click(screen.getByText("2 actions"));
+    expect(screen.getByText("Search results")).toBeVisible();
+    view.rerender(
+      <ToolGroup calls={[search("Poland"), search("Norway"), search("Australia")]} mcpServers={[]}>
+        <p>Search results</p>
+      </ToolGroup>,
+    );
+    expect(screen.getByText("3 actions")).toBeVisible();
+    expect(screen.getByText("Search results")).toBeVisible();
+  });
+
+  it("names mixed tools and surfaces a pending approval without expanding arguments", () => {
+    render(
+      <ToolGroup
+        calls={[
+          search("one"),
+          { id: "write", name: "write_file", args: {}, status: "awaiting_approval" },
+        ]}
+        mcpServers={[]}
+      >
+        <p>Private arguments</p>
+      </ToolGroup>,
+    );
+    expect(screen.getByText("Waiting for approval")).toBeVisible();
+    expect(screen.getByText("Private arguments")).not.toBeVisible();
+    expect(screen.getByText("2 actions")).toBeVisible();
+  });
+});

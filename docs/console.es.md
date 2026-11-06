@@ -1,5 +1,5 @@
 ---
-source_sha: "a5ee439d5dab"
+source_sha: "8c15d7e07ff0"
 ---
 
 # La consola { #the-console }
@@ -460,9 +460,9 @@ Las listas de conversaciones conservan el agente principal y también muestran C
 
 El panel Files agrupa los archivos por carpetas y distingue nombres iguales en distintos directorios. Las vistas previas HTML cargan las hojas de estilo locales y sus recursos anidados mediante el mismo acceso que la página. La vista previa y el código fuente permanecen separados; los scripts siguen desactivados. Si no se puede leer una hoja de estilo, se indica cuál ha fallado. Debajo de cada respuesta aparecen enlaces a los archivos modificados en ese turno, según las rutas comunicadas por herramientas de escritura/edición exitosas o por el coding harness. Los enlaces abren los archivos actuales del workspace, no una copia versionada.
 
-El razonamiento y las llamadas a herramientas se contraen por defecto en todos los tamaños de pantalla, también después de un mensaje del agente. La actividad consecutiva comparte un desplegable; los mensajes separan los grupos. Abre un grupo para revisar los pasos, errores y detalles opcionales. Las respuestas, tarjetas de aprobación y resultados visuales permanecen visibles fuera de los grupos. Las preguntas ya respondidas tienen su propio desplegable cerrado; ábrelo para leer la respuesta. Una pregunta o aprobación pendiente muestra un estado de espera en lugar del contador de trabajo. Al salir de un chat con una pregunta sin responder, se guarda para responder al volver.
+Mientras trabaja el agente, los mensajes de progreso y las llamadas a herramientas que les siguen aparecen en orden de llegada dentro de un historial desplegado. Al terminar la ejecución, todo ese historial se contrae bajo un único control «Worked for…» o «Thought for…», dejando debajo solo la respuesta final. Al abrirlo se recupera el mismo orden de mensajes y grupos de herramientas. El razonamiento conserva su desplegable opcional; sus encabezados no generan fases. Las preguntas y aprobaciones mantienen el estado de espera hasta resolverse, también al delegar. Las tarjetas de aprobación activas y los resultados visuales permanecen fuera del historial terminado.
 
-Los encabezados independientes del razonamiento forman fases con nombre dentro del historial de trabajo desplegado. Cada fase agrupa su explicación y las herramientas siguientes hasta el próximo encabezado o mensaje del agente. Los detalles empiezan contraídos; el razonamiento sin encabezado conserva su presentación anterior.
+Las herramientas consecutivas entre mensajes forman un grupo contraído; ábrelo para ver las llamadas individuales.
 
 Las aprobaciones del chat siguen siendo una tarjeta compacta junto al editor: operación, icono y título de la tarea u objeto, con argumentos adicionales bajo Details. Approve y Reject están al lado de la solicitud o debajo en pantallas estrechas. La actividad terminada muestra una marca discreta, los pasos en espera un estado propio y los pasos activos conservan su icono en lugar de una esfera animada por llamada.
 
@@ -470,7 +470,7 @@ Al volver a abrir un chat también se restauran las aprobaciones y preguntas de 
 
 El texto recibido sigue siendo legible mientras carga el módulo de formato Markdown. El editor tiene una superficie opaca y un foco discreto, sin borde animado ni desenfoque del fondo.
 
-Durante el trabajo, una breve etiqueta de actividad comparte la línea de estado. Se mantiene en una sola línea; los pasos completos y el razonamiento permanecen dentro del desplegable. El historial abierto tiene una altura limitada y desplazamiento propio; el control para contraerlo permanece encima. Los segmentos de solo actividad de una ejecución comparten un resumen y su hora de inicio. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación. Abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
+El historial en vivo sigue el flujo de la página; el historial terminado y desplegado tiene altura limitada y desplazamiento propio. Los segmentos consecutivos de una misma ejecución y agente comparten resumen y hora de inicio, incluidos los mensajes entre herramientas y las continuaciones tras una aprobación. Otro agente o un mensaje del usuario intermedio inicia un turno separado. Los intercambios terminados y anidados siguen disponibles, incluidos los informes de agentes de programación; abre un intercambio para consultar instrucciones, respuesta y razonamiento contraído.
 
 Las escrituras MCP confirmadas muestran tarjetas enlazadas de proyectos, tablas, tareas, registros, agentes, workflows, skills y Context. Los errores no generan tarjetas de éxito. Los mensajes enviados aparecen cerca del borde superior con espacio para la respuesta; el desplazamiento manual conserva tu posición. Las listas Person y Agent se desplazan dentro del diálogo del registro. Las preguntas siguen funcionando tras las continuaciones HTTP aprobadas.
 

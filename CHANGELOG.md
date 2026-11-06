@@ -189,7 +189,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Turn reasoning headings into named, collapsible chat phases with their explanations and subsequent tool calls grouped together.
+- Keep progress messages and tool groups chronological while agents work; collapse the complete run history only after the final answer, including approval continuations.
 
 - Show the three most recently active projects in navigation and mark projects with unread chat answers for the current reader.
 

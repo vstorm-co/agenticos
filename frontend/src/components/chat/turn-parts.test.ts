@@ -77,11 +77,15 @@ it("keeps narration in place when more work arrives during a live turn", async (
     false,
     true,
   );
-  expect(before?.shown.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
+  expect(before?.folded.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
+    "tools",
     "narration",
   ]);
-  expect(after?.shown.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
+  expect(after?.folded.map((run) => (run.kind === "other" ? run.part.id : "tools"))).toEqual([
+    "tools",
     "narration",
+    "tools",
   ]);
+  expect(after?.shown).toEqual([]);
   expect(after?.steps).toBe(2);
 });

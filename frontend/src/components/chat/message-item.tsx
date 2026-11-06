@@ -641,6 +641,7 @@ function MessageBody({
           startedAt={startedAt}
           durationMs={endsTurn ? message.runDurationMs : undefined}
           stopped={message.wasStopped === true}
+          waitingFor={message.runWaitingFor}
         />
       ) : (
         /* Legacy fallback: user / pre-parts messages. */
