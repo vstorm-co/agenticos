@@ -1014,13 +1014,15 @@ claim cannot refuse content that arrives after it, and the caller has no authori
 over it. Only the chunks the base takes are purged, and the other rows under the name
 stay as they are.
 
-Unless the base is a default, which stays on the name, the name is left as `rag-ingest` leaves it: no base holds it, `rag-drop <name>` removes it, and
-`claim` refuses it to everyone but an app admin and an organization whose chunks are
-all that remain ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+Unless the base is a default, which stays on the name, the name is left as `rag-ingest`
+leaves it: no base holds it, `rag-drop <name>` removes it, and `claim` refuses it to
+everyone but an app admin and an organization whose chunks are all that remain
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
-A personal base outside an organization takes no unfiled chunk. A legacy chunk of its
-own with no base and no organization cannot be told from an operator's, so it keeps
-the table too and stays until `rag-drop <name>`.
+A personal base outside an organization takes no unfiled chunk, though a chunk its own
+rows name goes with it. A legacy chunk with no base, no organization and no row cannot
+be told from an operator's: it keeps the table too, stays until `rag-drop <name>`, and
+is the app scope's, so an app-scoped base on the name reads it.
 
 Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
 tenant's unfiled rows under the name stay, with their files, because the caller has no

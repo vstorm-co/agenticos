@@ -1,5 +1,5 @@
 ---
-source_sha: "8bb55388cce6"
+source_sha: "e5b97820e421"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1098,14 +1098,16 @@ tomado, o un fragmento de otro tenant. Un claim no puede rechazar contenido que 
 después, y quien llama no tiene autoridad sobre él. Solo se purgan los fragmentos que
 la base toma, y las demás filas bajo el nombre se quedan como están.
 
-Salvo en una base por defecto, que sigue en el nombre, este queda como lo deja `rag-ingest`: ninguna base
-lo tiene, `rag-drop <name>` lo elimina y `claim` lo rechaza a todos menos a un
-administrador de la aplicación y a una organización cuyos fragmentos son los únicos que
-quedan ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+Salvo en una base por defecto, que sigue en el nombre, este queda como lo deja
+`rag-ingest`: ninguna base lo tiene, `rag-drop <name>` lo elimina y `claim` lo rechaza a
+todos menos a un administrador de la aplicación y a una organización cuyos fragmentos
+son los únicos que quedan ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
-Una base personal fuera de una organización no toma ningún fragmento sin asignar. Un
-fragmento antiguo suyo sin base y sin organización no se distingue del de un operador,
-así que también conserva la tabla y se queda hasta `rag-drop <name>`.
+Una base personal fuera de una organización no toma ningún fragmento sin asignar,
+aunque un fragmento que nombran sus propias filas se va con ella. Un fragmento antiguo
+sin base, sin organización y sin fila no se distingue del de un operador: también
+conserva la tabla, se queda hasta `rag-drop <name>` y es del ámbito de la aplicación,
+así que una base app-scoped con ese nombre lo lee.
 
 En otro caso, y siempre con `rag-drop`, el trabajo de limpieza elimina la tabla. Las
 filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos, porque

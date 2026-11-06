@@ -1,5 +1,5 @@
 ---
-source_sha: "8bb55388cce6"
+source_sha: "e5b97820e421"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1148,15 +1148,16 @@ kann Inhalt, der erst danach kommt, nicht ablehnen, und der Aufrufer hat keine
 Befugnis darüber. Nur die Chunks, die die Basis übernimmt, werden entfernt, und die
 übrigen Zeilen unter dem Namen bleiben unverändert.
 
-Außer bei einer Standardbasis, die auf dem Namen bleibt, ist der Name so, wie `rag-ingest` ihn hinterlässt: Keine Basis
-hält ihn, `rag-drop <name>` entfernt ihn, und `claim` lehnt ihn für alle ab außer einem
-App-Admin und einer Organisation, deren Chunks als einzige übrig sind
-([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+Außer bei einer Standardbasis, die auf dem Namen bleibt, ist der Name so, wie
+`rag-ingest` ihn hinterlässt: Keine Basis hält ihn, `rag-drop <name>` entfernt ihn, und
+`claim` lehnt ihn für alle ab außer einem App-Admin und einer Organisation, deren Chunks
+als einzige übrig sind ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
 Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
-Chunk. Ein eigener Alt-Chunk ohne Basis und ohne Organisation lässt sich nicht von dem
-eines Operators unterscheiden, deshalb behält auch er die Tabelle und bleibt bis
-`rag-drop <name>`.
+Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne
+Basis, ohne Organisation und ohne Zeile lässt sich nicht von dem eines Operators
+unterscheiden: Auch er behält die Tabelle, bleibt bis `rag-drop <name>` und gehört dem
+App-Scope, sodass eine app-scoped Basis auf dem Namen ihn liest.
 
 Andernfalls, und bei `rag-drop` immer, löscht der Aufräum-Job die Tabelle. Nicht
 zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren Dateien,

@@ -1,5 +1,5 @@
 ---
-source_sha: "8bb55388cce6"
+source_sha: "e5b97820e421"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1073,14 +1073,16 @@ chunk innego tenanta. Claim nie może odrzucić treści, która pojawia się po 
 wywołujący nie ma do niej uprawnień. Czyszczone są tylko chunki, które baza przejmuje,
 a pozostałe wiersze pod tą nazwą zostają bez zmian.
 
-Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki zostawia `rag-ingest`: nie ma jej żadna baza,
-usuwa ją `rag-drop <name>`, a `claim` odrzuca ją wszystkim poza administratorem
-aplikacji i organizacją, której chunki są jedynymi, jakie zostały
-([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+Poza bazą domyślną, która zostaje na tej nazwie, nazwa wraca do stanu, jaki zostawia
+`rag-ingest`: nie ma jej żadna baza, usuwa ją `rag-drop <name>`, a `claim` odrzuca ją
+wszystkim poza administratorem aplikacji i organizacją, której chunki są jedynymi, jakie
+zostały ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
 
-Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka. Jej
-historycznego chunka bez bazy i bez organizacji nie da się odróżnić od chunka
-operatora, więc on też zachowuje tabelę i zostaje do `rag-drop <name>`.
+Baza osobista poza organizacją nie przejmuje żadnego nieprzypisanego chunka, choć
+chunk wskazany przez jej własne wiersze znika razem z nią. Historycznego chunka bez
+bazy, bez organizacji i bez wiersza nie da się odróżnić od chunka operatora: on też
+zachowuje tabelę, zostaje do `rag-drop <name>` i należy do zakresu aplikacji, więc
+czyta go baza app-scoped o tej nazwie.
 
 W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
