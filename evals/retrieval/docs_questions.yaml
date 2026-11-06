@@ -1,0 +1,346 @@
+# Retrieval-evaluation questions over the AgenticOS documentation (docs/).
+# A retrieved chunk is a hit when its page key - the docs-relative path with the
+# locale suffix removed (directory.pl.md -> directory.md) - is in expected_pages;
+# scored as hit@k, recall@k and MRR per category. expected_facts optionally score an answer:
+# every group must match, any alternative in a group matches (case-insensitive,
+# whole word, a trailing * is a prefix). See docs/retrieval-eval.md.
+version: 1
+items:
+  # negative: the docs state plainly that something is NOT supported
+  - id: saml-single-sign-on
+    category: negative
+    language: en
+    question: Does AgenticOS support SAML single sign-on?
+    expected_pages: [directory.md]
+    expected_facts:
+      - ["no", "not", "nie"]
+      - [Keycloak*]
+    evidence: "directory.md: **No SAML.** A SAML-only identity provider can reach AgenticOS through Keycloak"
+
+  - id: scim-provisioning
+    category: negative
+    language: en
+    question: Can our identity provider push user accounts to AgenticOS automatically with SCIM?
+    expected_pages: [directory.md]
+    expected_facts:
+      - ["no", "not", "isn't", "doesn't"]
+      - [sign-in*, "sign in", deactivat*]
+    evidence: "directory.md: There is no SCIM and no scheduled directory sync."
+
+  - id: org-wide-default-model
+    category: negative
+    language: en
+    question: Can I pick one default LLM for the whole organization so new agents use it?
+    expected_pages: [models.md]
+    expected_facts:
+      - ["no", "not", "cannot", "isn't"]
+      - [spec*]
+    evidence: "models.md: There is no organization-wide default model. An agent's spec names its model,"
+
+  - id: api-client-sdk
+    category: negative
+    language: en
+    question: Is there an official SDK or client library for calling the API?
+    expected_pages: [api.md]
+    expected_facts:
+      - ["no", "not", "isn't"]
+      - [OpenAPI, curl, "API reference"]
+    evidence: "api.md: There is no client library yet."
+
+  - id: per-document-access-in-collection
+    category: negative
+    language: en
+    question: Can I restrict who sees individual documents inside a single knowledge collection?
+    expected_pages: [file-processing.md]
+    expected_facts:
+      - ["no", "not", "cannot", "isn't"]
+      - ["every document", "all documents", "whole collection", separate*, split*, "different collection*", "another collection"]
+    evidence: "file-processing.md: **Within a collection there is no per-document isolation.** Access is decided at the"
+
+  - id: admin-creates-account-when-closed
+    category: negative
+    language: en
+    question: With sign-up closed, can an administrator just create an account for a new colleague?
+    expected_pages: [deployment.md]
+    expected_facts:
+      - ["no", "not", "cannot"]
+      - [invite_only, invite*]
+    evidence: "deployment.md: **`closed` means closed, and there is no administrator-creates-an-account path.**"
+
+  - id: zapier-signed-webhook
+    category: negative
+    language: en
+    question: Can Zapier send a signed delivery to an event trigger using its standard webhook step?
+    expected_pages: [triggers.md]
+    expected_facts:
+      - ["no", "not", "cannot"]
+      - [code]
+    evidence: "triggers.md: Zapier and Make cannot do this without a code step"
+
+  - id: deployment-wide-embedding-key
+    category: negative
+    language: en
+    question: Can I configure one embedding API key for the whole server instead of per collection?
+    expected_pages: [data-protection.md, file-processing.md]
+    expected_facts:
+      - ["no", "not", "cannot", "isn't"]
+      - [embedding_secret_id, vault*, "each collection", "its own key"]
+    evidence: "data-protection.md: There is no deployment-wide embedding key; a keyed collection without one refuses to index or search."
+
+  - id: environment-without-version-pl
+    category: negative
+    language: pl
+    question: Czy środowisko może działać bez przypiętej konkretnej wersji agenta?
+    expected_pages: [environments.md]
+    expected_facts:
+      - ["nie", "no", "not", "brak"]
+      - [domyśln*, default, opublikowan*, published]
+    evidence: "environments.md: Which published version answers here. There is no unpinned state"
+
+  - id: voice-calls-recorded-pl
+    category: negative
+    language: pl
+    question: Czy nagrania rozmów głosowych z agentem są gdzieś przechowywane?
+    expected_pages: [voice.md]
+    expected_facts:
+      - ["nie", "no", "not"]
+      - [transkrypc*, transcript*, tekst*, text]
+    evidence: "voice.md: No. The call keeps text only: each turn's transcript is saved as a message in"
+
+  # factual: a stated setting, default or name
+  - id: vault-master-key-fallback
+    category: factual
+    language: en
+    question: If I never set a vault master key, what does the platform encrypt credentials with?
+    expected_pages: [secrets.md]
+    expected_facts:
+      - [SECRET_KEY]
+    evidence: "secrets.md: The master key is `VAULT_MASTER_KEY`. It falls back to `SECRET_KEY`"
+
+  - id: unanswered-question-expiry
+    category: factual
+    language: en
+    question: How long will a run wait for someone to answer a question the agent asked before giving up?
+    expected_pages: [configuration.md]
+    expected_facts:
+      - ["24"]
+    evidence: "configuration.md: | `QUESTION_EXPIRY_HOURS` | `24` | How long a run waits on an agent's unanswered question before the same sweep ends it |"
+
+  - id: job-queue-engine
+    category: factual
+    language: en
+    question: What runs background jobs now that Prefect is gone?
+    expected_pages: [task-queue-benchmark.md]
+    expected_facts:
+      - [Postgres*, pgqueue]
+    evidence: "task-queue-benchmark.md: 1.9.0 replaced Prefect with the plain Postgres queue (`pgqueue`)"
+
+  - id: table-record-limit
+    category: factual
+    language: en
+    question: What is the maximum number of rows a single virtual table can hold by default?
+    expected_pages: [virtual-tables.md]
+    expected_facts:
+      - ["100,000", "100000", "100 000", "100k"]
+    evidence: "virtual-tables.md: | `TABLES_MAX_RECORDS_PER_TABLE` | 100,000 | Records in one table."
+
+  - id: podman-deployment
+    category: factual
+    language: en
+    question: Can I deploy AgenticOS on a host that runs Podman instead of Docker?
+    expected_pages: [deploy.md]
+    expected_facts:
+      - ["yes", "supported", "can"]
+      - [Compose]
+    evidence: "deploy.md: **Podman is supported through the manual deployment path with Docker Compose"
+
+  - id: session-lifetime
+    category: factual
+    language: en
+    question: How long can I stay logged in before my session runs out and I have to sign in again?
+    expected_pages: [configuration.md, directory.md]
+    expected_facts:
+      - ["7", "seven", "10080"]
+    evidence: "configuration.md: | `REFRESH_TOKEN_EXPIRE_MINUTES` | `10080` | Refresh token lifetime (7 days) |"
+
+  - id: workflow-worker-concurrency
+    category: factual
+    language: en
+    question: How many workflow branches does one worker execute in parallel out of the box?
+    expected_pages: [workflows.md]
+    expected_facts:
+      - ["five", "5"]
+    evidence: "workflows.md: `WORKER_WORKFLOW_CONCURRENCY` (five by default"
+
+  - id: skill-file-name
+    category: factual
+    language: en
+    question: Which file in a skill's folder holds its instructions and description?
+    expected_pages: [skills.md]
+    expected_facts:
+      - [SKILL.md]
+    evidence: "skills.md: /workspace/skills/<name>/SKILL.md"
+
+  - id: context-always-loaded
+    category: factual
+    language: en
+    question: How do I make an agent always know our product names without it having to look anything up?
+    expected_pages: [context.md]
+    expected_facts:
+      - [inject*]
+    evidence: "context.md: The body is spliced into the agent's instructions verbatim."
+
+  - id: embedding-providers
+    category: factual
+    language: en
+    question: Which providers can a knowledge collection use to compute embeddings?
+    expected_pages: [data-protection.md, file-processing.md]
+    expected_facts:
+      - [openrouter]
+      - [ollama]
+      - [openai]
+    evidence: "data-protection.md: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog)"
+
+  - id: default-pdf-parser-pl
+    category: factual
+    language: pl
+    question: Jakim parserem kolekcja domyślnie przetwarza pliki PDF?
+    expected_pages: [data-protection.md]
+    expected_facts:
+      - [pymupdf]
+    evidence: "data-protection.md: The default `pymupdf` parses in the worker"
+
+  - id: table-write-rate-limit-pl
+    category: factual
+    language: pl
+    question: Ile zapisów do tabel na minutę może wykonać jeden użytkownik, zanim dostanie odmowę?
+    expected_pages: [virtual-tables.md]
+    expected_facts:
+      - ["300"]
+    evidence: "virtual-tables.md: Writes are also limited to `RATE_LIMIT_TABLE_WRITES_PER_MINUTE` (300) per member"
+
+  - id: project-default-agent-pl
+    category: factual
+    language: pl
+    question: Który agent odpowiada, kiedy zaczynam nową rozmowę w projekcie?
+    expected_pages: [projects.md]
+    expected_facts:
+      - [domyśln*, default]
+    evidence: "projects.md: A project also has a **default agent**, the one a new chat in it starts with."
+
+  - id: role-approves-without-editing-pl
+    category: factual
+    language: pl
+    question: Jaka rola w organizacji może decydować o zatwierdzeniach, ale nie może edytować agentów?
+    expected_pages: [permissions.md]
+    expected_facts:
+      - [operator*]
+    evidence: "permissions.md: | `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit |"
+
+  # cross_language: Polish questions over the English pages only
+  - id: saml-single-sign-on-pl
+    category: cross_language
+    language: pl
+    search_locales: [en]
+    question: Czy da się logować do AgenticOS przez SAML?
+    expected_pages: [directory.md]
+    expected_facts:
+      - ["nie", "no", "not", "brak"]
+      - [Keycloak*]
+    evidence: "directory.md: **No SAML.** A SAML-only identity provider can reach AgenticOS through Keycloak"
+
+  - id: default-chunk-size-pl
+    category: cross_language
+    language: pl
+    search_locales: [en]
+    question: Na jak duże kawałki dzielone są domyślnie dokumenty w bazie wiedzy?
+    expected_pages: [file-processing.md]
+    expected_facts:
+      - ["2500", "2 500", "2,500"]
+    evidence: "file-processing.md: | `chunk_size` | `2500` | Maximum characters per chunk |"
+
+  - id: voice-call-length-pl
+    category: cross_language
+    language: pl
+    search_locales: [en]
+    question: Jak długo maksymalnie może trwać rozmowa głosowa z agentem?
+    expected_pages: [voice.md, governance.md]
+    expected_facts:
+      - ["50"]
+    evidence: "voice.md: longest call (10 minutes when unset, 50 at most)"
+
+  - id: publish-reaches-production-pl
+    category: cross_language
+    language: pl
+    search_locales: [en]
+    question: Czy opublikowanie nowej wersji agenta od razu podmienia ją na produkcji?
+    expected_pages: [environments.md]
+    expected_facts:
+      - ["nie", "no", "not"]
+      - [tracks_latest, "tracks latest"]
+    evidence: "environments.md: Off is the default deliberately: publishing mints a version, and deciding where"
+
+  - id: model-weights-in-image-pl
+    category: cross_language
+    language: pl
+    search_locales: [en]
+    question: Czy obrazy Dockera AgenticOS mają w sobie wagi modeli językowych?
+    expected_pages: [licenses.md]
+    expected_facts:
+      - ["nie", "no", "not", "brak"]
+      - [dostawc*, provider*, pobier*, download*, profil*]
+    evidence: "licenses.md: No model weights ship in either image."
+
+  # cross_language: English questions over the Polish pages only
+  - id: redis-cluster-pl-corpus
+    category: cross_language
+    language: en
+    search_locales: [pl]
+    question: Can I run AgenticOS against a sharded Redis cluster?
+    expected_pages: [scaling.md]
+    expected_facts:
+      - ["no", "not", "nie", "isn't"]
+      - ["one instance", "single instance", primary, "one endpoint", "one Redis", "single Redis", pojedyncz*]
+    evidence: "scaling.md: The client is not cluster-aware, so Redis Cluster is not supported."
+
+  - id: desktop-app-framework-pl-corpus
+    category: cross_language
+    language: en
+    search_locales: [pl]
+    question: What framework is the desktop client built with?
+    expected_pages: [desktop.md]
+    expected_facts:
+      - [Tauri]
+    evidence: "desktop.md: It is a [Tauri](https://tauri.app) shell in `desktop/`."
+
+  - id: approval-expiry-pl-corpus
+    category: cross_language
+    language: en
+    search_locales: [pl]
+    question: How long does a pending tool approval wait before it is denied automatically?
+    expected_pages: [configuration.md]
+    expected_facts:
+      - ["72"]
+    evidence: "configuration.md: | `APPROVAL_EXPIRY_HOURS` | `72` | How long a parked tool call waits before the hourly sweep denies it by timeout |"
+
+  - id: stdio-mcp-server-pl-corpus
+    category: cross_language
+    language: en
+    search_locales: [pl]
+    question: Can I connect an MCP server that only talks over standard input and output?
+    expected_pages: [mcp.md]
+    expected_facts:
+      - ["no", "not", "cannot", "nie"]
+      - [bridge*, most, mostu, mostem]
+    evidence: "mcp.md: A server that speaks only stdio cannot be connected, because a connection"
+
+  - id: sandbox-docker-in-docker-pl-corpus
+    category: cross_language
+    language: en
+    search_locales: [pl]
+    question: Does the code sandbox run containers nested inside another Docker container?
+    expected_pages: [sandbox.md]
+    expected_facts:
+      - ["no", "not", "nie"]
+      - [sibling*, "host's daemon", "host daemon", sandboxd, socket]
+    evidence: "sandbox.md: There is no Docker-in-Docker here, nothing is `--privileged`, and no nested"

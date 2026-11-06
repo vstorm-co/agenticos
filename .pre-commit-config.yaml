@@ -115,13 +115,13 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff format
-        entry: uv run --no-sync --directory backend ruff format . ../scripts
+        entry: uv run --no-sync --directory backend ruff format . ../scripts ../evals
         language: system
         types: [python]
         pass_filenames: false
       - id: ruff-check
         name: ruff check
-        entry: uv run --no-sync --directory backend ruff check . ../scripts --fix
+        entry: uv run --no-sync --directory backend ruff check . ../scripts ../evals --fix
         language: system
         types: [python]
         pass_filenames: false

@@ -479,6 +479,9 @@ ignore = [
 # its output is redirected into a results file afterwards. It is not imported by
 # the application - nothing under `app/` may import it - and it carries no gate.
 "../loadtest/**" = ["T201"]
+# The retrieval evaluation is the same kind of console tool: it prints its progress
+# and the report a run produces, and nothing under `app/` imports it.
+"../evals/**" = ["T201"]
 # Never run in the API: a sandbox runs its source with `python3 -c` and the
 # computerd image copies it in, as the desktop's own account. Its answer is its
 # output (T201), and it runs the desktop's `xdotool` and `exo-open` by name with

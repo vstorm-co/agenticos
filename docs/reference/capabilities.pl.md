@@ -1,5 +1,5 @@
 ---
-source_sha: "c60a0a5cad27"
+source_sha: "abf99b41914d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -251,7 +251,9 @@ wyszukiwaniem, więc wymieniają opóźnienie i niewielki koszt na lepszą pełn
 rozmytych pytaniach. `multi_query` dodatkowo wyszukuje raz na każde zapytanie,
 jedno po drugim, a każde wyszukiwanie osobno tworzy embedding swojego zapytania —
 warianty nie są łączone w jedno wywołanie embeddingu — więc trzymaj
-`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie.
+`query_analysis_max_variants` nisko, aby ograniczyć rozgałęzienie. Czy któryś z
+trybów się opłaca na danym korpusie, rozstrzyga pomiar, a nie wartość domyślna:
+[ewaluacja wyszukiwania](../retrieval-eval.md) porównuje je na tej dokumentacji.
 
 Oba tryby używają własnego modelu agenta — nie ma osobnego modelu do
 skonfigurowania — a ich koszt jest mierzony względem budżetu runu jak każde inne

@@ -174,6 +174,7 @@ async def test_passages_come_back_as_typed_sources_the_output_carries(
         "content": "about handbook.pdf",
     }
     assert second["filename"] == "faq.md"
+    assert second["page"] is None, "a Markdown hit names no page (#2482)"
 
 
 async def test_no_results_is_an_answer_not_a_failure(engine: AsyncEngine, retrieval):

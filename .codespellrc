@@ -39,9 +39,13 @@
 #              worth checking, so the words are ignored rather than the files.
 #   afterall   Playwright's `test.afterAll` hook, which an e2e spec has to call
 #              by that name.
+#   tekst, tabel
+#              Polish fact alternatives in the retrieval evaluation's question
+#              set (`evals/retrieval/docs_questions.yaml`), which an answer in
+#              Polish has to match.
 #   foto       German and Spanish, in the few words the iOS app draws itself
 #              (`AttachPlugin.swift`), translated inline beside the English.
-ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform,afterall,foto,convertor,convertors
+ignore-words-list = dependant,nam,adres,ue,couldn,re-use,re-declaring,selectin,ans,oraz,jest,informacji,falied,instrucitons,ist,sie,unter,referenz,plattform,afterall,foto,convertor,convertors,tekst,tabel
 
 # Lockfiles, generated code, uploaded media, the third-party licence texts and
 # the translated message catalogs and documentation pages are not English prose.
