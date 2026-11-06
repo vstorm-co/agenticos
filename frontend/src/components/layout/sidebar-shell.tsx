@@ -14,6 +14,7 @@ import { ConsoleVersion } from "@/components/layout/console-version";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { SidebarSearch } from "@/components/layout/sidebar-search";
 import { SidebarUser } from "@/components/layout/sidebar-user";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function SidebarShell({
@@ -29,11 +30,11 @@ export function SidebarShell({
   return (
     <>
       {!collapsed && (
-        <div className="flex shrink-0 flex-col gap-2 px-3 pt-3">
+        <div className="flex shrink-0 flex-col gap-2 px-3 pt-3 pb-3">
           <Link
             href="/chat?new=workspace"
             onClick={onNavigate}
-            className="text-foreground/90 hover:bg-foreground/6 focus-visible:ring-ring flex h-10 items-center gap-2.5 rounded-xl px-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset"
+            className={cn(buttonVariants(), "w-full justify-start gap-2.5 rounded-xl px-3")}
             data-tour="chat-start"
           >
             <SquarePen className="size-4" aria-hidden />

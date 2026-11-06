@@ -199,6 +199,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Distinguish New chat and Search from sidebar navigation with primary and subtle search surfaces shared by desktop and mobile.
+
 - Position global search lower in the viewport and bound its result list to keep the palette comfortable on smaller screens.
 
 - Refine the Memory settings tab with a unified search/filter toolbar, lighter memory and note rows, and a responsive detail panel with clearer metadata and actions.

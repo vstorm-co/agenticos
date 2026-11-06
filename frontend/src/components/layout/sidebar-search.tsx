@@ -63,12 +63,15 @@ export function SidebarSearch({ variant = "row" }: SidebarSearchProps) {
     <button
       type="button"
       onClick={open}
-      className="text-muted-foreground hover:bg-foreground/5 hover:text-foreground focus-visible:ring-ring touch:min-h-11 flex min-h-9 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
+      className="border-foreground/8 bg-foreground/3 text-muted-foreground hover:bg-foreground/6 hover:text-foreground focus-visible:ring-ring touch:min-h-11 flex min-h-10 w-full items-center gap-2.5 rounded-xl border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset"
     >
       <Search className="h-4 w-4 shrink-0" aria-hidden />
       <span className="flex-1 text-left">{t("search")}</span>
       {mounted && (
-        <kbd aria-hidden className="touch:hidden text-muted-foreground text-[11px]">
+        <kbd
+          aria-hidden
+          className="bg-foreground/5 text-muted-foreground touch:hidden rounded px-1.5 py-0.5 text-[10px] leading-4"
+        >
           {mac ? "⌘K" : t("searchShortcut")}
         </kbd>
       )}
