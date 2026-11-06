@@ -207,3 +207,11 @@ async function chooseFilter(name: string) {
   await userEvent.click(screen.getByRole("combobox", { name: "Show" }));
   await userEvent.click(screen.getByRole("option", { name }));
 }
+
+it("changes the desktop filters without opening a duplicate select", async () => {
+  render(<InboxPage />);
+  await userEvent.click(screen.getByRole("button", { name: "Urgent" }));
+  expect(screen.getByRole("button", { name: "Urgent" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("button", { name: "All" }));
+  expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+});

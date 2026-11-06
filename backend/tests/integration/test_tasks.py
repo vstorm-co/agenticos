@@ -301,6 +301,8 @@ async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_revi
         model_label="test",
         started_at=datetime.now(UTC),
     )
+    assert await TaskExecution(db).started(data.contexts[0], trigger)
+    assert (await service.get(data.contexts[0], task.id)).status == "in_progress"
     run.status = "completed"
     await db.flush()
     await TaskExecution(db).finished(trigger, run)

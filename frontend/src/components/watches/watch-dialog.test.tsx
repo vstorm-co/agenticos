@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -390,6 +390,45 @@ it("starts a proposed watch with a visible cadence that respects a nonstandard f
       instructions: "Find review requests",
       interval_minutes: 90,
       urgent: false,
+    }),
+  );
+});
+
+vi.mock("./watch-agent-fields", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./watch-agent-fields")>();
+  return {
+    ...actual,
+    WatchExecutionFields: ({
+      onEnvironment,
+      onVersion,
+    }: {
+      onEnvironment: (id: string | null) => void;
+      onVersion: (id: string | null) => void;
+    }) => (
+      <>
+        <button onClick={() => onEnvironment("prod")}>Select production environment</button>
+        <button onClick={() => onEnvironment(null)}>Select default environment</button>
+        <button onClick={() => onVersion("pinned-version")}>Pin reviewed version</button>
+      </>
+    ),
+  };
+});
+it("saves explicit version and end-time changes without silently refreshing source consent", async () => {
+  render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Select production environment" }));
+  await userEvent.click(screen.getByRole("button", { name: "Select default environment" }));
+  await userEvent.click(screen.getByRole("button", { name: "Pin reviewed version" }));
+  fireEvent.change(screen.getByLabelText("Ends at (device time)"), {
+    target: { value: "2028-01-02T03:04" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(state.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      changes: expect.objectContaining({
+        environment_id: null,
+        pinned_version_id: "pinned-version",
+        ends_at: expect.stringContaining("2028-"),
+      }),
     }),
   );
 });

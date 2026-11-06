@@ -1168,3 +1168,155 @@ async def test_member_reinvitation_requires_fresh_phone_opt_in(
     )
     await db.flush()
     assert await repo.contact(db, organization_id=ctx.organization_id, user_id=ctx.user_id) is None
+
+
+async def test_telephone_history_is_tenant_scoped_and_inbound_callbacks_keep_their_signed_path(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    call = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, call.id)
+    assert row is not None
+    row.provider_sid = SID
+    await db.flush()
+    assert [
+        item.id
+        for item in await repo.recent_calls(
+            db, organization_id=ctx.organization_id, user_id=ctx.user_id
+        )
+    ] == [call.id]
+    assert len(await repo.recent_calls(db, organization_id=ctx.organization_id, user_id=None)) == 1
+    assert await repo.recent_calls(db, organization_id=uuid4(), user_id=None) == []
+    service = PhoneWebhookService(db)
+    for identifier, endpoint_filter in [(uuid4(), None), (call.id, uuid4())]:
+        with pytest.raises(NotFoundError):
+            await service.status(identifier, b"", "", endpoint_id=endpoint_filter)
+    with pytest.raises(NotFoundError):
+        await service.inbound_status(endpoint.id, b"CallSid=missing", "")
+    with pytest.raises(AuthorizationError, match="signature"):
+        await service.inbound(endpoint.id, b"CallSid=" + SID.encode(), "invalid")
+    params = {
+        "CallSid": SID,
+        "AccountSid": ACCOUNT,
+        "To": PERSON_NUMBER,
+        "From": NUMBER,
+        "CallStatus": "busy",
+    }
+    body = urlencode(params).encode()
+    signed = twilio_signature(url(f"/inbound-status/{endpoint.id}"), params, TOKEN)
+    await service.inbound_status(endpoint.id, body, signed)
+    await db.refresh(row)
+    assert row.status == "failed" and row.estimated_cost_usd == 0
+
+
+async def test_an_existing_member_without_phone_opt_in_cannot_queue_a_call(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    await repo.delete_member_contact(db, organization_id=ctx.organization_id, user_id=ctx.user_id)
+    with pytest.raises(AuthorizationError, match="Opt into phone"):
+        await report(db, ctx, endpoint.id)
+    assert (
+        await repo.recent_calls(db, organization_id=ctx.organization_id, user_id=ctx.user_id) == []
+    )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("AccountSid", "AC" + "c" * 32),
+        ("CallSid", "invalid"),
+        ("To", "+15552222222"),
+        ("From", "+15553333333"),
+    ],
+)
+async def test_callback_cannot_settle_another_provider_account_or_destination(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, field: str, value: str
+) -> None:
+    from app.services.telephony.runtime import status_callback
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    call = await report(db, ctx, endpoint.id)
+    params = {
+        "CallSid": SID,
+        "AccountSid": ACCOUNT,
+        "To": PERSON_NUMBER,
+        "From": NUMBER,
+        "CallStatus": "completed",
+    }
+    params[field] = value
+    with pytest.raises(AuthorizationError):
+        await status_callback(db, call.id, params)
+    assert (await repo.call(db, call.id)).status == "queued"
+
+
+@pytest.mark.parametrize("expired", [False, True])
+async def test_dial_rejects_expired_or_rotated_intentions_before_any_provider_effect(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, expired: bool
+) -> None:
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    call = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, call.id)
+    assert row is not None
+    if expired:
+        row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    else:
+        current = await repo.endpoint(db, endpoint.id, organization_id=ctx.organization_id)
+        assert current is not None
+        current.generation = uuid4()
+    await db.commit()
+    provider = FakePhone()
+    await dial(call.id, provider=provider, sessions=sessions(db))
+    assert provider.dials == []
+    await db.refresh(row)
+    assert row.status == "cancelled" and row.estimated_cost_usd == 0
+
+
+async def test_definitive_dial_refusal_finishes_once_and_retries_never_ring(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.exceptions import ExternalServiceError
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    call = await report(db, ctx, endpoint.id)
+    await db.commit()
+
+    class RefusingPhone(FakePhone):
+        async def dial(
+            self,
+            credentials: PhoneCredentials,
+            *,
+            number: str,
+            twiml: str,
+            callback: str,
+            cap_seconds: int,
+        ) -> str:
+            self.dials.append("attempt")
+            raise ExternalServiceError(message="Provider refused")
+
+    provider = RefusingPhone()
+    await dial(call.id, provider=provider, sessions=sessions(db))
+    await dial(call.id, provider=provider, sessions=sessions(db))
+    row = await repo.call(db, call.id)
+    assert row is not None and row.status == "failed" and row.estimated_cost_usd == 0
+    assert provider.dials == ["attempt"]
+
+
+async def test_conflicting_provider_receipts_remain_unknown_instead_of_binding_another_call(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.services.telephony.runtime import _settle_submission
+
+    ctx, _, _, _, endpoint = await setup(db, monkeypatch)
+    call = await report(db, ctx, endpoint.id)
+    row = await repo.call(db, call.id)
+    assert row is not None
+    row.status = "dialing"
+    row.provider_sid = SID
+    await db.commit()
+    assert not await _settle_submission(
+        sessions(db), call.id, status="ringing", sid="CA" + "d" * 32
+    )
+    await db.refresh(row)
+    assert row.status == "unknown" and row.provider_sid == SID
+    assert not await _settle_submission(sessions(db), uuid4(), status="failed")

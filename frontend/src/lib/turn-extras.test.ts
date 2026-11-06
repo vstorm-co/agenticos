@@ -220,3 +220,40 @@ describe("files a turn changed", () => {
     ).toEqual([]);
   });
 });
+
+it("reports only confirmed ledger writes and never infers a saved memory from tool arguments", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  const confirmed = `Recorded (claim ${id})`;
+  expect(
+    memoryChangesOf([
+      call("remember", { args: { statement: "Use concise reports" }, result: confirmed }),
+    ]),
+  ).toEqual([{ callId: "remember-1", forgot: false, label: "Use concise reports" }]);
+  for (const value of [null, {}, "Refused", `Recorded (claim invalid)`]) {
+    expect(
+      memoryChangesOf([
+        call("remember", { args: { statement: "Use concise reports" }, result: value }),
+      ]),
+    ).toEqual([]);
+  }
+  expect(
+    memoryChangesOf([call("remember", { args: { statement: 42 }, result: confirmed })]),
+  ).toEqual([]);
+  expect(
+    memoryChangesOf([call("remember", { args: { statement: "" }, result: confirmed })]),
+  ).toEqual([]);
+  expect(
+    memoryChangesOf([
+      call("correct_memory", {
+        args: { statement: "Correct statement" },
+        result: `Corrected (claim ${id})`,
+      }),
+    ]),
+  ).toEqual([{ callId: "correct_memory-1", forgot: false, label: "Correct statement" }]);
+  expect(
+    memoryChangesOf([
+      call("write_memory", { args: { name: "MEMORY.md" }, result: "Saved note 'MEMORY.md'." }),
+      call("write_memory", { args: {}, result: "Saved note 'x.md'." }),
+    ]),
+  ).toEqual([]);
+});

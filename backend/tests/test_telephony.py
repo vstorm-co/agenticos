@@ -397,3 +397,30 @@ async def test_provider_cleanup_is_idempotent_and_checks_receipt_identity(
         await adapter.hangup(AUTH, "invalid")
     with pytest.raises(BadRequestError):
         await adapter.dial(AUTH, number="not a phone", twiml="", callback="", cap_seconds=60)
+
+
+@pytest.mark.parametrize("body", [b"\xff", b"x=%FF", b"&".join([b"x=y"] * 101)])
+async def test_invalid_phone_forms_are_domain_errors(body: bytes) -> None:
+    with pytest.raises(BadRequestError, match="Invalid telephone webhook form"):
+        parse_form(body)
+
+
+async def test_small_chunked_webhook_body_preserves_signed_bytes() -> None:
+    async def chunks():
+        yield b"CallSid="
+        yield SID.encode()
+
+    assert await read_body(chunks()) == ("CallSid=" + SID).encode()
+
+
+@pytest.mark.parametrize(
+    "raw", ["malformed", "ACwrong:token:+15551234567", "AC" + "a" * 32 + ":token:invalid"]
+)
+async def test_phone_credentials_refuse_incomplete_or_invalid_sms_accounts(
+    monkeypatch: pytest.MonkeyPatch, raw: str
+) -> None:
+    from app.db.models.channel_bot import ChannelBot
+
+    monkeypatch.setattr(provider, "unseal_bot_token", lambda _bot: raw)
+    with pytest.raises(BadRequestError):
+        provider.credentials(ChannelBot())

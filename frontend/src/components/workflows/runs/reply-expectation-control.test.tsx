@@ -20,7 +20,9 @@ const value: ReplyExpectation = {
   paused: false,
 };
 
-beforeEach(() => save.mockReset());
+beforeEach(() => {
+  save.mockReset();
+});
 describe("reply expectation controls", () => {
   it("shows state but hides controls without resolution authority", () => {
     render(<ReplyExpectationControl runId="r" nodeRunId="n" value={value} editable={false} />);
@@ -71,4 +73,14 @@ describe("reply expectation controls", () => {
       expect.any(Object),
     );
   });
+});
+
+it("closes after a successful expectation update", () => {
+  save.mockImplementation((_value: unknown, options: { onSuccess: () => void }) =>
+    options.onSuccess(),
+  );
+  render(<ReplyExpectationControl runId="r" nodeRunId="n" value={value} editable />);
+  fireEvent.click(screen.getByRole("button", { name: "Edit reply expectation" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save expectation" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });

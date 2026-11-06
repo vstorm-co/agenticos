@@ -1507,3 +1507,24 @@ it("writes the chosen HTTP authentication into the step's settings", async () =>
     expect.objectContaining({ auth: expect.objectContaining({ kind: "bearer" }) }),
   );
 });
+
+vi.mock("./reply-mailbox-picker", () => ({
+  ReplyMailboxPicker: ({ onChange }: { onChange: (changes: Record<string, unknown>) => void }) => (
+    <button onClick={() => onChange({ connection_id: "reviewed-mailbox" })}>
+      Choose reply mailbox
+    </button>
+  ),
+}));
+it("writes the explicitly chosen mailbox into the await reply node", async () => {
+  const form = renderForm({
+    definition: makeDefinition({
+      id: "flow.await_reply",
+      config_schema: { type: "object", properties: { connection_id: { type: "string" } } },
+    }),
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Choose reply mailbox" }));
+  expect(form.updateNodeConfig).toHaveBeenCalledWith(
+    expect.any(String),
+    expect.objectContaining({ connection_id: "reviewed-mailbox" }),
+  );
+});

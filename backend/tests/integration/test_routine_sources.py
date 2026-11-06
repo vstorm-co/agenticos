@@ -881,3 +881,82 @@ async def test_mirage_secret_generation_is_part_of_source_consent(db: AsyncSessi
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
         await RoutineSourceService(db).require_current(ctx, trigger, expected_id=policy.id)
+
+
+@pytest.mark.parametrize("owner", ["organization", "personal"])
+@pytest.mark.parametrize(
+    "state", ["active", "missing", "unattributed", "disabled", "rotated_client"]
+)
+async def test_terminal_account_source_review_fences_exact_owner_and_client_generation(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, owner: str, state: str
+) -> None:
+    from app.db.models.organization_secret import OrganizationSecret
+    from app.services import mcp_connection
+    from app.services.routine_sources import require_bound_sources
+
+    ctx, trigger, spec, _ = await world(db)
+    secret = OrganizationSecret(
+        organization_id=ctx.organization_id,
+        name="Google client",
+        kind="api_key",
+        sealed_secret="sealed",
+        key_version=1,
+        created_by_user_id=ctx.user_id,
+    )
+    db.add(secret)
+    await db.flush()
+    account = McpConnection(
+        id=uuid4(),
+        organization_id=ctx.organization_id if owner == "organization" else None,
+        user_id=ctx.user_id if owner == "personal" else None,
+        scope="org" if owner == "organization" else "user",
+        purpose="account",
+        catalog_key="google",
+        name="google-terminal",
+        url="https://accounts.google.com",
+        is_enabled=state != "disabled",
+        oauth_payload="sealed",
+        account_source_organization_id=ctx.organization_id,
+    )
+    if state != "missing":
+        db.add(account)
+        await db.flush()
+    client = (
+        ctx.organization_id,
+        secret.id,
+        uuid4() if state == "rotated_client" else secret.authorization_generation,
+    )
+    monkeypatch.setattr(
+        mcp_connection,
+        "account_client_identity",
+        lambda _account: None if state == "unattributed" else client,
+    )
+    binding = {"kind": owner}
+    if owner == "organization":
+        binding["connection_id"] = str(account.id)
+    stored = spec.model_dump(mode="json")
+    stored["capabilities"] = [
+        {
+            "id": "mirage",
+            "config": {"mounts": [{"path": "/mail/", "backend": "gmail", "account": binding}]},
+        }
+    ]
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = AgentSpec.model_validate(stored).model_dump(mode="json")
+    await db.flush()
+    service = RoutineSourceService(db)
+    review = await service.options(ctx, trigger)
+    if state != "active":
+        assert review.unavailable_sources
+        with pytest.raises(RoutineSourcesRequired):
+            await service.initial(ctx, trigger)
+    else:
+        policy = await service.initial(ctx, trigger)
+        assert policy.mirage_accounts == {account.id: account.authorization_generation}
+        assert policy.secret_sources == {secret.id: secret.authorization_generation}
+        await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+        account.authorization_generation = uuid4()
+        await db.flush()
+        with pytest.raises(RoutineSourcesRequired):
+            await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)

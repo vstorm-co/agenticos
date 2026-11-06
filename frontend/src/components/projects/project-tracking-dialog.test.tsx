@@ -185,3 +185,17 @@ it("waits for agent and source loading without enabling publication", async () =
   mount();
   expect(screen.getByRole("button", { name: "Publish and start" })).toBeDisabled();
 });
+
+it("uses the edited tracker name in the reviewed installation", async () => {
+  mount();
+  await choose();
+  fireEvent.change(screen.getByLabelText("New tracker agent"), {
+    target: { value: "Release tracker" },
+  });
+  await userEvent.click(screen.getByRole("checkbox", { name: /I approve these sources/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Publish and start" }));
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({ agent_name: "Release tracker" }),
+    close,
+  );
+});

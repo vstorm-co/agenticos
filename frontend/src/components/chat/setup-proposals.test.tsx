@@ -24,9 +24,10 @@ vi.mock("@/components/watches/watch-dialog", () => ({
   WatchDialog: (props: {
     agentId?: string;
     initialTask?: { title: string; instructions: string };
+    onOpenChange: (open: boolean) => void;
   }) => {
     watchDialogs.push(props);
-    return null;
+    return <button onClick={() => props.onOpenChange(false)}>Close watch review</button>;
   },
 }));
 
@@ -250,4 +251,6 @@ it("opens a watch proposal for review without creating or activating it", async 
     agentId: "a-1",
     initialTask: { title: "Review requests", instructions: "Watch GitHub for my review requests" },
   });
+  await userEvent.click(screen.getByRole("button", { name: "Close watch review" }));
+  expect(screen.queryByRole("button", { name: "Close watch review" })).not.toBeInTheDocument();
 });

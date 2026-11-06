@@ -1674,3 +1674,30 @@ describe("phone message actions", () => {
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
   });
 });
+
+vi.mock("@/components/watches/watches-card", () => ({
+  WatchesCard: ({ watchId }: { watchId: string }) => <div>Manage watch {watchId}</div>,
+}));
+it("keeps a successful watch write visible as an authorized management reference", () => {
+  useAuthStore.setState({
+    user: {
+      id: "user",
+      email: "user@example.com",
+      is_active: true,
+      created_at: "2026-11-01T00:00:00Z",
+    },
+  });
+  const id = "11111111-1111-4111-8111-111111111111";
+  item({
+    toolCalls: [
+      {
+        id: "watch",
+        name: "agenticos_create_watch",
+        args: {},
+        status: "completed",
+        result: JSON.stringify({ id, connection_id: "22222222-2222-4222-8222-222222222222" }),
+      },
+    ],
+  });
+  expect(screen.getByText(`Manage watch ${id}`)).toBeInTheDocument();
+});

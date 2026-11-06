@@ -1,3 +1,4 @@
+import { renderToString } from "react-dom/server";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -188,4 +189,9 @@ describe("ChatEmptyState", () => {
     await userEvent.click(screen.getByRole("button", { name: /^Plan a trip on a map/ }));
     expect(onPick).toHaveBeenCalledWith(expect.stringContaining("on a map"));
   });
+});
+
+it("renders stable server markup without guessing a local-time greeting", () => {
+  const html = renderToString(<ChatEmptyState onPick={vi.fn()} />);
+  expect(html).not.toContain("Good morning");
 });

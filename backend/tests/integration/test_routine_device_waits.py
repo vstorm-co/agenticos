@@ -525,3 +525,73 @@ async def test_old_offline_waits_rotate_out_so_another_organizations_device_is_i
     assert ready not in {wait.id for wait, _ in first}
     assert ready in {wait.id for wait, _ in second}
     assert all(wait.status == "waiting" for wait, _ in [*first, *second])
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "wrong_owner",
+        "settled",
+        "changed_intent",
+        "offline",
+        "consent_missing",
+        "changed_after_readiness",
+        "local_removed",
+    ],
+)
+async def test_fire_never_executes_a_wait_with_stale_or_unavailable_local_authority(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.services import agent_trigger as module
+    from app.services.agent_runner import AgentRunnerService
+    from app.services.agent_trigger import AgentTriggerService
+    from app.services.routine_devices import RoutineDeviceOffline, RoutineLocalConsentRequired
+
+    w = await world(db)
+    activation = await park(db, w)
+    wait = await repo.get(db, activation)
+    assert wait is not None
+    if change == "wrong_owner":
+        other = User(email=f"{uuid4()}@example.com", hashed_password="x")
+        db.add(other)
+        await db.flush()
+        wait.user_id = other.id
+    elif change == "settled":
+        wait.status = "cancelled"
+    elif change == "changed_intent":
+        w.trigger.prompt = "Different task"
+    elif change == "local_removed":
+        w.trigger.local_target = None
+    await db.flush()
+    service = AgentTriggerService(db)
+    monkeypatch.setattr(service, "_creator_context", AsyncMock(return_value=w.ctx))
+    monkeypatch.setattr(service.sources, "require_current", AsyncMock())
+    monkeypatch.setattr(
+        service.agents, "get", AsyncMock(return_value=await db.get(Agent, w.trigger.agent_id))
+    )
+    execute = AsyncMock()
+    monkeypatch.setattr(AgentRunnerService, "execute", execute)
+
+    async def ready(*args: object, **kwargs: object) -> None:
+        if change == "offline":
+            raise RoutineDeviceOffline(message="Offline")
+        if change == "consent_missing":
+            raise RoutineLocalConsentRequired(message="Consent expired")
+        if change == "changed_after_readiness":
+            w.trigger.prompt = "Reconfigured during readiness"
+            await db.flush()
+
+    monkeypatch.setattr(module, "local_device_ready", ready)
+    if change == "wrong_owner":
+        with pytest.raises(AuthorizationError):
+            await service._fire_loaded(w.trigger, activation_id=activation)
+    else:
+        await service._fire_loaded(w.trigger, activation_id=activation)
+        await db.refresh(wait)
+        if change in {"changed_intent", "changed_after_readiness", "local_removed"}:
+            assert wait.status == "cancelled"
+        if change == "consent_missing":
+            assert not w.trigger.is_active
+    execute.assert_not_awaited()

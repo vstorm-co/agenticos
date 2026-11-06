@@ -377,11 +377,11 @@ it("retains older connection preferences when explicit closures are not stored y
 });
 
 it("can close an explicitly opened sidebar group without duplicating stored preferences", () => {
-  useSidebarStore.setState({ openGroups: ["connections"], closedGroups: [] });
+  useSidebarStore.setState({ openGroups: ["connections"], closedGroups: ["organization"] });
   useSidebarStore.getState().toggleGroup("connections");
   expect(useSidebarStore.getState().openGroups).toEqual([]);
-  expect(useSidebarStore.getState().closedGroups).toEqual(["connections"]);
+  expect(useSidebarStore.getState().closedGroups).toEqual(["organization", "connections"]);
   useSidebarStore.getState().toggleGroup("connections");
   expect(useSidebarStore.getState().openGroups).toEqual(["connections"]);
-  expect(useSidebarStore.getState().closedGroups).toEqual([]);
+  expect(useSidebarStore.getState().closedGroups).toEqual(["organization"]);
 });
