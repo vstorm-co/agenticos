@@ -155,6 +155,20 @@ describe("ConnectServerDialog", () => {
   });
 
   describe("OAuth", () => {
+    it("says so when the desktop app cannot open the browser", async () => {
+      shell.desktop = true;
+      shell.openConsent.mockRejectedValue(new Error("no opener"));
+      vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent" });
+      try {
+        open(OAUTH_ENTRY);
+        await submit();
+        await waitFor(() => expect(toast.error).toHaveBeenCalled());
+        expect(toast.info).not.toHaveBeenCalledWith(expect.stringContaining("browser"));
+      } finally {
+        shell.desktop = false;
+      }
+    });
+
     it("signs in through the person's browser in the desktop app, leaving the console", async () => {
       shell.desktop = true;
       shell.openConsent.mockResolvedValue(undefined);
