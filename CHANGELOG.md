@@ -29,11 +29,12 @@ Two things are versioned separately from this file and worth knowing about:
   now needs `connections:manage`, like `/org/integrations`, and the wizard leaves
   out the offer without it. `GET /rag/sync/sources` returns the whole list only
   with `connections:manage`, and otherwise the sources that feed a base the
-  caller reads. A member of one organization who read an app-scoped base could
+  caller reads, so its `collection_name` filter answers 404 for a collection the
+  caller cannot read, where it answered 200. A member of one organization who read an app-scoped base could
   read the run logs of another organization's source that fed it. A source's run
   log and `GET /rag/sync/logs` now list only the caller organization's sources,
-  unless the caller is a platform admin. Runs whose source was deleted are still
-  listed by their collection name. `PATCH`, `DELETE` and `POST .../trigger` on
+  unless the caller is a platform admin. Runs with no source, such as those of a
+  deleted source, are still listed by their collection name. `PATCH`, `DELETE` and `POST .../trigger` on
   `/rag/sync/sources/{id}` checked the organization and, on a move, the new base.
   So a member could detach (`collection_name: null`), reconfigure, delete or run
   the source of a base they cannot write. They now also need write access to the

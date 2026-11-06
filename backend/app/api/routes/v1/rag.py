@@ -624,8 +624,10 @@ async def list_sync_sources(
 
     With `connections:manage`, every source of the organization, assigned and
     unassigned - the list `/org/integrations` returns. Without it, the sources
-    feeding a knowledge base the caller can read. Pass `collection_name` to see
-    only one collection's sources; a collection the caller cannot read is 404.
+    feeding a knowledge base the caller can read, and no unassigned ones. Pass
+    `collection_name` to see only one collection's sources; without the
+    permission, a collection the caller cannot read, or that does not exist, is
+    404.
     """
     sources = await access.readable_sync_sources(ctx, collection_name)
     return sync_source_svc.as_list(sources)
@@ -651,6 +653,9 @@ async def create_sync_source(
     collection, so pointing one at another tenant's is an injection, not a read.
     The base checked is the one the sync writes into, not any writable base of
     that name (`CollectionAccessService.source_target`).
+
+    Only `connections:manage` lists an unassigned source, so a caller without it
+    keeps the id from this response.
     """
     if data.collection_name is not None:
         await access.source_target(ctx, data.collection_name)
@@ -700,7 +705,8 @@ async def update_sync_source(
     when it feeds a knowledge base, one they can write - detaching it with
     `collection_name: null`, or changing its config, credential or schedule,
     changes what that base syncs. Moving it also needs write on the base it
-    moves to (`CollectionAccessService.source_target`).
+    moves to (`CollectionAccessService.source_target`). Only `connections:manage`
+    lists a source once it is detached.
     """
     source = await access.writable_sync_source(ctx, source_id)
     if data.collection_name is not None:

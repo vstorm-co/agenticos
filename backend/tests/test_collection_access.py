@@ -1088,6 +1088,51 @@ class TestListingTheOrganizationsSyncSources:
         assert await service.readable_sync_sources(builder, None) == [feeding, hidden, template]
         assert await service.readable_sync_sources(builder, "private") == [hidden]
 
+    @pytest.mark.security
+    async def test_a_key_without_the_permission_lists_as_a_reader_whoever_issued_it(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """A key holds what it was issued for, so an owner's reading key is not a manager."""
+        feeding, _hidden, _template = self._rows(rows)
+        key = AuthContext(
+            user_id=CALLER,
+            organization_id=HOME_ORG,
+            role=OrgRoleName.OWNER.value,
+            key_scopes=frozenset({Perm.COLLECTIONS_VIEW}),
+        )
+
+        assert await service.readable_sync_sources(key, None) == [feeding]
+
+    @pytest.mark.security
+    async def test_reading_a_same_named_base_does_not_list_the_source_of_another(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2486's rule: the name is not the base. The source feeds the private base,
+        and the member reads only the app base beside it."""
+        private = _kb("handbook", owner_user_id=STRANGER)
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        rows.collections = [private, app_kb]
+        rows.accessible = [app_kb]
+        rows.sources = [_source(organization_id=HOME_ORG)]
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        assert await service.readable_sync_sources(member, None) == []
+        assert await service.readable_sync_sources(member, "handbook") == []
+
+    @pytest.mark.security
+    async def test_an_app_base_lists_only_the_callers_organizations_source(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        rows.collections = [app_kb]
+        rows.accessible = [app_kb]
+        ours = _source(organization_id=HOME_ORG)
+        rows.sources = [ours, _source(organization_id=OTHER_ORG)]
+
+        assert await service.readable_sync_sources(_ctx(role=OrgRoleName.MEMBER.value), None) == [
+            ours
+        ]
+
 
 class TestResolvingASyncRun:
     def _log(self, collection_name: str) -> SyncLog:

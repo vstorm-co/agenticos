@@ -355,9 +355,8 @@ async def list_org_integrations_for_kb(
     Gated on `connections:manage`, as `GET /org/integrations` is: the rows are
     the organization's integrations - every other base's and the unassigned
     ones, with their config, the vault secret each uses and their last error -
-    not this base's, so reading
-    this base is not what grants them (#2745). A grant on a base cannot widen
-    it for the same reason.
+    not this base's, so reading this base is not what grants them (#2745). A
+    grant on a base cannot widen it for the same reason.
     """
     kb = await service.get(kb_id, ctx=ctx)
     all_org = await sync_source_svc.list_sources(organization_id=ctx.organization_id)
