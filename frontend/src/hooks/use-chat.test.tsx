@@ -4229,7 +4229,7 @@ describe("useChat - a question its person came back to", () => {
     receive("tool_approval_required", {
       run_id: "other-run",
       action_requests: [
-        { id: "approval-other", tool_call_id: "approve-other", tool: "execute", arguments: {} },
+        { id: "approval-other", tool_call_id: "approve-other", tool_name: "execute", args: {} },
       ],
       review_configs: [],
     });
@@ -6037,6 +6037,21 @@ it.each(["completed", "awaiting_approval"] as const)(
     expect(result.current.pendingApproval?.actionRequests[0]?.id ?? null).toBe(
       status === "awaiting_approval" ? "next-approval" : null,
     );
+    receive("tool_approval_required", {
+      run_id: "resume-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "change", tool_name: "change_record", args: {} },
+        { id: "next-approval", tool_call_id: "next-call", tool_name: "change_record", args: {} },
+        { id: "send-approval", tool_call_id: "send-call", tool_name: "send_email", args: {} },
+      ],
+      review_configs: [
+        { tool_name: "change_record", allow_edit: false },
+        { tool_name: "send_email", allow_edit: false },
+      ],
+    });
+    expect(
+      result.current.pendingApproval?.reviewConfigs.map((config) => config.tool_name) ?? [],
+    ).toEqual(status === "awaiting_approval" ? ["change_record", "send_email"] : []);
   },
 );
 

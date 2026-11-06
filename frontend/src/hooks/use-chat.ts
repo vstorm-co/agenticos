@@ -1188,8 +1188,8 @@ export function useChat(options: UseChatOptions = {}) {
           );
           setPendingApproval({
             actionRequests: actionable,
-            reviewConfigs: review_configs.filter(
-              (_, index) => !decidedApprovalIdsRef.current.has(action_requests[index]?.id ?? ""),
+            reviewConfigs: review_configs.filter((config) =>
+              actionable.some((request) => request.tool_name === config.tool_name),
             ),
             runId: run_id,
             // Captured now, because `complete` follows this frame and clears it.
@@ -2068,6 +2068,7 @@ export function useChat(options: UseChatOptions = {}) {
       // HTTP answer too would duplicate the entire continuation.
       const streamed = streamedResumesRef.current.delete(runId);
       if (resumed.status !== "awaiting_approval" && resumed.status !== "awaiting_answer") {
+        if (resumed.status && resumed.status !== "running") terminalRunIdsRef.current.add(runId);
         const finishedConversation = conversationId || activeConversationId;
         if (finishedConversation) useWorkingStore.getState().finish(finishedConversation);
       }
