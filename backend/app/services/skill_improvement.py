@@ -1215,8 +1215,16 @@ class SkillImprovementService:
 
     async def cancel(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         """Stop the session where it is: its unfinished analysis or proposal stops, its check
-        is stopped or set aside, and what it already checked stays readable."""
+        is stopped or set aside, and what it already checked stays readable.
+
+        Like discarding, only for its creator or an organization admin: stopping sets
+        aside a check somebody paid for.
+        """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        if not self._may_discard(ctx, run):
+            raise AuthorizationError(
+                message="Only whoever started the session, or an organization admin, stops it"
+            )
         stage = None if run.stage is None else Stage(run.stage)
         await self._move(
             run, rules.Transition(Status.CANCELLED, stage), actor_user_id=ctx.subject_id

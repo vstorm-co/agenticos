@@ -814,6 +814,20 @@ class TestEnding:
                 builder, skill.id, run.id, ImprovementDiscard(confirmed=True)
             )
 
+    @pytest.mark.security
+    async def test_only_the_creator_or_an_admin_stops_it(self, db, evidence):
+        """Stopping sets aside the session's check, which its creator paid for."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        builder = await _member(db, ctx, OrgRoleName.BUILDER)
+
+        with pytest.raises(AuthorizationError):
+            await SkillImprovementService(db).cancel(builder, skill.id, run.id)
+        stopped = await SkillImprovementService(db).cancel(ctx, skill.id, run.id)
+
+        assert stopped.status == "cancelled"
+
 
 class TestListing:
     async def test_sessions_list_by_line_and_waiting_ones_reach_waiting_for_you(self, db, evidence):
