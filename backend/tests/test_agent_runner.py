@@ -10,6 +10,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -8768,3 +8769,88 @@ async def test_a_revoked_remembered_choice_parks_the_tool_instead():
         ApprovalPending,
     )
     assert not channel.requested[0].standing
+
+
+@pytest.mark.anyio
+async def test_approved_tools_and_the_following_answer_can_stream() -> None:
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.tools import DeferredToolResults, ToolApproved
+
+    from app.services.run_stream import RunFrames
+
+    agent = Agent(
+        TestModel(custom_output_text="Approved and done"), output_type=[str, DeferredToolRequests]
+    )
+    executed: list[str] = []
+
+    @agent.tool_plain(requires_approval=True)
+    def change_record() -> str:
+        executed.append("changed")
+        return "Saved"
+
+    parked = await agent.run("Change the record")
+    assert isinstance(parked.output, DeferredToolRequests)
+    assert executed == []
+    call_id = parked.output.approvals[0].tool_call_id
+    prepared = _prepared()
+    prepared.built.agent = agent
+    prepared.built.usage_limits.count_tokens_before_request = False
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def emit(kind: str, payload: dict[str, Any]) -> None:
+        events.append((kind, payload))
+
+    result = await AgentRunnerService._answer(
+        prepared,
+        user_prompt=None,
+        message_history=parked.all_messages(),
+        deferred_tool_results=DeferredToolResults(approvals={call_id: ToolApproved()}),
+        stream=RunFrames(emit=emit).drive,
+    )
+    assert executed == ["changed"]
+    assert result.output == "Approved and done"
+    assert any(kind == "tool_result" and data["tool_call_id"] == call_id for kind, data in events)
+    assert any(kind == "text_delta" for kind, _ in events)
+    assert events[-1] == ("final_result", {"output": "Approved and done"})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("ending", [None, RuntimeError("model failed"), asyncio.CancelledError()])
+async def test_web_resume_trace_is_closed_on_success_failure_and_cancellation(
+    ending: BaseException | None,
+) -> None:
+    from app.services import chat_room, live_turn
+
+    prepared = _prepared()
+    prepared.run.surface = "web"
+    prepared.run.conversation_id = uuid.uuid4()
+    turn = live_turn.Turn(str(prepared.run.conversation_id), "continuation")
+    with (
+        patch.object(live_turn, "begin", new=AsyncMock(return_value=turn)),
+        patch.object(live_turn, "publish", new=AsyncMock()) as publish,
+        patch.object(live_turn, "end", new=AsyncMock()) as end,
+        patch.object(chat_room, "turn_begun", new=AsyncMock()) as announce,
+    ):
+        with pytest.raises(type(ending)) if ending is not None else nullcontext():
+            async with AgentRunnerService(_db())._resume_stream(prepared) as stream:
+                assert stream is not None
+                assert publish.await_args_list[0].args[1] == "background_task_turn"
+                assert publish.await_args_list[0].args[2]["resumed_run_id"] == str(prepared.run.id)
+                if ending is not None:
+                    raise ending
+        announce.assert_awaited_once()
+        end.assert_awaited_once_with(turn)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("web", [False, True])
+async def test_resume_without_a_web_trace_keeps_the_http_result(web: bool) -> None:
+    from app.services import live_turn
+
+    prepared = _prepared()
+    prepared.run.surface = "web" if web else "api"
+    prepared.run.conversation_id = uuid.uuid4()
+    with patch.object(live_turn, "begin", new=AsyncMock(return_value=None)) as begin:
+        async with AgentRunnerService(_db())._resume_stream(prepared) as stream:
+            assert stream is None
+        assert begin.await_count == int(web)

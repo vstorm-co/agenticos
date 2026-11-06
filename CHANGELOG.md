@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Stream web-chat continuations after tool approvals and answers, including after navigation. Reuse the live turn trace, avoid duplicate HTTP answers, and clear completed sidebar activity.
+
 - Reduce default-agent prompt overhead and duplicate skill manuals; retain focused procedures and load detailed design recipes on demand. Match the Routines loading placeholder to its row layout.
 
 - Rearm planned human reminders when their task board is restored, and serialize private coding-result publication against edit sharing.

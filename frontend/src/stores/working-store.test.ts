@@ -62,3 +62,18 @@ describe("useWorkingStore", () => {
     expect(useWorkingStore.getState()).toBe(before);
   });
 });
+
+it("clears a completed handed-off turn without clearing another conversation", () => {
+  const state = useWorkingStore.getState();
+  state.start("finished", "2026-11-06T09:00:00Z");
+  state.start("other", "2026-11-06T09:01:00Z");
+  state.setWaiting("finished", "awaiting_approval");
+  state.handOff("finished");
+  state.finish("finished");
+  expect(useWorkingStore.getState()).toMatchObject({
+    since: { other: "2026-11-06T09:01:00Z" },
+    handedOff: {},
+    waiting: {},
+  });
+  expect(useWorkingStore.getState().finishedAt.finished).toBeDefined();
+});

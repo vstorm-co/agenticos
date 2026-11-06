@@ -61,9 +61,17 @@ export const useWorkingStore = create<WorkingState>()((set) => ({
       return { since: rest };
     }),
   finish: (conversationId) =>
-    set((state) => ({
-      finishedAt: { ...state.finishedAt, [conversationId]: new Date().toISOString() },
-    })),
+    set((state) => {
+      const { [conversationId]: _since, ...since } = state.since;
+      const { [conversationId]: _handed, ...handedOff } = state.handedOff;
+      const { [conversationId]: _waiting, ...waiting } = state.waiting;
+      return {
+        since,
+        handedOff,
+        waiting,
+        finishedAt: { ...state.finishedAt, [conversationId]: new Date().toISOString() },
+      };
+    }),
   handOff: (conversationId) =>
     set((state) =>
       conversationId in state.since

@@ -1652,6 +1652,7 @@ class PreparedRun:
         user_prompt: str | Sequence[UserContent] | None,
         *,
         message_history: Sequence[ModelMessage] | None,
+        deferred_tool_results: DeferredToolResults | None = None,
     ) -> AsyncGenerator[AgentIteration[AgentDeps, AgentOutput]]:
         """Iterate the agent's graph, metered, for a surface that streams.
 
@@ -1690,6 +1691,7 @@ class PreparedRun:
                 user_prompt,
                 deps=self.built.deps,
                 message_history=message_history,
+                deferred_tool_results=deferred_tool_results,
                 usage_limits=self.built.usage_limits,
                 workspace=self._workspace(),
                 capabilities=self._channel_references(
@@ -6410,6 +6412,48 @@ class AgentRunnerService:
             if approval.status == ApprovalStatus.PENDING.value
         ]
 
+    @asynccontextmanager
+    async def _resume_stream(self, prepared: PreparedRun) -> AsyncGenerator[RunStream | None]:
+        """Publish web continuations through the same trace as socket turns.
+
+        The HTTP response still owns the final result. Room subscribers can watch
+        progress immediately and reattach after navigation; ending the trace only
+        after `_run` settles makes their transcript refresh read committed rows.
+        """
+        from app.services import chat_room, live_turn
+        from app.services.run_stream import RunFrames
+
+        run = prepared.run
+        if run.surface != RunSurface.WEB.value or run.conversation_id is None:
+            yield None
+            return
+        conversation_id = str(run.conversation_id)
+        turn = await live_turn.begin(conversation_id)
+        if turn is None:
+            yield None
+            return
+
+        async def emit(kind: str, payload: dict[str, Any]) -> None:
+            await live_turn.publish(turn, kind, payload)
+
+        try:
+            await emit(
+                "background_task_turn",
+                {
+                    "conversation_id": conversation_id,
+                    "agent_id": str(run.agent_id),
+                    "resumed_run_id": str(run.id),
+                },
+            )
+            if run.user_id is not None:
+                await chat_room.turn_begun(conversation_id, run.user_id)
+            # Deferred tools run before the next model request. Open their bubble
+            # now so their results do not disappear before `model_request_start`.
+            await emit("model_request_start", {})
+            yield RunFrames(emit=emit).drive
+        finally:
+            await live_turn.end(turn)
+
     async def resume(
         self,
         ctx: AuthContext,
@@ -6661,16 +6705,17 @@ class AgentRunnerService:
         await agent_run_repo.mark_running(self.db, run=run)
 
         try:
-            return await self._run(
-                prepared,
-                # No new prompt: the conversation resumes at the tool call it stopped
-                # on, and inventing a user turn here would put words in their mouth.
-                user_prompt=None,
-                said=None,
-                message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
-                deferred_tool_results=plan.results,
-                on_segment=on_segment,
-            )
+            async with self._resume_stream(prepared) as stream:
+                return await self._run(
+                    prepared,
+                    # A resume continues the approved call without another user turn.
+                    user_prompt=None,
+                    said=None,
+                    message_history=ModelMessagesTypeAdapter.validate_python(state.messages),
+                    deferred_tool_results=plan.results,
+                    on_segment=on_segment,
+                    stream=stream,
+                )
         except Exception as exc:
             # The continuation raised. `_run` has recorded the run terminal and
             # committed before re-raising, so this re-raise carries the failure to
@@ -7140,17 +7185,20 @@ class AgentRunnerService:
         which is how the streaming chat came to bill nothing for a year
         (agenticos#16).
 
-        `deferred_tool_results` wins over `stream`: `iterate()` cannot carry
-        them, and a resumed run is a run somebody already waited for. It resumes
-        the way it always has, and the surface gets its answer at the end.
+        Deferred results are passed into either execution path, so approving a
+        call does not turn a previously streaming conversation into a silent wait.
         """
-        if stream is None or deferred_tool_results is not None:
+        if stream is None:
             return await prepared.execute(
                 user_prompt,
                 message_history=message_history,
                 deferred_tool_results=deferred_tool_results,
             )
-        async with prepared.iterate(user_prompt, message_history=message_history) as agent_run:
+        async with prepared.iterate(
+            user_prompt,
+            message_history=message_history,
+            deferred_tool_results=deferred_tool_results,
+        ) as agent_run:
             await stream(agent_run)
         return _outcome(agent_run)
 

@@ -162,6 +162,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     setError,
   } = useConversationStore();
   const { clearMessages } = useChatStore();
+  const handedOff = useWorkingStore((state) => state.handedOff);
   // The scope's own stores, for reads made in a callback rather than a render.
   const conversationApi = useConversationStore.useApi();
   const selectionApi = useAgentSelectionStore.useApi();
@@ -231,7 +232,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // is only the safety net for what it does not announce (#2219).
     refetchInterval: (query) =>
       query.state.data?.items.some((conversation) => conversation.running_since) ||
-      Object.keys(useWorkingStore.getState().handedOff).length > 0
+      Object.keys(handedOff).length > 0
         ? useLiveFeedStore.getState().connected
           ? RUNNING_POLL_LIVE_MS
           : RUNNING_POLL_MS

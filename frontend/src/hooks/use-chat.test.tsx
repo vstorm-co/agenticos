@@ -5956,3 +5956,73 @@ it("ignores buffered model frames after Stop before the first assistant message"
     "Next answer",
   );
 });
+
+it.each(["completed", "awaiting_approval"] as const)(
+  "shows a streamed HTTP continuation once when it is %s",
+  async (status) => {
+    useConversationStore.getState().setCurrentConversationId("c-resume");
+    let finish!: (value: object) => void;
+    const continued = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume") ? continued : Promise.resolve({}),
+    );
+    const reread = vi.fn();
+    const { result } = renderHook(() => useChat({ onTurnInterrupted: reread }), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "resume-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "change", tool_name: "change_record", args: {} },
+      ],
+      review_configs: [],
+    });
+    receive("complete", {});
+    let submitting!: Promise<void>;
+    await act(async () => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    receive("turn_attached", { conversation_id: "c-resume" });
+    receive("background_task_turn", {
+      conversation_id: "c-resume",
+      agent_id: "a-1",
+      resumed_run_id: "resume-run",
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Approved and done" });
+    act(() => {
+      useWorkingStore.getState().start("c-resume", "2026-11-06T09:00:00Z");
+      useWorkingStore.getState().handOff("c-resume");
+    });
+    receive("turn_followed_to_end", { conversation_id: "c-resume" });
+    await act(async () => {
+      finish({
+        status,
+        output: "Approved and done",
+        parked:
+          status === "awaiting_approval"
+            ? [
+                {
+                  id: "next-approval",
+                  tool_call_id: "next-call",
+                  tool_name: "change_record",
+                  tool_args: {},
+                },
+              ]
+            : [],
+      });
+      await submitting;
+    });
+    expect(
+      result.current.messages.filter((message) => message.content === "Approved and done"),
+    ).toHaveLength(1);
+    expect(result.current.messages.some((message) => message.isStreaming)).toBe(false);
+    expect(useWorkingStore.getState().since["c-resume"]).toBeUndefined();
+    expect(useWorkingStore.getState().handedOff["c-resume"]).toBeUndefined();
+    expect(reread).toHaveBeenCalled();
+    expect(result.current.pendingApproval?.actionRequests[0]?.id ?? null).toBe(
+      status === "awaiting_approval" ? "next-approval" : null,
+    );
+  },
+);

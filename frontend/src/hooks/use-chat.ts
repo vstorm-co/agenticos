@@ -436,6 +436,8 @@ export function useChat(options: UseChatOptions = {}) {
   // The conversation whose turn this tab is following from another socket's
   // frames (`turn_attached`), or null. Its end is a re-read, not a `complete`.
   const followingRef = useRef<string | null>(null);
+  const streamedResumesRef = useRef(new Set<string>());
+  const resumedRunIdRef = useRef<string | undefined>(undefined);
   // A turn announced for a conversation other than the one on screen, whose
   // frames are dropped until it ends or another is followed.
   const declinedRef = useRef<string | null>(null);
@@ -589,6 +591,7 @@ export function useChat(options: UseChatOptions = {}) {
           conversationId: effectiveConversationId,
           isTemporaryId: true,
           agentId: turnAgentIdRef.current ?? undefined,
+          runId: resumedRunIdRef.current,
           fileSource: turnFileSourceRef.current,
         });
         setCurrentMessageId(newMsgId);
@@ -635,6 +638,7 @@ export function useChat(options: UseChatOptions = {}) {
           }
           declinedRef.current = null;
           followingRef.current = conversation_id;
+          resumedRunIdRef.current = undefined;
           stoppedMessageIdRef.current = null;
           stopRequestedRef.current = false;
           setCurrentMessageId(null);
@@ -647,8 +651,22 @@ export function useChat(options: UseChatOptions = {}) {
         // answer that follows it. Skipped when the transcript already holds it -
         // a person who came back mid-turn read it there.
         case "background_task_turn": {
-          const data = wsEvent.data as { conversation_id: string; agent_id: string };
-          if (followingRef.current === data.conversation_id) turnAgentIdRef.current = data.agent_id;
+          const data = wsEvent.data as {
+            conversation_id: string;
+            agent_id: string;
+            resumed_run_id?: string;
+          };
+          if (followingRef.current === data.conversation_id) {
+            turnAgentIdRef.current = data.agent_id;
+            if (data.resumed_run_id) {
+              streamedResumesRef.current.add(data.resumed_run_id);
+              resumedRunIdRef.current = data.resumed_run_id;
+              chatApi.getState().updateMessagesWhere(
+                (message) => message.runId === data.resumed_run_id && !!message.isStreaming,
+                (message) => ({ ...message, isStreaming: false }),
+              );
+            }
+          }
           break;
         }
         case "turn_prompt": {
@@ -737,7 +755,9 @@ export function useChat(options: UseChatOptions = {}) {
         case "turn_followed_to_end": {
           declinedRef.current = null;
           if (followingRef.current === null) break;
+          useWorkingStore.getState().finish(followingRef.current);
           followingRef.current = null;
+          resumedRunIdRef.current = undefined;
           if (currentMessageIdRef.current) {
             updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
           }
@@ -1449,6 +1469,7 @@ export function useChat(options: UseChatOptions = {}) {
       mentions?: Mentionable[],
     ): string => {
       stoppedMessageIdRef.current = null;
+      resumedRunIdRef.current = undefined;
       stopRequestedRef.current = false;
       unconfirmedRef.current = null;
       sessionReadyRef.current = false;
@@ -2008,6 +2029,15 @@ export function useChat(options: UseChatOptions = {}) {
    */
   const showContinuation = useCallback(
     (resumed: ResumedRun, runId: string, settledIds: Set<string>) => {
+      // Redis already drew this segment. Its terminal marker refreshes the
+      // persisted transcript, including any next approval/question. Adding the
+      // HTTP answer too would duplicate the entire continuation.
+      const streamed = streamedResumesRef.current.delete(runId);
+      if (resumed.status !== "awaiting_approval" && resumed.status !== "awaiting_answer") {
+        const finishedConversation = conversationId || activeConversationId;
+        if (finishedConversation) useWorkingStore.getState().finish(finishedConversation);
+      }
+
       // A delegate can settle before its parent reaches a new approval. HTTP
       // resumes carry those outcomes explicitly because no completion frame arrives.
       setDelegations((current) =>
@@ -2061,8 +2091,31 @@ export function useChat(options: UseChatOptions = {}) {
       // order they happened in and the order a reloaded conversation replays
       // them in. Nothing is added for a continuation that neither called
       // anything nor said anything - a resume into a refusal has both empty.
-      const continuation = clientId();
-      if (steps.length > 0 || resumed.output) {
+      const streamedMessage = streamed
+        ? [...chatApi.getState().messages]
+            .reverse()
+            .find((message) => message.role === "assistant" && message.runId === runId)
+        : undefined;
+      const continuation = streamedMessage?.id ?? clientId();
+      if (streamed) {
+        if (streamedMessage) {
+          updateMessage(streamedMessage.id, (message) => ({
+            ...message,
+            isStreaming: false,
+            runWaitingFor:
+              parkedAgain.length > 0 ? "approval" : askedAgain.length > 0 ? "answer" : undefined,
+            toolCalls: message.toolCalls?.map((call) => ({
+              ...call,
+              status: parkedAgainIds.has(call.id)
+                ? "awaiting_approval"
+                : askedAgainIds.has(call.id)
+                  ? "awaiting_answer"
+                  : call.status,
+            })),
+          }));
+        }
+        onTurnInterrupted?.();
+      } else if (steps.length > 0 || resumed.output) {
         // A finished assistant message, which is also what makes the file panel
         // re-read: `turns` counts those, and a resumed call is usually the one
         // that was gated - an `execute`, a write - so the workspace beside the
@@ -2140,7 +2193,16 @@ export function useChat(options: UseChatOptions = {}) {
       }
       void refreshConversationCost();
     },
-    [addMessage, conversationId, offerParkedQuestion, refreshConversationCost],
+    [
+      addMessage,
+      updateMessage,
+      chatApi,
+      conversationId,
+      activeConversationId,
+      offerParkedQuestion,
+      refreshConversationCost,
+      onTurnInterrupted,
+    ],
   );
 
   // The same for a question: an agent asked something and its person left
