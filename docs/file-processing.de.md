@@ -1,5 +1,5 @@
 ---
-source_sha: "bc4358fb705c"
+source_sha: "fda426cb27d4"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -931,12 +931,11 @@ wegen seiner Zufälligkeit zu vertrauen.
 
 **Auch ein Name mit Inhalt, den keine Basis besitzt, ist nicht frei.** `rag-ingest`
 schreibt Tracking-Zeilen und eine `rag_<name>`-Tabelle ohne Wissensbasis und ohne
-Organisation, und der Abbau der letzten Basis auf dem Namen verwirft dessen Tabelle.
-Deshalb lehnt `claim` einen Namen, den keine Basis hält, ab, solange er keiner Basis
-zugeordnete Zeilen mit Chunks eines anderen Tenants als der Organisation des Aufrufers
-hält, oder eine Vektortabelle mit solchen Chunks. Sonst könnte ein Mitglied mit
-`collections:edit` eine Basis auf der Collection eines Operators anlegen und löschen
-und damit dessen Chunks verwerfen
+Organisation. Deshalb lehnt `claim` einen Namen, den keine Basis hält, ab, solange er
+keiner Basis zugeordnete Zeilen mit Chunks eines anderen Tenants als der Organisation
+des Aufrufers hält, oder eine Vektortabelle mit solchen Chunks. Früher konnte ein
+Mitglied mit `collections:edit` eine Basis auf der Collection eines Operators anlegen
+und löschen und damit dessen Chunks verwerfen
 ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Ein Name, den eine
 Basis hält, wird nicht geprüft: Der Aufrufer darf jede dieser Basen schreiben und
 könnte sie ohnehin alle löschen oder leeren. Ein App-Admin darf einen solchen Namen
@@ -945,9 +944,10 @@ den Namen nicht. Ein mitten in einer Datei abgebrochenes `rag-ingest` hinterläs
 `processing`-Zeile, die den Namen hält, bis ein App-Admin ihn übernimmt oder `rag-drop
 <name>` ausführt.
 
-Inhalt, der *nach* dem Beanspruchen durch eine Basis unter den Namen kommt, ist nicht
-abgedeckt: Ein `rag-ingest` des Operators in einen gehaltenen Namen geht weiterhin mit
-der Tabelle verloren, wenn die letzte Basis gelöscht wird.
+Inhalt, der *nach* dem Beanspruchen durch eine Basis unter den Namen kommt, lässt sich
+hier nicht ablehnen, deshalb schont ihn der Abbau: Die Tabelle der letzten Basis bleibt,
+solange sie einen nicht zugeordneten Chunk hält, den die Basis nicht übernimmt, wie
+unten beim Löschen einer Basis beschrieben.
 
 **Und ein Name mitten im Abbau ist auch nicht frei.** Eine Collection zu löschen
 entfernt ihre Wissensdatenbank-Zeilen in der Anfrage, lässt die physische
@@ -1007,6 +1007,10 @@ Jetzt leert es die eine Basis, die den Namen hält, oder löscht einen Namen ohn
 lehnt es ab und listet ihre IDs; `--knowledge-base <id>` nennt die zu leerende Basis,
 und die Tabelle bleibt für die anderen. Ein Worker löscht Tabelle und Dateien, nachdem
 der Befehl committet hat (#2560).
+
+Die Tabelle der letzten Basis geht, gleich was sie hält: Der Operator hat das Löschen
+verlangt, und ihm gehört der Inhalt, den ein Löschen in der Konsole schonen würde
+(#2747).
 
 `documents` war auch die **Vorgabe**-Collection, der CLI-Schnellstart zielte also
 früher auf die Verfolgungstabelle; die Vorgabe ist jetzt `default`. Eine
@@ -1137,9 +1141,19 @@ einer Organisation oder eine persönliche Basis die Zeilen ihrer Organisation, f
 app-scoped Basis die Zeilen ohne Organisation (die `rag-ingest` schreibt) und für eine
 persönliche Basis außerhalb einer Organisation keine.
 
-Nicht zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren
-Dateien, denn der Aufrufer hat keine Befugnis über sie. Ihre Chunks gehen mit der
-Tabelle, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
+Beide Routen behalten die Tabelle danach, wenn sie einen nicht zugeordneten Chunk hält,
+den die Basis nicht übernimmt: ein `rag-ingest` oder eine CLI-Synchronisierung des
+Operators in den gehaltenen Namen oder einen Chunk eines anderen Tenants. Ein Claim
+kann Inhalt, der erst danach kommt, nicht ablehnen, und der Aufrufer hat keine
+Befugnis darüber. Nur die Chunks der Basis werden entfernt, die übrigen Zeilen unter
+dem Namen bleiben unverändert, und der Name ist so, wie `rag-ingest` ihn hinterlässt:
+Keine Basis hält ihn, `claim` lehnt ihn ab, und `rag-drop <name>` entfernt ihn
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Andernfalls, und bei `rag-drop` immer, löscht der Aufräum-Job die Tabelle. Nicht
+zugeordnete Zeilen eines anderen Tenants unter dem Namen bleiben mit ihren Dateien,
+denn der Aufrufer hat keine Befugnis über sie. Ohne die Tabelle steht nichts mehr
+hinter ihnen, deshalb werden sie als fehlgeschlagen markiert: Die nächste Basis dieses
 Tenants mit dem Namen listet sie als fehlgeschlagen, ein hochgeladenes Dokument muss
 erneut hochgeladen werden, und eine Synchronisierung indexiert ein synchronisiertes
 Dokument neu.

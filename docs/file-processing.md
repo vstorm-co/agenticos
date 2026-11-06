@@ -822,20 +822,20 @@ A name a caller does not supply is derived from the display name plus six random
 characters, and is claimed on the same path rather than trusted for being random.
 
 **Nor is a name holding content no base owns.** `rag-ingest` writes tracking rows and
-a `rag_<name>` table with no knowledge base and no organization, and the last holder's
-teardown drops the name's table. So `claim` refuses a name no base holds while it has
-unfiled rows describing chunks of any tenant but the caller's organization, or a
-vector table with such chunks. Otherwise a member with `collections:edit` could create
-a base on an operator's collection and delete it, dropping the operator's chunks with
-it ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). A name a base holds
+a `rag_<name>` table with no knowledge base and no organization. So `claim` refuses a
+name no base holds while it has unfiled rows describing chunks of any tenant but the
+caller's organization, or a vector table with such chunks. A member with
+`collections:edit` used to be able to create a base on an operator's collection and
+delete it, dropping the operator's chunks with it
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). A name a base holds
 is not checked: the caller may write every holder, and could delete or clear them all
 anyway. An app admin may adopt such a name; a failed row with no vector id describes
 no chunk and does not hold it. A `rag-ingest` killed mid-file leaves a `processing`
 row that holds the name until an app admin adopts it or runs `rag-drop <name>`.
 
-Content arriving *after* a base claims the name is not covered: an operator's
-`rag-ingest` into a held name still goes with the table when the last holder is
-deleted.
+Content arriving *after* a base claims the name cannot be refused here, so the
+teardown spares it instead: the last holder's table stays while it holds an unfiled
+chunk the base does not take, as described under deleting a base below.
 
 **And a name mid-teardown is not free either.** Dropping a collection removes its
 knowledge-base rows in the request but drops the physical `rag_<name>` vector table
@@ -883,6 +883,9 @@ base that holds the name, or drops a name no base holds (one `rag-ingest` filled
 its document rows. When several bases hold the name it refuses and lists their ids;
 `--knowledge-base <id>` names the one to clear, and the table stays for the others.
 A worker drops the table and removes the files after the command commits (#2560).
+
+The last holder's table goes whatever it holds: the operator asked for the drop, and
+owns the content a console delete would spare (#2747).
 
 `documents` was also the **default** collection, so the CLI quickstart used to aim
 at the tracking table; the default is now `default`. A knowledge base created with
@@ -1000,15 +1003,25 @@ their tenant, and unfiled document rows stay listed under the bases of their ten
 ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 When no other base holds the name, both routes and `rag-drop` delete the same rows,
-with their files, and the cleanup job drops the table: the base's own rows and the
-unfiled rows of its tenant. That is its organization's for an organization's or a
-personal base, the ones with no organization (what `rag-ingest` writes) for an
-app-scoped base, and none for a personal base outside an organization.
+with their files: the base's own rows and the unfiled rows of its tenant. That is its
+organization's for an organization's or a personal base, the ones with no organization
+(what `rag-ingest` writes) for an app-scoped base, and none for a personal base
+outside an organization.
 
-Another tenant's unfiled rows under the name stay, with their files, because the
-caller has no authority over them. Their chunks go with the table, so they are marked
-as failed: that tenant's next base on the name lists them as failed, an uploaded
-document has to be uploaded again, and a sync indexes a synced document again.
+Both routes then keep the table if it holds an unfiled chunk the base does not take:
+an operator's `rag-ingest` or CLI sync into the held name, or another tenant's. A
+claim cannot refuse content that arrives after it, and the caller has no authority
+over it. Only the base's chunks are purged, the other rows under the name stay as
+they are, and the name is left as `rag-ingest` leaves it: no base holds it, `claim`
+refuses it, and `rag-drop <name>` removes it
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+Otherwise, and always for `rag-drop`, the cleanup job drops the table. Another
+tenant's unfiled rows under the name stay, with their files, because the caller has no
+authority over them. Nothing stands behind them once the table is gone, so they are
+marked as failed: that tenant's next base on the name lists them as failed, an
+uploaded document has to be uploaded again, and a sync indexes a synced document
+again.
 
 Before, `DELETE /kb/{id}` left the tenant's unfiled rows behind the dropped table,
 still listed as indexed, and the collection drop deleted every row under the name,

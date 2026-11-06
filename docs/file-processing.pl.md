@@ -1,5 +1,5 @@
 ---
-source_sha: "bc4358fb705c"
+source_sha: "fda426cb27d4"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -874,12 +874,11 @@ sześciu losowych znaków szesnastkowych i jest zajmowana tą samą ścieżką, 
 uznawana za bezpieczną dlatego, że jest losowa.
 
 **Nie jest też wolna nazwa z treścią, której nie posiada żadna baza.** `rag-ingest`
-zapisuje wiersze śledzące i tabelę `rag_<name>` bez bazy wiedzy i bez organizacji, a
-rozbiórka ostatniej bazy na tej nazwie usuwa jej tabelę. Dlatego `claim` odrzuca
-nazwę, której nie trzyma żadna baza, dopóki ma ona wiersze bez bazy opisujące chunki
-dowolnego tenanta poza organizacją wywołującego albo tabelę wektorową z takimi
-chunkami. Inaczej członek z `collections:edit` mógłby utworzyć bazę na kolekcji
-operatora i ją usunąć, a razem z nią chunki operatora
+zapisuje wiersze śledzące i tabelę `rag_<name>` bez bazy wiedzy i bez organizacji.
+Dlatego `claim` odrzuca nazwę, której nie trzyma żadna baza, dopóki ma ona wiersze bez
+bazy opisujące chunki dowolnego tenanta poza organizacją wywołującego albo tabelę
+wektorową z takimi chunkami. Wcześniej członek z `collections:edit` mógł utworzyć bazę
+na kolekcji operatora i ją usunąć, a razem z nią chunki operatora
 ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Nazwy trzymanej przez
 bazę to nie dotyczy: wywołujący może zapisywać każdą z tych baz, więc i tak mógłby je
 usunąć lub wyczyścić. Taką nazwę może przejąć administrator aplikacji; nieudany wiersz
@@ -887,9 +886,9 @@ bez id wektorowego nie opisuje żadnego chunka i nazwy nie blokuje. `rag-ingest`
 przerwany w trakcie pliku zostawia wiersz `processing`, który blokuje nazwę, dopóki
 administrator aplikacji jej nie przejmie albo nie uruchomi `rag-drop <name>`.
 
-Treść, która trafia pod nazwę *po* zajęciu jej przez bazę, nie jest chroniona:
-`rag-ingest` operatora do zajętej nazwy nadal znika z tabelą, gdy usunięta zostanie
-ostatnia baza.
+Treści, która trafia pod nazwę *po* zajęciu jej przez bazę, nie da się tu odrzucić,
+więc chroni ją rozbiórka: tabela ostatniej bazy zostaje, dopóki ma nieprzypisany chunk,
+którego ta baza nie przejmuje, jak opisano niżej przy usuwaniu bazy.
 
 **I nazwa w trakcie rozbiórki też nie jest wolna.** Usunięcie kolekcji kasuje jej
 wiersze bazy wiedzy w ramach requestu, ale fizyczną tabelę wektorów `rag_<name>`
@@ -945,6 +944,9 @@ jedyną bazę, która ma tę nazwę, albo usuwa nazwę bez żadnej bazy (wypełn
 wypisuje ich identyfikatory; `--knowledge-base <id>` wskazuje bazę do wyczyszczenia,
 a tabela zostaje dla pozostałych. Tabelę i pliki usuwa worker po commicie polecenia
 (#2560).
+
+Tabela ostatniej bazy znika niezależnie od zawartości: to operator zlecił usunięcie i
+to do niego należy treść, którą usuwanie w konsoli by oszczędziło (#2747).
 
 `documents` było też kolekcją **domyślną**, więc quickstart w CLI celował kiedyś
 w tabelę śledzącą; teraz domyślną jest `default`. Baza wiedzy utworzona pod starą
@@ -1060,16 +1062,25 @@ zostają i pasują po swoim tenancie, a nieprzypisane wiersze dokumentów nadal 
 listowane w bazach swojego tenanta ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Gdy żadna inna baza nie ma tej nazwy, obie ścieżki i `rag-drop` usuwają te same
-wiersze, razem z ich plikami, a zadanie porządkowe usuwa tabelę: wiersze samej bazy
-i nieprzypisane wiersze jej tenanta. Dla bazy organizacji albo bazy osobistej są to
-wiersze jej organizacji, dla bazy app-scoped wiersze bez organizacji (te, które
-zapisuje `rag-ingest`), a dla bazy osobistej poza organizacją żadne.
+wiersze, razem z ich plikami: wiersze samej bazy i nieprzypisane wiersze jej tenanta.
+Dla bazy organizacji albo bazy osobistej są to wiersze jej organizacji, dla bazy
+app-scoped wiersze bez organizacji (te, które zapisuje `rag-ingest`), a dla bazy
+osobistej poza organizacją żadne.
 
+Obie ścieżki zachowują potem tabelę, jeśli ma nieprzypisany chunk, którego baza nie
+przejmuje: `rag-ingest` albo synchronizację z CLI operatora do zajętej nazwy albo
+chunk innego tenanta. Claim nie może odrzucić treści, która pojawia się po nim, a
+wywołujący nie ma do niej uprawnień. Czyszczone są tylko chunki bazy, pozostałe
+wiersze pod tą nazwą zostają bez zmian, a nazwa wraca do stanu, jaki zostawia
+`rag-ingest`: nie ma jej żadna baza, `claim` ją odrzuca, a usuwa ją `rag-drop <name>`
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+W pozostałych przypadkach, a przy `rag-drop` zawsze, zadanie porządkowe usuwa tabelę.
 Nieprzypisane wiersze innego tenanta pod tą nazwą zostają, razem z plikami, bo
-wywołujący nie ma do nich uprawnień. Ich chunki znikają razem z tabelą, więc zostają
-oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je jako
-nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja ponownie
-indeksuje zsynchronizowany dokument.
+wywołujący nie ma do nich uprawnień. Po usunięciu tabeli nic już za nimi nie stoi, więc
+zostają oznaczone jako nieudane: następna baza tego tenanta o tej nazwie listuje je
+jako nieudane, przesłany dokument trzeba przesłać jeszcze raz, a synchronizacja
+ponownie indeksuje zsynchronizowany dokument.
 
 Wcześniej `DELETE /kb/{id}` zostawiało nieprzypisane wiersze tenanta za usuniętą
 tabelą, nadal listowane jako zaindeksowane, a usunięcie kolekcji kasowało każdy

@@ -1,5 +1,5 @@
 ---
-source_sha: "bc4358fb705c"
+source_sha: "fda426cb27d4"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -893,12 +893,12 @@ darlo por bueno por ser aleatorio.
 
 **Tampoco lo está un nombre con contenido que ninguna base posee.** `rag-ingest`
 escribe filas de seguimiento y una tabla `rag_<name>` sin base de conocimiento y sin
-organización, y el desmontaje de la última base del nombre elimina su tabla. Por eso
-`claim` rechaza un nombre que ninguna base tiene mientras tenga filas sin base que
-describan chunks de cualquier tenant salvo la organización del llamante, o una tabla
-vectorial con esos chunks. Si no, un miembro con `collections:edit` podría crear una
-base sobre la colección de un operador y borrarla, eliminando con ella los chunks del
-operador ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Un nombre que
+organización. Por eso `claim` rechaza un nombre que ninguna base tiene mientras tenga
+filas sin base que describan chunks de cualquier tenant salvo la organización del
+llamante, o una tabla vectorial con esos chunks. Antes, un miembro con
+`collections:edit` podía crear una base sobre la colección de un operador y borrarla,
+eliminando con ella los chunks del operador
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). Un nombre que
 una base tiene no se comprueba: el llamante puede escribir en todas esas bases y
 podría borrarlas o vaciarlas igualmente. Un administrador de la aplicación sí puede
 adoptar ese nombre; una fila fallida sin id de vector no describe ningún chunk y no lo
@@ -906,9 +906,10 @@ retiene. Un `rag-ingest` interrumpido a mitad de un archivo deja una fila `proce
 que retiene el nombre hasta que un administrador de la aplicación lo adopte o ejecute
 `rag-drop <name>`.
 
-El contenido que llega *después* de que una base reclame el nombre no está cubierto:
-un `rag-ingest` del operador en un nombre ya tomado sigue desapareciendo con la tabla
-cuando se borra la última base.
+El contenido que llega *después* de que una base reclame el nombre no se puede rechazar
+aquí, así que lo protege el desmontaje: la tabla de la última base se queda mientras
+tenga un chunk sin asignar que esa base no toma, como se describe más abajo al borrar
+una base.
 
 **Y un nombre a medio desmontar tampoco está libre.** Borrar una colección elimina
 sus filas de base de conocimiento dentro de la petición, pero elimina la tabla
@@ -965,6 +966,9 @@ llenó `rag-ingest`) con sus filas de documentos. Si varias bases tienen el nomb
 rechaza y lista sus ids; `--knowledge-base <id>` indica la base que vaciar, y la tabla
 se queda para las demás. Un worker borra la tabla y los archivos después del commit
 del comando (#2560).
+
+La tabla de la última base se va contenga lo que contenga: el operador pidió el borrado
+y suyo es el contenido que un borrado desde la consola respetaría (#2747).
 
 `documents` era además la colección **predeterminada**, así que el inicio rápido
 de la CLI apuntaba a la tabla de seguimiento; ahora el predeterminado es
@@ -1083,16 +1087,24 @@ los fragmentos sin asignar se quedan y coinciden por su tenant, y las filas de
 documentos sin asignar siguen listadas en las bases de su tenant ([#2537](https://github.com/vstorm-co/agenticos/issues/2537)).
 
 Cuando ninguna otra base tiene el nombre, ambas rutas y `rag-drop` borran las mismas
-filas, con sus archivos, y el trabajo de limpieza elimina la tabla: las filas de la
-propia base y las filas sin asignar de su tenant. Para una base de organización o una
-base personal son las de su organización, para una base app-scoped las que no tienen
-organización (las que escribe `rag-ingest`), y para una base personal fuera de una
-organización ninguna.
+filas, con sus archivos: las filas de la propia base y las filas sin asignar de su
+tenant. Para una base de organización o una base personal son las de su organización,
+para una base app-scoped las que no tienen organización (las que escribe `rag-ingest`),
+y para una base personal fuera de una organización ninguna.
 
-Las filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos,
-porque quien llama no tiene autoridad sobre ellas. Sus fragmentos se van con la
-tabla, así que se marcan como fallidas: la siguiente base de ese tenant con ese
-nombre las lista como fallidas, un documento subido hay que subirlo de nuevo y una
+Después, ambas rutas conservan la tabla si tiene un chunk sin asignar que la base no
+toma: un `rag-ingest` o una sincronización por CLI del operador en el nombre ya tomado,
+o un chunk de otro tenant. Un claim no puede rechazar contenido que llega después, y
+quien llama no tiene autoridad sobre él. Solo se purgan los chunks de la base, las
+demás filas bajo el nombre se quedan como están y el nombre queda como lo deja
+`rag-ingest`: ninguna base lo tiene, `claim` lo rechaza y `rag-drop <name>` lo elimina
+([#2747](https://github.com/vstorm-co/agenticos/issues/2747)).
+
+En otro caso, y siempre con `rag-drop`, el trabajo de limpieza elimina la tabla. Las
+filas sin asignar de otro tenant bajo ese nombre se quedan, con sus archivos, porque
+quien llama no tiene autoridad sobre ellas. Sin la tabla ya no hay nada detrás de
+ellas, así que se marcan como fallidas: la siguiente base de ese tenant con ese nombre
+las lista como fallidas, un documento subido hay que subirlo de nuevo y una
 sincronización vuelve a indexar un documento sincronizado.
 
 Antes, `DELETE /kb/{id}` dejaba las filas sin asignar del tenant detrás de la tabla
