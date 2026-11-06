@@ -725,3 +725,23 @@ export async function walkPageTour(
   await expect(popover).toBeHidden();
   return seen;
 }
+
+/**
+ * One call to the API, renewing the session once when it answers 401.
+ *
+ * The page's own requests renew the 15-minute access cookie through `apiClient`;
+ * these share its cookies but not that renewal, so a journey that outlives the
+ * cookie it started with would read as signed out halfway through.
+ */
+export async function callApi(
+  api: APIRequestContext,
+  method: "get" | "post" | "put" | "patch",
+  path: string,
+  options: { headers: Record<string, string>; data?: object },
+) {
+  const response = await api[method](`/api${path}`, options);
+  if (response.status() !== 401) return response;
+  const renewed = await api.post("/api/auth/refresh");
+  expect(renewed.ok(), `the session could not be renewed: ${await renewed.text()}`).toBeTruthy();
+  return api[method](`/api${path}`, options);
+}

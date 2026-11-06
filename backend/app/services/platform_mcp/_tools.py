@@ -741,6 +741,15 @@ def _names(check: dict[str, Any] | None, state: str) -> str:
     return ", ".join(row["agent"]["name"] for row in rows if row["state"] == state)
 
 
+def _may_improve_further(session: dict[str, Any]) -> bool:
+    """Whether another round is open: the result offers one and the session can restart."""
+    return (
+        "improve_further" in (session.get("outcomes") or [])
+        and bool(session.get("can_restart"))
+        and not session.get("try_again_blocked")
+    )
+
+
 def _skill_next_actions(session: dict[str, Any]) -> list[str]:
     """What the skill wizard offers on a session right now; none on a closed one."""
     status = session["status"]
@@ -758,13 +767,13 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         actions.append(
             f"Try again (attempt {session['iteration'] + 1} of {session['max_iterations']})"
         )
+    may_end = session.get("can_discard") is not False
     if status == "ready" and session.get("stale"):
         # A merge is checked once; a line that moved since needs a new one.
-        if session.get("purpose") == "catch_up":
-            return ["End the session, then start the catch-up again"]
-        if session.get("purpose") == "to_main":
-            return ["End the session, then start the move to main again"]
-        return ["Check again on the line as it is now", "End the session"]
+        if session.get("purpose") in {"catch_up", "to_main"}:
+            again = "catch-up" if session.get("purpose") == "catch_up" else "move to main"
+            return [f"End the session, then start the {again} again"] if may_end else []
+        return ["Check again on the line as it is now", *(["End the session"] if may_end else [])]
     outcomes = (session.get("outcomes") or []) if status == "ready" else []
     fork = session.get("line_name")
     on_main = session.get("fork_id") is None or session.get("purpose") == "to_main"
@@ -787,10 +796,10 @@ def _skill_next_actions(session: dict[str, Any]) -> list[str]:
         actions.append(f'Take the merge into the fork "{fork}"')
     if "return_to_main" in outcomes:
         actions.append(f'Drop the fork "{fork}" and return its agents to main')
-    if "improve_further" in outcomes and not session.get("try_again_blocked"):
+    if status == "ready" and _may_improve_further(session):
         attempt = session["iteration"] + 1
         actions.append(f"Improve further (attempt {attempt} of {session['max_iterations']})")
-    if session.get("can_discard") is not False:
+    if may_end:
         actions.append("End the session")
     return actions
 
@@ -802,12 +811,27 @@ _SKILL_VERDICTS = {
         "checked: the person acknowledges them before it is applied."
     ),
     "no_better": "No agent got better, so there is nothing to apply.",
-    "blocked": (
-        "An agent got worse, so it cannot simply be applied: apply it and keep the worse "
-        "agents on their version, make a fork for the agents the person picks, improve further, "
-        "or end the session."
-    ),
 }
+
+_BLOCKED_CHOICES = {
+    "apply_and_pin": "apply it and keep the worse agents on their version",
+    "fork_for_helped": "make a fork for the agents the person picks",
+}
+
+
+def _blocked(session: dict[str, Any]) -> str:
+    """Why a change some agent got worse on is not applied, and only the choices left."""
+    outcomes = session.get("outcomes") or []
+    choices = [text for outcome, text in _BLOCKED_CHOICES.items() if outcome in outcomes]
+    if _may_improve_further(session):
+        choices.append("improve further")
+    if session.get("can_discard") is not False:
+        choices.append("end the session")
+    said = "An agent got worse, so it cannot simply be applied"
+    if not choices:
+        return f"{said}."
+    listed = choices[0] if len(choices) == 1 else f"{', '.join(choices[:-1])} or {choices[-1]}"
+    return f"{said}: {listed}."
 
 
 _SKILL_CLOSED = {
@@ -885,6 +909,8 @@ def _behind(item: dict[str, Any]) -> dict[str, Any]:
 
 def _catch_up_label(item: dict[str, Any], name: str, main: int) -> str:
     if item["kind"] == "fork":
+        if not item["fork"]["changes"]:
+            return f'Return the fork "{name}"\'s agents to main: it has no changes of its own'
         return f'Catch the fork "{name}" up'
     if item.get("via_specialist"):
         return (
@@ -925,6 +951,10 @@ def _skill_summary(session: dict[str, Any]) -> str:
             else "The skill line moved on since this session read it, so its next check "
             "measures the changes on the line as it is now."
         )
+        if session.get("can_discard") is False:
+            sentences.append(
+                "Only whoever started the session, or an organization admin, can end it."
+            )
     check = session.get("check")
     if check and session["status"] == "ready":
         results = [
@@ -935,9 +965,14 @@ def _skill_summary(session: dict[str, Any]) -> str:
         sentences.append("The check: " + ", ".join(results) + ".")
         if check.get("hidden"):
             sentences.append(f"{check['hidden']} more agents use it that you cannot see.")
+        catching_up = session.get("purpose") == "catch_up"
         verdict = (
-            _CATCH_UP_VERDICTS if session.get("purpose") == "catch_up" else _SKILL_VERDICTS
-        ).get(check.get("verdict") or "")
+            _blocked(session)
+            if check.get("verdict") == "blocked" and not catching_up
+            else (_CATCH_UP_VERDICTS if catching_up else _SKILL_VERDICTS).get(
+                check.get("verdict") or ""
+            )
+        )
         if verdict and not session.get("stale"):
             sentences.append(verdict)
         if "within_noise" in check.get("warnings", []):
@@ -1998,6 +2033,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
         return _session(agent_id, moved)
 
+    async def _sees_checks() -> bool:
+        """Whether the caller holds `runs:view`, without which the API leaves out checks."""
+        me = await api.request("GET", "/me/permissions")
+        return any(entry["permission"] == "runs:view" for entry in me["permissions"])
+
     async def get_skill(skill_id: UUID) -> dict[str, Any]:
         """One skill: its forks, and each agent with the version it reads. Needs `skills:view`.
 
@@ -2015,8 +2055,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         skill = await api.request("GET", f"/skills/{skill_id}")
         forks = await api.request("GET", f"/skills/{skill_id}/forks")
         agents = await api.request("GET", f"/skills/{skill_id}/agents")
-        me = await api.request("GET", "/me/permissions")
-        sees_checks = any(entry["permission"] == "runs:view" for entry in me["permissions"])
+        sees_checks = await _sees_checks()
         return {
             "id": skill["id"],
             "name": skill["name"],
@@ -2356,7 +2395,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         path = f"/skills/{skill_id}/improvements/{session_id}"
         if outcome == "return_to_main":
             alone = (await api.request("GET", path)).get("main_alone_check") or {}
-            if alone.get("verdict") == "needs_ack" and not acknowledge_unknown:
+            unknown = alone.get("hidden_unknown", 0) + sum(
+                row["state"] == "unknown" for row in alone.get("agents", [])
+            )
+            if unknown and not acknowledge_unknown:
                 return api.refuse(
                     "Some of the fork's agents could not be checked on main alone. Name them "
                     "to the person, and call again with acknowledge_unknown once they accept."
@@ -2461,7 +2503,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
             "published": moved["published"],
             "agent_version": moved["agent_version"],
             "environments": moved["environments"],
-            "agent": _skill_agent(moved["usage"]) if moved.get("usage") else None,
+            "agent": _skill_agent(moved["usage"], sees_checks=await _sees_checks())
+            if moved.get("usage")
+            else None,
             "link": skill_link(skill_id),
         }
 
@@ -2483,7 +2527,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Nothing catches up by itself, because every catch-up costs a check. A
         pinned agent catches up with an update check, then change_skill_version
-        to main naming that check; a fork with start_skill_catch_up. Pinned
+        to main naming that check; a fork with start_skill_catch_up, or, when it
+        has no changes of its own, return_skill_fork_to_main. Pinned
         agents the caller cannot see are only counted in `hidden_agents`.
         """
         behind = await api.request("GET", "/skills/behind-main")

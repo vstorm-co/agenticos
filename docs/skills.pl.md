@@ -1,5 +1,5 @@
 ---
-source_sha: "d80090c01ab6"
+source_sha: "547f15ce451b"
 ---
 
 # Skille { #skills }
@@ -484,8 +484,8 @@ potwierdzeniu (`acknowledge_unknown`).
 (`from_fork`), która wskazuje przyjętą wersję forka, razem z plikami. Agenci forka
 mogą potem wrócić do main.
 
-Oba są odrzucane (409), gdy fork jest zarchiwizowany, gdy nie ma własnej wersji (jego
-agenci wracają wtedy do main) i gdy scalenie niczego by nie zmieniło. Są też
+Oba są odrzucane (400), gdy fork jest zarchiwizowany, oraz (409), gdy nie ma własnej
+wersji (jego agenci wracają wtedy do main) albo gdy scalenie niczego by nie zmieniło. Są też
 odrzucane (422), gdy tekst jest zbyt długi albo zbyt często powtarza linie, żeby
 scalić go linia po linii w rozsądnym czasie; zmiany przenosi się wtedy ręcznie. Akceptacja jest
 odrzucana, gdy main albo fork ma nowszą wersję niż ta, którą odczytało scalenie,
@@ -792,7 +792,8 @@ To, co proponuje Akceptacja, wynika z wyniku:
 Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
 przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te
 same wybrane zmiany, zmierzone na linii w obecnym stanie, w cenie pokazanej
-najpierw. Dalsze poprawianie i odrzucenie zostają dostępne. Gdy linia zmieni się,
+najpierw. Odrzucenie zostaje dostępne; dalsze poprawianie wymaga najpierw ponownego sprawdzenia
+zmian. Gdy linia zmieni się,
 kiedy sesja czeka na Changes, krok jest wyceniany ponownie: Następny krok sprawdza
 zmiany na najnowszej wersji.
 

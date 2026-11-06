@@ -466,8 +466,8 @@ acknowledge them (`acknowledge_unknown`).
 (`from_fork`) that names the fork version it took in, files included. The fork's
 agents can then return to main.
 
-Both are refused (409) when the fork is archived, when it has no version of its own
-(its agents return to main instead), and when the merge would change nothing. They
+Both are refused (400) when the fork is archived, and (409) when it has no version
+of its own (its agents return to main instead) or when the merge would change nothing. They
 are also refused (422) when a text is too long or repeats its lines too often to be
 merged line by line in reasonable time; the changes are then brought over by hand.
 Accepting is refused once main or the fork has a newer version than the merge
@@ -768,7 +768,7 @@ What Accept offers comes from the result:
 When the line gets a new version, or its agents change, after the check, the
 result no longer holds and offers **Check again** in place of applying: the same
 chosen changes, measured on the line as it is now, at a price shown first.
-Improving further and discarding stay offered. A line that moves while the session
+Discarding stays offered; improving further needs the changes checked again first. A line that moves while the session
 waits at Changes is priced again: Next step checks the changes on the newest
 version.
 
