@@ -611,6 +611,36 @@ async def test_delayed_case_call_is_one_delivery_and_settlement_cancels_it(
         source_run_id=run.id,
         source_conversation_id=None,
     )
+    assert [
+        item.id
+        for item in await repo.open_phone_cases(
+            db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            agent_id=agent.id,
+            conversation_id=None,
+        )
+    ] == [case.id]
+    assert (
+        await repo.open_phone_cases(
+            db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            agent_id=uuid4(),
+            conversation_id=None,
+        )
+        == []
+    )
+    assert (
+        await repo.open_phone_cases(
+            db,
+            organization_id=uuid4(),
+            user_id=ctx.user_id,
+            agent_id=agent.id,
+            conversation_id=None,
+        )
+        == []
+    )
     data = PhoneCallCreate(
         request_key=uuid4(),
         endpoint_id=endpoint.id,

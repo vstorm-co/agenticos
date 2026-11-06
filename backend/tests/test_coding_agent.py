@@ -1866,3 +1866,15 @@ async def test_personal_cloud_refuses_shared_sources_before_opening_credentials(
     assert "sources from a shared workspace" in answer
     executor.session.assert_not_called()
     assert shell.commands == []
+
+
+async def test_private_isolated_subscription_uses_its_explicit_person_without_borrowing_audience():
+    ctx = _ctx(_Shell(), audience=RunAudience())
+    person = uuid4()
+    ctx.deps.user_id = str(person)
+    store = _Store(visible=False)
+    answer = await _tools(
+        "codex", api_key=None, sign_in=lambda _org: store, personal_isolated=True
+    )["run_coding_agent"].function(ctx, task="Review")
+    assert store.asked_for == [person]
+    assert "own" in answer and store.saved == []

@@ -19,7 +19,7 @@ from pydantic_ai.workspaces.local import LocalWorkspaceBackend
 
 from app.agents.capabilities.coding_agent import _toolset
 from app.agents.capabilities.coding_agent._harness import CodingReport, Harness
-from app.agents.capabilities.coding_agent._personal import PersonalCodingTask
+from app.agents.capabilities.coding_agent._personal import PersonalCodingTask, SignIn
 from app.agents.deps import AgentDeps
 from app.clients.redis import RedisClient
 from app.core.exceptions import ConflictError
@@ -75,8 +75,9 @@ async def test_cancelling_a_task_releases_its_account_lease() -> None:
 
 
 class PersonalExecutor:
-    def __init__(self, workspace: Workspace) -> None:
+    def __init__(self, workspace: Workspace, sign_in: SignIn | None = None) -> None:
         self.workspace = workspace
+        self.sign_in = sign_in
         self.closed = False
 
     @asynccontextmanager
@@ -90,7 +91,8 @@ class PersonalExecutor:
                 label="My account",
                 base_revision="a" * 64,
                 result_archive=f"coding-results/{uuid4()}.zip",
-                api_key=SecretStr(KEY),
+                api_key=None if self.sign_in else SecretStr(KEY),
+                sign_in=self.sign_in,
                 redactions=(SecretStr(KEY),),
             )
         finally:
@@ -98,7 +100,9 @@ class PersonalExecutor:
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("outcome", ["structured", "edited", "unstructured", "non-text", "refused"])
+@pytest.mark.parametrize(
+    "outcome", ["structured", "edited", "unstructured", "non-text", "refused", "subscription"]
+)
 async def test_profile_execution_uses_only_the_persons_key_and_private_workspace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -109,7 +113,11 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
     private.mkdir()
     parent = Workspace(LocalWorkspaceBackend(shared))
     isolated = Workspace(LocalWorkspaceBackend(private))
-    executor = PersonalExecutor(isolated)
+    from tests.test_coding_agent import SIGNED_IN, _Store
+
+    executor = PersonalExecutor(
+        isolated, (lambda _org: _Store()) if outcome == "subscription" else None
+    )
     editable = outcome in {"edited", "unstructured"}
     discard = AsyncMock()
     if editable:
@@ -132,7 +140,7 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
     )
 
     def build_inner(**options: object) -> FunctionToolset[AgentDeps]:
-        assert options["api_key"] == KEY
+        assert options["api_key"] == (None if outcome == "subscription" else KEY)
         assert options["base_url"] is None
         assert options["capture_changes"] is False
         toolset = FunctionToolset[AgentDeps]()
@@ -155,7 +163,9 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
                 harness="claude_code",
                 access="read_only",
                 outcome="completed",
-                answer=f"Result {KEY}",
+                answer=f"Result {KEY} {SIGNED_IN.access_token} {SIGNED_IN.refresh_token}"
+                if outcome == "subscription"
+                else f"Result {KEY}",
             ).model_dump_json()
 
         toolset.add_function(run, name="run_coding_agent")
@@ -186,6 +196,8 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
     assert report.execution == "isolated_task" and report.result_archive
     assert (private / "result.txt").exists() and not (shared / "result.txt").exists()
     assert executor.closed
+    if outcome == "subscription":
+        assert SIGNED_IN.access_token not in result and SIGNED_IN.refresh_token not in result
     if editable:
         discard.assert_awaited_once()
 

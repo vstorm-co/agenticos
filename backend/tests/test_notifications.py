@@ -2267,3 +2267,124 @@ async def test_routine_health_does_not_hide_a_failure_before_its_savepoint_opens
     run.status = "failed"
     with pytest.raises(SQLAlchemyError):
         await NotificationService(db).routine_result(run)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    ["live", "expired", "paused", "stopped_delivery", "unknown", "no_clock", "auto_stopped"],
+)
+async def test_watch_health_notices_reflect_current_observation_and_expiry(
+    monkeypatch, written, change
+):
+    from datetime import timedelta
+
+    from app.db.models.watch import Watch, WatchAttemptStatus
+    from app.services.outcome import OutcomeService
+
+    owner, org = uuid.uuid4(), uuid.uuid4()
+    watch = Watch(
+        id=uuid.uuid4(),
+        organization_id=org,
+        user_id=owner,
+        title="Inbox check",
+        is_active=change != "paused",
+        ends_at=datetime.now(UTC) - timedelta(seconds=1) if change == "expired" else None,
+        auto_stopped_at=datetime.now(UTC)
+        if change in {"auto_stopped", "stopped_delivery"}
+        else None,
+        consecutive_failures=3,
+        last_attempt_at=None if change == "no_clock" else datetime.now(UTC),
+        source_conversation_id=None,
+    )
+    closed = AsyncMock()
+    monkeypatch.setattr(OutcomeService, "resolve_routine_attention", closed)
+    monkeypatch.setattr(
+        OutcomeService, "routine_failure_occurrence", AsyncMock(return_value="current-case")
+    )
+    monkeypatch.setattr(
+        "app.services.notifications.member_repo.list_member_ids_for", _members(owner)
+    )
+    status = (
+        WatchAttemptStatus.DELIVERY_UNAVAILABLE
+        if change == "stopped_delivery"
+        else WatchAttemptStatus.COMPLETED
+        if change == "unknown"
+        else WatchAttemptStatus.NOT_COMPLETED
+    )
+    await NotificationService(MagicMock()).watch_blocked(watch, status)
+    if change in {"live", "auto_stopped"}:
+        assert len(written.calls) == 1
+        assert written.calls[0]["recipients"] == [owner]
+        if change == "auto_stopped":
+            assert "Paused automatically" in written.calls[0]["summary"]
+    else:
+        assert written.calls == []
+    assert closed.await_count == (1 if change == "expired" else 0)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "change",
+    ["missing", "tenant", "person", "expired", "paused", "older", "no_clock", "recovered_stopped"],
+)
+async def test_terminal_routine_notifications_do_not_revive_obsolete_work(
+    monkeypatch, written, change
+):
+    from datetime import timedelta
+
+    from app.db.models.agent_run import AgentRun
+    from app.db.models.agent_trigger import AgentTrigger
+    from app.services.outcome import OutcomeService
+
+    org, owner, origin = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org,
+        user_id=owner,
+        routine_origin_id=origin,
+        routine_kind="trigger",
+        status="completed" if change == "recovered_stopped" else "failed",
+        started_at=None if change == "no_clock" else now,
+        ended_at=None,
+        conversation_id=None,
+    )
+    trigger = AgentTrigger(
+        id=origin,
+        organization_id=uuid.uuid4() if change == "tenant" else org,
+        created_by_user_id=uuid.uuid4() if change == "person" else owner,
+        is_active=change != "paused",
+        ends_at=now - timedelta(seconds=1) if change == "expired" else None,
+        auto_stopped_at=now if change == "recovered_stopped" else None,
+    )
+    monkeypatch.setattr(
+        "app.services.notifications.agent_trigger_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else trigger),
+    )
+    monkeypatch.setattr(
+        "app.services.notifications.agent_run_repo.latest_terminal_for_trigger",
+        AsyncMock(return_value=uuid.uuid4() if change == "older" else run.id),
+    )
+    closed = AsyncMock()
+    monkeypatch.setattr(OutcomeService, "resolve_routine_attention", closed)
+    await NotificationService(MagicMock()).routine_result(run)
+    assert written.calls == []
+    assert closed.await_count == (1 if change == "expired" else 0)
+
+
+def test_notification_links_preserve_project_binding_without_trusting_malformed_ids():
+    from app.db.models.agent_run import AgentRun
+    from app.services.notifications import _outcome_links
+
+    project = uuid.uuid4()
+    run = AgentRun(
+        id=uuid.uuid4(),
+        routine_origin_id=uuid.uuid4(),
+        routine_kind="watch",
+        routine_policy={"approved_sources": {"project_id": str(project)}},
+    )
+    assert _outcome_links(run)["project_id"] == str(project)
+    assert _outcome_links(run)["cause"] == f"watch:{run.routine_origin_id}"
+    run.routine_policy = {"approved_sources": {"project_id": "not-a-project"}}
+    assert _outcome_links(run)["project_id"] == ""
