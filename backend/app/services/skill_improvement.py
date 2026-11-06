@@ -1403,7 +1403,10 @@ class SkillImprovementService:
                 run = await skill_improvement_repo.get_run(
                     self.db, run_id, organization_id=organization_id, lock=True
                 )
-                if run is not None and await self._end_if_left(run, now=now):
+                # Listed resting, but a decision may have taken it while the lock waited.
+                if run is None or not Status(run.status).open or Status(run.status).active:
+                    continue
+                if await self._end_if_left(run, now=now):
                     count += 1
             after = rows[-1][0]
         return count

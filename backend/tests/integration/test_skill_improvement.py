@@ -783,6 +783,25 @@ class TestStops:
         assert (await _row(db, SkillImprovementRead.model_validate(fresh))).status == "waiting"
         assert (await _row(db, working)).status == "queued"
 
+    async def test_a_session_decided_while_the_sweep_waited_is_left_alone(
+        self, db, evidence, monkeypatch
+    ):
+        """Listed while it rested, accepted before its lock came: nothing to end, no crash."""
+        ctx = await _owner(db)
+        run = await _at_understand(db, ctx, await _skill_on_main(db, ctx))
+        run.stage_started_at = datetime.now(UTC) - timedelta(days=8)
+        run.status = "accepted"
+        await db.flush()
+        listed = iter([[(run.id, ctx.organization_id)], []])
+
+        async def resting(*_args: object, **_kwargs: object) -> list[tuple[uuid.UUID, uuid.UUID]]:
+            return next(listed)
+
+        monkeypatch.setattr(skill_improvement_repo, "list_resting", resting)
+
+        assert await SkillImprovementService(db).sweep() == 0
+        assert (await _row(db, SkillImprovementRead.model_validate(run))).status == "accepted"
+
 
 class TestEnding:
     async def test_cancel_and_discard_end_the_session_and_free_the_line(self, db, evidence):
