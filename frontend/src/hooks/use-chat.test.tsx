@@ -5656,3 +5656,26 @@ describe("human decisions inside delegated tasks", () => {
     },
   );
 });
+
+it("settles a resumed tool in its original segment even before a new segment opens", () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  renderHook(() => useChat(), { wrapper });
+  receive("model_request_start", {});
+  receive("tool_call", { tool_name: "agenticos_get_project", args: {}, tool_call_id: "old-read" });
+  receive("complete", {});
+  const original = useChatStore.getState().messages.at(-1)!;
+  receive("turn_attached", { conversation_id: "c-1" });
+  receive("tool_result", { tool_call_id: "old-read", content: '{"name":"Fall launch"}' });
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === original.id)?.toolCalls?.[0],
+  ).toMatchObject({
+    status: "completed",
+    result: '{"name":"Fall launch"}',
+  });
+  receive("model_request_start", {});
+  receive("text_delta", { index: 0, content: "Checked." });
+  receive("tool_result", { tool_call_id: "old-read", content: '{"name":"Updated launch"}' });
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === original.id)?.toolCalls?.[0]?.result,
+  ).toBe('{"name":"Updated launch"}');
+});

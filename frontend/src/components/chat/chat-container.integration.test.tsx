@@ -13,6 +13,7 @@ import {
   useAgentSelectionStore,
   useAuthStore,
   useChatStore,
+  useWorkingStore,
   useComposerIntentStore,
   useConversationStore,
   useOrgStore,
@@ -1139,6 +1140,26 @@ describe("the chat container - an answer still being written after its person le
       if (url === "/conversations/background-tasks") return Promise.resolve([]);
       return Promise.resolve({ items: [], total: 0 });
     });
+  });
+
+  it("uses the persisted run start for a resumed stream and its sidebar clock", async () => {
+    useConversationStore.getState().setCurrentConversationId(LEFT);
+    const started = running!;
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "clock-question",
+        conversation_id: LEFT,
+        role: "user",
+        content: "Check the project",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    mount();
+    await screen.findByText(/still answering when you left/);
+    receive("turn_attached", { conversation_id: LEFT });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "get_project", args: {}, tool_call_id: "read-1" });
+    await waitFor(() => expect(useWorkingStore.getState().since[LEFT]).toBe(started));
   });
 
   it("says the agent is still answering, and fetches the answer when its run ends", async () => {

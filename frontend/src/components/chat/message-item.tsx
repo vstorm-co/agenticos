@@ -597,7 +597,7 @@ function MessageBody({
     message.isStreaming && message.conversationId ? state.since[message.conversationId] : undefined,
   );
   const startedAt =
-    message.runStartedAt ?? (workingSince ? new Date(workingSince) : message.timestamp);
+    (workingSince ? new Date(workingSince) : message.runStartedAt) ?? message.timestamp;
   const t = useTranslations("chat");
   const parts = message.parts ?? [];
   const useParts = !isUser && parts.length > 0;

@@ -1,5 +1,7 @@
 "use client";
 
+import { useWorkingStore } from "@/stores/working-store";
+
 import { onRemoteChange } from "@/lib/live-updates";
 import type { Mentionable } from "@/types/mention";
 import {
@@ -525,6 +527,16 @@ export function ChatContainer({
   const [lostIn, setLostIn] = useState<string | null>(null);
   const answered = messages.at(-1)?.role === "assistant";
   const hasForegroundTurn = isProcessing || callActive(voice);
+  useEffect(() => {
+    if (!isProcessing || !runningSince || !currentConversationId) return;
+    const working = useWorkingStore.getState();
+    const finished = working.finishedAt[currentConversationId];
+    if (finished && Date.parse(runningSince) <= Date.parse(finished)) return;
+    // Both the sidebar and the transcript measure the same persisted run,
+    // including when its stream resumes after a human decision.
+    working.start(currentConversationId, runningSince);
+  }, [isProcessing, runningSince, currentConversationId]);
+
   const answeredRef = useRef(answered);
   useEffect(() => {
     answeredRef.current = answered;

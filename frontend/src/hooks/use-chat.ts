@@ -936,24 +936,28 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_result": {
-          if (currentMessageIdRef.current) {
-            const { tool_call_id, content } = wsEvent.data as {
-              tool_call_id: string;
-              content: string;
-            };
-            updateToolCallPart(currentMessageIdRef.current, tool_call_id, {
+          const { tool_call_id, content } = wsEvent.data as {
+            tool_call_id: string;
+            content: string;
+          };
+          // A resumed call belongs to the segment that requested approval,
+          // which may precede the segment currently receiving model output.
+          const owner = chatApi
+            .getState()
+            .messages.find(
+              (message) =>
+                (message.conversationId ?? null) === activeConversationId &&
+                message.toolCalls?.some((call) => call.id === tool_call_id),
+            );
+          const messageId = owner?.id ?? currentMessageIdRef.current;
+          if (messageId) {
+            updateToolCallPart(messageId, tool_call_id, {
               result: content,
               status: "completed",
             });
-            // An agent asked to switch the console's language: the page follows
-            // the account, so switching here is recording what it chose.
-            const name = chatApi
-              .getState()
-              .messages.find((m) => m.id === currentMessageIdRef.current)
-              ?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
+            const name = owner?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
             const chosen = name ? localeChosenBy(name, content) : null;
             if (chosen) adoptAccountLocale(chosen);
-            // Or to remember what the person does (#2301).
             const saved = name ? contextSavedBy(name, content) : null;
             if (saved) adoptAccountContext(saved);
           }

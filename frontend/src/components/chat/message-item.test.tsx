@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import * as motion from "@/lib/motion";
 import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
 import { ChatScope } from "@/stores/chat-scope";
+import { useWorkingStore } from "@/stores/working-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
@@ -1391,6 +1392,26 @@ describe("the work before an answer", () => {
 
     item({ parts, runDurationMs: 12_400 }, { endsTurn: false });
     expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBeInTheDocument();
+  });
+
+  it("uses the shared run clock instead of a resumed segment timestamp", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-06T00:03:00Z"));
+    useWorkingStore.getState().start("clock-chat", "2026-11-06T00:00:00Z");
+    try {
+      item({
+        conversationId: "clock-chat",
+        timestamp: new Date("2026-11-06T00:02:50Z"),
+        runStartedAt: new Date("2026-11-06T00:02:50Z"),
+        parts: [call("a", "running")],
+        isStreaming: true,
+      });
+      act(() => vi.advanceTimersByTime(1000));
+      expect(screen.getByRole("button", { name: /Working for 3m 1s/ })).toBeInTheDocument();
+    } finally {
+      useWorkingStore.getState().reset();
+      vi.useRealTimers();
+    }
   });
 
   it("says the turn is working while it streams, and only once there is work", () => {
