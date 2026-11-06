@@ -8374,7 +8374,9 @@
           "library": "Aus der Bibliothek",
           "workspace": "Von einem Agent zurückgeschrieben",
           "improve": "Improve",
-          "restore": "Wiederhergestellt"
+          "restore": "Wiederhergestellt",
+          "catch_up": "Mit main abgeglichen",
+          "from_fork": "Aus einem Fork übernommen"
         },
         "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · von 1 Agent genutzt} other { · von # Agents genutzt}}",
         "unknownAuthor": "Unbekannt",

@@ -93,6 +93,21 @@ describe("SkillHistory", () => {
     expect(screen.getAllByText(/Unknown · .* · used by 2 agents/)).toHaveLength(2);
   });
 
+  it("names a version a merge made, from main or from a fork", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions?")
+        ? {
+            items: [version(3, { source: "from_fork" }), version(2, { source: "catch_up" })],
+            total: 2,
+          }
+        : [],
+    );
+    mount();
+
+    expect(await screen.findByText("Moved in from a fork")).toBeInTheDocument();
+    expect(screen.getByText("Caught up with main")).toBeInTheDocument();
+  });
+
   it("shows a version's changes against the one before it, and hides them again", async () => {
     mount();
     const [newest] = await screen.findAllByRole("button", { name: "Show changes" });

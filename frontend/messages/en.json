@@ -8496,7 +8496,9 @@
           "library": "From the library",
           "workspace": "Written back by an agent",
           "improve": "Improve",
-          "restore": "Restored"
+          "restore": "Restored",
+          "catch_up": "Caught up with main",
+          "from_fork": "Moved in from a fork"
         },
         "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · used by 1 agent} other { · used by # agents}}",
         "unknownAuthor": "Unknown",

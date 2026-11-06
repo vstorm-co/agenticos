@@ -8256,7 +8256,9 @@
           "library": "Z biblioteki",
           "workspace": "Zapisana przez agenta",
           "improve": "Improve",
-          "restore": "Przywrócona"
+          "restore": "Przywrócona",
+          "catch_up": "Nadrobiono main",
+          "from_fork": "Przeniesiono z forka"
         },
         "madeBy": "{who} · {when}{agents, plural, =0 {} one { · używa # agent} few { · używa # agentów} many { · używa # agentów} other { · używa # agenta}}",
         "unknownAuthor": "Nieznany",
