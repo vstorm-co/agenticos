@@ -1526,7 +1526,9 @@ class ConversationService:
                 if data.parts is None
                 else [part.model_dump(mode="json", exclude_none=True) for part in data.parts]
             ),
-            model_name=data.model_name,
+            # Which model wrote a turn is the runner's to say: the nightly look reads
+            # it as proof that a prompt whose run is gone reached one (#2746).
+            model_name=data.model_name if user_id is None else None,
             tokens_used=data.tokens_used,
             # Every field the schema carries, and the two at the end were being
             # dropped here: `persist_assistant_turn` built them, the model documents

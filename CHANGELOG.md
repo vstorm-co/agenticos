@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
+- The nightly proactive job now reads only a prompt that passed the input guardrail of the agent it was sent to. It read every message a person sent in the last week and passed them to the organization's proactivity model, which runs with no guardrails, so a prompt the input edge had stopped, or never reached, still reached a model once a night and could come back in a suggestion or a first message. Left out: a refused prompt, a prompt no run took (an archived agent, a refusal before the run opened, a chat prompt passed to a workflow) and a prompt whose run stopped before its first model request and that the run's own input guardrail blocks when the job asks it. A prompt whose run is still going waits, and a later look reads it once the run has ended. A prompt that lost its run to retention is read only if a model's answer follows it, so `POST /conversations/{id}/messages` no longer stores `model_name` on a turn a person writes. A refused prompt no longer counts as new activity that wakes the look. Prompts a guardrail redacted rather than refused are stored unredacted and still reach it; that is #2655. (#2746)
 - **Sync source settings and run logs stay with their audience (#2745).** The
   knowledge base wizard's list of existing integrations
   (`GET /kb/{kb_id}/sync-sources/org-integrations`) and `GET /rag/sync/sources`

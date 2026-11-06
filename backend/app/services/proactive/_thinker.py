@@ -163,11 +163,13 @@ class ProactiveThinker:
         prompt: str,
         toolsets: Sequence[AbstractToolset[object]] = (),
         source_agent_id: UUID | None = None,
+        started_at: datetime | None = None,
     ) -> OutputT | None:
         """Ask the configured model using platform instructions and role attribution.
 
         `toolsets` are what it may read before answering - a watch's connection,
-        narrowed to the tools that only read.
+        narrowed to the tools that only read. `started_at` dates the run from
+        earlier than this call, for work that read its material first.
 
         Maintenance records its originating agent and needs no starter agent.
         Returns `None` - having spent nothing - without its attribution agent or past a
@@ -214,7 +216,7 @@ class ProactiveThinker:
             model_label=request.label,
             provider=request.provider,
             secret_id=request.secret_id,
-            started_at=datetime.now(UTC),
+            started_at=started_at or datetime.now(UTC),
             system_role=_ROLE_OF.get(feature),
         )
         # Committed before the provider is called, as the other run paths do: a

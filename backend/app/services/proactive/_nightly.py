@@ -24,16 +24,20 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.person_briefing import LANGUAGE_NAMES
+from app.agents.spec import AgentSpec
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext
+from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.organization import OrganizationMember
 from app.db.models.suggestion import SuggestionKind
 from app.db.models.user import User
 from app.repositories import (
+    agent_repo,
     agent_run_repo,
     agent_trigger_repo,
     conversation_repo,
@@ -43,7 +47,9 @@ from app.repositories import (
     suggestion_repo,
     user_repo,
 )
+from app.repositories.conversation import PersonRequest
 from app.schemas.user import WorkingHours
+from app.services.agent_runner import input_screen_for
 from app.services.notifications import NotificationService
 from app.services.proactive._thinker import ProactiveThinker
 from app.services.role_packs import PACKS
@@ -136,6 +142,35 @@ def _person(user: User) -> dict[str, object]:
     }
 
 
+def _reached_a_model(run: AgentRun) -> bool:
+    """Whether a run's first request went out, so its input edge let the prompt through.
+
+    The tokens rather than the status for a run that stopped later: a budget stop
+    on a third request is a prompt the edge accepted, and the same status on the
+    first is one it never read.
+    """
+    return run.status == RunStatus.COMPLETED.value or run.input_tokens > 0
+
+
+def _passes(stored_spec: Mapping[str, object], text: str) -> bool:
+    """Whether the input edge of `stored_spec` lets `text` through.
+
+    A spec written by an older version of this code may no longer validate. Then
+    nothing can vouch for the prompt, and it must not take the person's whole look
+    with it, night after night, until it leaves the window.
+    """
+    try:
+        screen = input_screen_for(AgentSpec.model_validate(stored_spec))
+        if screen is not None:
+            screen(text)
+    except GuardrailBlocked:
+        return False
+    except ValidationError:
+        logger.warning("nightly_look_unreadable_spec")
+        return False
+    return True
+
+
 class NightlyLook:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -163,14 +198,17 @@ class NightlyLook:
         last = await agent_run_repo.last_proactive_run_at(
             self.db, organization_id=organization_id, user_id=user_id
         )
-        requests = await conversation_repo.person_requests_since(
-            self.db,
-            organization_id=organization_id,
-            user_id=user_id,
-            since=now - WINDOW,
-            limit=MAX_REQUESTS,
+        requests = await self._past_the_input_edge(
+            organization_id,
+            await conversation_repo.person_requests_since(
+                self.db,
+                organization_id=organization_id,
+                user_id=user_id,
+                since=now - WINDOW,
+                limit=MAX_REQUESTS,
+            ),
         )
-        new_since_last = last is None or any(message.created_at > last for message in requests)
+        new_since_last = last is None or any(request.decided_at > last for request in requests)
         if not new_since_last and member.personal_starters:
             return 0
 
@@ -189,7 +227,7 @@ class NightlyLook:
         )
         material = {
             "person": _person(user),
-            "requests_this_week": [message.content[:_CLIP] for message in requests],
+            "requests_this_week": [request.message.content[:_CLIP] for request in requests],
             "notes_about_them": [
                 {
                     "name": note.name,
@@ -212,10 +250,39 @@ class NightlyLook:
             output_type=NightlyReading,
             instructions=_INSTRUCTIONS,
             prompt=json.dumps(material, ensure_ascii=False, default=str),
+            # From before the read: a run ending after it was left out, and only a
+            # time ahead of that end makes the next look count it as new.
+            started_at=now,
         )
         if reading is None:
             return 0
         return await self._record(organization_id, user, member, reading, now=now)
+
+    async def _past_the_input_edge(
+        self, organization_id: UUID, requests: list[PersonRequest]
+    ) -> list[PersonRequest]:
+        """`requests` without the ones the input edge of their own agent would have stopped.
+
+        A run that ended before its first request left nothing to read a verdict
+        from, so the edge it never reached is asked now, the way a steer is. It
+        has the version the run was on; with that version gone there is nothing
+        to vouch for the prompt, and it is left out.
+        """
+        passed: list[PersonRequest] = []
+        for request in requests:
+            run = request.run
+            if run is None or _reached_a_model(run):
+                passed.append(request)
+                continue
+            stored = run.test_spec
+            if stored is None and run.agent_version_id is not None:
+                version = await agent_repo.get_version(
+                    self.db, run.agent_version_id, organization_id=organization_id
+                )
+                stored = None if version is None else version.spec
+            if stored is not None and _passes(stored, request.message.content):
+                passed.append(request)
+        return passed
 
     async def _record(
         self,
