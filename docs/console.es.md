@@ -1,5 +1,5 @@
 ---
-source_sha: "5586bddfa409"
+source_sha: "3ba0402b9f0d"
 ---
 
 # La consola { #the-console }
@@ -368,6 +368,11 @@ misma puerta de aprobación, mismo rastro de auditoría, porque
 lleva; uno con una respuesta que no has visto desde la última vez que lo abriste
 lleva un punto, que abrirlo borra - solo para ti, porque cada lector de un hilo
 compartido lo lee por separado.
+
+Las conversaciones que otras personas compartieron contigo están en **Compartidas
+contigo**, debajo de tus favoritas. Renombrarlas, compartirlas, archivarlas o
+borrarlas corresponde a sus propietarios, así que sus filas no tienen menú. Cuando
+alguien comparte una conversación contigo, recibes una notificación que la abre.
 
 Tres cosas del compositor que conviene saber.
 

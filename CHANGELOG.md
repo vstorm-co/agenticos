@@ -29,6 +29,14 @@ Two things are versioned separately from this file and worth knowing about:
   not attachment or workspace files, generated images, cost or runs. Its **Forked from** line
   is shown only to you. `POST /conversations/{id}/fork` does the same over the
   API. See [the console guide](docs/console.md#forking).
+- **Conversations shared with you, in the chat sidebar.** They sit under
+  **Shared with you**, below your favourites; until now a conversation shared
+  with you could only be opened by its link. Their rows have no menu, since
+  renaming, sharing, archiving and deleting are the owner's.
+- **A notification when a conversation is shared with you.** It opens the
+  conversation, and follows your preference for "Shared with you or your
+  group" (in the inbox, by email or by push), which the "Shared with your
+  group" preference is now called.
 
 ## [1.49.0] - 2026-11-05
 

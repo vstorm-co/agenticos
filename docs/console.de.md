@@ -1,5 +1,5 @@
 ---
-source_sha: "5586bddfa409"
+source_sha: "3ba0402b9f0d"
 ---
 
 # Die Konsole { #the-console }
@@ -386,6 +386,11 @@ sich zuletzt bewegt hat. Einer, dessen Run noch arbeitet, zeigt einen Spinner un
 wie lange er schon läuft; einer mit einer Antwort, die Sie seit dem letzten Öffnen
 nicht gesehen haben, trägt einen Punkt, den das Öffnen löscht - nur für Sie, denn
 einen geteilten Thread liest jeder seiner Leser für sich.
+
+Unterhaltungen, die andere mit Ihnen geteilt haben, stehen unter **Mit Ihnen
+geteilt**, unter Ihren Favoriten. Umbenennen, Teilen, Archivieren und Löschen
+liegen bei ihren Besitzern, deshalb haben diese Zeilen kein Menü. Teilt jemand
+eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung, die sie öffnet.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 

@@ -61,6 +61,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
 }));
 
+/** What `/conversations/shared-with-me` answers with: nothing, unless a test shares something. */
+let shared: Conversation[] = [];
+
 function conversation(id: string, title: string, favourite = false): Conversation {
   return {
     id,
@@ -77,6 +80,8 @@ function conversation(id: string, title: string, favourite = false): Conversatio
 function serve(items: ReturnType<typeof conversation>[], total = items.length) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path.includes("/messages")) return { items: [], total: 0 };
+    if (path.startsWith("/conversations/shared-with-me"))
+      return { items: shared, total: shared.length };
     if (path === "/orgs") return { items: [{ id: "fallback", is_personal: true }], total: 1 };
     // The trigger-menu gate sweeps /agents itself for a runnable one.
     if (path === "/agents") return { items: mockAgents, total: mockAgents.length };
@@ -89,7 +94,13 @@ function listRequests(): string[] {
   return vi
     .mocked(apiClient.get)
     .mock.calls.map(([path]) => path as string)
-    .filter((path) => !path.includes("/messages") && path !== "/agents" && path !== "/orgs");
+    .filter(
+      (path) =>
+        !path.includes("/messages") &&
+        !path.startsWith("/conversations/shared-with-me") &&
+        path !== "/agents" &&
+        path !== "/orgs",
+    );
 }
 
 function mount() {
@@ -112,6 +123,7 @@ beforeEach(() => {
   useConversationStore.getState().reset();
   useWorkingStore.getState().reset();
   useChatBandsStore.setState({ folded: [], opened: [] });
+  shared = [];
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
 });
@@ -355,6 +367,7 @@ describe("what the sidebar says about the list", () => {
       if (path === "/agents") return { items: [], total: 0 };
       if (path.startsWith("/projects"))
         return { items: [{ id: "p-1", name: "Q3 launch" }], total: 1 };
+      if (path.startsWith("/conversations/shared-with-me")) return { items: [], total: 0 };
       return {
         items: [
           { ...conversation("c-1", "Press release"), project_id: "p-1" },
@@ -372,6 +385,33 @@ describe("what the sidebar says about the list", () => {
       .map((heading) => heading.textContent);
     // Each project heading carries its initial's tile before the name.
     expect(headings.slice(0, 3)).toEqual(["QQ3 launch", "AA project", "Today"]);
+  });
+
+  it("lists the threads shared with the reader under their own heading, without owner actions", async () => {
+    shared = [{ ...conversation("c-shared", "Their pricing plan"), user_id: "someone-else" }];
+    mount();
+    await screen.findAllByText("Their pricing plan");
+
+    const band = within(list()).getByRole("button", { name: /Shared with you/ });
+    expect(band).toHaveAttribute("aria-expanded", "true");
+    // Rename, share, archive and delete are the owner's; the row offers none of them.
+    const row = within(list()).getByText("Their pricing plan").closest(".group") as HTMLElement;
+    expect(within(row).queryByRole("button", { name: "Conversation actions" })).toBeNull();
+    // The reader's own thread still has them.
+    const own = within(list()).getByText("Quarterly numbers").closest(".group") as HTMLElement;
+    expect(within(own).getByRole("button", { name: "Conversation actions" })).toBeInTheDocument();
+  });
+
+  it("leaves the shared heading out of the archive and out of an agent filter", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+    urlParams = new URLSearchParams("view=archived");
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+
+    expect(screen.queryByText("Their pricing plan")).toBeNull();
+    expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
+      "/conversations/shared-with-me?skip=0&limit=50",
+    );
   });
 
   it("keeps one run, without days, in an order that is not by date", async () => {
@@ -438,6 +478,15 @@ describe("the collapsed rail", () => {
     return screen.getByRole("button", { name: "Expand conversations sidebar" }).parentElement!
       .parentElement as HTMLElement;
   }
+
+  it("keeps the shared threads under their own mark", async () => {
+    shared = [conversation("c-shared", "Their pricing plan")];
+
+    const rail = await collapse();
+
+    expect(await within(rail).findByRole("button", { name: "Shared with you" })).toBeVisible();
+    expect(within(rail).getByRole("button", { name: "Their pricing plan" })).toBeVisible();
+  });
 
   it("offers the recent threads, named, without expanding", async () => {
     serve([conversation("c-1", "Quarterly numbers"), conversation("c-2", "Refund policy")]);

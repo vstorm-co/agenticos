@@ -24,6 +24,7 @@ from app.schemas.conversation_share import (
     SharedVisual,
 )
 from app.services import visual as visuals
+from app.services.notifications import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +192,16 @@ class ConversationShareService:
             shared_by=shared_by,
             shared_with=shared_with,
             permission=permission,
+        )
+        # A share nobody hears of is one the recipient finds only by its link.
+        sharer = await user_repo.get_by_id(self.db, shared_by)
+        await NotificationService(self.db).conversation_shared(
+            recipient=shared_with,
+            organization_id=conv.organization_id,
+            conversation_id=conversation_id,
+            title=conv.title,
+            sharer=(sharer.full_name or sharer.email) if sharer is not None else "Someone",
+            actor_user_id=shared_by,
         )
         return {"share": share}
 

@@ -1540,7 +1540,8 @@
       "title": "Chats",
       "unread": "New answer",
       "unreadHeading": "Unread",
-      "unnamedProject": "A project"
+      "unnamedProject": "A project",
+      "sharedHeading": "Shared with you"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -6914,7 +6915,7 @@
       "avatarColourHint": "Shown as your avatar until you upload a picture.",
       "prefArtifactVersionPublished": "App updated",
       "prefArtifactVersionPublishedTrigger": "An app you follow gets a new version - republished by its agent or restored by a person.",
-      "prefResourceShared": "Shared with your group",
+      "prefResourceShared": "Shared with you or your group",
       "prefResourceSharedTrigger": "Something - an agent, a skill, knowledge, an app - is shared with a group you are in.",
       "prefBudgetWarning": "Department budget at 80%",
       "prefBudgetWarningTrigger": "A department you lead has used 80% of its monthly budget. Administrators hear about every department.",

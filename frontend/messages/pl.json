@@ -584,7 +584,8 @@
       "title": "Czaty",
       "unread": "Nowa odpowiedź",
       "unreadHeading": "Nieprzeczytane",
-      "unnamedProject": "Projekt"
+      "unnamedProject": "Projekt",
+      "sharedHeading": "Udostępnione Tobie"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",
@@ -3039,7 +3040,7 @@
       "avatarColourHint": "Pokazywany jako Twój awatar, dopóki nie wgrasz zdjęcia.",
       "prefArtifactVersionPublished": "Aplikacja zaktualizowana",
       "prefArtifactVersionPublishedTrigger": "Aplikacja, którą obserwujesz, dostaje nową wersję - opublikowaną ponownie przez agenta albo przywróconą przez człowieka.",
-      "prefResourceShared": "Udostępnione Twojej grupie",
+      "prefResourceShared": "Udostępnione Tobie lub Twojej grupie",
       "prefResourceSharedTrigger": "Coś - agent, skill, wiedza, aplikacja - zostaje udostępnione grupie, w której jesteś.",
       "prefBudgetWarning": "Budget działu na 80%",
       "prefBudgetWarningTrigger": "Dział, którym kierujesz, wykorzystał 80% miesięcznego budgetu. Administratorzy dostają informację o każdym dziale.",

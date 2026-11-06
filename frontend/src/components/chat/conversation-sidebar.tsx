@@ -19,6 +19,7 @@ import {
 } from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import { useProjects } from "@/hooks/use-projects";
+import { useSharedConversations } from "@/hooks/use-conversation-shares";
 import {
   Archive,
   ArchiveRestore,
@@ -27,6 +28,7 @@ import {
   ChevronDown,
   ChevronRight,
   Inbox,
+  Users,
   Loader2,
   MessageSquare,
   MoreVertical,
@@ -59,6 +61,8 @@ interface ConversationItemProps {
   onRename: (title: string) => void;
   onShare: () => void;
   onFavourite: (favourite: boolean) => void;
+  /** Somebody else's thread shared with the reader: theirs to rename, share, archive or delete. */
+  shared?: boolean;
 }
 
 /** How long a thread left mid-answer keeps its mark when the listing never shows
@@ -75,6 +79,7 @@ function ConversationItem({
   onRename,
   onShare,
   onFavourite,
+  shared = false,
 }: ConversationItemProps) {
   const t = useTranslations("chat");
   const tTime = useTranslations("time");
@@ -226,131 +231,133 @@ function ConversationItem({
         </div>
       )}
 
-      <div className="relative">
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t("conversationActions")}
-          className={cn(
-            // Zero *width* until it is wanted, not just transparent: an
-            // invisible control that still reserves 32px is 32px taken off
-            // every title in the list to show something nobody is looking at.
-            // The row reflows on hover and the title truncates a little
-            // earlier, which is the trade the right way round.
-            //
-            // Width rather than `hidden`, because `hidden` takes it out of the
-            // tab order: a keyboard user reaches this by tabbing, and
-            // `focus-visible` is what opens it for them. `touch:` keeps it
-            // permanently sized where there is no hover at all - a phone cannot
-            // reveal a zero-width target, and this menu is the only way to
-            // reach Rename, Share, Archive and Delete. That variant is declared
-            // in `globals.css`; it was in use here and undeclared, which
-            // compiled to nothing.
-            "h-7 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
-            "w-0 opacity-0",
-            "group-hover:w-7 group-hover:opacity-100",
-            "focus-visible:w-7 focus-visible:opacity-100",
-            "touch:w-7 touch:opacity-100",
-            showMenu && "w-7 opacity-100",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowMenu(!showMenu);
-          }}
-        >
-          <MoreVertical className="h-4 w-4" />
-        </Button>
+      {!shared && (
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("conversationActions")}
+            className={cn(
+              // Zero *width* until it is wanted, not just transparent: an
+              // invisible control that still reserves 32px is 32px taken off
+              // every title in the list to show something nobody is looking at.
+              // The row reflows on hover and the title truncates a little
+              // earlier, which is the trade the right way round.
+              //
+              // Width rather than `hidden`, because `hidden` takes it out of the
+              // tab order: a keyboard user reaches this by tabbing, and
+              // `focus-visible` is what opens it for them. `touch:` keeps it
+              // permanently sized where there is no hover at all - a phone cannot
+              // reveal a zero-width target, and this menu is the only way to
+              // reach Rename, Share, Archive and Delete. That variant is declared
+              // in `globals.css`; it was in use here and undeclared, which
+              // compiled to nothing.
+              "h-7 shrink-0 overflow-hidden p-0 transition-[width,opacity]",
+              "w-0 opacity-0",
+              "group-hover:w-7 group-hover:opacity-100",
+              "focus-visible:w-7 focus-visible:opacity-100",
+              "touch:w-7 touch:opacity-100",
+              showMenu && "w-7 opacity-100",
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </Button>
 
-        {showMenu && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-            {/* Drawn like every other menu in the console: one line per item,
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+              {/* Drawn like every other menu in the console: one line per item,
                 read from the left, as wide as its longest label. */}
-            <div className="panel absolute top-8 right-0 z-20 w-max min-w-44 rounded-xl p-1 shadow-lg">
-              <button
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsEditing(true);
-                  setShowMenu(false);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-                {t("rename")}
-              </button>
-              {/* Not for a project's chat: who reads it is the project's to say,
+              <div className="panel absolute top-8 right-0 z-20 w-max min-w-44 rounded-xl p-1 shadow-lg">
+                <button
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditing(true);
+                    setShowMenu(false);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                  {t("rename")}
+                </button>
+                {/* Not for a project's chat: who reads it is the project's to say,
                   and the server refuses a share of one. */}
-              {!conversation.project_id && (
-                <button
-                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onShare();
-                    setShowMenu(false);
-                  }}
-                >
-                  <Share2 className="h-4 w-4" />
-                  {t("share")}
-                </button>
-              )}
-              {/* In the menu as well as on the row: the hover control does not
+                {!conversation.project_id && (
+                  <button
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShare();
+                      setShowMenu(false);
+                    }}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    {t("share")}
+                  </button>
+                )}
+                {/* In the menu as well as on the row: the hover control does not
                   exist on a touch screen until something is long-pressed. */}
-              <button
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFavourite(conversation.is_favourite !== true);
-                  setShowMenu(false);
-                }}
-              >
-                <Star
-                  className={cn(
-                    "h-4 w-4",
-                    conversation.is_favourite && "text-warning fill-current",
-                  )}
-                />
-                {conversation.is_favourite ? t("unfavourite") : t("favourite")}
-              </button>
-              {conversation.is_archived ? (
                 <button
                   className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onUnarchive();
+                    onFavourite(conversation.is_favourite !== true);
                     setShowMenu(false);
                   }}
                 >
-                  <ArchiveRestore className="h-4 w-4" />
-                  {t("restore")}
+                  <Star
+                    className={cn(
+                      "h-4 w-4",
+                      conversation.is_favourite && "text-warning fill-current",
+                    )}
+                  />
+                  {conversation.is_favourite ? t("unfavourite") : t("favourite")}
                 </button>
-              ) : (
+                {conversation.is_archived ? (
+                  <button
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUnarchive();
+                      setShowMenu(false);
+                    }}
+                  >
+                    <ArchiveRestore className="h-4 w-4" />
+                    {t("restore")}
+                  </button>
+                ) : (
+                  <button
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onArchive();
+                      setShowMenu(false);
+                    }}
+                  >
+                    <Archive className="h-4 w-4" />
+                    {t("archive")}
+                  </button>
+                )}
                 <button
-                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                  className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onArchive();
+                    onDelete();
                     setShowMenu(false);
                   }}
                 >
-                  <Archive className="h-4 w-4" />
-                  {t("archive")}
+                  <Trash2 className="h-4 w-4" />
+                  {t("delete")}
                 </button>
-              )}
-              <button
-                className="text-destructive hover:bg-destructive/10 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                  setShowMenu(false);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("delete")}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -377,6 +384,8 @@ interface ConversationListProps {
   onLoadMore?: () => void;
   /** Whether the list is newest-activity first, so it can be read by day. */
   datedOrder: boolean;
+  /** Other people's threads shared with the reader. */
+  shared?: Conversation[];
 }
 
 /**
@@ -447,7 +456,7 @@ function ProjectTile({ name }: { name: string }) {
 interface Band {
   key: string;
   heading: string | null;
-  icon: "star" | "unread" | "project" | null;
+  icon: "star" | "unread" | "shared" | "project" | null;
   rows: Conversation[];
 }
 
@@ -504,6 +513,7 @@ function useBands(
   currentConversationId: string | null,
   isArchivedView: boolean,
   datedOrder: boolean,
+  shared: Conversation[] = [],
 ): Band[] {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -541,6 +551,11 @@ function useBands(
       ...(starred.length > 0
         ? [{ key: "favourites", heading: t("favourites"), icon: "star" as const, rows: starred }]
         : []),
+      // Other people's threads shared with the reader, which their own listing
+      // does not hold. Not in the archive: the archive is the reader's own.
+      ...(!isArchivedView && shared.length > 0
+        ? [{ key: "shared", heading: ts("sharedHeading"), icon: "shared" as const, rows: shared }]
+        : []),
       ...inProjects,
       // Under the date they were last active, the way a chat product's history
       // reads, when the list is in that order; any other order has no dates to
@@ -556,7 +571,7 @@ function useBands(
           ? [{ key: "rest", heading: null, icon: null, rows: rest }]
           : []),
     ];
-  }, [conversations, currentConversationId, isArchivedView, datedOrder, names, t, ts]);
+  }, [conversations, currentConversationId, isArchivedView, datedOrder, shared, names, t, ts]);
 }
 
 /**
@@ -598,6 +613,7 @@ function ConversationList({
   onNavigate,
   onLoadMore,
   datedOrder,
+  shared,
 }: ConversationListProps) {
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
@@ -609,7 +625,7 @@ function ConversationList({
   };
 
   const isArchivedView = view === "archived";
-  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
+  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
   const foldedKeys = bands
     .filter((band) => isFolded(band.key))
@@ -684,7 +700,7 @@ function ConversationList({
               <Skeleton key={i} className="h-9 w-full rounded-md" />
             ))}
           </div>
-        ) : conversations.length === 0 ? (
+        ) : conversations.length === 0 && (shared?.length ?? 0) === 0 ? (
           /* Three sentences, not one. "You have no conversations", "you have
              none archived" and "none of them match this filter" are three
              different situations, and the last one is the only one with an
@@ -745,6 +761,7 @@ function ConversationList({
                   >
                     {icon === "star" && <Star className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "unread" && <Inbox className="h-3.5 w-3.5" aria-hidden />}
+                    {icon === "shared" && <Users className="h-3.5 w-3.5" aria-hidden />}
                     {icon === "project" && <ProjectTile name={heading} />}
                     <span>{heading}</span>
                     {isFolded(key) && (
@@ -772,6 +789,7 @@ function ConversationList({
                       onFavourite={(favourite) => onFavourite(conversation.id, favourite)}
                       onRename={(title) => onRename(conversation.id, title)}
                       onShare={() => setShareConversationId(conversation.id)}
+                      shared={key === "shared"}
                     />
                   ))}
               </div>
@@ -847,6 +865,10 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     return () => controller.abort();
   }, [fetchConversations]);
 
+  // Only on the plain active list: an agent filter narrows the reader's own
+  // threads, and a shared band beside it would ignore that filter.
+  const shared = useSharedConversations(view === "active" && agentId === null);
+
   // A link to another thread followed from this page - the inbox's "answered
   // while you were away" - is a same-page navigation: nothing remounts, so the
   // effect above never sees the new `?id=`, and the address said one thread while
@@ -902,6 +924,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
     onRename: renameConversation,
     onLoadMore: fetchMoreConversations,
     datedOrder: sort === DEFAULT_SORT,
+    shared,
   };
 
   // The list's own controls, in its header beside the title the way a chat
@@ -1039,6 +1062,7 @@ function CollapsedSidebar({
   onSelect,
   onLoadMore,
   datedOrder,
+  shared,
   toolbar,
   onExpand,
   className,
@@ -1051,6 +1075,7 @@ function CollapsedSidebar({
   | "onSelect"
   | "onLoadMore"
   | "datedOrder"
+  | "shared"
 > & {
   toolbar: ReactNode;
   onExpand: () => void;
@@ -1059,7 +1084,7 @@ function CollapsedSidebar({
   const t = useTranslations("chat");
   const ts = useTranslations("chat.sidebar");
   const isArchivedView = view === "archived";
-  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder);
+  const bands = useBands(conversations, currentConversationId, isArchivedView, datedOrder, shared);
   const { isFolded, flip } = useBandFolds(bands, conversations.length);
 
   return (
@@ -1121,6 +1146,8 @@ function CollapsedSidebar({
                     <Star className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "unread" ? (
                     <Inbox className="h-3.5 w-3.5" aria-hidden />
+                  ) : icon === "shared" ? (
+                    <Users className="h-3.5 w-3.5" aria-hidden />
                   ) : icon === "project" ? (
                     <ProjectTile name={heading} />
                   ) : (

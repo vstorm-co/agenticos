@@ -55,11 +55,16 @@ async def test_an_email_resolves_to_the_user_it_names(service: ConversationShare
     ):
         conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
         user_repo.get_by_email = AsyncMock(return_value=_user(target))
+        user_repo.get_by_id = AsyncMock(return_value=_user(owner))
         member_repo.get = AsyncMock(return_value=MagicMock())
         share_repo.get_share = AsyncMock(return_value=None)
         share_repo.create = AsyncMock(return_value=MagicMock())
 
-        await service.share_conversation(uuid.uuid4(), owner, shared_with_email="nina@example.com")
+        with patch(f"{MODULE}.NotificationService") as notifications:
+            notifications.return_value.conversation_shared = AsyncMock()
+            await service.share_conversation(
+                uuid.uuid4(), owner, shared_with_email="nina@example.com"
+            )
 
         user_repo.get_by_email.assert_awaited_once_with(service.db, "nina@example.com")
         member_repo.get.assert_awaited_once_with(service.db, organization_id=ORG, user_id=target)
@@ -366,3 +371,82 @@ def test_the_order_is_applied_before_the_newest_fifty_are_kept() -> None:
     kept = shared_drafts(conv)[message.id]
 
     assert [d.id for d in kept] == [f"c{i}" for i in range(1, SHARED_MAX_DRAFTS + 1)]
+
+
+@pytest.mark.anyio
+async def test_the_person_a_conversation_is_shared_with_is_told(
+    service: ConversationShareService,
+):
+    """Shared threads are not in the recipient's own list: without a notice they never learn of one."""
+    owner, target, conversation_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    conversation = _conversation(owner)
+    conversation.title = "Pricing"
+    sharer = _user(owner)
+    sharer.full_name = "Kacper"
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.user_repo") as user_repo,
+        patch(f"{MODULE}.member_repo") as member_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        patch(f"{MODULE}.NotificationService") as notifications,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
+        user_repo.get_by_id = AsyncMock(side_effect=[_user(target), sharer])
+        member_repo.get = AsyncMock(return_value=MagicMock())
+        share_repo.get_share = AsyncMock(return_value=None)
+        share_repo.create = AsyncMock(return_value=MagicMock())
+        told = AsyncMock()
+        notifications.return_value.conversation_shared = told
+
+        await service.share_conversation(conversation_id, owner, shared_with=target)
+
+    assert told.await_args.kwargs == {
+        "recipient": target,
+        "organization_id": ORG,
+        "conversation_id": conversation_id,
+        "title": "Pricing",
+        "sharer": "Kacper",
+        "actor_user_id": owner,
+    }
+
+
+@pytest.mark.anyio
+async def test_a_link_tells_nobody(service: ConversationShareService):
+    owner = uuid.uuid4()
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+        patch(f"{MODULE}.NotificationService") as notifications,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        share_repo.create = AsyncMock(return_value=MagicMock())
+
+        await service.share_conversation(uuid.uuid4(), owner, generate_link=True)
+
+    assert notifications.call_count == 0
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(("title", "named"), [("Pricing", "'Pricing'"), (None, "'A conversation'")])
+async def test_the_notice_names_the_sharer_and_opens_the_conversation(title, named):
+    from app.db.models.notification import NotificationEventType
+    from app.services.notifications import NotificationService
+
+    recipient, organization_id, conversation_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    write = AsyncMock()
+    with patch("app.services.notification_center.NotificationCenterService.write", new=write):
+        await NotificationService(MagicMock()).conversation_shared(
+            recipient=recipient,
+            organization_id=organization_id,
+            conversation_id=conversation_id,
+            title=title,
+            sharer="Kacper",
+            actor_user_id=uuid.uuid4(),
+        )
+
+    kwargs = write.await_args.kwargs
+    assert kwargs["recipients"] == [recipient]
+    assert kwargs["event_type"] is NotificationEventType.RESOURCE_SHARED
+    assert kwargs["occurrence_id"] == f"conversation:{conversation_id}:{recipient}"
+    assert kwargs["summary"] == f"Kacper shared {named} with you."
+    assert kwargs["context_url"] == f"/chat?id={conversation_id}&org={organization_id}"

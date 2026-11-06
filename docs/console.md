@@ -341,6 +341,11 @@ going; one with an answer you have not seen since you last had it open carries a
 dot, which opening it clears - for you only, since a shared thread is read by each
 of its readers separately.
 
+Conversations other people shared with you sit under **Shared with you**, below
+your favourites. They are theirs to rename, share, archive or delete, so their
+rows have no menu. When somebody shares a conversation with you, you get a
+notification that opens it.
+
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to

@@ -13,6 +13,28 @@ import type {
   ConversationShareListResponse,
 } from "@/types";
 
+/** How many shared conversations the chat sidebar lists: one page, the newest first. */
+const SHARED_IN_SIDEBAR = 50;
+
+/**
+ * The conversations other people shared with the caller, for the chat sidebar.
+ *
+ * Shared threads are not in the caller's own listing - that holds what they
+ * started, joined or reach through a project - so without this a share was
+ * reachable only by its link.
+ */
+export function useSharedConversations(enabled: boolean): Conversation[] {
+  const { data } = useQuery({
+    queryKey: qk.conversationShares.sharedWithMe(0, SHARED_IN_SIDEBAR),
+    queryFn: () =>
+      apiClient.get<ConversationListResponse>(
+        `/conversations/shared-with-me?skip=0&limit=${SHARED_IN_SIDEBAR}`,
+      ),
+    enabled,
+  });
+  return enabled ? (data?.items ?? []) : [];
+}
+
 export function useConversationShares() {
   const tErrors = useTranslations("errors");
   const t = useTranslations("sharing");
