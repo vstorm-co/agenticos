@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
-import { CodingAccounts } from "./coding-accounts";
+import type { ReactElement } from "react";
+import { CodingAccounts, PersonalCodingAccount } from "./coding-accounts";
 import { apiClient } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
@@ -31,15 +32,11 @@ const account = {
   enabled: false,
   generation: "g-1",
 };
-function mount(compact = false) {
+function mount(ui: ReactElement = <CodingAccounts />) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <CodingAccounts compact={compact} />
-    </QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -121,12 +118,13 @@ it("starts a fresh ChatGPT flow and submits its callback", async () => {
   );
 });
 
-it("offers branded accounts and the connect dialog in compact chat controls", async () => {
-  mount(true);
-  const section = screen.getByRole("region", { name: "Coding accounts" });
-  expect(section.querySelectorAll("svg")).toHaveLength(2);
-  const buttons = await screen.findAllByRole("button", { name: "Connect" });
-  await waitFor(() => expect(buttons[1]).toBeEnabled());
-  await userEvent.click(buttons[1]!);
+it("offers a chat only the account its agent codes on, and connects it there", async () => {
+  mount(<PersonalCodingAccount harness="codex" />);
+  const section = screen.getByRole("region", { name: "Your Codex account" });
+  expect(section.querySelectorAll("svg")).toHaveLength(1);
+  expect(screen.queryByText("Claude Code")).toBeNull();
+  const connect = await screen.findByRole("button", { name: "Connect" });
+  await waitFor(() => expect(connect).toBeEnabled());
+  await userEvent.click(connect);
   expect(screen.getByRole("dialog", { name: "Connect Codex" })).toBeVisible();
 });

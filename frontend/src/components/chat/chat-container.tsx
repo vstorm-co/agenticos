@@ -1436,7 +1436,12 @@ function ChatUI({
                         {t("loadEarlierMessages")}
                       </button>
                     )}
-                    <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                    <MessageList
+                      messages={messages}
+                      delegations={delegations}
+                      onRegenerate={onRegenerate}
+                      pins={pins}
+                    />
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}

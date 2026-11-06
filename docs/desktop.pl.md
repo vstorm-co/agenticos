@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "956aedbad8a2"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -172,6 +172,12 @@ connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną ins
 z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
 zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
 nie przekazuje aplikacji zarządzania nim.
+
+Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
+usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
+workspace przechowujący same pliki. W **Chat controls → Tools & files** wybierz
+**Work on → This computer** dla dostępu do folderów oraz **Browser → Local browser**
+dla przeglądania. **Computer use** oddzielnie udostępnia ekran, mysz i klawiaturę.
 
 Metadane znajdują się w `local-instances.json` w katalogu konfiguracji; pliki nowych
 instancji w `local-stacks/<id>/` w katalogu danych aplikacji. Istniejące instalacje
@@ -496,7 +502,7 @@ magazynu poświadczeń; udane logowanie i przygotowanie automatycznie odświeża
 
 W aplikacji desktopowej wybierz **Ustawienia czatu → Narzędzia i pliki → Agent programistyczny**, a następnie **Claude Code** lub **Codex**, również gdy opublikowana capability jest wyłączona lub nieobecna. Aplikacja przygotowuje lokalne narzędzia plikowe i otwiera natywny wybór folderu, chyba że bieżący folder ma już grant pełnego dostępu. Anulowanie pozostawia poprzednie ustawienia. **Użyj ustawienia agenta** przywraca opublikowaną konfigurację.
 
-Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Model jest na górze, a pod nim Narzędzia i pliki. Rozwiń **Work on**, aby zarządzać dostępem do folderu, lub **Preferencje**, aby zmienić zatwierdzanie i powiadomienia.
+Wybór dotyczy tego czatu. Reguły trybu tylko do odczytu i zatwierdzania nadal obowiązują, a natywną zgodę na start można zapamiętać dla agenta i folderu. Przejście do chmury usuwa wybór lokalnego coding agenta dla tej rozmowy. Ustawienia czatu rozwijają się nad polem wiadomości. Ma karty **Model**, **Narzędzia i pliki** (Coding agent, Work on, Browser, Computer use i skille) oraz **Preferencje** (zatwierdzanie i powiadomienia).
 
 Ustaw capability **Coding agent** na **On this computer**, wybierz folder w
 **Work on** i przyznaj mu pełny dostęp. Natywna zgoda jest zapamiętywana dla tego

@@ -18,7 +18,7 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 import yaml
@@ -116,6 +116,8 @@ from app.schemas.agent import (
     CapabilityEnabled,
     DelegationTree,
     DelegationTreeNode,
+    LocalCodingAgent,
+    PublishedCodingAgent,
     PublishedModel,
     TemplateIndustryRead,
     TemplateInstallResult,
@@ -1016,6 +1018,22 @@ def _published_models(
     }
 
 
+def _local_coding_agent(binding: PublishedCodingAgent | None) -> LocalCodingAgent | None:
+    """The coding agent a version runs in the person's own folder, where it does."""
+    if binding is None or binding.runs_on != "this_computer":
+        return None
+    return LocalCodingAgent(harness=binding.harness, access=binding.access)
+
+
+def _personal_coding_harness(
+    binding: PublishedCodingAgent | None,
+) -> Literal["claude_code", "codex"] | None:
+    """The harness a version runs as a private cloud task on the person's account."""
+    if binding is None or binding.runs_on != "personal_sandbox":
+        return None
+    return binding.harness
+
+
 def _yaml_refusal(exc: yaml.YAMLError) -> str:
     """Where the document stopped parsing, without quoting any of it.
 
@@ -1326,9 +1344,7 @@ class AgentRegistryService:
         published_capabilities = await agent_repo.published_capabilities(
             self.db, version_ids=version_ids
         )
-        local_agents = await agent_repo.published_local_coding_agents(
-            self.db, version_ids=version_ids
-        )
+        coding_agents = await agent_repo.published_coding_agents(self.db, version_ids=version_ids)
         profile_ids = await agent_repo.published_model_profiles(self.db, version_ids=version_ids)
         profiles = (
             await credential_repo.get_profiles_by_ids(
@@ -1373,8 +1389,15 @@ class AgentRegistryService:
                 published_capabilities=published_capabilities.get(agent.current_version_id, [])
                 if agent.current_version_id
                 else [],
-                local_coding_agent=(
-                    local_agents.get(agent.current_version_id) if agent.current_version_id else None
+                local_coding_agent=_local_coding_agent(
+                    coding_agents.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
+                ),
+                personal_coding_harness=_personal_coding_harness(
+                    coding_agents.get(agent.current_version_id)
+                    if agent.current_version_id
+                    else None
                 ),
                 published_model=(
                     published_models.get(agent.current_version_id)

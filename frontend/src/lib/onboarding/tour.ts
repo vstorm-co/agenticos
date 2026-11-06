@@ -191,28 +191,28 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-local-skills",
     page: ROUTES.CHAT,
     target: "chat-local-skills",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
     optional: true,
   },
   {
     id: "chat-coding-accounts",
     page: ROUTES.CHAT,
     target: "chat-coding-accounts",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
     optional: true,
   },
   {
     id: "chat-local-coding",
     page: ROUTES.CHAT,
     target: "chat-local-coding",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
     optional: true,
   },
   {
     id: "chat-coding-settings",
     page: ROUTES.CHAT,
     target: "chat-coding-settings",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-tools"],
     optional: true,
   },
   {
@@ -231,7 +231,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-model-picker",
     page: ROUTES.CHAT,
     target: "chat-model-picker",
-    activate: "chat-settings",
+    activate: ["chat-settings", "chat-settings-model"],
   },
   // The call button sits in the composer whenever an agent is selected - offered
   // or crossed out - but readiness loads after the page, so the stop is optional:

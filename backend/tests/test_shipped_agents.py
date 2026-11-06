@@ -38,7 +38,6 @@ def installed():
     )
     service = ShippedAgentService(MagicMock())
     service.registry.get = AsyncMock(return_value=agent)
-    service._architect_pin = AsyncMock(return_value=None)
     return ctx, spec, agent, service
 
 
@@ -52,7 +51,6 @@ async def test_a_second_refresher_rechecks_the_locked_agent(installed) -> None:
             capabilities=agent_templates.for_this_deployment(template.capabilities),
         ).model_dump_json(include={"capabilities"}),
     )
-    release = agent_defaults.digest({"template": release, "architect": None})
     fresh = SimpleNamespace(
         **{**vars(agent), "shipped_template": {**agent.shipped_template, "release": release}}
     )

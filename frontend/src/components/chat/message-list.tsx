@@ -8,12 +8,13 @@ import { useAgents } from "@/hooks";
 import { consoleLink, pointAt } from "@/lib/assistant-highlight";
 import { buildAssistantParts } from "@/lib/conversation-to-chat";
 import { dayLabel, startsADay } from "@/lib/day-separator";
-import type { ChatMessage, TurnUsage } from "@/types";
+import type { ChatMessage, TurnUsage, Delegation } from "@/types";
 import type { PinnedPrompts } from "./chat-container";
 import { MessageItem } from "./message-item";
 
 interface MessageListProps {
   messages: ChatMessage[];
+  delegations?: Delegation[];
   onRegenerate?: (messageId: string) => void;
   /** The test panel's pinned questions; a question here can be pinned or taken off. */
   pins?: PinnedPrompts;
@@ -201,7 +202,12 @@ export function layoutMessages(messages: ChatMessage[]): MessageLayout[] {
   });
 }
 
-export function MessageList({ messages: sourceMessages, onRegenerate, pins }: MessageListProps) {
+export function MessageList({
+  messages: sourceMessages,
+  delegations,
+  onRegenerate,
+  pins,
+}: MessageListProps) {
   const messages = useMemo(() => coalesceActivity(sourceMessages), [sourceMessages]);
   // Agents are resolved here rather than stamped onto the message, so a renamed
   // agent is labelled by its current name and a new picture appears on old
@@ -253,6 +259,7 @@ export function MessageList({ messages: sourceMessages, onRegenerate, pins }: Me
           )}
           <MessageItem
             message={message}
+            delegations={index === lastAssistantIndex ? delegations : undefined}
             agent={message.agentId ? byId.get(message.agentId) : undefined}
             groupPosition={row.groupPosition}
             continuesTurn={row.continuesTurn}
