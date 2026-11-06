@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, SubagentRef
 from app.core.exceptions import AuthorizationError, ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
@@ -960,3 +960,103 @@ async def test_terminal_account_source_review_fences_exact_owner_and_client_gene
         await db.flush()
         with pytest.raises(RoutineSourcesRequired):
             await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("source", ["credentials", "disabled_phone", "missing_remote"])
+async def test_source_review_bounds_provider_inventory_without_connecting(db, monkeypatch, source):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.repositories import channel_bot_repo, organization_secret_repo, telephony
+    from app.services import routine_sources
+
+    ctx, trigger, spec, _ = await world(db)
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    if source == "credentials":
+
+        def mounted():
+            return AgentSpec(
+                name="Worker",
+                capabilities=[
+                    {
+                        "id": "mirage",
+                        "config": {
+                            "mounts": [
+                                {
+                                    "path": f"/code{i}/",
+                                    "backend": "github",
+                                    "options": {"owner": "o", "repo": "r"},
+                                    "secrets": {"token": str(uuid4())},
+                                }
+                                for i in range(10)
+                            ]
+                        },
+                    }
+                ],
+            )
+
+        refs = []
+        for _ in range(10):
+            child = Agent(
+                organization_id=ctx.organization_id,
+                owner_user_id=ctx.user_id,
+                name="Delegate",
+                slug=f"delegate-{uuid4()}",
+            )
+            db.add(child)
+            await db.flush()
+            child_version = AgentVersion(
+                agent_id=child.id,
+                organization_id=ctx.organization_id,
+                version=1,
+                spec=mounted().model_dump(mode="json"),
+            )
+            db.add(child_version)
+            await db.flush()
+            refs.append({"agent_id": child.id, "agent_version_id": child_version.id})
+        spec = mounted().model_copy(
+            update={"subagents": [SubagentRef.model_validate(ref) for ref in refs]}
+        )
+        monkeypatch.setattr(
+            organization_secret_repo, "authorization_generation", AsyncMock(return_value=uuid4())
+        )
+    elif source in {"phones", "disabled_phone"}:
+        spec = AgentSpec(
+            name="Worker",
+            capabilities=[
+                {
+                    "id": "phone_calls",
+                    "enabled": source == "phones",
+                    "config": {"endpoint_id": str(uuid4())},
+                }
+                for _ in range(101 if source == "phones" else 1)
+            ],
+        )
+        bot = SimpleNamespace(is_active=True, authorization_generation=uuid4())
+
+        async def endpoint(_db, identifier, **kwargs):
+            return SimpleNamespace(
+                id=identifier,
+                enabled=True,
+                bot_id=uuid4(),
+                bot_generation=bot.authorization_generation,
+            )
+
+        monkeypatch.setattr(telephony, "endpoint", endpoint)
+        monkeypatch.setattr(channel_bot_repo, "get_for_org", AsyncMock(return_value=bot))
+        monkeypatch.setattr(
+            "app.services.telephony.policy.endpoint_fingerprint", lambda *args: "reviewed"
+        )
+    else:
+        spec = AgentSpec(name="Worker", external_agents=[{"external_agent_id": str(uuid4())}])
+        monkeypatch.setattr(routine_sources.external_repo, "get", AsyncMock(return_value=None))
+    version.spec = spec.model_dump(mode="json")
+    await db.flush()
+    if source in {"credentials", "phones"}:
+        with pytest.raises(RoutineSourcesRequired):
+            await RoutineSourceService(db)._review(ctx, trigger)
+    else:
+        reviewed = await RoutineSourceService(db)._review(ctx, trigger)
+        assert bool(reviewed.unavailable) is (source == "missing_remote")

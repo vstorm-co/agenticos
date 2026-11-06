@@ -19,7 +19,18 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 @pytest.mark.parametrize(
-    "change", ["ok", "missing", "account", "signature", "ended_before_ready", "revoked", "cleanup"]
+    "change",
+    [
+        "ok",
+        "missing",
+        "account",
+        "signature",
+        "ended_before_ready",
+        "revoked",
+        "cleanup",
+        "inbound",
+        "domain_error",
+    ],
 )
 async def test_media_ready_and_cleanup_keep_the_admitted_call_identity(monkeypatch, change):
     _, row, ctx = contact_and_call()
@@ -31,6 +42,8 @@ async def test_media_ready_and_cleanup_keep_the_admitted_call_identity(monkeypat
         datetime.now(UTC) + timedelta(minutes=1),
     )
     row.agent_id, row.cap_seconds = uuid4(), 60
+    if change == "inbound":
+        row.direction = "inbound"
     route = MagicMock(generation=row.endpoint_generation)
     db = AsyncMock()
 
@@ -96,6 +109,8 @@ async def test_media_ready_and_cleanup_keep_the_admitted_call_identity(monkeypat
                     AsyncMock(side_effect=AuthorizationError(message="Revoked")),
                 )
             assert (await self.reauthorize(db) is not None) is (change != "revoked")
+            if change == "domain_error":
+                raise AuthorizationError(message="Session revoked")
             raise TimeoutError
 
     monkeypatch.setattr(runtime, "PhoneStream", Stream)
@@ -105,6 +120,11 @@ async def test_media_ready_and_cleanup_keep_the_admitted_call_identity(monkeypat
         with pytest.raises(AuthorizationError):
             await runtime.media(socket, row.id, provider=MagicMock(), sessions=sessions)
         socket.accept.assert_not_awaited()
+    elif change == "domain_error":
+        with pytest.raises(AuthorizationError, match="Session revoked"):
+            await runtime.media(socket, row.id, provider=MagicMock(), sessions=sessions)
+        assert ended.await_args.kwargs["end_reason"] == "revoked"
+        socket.close.assert_awaited_once()
     else:
         await runtime.media(socket, row.id, provider=MagicMock(), sessions=sessions)
         if change in {"missing", "signature"}:

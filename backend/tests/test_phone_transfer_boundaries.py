@@ -25,6 +25,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
     "change",
     [
         "ok",
+        "agent",
         "missing",
         "no_caller",
         "wrong_run",
@@ -35,6 +36,8 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
         "expired",
         "refused",
         "unknown",
+        "settled_during_transfer",
+        "settled_during_refusal",
     ],
 )
 async def test_transfers_preserve_owner_consent_deadline_and_ambiguous_acceptance(
@@ -63,7 +66,11 @@ async def test_transfers_preserve_owner_consent_deadline_and_ambiguous_acceptanc
     )
     monkeypatch.setattr(runtime.repo, "save", AsyncMock())
     monkeypatch.setattr(runtime.PhoneCallService, "readable", AsyncMock(return_value=row))
-    monkeypatch.setattr(runtime.voice_call_repo, "get", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        runtime.voice_call_repo,
+        "get",
+        AsyncMock(return_value=MagicMock(run_id=run_id) if change == "agent" else None),
+    )
     monkeypatch.setattr(
         runtime.PhonePolicyService, "load_endpoint", AsyncMock(return_value=(endpoint, None, AUTH))
     )
@@ -80,17 +87,32 @@ async def test_transfers_preserve_owner_consent_deadline_and_ambiguous_acceptanc
         adapter.transfer.side_effect = BadRequestError(message="Provider refused")
     elif change == "unknown":
         adapter.transfer.side_effect = AcceptanceUnknown(message="Provider response lost")
+    if change in {"settled_during_transfer", "settled_during_refusal"}:
+
+        async def transferred(*args, **kwargs):
+            row.status = "completed"
+            if change == "settled_during_refusal":
+                raise BadRequestError(message="Provider refused")
+
+        adapter.transfer.side_effect = transferred
     args = {"ctx": ctx, "provider": adapter}
+    if change == "agent":
+        args = {"source_run_id": run_id, "endpoint_id": row.endpoint_id, "provider": adapter}
     if change in {"no_caller", "wrong_run"}:
         args = {"source_run_id": run_id if change == "wrong_run" else None, "provider": adapter}
-    if change == "ok":
+    if change == "settled_during_transfer":
+        await runtime.transfer(db, row.id, target_id, **args)
+        assert row.status == "completed"
+    elif change in {"ok", "agent"}:
         await runtime.transfer(db, row.id, target_id, **args)
         assert row.status == "transferred" and row.transferred_contact_id == contact.id
         assert 1 <= adapter.transfer.await_args.kwargs["seconds"] <= 120
     else:
         with pytest.raises(AppException):
             await runtime.transfer(db, row.id, target_id, **args)
-        if change == "refused":
+        if change == "settled_during_refusal":
+            assert row.status == "completed"
+        elif change == "refused":
             assert row.status == "active" and row.transferred_contact_id is None
         elif change == "unknown":
             assert row.status == "transferring" and row.transferred_contact_id == contact.id
@@ -102,6 +124,7 @@ async def test_transfers_preserve_owner_consent_deadline_and_ambiguous_acceptanc
     "change",
     [
         "ok",
+        "agent",
         "missing",
         "no_caller",
         "wrong_run",
@@ -116,6 +139,7 @@ async def test_transfer_picker_shows_only_current_reachable_consenting_people(mo
     from app.repositories import user_repo
 
     contact, row, ctx = contact_and_call()
+    run_id = uuid4()
     row.status, row.voice_call_id, row.endpoint_id = "active", uuid4(), uuid4()
     row.endpoint_generation = uuid4()
     endpoint = MagicMock(generation=row.endpoint_generation, transfer_contact_ids=[str(contact.id)])
@@ -127,7 +151,11 @@ async def test_transfer_picker_shows_only_current_reachable_consenting_people(mo
         runtime.repo, "call", AsyncMock(return_value=None if change == "missing" else row)
     )
     monkeypatch.setattr(runtime.PhoneCallService, "readable", AsyncMock(return_value=row))
-    monkeypatch.setattr(runtime.voice_call_repo, "get", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        runtime.voice_call_repo,
+        "get",
+        AsyncMock(return_value=MagicMock(run_id=run_id) if change == "agent" else None),
+    )
     monkeypatch.setattr(
         runtime.PhonePolicyService, "load_endpoint", AsyncMock(return_value=(endpoint, None, AUTH))
     )
@@ -151,6 +179,8 @@ async def test_transfer_picker_shows_only_current_reachable_consenting_people(mo
         ),
     )
     args = {"ctx": ctx}
+    if change == "agent":
+        args = {"source_run_id": run_id, "endpoint_id": row.endpoint_id}
     if change in {"no_caller", "wrong_run"}:
         args = {
             "source_run_id": uuid4() if change == "wrong_run" else None,
@@ -161,7 +191,9 @@ async def test_transfer_picker_shows_only_current_reachable_consenting_people(mo
             await runtime.transfer_options(AsyncMock(), row.id, **args)
     else:
         result = await runtime.transfer_options(AsyncMock(), row.id, **args)
-        assert [choice.id for choice in result] == ([contact.id] if change == "ok" else [])
+        assert [choice.id for choice in result] == (
+            [contact.id] if change in {"ok", "agent"} else []
+        )
 
 
 @pytest.mark.parametrize("status", ["queued", "active", "completed"])

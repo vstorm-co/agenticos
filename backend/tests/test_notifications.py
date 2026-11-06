@@ -2392,7 +2392,7 @@ def test_notification_links_preserve_project_binding_without_trusting_malformed_
 
 @pytest.mark.anyio
 @pytest.mark.security
-@pytest.mark.parametrize("kind", ["trigger", "watch"])
+@pytest.mark.parametrize("kind", ["trigger", "watch", "unknown"])
 @pytest.mark.parametrize(
     "change", ["current", "missing", "tenant", "paused", "person", "older", "no_occurrence"]
 )
@@ -2441,9 +2441,9 @@ async def test_budget_incidents_belong_only_to_the_current_routine_attempt(
         reason="Limit",
         scope=BudgetScope.AGENT,
     )
-    expected = change in {"current", "no_occurrence"}
+    expected = kind != "unknown" and change in {"current", "no_occurrence"}
     assert bool(occurrence.await_count) is expected
-    assert bool(written.calls) is (change not in {"no_occurrence", "older"})
+    assert bool(written.calls) is (kind == "unknown" or change not in {"no_occurrence", "older"})
 
 
 @pytest.mark.anyio

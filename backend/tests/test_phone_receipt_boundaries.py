@@ -23,6 +23,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
         "missing",
         "inbound_destination",
         "terminal",
+        "ringing",
         "duration_invalid",
         "duration_long",
         "transferred",
@@ -44,6 +45,9 @@ async def test_status_callbacks_preserve_terminal_state_and_conservative_cost(mo
         "CallStatus": "completed",
         "CallDuration": "30",
     }
+    if change == "ringing":
+        row.status = "ringing"
+        params["CallStatus"] = "ringing"
     if change == "inbound_destination":
         params["To"] = "+15550000001"
     elif change == "terminal":
@@ -66,7 +70,9 @@ async def test_status_callbacks_preserve_terminal_state_and_conservative_cost(mo
         saved.assert_not_awaited()
     else:
         await runtime.status_callback(AsyncMock(), row.id, params)
-        assert row.status == "completed" and row.estimated_cost_usd == Decimal("0.2")
+        assert row.status == (
+            "ringing" if change == "ringing" else "completed"
+        ) and row.estimated_cost_usd == Decimal("0.2")
         assert saved.await_count == (0 if change == "terminal" else 1)
 
 

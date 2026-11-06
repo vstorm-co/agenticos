@@ -302,6 +302,7 @@ async def test_a_published_parent_lends_its_pinned_delegate_without_a_direct_gra
         "expired",
         "role",
         "root-grant",
+        "corrupt-sources",
         "account-disabled",
         "account-owner",
         "account-endpoint",
@@ -371,7 +372,9 @@ async def test_watch_authority_revokes_a_running_read_when_its_approval_changes(
         routine_kind="watch",
         routine_policy=authority.sources.model_dump(mode="json"),
     )
-    if change == "paused":
+    if change == "corrupt-sources":
+        watch.approved_sources = {"invalid": True}
+    elif change == "paused":
         watch.is_active = False
     elif change == "deleted":
         await db.delete(watch)
@@ -663,7 +666,7 @@ async def test_resumed_routine_refuses_corrupt_or_removed_original_authority(
         await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
 
 
-@pytest.mark.parametrize("change", ["no_member", "no_execution_access"])
+@pytest.mark.parametrize("change", ["no_member", "no_execution_access", "allowed"])
 async def test_one_shot_authority_requires_current_task_execution_access(db, monkeypatch, change):
     from unittest.mock import AsyncMock
 
@@ -679,6 +682,31 @@ async def test_one_shot_authority_requires_current_task_execution_access(db, mon
         "member_context",
         AsyncMock(return_value=None if change == "no_member" else world.ctx),
     )
-    monkeypatch.setattr(task_access, "execution_allows", AsyncMock(return_value=False))
-    with pytest.raises(AuthorizationError):
+    monkeypatch.setattr(
+        task_access, "execution_allows", AsyncMock(return_value=change == "allowed")
+    )
+    if change == "allowed":
         await authority.check_in(db, world.agent.id)
+    else:
+        with pytest.raises(AuthorizationError):
+            await authority.check_in(db, world.agent.id)
+
+
+@pytest.mark.parametrize("change", ["stale_policy", "invalid_target"])
+async def test_current_trigger_snapshot_rejects_stale_review_or_corrupt_local_target(db, change):
+    world = await _world(db)
+    if change == "stale_policy":
+        with pytest.raises(AuthorizationError):
+            await RoutineAuthority.capture(
+                db,
+                replace(world.ctx, routine_source_policy_id=uuid4()),
+                agent_id=world.agent.id,
+                run=None,
+            )
+        return
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    world.trigger.local_target = {"invalid": True}
+    await db.flush()
+    with pytest.raises(AuthorizationError):
+        await authority._trigger_in(db)

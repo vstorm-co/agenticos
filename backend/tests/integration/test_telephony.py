@@ -1217,6 +1217,9 @@ async def test_telephone_history_is_tenant_scoped_and_inbound_callbacks_keep_the
     ] == [call.id]
     assert len(await repo.recent_calls(db, organization_id=ctx.organization_id, user_id=None)) == 1
     assert await repo.recent_calls(db, organization_id=uuid4(), user_id=None) == []
+    calls = PhoneCallService(db)
+    assert (await calls.get(ctx, call.id)).id == call.id
+    assert [item.id for item in await calls.recent(ctx)] == [call.id]
     service = PhoneWebhookService(db)
     for identifier, endpoint_filter in [(uuid4(), None), (call.id, uuid4())]:
         with pytest.raises(NotFoundError):

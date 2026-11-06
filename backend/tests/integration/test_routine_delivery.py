@@ -3,7 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -408,8 +408,9 @@ async def test_a_saved_answer_announces_its_conversation_only_after_commit(
     assert len(await messages(db, world)) == 1
 
 
+@pytest.mark.parametrize("projection", ["quota", "no_member"])
 async def test_table_quota_does_not_lose_a_routine_finding(
-    db: AsyncSession, world: World, monkeypatch: pytest.MonkeyPatch
+    db: AsyncSession, world: World, monkeypatch: pytest.MonkeyPatch, projection: str
 ) -> None:
     from app.core.config import settings
     from app.core.permissions import AuthContext
@@ -426,6 +427,8 @@ async def test_table_quota_does_not_lose_a_routine_finding(
     monkeypatch.setattr(settings, "TABLES_MAX_PER_ORGANIZATION", 1)
     from app.services.routine_delivery import RoutineFindingService
 
+    if projection == "no_member":
+        monkeypatch.setattr("app.services.access.member_context", AsyncMock(return_value=None))
     service = RoutineFindingService(db)
     chat_id = await service.publish(
         run=world.run,

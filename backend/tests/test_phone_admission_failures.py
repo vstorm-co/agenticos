@@ -48,7 +48,11 @@ async def test_important_contact_requires_a_live_owned_unacknowledged_case(monke
 @pytest.mark.parametrize(
     "reason",
     [
+        "anonymous",
         "missing_contact",
+        "no_published",
+        "no_agent_case",
+        "settled_case",
         "missing_run",
         "test_run",
         "key_run",
@@ -61,6 +65,10 @@ async def test_important_contact_requires_a_live_owned_unacknowledged_case(monke
 )
 async def test_call_admission_refuses_unconsented_or_unpublished_execution(monkeypatch, reason):
     contact, row, ctx = contact_and_call()
+    if reason == "anonymous":
+        from dataclasses import replace
+
+        ctx = replace(ctx, user_id=None)
     agent_id, endpoint_id, version_id, source_id = uuid4(), uuid4(), uuid4(), uuid4()
     contact.agent_ids = [] if reason == "unselected_agent" else [str(agent_id)]
     run = MagicMock(
@@ -102,7 +110,11 @@ async def test_call_admission_refuses_unconsented_or_unpublished_execution(monke
     monkeypatch.setattr(
         calls.AgentRegistryService,
         "get",
-        AsyncMock(return_value=MagicMock(current_version_id=version_id)),
+        AsyncMock(
+            return_value=MagicMock(
+                current_version_id=None if reason == "no_published" else version_id
+            )
+        ),
     )
     monkeypatch.setattr(
         calls.AgentRegistryService,
@@ -120,16 +132,27 @@ async def test_call_admission_refuses_unconsented_or_unpublished_execution(monke
         endpoint_id=endpoint_id,
         request_key=uuid4(),
         mode="conversation"
-        if reason in {"scheduled_interactive", "unpublished", "no_voice"}
+        if reason in {"scheduled_interactive", "unpublished", "no_voice", "no_published"}
         else "report",
         report=None
-        if reason in {"scheduled_interactive", "unpublished", "no_voice"}
+        if reason in {"scheduled_interactive", "unpublished", "no_voice", "no_published"}
         else "A report",
-        agent_id=agent_id,
+        agent_id=None if reason == "no_agent_case" else agent_id,
+        outcome_id=uuid4() if reason in {"no_agent_case", "settled_case"} else None,
+        importance_reason="Important" if reason in {"no_agent_case", "settled_case"} else None,
     )
-    with pytest.raises((AuthorizationError, BadRequestError)):
-        await calls.PhoneCallService(AsyncMock()).create(ctx, data, source_run_id=source_id)
-    budget.assert_not_awaited()
+    monkeypatch.setattr(calls.repo, "call_for_case", AsyncMock(return_value=None))
+    monkeypatch.setattr(cases, "eligible_case", AsyncMock(return_value=datetime.now(UTC)))
+    monkeypatch.setattr(calls.repo, "mark_case_phone_attempt", AsyncMock(return_value=False))
+    with pytest.raises((AuthorizationError, BadRequestError, ConflictError)):
+        await calls.PhoneCallService(AsyncMock()).create(
+            ctx,
+            data,
+            source_run_id=None
+            if reason in {"no_published", "no_agent_case", "settled_case"}
+            else source_id,
+        )
+    assert budget.await_count == int(reason == "settled_case")
 
 
 @pytest.mark.parametrize(

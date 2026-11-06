@@ -182,3 +182,55 @@ async def test_a_disappeared_finding_receipt_is_an_explicit_delivery_failure(mon
             item=RoutineFinding(key="mail", revision="v1", title="Review", content="Draft"),
             notify=True,
         )
+
+
+@pytest.mark.parametrize("status", [None, "resolved"])
+async def test_resolving_a_missing_or_already_final_task_case_does_not_move_it(monkeypatch, status):
+    from app.repositories import task
+    from app.services import outcome
+
+    monkeypatch.setattr(
+        task,
+        "case",
+        AsyncMock(return_value=None if status is None else SimpleNamespace(status=status)),
+    )
+    move = AsyncMock()
+    monkeypatch.setattr(outcome.OutcomeService, "_move", move)
+    await outcome.OutcomeService(AsyncMock()).resolve_task(uuid4(), organization_id=uuid4())
+    move.assert_not_awaited()
+
+
+async def test_invalid_finding_source_metadata_is_not_presented_as_a_resumable_draft(monkeypatch):
+    from app.services import outcome
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    monkeypatch.setattr(outcome.OutcomeService, "_require_private_chat", AsyncMock())
+    monkeypatch.setattr(
+        outcome.suggestion_repo,
+        "finding_sources",
+        AsyncMock(return_value={uuid4(): {"source_item_id": None, "revision": "one"}}),
+    )
+    assert await outcome.OutcomeService(AsyncMock()).finding_sources(ctx, []) == {}
+
+
+async def test_a_watch_without_a_source_policy_cannot_lend_an_mcp_tool():
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.mcp import MCP_ORIGIN, McpSourceIdentity, McpToolOrigin
+    from app.services.routine_authority import RoutineAuthority
+
+    identity = McpSourceIdentity(
+        endpoint_hash="a" * 64, authorization_generation=uuid4(), tool_prefix="source"
+    )
+    authority = RoutineAuthority(
+        routine_id=uuid4(),
+        organization_id=uuid4(),
+        user_id=uuid4(),
+        root_agent_id=uuid4(),
+        role="owner",
+        acts_as_creator=False,
+        routine_kind="watch",
+    )
+    assert not authority.allows_tool(
+        ToolDefinition(name="read", metadata={MCP_ORIGIN: McpToolOrigin(uuid4(), identity, "read")})
+    )

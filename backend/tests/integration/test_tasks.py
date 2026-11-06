@@ -17,7 +17,7 @@ from app.db.models.user import User
 from app.schemas.task import BoardEnsure, TaskCreate, TaskUpdate
 from app.schemas.virtual_table import ColumnInput, RecordUpdate, SchemaUpdate
 from app.services.task_execution import TaskExecution
-from app.services.tasks import TaskService
+from app.services.tasks import TaskLifecycle, TaskService
 from app.services.virtual_tables import VirtualTableService
 from app.worker.jobs import WakeTask
 
@@ -1319,3 +1319,104 @@ async def test_generic_record_writes_reject_invalid_managed_task_fields(db):
     record.values = {**record.values, board.column_ids["title"]: None}
     with pytest.raises(BadRequestError, match="Invalid task fields"):
         await tasks.TaskLifecycle(db).changed(data.contexts[0], record)
+
+
+async def test_intact_managed_schema_remains_editable_and_missing_tables_cannot_list_tasks(db):
+    data = await world(db)
+    service = TaskService(db)
+    board = await service.ensure_board(data.contexts[0], BoardEnsure())
+    table = await service.tables.describe_table(data.contexts[0], board.table_id)
+    await TaskLifecycle(db).protect_schema(data.contexts[0], board.table_id, table.columns)
+    with pytest.raises(NotFoundError):
+        await service.list_tasks(data.contexts[0], uuid4())
+
+
+async def test_assignee_picker_reads_every_page_and_refuses_a_noneditable_managed_board(
+    db, monkeypatch
+):
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.services import access, tasks
+
+    data = await world(db)
+    ctx = data.contexts[0]
+    service = TaskService(db)
+    board = await service.ensure_board(ctx, BoardEnsure(scope="organization"))
+    members = [
+        (MagicMock(user_id=uuid4()), f"{i}@example.com", f"Person {i}", None, None)
+        for i in range(101)
+    ]
+    listing = AsyncMock(side_effect=[members[:100], members[100:]])
+    monkeypatch.setattr(tasks.member_repo, "list_for_org", listing)
+    monkeypatch.setattr(access, "member_context", AsyncMock(return_value=ctx))
+    assert len(await service.assignee_options(ctx, board.table_id)) == 101
+    assert listing.await_args.kwargs["skip"] == 100
+    monkeypatch.setattr(tasks, "board_allows", AsyncMock(return_value=False))
+    with pytest.raises(NotFoundError):
+        await service.assignee_options(ctx, board.table_id)
+    monkeypatch.setattr(tasks.task_repo, "for_table", AsyncMock(return_value=None))
+    assert await service.assignee_options(ctx, board.table_id) is None
+
+
+@pytest.mark.parametrize("lost", ["created", "finding_first", "finding_last"])
+async def test_missing_lifecycle_binding_is_an_explicit_failure_not_phantom_success(
+    db, monkeypatch, lost
+):
+    from unittest.mock import AsyncMock
+
+    from app.repositories import task as repo
+
+    data = await world(db)
+    service = TaskService(db)
+    if lost == "created":
+        monkeypatch.setattr(repo, "link", AsyncMock(return_value=None))
+        with pytest.raises(RuntimeError, match="lifecycle"):
+            await service.create(data.contexts[0], TaskCreate(title="Bound task"))
+    else:
+        task = await service.create(data.contexts[0], TaskCreate(title="Bound task"))
+        link = await repo.link(db, task.id)
+        service.create = AsyncMock(return_value=task)
+        service.update = AsyncMock(return_value=task)
+        monkeypatch.setattr(
+            repo, "link", AsyncMock(side_effect=[None] if lost == "finding_first" else [link, None])
+        )
+        with pytest.raises(RuntimeError, match="no binding"):
+            await service.finding(
+                data.contexts[0],
+                outcome_id=uuid4(),
+                conversation_id=uuid4(),
+                title=task.title,
+                description=task.description,
+            )
+
+
+async def test_an_existing_task_binding_replaces_an_obsolete_attention_case(db, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from app.repositories import task as repo
+    from app.services.outcome import OutcomeService
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Old title"))
+    link = await repo.link(db, task.id)
+    assert link is not None
+    old = uuid4()
+    # A source case is resolved through its service before its task is rebound.
+    link.outcome_id = old
+    service.create = AsyncMock(return_value=task)
+    service.update = AsyncMock(return_value=task)
+    service.get = AsyncMock(return_value=task)
+    settle = AsyncMock()
+    monkeypatch.setattr(OutcomeService, "resolve_task", settle)
+    # Keep the link in memory: the replacement cases belong to the publisher's transaction.
+    monkeypatch.setattr(repo, "flush", AsyncMock())
+    monkeypatch.setattr(repo, "link", AsyncMock(return_value=link))
+    await service.finding(
+        data.contexts[0],
+        outcome_id=uuid4(),
+        conversation_id=None,
+        title="New title",
+        description="Updated draft",
+    )
+    settle.assert_awaited_once_with(old, organization_id=data.org.id)

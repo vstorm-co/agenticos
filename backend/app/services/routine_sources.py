@@ -406,8 +406,6 @@ class RoutineSourceService:
                     unavailable.add(f"Telephone endpoint · {config.endpoint_id}")
                 else:
                     phone_sources[endpoint.id] = endpoint_fingerprint(endpoint, bot)
-        if len(phone_sources) > 100:
-            raise RoutineSourcesRequired()
         external_sources: dict[UUID, str] = {}
         for ref in (ref for current in specs for ref in current.external_agents):
             remote = await external_repo.get(

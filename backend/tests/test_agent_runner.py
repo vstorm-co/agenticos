@@ -8854,13 +8854,17 @@ async def test_approved_tools_and_the_following_answer_can_stream() -> None:
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("ending", [None, RuntimeError("model failed"), asyncio.CancelledError()])
+@pytest.mark.parametrize("person", [False, True])
 async def test_web_resume_trace_is_closed_on_success_failure_and_cancellation(
     ending: BaseException | None,
+    person: bool,
 ) -> None:
     from app.services import chat_room, live_turn
 
     prepared = _prepared()
     prepared.run.surface = "web"
+    if not person:
+        prepared.run.user_id = None
     prepared.run.conversation_id = uuid.uuid4()
     turn = live_turn.Turn(str(prepared.run.conversation_id), "continuation")
     with (
@@ -8876,7 +8880,7 @@ async def test_web_resume_trace_is_closed_on_success_failure_and_cancellation(
                 assert publish.await_args_list[0].args[2]["resumed_run_id"] == str(prepared.run.id)
                 if ending is not None:
                     raise ending
-        announce.assert_awaited_once()
+        assert announce.await_count == int(person)
         end.assert_awaited_once_with(turn)
 
 
@@ -8914,3 +8918,27 @@ async def test_a_settled_segment_carries_its_persisted_message_identity() -> Non
             deferred_tool_results=None,
         )
     assert segment.message_id == message_id
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_terminal_sources_rotating_during_preparation_cannot_reach_a_model():
+    from app.services.mirage_mounts import MirageMountService
+
+    service = AgentRunnerService(_db())
+    spec = AgentSpec(
+        name="Terminal",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="mirage", config={"mounts": [{"path": "/scratch/", "backend": "ram"}]}
+            )
+        ],
+    )
+    with (
+        patch.object(
+            MirageMountService, "authority", new=AsyncMock(side_effect=["original", "rotated"])
+        ),
+        patch.object(MirageMountService, "resolve", new=AsyncMock()),
+        pytest.raises(AuthorizationError, match="source changed"),
+    ):
+        await service._add_mirage_terminal({}, _ctx(), spec, person_id=None)

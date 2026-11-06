@@ -2262,7 +2262,8 @@ class TestADelegateIsBriefedOnWhatItCannotReach:
 
 
 @pytest.mark.parametrize("unattended", [False, True])
-async def test_accessible_catalog_is_opt_in_and_does_not_widen_routines(unattended):
+@pytest.mark.parametrize("collision", [False, True])
+async def test_accessible_catalog_is_opt_in_and_does_not_widen_routines(unattended, collision):
     from app.agents.subagent_runtime import ResolvedSubagent
 
     ctx = _ctx()
@@ -2278,7 +2279,11 @@ async def test_accessible_catalog_is_opt_in_and_does_not_widen_routines(unattend
     service.registry.accessible_delegates = AsyncMock(return_value=[discovered])
     service._resolve_delegate = AsyncMock(
         side_effect=[
-            ResolvedSubagent(name="architect", description="Builds agents", build=MagicMock()),
+            ResolvedSubagent(
+                name="agent-researcher" if collision else "architect",
+                description="Builds agents",
+                build=MagicMock(),
+            ),
             ResolvedSubagent(name="researcher", description="Research", build=MagicMock()),
         ]
     )
@@ -2291,7 +2296,7 @@ async def test_accessible_catalog_is_opt_in_and_does_not_widen_routines(unattend
         depth=0,
         ancestors=frozenset({parent_id}),
     )
-    assert result[0].name == "architect"
+    assert result[0].name == ("agent-researcher" if collision else "architect")
     if unattended:
         service.registry.accessible_delegates.assert_not_awaited()
         assert len(result) == 1
@@ -2299,7 +2304,9 @@ async def test_accessible_catalog_is_opt_in_and_does_not_widen_routines(unattend
         service.registry.accessible_delegates.assert_awaited_once_with(
             ctx, exclude=frozenset({parent_id, explicit.agent_id})
         )
-        assert result[1].name == "agent-researcher"
+        assert result[1].name == (
+            f"agent-{discovered.agent_id}" if collision else "agent-researcher"
+        )
 
 
 async def test_discovered_versions_remain_pinned_and_authorized_when_a_run_resumes():
