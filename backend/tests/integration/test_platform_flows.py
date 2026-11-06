@@ -1414,6 +1414,44 @@ class TestSyncSourcesStayWithTheirAudience:
             ]
 
     @pytest.mark.security
+    async def test_the_rag_source_listing_is_the_whole_list_only_for_a_manager(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """`GET /rag/sync/sources` served the same rows as the wizard's listing to
+        `collections:view`; without `connections:manage` it now lists the sources
+        of bases the caller reads - not another member's personal base, nor a
+        template."""
+        personal = await _sync_source_row(
+            db, tenant=rag_estate.home, collection_name=rag_estate.home_private.collection_name
+        )
+        template = SyncSource(
+            id=uuid.uuid4(),
+            organization_id=rag_estate.home.organization.id,
+            name="Drive",
+            connector_type="gdrive",
+            collection_name=None,
+            config={"folder_id": "abc"},
+        )
+        db.add(template)
+        await db.flush()
+        viewer = await _join(db, rag_estate.home, OrgRoleName.VIEWER)
+
+        def ids(response: Response) -> set[str]:
+            assert response.status_code == 200
+            return {item["id"] for item in response.json()["items"]}
+
+        listed = _rag("/sync/sources")
+        for reader in (viewer, rag_estate.home_member):
+            assert ids(await rag_api(reader).get(listed)) == {str(rag_estate.home_source.id)}
+        assert ids(await rag_api(rag_estate.home.ctx).get(listed)) == {
+            str(rag_estate.home_source.id),
+            str(personal.id),
+            str(template.id),
+        }
+        refused = await rag_api(viewer).get(f"{listed}?collection_name=home_notes")
+        assert refused.status_code == 404
+
+    @pytest.mark.security
     async def test_an_app_base_shows_another_organizations_runs_only_to_a_platform_admin(
         self, db, kb_api: KbClient, rag_api: RagClient, rag_estate: RagEstate
     ) -> None:

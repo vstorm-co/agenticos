@@ -616,18 +616,19 @@ async def cancel_sync(
 )
 async def list_sync_sources(
     sync_source_svc: SyncSourceSvc,
+    access: CollectionAccessSvc,
     ctx: Auth,
     collection_name: str | None = Query(None, description="Filter by KB collection name"),
 ) -> Any:
     """List sync sources for the active organization.
 
-    Pass `collection_name` to see only sources assigned to a specific KB.
-    Omit it to list all org-level integrations (assigned and unassigned).
+    With `connections:manage`, every source of the organization, assigned and
+    unassigned - the list `/org/integrations` returns. Without it, the sources
+    feeding a knowledge base the caller can read. Pass `collection_name` to see
+    only one collection's sources; a collection the caller cannot read is 404.
     """
-    return await sync_source_svc.list_sources(
-        organization_id=ctx.organization_id,
-        collection_name=collection_name,
-    )
+    sources = await access.readable_sync_sources(ctx, collection_name)
+    return sync_source_svc.as_list(sources)
 
 
 @router.post(

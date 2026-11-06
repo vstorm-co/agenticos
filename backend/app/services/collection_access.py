@@ -256,6 +256,32 @@ class CollectionAccessService:
             ],
         )
 
+    async def readable_sync_sources(self, ctx: AuthContext, name: str | None) -> list[SyncSource]:
+        """The caller organization's sync sources this caller may list, newest first.
+
+        The whole list - every base's sources, with their config, credential id
+        and last error, and the unassigned templates - is the organization's
+        integrations, and `connections:manage` is what reads those, as on
+        `/org/integrations`. Anybody else gets the sources feeding a base they
+        read (:func:`_feeds`), which is what each base's own page lists: under
+        `collections:view` alone this answered every reader of one base with
+        everything (#2745). A `name` narrows either answer to that collection,
+        and for a caller listing by base it must be one they read, or 404.
+        """
+        sources = await sync_source_repo.get_all(
+            self.db, organization_id=ctx.organization_id, collection_name=name
+        )
+        if ctx.has(Perm.CONNECTIONS_MANAGE):
+            return sources
+        kbs = await self._readable_kbs_for(ctx, name)
+        names = list(dict.fromkeys(kb.collection_name for kb in kbs))
+        candidates = await knowledge_base_repo.list_by_collection_names(self.db, names)
+        return [
+            source
+            for source in sources
+            if any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
+        ]
+
     async def _readable_kbs_for(self, ctx: AuthContext, name: str | None) -> list[KnowledgeBase]:
         """Every base claiming `name` that this caller reads, or all of theirs; 404 for none."""
         if name is None:
@@ -511,6 +537,9 @@ class CollectionAccessService:
         source = await self.sync_source(ctx, source_id)
         if source.collection_name is None:
             return source
+        # Under the name lock, as `source_target` resolves one: a teardown of the
+        # base must not change which base this answer was about.
+        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, source.collection_name)
         candidates = await knowledge_base_repo.list_by_collection_name(
             self.db, source.collection_name
         )

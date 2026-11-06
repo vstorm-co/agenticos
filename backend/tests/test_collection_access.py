@@ -188,12 +188,12 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
         return by_name
 
     async def sources_by(
-        _db: object, *, organization_id: uuid.UUID | None, collection_name: str
+        _db: object, *, organization_id: uuid.UUID | None, collection_name: str | None = None
     ) -> list[SyncSource]:
         return [
             source
             for source in rows.sources
-            if source.collection_name == collection_name
+            if (collection_name is None or source.collection_name == collection_name)
             and (organization_id is None or source.organization_id == organization_id)
         ]
 
@@ -1044,6 +1044,49 @@ class TestListingAKnowledgeBasesSyncSources:
         ctx = AuthContext(user_id=CALLER, organization_id=None, role=None)
 
         assert await service.kb_sync_sources(ctx, mine) == []
+
+
+class TestListingTheOrganizationsSyncSources:
+    """`readable_sync_sources`: `GET /rag/sync/sources`, the dashboard's count (#2745).
+
+    The organization's whole list - every base's sources, templates included -
+    is `connections:manage`'s, as on `/org/integrations`. Anybody else gets the
+    sources feeding a base they read, which is what each base's page shows them.
+    """
+
+    def _rows(self, rows: Rows) -> tuple[SyncSource, SyncSource, SyncSource]:
+        ours = _kb("handbook", visibility=Visibility.ORG.value)
+        private = _kb("private", owner_user_id=STRANGER)
+        rows.collections = [ours, private]
+        rows.accessible = [ours]
+        feeding = _source(organization_id=HOME_ORG)
+        hidden = _source(organization_id=HOME_ORG, collection_name="private")
+        template = _source(organization_id=HOME_ORG)
+        template.collection_name = None
+        rows.sources = [feeding, hidden, template, _source(organization_id=OTHER_ORG)]
+        return feeding, hidden, template
+
+    @pytest.mark.security
+    async def test_a_member_gets_only_the_sources_of_bases_they_read(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        feeding, _hidden, _template = self._rows(rows)
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        assert await service.readable_sync_sources(member, None) == [feeding]
+        assert await service.readable_sync_sources(member, "handbook") == [feeding]
+        with pytest.raises(NotFoundError):
+            await service.readable_sync_sources(member, "private")
+
+    @pytest.mark.security
+    async def test_a_connections_manager_gets_the_organizations_whole_list(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        feeding, hidden, template = self._rows(rows)
+        builder = _ctx(role=OrgRoleName.BUILDER.value)
+
+        assert await service.readable_sync_sources(builder, None) == [feeding, hidden, template]
+        assert await service.readable_sync_sources(builder, "private") == [hidden]
 
 
 class TestResolvingASyncRun:
