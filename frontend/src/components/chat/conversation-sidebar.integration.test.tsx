@@ -405,6 +405,20 @@ describe("what the sidebar says about the list", () => {
     expect(within(row).queryByRole("button", { name: "Delete" })).toBeNull();
   });
 
+  it("opens no conversation when its menu is opened, or closed by clicking away", async () => {
+    serve([conversation("c-1", "Quarterly numbers")]);
+    mount();
+    await screen.findAllByText("Quarterly numbers");
+    const row = within(list()).getByText("Quarterly numbers").closest(".group") as HTMLElement;
+
+    await userEvent.click(within(row).getByRole("button", { name: "Conversation actions" }));
+    // The layer that closes the menu covers the page; a click anywhere lands on it.
+    await userEvent.click(row.querySelector(".fixed.inset-0") as HTMLElement);
+
+    expect(within(row).queryByRole("button", { name: "Rename" })).toBeNull();
+    expect(useConversationStore.getState().currentConversationId).toBeNull();
+  });
+
   it("takes a shared thread out of the reader's chats, and closes it if it was open", async () => {
     shared = [conversation("c-shared", "Their pricing plan")];
     vi.mocked(apiClient.delete).mockImplementation(async () => {

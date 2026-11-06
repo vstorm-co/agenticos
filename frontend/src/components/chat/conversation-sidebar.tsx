@@ -278,10 +278,21 @@ function ConversationItem({
 
         {showMenu && (
           <>
-            <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+            {/* Inside the row, so a click that only closes the menu must not
+                reach the row and open its conversation. */}
+            <div
+              className="fixed inset-0 z-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMenu(false);
+              }}
+            />
             {/* Drawn like every other menu in the console: one line per item,
                 read from the left, as wide as its longest label. */}
-            <div className="panel absolute top-8 right-0 z-20 w-max min-w-44 rounded-xl p-1 shadow-lg">
+            <div
+              className="panel absolute top-8 right-0 z-20 w-max min-w-44 rounded-xl p-1 shadow-lg"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Somebody else's thread: renaming, sharing, archiving and
                     deleting are theirs, and leaving is the reader's own. */}
               {shared ? (
