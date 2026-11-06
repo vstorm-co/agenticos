@@ -888,6 +888,7 @@ class SkillImprovementService:
             "actor_api_key_id": ctx.api_key_id,
         }
         if quote.mode == "next_round":
+            await self._set_aside_checks(run)
             number = run.iteration + 1
             await skill_improvement_repo.create_iteration(
                 self.db,
@@ -1431,6 +1432,7 @@ class SkillImprovementService:
         stage = None if run.stage is None else Stage(run.stage)
         if rules.expired(run.stage_started_at or run.created_at, now=now):
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.EXPIRED))
+            await self._set_aside_checks(run)
             return True
         if run.purpose != Purpose.IMPROVE.value:
             skill = await skill_repo.get(self.db, run.skill_id, organization_id=run.organization_id)
@@ -1438,6 +1440,7 @@ class SkillImprovementService:
             if await self._merge_moved(run, skill) is None:
                 return False
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
+            await self._set_aside_checks(run)
             return True
         waiting_at_understand = run.status == Status.WAITING and run.stage != Stage.FILTERING
         if not waiting_at_understand and run.status not in (Status.STOPPED, Status.FAILED):
@@ -1448,6 +1451,7 @@ class SkillImprovementService:
         if line.latest == run.base_version_id and not line.archived:
             return False
         await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
+        await self._set_aside_checks(run)
         return True
 
     async def advance(self, run_id: UUID, organization_id: UUID) -> None:
@@ -1890,6 +1894,13 @@ class SkillImprovementService:
         for check in (await self._check(run), await self._main_alone_check(run)):
             if check is not None and check.status == CheckStatus.DONE.value:
                 await self.checks.discard(ctx, run.skill_id, check.id, from_session=True)
+
+    async def _set_aside_checks(self, run: SkillImprovementRun) -> None:
+        """Set aside the attempt's finished checks once the session can no longer decide
+        them, so none waits forever for a decision only the session could make."""
+        for check in (await self._check(run), await self._main_alone_check(run)):
+            if check is not None and check.status == CheckStatus.DONE.value:
+                await self.checks.set_aside_for_session(check)
 
     async def _mode_of(self, run: SkillImprovementRun) -> CheckMode | None:
         """How the attempt's last check measured: a check again measures the same way."""

@@ -1083,6 +1083,14 @@ async def _continue(db: AsyncSession, ctx: AuthContext, run: SkillImprovementRun
     )
 
 
+async def _check_id(db: AsyncSession, run: SkillImprovementRun) -> uuid.UUID | None:
+    iteration = await skill_improvement_repo.get_iteration(
+        db, organization_id=run.organization_id, run_id=run.id, number=run.iteration
+    )
+    assert iteration is not None
+    return iteration.skill_check_id
+
+
 class FakeChecks:
     """Stands in for the multi-agent check: writes its rows, and decides as told."""
 
@@ -1195,6 +1203,11 @@ class FakeChecks:
     async def stop_for_session(self, check):
         self.calls.append(("cancel", check.id))
         check.status = CheckStatus.CANCELLED.value
+        await self.db.flush()
+
+    async def set_aside_for_session(self, check):
+        self.calls.append(("set_aside", check.id))
+        check.status = CheckStatus.DISCARDED.value
         await self.db.flush()
 
     async def discard(self, ctx, skill_id, check_id, *, from_session=False):
@@ -1518,11 +1531,13 @@ class TestOutcomes:
         ]
 
     async def test_try_again_after_a_result_starts_a_new_attempt(self, db, evidence, monkeypatch):
-        _checked(db, monkeypatch)
+        """The last attempt's check is set aside: only the session could decide it."""
+        fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
         run = await _at_changes(db, ctx)
         await _check_now(db, ctx, run)
         run = await _settle(db, run, status="done", verdict="blocked")
+        checked = await _check_id(db, run)
         service = SkillImprovementService(db)
 
         quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
@@ -1541,6 +1556,24 @@ class TestOutcomes:
 
         assert (quote.mode, read.iteration, read.stage) == ("next_round", 2, "proposing")
         assert read.check is None
+        assert ("set_aside", checked) in fake.calls
+
+    async def test_a_result_nobody_decided_for_a_week_sets_its_check_aside(
+        self, db, evidence, monkeypatch
+    ):
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        checked = await _check_id(db, run)
+        run.stage_started_at = datetime.now(UTC) - timedelta(days=8)
+        await db.flush()
+
+        await SkillImprovementService(db).sweep()
+
+        assert (await _row(db, SkillImprovementRead.model_validate(run))).status == "stale"
+        assert ("set_aside", checked) in fake.calls
 
 
 class TestHandedOver:

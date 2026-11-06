@@ -1135,6 +1135,20 @@ class SkillCheckService:
             values={"status": CheckStatus.CANCELLED.value, "finished_at": now},
         )
 
+    async def set_aside_for_session(self, check: SkillCheck) -> None:
+        """Set aside a finished check its session can no longer decide: it moved to its next
+        attempt, or ended without a decision. Like `stop_for_session`, the session's own
+        access allows it, so it needs nobody's."""
+        await skill_check_repo.update(
+            self.db,
+            row=check,
+            values={
+                "status": CheckStatus.DISCARDED.value,
+                "outcome": CheckOutcome.DISCARD.value,
+                "decided_at": datetime.now(UTC),
+            },
+        )
+
     async def after_run(self, organization_id: UUID, eval_run_id: UUID) -> None:
         """Queue the check an eval run belonged to, once the run has settled."""
         from app.worker import jobs

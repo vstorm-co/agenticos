@@ -965,6 +965,24 @@ class TestASessionsDecision:
         with pytest.raises(AlreadyExistsError):
             await service.decidable_for_session(lab.ctx, lab.skill.id, read.id)
 
+    async def test_a_check_its_session_moved_past_is_set_aside_and_offers_nothing(
+        self, db, monkeypatch
+    ):
+        """Only its session decides it, and the session went on: nothing waits on it."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        read = await service.start(lab.ctx, lab.skill.id, _start(), source=CheckSource.SESSION)
+        await _run_to_end(service, evals, lab, read.id)
+        check = await skill_check_repo.get(db, read.id, organization_id=lab.ctx.organization_id)
+        assert check is not None
+
+        await service.set_aside_for_session(check)
+
+        after = await service.read(lab.ctx, lab.skill.id, read.id)
+        assert (after.status, after.outcome, after.outcomes) == ("discarded", "discard", [])
+
 
 class TestASessionsCheckStops:
     async def test_the_session_stops_its_check_and_every_run_it_started(self, db, monkeypatch):
