@@ -243,6 +243,7 @@ TENANT_REQUIRED = [
     (skill_merge_repo, "create"),
     (skill_merge_repo, "for_run"),
     (skill_proposal_repo, "from_source"),
+    (skill_proposal_repo, "lock"),
     (dataset_repo, "for_skill"),
     (conversation_repo, "last_answers_of_runs"),
     (skill_usage_repo, "mark_recorded"),

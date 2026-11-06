@@ -741,6 +741,9 @@ class SkillCheckService:
                 },
             )
         if plan.proposal is not None:
+            await skill_proposal_repo.lock(
+                self.db, plan.proposal.id, organization_id=ctx.organization_id
+            )
             for open_check in await skill_check_repo.open_for_proposal(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             ):

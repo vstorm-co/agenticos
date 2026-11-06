@@ -2,6 +2,8 @@
 person may not run or see, a run that has not settled, a line that gained an
 agent, a pin nobody may publish, and the skill's questions taken from evidence."""
 
+import asyncio
+import contextlib
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import replace
@@ -13,7 +15,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import delete, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -1742,3 +1744,42 @@ class TestStageCounts:
         stages = [stage for row in read.agents for stage in row.stages]
         assert stages and all(stage.eval_run_id is not None for stage in stages)
         assert {stage.counts for stage in stages} == {None}
+
+
+class TestTwoStartsOfOneProposal:
+    async def test_the_second_start_waits_and_finds_the_first_check(
+        self, db: AsyncSession, engine: AsyncEngine, monkeypatch
+    ):
+        """A double submit starts one check: the second start waits on the proposal and
+        then sees the first's check, so the runs are paid for once."""
+        lab = await _lab(db)
+        FakeEvals().install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def second() -> None:
+            async with factory() as session:
+                await SkillCheckService(session).start(
+                    lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+                )
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as first:
+            try:
+                await SkillCheckService(first).start(
+                    lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+                )
+                task = asyncio.create_task(second())
+                await asyncio.sleep(0.4)
+                assert not task.done()
+
+                await first.commit()
+                with pytest.raises(AlreadyExistsError, match="checked already"):
+                    await asyncio.wait_for(task, 10)
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task

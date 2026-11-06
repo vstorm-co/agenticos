@@ -28,6 +28,23 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def lock(
+    db: AsyncSession, proposal_id: UUID, *, organization_id: UUID
+) -> SkillProposal | None:
+    """One proposal locked until the transaction ends, read afresh: starting a check of it
+    waits for another start, so the second finds the first's check."""
+    result = await db.execute(
+        select(SkillProposal)
+        .where(
+            SkillProposal.id == proposal_id,
+            SkillProposal.organization_id == organization_id,
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_pending_for_skill(
     db: AsyncSession,
     *,
