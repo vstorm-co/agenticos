@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
-- The nightly proactive look no longer reads a prompt a guardrail refused. It read every message a person sent in the last week and passed them to the organization's proactivity model, which runs with no guardrails, so a prompt the input edge had stopped (a blocked keyword, a secret, a prompt injection) still reached a model once a night and could come back in a suggestion or a first message. A refused prompt also no longer counts as new activity that wakes the look. Prompts a guardrail redacted rather than refused are stored unredacted and still reach it; that is #2655. (#2746)
+- The nightly proactive job no longer reads a prompt a guardrail refused on an agent run. It read every message a person sent in the last week and passed them to the organization's proactivity model, which runs with no guardrails, so a prompt the input edge had stopped (a blocked keyword, a secret, a prompt injection) still reached a model once a night and could come back in a suggestion or a first message. A refused prompt also no longer counts as new activity that wakes the look. Prompts a guardrail redacted rather than refused are stored unredacted and still reach it; that is #2655. A chat prompt passed to a workflow is not marked as refused yet, so it still reaches the job as well. (#2746)
 
 ## [1.49.0] - 2026-11-05
 

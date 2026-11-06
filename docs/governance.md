@@ -511,9 +511,10 @@ default: `proactive_model_profile_id` is required), recorded in run history as a
 run from the **proactive** surface and counted against the organization's budget
 like any other. A person can leave themselves out under **Settings → Assistant**.
 
-The requests the look reads never include a prompt a
-[guardrail](reference/capabilities.md#guardrails) refused, so such a prompt does
-not reach the proactivity model.
+When a [guardrail](reference/capabilities.md#guardrails) refuses a prompt sent
+to an agent, the nightly job leaves that prompt out of the requests it reads, so
+the prompt does not reach the proactivity model. A chat prompt passed to a
+workflow is not marked as refused yet, so this does not cover it.
 
 On top of that, each person's proactive runs in a calendar month are capped by
 the organization's **proactive limit** - $1 by default, set on the same card

@@ -1,5 +1,5 @@
 ---
-source_sha: "72ff44ebe5ac"
+source_sha: "64942cddba42"
 ---
 
 # Governance { #governance }
@@ -551,9 +551,10 @@ como un run de la superficie **proactive** y contada contra el budget de la
 organización como cualquier otra. Una persona puede excluirse en **Ajustes →
 Asistente**.
 
-Las peticiones que lee la tarea nunca incluyen un prompt que un
-[guardrail](reference/capabilities.md#guardrails) rechazó, así que ese prompt
-no llega al modelo de proactividad.
+Cuando un [guardrail](reference/capabilities.md#guardrails) rechaza un prompt
+enviado a un agent, la tarea nocturna deja ese prompt fuera de las peticiones que
+lee, así que el prompt no llega al modelo de proactividad. Un prompt del chat que
+pasa a un workflow aún no se marca como rechazado, así que esto no lo cubre.
 
 Además, los runs por iniciativa propia de cada persona en un mes natural los
 limita el **límite de trabajo por iniciativa propia** de la organización - 1 $ por

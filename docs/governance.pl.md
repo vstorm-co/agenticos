@@ -1,5 +1,5 @@
 ---
-source_sha: "72ff44ebe5ac"
+source_sha: "64942cddba42"
 ---
 
 # Governance { #governance }
@@ -547,9 +547,10 @@ domyślnego: `proactive_model_profile_id` jest wymagany), zapisane w historii
 runów jako run z powierzchni **proactive** i liczone do budżetu organizacji jak
 każde inne. Osoba może wyłączyć to dla siebie w **Ustawienia → Asystent**.
 
-Prośby, które czyta przegląd, nigdy nie obejmują promptu odrzuconego przez
-[guardrail](reference/capabilities.md#guardrails), więc taki prompt nie trafia
-do modelu proaktywności.
+Gdy [guardrail](reference/capabilities.md#guardrails) odrzuci prompt wysłany do
+agenta, nocne zadanie pomija ten prompt wśród próśb, które czyta, więc prompt nie
+trafia do modelu proaktywności. Prompt z czatu przekazany do workflow nie jest
+jeszcze oznaczany jako odrzucony, więc to go nie obejmuje.
 
 Ponadto runy z własnej inicjatywy każdej osoby w miesiącu kalendarzowym ogranicza
 **limit pracy z własnej inicjatywy** organizacji - domyślnie 1 $, ustawiany na tej

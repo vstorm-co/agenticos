@@ -1,5 +1,5 @@
 ---
-source_sha: "72ff44ebe5ac"
+source_sha: "64942cddba42"
 ---
 
 # Governance { #governance }
@@ -591,9 +591,11 @@ der Oberfläche **proactive** festgehalten und wie jeder andere auf das Budget d
 Organisation angerechnet. Eine Person kann sich unter **Einstellungen →
 Assistent** ausnehmen.
 
-Die Anfragen, die der Job liest, enthalten nie einen Prompt, den ein
-[Guardrail](reference/capabilities.md#guardrails) abgelehnt hat, also erreicht
-ein solcher Prompt das Proaktivitätsmodell nicht.
+Lehnt ein [Guardrail](reference/capabilities.md#guardrails) einen Prompt an
+einen Agent ab, lässt der nächtliche Job diesen Prompt bei den Anfragen aus, die
+er liest, also erreicht der Prompt das Proaktivitätsmodell nicht. Ein Chat-Prompt,
+der an einen Workflow geht, wird noch nicht als abgelehnt markiert und ist damit
+nicht abgedeckt.
 
 Darüber hinaus begrenzt das **Limit für Arbeit aus eigener Initiative** der
 Organisation die Runs jeder Person in einem Kalendermonat - standardmäßig 1 $,

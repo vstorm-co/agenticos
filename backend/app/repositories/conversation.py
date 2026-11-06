@@ -1136,9 +1136,10 @@ async def person_requests_since(
 
     Their own messages: written by them in a shared chat, or unattributed in a
     conversation that is theirs - a one-person chat records no author per turn.
-    Never a prompt a guardrail refused: the input edge kept it from every model,
-    and the nightly look hands what this returns to one with no guardrails of its
-    own (#2746).
+    Never a prompt a guardrail refused on an agent run (`guardrail_refused`, set
+    by the run and by `link_message_to_run`): the input edge kept it from every
+    model, and the nightly job hands what this returns to one with no guardrails
+    of its own (#2746). A chat prompt routed to a workflow is not marked yet.
     """
     result = await db.execute(
         select(Message)
