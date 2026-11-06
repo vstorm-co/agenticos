@@ -451,12 +451,8 @@ class TestCatchingUp:
     async def test_the_fork_moving_after_the_merge_refuses_the_accept(self, db):
         ctx, skill, fork, merge = await self._caught_up(db)
         fork = await _on_fork(db, ctx, skill, fork, content="one\nTWO, again\nthree\nfour")
-        service = SkillCatchUpService(db)
-
         with pytest.raises(ConcurrentChangeError, match="'returns' has a newer version"):
-            await service.refuse_moved(merge)
-        with pytest.raises(ConcurrentChangeError, match="'returns' has a newer version"):
-            await service.accept_catch_up(ctx, skill=skill, fork=fork, merge=merge)
+            await SkillCatchUpService(db).accept_catch_up(ctx, skill=skill, fork=fork, merge=merge)
 
     async def test_an_unsettled_merge_is_not_accepted(self, db):
         ctx = await _owner(db)
@@ -469,7 +465,6 @@ class TestCatchingUp:
 
         with pytest.raises(BadRequestError, match="Settle every conflict"):
             await service.accept_catch_up(ctx, skill=skill, fork=fork, merge=merge)
-        await service.refuse_moved(merge)
 
 
 class TestMovingToMain:

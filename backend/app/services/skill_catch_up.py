@@ -408,19 +408,6 @@ class SkillCatchUpService:
                 row["result"] = text
         await self._store(locked, description, parts, locked.files)
 
-    async def refuse_moved(self, merge: SkillMerge) -> None:
-        """Refuse a merge either of whose lines has a newer version than it read.
-
-        Raises:
-            ConcurrentChangeError: Main or the fork moved since the merge.
-        """
-        skill = await skill_repo.get(self.db, merge.skill_id, organization_id=merge.organization_id)
-        fork = await skill_version_repo.get_fork(
-            self.db, merge.fork_id, organization_id=merge.organization_id, skill_id=merge.skill_id
-        )
-        assert skill is not None and fork is not None, "a merge goes with its skill and fork"
-        _refuse_moved(merge, skill, fork)
-
     async def accept_catch_up(
         self, ctx: AuthContext, *, skill: Skill, fork: SkillFork, merge: SkillMerge
     ) -> SkillVersion:
