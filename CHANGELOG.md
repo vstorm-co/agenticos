@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- The default AgenticOS agent no longer has the Architect pinned as a delegate. It answered platform questions by asking the Architect, which took a minute and a second model's cost for what its own platform tools and guide already cover. Organizations pick the change up on the next console load; a starter whose delegates somebody changed keeps them.
+
 ### Security
 
 - A sync, a local-directory sync or `rag-ingest` now clears earlier failed attempts at a file only in the new row's own scope: the knowledge base it is filed under, or, for a row with no base, rows of the same organization. Until now it cleared every failed row at that path under the collection name, so one organization's sync deleted another organization's failed rows (their error and retry) when both used the same collection name and path. The same applied to two knowledge bases of one organization that share a name. (#2747)
