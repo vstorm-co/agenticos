@@ -537,9 +537,6 @@ class CollectionAccessService:
         source = await self.sync_source(ctx, source_id)
         if source.collection_name is None:
             return source
-        # Under the name lock, as `source_target` resolves one: a teardown of the
-        # base must not change which base this answer was about.
-        await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, source.collection_name)
         candidates = await knowledge_base_repo.list_by_collection_name(
             self.db, source.collection_name
         )
