@@ -382,3 +382,22 @@ async def test_decision_episode_keeps_the_run_scope_and_real_provenance(ledger):
     )
     assert "without profile" in await _tools().remember(_ctx(deps), "Ask", episode=episode)
     ledger["remember"].assert_not_awaited()
+
+
+async def test_recalled_decisions_include_evidence_without_injecting_unbounded_history(
+    ledger: dict[str, AsyncMock],
+) -> None:
+    from dataclasses import replace
+
+    from app.schemas.decision_episode import DecisionEpisode
+
+    episode = DecisionEpisode(
+        situation="Supplier late",
+        choice="Ask for an update",
+        alternatives=["Wait"],
+        expected_outcome="Confirmed delivery",
+    )
+    ledger["recall"].return_value = [replace(_view(status="disputed"), episode=episode)]
+    answer = await _tools().recall(_ctx(_deps()), "supplier")
+    assert "[disputed]" in answer and "Decision evidence:" in answer
+    assert "Supplier late" in answer and "Confirmed delivery" in answer

@@ -10,7 +10,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.services import task_access as access
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
 async def test_machine_publishers_and_read_scoped_keys_cannot_edit_managed_tasks(

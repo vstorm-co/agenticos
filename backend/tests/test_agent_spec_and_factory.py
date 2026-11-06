@@ -1408,3 +1408,31 @@ def test_the_factory_hands_guardrails_the_tools_whose_arguments_are_the_answer()
     (guardrails,) = [c for c in built.capabilities if type(c).__name__ == "CombinedCapability"]
     (answer,) = [c for c in guardrails.capabilities if isinstance(c, ScreenedToolArgs)]
     assert answer.tools == frozenset({"write_draft"})
+
+
+@pytest.mark.anyio
+async def test_routine_tool_policy_is_bound_to_the_exact_agent_and_published_spec() -> None:
+    from pydantic_ai.tools import ToolDefinition
+
+    from app.agents.routine_actions import RoutineToolDecision
+    from app.core.exceptions import BadRequestError
+
+    spec = AgentSpec(name="Routine")
+    policy = AsyncMock(return_value=RoutineToolDecision(required=True))
+    with pytest.raises(BadRequestError, match="agent identity"):
+        build_agent(spec, _model_spec(), organization_id=uuid.uuid4(), routine_action_check=policy)
+    agent_id = uuid.uuid4()
+    built = build_agent(
+        spec,
+        _model_spec(),
+        organization_id=uuid.uuid4(),
+        agent_id=agent_id,
+        routine_action_check=policy,
+    )
+    attached: list[object] = []
+    built.agent.root_capability.apply(attached.append)
+    gate = next(one for one in attached if isinstance(one, ApprovalGate))
+    assert gate.routine_policy is not None
+    tool = ToolDefinition(name="send", parameters_json_schema={})
+    assert (await gate.routine_policy(tool)).required
+    policy.assert_awaited_once_with(agent_id, spec, tool)

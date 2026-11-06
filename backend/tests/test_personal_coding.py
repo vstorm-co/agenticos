@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import anyio
@@ -96,9 +97,12 @@ class PersonalExecutor:
             self.closed = True
 
 
+@pytest.mark.security
+@pytest.mark.parametrize("outcome", ["structured", "edited", "unstructured", "non-text", "refused"])
 async def test_profile_execution_uses_only_the_persons_key_and_private_workspace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    outcome: str,
 ) -> None:
     shared, private = tmp_path / "shared", tmp_path / "private"
     shared.mkdir()
@@ -106,9 +110,19 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
     parent = Workspace(LocalWorkspaceBackend(shared))
     isolated = Workspace(LocalWorkspaceBackend(private))
     executor = PersonalExecutor(isolated)
+    editable = outcome in {"edited", "unstructured"}
+    discard = AsyncMock()
+    if editable:
+        from app.agents.capabilities.coding_agent import _changes
+
+        monkeypatch.setattr(
+            _changes, "begin", AsyncMock(return_value=_changes.Baseline("snapshot", "tree"))
+        )
+        monkeypatch.setattr(_changes, "finish", AsyncMock(return_value=None))
+        monkeypatch.setattr(_changes, "discard", discard)
     outer = _toolset.build_coding_toolset(
         harness="claude_code",
-        access="read_only",
+        access="edit" if editable else "read_only",
         model=None,
         base_url="https://untrusted-gateway.invalid",
         api_key="the-tool-key-must-not-be-used",
@@ -123,10 +137,20 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
         assert options["capture_changes"] is False
         toolset = FunctionToolset[AgentDeps]()
 
-        async def run(ctx: RunContext[AgentDeps], task: str, fresh_session: bool = False) -> str:
+        async def run(
+            ctx: RunContext[AgentDeps], task: str, fresh_session: bool = False
+        ) -> str | dict[str, str]:
             assert ctx.workspace is isolated and ctx.deps.subagent_events is None
             assert fresh_session
             await ctx.workspace.write_bytes("result.txt", b"private result")
+            if outcome == "non-text":
+                return {"invalid": "result"}
+            if outcome == "refused":
+                from app.core.exceptions import BadRequestError
+
+                raise BadRequestError(message="Budget refused")
+            if outcome == "unstructured":
+                return f"Unstructured result {KEY}"
             return CodingReport(
                 harness="claude_code",
                 access="read_only",
@@ -145,13 +169,25 @@ async def test_profile_execution_uses_only_the_persons_key_and_private_workspace
         prompt="Code",
         workspace=parent,
     )
+    if outcome == "non-text":
+        with pytest.raises(TypeError, match="non-text"):
+            await outer.tools["run_coding_agent"].function(ctx, "Do the task")
+        assert executor.closed
+        return
     result = await outer.tools["run_coding_agent"].function(ctx, "Do the task")
     assert isinstance(result, str)
+    if outcome in {"unstructured", "refused"}:
+        assert KEY not in result and executor.closed
+        if editable:
+            discard.assert_awaited()
+        return
     report = CodingReport.model_validate_json(result)
     assert KEY not in result and report.account_label == "My account"
     assert report.execution == "isolated_task" and report.result_archive
     assert (private / "result.txt").exists() and not (shared / "result.txt").exists()
     assert executor.closed
+    if editable:
+        discard.assert_awaited_once()
 
 
 async def test_owned_lease_connects_and_closes_its_client(monkeypatch: pytest.MonkeyPatch) -> None:

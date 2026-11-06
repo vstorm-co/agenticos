@@ -30,7 +30,7 @@ from app.services.telephony.runtime import dial, end_media, live_contact, reap, 
 from app.services.telephony.webhooks import PhoneWebhookService
 from tests.integration.workflow_run_support import seed_member
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.security]
 ACCOUNT = "AC" + "a" * 32
 TOKEN = "test-phone-auth"
 NUMBER = "+15550000000"
