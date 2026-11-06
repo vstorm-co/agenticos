@@ -23,18 +23,21 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **Sync source settings and run logs stay with their audience (#2745).** The
   knowledge base wizard's list of existing integrations
-  (`GET /kb/{kb_id}/sync-sources/org-integrations`) returned every source of the
-  organization, with its configuration, vault secret id and last error, to anyone
-  who could read one base. It now needs `connections:manage`, like
-  `/org/integrations`, and the wizard leaves out the offer without it. A member
-  of one organization who read an app-scoped base could read the run logs of
-  another organization's source that fed it; a source's run log and
-  `GET /rag/sync/logs` now show only the caller's organization's sources, or
-  all of them to a platform admin. `PATCH`, `DELETE` and `POST .../trigger` on
-  `/rag/sync/sources/{id}` checked the organization and, on a move, the new base,
-  so a member could detach (`collection_name: null`), reconfigure, delete or run
-  the source of a base they cannot write. They now need write access to the base
-  the source feeds, and an unassigned source still needs only the organization.
+  (`GET /kb/{kb_id}/sync-sources/org-integrations`) and `GET /rag/sync/sources`
+  returned every source of the organization, with its configuration, vault
+  secret id and last error, to anyone who could read one base. The wizard's list
+  now needs `connections:manage`, like `/org/integrations`, and the wizard leaves
+  out the offer without it. `GET /rag/sync/sources` returns the whole list only
+  with `connections:manage`, and otherwise the sources that feed a base the
+  caller reads. A member of one organization who read an app-scoped base could
+  read the run logs of another organization's source that fed it. A source's run
+  log and `GET /rag/sync/logs` now list only the caller organization's sources,
+  unless the caller is a platform admin. Runs whose source was deleted are still
+  listed by their collection name. `PATCH`, `DELETE` and `POST .../trigger` on
+  `/rag/sync/sources/{id}` checked the organization and, on a move, the new base.
+  So a member could detach (`collection_name: null`), reconfigure, delete or run
+  the source of a base they cannot write. They now also need write access to the
+  base the source feeds. An unassigned source still needs only the organization.
   See [Configure sync sources](docs/howto/configure-sync-sources.md#api-reference).
 
 ## [1.49.0] - 2026-11-05

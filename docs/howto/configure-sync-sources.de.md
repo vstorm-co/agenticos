@@ -1,5 +1,5 @@
 ---
-source_sha: "62bbbfa3f37a"
+source_sha: "d3399c59d588"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -623,21 +623,31 @@ verlangt `collections:view`, und alles, was eine Quelle verändert, verlangt
 Quelle gehört. Eine Adminrolle kommt darin nicht vor. Siehe
 [wer eine Collection erreichen darf](../file-processing.md#who-may-reach-a-collection).
 
-Um eine Quelle zu aktualisieren, zu löschen oder auszulösen, die eine Knowledge
-Base speist, müssen Sie in diese Base schreiben dürfen, wie auf der Seite der
-Knowledge Base. Das gilt auch für einen `PATCH`, der `collection_name` auf `null`
-setzt. Eine nicht zugeordnete Quelle braucht nur Ihre Organisation. Der
-Sync-Verlauf und das Laufprotokoll einer Quelle zeigen nur die Quellen Ihrer
-Organisation, auch über eine app-weite Base, die jede Organisation liest. Ein
-Plattform-Admin sieht alle. Die Liste vorhandener Integrationen, die der Assistent
-der Knowledge Base zur Wiederverwendung anbietet, verlangt `connections:manage`,
-genau wie [`/org/integrations`](../permissions.md).
+`GET /api/v1/rag/sync/sources` listet alle Quellen Ihrer Organisation, auch nicht
+zugeordnete, nur mit `connections:manage`, wie `/org/integrations`. Ohne die
+Berechtigung enthält die Liste nur die Quellen, die eine Base speisen, die Sie
+lesen dürfen. Die Liste vorhandener Integrationen, die der Assistent der
+Knowledge Base zur Wiederverwendung anbietet, verlangt ebenfalls
+`connections:manage`. Siehe [Berechtigungen](../permissions.md).
+
+Um eine Quelle über `/api/v1/rag/sync/sources/{id}` zu aktualisieren, zu löschen
+oder auszulösen, müssen Sie außerdem in die Base schreiben dürfen, die die Quelle
+speist. Das gilt auch für einen `PATCH`, der `collection_name` auf `null` setzt.
+Eine nicht zugeordnete Quelle braucht nur Ihre Organisation. `/org/integrations`
+verwaltet Quellen auf Ebene der Organisation und verlangt stattdessen
+`connections:manage`.
+
+Der Sync-Verlauf und das Laufprotokoll einer Quelle zeigen die Läufe der Quellen
+Ihrer Organisation, auch über eine app-weite Base, die jede Organisation liest.
+Ein Plattform-Admin sieht auch die Quellen anderer Organisationen in den Bases,
+die er liest. Ein Lauf, dessen Quelle gelöscht wurde, wird über den Namen seiner
+Collection jedem angezeigt, der diese Collection liest.
 
 ### CRUD für Sync-Quellen { #sync-sources-crud }
 
 | Methode | Endpunkt | Beschreibung |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | Alle eingerichteten Sync-Quellen auflisten |
+| `GET` | `/api/v1/rag/sync/sources` | Sync-Quellen auflisten (alle mit `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Eine neue Sync-Quelle anlegen |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Eine vorhandene Sync-Quelle ändern |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Eine Sync-Quelle löschen |

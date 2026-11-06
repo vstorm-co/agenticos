@@ -1,5 +1,5 @@
 ---
-source_sha: "9cdf9953bdd6"
+source_sha: "c752000a4e1b"
 ---
 
 # Berechtigungen { #permissions }
@@ -143,13 +143,15 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
     `secrets:view` auf diesem Schlüssel
     ([Modelle](models.md#changing-a-profiles-key-or-endpoint)).
 
-    Es ist auch das, was die Sync-Integrationen der Organisation auflistet:
-    `/org/integrations` und das Angebot des Knowledge-Base-Assistenten, eine davon
-    wiederzuverwenden (`GET /kb/{kb_id}/sync-sources/org-integrations`). Beide
-    liefern die Quellen jeder Base, mit ihrer Konfiguration, dem Vault-Secret, das
-    jede nutzt, und ihrem letzten Fehler. Eine Base zu lesen oder einen Grant auf
-    sie zu halten, öffnet diese Liste nicht, und der Assistent lässt das Angebot
-    für einen Aufrufer ohne die Berechtigung weg.
+    `connections:manage` listet auch die Sync-Integrationen der Organisation
+    auf: die Quellen jeder Base, mit ihrer Konfiguration, dem Vault-Secret, das
+    jede nutzt, und ihrem letzten Fehler, sowie die nicht zugeordneten Quellen.
+    `/org/integrations`, `GET /rag/sync/sources` und das Angebot des
+    Knowledge-Base-Assistenten, eine davon wiederzuverwenden
+    (`GET /kb/{kb_id}/sync-sources/org-integrations`), liefern diese Liste. Eine
+    Base zu lesen oder einen Grant auf sie zu halten, öffnet sie nicht. Ohne die
+    Berechtigung listet `GET /rag/sync/sources` nur die Quellen, die eine Base
+    speisen, die der Aufrufer liest, und der Assistent lässt das Angebot weg.
 
 **Ressourcen**-Berechtigungen tragen einen `Scope`, denn sie beantworten die
 zweite Frage, die eine Rolle nicht kann: nicht "darf diese Rolle Agents

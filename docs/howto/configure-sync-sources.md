@@ -586,20 +586,29 @@ in both cases reaching the collection the source belongs to — there is no admi
 role in it. See
 [who may reach a collection](../file-processing.md#who-may-reach-a-collection).
 
-To update, delete or trigger a source that feeds a knowledge base, you must be able
-to write that base, as on the knowledge base page. This includes a `PATCH` that
+`GET /api/v1/rag/sync/sources` lists every source of your organization, unassigned
+ones included, only with `connections:manage`, as `/org/integrations` does. Without
+it, the list has only the sources that feed a base you can read. The list of
+existing integrations that the knowledge base wizard offers to reuse also needs
+`connections:manage`. See [Permissions](../permissions.md).
+
+To update, delete or trigger a source through `/api/v1/rag/sync/sources/{id}`, you
+must also be able to write the base the source feeds. This includes a `PATCH` that
 sets `collection_name` to `null`. An unassigned source needs only your
-organization. Sync history and a source's run log show only your organization's
-sources, also through an app-scoped base that every organization reads. A platform
-admin sees all of them. The list of existing integrations that the knowledge base
-wizard offers to reuse needs `connections:manage`, the same as
-[`/org/integrations`](../permissions.md).
+organization. `/org/integrations` manages sources at the organization level and
+needs `connections:manage` instead.
+
+Sync history and a source's run log show the runs of your organization's sources,
+also through an app-scoped base that every organization reads. A platform admin
+also sees the other organizations' sources of the bases they read. A run whose
+source was deleted is listed by its collection name to everyone who reads that
+collection.
 
 ### Sync sources CRUD
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/rag/sync/sources` | List all configured sync sources |
+| `GET` | `/api/v1/rag/sync/sources` | List sync sources (all of them with `connections:manage`) |
 | `POST` | `/api/v1/rag/sync/sources` | Create a new sync source |
 | `PATCH` | `/api/v1/rag/sync/sources/{id}` | Update an existing sync source |
 | `DELETE` | `/api/v1/rag/sync/sources/{id}` | Delete a sync source |

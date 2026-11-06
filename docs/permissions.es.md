@@ -1,5 +1,5 @@
 ---
-source_sha: "9cdf9953bdd6"
+source_sha: "c752000a4e1b"
 ---
 
 # Permisos { #permissions }
@@ -139,13 +139,15 @@ de lo que su emisor tiene ahora.
     tiene clave, requiere `secrets:view` sobre esa clave
     ([Modelos](models.md#changing-a-profiles-key-or-endpoint)).
 
-    También es lo que lista las integraciones de sincronización de la
-    organización: `/org/integrations` y la oferta del asistente de la base de
-    conocimiento de reutilizar una (`GET /kb/{kb_id}/sync-sources/org-integrations`).
-    Ambas devuelven las fuentes de todas las bases, con su configuración, el secreto
-    del vault que usa cada una y su último error. Leer una base, o tener un grant
-    sobre ella, no abre esa lista, y el asistente omite la oferta para quien llama
-    sin el permiso.
+    `connections:manage` es también lo que lista las integraciones de
+    sincronización de la organización: las fuentes de todas las bases, con su
+    configuración, el secreto del vault que usa cada una y su último error, y las
+    fuentes sin asignar. `/org/integrations`, `GET /rag/sync/sources` y la oferta
+    del asistente de la base de conocimiento de reutilizar una
+    (`GET /kb/{kb_id}/sync-sources/org-integrations`) devuelven esa lista. Leer una
+    base, o tener una concesión sobre ella, no la abre. Sin el permiso,
+    `GET /rag/sync/sources` lista solo las fuentes que alimentan una base que lee
+    quien llama, y el asistente omite la oferta.
 
 Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino *qué*
