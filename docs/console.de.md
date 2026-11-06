@@ -1,5 +1,5 @@
 ---
-source_sha: "f20da016e0b3"
+source_sha: "4d03541cc6e2"
 ---
 
 # Die Konsole { #the-console }
@@ -83,6 +83,8 @@ Das Testpanel im Builder lässt sich auf den ganzen Arbeitsbereich erweitern, oh
 Die Navigation erhält gemeinsame Seitenlayouts beim Wechsel zwischen Bereichen und blendet kurz über, statt den Rahmen neu aufzubauen. Reduzierte Bewegung deaktiviert den Effekt. Dashboard-Karten warten auf die gespeicherte Anordnung, berechtigungsabhängige Seiten auf deren Prüfung und die Benutzerliste der Administration beginnt mit einem Ladezustand statt einer vermeintlich leeren Liste. Gruppen- und App-Autorenfilter reservieren ihren Platz beim Laden. Quellenmarkierungen im Inbox warten auf Katalogmetadaten; Links zur Arbeitskonversation öffnen dieselbe Chat-Route wie die Seitenleiste.
 
 Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-Schaltflächen an, damit das Benutzerbild sichtbar bleibt. Der Gesprächsanfang und der reservierte Platz für eine Antwort berücksichtigen denselben Abstand zur Werkzeugleiste; Desktop und eingebettete Chats behalten ihren kleineren Abstand.
+
+Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine optionale Automatisierungsfrage offen zu halten. Fragen klären notwendige Entscheidungen zur aktuellen Aufgabe oder zu einer angefragten beziehungsweise akzeptierten Automatisierung. Optionale Einrichtungskarten bleiben unverbindliche Vorschläge und blockieren den Abschluss nicht.
 
 ## Das Dashboard { #the-dashboard }
 

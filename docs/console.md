@@ -76,6 +76,8 @@ Navigation keeps shared page layouts mounted when moving between sections, with 
 
 On phones, sent messages stop below the floating chat buttons, keeping the user portrait visible. The initial transcript and the space reserved for a reply use the same toolbar clearance; desktop and embedded chats retain their smaller inset.
 
+Default agents finish a one-off request without holding the answer open for an optional automation question. Questions settle decisions needed for the current task or an automation the person requests or accepts. Optional setup cards remain non-blocking proposals.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

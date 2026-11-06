@@ -1,5 +1,5 @@
 ---
-source_sha: "f20da016e0b3"
+source_sha: "4d03541cc6e2"
 ---
 
 # La consola { #the-console }
@@ -83,6 +83,8 @@ El panel de pruebas del editor puede ocupar todo el espacio de trabajo sin reini
 La navegación conserva los layouts compartidos al cambiar de sección y usa una transición breve en lugar de reiniciar el marco. El movimiento reducido desactiva la transición. Las tarjetas del dashboard esperan la disposición guardada, las páginas con permisos esperan su lectura y la lista administrativa de usuarios comienza cargando, sin afirmar que está vacía. Los filtros de grupos y autores de Apps reservan espacio durante la carga. Las fuentes del Inbox esperan los metadatos del catálogo; los enlaces a conversaciones de trabajo usan la misma ruta que la barra lateral.
 
 En el móvil, los mensajes enviados se detienen debajo de los botones flotantes del chat para mantener visible el avatar del usuario. El inicio de la conversación y el espacio reservado para la respuesta usan la misma separación; los chats de escritorio e integrados conservan un margen menor.
+
+Los agentes predeterminados terminan una solicitud puntual sin mantener abierta la respuesta con una pregunta sobre automatización opcional. Las preguntas resuelven decisiones necesarias para la tarea actual o una automatización solicitada o aceptada. Las tarjetas opcionales de configuración siguen siendo propuestas que no bloquean la finalización.
 
 ## El dashboard { #the-dashboard }
 

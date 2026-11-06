@@ -193,6 +193,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Let the default agents finish one-off requests without blocking the completed answer on an optional automation question. Ask setup questions only after the person requests or accepts recurring work.
+
 - Keep sent messages and user portraits below the floating mobile chat controls, using the same top clearance when reserving space for the reply.
 
 - Keep progress messages and tool groups chronological while agents work; collapse the complete run history only after the final answer, including approval continuations.
