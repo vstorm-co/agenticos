@@ -4,54 +4,14 @@ description: "Create and improve reusable AgenticOS skills from a procedure or s
 category: engineering
 ---
 
-# Teach the next agent a procedure
+# Teach a reusable method
 
-A skill is reusable know-how, not a transcript, a fact store or a new permission.
-Use it for repeatable work with important choices and checks. Put standing facts
-in Context, preferences and decisions in Memory, large reference corpora in
-Knowledge, and outstanding commitments in Tasks.
+Use when authoring or evaluating a skill. Use current tool descriptions for storing, updating, binding and loading it; do not copy their API contracts into the skill.
 
-Search existing skills before creating one. If the request comes from a previous
-chat, read the authorized conversation and tool results: extract the successful
-procedure and the mistakes it corrected. Remove case-specific people, figures,
-credentials, private correspondence and output documents unless explicitly needed
-as an appropriate, permissioned example. A skill attached widely is read widely.
+Start with repeatable decisions a future agent cannot infer from a tool schema. A skill is useful know-how, not a transcript, a fact store, an inventory of tools or a grant of authority. Inspect existing methods before adding another.
 
-## Write for selection and execution
+Write a precise description that selects the skill for the right requests and excludes nearby routine operations. Keep its body short: purpose, decisions, failure handling, quality checks and the evidence needed to finish. Put examples, templates and lengthy references in separately named resources loaded only when necessary.
 
-Use a stable lowercase-hyphenated name that does not collide with a capability.
-The description is the selection rule: say what it achieves and concrete requests
-that should load it. Distinguish neighboring skills. The Markdown body contains:
+Extract general lessons from successful work while removing customer-specific identifiers, correspondence, credentials and incidental history. Examples must be appropriate for the skill's audience. A shell example does not establish installed dependencies.
 
-1. The job and when a simpler approach is sufficient.
-2. Inputs and prerequisites the agent must inspect, not assume.
-3. The sequence, with decision points and exact current tool contracts.
-4. What to do on missing data, permission refusal, conflicts or partial failure.
-5. Verification and the deliverable the person can inspect.
-
-Keep the first screen useful. Put long examples, templates and reference tables
-in named resources and reference them directly from the body. The runtime lists
-names/descriptions before loading bodies through `load_capability`; resource
-text is read with `read_skill_resource`. Do not invent a `load_skill` tool.
-Resources are text files here; a binary deck belongs in output storage, not a
-text skill resource. Read a script before writing it into a workspace and running
-it. A skill's example command does not establish that its dependencies exist.
-
-For example, a supplier-report skill selects only for supplier status reviews,
-queries the actual table, distinguishes unknown from late, produces blockers,
-dates and next actions, and verifies each cited record. Its example uses labeled
-fictional data. It does not hard-code one customer's IDs or claim mail access.
-
-## Save, bind and evaluate
-
-Use platform `create_skill` for a new procedure or update the existing skill when
-the corresponding tool is available. Add resources through the supported skill
-resource tools or the skill editor; do not claim a local file is installed in
-the platform. Read the resulting skill and attach its ID in the agent draft,
-preserving other skill IDs. Saving a skill alone does not bind it to every agent.
-Test in a draft with an ordinary request, an ambiguous near-match that should not
-load it, a missing prerequisite and a hostile source instruction. Check outputs
-and tool effects, then repair the procedure. Publish the agent only when authorized.
-
-Return the skill link, intended agents, checks performed and remaining limits.
-Do not silently overwrite organization-specific edits with a shipped example.
+Evaluate an ordinary request, a near-match that should not load the skill, missing inputs and hostile source instructions. Judge observable effects and output quality. Revise unnecessary or conflicting instructions. Preserve organization-authored changes when updating a built-in; installing or saving a skill does not itself bind it to every agent.

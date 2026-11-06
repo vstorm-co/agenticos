@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Reduce default-agent prompt overhead and duplicate skill manuals; retain focused procedures and load detailed design recipes on demand. Match the Routines loading placeholder to its row layout.
+
 - Rearm planned human reminders when their task board is restored, and serialize private coding-result publication against edit sharing.
 
 - Acknowledge saved partial replies after Stop, discard buffered model frames, and clear the stopped conversation’s sidebar activity immediately.

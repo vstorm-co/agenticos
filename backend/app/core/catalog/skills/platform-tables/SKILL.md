@@ -4,79 +4,14 @@ description: "Build useful AgenticOS tables with typed columns, rich-text notes,
 category: data
 ---
 
-# Design around the next decision
+# Design records around a decision
 
-Discover existing tables and inspect their columns and current schema version.
-Decide which entity one row represents, its stable identity, audience and the
-questions people need to answer. Start small: title, controlled state, actual
-relations, useful dates and rich-text Notes. Use English status and column names
-by default unless the person explicitly requests localization. The content of a
-record remains in the language its author chose.
+Use this skill for designing a substantial data model or repairing confusing views, not for listing, creating or updating ordinary records. Current MCP descriptions and schemas own the API contract.
 
-## Choose correct semantics
+Decide what one row represents, which source owns it, who can see it and which decision the view should support. Reuse existing operational data. For commitments, use the managed task system rather than inventing a parallel TODO schema.
 
-| Data | Type or mechanism |
-| --- | --- |
-| A document, detailed note or checklist | `rich_text`, not a one-line text field |
-| A responsible person or agent | `user` or `agent`, not their name as free text |
-| Which actor has the next action | Controlled select, separate from the responsible person |
-| A state | `single_select` with a small, meaningful set of transitions |
-| A count, amount or comparison | Numeric type and explicit unit/currency |
-| A calendar date versus a scheduled instant | Date versus datetime; state the time zone |
-| Related records | The actual relation/link type supported by the schema catalog |
-| A source-system object | Stable external ID; not a title used as identity |
+Keep properties people filter or compare in typed columns. Put narrative, checklists and acceptance criteria in rich text. Use actual person, agent and record relations instead of names as identifiers. Distinguish responsibility, who acts next, a deadline and a scheduled start. Defaults should help without inventing facts.
 
-Do not duplicate automatic created/updated dates or author in Markdown. Keep
-queryable properties in columns, not frontmatter. A rich-text column default
-can supply a reusable document template; omitted values use the default while
-explicit content wins. Validate one realistic record before bulk writes.
+Choose a small set of states with clear meanings and transitions. Use English column names and choices unless requested otherwise; leave authored content in its original language. Validate the model with one realistic record before bulk work.
 
-For TODOs use `ensure_task_board` for private, project, group or organization
-scope. Do not build a second independent status list. Managed boards own stable
-core columns and choices; add optional custom columns without changing their
-meaning. Keep both Person and Agent while Next step selects who acts. Start at
-launches work or a reminder; Due at is the deadline. Assignment does not grant
-access to another person's account. An agent result waits for human review.
-
-## Use the managed task contract directly
-
-Discover `list_task_boards`, `ensure_task_board`, `create_task`, `update_task`
-and `get_virtual_table` by those exact tool names. Prefer the task operations for
-managed commitments; generic record edits are for custom table fields, not a way
-to bypass a refused task operation. Omit `conversation_id` unless this chat belongs
-to that project. A project task created from a personal chat can get a separate
-project working conversation when it runs.
-
-Read back the result once and preserve lifecycle changes: an assigned agent can
-already be In progress. Do not reset it to Planned merely to reproduce its initial
-state. Use `/projects/{project_id}` and `/tables/{table_id}` for console links;
-these routes do not require tool search or reading the full platform guide.
-
-## Write and evolve safely
-
-Use the platform table tools for discovery and record operations. For schema
-updates send the complete current column list, preserving IDs and using
-`expected_version`. Archive retired columns; inspect formula, lookup, workflow
-and saved-view dependencies before changing types. Do not throw away a person's
-data merely to make a schema validate.
-
-Updates require the record revision actually read. Omitted cells remain; null
-clears a nullable field. On conflict reread and reconcile rather than repeating
-the stale write. Use upsert with a stable external ID for source deduplication;
-this does not make an external send idempotent. Page through `has_more` when an
-answer claims completeness.
-
-## Make the table usable
-
-Use Kanban for task state, a grid for comparison/editing, and a list for documents.
-Create purposeful saved views rather than cosmetic duplicates: Open tasks,
-Agent tasks, Waiting for review. A shared saved view can be set as the table's
-default in the toolbar; managed task boards start in Kanban. A URL view override
-wins. If no tool to set the default is offered, say that this UI action remains
-instead of claiming it happened. A view filters records; it never grants access.
-
-For a live App, bind queries to the table rather than copying records into HTML.
-Show empty, unavailable and truncated results honestly, and verify its audience:
-published binding data is read with the page owner's access. For table events,
-filter state transitions and avoid a workflow that triggers itself on every write.
-Return the table link, schema/view decisions and the verified record operations.
+Use Kanban for progression, a grid for comparison and a list for document-like records. Each saved view should answer a distinct question. Respect dependent workflows and retained history when evolving a schema. Show the resulting view and verify it against the person's intended decision. Obtain write parameters and concurrency rules from the selected MCP operation, not a copied recipe.

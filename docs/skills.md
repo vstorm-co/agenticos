@@ -215,7 +215,10 @@ restore retired skills. The explicit seed command can restore them when requeste
 The skills listing itself remains read-only.
 
 AgenticOS, Architect and new default agents bind the platform skills by default:
-`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
+
+The optional `platform-tables`, `platform-context`, `platform-skills` and gallery API guides remain available in the library, but are no longer default bindings. Ordinary MCP reads and edits do not require loading a skill. Current tool descriptions own operation names, parameters and permissions; skills add design judgment and verification methods. Detailed visual recipes are resources loaded only when needed.
+
 They also bind the App, visual and presentation procedures, including storyline
 and review. Skills load progressively: names and descriptions first, bodies and
 resources only when relevant. Skills teach methods; they do not grant tools,

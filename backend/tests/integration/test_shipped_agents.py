@@ -57,11 +57,15 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
     await service.update(ctx, pages.id, SkillUpdate(content="Our own publishing conventions."))
     retired = await service.install_from_library(ctx, "visual-design")
     await service.delete(ctx, retired.id)
+    optional = [
+        await service.install_from_library(ctx, key)
+        for key in ("platform-tables", "platform-context", "platform-skills")
+    ]
     old = AgentSpec(
         name="AgenticOS",
         instructions="Earlier shipped instructions",
         capabilities=[CapabilityBindingSpec(id="ask_user"), CapabilityBindingSpec(id="skills")],
-        skill_ids=[review.id, pages.id],
+        skill_ids=[review.id, pages.id, *(skill.id for skill in optional)],
     )
     agent = await AgentRegistryService(db).create(ctx, old, choose_model=False)
     await agent_repo.update(
@@ -74,9 +78,6 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
         "platform-agents",
         "platform-workflows",
         "platform-automation",
-        "platform-skills",
-        "platform-context",
-        "platform-tables",
         "durable-work",
         "document-production",
         "research-and-evidence",
@@ -93,7 +94,15 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
             ).values()
         }
         assert required <= names
+        assert (
+            not {"platform-tables", "platform-context", "platform-skills", "agenticos-guide"}
+            & names
+        )
         assert "visual-design" not in names
+    for retained in optional:
+        assert (
+            await skill_repo.get(db, retained.id, organization_id=ctx.organization_id) is not None
+        )
     refreshed = await skill_repo.get_by_name(db, "code-review", organization_id=ctx.organization_id)
     assert refreshed is not None
     assert refreshed.version == review_version + 1
@@ -252,7 +261,9 @@ async def test_legacy_defaults_are_adopted_and_receive_new_memory_guidance(
     spec = AgentSpec.model_validate(updated.draft_spec)
     assert updated.id == agent.id
     assert updated.shipped_template["key"] == STARTER
-    assert "Memory that helps the next conversation" in spec.instructions
+    from app.services import agent_templates
+
+    assert spec.instructions == agent_templates.get(STARTER).instructions
     assert "memory_files" in {cap.id for cap in spec.capabilities}
     assert updated.current_version_id is None
     # Provenance, rather than a display name, keeps a renamed starter recognizable.
@@ -496,5 +507,11 @@ async def test_new_console_agent_gets_common_work_tools_without_agenticos_only_a
             await skill_repo.get_many(db, spec.skill_ids, organization_id=ctx.organization_id)
         ).values()
     }
-    assert {"platform-agents", "platform-tables", "durable-work", "document-production"} <= names
+    assert {
+        "platform-agents",
+        "platform-automation",
+        "durable-work",
+        "document-production",
+    } <= names
+    assert not {"platform-tables", "platform-context", "platform-skills", "agenticos-guide"} & names
     assert "ask_user_question" in spec.instructions

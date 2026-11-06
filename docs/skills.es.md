@@ -1,5 +1,5 @@
 ---
-source_sha: "17caa0872f76"
+source_sha: "bb6d7579d9cf"
 ---
 
 # Skills { #skills }
@@ -227,7 +227,10 @@ voluntaria: la actualización automática no restaura esos skills. El comando se
 explícito puede restaurarlos. El listado de skills sigue siendo de solo lectura.
 
 AgenticOS, Architect y los nuevos agentes predeterminados incluyen:
-`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
+
+Los opcionales `platform-tables`, `platform-context`, `platform-skills` y las guías de API de la galería siguen disponibles en la biblioteca, pero ya no se vinculan por defecto. Las lecturas y ediciones habituales por MCP no requieren cargar un skill. Las descripciones actuales de las herramientas definen operaciones, parámetros y permisos; los skills aportan criterios de diseño y verificación. Las recetas visuales detalladas se cargan como recursos solo cuando hacen falta.
+
 También incluyen procedimientos de Apps, visualización y presentaciones, con
 narrativa y revisión. Primero se cargan nombres y descripciones; los cuerpos y
 recursos solo cuando hacen falta. Los skills no conceden herramientas, cuentas

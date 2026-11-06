@@ -5682,6 +5682,6 @@ async def test_workflow_guidance_does_not_depend_on_unrelated_project_tools():
         new=AsyncMock(return_value=MagicMock(organization_id=ctx.organization_id)),
     ):
         actual = await AgentRegistryService(_db()).with_assistant_guidance(_agent(ctx), spec)
-    assert "# Build automations and integrations" in actual.instructions
+    assert "# Choose the smallest reliable automation" in actual.instructions
     assert "# Ongoing work belongs in Projects" not in actual.instructions
     assert actual.mcp_servers == spec.mcp_servers

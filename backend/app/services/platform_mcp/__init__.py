@@ -80,7 +80,11 @@ INSTRUCTIONS = (
 Tools for operating an AgenticOS organization: its agents, runs, knowledge bases,
 skills, projects and members. Every call acts as the person who issued the connection's key,
 within that key's permissions - a refusal names the permission that was missing.
-Start with `whoami` to see the organization and what this connection may do.
+Use `whoami` when the organization or connection authority is unknown.
+Discover the resource and action you need, then use its current tool description
+and schema as the API contract. Ordinary reads and edits need no skill preflight.
+Reuse existing resources; prefer managed task boards for commitments over creating
+a parallel task schema. Read back consequential writes before claiming success.
 An `error` envelope is an explicit domain refusal, never a successful change.
 Use its code and field details to correct input; do not bypass permission refusals.
 """

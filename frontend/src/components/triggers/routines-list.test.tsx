@@ -46,3 +46,14 @@ it("shows a read failure instead of presenting an incomplete list as complete", 
   expect(screen.queryByText("Client mail")).toBeNull();
   expect(screen.queryByText("2 routines")).toBeNull();
 });
+
+it("loads as routine rows instead of a table with an unrelated header", () => {
+  state.loading = true;
+  render(<RoutinesList />);
+  const loading = screen.getByRole("status", { name: "Loading" });
+  expect(loading).toBeVisible();
+  expect(loading.querySelector("table")).toBeNull();
+  expect(loading.children).toHaveLength(4);
+  expect(loading.querySelectorAll(".rounded-xl")).toHaveLength(4);
+  expect(screen.queryByText("Weekly report")).not.toBeInTheDocument();
+});

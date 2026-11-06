@@ -120,7 +120,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def get_project(project_id: UUID) -> dict[str, Any]:
-        """Read a project's instructions, default agent and workspace backend.
+        """Read a project's description, instructions, default agent and workspace backend.
 
         Needs access to that project. Read-only; runs automatically under `writes`.
         `state` stores shared files only; `service`
@@ -511,8 +511,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         chat; a draft is not sent. Private is the default. Use external_id for a
         stable source item so retries do not create duplicate tasks. An existing
         external_id returns its current task unchanged; use update_task for changes.
-        Do not turn
-        brainstorming or the run's scratch plan into durable tasks without intent.
+        Do not turn brainstorming or the run's scratch plan into durable tasks without intent.
         """
         return await api.request("POST", "/tasks", json=task.model_dump(mode="json"))
 
@@ -1380,6 +1379,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         external_id is stable in the source system. An existing record requires its
         read expected_revision; a conflict is refused, never silently overwritten.
+        For a managed task board, prefer create_task/update_task: they express
+        the next actor, execution schedule and review lifecycle directly.
         Returns the resulting record, revision and authoritative metadata.
         """
         segment = quote(external_id, safe="").replace(".", "%2E")

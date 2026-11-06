@@ -758,6 +758,20 @@ class TestSkillLibrary:
         }
         assert all(resource.size_bytes > 0 for resource in skill.resources)
 
+    @pytest.mark.parametrize("key", ["visual-design", "artifact-pages", "presentation-decks"])
+    def test_visual_recipes_are_available_without_loading_them_with_the_procedure(self, key):
+        skill = skill_library.get(key)
+        assert skill is not None
+        recipe = next(
+            resource
+            for resource in skill.resources
+            if resource.name == "references/design-recipes.md"
+        )
+        assert recipe.size_bytes > 1000
+        assert recipe.content not in skill.content
+        assert "references/design-recipes.md" in skill.content
+        assert "Current tool contracts" in skill.content
+
     def test_every_bundled_skill_names_its_shelf(self):
         """The listing groups by category, and a shipped skill that arrived
         uncategorized would sit outside every chip from its first day."""

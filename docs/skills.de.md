@@ -1,5 +1,5 @@
 ---
-source_sha: "17caa0872f76"
+source_sha: "bb6d7579d9cf"
 ---
 
 # Skills { #skills }
@@ -234,7 +234,10 @@ her. Der ausdrückliche Seed-Befehl kann sie zurückbringen. Die Skill-Liste sel
 bleibt schreibgeschützt.
 
 AgenticOS, Architect und neue Standardagenten binden:
-`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
+
+Die optionalen `platform-tables`, `platform-context`, `platform-skills` und API-Leitfäden der Galerie bleiben in der Bibliothek verfügbar, sind aber nicht mehr standardmäßig gebunden. Gewöhnliche MCP-Lese- und Schreibvorgänge erfordern keinen Skill. Aktuelle Tool-Beschreibungen bestimmen Operationen, Parameter und Berechtigungen; Skills ergänzen Entwurfsentscheidungen und Prüfmethoden. Ausführliche visuelle Rezepte werden nur bei Bedarf als Ressourcen geladen.
+
 Dazu kommen App-, Visualisierungs- und Präsentationsverfahren einschließlich
 Storyline und Review. Zunächst laden nur Namen und Beschreibungen, bei Bedarf
 Inhalte und Ressourcen. Skills gewähren weder Tools noch Konten oder Compiler.

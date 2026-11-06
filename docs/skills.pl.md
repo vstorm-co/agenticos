@@ -1,5 +1,5 @@
 ---
-source_sha: "17caa0872f76"
+source_sha: "bb6d7579d9cf"
 ---
 
 # Skille { #skills }
@@ -221,7 +221,10 @@ aktualizacja nie przywraca wycofanego skilla. Jawna komenda seed może go przywr
 Sama lista skilli nie zapisuje danych.
 
 AgenticOS, Architect i nowi domyślni agenci mają podpięte:
-`platform-agents`, `platform-workflows`, `platform-automation`, `platform-skills`, `platform-context`, `platform-tables`, `durable-work`, `document-production`, `research-and-evidence`.
+`platform-agents`, `platform-workflows`, `platform-automation`, `durable-work`, `document-production`, `research-and-evidence`.
+
+Opcjonalne `platform-tables`, `platform-context`, `platform-skills` i poradniki API z galerii pozostają w bibliotece, ale nie są już podpięte domyślnie. Zwykły odczyt lub edycja przez MCP nie wymaga ładowania skilla. Aktualne opisy narzędzi określają operacje, parametry i uprawnienia; skille dodają zasady projektowania i weryfikacji. Szczegółowe przepisy wizualne są zasobami ładowanymi na żądanie.
+
 Dostają też procedury Apps, wizualizacji i prezentacji, w tym planowanie narracji
 i review. Skille ładują się stopniowo: najpierw nazwy i opisy, następnie potrzebne
 treści i zasoby. Nie nadają narzędzi, kont ani kompilatora. Architect ma też

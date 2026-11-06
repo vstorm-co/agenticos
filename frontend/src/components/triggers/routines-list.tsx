@@ -71,7 +71,7 @@ export function RoutinesList() {
         {error ? (
           <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
         ) : loading ? (
-          <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />
+          <LoadingState variant="skeleton-list" rows={4} />
         ) : items.length === 0 ? (
           <ListCardEmpty
             icon={CalendarClock}
