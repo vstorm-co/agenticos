@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 import {
   Button,
   Checkbox,
-  ListCardControlsRow,
   Select,
   SelectContent,
   SelectItem,
@@ -36,12 +35,8 @@ export function ClaimFilters({
   const t = useTranslations("pages.memory.claims");
   const view = useTranslations("pages.memory.browser");
   return (
-    <ListCardControlsRow>
-      <div
-        className="hidden flex-1 flex-wrap gap-1 sm:flex"
-        role="group"
-        aria-label={view("typeLabel")}
-      >
+    <>
+      <div className="hidden flex-wrap gap-0.5 lg:flex" role="group" aria-label={view("typeLabel")}>
         {KINDS.map((value) => (
           <Button
             key={value}
@@ -54,7 +49,7 @@ export function ClaimFilters({
           </Button>
         ))}
       </div>
-      <div className="min-w-0 flex-1 sm:hidden">
+      <div className="min-w-0 flex-1 sm:max-w-40 lg:hidden">
         <Select
           value={kind}
           onValueChange={(value) => {
@@ -74,7 +69,7 @@ export function ClaimFilters({
           </SelectContent>
         </Select>
       </div>
-      <div className="ml-auto contents">
+      <div className="contents">
         <ListFilters active={Number(scope !== "all") + Number(history)} compact>
           <div className="flex w-full flex-wrap items-center gap-3 pt-2">
             <Select
@@ -105,6 +100,6 @@ export function ClaimFilters({
           </div>
         </ListFilters>
       </div>
-    </ListCardControlsRow>
+    </>
   );
 }

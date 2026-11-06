@@ -23,14 +23,14 @@ export function MemoryRow({
       <button
         type="button"
         onClick={onOpen}
-        className="hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center gap-3 px-4 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset sm:gap-4 sm:px-5"
+        className="group hover:bg-muted/50 focus-visible:ring-ring flex w-full items-center gap-3 rounded-lg px-3 py-4 text-left transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset sm:gap-3 sm:px-3"
       >
-        <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-xl">
+        <span className="text-muted-foreground/70 flex size-8 shrink-0 items-center justify-center self-start pt-1">
           <Icon className="size-4" aria-hidden />
         </span>
         <span className="min-w-0 flex-1 space-y-1.5">
           <span
-            className={`line-clamp-2 max-w-4xl text-sm leading-6 font-medium ${muted ? "text-muted-foreground" : "text-foreground"}`}
+            className={`line-clamp-2 max-w-4xl text-sm leading-6 font-normal ${muted ? "text-muted-foreground" : "text-foreground"}`}
           >
             {title}
           </span>
@@ -38,7 +38,10 @@ export function MemoryRow({
             {children}
           </span>
         </span>
-        <ChevronRight className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        <ChevronRight
+          className="text-muted-foreground/50 size-4 shrink-0 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100"
+          aria-hidden
+        />
       </button>
     </li>
   );

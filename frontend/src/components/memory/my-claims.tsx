@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, CheckCircle2, GitBranch, SlidersHorizontal, UserRound } from "lucide-react";
+import { Brain, CheckCircle2, GitBranch, SlidersHorizontal, UsersRound, Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, ListCard, ListCardEmpty, SearchInput } from "@/components/ui";
@@ -41,25 +41,27 @@ export function MyClaims() {
       contentClassName="p-0"
       headerTour="my-claims"
       controls={
-        <SearchInput
-          value={q}
-          onChange={setQ}
-          maxLength={200}
-          placeholder={view("searchMemories")}
-        />
+        <>
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            maxLength={200}
+            placeholder={view("searchMemories")}
+          />
+          <ClaimFilters
+            kind={kind}
+            scope={scope}
+            history={history}
+            onKindChange={(next) => {
+              setKind(next);
+              setSelected(null);
+            }}
+            onScopeChange={setScope}
+            onHistoryChange={setHistory}
+          />
+        </>
       }
     >
-      <ClaimFilters
-        kind={kind}
-        scope={scope}
-        history={history}
-        onKindChange={(next) => {
-          setKind(next);
-          setSelected(null);
-        }}
-        onScopeChange={setScope}
-        onHistoryChange={setHistory}
-      />
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={4} />
       ) : error || !page ? (
@@ -72,7 +74,7 @@ export function MyClaims() {
           {...(narrowed ? { cta: { label: view("clearFilters"), onClick: reset } } : {})}
         />
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-foreground/5 divide-y px-2">
           {page.items.map((item) => (
             <MemoryRow
               key={item.id}
@@ -87,13 +89,17 @@ export function MyClaims() {
               muted={item.status !== "current" && item.status !== "disputed"}
               onOpen={() => setSelected(item.id)}
             >
-              <Badge variant="secondary" className="text-[11px] font-normal">
+              <Badge variant="secondary" className="rounded-md px-1.5 text-[11px] font-normal">
                 {view(
                   `type.${item.kind === "fact" || item.kind === "preference" || item.kind === "decision" ? item.kind : "other"}`,
                 )}
               </Badge>
               <span className="inline-flex items-center gap-1.5">
-                <UserRound className="size-3" aria-hidden />
+                {item.scope === "profile" ? (
+                  <UsersRound className="size-3" aria-hidden />
+                ) : (
+                  <Bot className="size-3" aria-hidden />
+                )}
                 {item.scope === "profile" ? t("scopeProfile") : (item.agent_name ?? t("anAgent"))}
               </span>
               {item.status !== "current" && (

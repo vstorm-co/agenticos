@@ -13,13 +13,17 @@ export function MyMemory() {
   const org = useOrgStore((state) => state.activeOrgId);
   return (
     <Tabs key={org} defaultValue="memories" className="flex min-h-0 flex-1 flex-col gap-4">
-      <TabsList data-tour="memory-views" aria-label={t("viewLabel")} className="shrink-0">
+      <TabsList
+        data-tour="memory-views"
+        aria-label={t("viewLabel")}
+        className="bg-muted/50 [&>button[data-state=active]]:bg-background w-fit shrink-0 gap-1 rounded-lg p-1 shadow-none sm:gap-1 [&>button]:min-h-8 [&>button]:rounded-md [&>button]:border-0 [&>button]:px-3 [&>button]:py-1.5 [&>button[data-state=active]]:shadow-sm"
+      >
         <TabsTrigger value="memories">
-          <Brain className="mr-2 size-4" aria-hidden />
+          <Brain className="size-4" aria-hidden />
           {t("memories")}
         </TabsTrigger>
         <TabsTrigger value="notes">
-          <Files className="mr-2 size-4" aria-hidden />
+          <Files className="size-4" aria-hidden />
           {t("notes")}
         </TabsTrigger>
       </TabsList>

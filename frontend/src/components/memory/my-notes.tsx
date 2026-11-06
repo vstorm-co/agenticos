@@ -65,7 +65,7 @@ export function MyNotes() {
           {...(q ? { cta: { label: view("clearFilters"), onClick: () => setQ("") } } : {})}
         />
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-foreground/5 divide-y px-2">
           {page.items.map((item) => (
             <MemoryRow
               key={item.id}

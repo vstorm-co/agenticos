@@ -199,6 +199,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Refine the Memory settings tab with a unified search/filter toolbar, lighter memory and note rows, and a responsive detail panel with clearer metadata and actions.
+
 - Google MCP sign-in now opens required OAuth client setup before connecting, and client registration errors explain how to recover.
 
 - Constrain dialog grid columns to their viewport width and keep the project picker searchable on small screens, with wrapped descriptions and an independently scrolling list.
