@@ -37,6 +37,10 @@ Two things are versioned separately from this file and worth knowing about:
 - **A conversation shared with you to read has no message box.** It used to
   offer one, and the message failed with "Conversation not found".
   `GET /conversations/shared-with-me` now says each share's `share_permission`.
+- **Change a person's access to a conversation in place.** Each person in the
+  Share dialog has a View/Edit picker, so turning a reader into an editor no
+  longer means revoking and sharing again. The owner only; a share link stays
+  view-only (`PATCH /conversations/{id}/shares/{share_id}`).
 - **A notification when a conversation is shared with you.** It opens the
   conversation, and follows your preference for "Shared with you or your
   group" (in the inbox, by email or by push), which the "Shared with your

@@ -2325,7 +2325,10 @@
     "leaveShared": "Remove from my chats",
     "leftShared": "Removed from your chats",
     "failedLeaveShared": "Failed to remove the conversation",
-    "conversationViewOnly": "Shared with you as read-only"
+    "conversationViewOnly": "Shared with you as read-only",
+    "accessChanged": "Access changed",
+    "failedToChangeAccess": "Failed to change access",
+    "accessLevelFor": "Access level for {name}"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

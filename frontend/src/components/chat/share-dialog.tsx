@@ -105,7 +105,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const tc = useTranslations("common");
   const t = useTranslations("chat");
   const tSharing = useTranslations("sharing");
-  const { shares, isLoading, shareConversation, fetchShares, revokeShare } =
+  const { shares, isLoading, shareConversation, fetchShares, revokeShare, changePermission } =
     useConversationShares();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -175,6 +175,20 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
     if (shareLink) {
       await copy(shareLink);
       toast.success(t("copyLink"));
+    }
+  };
+
+  const [changingId, setChangingId] = useState<string | null>(null);
+  const handleChange = async (share: ConversationShare, next: Permission) => {
+    if (next === share.permission) return;
+    setChangingId(share.id);
+    try {
+      await changePermission(conversationId, share.id, next);
+      toast.success(t("accessChanged"));
+    } catch (err) {
+      toast.error(getErrorMessage(err, tErrors, t("failedToChangeAccess")));
+    } finally {
+      setChangingId(null);
     }
   };
 
@@ -286,9 +300,27 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 people.map(({ share, person }) => (
                   <li key={share.id} className="flex items-center gap-3 px-3 py-2">
                     <MemberIdentity member={person} className="min-w-0 flex-1" />
-                    <span className="text-muted-foreground shrink-0 text-sm">
-                      {t(share.permission)}
-                    </span>
+                    {/* Changed in place: revoking and sharing again was the only
+                        way to turn a reader into an editor, or back. */}
+                    <Select
+                      value={share.permission}
+                      onValueChange={(v) => void handleChange(share, toPermission(v))}
+                      disabled={changingId === share.id}
+                    >
+                      <SelectTrigger
+                        className="h-8 w-24 shrink-0"
+                        aria-label={t("accessLevelFor", { name: displayName(person) })}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEVELS.map((level) => (
+                          <SelectItem key={level} value={level}>
+                            {t(level)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <IconButton
                       size="icon"
                       onClick={() => handleRevoke(share)}

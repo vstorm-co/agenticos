@@ -1469,7 +1469,10 @@
     "leaveShared": "Usuń z moich czatów",
     "leftShared": "Usunięto z twoich czatów",
     "failedLeaveShared": "Nie udało się usunąć rozmowy",
-    "conversationViewOnly": "Udostępniona Tobie tylko do odczytu"
+    "conversationViewOnly": "Udostępniona Tobie tylko do odczytu",
+    "accessChanged": "Zmieniono dostęp",
+    "failedToChangeAccess": "Nie udało się zmienić dostępu",
+    "accessLevelFor": "Poziom dostępu dla {name}"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

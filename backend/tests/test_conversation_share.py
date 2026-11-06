@@ -11,7 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.services.conversation_share import (
     SHARED_MAX_DRAFT_CHARS,
     SHARED_MAX_DRAFTS,
@@ -492,3 +497,90 @@ async def test_leaving_a_conversation_never_shared_with_you_is_refused(
             await service.leave(uuid.uuid4(), uuid.uuid4())
 
     share_repo.delete.assert_not_awaited()
+
+
+def _share(conversation_id: uuid.UUID, *, token: str | None = None) -> MagicMock:
+    share = MagicMock()
+    share.id = uuid.uuid4()
+    share.conversation_id = conversation_id
+    share.share_token = token
+    return share
+
+
+@pytest.mark.anyio
+async def test_the_owner_turns_a_view_share_into_an_edit_one(service: ConversationShareService):
+    owner, conversation_id = uuid.uuid4(), uuid.uuid4()
+    share = _share(conversation_id)
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        share_repo.get_by_id = AsyncMock(return_value=share)
+        share_repo.set_permission = AsyncMock(return_value=share)
+
+        await service.change_permission(conversation_id, share.id, owner, permission="edit")
+
+    assert share_repo.set_permission.await_args.kwargs == {"share": share, "permission": "edit"}
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+async def test_only_the_owner_changes_a_share(service: ConversationShareService):
+    """The person a view share names must not be able to widen it to edit for themselves."""
+    conversation_id = uuid.uuid4()
+    share = _share(conversation_id)
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(uuid.uuid4()))
+        share_repo.get_by_id = AsyncMock(return_value=share)
+        share_repo.set_permission = AsyncMock()
+
+        with pytest.raises(AuthorizationError):
+            await service.change_permission(
+                conversation_id, share.id, uuid.uuid4(), permission="edit"
+            )
+
+    share_repo.set_permission.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("found", ["no share", "another conversation's"])
+async def test_a_share_that_is_not_this_conversations_is_missing(
+    service: ConversationShareService, found: str
+):
+    owner, conversation_id = uuid.uuid4(), uuid.uuid4()
+    share = None if found == "no share" else _share(uuid.uuid4())
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        share_repo.get_by_id = AsyncMock(return_value=share)
+        share_repo.set_permission = AsyncMock()
+
+        with pytest.raises(NotFoundError):
+            await service.change_permission(conversation_id, uuid.uuid4(), owner, permission="edit")
+
+    share_repo.set_permission.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+async def test_a_share_link_stays_view_only(service: ConversationShareService):
+    owner, conversation_id = uuid.uuid4(), uuid.uuid4()
+    share = _share(conversation_id, token="tok")
+    with (
+        patch(f"{MODULE}.conversation_repo") as conv_repo,
+        patch(f"{MODULE}.conversation_share_repo") as share_repo,
+    ):
+        conv_repo.get_conversation_by_id = AsyncMock(return_value=_conversation(owner))
+        share_repo.get_by_id = AsyncMock(return_value=share)
+        share_repo.set_permission = AsyncMock()
+
+        with pytest.raises(BadRequestError):
+            await service.change_permission(conversation_id, share.id, owner, permission="edit")
+
+    share_repo.set_permission.assert_not_awaited()

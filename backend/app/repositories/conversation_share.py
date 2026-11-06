@@ -168,6 +168,16 @@ async def update(
     return db_share
 
 
+async def set_permission(
+    db: AsyncSession, *, share: ConversationShare, permission: str
+) -> ConversationShare:
+    """Change what one share allows."""
+    share.permission = permission
+    await db.flush()
+    await db.refresh(share)
+    return share
+
+
 async def delete(db: AsyncSession, share_id: UUID) -> bool:
     """Delete a share by ID."""
     share = await get_by_id(db, share_id)

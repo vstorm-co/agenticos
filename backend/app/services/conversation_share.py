@@ -14,6 +14,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.conversation_share import ConversationShare
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
 from app.schemas.conversation_share import (
     SharedConversationBody,
@@ -215,6 +216,37 @@ class ConversationShareService:
 
         return await conversation_share_repo.get_shares_for_conversation(
             self.db, conversation_id, organization_id=conv.organization_id
+        )
+
+    async def change_permission(
+        self, conversation_id: UUID, share_id: UUID, user_id: UUID, *, permission: str
+    ) -> ConversationShare:
+        """Change what a share with a person allows. Owner only.
+
+        A person's own share is not theirs to widen, so only the conversation's
+        owner may change it. A link stays view-only: a token reaches only the
+        read route, so an `edit` link would promise what nothing grants.
+
+        Raises:
+            NotFoundError: If the share is not one of this conversation's.
+            AuthorizationError: If the caller does not own the conversation.
+            BadRequestError: If the share is a link.
+        """
+        conv = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
+        share = await conversation_share_repo.get_by_id(self.db, share_id)
+        if conv is None or share is None or share.conversation_id != conversation_id:
+            raise NotFoundError(
+                message="Share not found",
+                details={"conversation_id": conversation_id, "share_id": share_id},
+            )
+        if conv.user_id != user_id:
+            raise AuthorizationError(message="Only the conversation owner can change a share")
+        if share.share_token is not None:
+            raise BadRequestError(
+                message="A share link is view-only", details={"share_id": share_id}
+            )
+        return await conversation_share_repo.set_permission(
+            self.db, share=share, permission=permission
         )
 
     async def revoke_share(self, share_id: UUID, user_id: UUID) -> None:

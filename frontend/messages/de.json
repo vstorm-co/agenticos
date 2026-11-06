@@ -2325,7 +2325,10 @@
     "leaveShared": "Aus meinen Chats entfernen",
     "leftShared": "Aus Ihren Chats entfernt",
     "failedLeaveShared": "Unterhaltung konnte nicht entfernt werden",
-    "conversationViewOnly": "Schreibgeschützt mit Ihnen geteilt"
+    "conversationViewOnly": "Schreibgeschützt mit Ihnen geteilt",
+    "accessChanged": "Zugriff geändert",
+    "failedToChangeAccess": "Zugriff konnte nicht geändert werden",
+    "accessLevelFor": "Zugriffsstufe für {name}"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

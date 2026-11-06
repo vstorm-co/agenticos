@@ -20,6 +20,7 @@ async def _user(db: AsyncSession) -> User:
     return user
 
 
+@pytest.mark.security
 async def test_each_share_reads_back_with_what_it_allows_its_own_reader(db: AsyncSession) -> None:
     owner, reader, other = await _user(db), await _user(db), await _user(db)
     organization = Organization(
@@ -53,3 +54,25 @@ async def test_each_share_reads_back_with_what_it_allows_its_own_reader(db: Asyn
     )
 
     assert permissions == {read_only.id: "view", writable.id: "edit"}
+
+
+@pytest.mark.security
+async def test_a_changed_share_reads_back_with_its_new_permission(db: AsyncSession) -> None:
+    owner, reader = await _user(db), await _user(db)
+    organization = Organization(
+        name="Acme", slug=f"acme-{uuid.uuid4().hex[:8]}", created_by_user_id=owner.id
+    )
+    db.add(organization)
+    await db.flush()
+    conversation = Conversation(user_id=owner.id, organization_id=organization.id, title="Plan")
+    db.add(conversation)
+    await db.flush()
+    share = await conversation_share_repo.create(
+        db, conversation_id=conversation.id, shared_by=owner.id, shared_with=reader.id
+    )
+
+    await conversation_share_repo.set_permission(db, share=share, permission="edit")
+
+    assert await conversation_share_repo.share_permissions(
+        db, user_id=reader.id, conversation_ids=[conversation.id]
+    ) == {conversation.id: "edit"}

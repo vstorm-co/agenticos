@@ -37,6 +37,7 @@ from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
     ConversationShareRead,
+    ConversationShareUpdate,
     SharedConversationRead,
 )
 from app.schemas.conversation_task import ConversationTaskRead
@@ -575,6 +576,24 @@ async def list_shares(
     """List all shares for a conversation (owner only)."""
     shares = await share_service.list_shares(conversation_id, current_user.id)
     return ConversationShareList(items=shares, total=len(shares))
+
+
+@router.patch("/{conversation_id}/shares/{share_id}", response_model=ConversationShareRead)
+async def change_share_permission(
+    conversation_id: UUID,
+    share_id: UUID,
+    data: ConversationShareUpdate,
+    share_service: ConversationShareSvc,
+    current_user: CurrentUser,
+) -> Any:
+    """Change what a share with a person lets them do: `view` or `edit`.
+
+    The conversation's owner only (`403` otherwise). `400` for a share link,
+    which stays view-only; `404` when the share is not this conversation's.
+    """
+    return await share_service.change_permission(
+        conversation_id, share_id, current_user.id, permission=data.permission
+    )
 
 
 @router.delete(

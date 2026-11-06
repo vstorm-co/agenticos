@@ -1,5 +1,5 @@
 ---
-source_sha: "4b054de1e394"
+source_sha: "11009e11d759"
 ---
 
 # Die Konsole { #the-console }
@@ -394,6 +394,11 @@ das Ihren Zugriff beendet und die Unterhaltung für alle anderen unverändert
 lässt. Eine zum Lesen mit Ihnen geteilte Unterhaltung hat kein Eingabefeld.
 Teilt jemand eine Unterhaltung mit Ihnen, erhalten Sie eine Benachrichtigung,
 die sie öffnet.
+
+Unter **Teilen** hat jede Person, mit der die Unterhaltung geteilt ist, neben
+ihrem Namen eine Auswahl **Ansehen** oder **Bearbeiten**, um zu ändern, was sie
+darf, ohne den Zugriff zu entziehen und neu zu teilen. Ein Freigabelink bleibt
+schreibgeschützt.
 
 Drei Dinge im Eingabefeld sind wissenswert.
 

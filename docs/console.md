@@ -348,6 +348,10 @@ conversation as it is for everybody else. One shared with you to read has no
 message box. When somebody shares a conversation with you, you get a
 notification that opens it.
 
+In **Share**, each person the conversation is shared with has a **View** or
+**Edit** picker beside their name, to change what they may do without revoking
+and sharing again. A share link stays view-only.
+
 Three things in the composer worth knowing.
 
 **Your own accounts.** An agent bound to

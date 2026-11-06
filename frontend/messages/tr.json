@@ -9659,7 +9659,10 @@
     "leaveShared": "Sohbetlerimden kaldır",
     "leftShared": "Sohbetlerinizden kaldırıldı",
     "failedLeaveShared": "Konuşma kaldırılamadı",
-    "conversationViewOnly": "Sizinle salt okunur olarak paylaşıldı"
+    "conversationViewOnly": "Sizinle salt okunur olarak paylaşıldı",
+    "accessChanged": "Erişim değiştirildi",
+    "failedToChangeAccess": "Erişim değiştirilemedi",
+    "accessLevelFor": "{name} için erişim düzeyi"
   },
   "admin": {
     "actions": "Eylemler",

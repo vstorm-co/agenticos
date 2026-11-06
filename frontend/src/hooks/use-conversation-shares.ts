@@ -159,6 +159,24 @@ export function useConversationShares() {
     [queryClient],
   );
 
+  const changePermission = useCallback(
+    async (conversationId: string, shareId: string, permission: "view" | "edit") => {
+      const share = await apiClient.patch<ConversationShare>(
+        `/conversations/${conversationId}/shares/${shareId}`,
+        { permission },
+      );
+      queryClient.setQueryData<ConversationShare[]>(
+        qk.conversationShares.list(conversationId),
+        (prev = []) => prev.map((s) => (s.id === shareId ? share : s)),
+      );
+      // Then read back, as a revoke does: a read already in flight answered
+      // with the old level and would otherwise stand.
+      queryClient.invalidateQueries({ queryKey: qk.conversationShares.list(conversationId) });
+      return share;
+    },
+    [queryClient],
+  );
+
   const revokeShare = useCallback(
     async (conversationId: string, shareId: string) => {
       setError(null);
@@ -202,6 +220,7 @@ export function useConversationShares() {
     shareConversation,
     fetchShares,
     revokeShare,
+    changePermission,
     fetchSharedWithMe,
   };
 }

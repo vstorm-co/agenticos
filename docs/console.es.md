@@ -1,5 +1,5 @@
 ---
-source_sha: "4b054de1e394"
+source_sha: "11009e11d759"
 ---
 
 # La consola { #the-console }
@@ -375,6 +375,11 @@ borrarlas corresponde a sus propietarios; su menú solo tiene **Quitar de mis
 chats**, que termina tu acceso y deja la conversación igual para los demás. Una
 compartida contigo para leer no tiene cuadro de mensaje. Cuando alguien comparte
 una conversación contigo, recibes una notificación que la abre.
+
+En **Compartir**, cada persona con quien está compartida la conversación tiene
+junto a su nombre un selector **Ver** o **Editar**, para cambiar lo que puede
+hacer sin revocar y volver a compartir. Un enlace compartido sigue siendo de
+solo lectura.
 
 Tres cosas del compositor que conviene saber.
 

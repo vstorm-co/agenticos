@@ -1,5 +1,5 @@
 ---
-source_sha: "4b054de1e394"
+source_sha: "11009e11d759"
 ---
 
 # Konsola { #the-console }
@@ -363,6 +363,10 @@ właściciela; ich menu ma tylko **Usuń z moich czatów**, co kończy twój dos
 zostawia rozmowę bez zmian dla pozostałych. Rozmowa udostępniona ci do odczytu
 nie ma pola wiadomości. Gdy ktoś udostępni ci rozmowę, dostajesz powiadomienie,
 które ją otwiera.
+
+W oknie **Udostępnij** przy każdej osobie, której udostępniono rozmowę, jest
+wybór **Podgląd** lub **Edytuj**: zmienia, co może zrobić, bez cofania i
+ponownego udostępniania. Link do udostępnienia pozostaje tylko do odczytu.
 
 Trzy rzeczy w kompozytorze, które warto znać.
 
