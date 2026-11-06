@@ -53,14 +53,14 @@ const HR: SkillAgentUsage = {
   can_publish: true,
 };
 
-function renderDialog() {
+function renderDialog(usage: SkillAgentUsage = HR) {
   const onClose = vi.fn();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <ChangeVersionDialog
       skillId="s1"
       skillName="returns-policy"
-      usage={HR}
+      usage={usage}
       forks={[RETURNS]}
       mainLatest={12}
       seesChecks
@@ -120,6 +120,65 @@ describe("ChangeVersionDialog", () => {
       "Published. Production now serves the new version of HR bot.",
     );
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("decides the catch-up check that measured main's newest version on the pinned agent", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: true,
+      agent_version: 5,
+      environments: ["Production"],
+      usage: HR,
+    });
+    const check = (state: "worse" | "unknown") => ({
+      check_id: "c7",
+      version_id: "m12",
+      state,
+      sample: null,
+      at: "2026-11-02T10:00:00Z",
+    });
+    renderDialog({ ...HR, checked_versions: [check("worse")] });
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    expect(await screen.findByText(/v12 was checked on HR bot .*: Worse/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
+    expect(apiClient.put).toHaveBeenLastCalledWith("/skills/s1/agents/a1/binding", {
+      state: "main",
+      check_id: "c7",
+      acknowledge_unknown: false,
+    });
+  });
+
+  it("asks before deciding a catch-up check that could not measure the agent", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "m12", number: 12 }], total: 12 });
+    vi.mocked(apiClient.put).mockResolvedValue({
+      published: true,
+      agent_version: 5,
+      environments: ["Production"],
+      usage: HR,
+    });
+    renderDialog({
+      ...HR,
+      checked_versions: [
+        {
+          check_id: "c8",
+          version_id: "m12",
+          state: "unknown",
+          sample: null,
+          at: "2026-11-02T10:00:00Z",
+        },
+      ],
+    });
+
+    await userEvent.click(screen.getByRole("radio", { name: /Main, latest/ }));
+    expect(await screen.findByRole("button", { name: "Change and publish" })).toBeDisabled();
+    await userEvent.click(screen.getByLabelText("I understand, change it anyway"));
+    await userEvent.click(screen.getByRole("button", { name: "Change and publish" }));
+    expect(apiClient.put).toHaveBeenLastCalledWith("/skills/s1/agents/a1/binding", {
+      state: "main",
+      check_id: "c8",
+      acknowledge_unknown: true,
+    });
   });
 
   it("points to the Builder when the change could only go into the draft", async () => {

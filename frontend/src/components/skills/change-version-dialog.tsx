@@ -141,14 +141,28 @@ export function ChangeVersionDialog({
     read.fork === null
       ? t("versionOption", { number: read.number })
       : t("forkVersion", { name: read.fork, number: read.number });
-  const needsAck = !unchanged && !read.served && !checked;
+  // A check that could not measure the agent answers nothing: it is acknowledged instead.
+  const needsAck = !unchanged && !read.served && (!checked || checked.state === "unknown");
+  // A pinned agent caught up on main's newest version carries the check that measured it,
+  // which decides that check rather than leaving it waiting.
+  const decided =
+    current.state === "pinned" && target.state === "main" && checked
+      ? {
+          check_id: checked.check_id,
+          acknowledge_unknown: checked.state === "unknown" && understood,
+        }
+      : null;
   const leavesMain = !unchanged && current.state === "main" && target.state !== "main";
   const picked = target.state === "pinned" ? known.get(target.version) : undefined;
 
   async function submit() {
     setError(null);
     try {
-      const result = await changeBinding.mutateAsync({ agentId: usage.agent.id, target });
+      const result = await changeBinding.mutateAsync({
+        agentId: usage.agent.id,
+        target,
+        check: decided,
+      });
       if (result.published) {
         const list = new Intl.ListFormat(locale, { type: "conjunction" });
         toast.success(
