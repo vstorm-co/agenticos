@@ -1,5 +1,5 @@
 ---
-source_sha: "a81f22d2c541"
+source_sha: "f07d2421b563"
 ---
 
 # Funkcje { #features }
@@ -88,7 +88,7 @@ capability, która jest wyłączona, cokolwiek mówią jego instrukcje.
 
 | Agent może… | Włącz |
 |---|---|
-| **Odpowiadać z tego, co wie Twoja firma** — Twoje dokumenty, Twoje spisane procedury i to, co dołączono do tej rozmowy | Knowledge search · Skills · Context |
+| **Odpowiadać z tego, co wie Twoja firma** — Twoje dokumenty, Twoje spisane procedury, to, co dołączono do tej rozmowy, i usługi zamontowane jako foldery, np. Dysk albo repozytorium | Knowledge search · Skills · Context · Virtual terminal |
 | **Pamiętać i sprawdzać** — prowadzić notatki przez wiele rozmów, przypomnieć sobie fakt po znaczeniu albo znaleźć to, co naprawdę padło w przeszłej rozmowie, i to odczytać | Memory · Memory (mem0) · Past conversations |
 | **Pójść i się dowiedzieć** — przeszukać sieć, przeczytać jedną stronę porządnie albo poprowadzić prawdziwą przeglądarkę przez witrynę wymagającą klikania | Web search · Read web pages · Web browser |
 | **Wykonać pracę, a nie ją opisać** — uruchomić Pythona na pliku, prowadzić workspace z powłoką, narysować wykres, wygenerować obraz, przeczytać tekst na głos albo zrobić krótki klip | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |

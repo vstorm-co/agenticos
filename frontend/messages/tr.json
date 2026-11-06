@@ -8725,7 +8725,10 @@
       "storedSuffix": "{size} saklanıyor",
       "title": "Dosyalar",
       "beforeStart": "Eklediğiniz ve Agent'ın yazdığı dosyalar konuşma başladığında burada görünür.",
-      "onThisComputer": "Bu bilgisayarda {folder} içinde"
+      "onThisComputer": "Bu bilgisayarda {folder} içinde",
+      "downloadAll": ".zip olarak indir",
+      "downloadFolder": "{name} klasörünü .zip olarak indir",
+      "zipFailed": "Klasör indirilemedi."
     },
     "generateShareLink": "Paylaşım bağlantısı oluştur",
     "helpful": "Yararlı",

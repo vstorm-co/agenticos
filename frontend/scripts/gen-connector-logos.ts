@@ -27,6 +27,7 @@ const OUT = join(here, "..", "src", "lib", "connector-logos.generated.ts");
  * globe.
  */
 const SOURCES: Readonly<Record<string, string>> = {
+  lancedb: "https://raw.githubusercontent.com/strukto-ai/mirage/main/assets/icons/lancedb.png",
   gdrive: "https://ssl.gstatic.com/images/branding/product/2x/drive_2020q4_48dp.png",
   git: "https://git-scm.com/images/logos/downloads/Git-Icon-1788C.png",
   s3: faviconUrl("aws.amazon.com"),

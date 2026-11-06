@@ -1,5 +1,5 @@
 ---
-source_sha: "2f4c1c6cf441"
+source_sha: "554bed281e3b"
 ---
 
 # Glossar { #glossary }
@@ -66,6 +66,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 |---|---|
 | Apps | `artifacts` |
 | Rückfragen | `ask_user` |
+| Entwürfe | `drafts` |
 | Webbrowser | `browser_use` |
 | Infos zum Chat-Kanal | `channel_tools` |
 | Diagramme | `charts` |
@@ -83,6 +84,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Bilder auslagern | `media` |
 | Gedächtnis | `memory_files` |
 | Gedächtnis (mem0) | `memory_mem0` |
+| Mirage (virtuelles Terminal) | `mirage` |
 | Planung | `planning` |
 | Weiterarbeiten, während Tools laufen | `background_tools` |
 | Hintergrundthemen | `background_tasks` |

@@ -45,6 +45,9 @@ CODE_TOOL = "run_code"
 PARKING_CAPABILITIES = frozenset({"ask_user", "subagents"})
 """Capabilities whose tools can end the run waiting on a person, so stay out of scripts."""
 
+SHOWN_CAPABILITIES = frozenset({"drafts", "charts", "visuals"})
+"""Capabilities whose call is what the person sees: run from a script it leaves no part for the console to draw."""
+
 ARGS_PREVIEW_CHARS = 200
 """How much of a nested call's arguments the manifest keeps."""
 
@@ -83,7 +86,7 @@ def code_mode(
     def foldable(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
         if tool.name in approval_required or tool.name in asking:
             return False
-        if tool.capability_id in PARKING_CAPABILITIES:
+        if tool.capability_id in PARKING_CAPABILITIES | SHOWN_CAPABILITIES:
             return False
         return (tool.metadata or {}).get(NEEDS_APPROVAL) is not True
 

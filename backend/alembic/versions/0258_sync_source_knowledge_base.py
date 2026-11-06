@@ -41,8 +41,8 @@ naming a collection that records no base, or a base other than the single one
 its name resolves to: the earlier code would sync it by name instead. That stops
 its scheduled syncs; the earlier code's manual sync does not check `is_active`.
 
-Revision ID: 0257_sync_source_knowledge_base
-Revises: 0256_discord_role_mappings
+Revision ID: 0258_sync_source_knowledge_base
+Revises: 0257_connected_accounts
 Create Date: 2026-11-03
 """
 
@@ -54,8 +54,8 @@ from sqlalchemy.engine import Connection
 
 from alembic import op
 
-revision: str = "0257_sync_source_knowledge_base"
-down_revision: str | None = "0256_discord_role_mappings"
+revision: str = "0258_sync_source_knowledge_base"
+down_revision: str | None = "0257_connected_accounts"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

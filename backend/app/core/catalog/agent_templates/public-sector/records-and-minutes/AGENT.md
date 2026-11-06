@@ -4,6 +4,7 @@ description: Produces minutes that record decisions, actions and dissent, and tr
   complaints through their statutory stages.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - context

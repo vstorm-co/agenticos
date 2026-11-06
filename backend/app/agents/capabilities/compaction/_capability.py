@@ -473,7 +473,7 @@ class MeteredCompaction(WrapperCapability[AgentDepsT]):
     model. An allowlist of "these can spend" is a list somebody has to remember
     to add to, and the entry they forget is a model call nobody is billed for -
     the same shape of omission the wrapper exists to close. The cost of being
-    uniform is reading four integers per request.
+    uniform is snapshotting token counts and billed cost per request.
 
     The delta is measured on `ctx.usage`, which is what the strategy's own agent
     was handed and therefore the only place its tokens appear. It is booked

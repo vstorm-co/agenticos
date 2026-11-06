@@ -1,5 +1,5 @@
 ---
-source_sha: "313b13d3ee6e"
+source_sha: "e026fdc8417b"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -117,6 +117,7 @@ plik, który może otworzyć, a agent bez niego dostaje tekst w swoim prompcie.
 | **Dokument (OpenDocument)** | …opendocument.text | .odt | Akapity przez `odfpy`. Doklejane do promptu jako kontekst. |
 | **E-mail** | application/vnd.ms-outlook | .msg | Nagłówki i treść czytane ze strumieni OLE/MAPI przez `olefile` (BSD); załączniki osadzone są wypisywane po nazwie, nie wypakowywane rekurencyjnie. Doklejane do promptu jako kontekst. |
 | **Tekst** | text/plain, text/markdown, text/csv, text/html, text/xml, application/xml, application/json | .txt, .md, .csv, .html, .xml, .json | Dekodowany wprost jako UTF-8 (XML wg zadeklarowanego BOM/kodowania). Doklejany do promptu jako kontekst. |
+| **Archiwum** | application/zip, application/x-zip-compressed, application/gzip, application/x-gzip | .zip, .tar.gz, .tgz | Czytane w całości przy przesłaniu i odrzucane, jeśli jest niebezpieczne (zob. [Archiwa](#archives)). Jego tekstem jest lista tego, co zawiera. Rozpakowywane do workspace'u; agent bez workspace'u je odrzuca. |
 
 ### Dokąd trafia załącznik, zależy od agenta { #where-an-attachment-goes-depends-on-the-agent }
 
@@ -135,6 +136,54 @@ plik zamiast tekstu:
 | pdf, docx, spreadsheet, document, presentation, email | sparsowany tekst wklejony inline | zapisany do `uploads/`, z wyciągniętym tekstem obok, chyba że runtime umie go przeczytać (`email` dostaje go zawsze — `lit` nie czyta `.msg`); referencja i 20 pierwszych linii |
 | obraz | `BinaryContent` | `BinaryContent` **oraz** zapis; referencja podaje ścieżkę |
 | tiff | strona(-y) PNG jako `BinaryContent`, z odnotowanym limitem stron | zapisany oryginał `.tiff`; pokazane strony PNG, z odnotowanym limitem stron |
+| archiwum (`.zip`, `.tar.gz`) | odrzucone: model dowiaduje się, że agent nie ma workspace'u, do którego mógłby je rozpakować, i nic z niego nie trafia do promptu | rozpakowane do `uploads/<id>-<nazwa>/`; odwołanie podaje folder i początek drzewa |
+
+### Archiwa { #archives }
+
+`.zip` albo `.tar.gz` to sposób, by dać agentowi repozytorium albo dowolny folder
+plików. Platforma rozpakowuje archiwum na serwerze, zanim agent zacznie działać,
+a nie przekazuje go agentowi do rozpakowania. Przechowywany workspace nie ma
+powłoki, w której można uruchomić `unzip`, obraz sandboxa nie musi go mieć, a
+archiwum to znany sposób na zapis poza folderem. Jedno sprawdzenie na serwerze
+da się przetestować; agent uruchamiający `tar -xf` na tym, co dostał — nie.
+
+Archiwum jest czytane w całości przy przesłaniu. Przesłanie jest odrzucane z
+kodem 400 i nic nie zostaje zapisane, gdy:
+
+- ścieżka elementu wychodzi poza archiwum (`../`), zaczyna się od korzenia
+  (`/etc/x`) lub od dysku (`C:/`), zawiera ukośnik wsteczny albo znak sterujący;
+- element jest dowiązaniem symbolicznym, dowiązaniem twardym, plikiem urządzenia
+  albo FIFO;
+- ta sama ścieżka występuje dwa razy albo jednocześnie jako plik i folder;
+- element jest zaszyfrowany albo plik nie jest archiwum, którym nazywa go nazwa;
+- zawiera więcej niż `WORKSPACE_ARCHIVE_MAX_ENTRIES` plików i folderów (5000),
+  rozpakowuje się do więcej niż `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB) albo do
+  więcej niż `WORKSPACE_ARCHIVE_MAX_RATIO` razy własny rozmiar (100) — to bomba
+  dekompresyjna. Rozmiary są mierzone podczas czytania elementów, a nie brane z
+  nagłówków archiwum, które mogą kłamać;
+- jeden plik w nim rozpakowuje się do więcej niż
+  `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB), bo rozpakowywanie trzyma w pamięci
+  jeden plik naraz.
+
+Limit przesyłania, `CHAT_MAX_UPLOAD_SIZE_MB`, dotyczy samego archiwum.
+
+Dla agenta z workspace'em elementy są zapisywane w
+`uploads/<pierwsze 8 znaków hex id pliku>-<nazwa archiwum bez .zip>/` z
+zachowaniem folderów — `repo.zip` zawierające `repo/src/app.py` staje się
+`uploads/3f2a1b9c-repo/repo/src/app.py`. Odwołanie podaje ten folder i zaczyna
+się od pierwszych linii listy elementów. Elementy są zapisywane po jednym, więc w
+pamięci jest naraz tylko jeden. Jeśli workspace w połowie odmówi zapisu albo turn
+zostanie zatrzymany w trakcie rozpakowywania, folder jest usuwany: model dowiaduje
+się, że archiwum nie dało się zapisać, i nigdy nie bierze w połowie rozpakowanego
+drzewa za całe.
+
+Agent bez workspace'u nie ma gdzie go rozpakować. Model dowiaduje się, że nie
+może otworzyć archiwum, i nie dostaje listy elementów, bo lista ścieżek
+pozwoliłaby mu odpowiadać na pytania o kod, którego nie może przeczytać.
+
+Żeby wydobyć pliki z powrotem, panel **Files** w czacie oferuje każdy folder i
+cały workspace jako `.zip` — zob.
+[Sandbox: pobieranie folderu](sandbox.md#downloading-a-folder-as-a-zip).
 
 **Kolejna tura nadal ma plik.** To, co załącznik dodał do promptu - wklejony
 tekst albo odwołanie z pierwszymi liniami - jest zapisywane przy wiadomości i
@@ -272,7 +321,9 @@ gdy powierzchnia składa swój prompt.
 
 Załączniki z czatu czyta **PyMuPDF** i nie da się tego skonfigurować. Załącznik
 nie należy do żadnej kolekcji, więc nie ma zapisanej konfiguracji, z której
-dałoby się odczytać wybór parsera.
+dałoby się odczytać wybór parsera. Znaki NUL są usuwane z wyodrębnionego
+tekstu przed zapisem, aby PostgreSQL mógł przyjąć przesłany plik. Oryginalne
+bajty pliku PDF pozostają bez zmian.
 
 Zmiennej `CHAT_PDF_PARSER`, która kiedyś wybierała między trzema parserami, już
 nie ma. Obie alternatywy były opakowane w `except Exception: return
@@ -356,6 +407,11 @@ czytał skrzynkę. Obowiązuje je lista dozwolonych typów plików i limit rozmi
 uploadu czatu: z załączników podanych przez skrzynkę brane jest pod uwagę tylko
 pierwsze 10 na wiadomość, oraz 25 MiB na wiadomość. Pominięty załącznik jest
 wypisany z powodem, a testowy run niczego nie pobiera.
+
+`.zip` albo `.tar.gz` jest
+pomijany jako `type_not_allowed`: czat sprawdza archiwum element po elemencie,
+zanim je rozpakuje (zob. [Archiwa](#archives)), a archiwum, które dostaje workflow,
+nie sprawdza nic.
 
 Plik HTML w workflow, na przykład zapisaną stronę albo załącznik, czyta
 [`html.parse`](reference/workflow-nodes.md#html-parse), a nie `text.extract`, który

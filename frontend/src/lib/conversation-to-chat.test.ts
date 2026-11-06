@@ -6,6 +6,7 @@ import {
   conversationMessagesToChatMessages,
   type RawMessage,
 } from "./conversation-to-chat";
+import { draftOf } from "./drafts";
 import type { ToolCall } from "@/types";
 
 function raw(overrides: Partial<RawMessage> = {}): RawMessage {
@@ -150,6 +151,28 @@ describe("conversationMessageToChatMessage", () => {
     );
 
     expect(message.toolCalls?.[0]).toMatchObject({ status: "completed", result: "42" });
+  });
+
+  it("keeps a draft's arguments and result, so a reopened chat redraws its card", () => {
+    const message = conversationMessageToChatMessage(
+      raw({
+        tool_calls: [
+          {
+            tool_call_id: "tc-1",
+            tool_name: "write_draft",
+            args: {
+              title: "Reply",
+              kind: "email",
+              versions: [{ fields: [{ name: "Body", text: "Hi Marta," }] }],
+            },
+            result: "Drafted Reply.",
+            status: "completed",
+          },
+        ],
+      }),
+    );
+
+    expect(draftOf(message.toolCalls![0]!)?.versions[0]?.fields[0]?.text).toBe("Hi Marta,");
   });
 
   it("builds a timeline for an assistant turn and none for a person's", () => {

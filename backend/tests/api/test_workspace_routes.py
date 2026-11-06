@@ -352,6 +352,67 @@ class TestReadingOneFileAsBytes:
         workspaces.read_bytes.assert_not_called()
 
 
+class TestDownloadingAFolderAsAZip:
+    """`/workspace/archive`: a folder out as one `.zip`, authorised as `/raw` is (#2479)."""
+
+    async def test_the_zip_is_streamed_as_a_download(self, client: AsyncClient):
+        from app.services.sandbox_workspace import FolderZip
+
+        async def chunks():
+            yield b"PK\x03\x04"
+            yield b"rest"
+
+        workspaces = MagicMock(
+            folder_zip=AsyncMock(return_value=FolderZip(name="repo.zip", chunks=chunks()))
+        )
+        _override(conversation=MagicMock(get_conversation=AsyncMock()), workspaces=workspaces)
+
+        response = await client.get(
+            f"/api/v1/conversations/{CONVERSATION_ID}/workspace/archive",
+            params={"path": "uploads/repo"},
+        )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/zip"
+        assert response.headers["content-disposition"].startswith("attachment")
+        assert "repo.zip" in response.headers["content-disposition"]
+        assert response.content == b"PK\x03\x04rest"
+        assert workspaces.folder_zip.await_args.kwargs["folder"] == "uploads/repo"
+
+    @pytest.mark.security
+    async def test_a_conversation_that_is_not_the_callers_zips_nothing(self, client: AsyncClient):
+        workspaces = MagicMock(folder_zip=AsyncMock())
+        _override(
+            conversation=MagicMock(
+                get_conversation=AsyncMock(
+                    side_effect=NotFoundError(message="Conversation not found")
+                )
+            ),
+            workspaces=workspaces,
+        )
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace/archive")
+
+        assert response.status_code == 404
+        workspaces.folder_zip.assert_not_called()
+
+    async def test_a_folder_past_the_bounds_is_refused_before_anything_is_sent(
+        self, client: AsyncClient
+    ):
+        from app.core.exceptions import ExportTooLargeError
+
+        _override(
+            conversation=MagicMock(get_conversation=AsyncMock()),
+            workspaces=MagicMock(
+                folder_zip=AsyncMock(side_effect=ExportTooLargeError(message="too large"))
+            ),
+        )
+
+        response = await client.get(f"/api/v1/conversations/{CONVERSATION_ID}/workspace/archive")
+
+        assert response.status_code == 413
+
+
 class TestDeletingTheConversation:
     async def test_the_workspace_is_purged_with_it(self, client: AsyncClient):
         """The row cascades; a container on the host does not."""

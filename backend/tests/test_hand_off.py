@@ -112,6 +112,7 @@ async def test_the_twin_asks_its_questions_on_the_calls_card():
     await worker.hand_off(_call(card), "Ask me")
 
     assert twin.deps.ask_questions is card
+    assert twin.deps.shows_drafts is False
 
 
 async def test_the_twin_shares_the_calls_generated_files():

@@ -31,6 +31,7 @@ assistant) or from the organization-scoped ones a published agent's spec names.
 """
 
 import asyncio
+import hashlib
 import logging
 import re
 import secrets
@@ -104,7 +105,7 @@ from app.schemas.mcp_connection import (
 from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
-from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
+from app.services.access import MCP_CONNECTION, accessible_ids, decider_context, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
 from app.services.notifications import NotificationService
@@ -118,6 +119,10 @@ logger = logging.getLogger(__name__)
 
 RECENT_CALLS = 50
 """How many of a server's latest tool calls its audit list shows."""
+
+
+_GOOGLE_APIS = "https://www.googleapis.com"
+"""Where a connected Google account's token is spent, for the grant's `url`."""
 
 
 def _oauth_redirect_uri() -> str:
@@ -827,6 +832,17 @@ async def resolve_auth_headers(connection: McpConnection) -> dict[str, str] | No
     return {"Authorization": f"Bearer {token}"}
 
 
+@dataclass(frozen=True)
+class AccountGrant:
+    """A connected account's credentials for one run, secrets masked in any repr."""
+
+    email: str
+    client_id: str
+    client_secret: SecretStr
+    refresh_token: SecretStr
+    scopes: frozenset[str]
+
+
 class McpConnectionService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -1306,18 +1322,22 @@ class McpConnectionService:
                     message="A connection with this name already exists",
                     details={"name": name},
                 )
-            # Sealed at the row's own key version: one row, one version, so the
-            # pending payload stays readable alongside a token sealed before a
-            # rotation moved the row on.
+            # An abandoned account has no live grant to preserve, so restarting
+            # consent must not depend on a master key that was already retired.
+            # Other rows retain their version alongside their live credential.
+            pending = (
+                seal(payload.model_dump_json(), scope=vault_scope)
+                if existing.purpose == "account" and existing.oauth_payload is None
+                else _seal_for(existing, payload.model_dump_json())
+            )
             await mcp_connection_repo.update(
                 self.db,
                 db_connection=existing,
                 update_data={
                     "is_enabled": True,
                     "oauth_state": state,
-                    "oauth_pending_payload": _seal_for(
-                        existing, payload.model_dump_json()
-                    ).ciphertext,
+                    "oauth_pending_payload": pending.ciphertext,
+                    "secret_key_version": pending.key_version,
                 },
             )
         else:
@@ -1818,22 +1838,268 @@ class McpConnectionService:
         )
         return connection
 
-    async def oauth_callback(self, *, state: str, code: str) -> McpConnection:
+    async def account_start(
+        self, ctx: AuthContext, *, for_organization: bool, browser_nonce: str
+    ) -> str:
+        """Begin connecting a Google account a virtual terminal's mount signs in as (#2191).
+
+        The organization's own OAuth client, from the vault, as for a polled portal
+        - and the account is either the caller's (`for_organization=False`), found
+        by a mount bound to "each person's own account" whenever they talk to the
+        agent, or the organization's, which a mount names by id. A person may
+        connect several; each is labelled with its address once Google says it.
+
+        Raises:
+            NotFoundError: The organization has stored no org-visible
+                `google_oauth_app` secret - a prerequisite the page shows.
+            BadRequestError: More than one is stored.
+            AuthorizationError: The request runs under an impersonation - the
+                administrator's own grant would be stored as the member's (#1490).
+        """
+        refuse_binding_while_impersonating("Connecting an account")
+        creds = await OrganizationSecretService(self.db).oauth_app(
+            ctx, kind=SecretKind.GOOGLE_OAUTH_APP
+        )
+        redirect_uri = _oauth_redirect_uri()
+        state = secrets.token_urlsafe(32)
+        payload = McpOAuthPayload(
+            # Where the token is spent, as for a portal grant: Google's APIs.
+            server_url=_GOOGLE_APIS,
+            started_at=_now_epoch(),
+            authorization_endpoint=google_oauth.AUTHORIZE_ENDPOINT,
+            token_endpoint=google_oauth.TOKEN_ENDPOINT,
+            client_id=creds.client_id,
+            client_secret=creds.client_secret,
+            scope=" ".join(google_oauth.ACCOUNT_SCOPES),
+            resource=_GOOGLE_APIS,
+            redirect_uri=redirect_uri,
+            provider=google_oauth.PROVIDER,
+            browser_nonce_digest=hashlib.sha256(browser_nonce.encode()).hexdigest(),
+            account_initiator_id=ctx.subject_id,
+        )
+        # A placeholder until Google names the account; names are unique per owner.
+        name = f"google-account-{secrets.token_hex(6)}"
+        existing = await mcp_connection_repo.get_pending_account(
+            self.db,
+            provider=google_oauth.PROVIDER,
+            user_id=None if for_organization else ctx.subject_id,
+            organization_id=ctx.organization_id if for_organization else None,
+        )
+        if for_organization:
+            await self._stage_pending_oauth(
+                name=name,
+                url=_GOOGLE_APIS,
+                existing=existing,
+                vault_scope=VaultScope.organization(ctx.organization_id),
+                create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    created_by_user_id=ctx.subject_id,
+                    allowed_tools=None,
+                    catalog_key=google_oauth.PROVIDER,
+                    sealed_token=None,
+                    purpose="account",
+                    **kwargs,
+                ),
+                payload=payload,
+                state=state,
+            )
+        else:
+            await self._stage_pending_oauth(
+                name=name,
+                url=_GOOGLE_APIS,
+                existing=existing,
+                vault_scope=VaultScope.user(ctx.subject_id),
+                create=lambda **kwargs: mcp_connection_repo.create(
+                    self.db,
+                    user_id=ctx.subject_id,
+                    auth_token=None,
+                    allowed_tools=None,
+                    catalog_key=google_oauth.PROVIDER,
+                    purpose="account",
+                    **kwargs,
+                ),
+                payload=payload,
+                state=state,
+            )
+        return google_oauth.authorization_url(
+            client_id=creds.client_id,
+            redirect_uri=redirect_uri,
+            scopes=google_oauth.ACCOUNT_SCOPES,
+            state=state,
+        )
+
+    async def _name_account(self, connection: McpConnection, access_token: str) -> McpConnection:
+        """Label a just-connected account with its address, folding a re-consent into the
+        grant the same address already has rather than holding the account twice."""
+        email = await google_oauth.account_email(access_token)
+        siblings = await mcp_connection_repo.list_accounts(
+            self.db,
+            provider=google_oauth.PROVIDER,
+            user_id=connection.user_id if connection.scope == "user" else None,
+            organization_id=connection.organization_id if connection.scope == "org" else None,
+        )
+        earlier = next(
+            (
+                row
+                for row in siblings
+                if email is not None
+                and row.id != connection.id
+                and (row.account_email or row.label) == email
+            ),
+            None,
+        )
+        if earlier is None:
+            return await mcp_connection_repo.update(
+                self.db,
+                db_connection=connection,
+                update_data={
+                    "account_email": email,
+                    "label": (email or "Google account")[:64],
+                    "name": f"google-account-{connection.id.hex}",
+                },
+            )
+        payload = _decode_payload(connection, connection.oauth_payload)
+        if payload is None:
+            raise OAuthError("The new account grant cannot be read; connect it again.")
+        if payload.refresh_token is None:
+            live = _decode_payload(earlier, earlier.oauth_payload)
+            if live is not None:
+                payload = payload.model_copy(update={"refresh_token": live.refresh_token})
+        sealed = seal(payload.model_dump_json(), scope=connection_scope(earlier))
+        earlier = await mcp_connection_repo.update(
+            self.db,
+            db_connection=earlier,
+            update_data={
+                "oauth_payload": sealed.ciphertext,
+                "secret_key_version": sealed.key_version,
+                "oauth_pending_payload": None,
+                "oauth_state": None,
+                "auth_token": None,
+                "account_email": email,
+                "granted_scopes": connection.granted_scopes,
+                "last_status": "ok",
+                "last_error": None,
+                "last_checked_at": datetime.now(UTC),
+            },
+        )
+        await mcp_connection_repo.delete(self.db, db_connection=connection)
+        return earlier
+
+    async def list_accounts(
+        self, ctx: AuthContext, *, for_organization: bool
+    ) -> list[McpConnection]:
+        """The caller's own connected accounts, or the organization's."""
+        return await mcp_connection_repo.list_accounts(
+            self.db,
+            provider=google_oauth.PROVIDER,
+            user_id=None if for_organization else ctx.subject_id,
+            organization_id=ctx.organization_id if for_organization else None,
+        )
+
+    async def delete_account(
+        self, ctx: AuthContext, account_id: UUID, *, for_organization: bool
+    ) -> None:
+        """Disconnect an account: the grant is deleted here, not revoked at Google.
+
+        Raises:
+            NotFoundError: No such account belongs to the caller, or to the
+                organization - the same answer, so an id is no probe.
+        """
+        await mcp_connection_repo.lock_account_owner(
+            self.db,
+            user_id=None if for_organization else ctx.subject_id,
+            organization_id=ctx.organization_id if for_organization else None,
+        )
+        account = await mcp_connection_repo.get_account(self.db, account_id)
+        owned = account is not None and (
+            (account.scope == "org" and account.organization_id == ctx.organization_id)
+            if for_organization
+            else (account.scope == "user" and account.user_id == ctx.subject_id)
+        )
+        if account is None or not owned:
+            raise NotFoundError(
+                message="Connected account not found", details={"account_id": account_id}
+            )
+        await mcp_connection_repo.delete(self.db, db_connection=account)
+
+    async def account_grant(self, account: McpConnection) -> AccountGrant | None:
+        """What a mount signs in to the account with, or `None` for one that cannot.
+
+        The refresh token and the client it was issued to, handed to the library
+        that refreshes the access token itself through the run. `None` for a grant
+        that will not unseal or has no refresh token - the person connects again.
+        """
+        if account.authorization_expired:
+            return None
+        payload = _decode_payload(account, account.oauth_payload)
+        if payload is None or payload.refresh_token is None or payload.client_secret is None:
+            return None
+        return AccountGrant(
+            email=account.account_email or account.label or account.name,
+            client_id=payload.client_id,
+            client_secret=payload.client_secret,
+            refresh_token=payload.refresh_token,
+            scopes=frozenset(account.granted_scopes or ()),
+        )
+
+    async def oauth_callback(
+        self,
+        *,
+        state: str,
+        code: str,
+        browser_nonce: str | None = None,
+        acting_user_id: UUID | None = None,
+    ) -> McpConnection:
         """Complete the flow: exchange the code for tokens and store them.
 
         Authenticated by *state* (an unguessable CSRF token we issued), so this
-        needs no user session - the provider redirect lands here without our
+        needs no user session for ordinary MCP/portal connections. A connected
+        account additionally requires its starting browser nonce and signed-in user.
+        The provider redirect lands here without our
         cookies. The pending flow is promoted to the live payload only now, so
         a flow that is never completed leaves the previous tokens in place.
         """
         connection = await mcp_connection_repo.get_by_oauth_state(self.db, state)
         if connection is None or not connection.oauth_pending_payload:
             raise NotFoundError(message="OAuth session not found or already completed")
+        if connection.purpose == "account":
+            await mcp_connection_repo.lock_account_owner(
+                self.db,
+                user_id=connection.user_id if connection.scope == "user" else None,
+                organization_id=connection.organization_id if connection.scope == "org" else None,
+            )
+            connection = await mcp_connection_repo.get_by_oauth_state(self.db, state)
+            if connection is None or not connection.oauth_pending_payload:
+                raise NotFoundError(message="OAuth session not found or already completed")
         payload = _decode_payload(connection, connection.oauth_pending_payload)
         if payload is None:
             raise OAuthError("This authorization session is no longer valid - start again.")
         if _now_epoch() - payload.started_at > mcp_oauth.FLOW_TTL_SECS:
             raise OAuthError("This authorization session has expired - start again.")
+        if connection.purpose == "account":
+            if (
+                browser_nonce is None
+                or payload.browser_nonce_digest is None
+                or not secrets.compare_digest(
+                    payload.browser_nonce_digest, hashlib.sha256(browser_nonce.encode()).hexdigest()
+                )
+                or acting_user_id is None
+                or acting_user_id != payload.account_initiator_id
+            ):
+                raise OAuthError(
+                    "Complete account consent in the browser and account that started it."
+                )
+            if connection.scope == "org":
+                authority = await decider_context(
+                    self.db,
+                    organization_id=connection_scope(connection).subject_id,
+                    user_id=acting_user_id,
+                )
+                if authority is None or not authority.has(Perm.MCP_MANAGE):
+                    raise OAuthError(
+                        "Your organization access changed; start account consent again."
+                    )
         if payload.provider == github_oauth.PROVIDER:
             payload, granted_scopes = await _complete_github_flow(payload, code)
         elif payload.provider in {google_oauth.PROVIDER, microsoft_oauth.PROVIDER}:
@@ -1909,6 +2175,8 @@ class McpConnectionService:
         )
         if connection.purpose == "portal":
             return connection
+        if connection.purpose == "account":
+            return await self._name_account(connection, access_token or "")
         # Listed now, with the consent just granted, rather than on somebody's
         # first click of Check: a server connected from the Builder or a chat
         # has its tools to choose from by the time the person is back there.
@@ -1934,6 +2202,7 @@ class McpConnectionService:
         # agent's server at a host of their choosing.
         if (
             db_connection is None
+            or db_connection.purpose != "mcp"
             or db_connection.scope != "user"
             or db_connection.user_id != user_id
         ):

@@ -176,6 +176,11 @@ def _turn_failed(exc: Exception) -> str:
 _ANSWER_NOT_SAVED = "the answer could not be saved."
 """What the away notice says when the run finished and its answer's write failed."""
 
+_UNSAVED_REPLY_NOTICE = (
+    "The assistant's reply could not be saved. "
+    "Copy any text you need before leaving this conversation."
+)
+
 
 class _Outcome(NamedTuple):
     """How a turn ended, for telling somebody who was not there to see it."""
@@ -845,11 +850,11 @@ class AgentSession:
                     | set(turn.questions),
                     mcp_origins=turn.mcp_origins,
                 )
-                # Written, so the `finally` below has nothing left to save. It
-                # cannot read `turn` to work that out - the whole point of it is
-                # the paths where `turn` was never assigned.
+                # The save was attempted, so `finally` must not retry an uncertain
+                # write. A failure is reported below, before the turn completes.
                 answered = True
-                await self._remember_context(turn)
+                if assistant_msg_id is not None:
+                    await self._remember_context(turn)
                 if turn.run_id is not None and not turn.parked and not turn.questions:
                     # Only an answer that is there to come back to. A write that
                     # failed returns no id, and "answered while you were away"
@@ -896,6 +901,13 @@ class AgentSession:
                             for parked in turn.parked
                         ],
                     },
+                )
+
+            if self.current_conversation_id and assistant_msg_id is None:
+                # Keep completion (and its usage) after the notice: the client
+                # still needs to finish the streamed reply and any approval card.
+                await self._emit(
+                    "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
                 )
 
             await self._emit(
@@ -1022,7 +1034,7 @@ class AgentSession:
         run = opened[0]
         if self.current_conversation_id is None:
             return
-        await persist_assistant_turn(
+        assistant_msg_id = await persist_assistant_turn(
             self.current_conversation_id,
             output,
             run.model_label,
@@ -1035,6 +1047,10 @@ class AgentSession:
             run_id=run.run_id,
             mcp_origins=run.mcp_origins,
         )
+        if assistant_msg_id is None:
+            await self._emit(
+                "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
+            )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
         """Put one question to the client and return the answer as a string.

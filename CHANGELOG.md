@@ -21,12 +21,66 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Security
 
-- **Breaking:** A sync source now records the knowledge base it syncs into (`sync_sources.knowledge_base_id`, migration `0257_sync_source_knowledge_base`) instead of resolving one again from its collection name, which is not unique (#2551). A source added to an organization base newer than a member's personal base of the same name now stays on that base, with its runs and synced documents; a source can be added to any base of a shared name from that base's Sync tab, where it was refused with 400, but not to a member's personal base of another organization, and a `PATCH` resending a source's own collection name no longer moves it. `rag-source-add` records the organization base it checked rather than syncing into whichever base the name resolves to, and takes `--knowledge-base <id>` when several of the organization's bases hold the name. Deleting a base, or dropping it with `DELETE /rag/collections/{name}` or `rag-drop`, detaches and deactivates exactly the sources that record it, whoever else holds the name - a cleared default base included, which keeps its row but no longer its sources, so they cannot sync the dropped content back - and a source with no knowledge base is neither scheduled nor synced. The migration gives every existing source the base its sync wrote into before; a source whose collection no base of its organization or of the deployment holds was writing unfiled chunks, so the migration deactivates it and logs its id, and so it does a source whose name two bases created at the same moment hold equally, which the earlier code resolved to neither one in particular. It also logs, without moving them, sources it leaves on a member's personal base while the organization has an org base of the same name, which is where they synced before. To act on:
+- **Breaking:** A sync source now records the knowledge base it syncs into (`sync_sources.knowledge_base_id`, migration `0258_sync_source_knowledge_base`) instead of resolving one again from its collection name, which is not unique (#2551). A source added to an organization base newer than a member's personal base of the same name now stays on that base, with its runs and synced documents; a source can be added to any base of a shared name from that base's Sync tab, where it was refused with 400, but not to a member's personal base of another organization, and a `PATCH` resending a source's own collection name no longer moves it. `rag-source-add` records the organization base it checked rather than syncing into whichever base the name resolves to, and takes `--knowledge-base <id>` when several of the organization's bases hold the name. Deleting a base, or dropping it with `DELETE /rag/collections/{name}` or `rag-drop`, detaches and deactivates exactly the sources that record it, whoever else holds the name - a cleared default base included, which keeps its row but no longer its sources, so they cannot sync the dropped content back - and a source with no knowledge base is neither scheduled nor synced. The migration gives every existing source the base its sync wrote into before; a source whose collection no base of its organization or of the deployment holds was writing unfiled chunks, so the migration deactivates it and logs its id, and so it does a source whose name two bases created at the same moment hold equally, which the earlier code resolved to neither one in particular. It also logs, without moving them, sources it leaves on a member's personal base while the organization has an org base of the same name, which is where they synced before. To act on:
   - point each source deactivated because no base holds its name at a knowledge base and set `is_active` back to true to sync it again;
   - add each source deactivated because two bases tie for its name again from the Sync tab of the base it belongs to, which records that base, then delete the old one - re-pointing it by name resolves the tie the same undefined way;
   - move a logged source off a personal base when it belongs to the organization's;
   - add `--knowledge-base` to `rag-source-add` scripts whose organization holds the collection name twice.
   - When downgrading: it drops the column and does not reactivate those sources. Before it does, it deactivates and logs, with the reason, every active source that names a collection but records no base, or a base other than the single one its collection name resolves to, since the earlier code would sync either of them by name. That stops their scheduled syncs only: the earlier code's manual sync does not check `is_active`, so do not sync them by hand until they are re-pointed.
+
+## [1.49.0] - 2026-11-05
+
+### Added
+
+- **A virtual terminal over the services an author mounts (#2191).** The new
+  `mirage` capability gives an agent the seven sandbox tools, prefixed
+  `mirage_`, over folders that are a Google Drive, a GitHub repository, Notion,
+  a database, an SSH server or a mailbox, through
+  [Mirage](https://github.com/strukto-ai/mirage) and with no container. Each
+  folder is read only or writable, and a writable one can ask a person to
+  approve each write, including a write inside a shell command. A folder signs
+  in with vault keys, an Entra app, or a Google account. A Google account is
+  the organization's or each person's own, connected on the vault page. Typed
+  hosts must be on the new `MIRAGE_ALLOWED_HOSTS`. The terminal is the optional
+  `mirage` extra (`EXTRAS="--extra mirage"`). See
+  [Virtual terminal](docs/reference/capabilities.md#mirage). Box service accounts use Client Credentials;
+  LanceDB Cloud/Enterprise mounts require a vault key and an allowlisted HTTPS
+  endpoint. Local LanceDB storage and rotating Box grants are refused.
+
+## [1.48.1] - 2026-11-05
+
+### Fixed
+
+- Authenticate the GitHub metadata lookup used to publish the Homebrew cask, so a refusal of anonymous API access does not stop tap publication. SSH host-key checking and deploy-key cleanup remain enforced.
+
+### Security
+
+- **Skills** → **Changes** (`GET /skill-changes` and `GET /skill-changes/{id}`) now lists and opens an agent's proposed change only for a person who may edit the skill it targets, including through a grant. A proposal for a new skill is still shown to anyone holding `skills:edit`. Until now anyone with `skills:edit` at any scope could list and read the full proposed body for every skill in the organization, including private skills of other people, and could discard those proposals. A proposal for a skill the caller cannot edit now answers 404, the same as an id that does not exist. (#2422)
+
+## [1.48.0] - 2026-11-05
+
+### Added
+
+- A new Drafts capability: when the web chat is asked for text to send or paste elsewhere, such as an e-mail, a reply or a post, the agent shows it as a card with one segment per part, a plain-text copy icon on each, versions as tabs and a small type hint. Reopening a conversation or opening it by shared link shows the same card. Details the agent leaves for the person to fill in, written in square brackets such as `[Your Name]`, show in red so a draft is not sent unfilled. A markdown part has a Preview button that shows it rendered, with images not loaded; copy always gives the source. New agents, every template and the agents the Architect creates have it on; existing agents are unchanged until their author switches it on and publishes. (#2737)
+- A `.zip` or `.tar.gz` (`.tgz`) can be attached to a chat. For an agent with a workspace it is unpacked into `uploads/<id>-<name>/` with its folders kept, so a repository goes in as a tree the coding agent can run its tests in; an agent without a workspace says it cannot open it. Each archive is read whole at upload and refused with a 400 before it is stored if a member leads outside it (`../`, an absolute path), is a link or a device file, is encrypted, or the archive passes `WORKSPACE_ARCHIVE_MAX_ENTRIES` (5000), `WORKSPACE_ARCHIVE_MAX_BYTES` (200 MiB unpacked) or `WORKSPACE_ARCHIVE_MAX_RATIO` (100x its compressed size), or one file in it passes `WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES` (50 MiB). Archives sent through Slack, Telegram, Mattermost or Teams take the same path, and a refused one is named in the bot's reply. A workflow started by an email still skips archive attachments. (#2479)
+- **Download as .zip** in a chat's **Files** panel, for one folder or the whole workspace, from the new `GET /api/v1/conversations/{id}/workspace/archive?path=`. It is authorised as `/workspace/raw` is, streamed one file at a time, keeps folders as entries so an empty one comes back out (downloaded on its own, an empty folder is a zip of that folder), leaves out the tooling folders the panel hides (`.git`, `node_modules`, `.venv`, ...), and refuses a folder past the same entry and byte limits with a 413 before anything is sent. A file the host will not serve once the download has started, such as one over its 8 MiB read limit, is left out and named in a `NOT-INCLUDED.txt` in the zip. (#2479)
+- Workflow trigger input fields support **List of text**: validated JSON arrays of strings through the API, one item per line in run and public forms, and typed array bindings for downstream steps.
+
+### Fixed
+
+- With code mode on, charts and drawings were run from scripts and never appeared; they now stay ordinary calls.
+- Web chat now warns when an assistant reply cannot be saved, including partial replies from interrupted runs, while keeping the streamed text visible. (#2732)
+- Keep PDF chat uploads working when extracted text contains NUL characters.
+- Book Stav's billed request cost from response bodies or headers, including
+  streamed Chat Completions and Responses, so models absent from the price
+  snapshot count towards budget caps. USD is used directly; **operators using
+  NOK billing must set `STAV_NOK_PER_USD`** (NOK per dollar) in the backend
+  environment. No rate is guessed or fetched; without conversion and without a
+  catalog price, costs remain visibly partial. (#2729)
+
+### Security
+
+- The sharing routes (`/{type}/{id}/sharing`) now answer a resource the caller cannot view with the same 404, message and `details` as an id that does not exist, for reading the share list and for changing grants or visibility alike. Until now a change on a hidden resource answered 403 and reading answered a different 404 than for a missing id, so a member could tell that a private resource existed. A caller who can view the resource but not edit it still gets 403, and an API key issued for edit without view can still change the sharing of a resource it may edit. (#2619)
 
 ## [1.47.3] - 2026-11-04
 
@@ -19994,7 +20048,10 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.49.0...HEAD
+[1.49.0]: https://github.com/vstorm-co/agenticos/compare/v1.48.1...v1.49.0
+[1.48.1]: https://github.com/vstorm-co/agenticos/compare/v1.48.0...v1.48.1
+[1.48.0]: https://github.com/vstorm-co/agenticos/compare/v1.47.3...v1.48.0
 [1.47.3]: https://github.com/vstorm-co/agenticos/compare/v1.47.2...v1.47.3
 [1.47.2]: https://github.com/vstorm-co/agenticos/compare/v1.47.1...v1.47.2
 [1.47.1]: https://github.com/vstorm-co/agenticos/compare/v1.47.0...v1.47.1
