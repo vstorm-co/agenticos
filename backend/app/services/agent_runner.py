@@ -3885,6 +3885,10 @@ class AgentRunnerService:
                 is_test=is_test,
                 test_spec=test_spec,
             )
+        elif run.skill_uses_recorded:
+            # Recorded up to the park; this segment's uses are unknown until its own
+            # finish writes them. A segment already lost stays lost.
+            run.skill_uses_recorded = None
         # A resumed run serves what its lines say now, which may be newer than what it
         # started on, so it keeps both.
         served = await self._served_skill_versions(ctx, spec, resources["skills"])

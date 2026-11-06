@@ -2334,6 +2334,28 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         assert prepared.run.skill_version_ids == [before, now]
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(("before", "after"), [(True, None), (False, False), (None, None)])
+    async def test_a_resumed_run_s_skill_uses_are_unknown_until_its_segment_is_written(
+        self, before: bool | None, after: bool | None
+    ):
+        """A segment that dies after the resume must not read as recorded with no uses."""
+        ctx = _ctx()
+        resumed = MagicMock(
+            environment_id=None,
+            user_id=ctx.user_id,
+            key_scopes=None,
+            initiated_by_publisher_fallback=False,
+            skill_version_ids=[],
+            skill_uses_recorded=before,
+        )
+
+        prepared, *_ = await self._prepare(
+            _sandbox(StateBackend()), earlier=None, ctx=ctx, resumed=resumed
+        )
+
+        assert prepared.run.skill_uses_recorded is after
+
+    @pytest.mark.anyio
     async def test_a_run_its_own_person_resumes_looks_again(self):
         """Its sandbox may first be used after the park, when the fresh half's
         first-use set-up never ran - and the run then completes, closing the window
