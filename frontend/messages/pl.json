@@ -3182,7 +3182,7 @@
         "skill": "{name} · {kind, select, main {main} other {fork „{line}”}}",
         "partial": "{failed, select, skills {Nie udało się odczytać sesji skilli.} behind {Nie udało się odczytać, co zostało za main.} other {Nie udało się odczytać sesji agentów.}}",
         "catchUp": "Dogoń",
-        "behindName": "{name} · {kind, select, fork {fork „{line}”} other {przypięty w {line}}}",
+        "behindName": "{name} · {kind, select, fork {fork „{line}”} other {przypięty w {line}{specialist, select, yes { przez {via}} other {}}}}",
         "behind": {
           "pinned": "Na v{version} · {count, plural, one {# zmiana za main} few {# zmiany za main} many {# zmian za main} other {# zmiany za main}}",
           "fork": "Od v{version} · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}} · {count, plural, one {# zmiana za main} few {# zmiany za main} many {# zmian za main} other {# zmiany za main}}"

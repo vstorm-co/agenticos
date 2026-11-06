@@ -3184,7 +3184,7 @@
         "skill": "{name} · {kind, select, main {main} other {Fork „{line}“}}",
         "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} behind {Was main zurückgelassen hat, konnte nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}",
         "catchUp": "Nachziehen",
-        "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}}}",
+        "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}{specialist, select, yes { über {via}} other {}}}}",
         "behind": {
           "pinned": "Auf v{version} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}",
           "fork": "Ab v{version} · {agents, plural, =1 {1 Agent} other {# Agents}} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}"
