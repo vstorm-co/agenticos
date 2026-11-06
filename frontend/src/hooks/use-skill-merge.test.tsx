@@ -118,6 +118,5 @@ it("returns a fork's agents to main from the skill page", async () => {
   await act(() => result.current.mutateAsync());
 
   expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/forks/f1/return-to-main", {});
-  // The agents moved, and the Builder reads them.
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents"] });
 });
