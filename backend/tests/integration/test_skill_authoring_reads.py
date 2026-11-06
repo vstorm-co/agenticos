@@ -37,7 +37,11 @@ async def _run(db: AsyncSession, agent: Agent) -> AgentRun:
 
 
 async def _request(
-    db: AsyncSession, ctx: AuthContext, skill: Skill, report: dict[str, Any], **values: Any
+    db: AsyncSession,
+    ctx: AuthContext,
+    skill: Skill,
+    report: dict[str, Any] | None,
+    **values: Any,
 ) -> AuthoringRequest:
     request = AuthoringRequest(
         organization_id=ctx.organization_id,
@@ -122,7 +126,7 @@ class TestASkillsRequests:
         )
         run = await _run(db, await _published(db, owner, name="Desk", spec={"name": "Desk"}))
         await _request(db, owner, skill, _quoted(run), skill_improvement_run_id=session.id)
-        plain = await _request(db, owner, skill, {})
+        plain = await _request(db, owner, skill, None)
 
         listed = await AuthoringService(db).for_skill(owner, skill.id)
 
