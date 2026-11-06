@@ -1415,6 +1415,10 @@ class SkillCheckService:
         for found in await skill_check_repo.open_for_proposal(
             self.db, proposal_id, organization_id=ctx.organization_id
         ):
+            # A finished check is never locked here: applying it holds the check and then
+            # claims the proposal, the order a lock here would invert.
+            if found.status != CheckStatus.RUNNING.value:
+                continue
             check = await skill_check_repo.get(
                 self.db, found.id, organization_id=ctx.organization_id, skill_id=skill_id, lock=True
             )

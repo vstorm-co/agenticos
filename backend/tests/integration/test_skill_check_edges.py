@@ -1747,7 +1747,7 @@ class TestStageCounts:
         assert {stage.counts for stage in stages} == {None}
 
 
-class TestTwoStartsOfOneProposal:
+class TestTwoSessionsOnOneProposal:
     async def test_the_second_start_waits_and_finds_the_first_check(
         self, db: AsyncSession, engine: AsyncEngine, monkeypatch
     ):
@@ -1784,3 +1784,29 @@ class TestTwoStartsOfOneProposal:
                     task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await task
+
+    async def test_discarding_a_proposal_does_not_wait_on_its_decided_check(
+        self, db: AsyncSession, engine: AsyncEngine, monkeypatch
+    ):
+        """Applying a finished check holds the check and then claims the proposal, so a
+        discard of the proposal must not wait on that check: it stops running checks only."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        proposal = await _proposal(db, lab)
+        _, check = await _finished(db, lab, evals, {lab.a.id: Outcome(fixed=1)}, proposal=proposal)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async with factory() as applying, factory() as discarding:
+            await skill_check_repo.get(
+                applying, check.id, organization_id=lab.ctx.organization_id, lock=True
+            )
+            await asyncio.wait_for(
+                SkillProposalService(discarding).discard(
+                    lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+                ),
+                5,
+            )
+            await discarding.commit()
+            await applying.rollback()
