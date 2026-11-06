@@ -179,12 +179,13 @@ class TestTheStepsGraph:
 
     def test_a_loop_before_the_step_comes_whole_and_runs(self):
         entry, loop, item = _node("core.input"), _node("control.foreach"), _node("loop.item")
+        item = item.model_copy(update={"scope_id": loop.id})
         out = _node("core.output")
         graph = derive_scopes(
             WorkflowGraph(
                 entry_node_id=entry.id,
                 nodes=(entry, loop, item, out),
-                edges=(_edge(entry, loop), _edge(loop, item, "body"), _edge(loop, out, "done")),
+                edges=(_edge(entry, loop), _edge(loop, out, "done")),
             )
         )
 
