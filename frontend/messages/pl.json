@@ -4265,6 +4265,14 @@
       "improvement-session": {
         "title": "Przejdź przez tę sesję",
         "body": "Zobacz, co zrobił każdy krok: pytania, dzisiejsze odpowiedzi, wynik i co publikacja zmieni tam, gdzie ludzie używają agenta."
+      },
+      "first-skill-improvement": {
+        "title": "Popraw ten skill",
+        "body": "Zobacz, na kim zmiana zostanie sprawdzona i ile to kosztuje, zanim cokolwiek ruszy. Nic w skillu się nie zmienia, dopóki tego nie zaakceptujesz."
+      },
+      "skill-improvement-session": {
+        "title": "Przejdź przez tę sesję",
+        "body": "Zobacz kroki, wynik każdego agenta i co możesz zrobić ze zmianą."
       }
     },
     "steps": {
@@ -5348,6 +5356,30 @@
       "skill-merge-changes": {
         "title": "Rozstrzygnij scalenie",
         "body": "Każdy fragment mówi, z której strony pochodzi. Konflikt pokazuje obie strony i scalony tekst; przepisz go, jeśli jest zły."
+      },
+      "flow-skill-improvement-start": {
+        "title": "Na kim jest sprawdzany",
+        "body": "Każdy agent linii jest wymieniony, zanim cokolwiek zostanie wydane, ci, których nie da się sprawdzić, z powodem, a cena przychodzi z limitem, który ustawiasz."
+      },
+      "flow-skill-merge-start": {
+        "title": "Scal fork z main",
+        "body": "Pokazuje, ile fragmentów zmieniły obie strony i ile kosztują propozycje ich tekstów. Sprawdzenie jest wyceniane później, na kroku Changes."
+      },
+      "flow-skill-improvement-steps": {
+        "title": "Tych samych pięć kroków",
+        "body": "Zrozumienie, Zmiany, Sprawdzenie, Wynik i Akceptacja, jak w poprawianiu agenta. Sesja zatrzymuje się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku."
+      },
+      "flow-skill-merge-changes": {
+        "title": "Rozstrzygnij scalenie",
+        "body": "Każdy fragment mówi, z której strony pochodzi. Konflikt pokazuje obie strony i scalony tekst; przepisz go, jeśli jest zły."
+      },
+      "flow-skill-improvement-agents": {
+        "title": "Wynik dla każdego agenta",
+        "body": "Każdy agent linii wypada lepiej, bez zmian, w granicach szumu, gorzej albo nie wiadomo, najgorsi na górze, z tym, co naprawił i zepsuł, i linkiem do runu."
+      },
+      "flow-skill-improvement-accept": {
+        "title": "Co możesz z tym zrobić",
+        "body": "Zastosuj, gdy nikt nie wypadł gorzej. Gdy ktoś wypadł: zostaw go na jego wersji, zrób fork dla agentów, którym pomogło, popraw dalej albo odrzuć."
       }
     },
     "chooseLanguage": "Język",
