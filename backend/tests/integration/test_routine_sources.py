@@ -449,6 +449,23 @@ async def test_source_metadata_export_and_erasure_follow_the_exact_owner(db: Asy
     ]
     assert await personal_data_repo.routine_source_export_size(db, ctx.subject_id) > 0
     assert await personal_data_repo.routine_source_export_size(db, uuid4()) == 0
+    from app.schemas.personal_data import RoutineSourceExport
+
+    before = await personal_data_repo.routine_source_export_size(db, ctx.subject_id)
+    consent = {
+        "id": str(uuid4()),
+        "consented_by": str(ctx.subject_id),
+        "version_id": str(uuid4()),
+        "intent_hash": "a" * 64,
+        "instructions_hash": "b" * 64,
+        "capability_id": "web_fetch",
+        "tool_id": "web_fetch",
+    }
+    trigger.action_consents = [consent]
+    await db.flush()
+    exported = RoutineSourceExport.model_validate(trigger)
+    assert exported.action_consents[0].consented_by == ctx.subject_id
+    assert await personal_data_repo.routine_source_export_size(db, ctx.subject_id) > before + 200
     await personal_data_repo.purge_routine_authority(db, ctx.subject_id)
     await db.refresh(trigger)
     await db.refresh(run)

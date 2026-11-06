@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Include private task records, retained history, column schemas and routine action consents in bounded personal-data exports. Serialize shared memory corrections with sharing and durably end superseded routine telephone calls.
+
 - Cancel important-case telephone calls when their notification is read or the case is settled, including calls already starting or active; serialize admission and queue provider cleanup. Reject abandoned Google consent after membership removal, block inaccessible reminders for review, and preserve native drafts on embedded and background streams.
 
 - Bind Google account grants to their OAuth client’s organization and current credential generation; preserve that authority across terminal approval pauses and routine source reviews. Include safe account metadata in personal exports and audit organization account changes. Older unverifiable personal grants need reconnecting after migration 0293.

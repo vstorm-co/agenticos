@@ -450,3 +450,52 @@ async def test_table_quota_does_not_lose_a_routine_finding(
         await db.scalar(select(TaskBoard).where(TaskBoard.organization_id == world.org.id)) is None
     )
     await db.commit()
+
+
+@pytest.mark.parametrize("status", ["ringing", "active"])
+async def test_new_finding_revision_durably_ends_its_previous_telephone_call(
+    db: AsyncSession, world: World, monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    from unittest.mock import AsyncMock
+
+    from app.db.models.outcome import Outcome
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.services.routine_delivery import RoutineFindingService
+    from tests.integration import test_telephony as phone
+
+    monkeypatch.setattr(phone, "seed_member", AsyncMock(return_value=(world.user, world.org)))
+    ctx, _, _, _, endpoint = await phone.setup(db, monkeypatch)
+    service = RoutineFindingService(db)
+    finding = RoutineFinding(
+        key="mail:123", revision="one", title="Review reply", content="Draft reply"
+    )
+    chat_id = await service.publish(
+        run=world.run,
+        user_id=world.user.id,
+        origin_id=world.trigger.id,
+        origin_kind="trigger",
+        item=finding,
+    )
+    case = await db.scalar(select(Outcome).where(Outcome.source_conversation_id == chat_id))
+    assert case is not None
+    receipt = await phone.report(db, ctx, endpoint.id)
+    row = await phone.repo.call(db, receipt.id)
+    assert row is not None
+    row.status, row.outcome_id, row.purpose = status, case.id, "important"
+    await db.flush()
+    assert (
+        await service.publish(
+            run=world.run,
+            user_id=world.user.id,
+            origin_id=world.trigger.id,
+            origin_kind="trigger",
+            item=finding.model_copy(update={"revision": "two"}),
+        )
+        == chat_id
+    )
+    await db.refresh(row)
+    assert row.status == "ending"
+    job = await db.scalar(
+        select(BackgroundJob).where(BackgroundJob.dedupe_key == f"phone-end:{row.id}")
+    )
+    assert job is not None and job.kind == "end-phone" and job.organization_id == world.org.id

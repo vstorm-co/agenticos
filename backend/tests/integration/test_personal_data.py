@@ -1122,3 +1122,50 @@ async def test_coding_changes_are_exported_only_with_accessible_conversations_an
     monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", 40_000)
     with pytest.raises(BadRequestError, match="more conversation text"):
         await service.export(user.id, actor_user_id=user.id)
+
+
+async def test_private_tasks_export_values_history_schemas_and_enforce_the_size_limit(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import personal_data_repo
+    from app.schemas.task import TaskCreate, TaskUpdate
+    from app.services.tasks import TaskService
+    from tests.integration.test_tasks import world
+
+    data = await world(db)
+    tasks = TaskService(db)
+    own = await tasks.create(
+        data.contexts[0], TaskCreate(title="My reminder", description="Private notes")
+    )
+    await tasks.create(data.contexts[1], TaskCreate(title="Other person's reminder"))
+    await tasks.create(
+        data.contexts[0],
+        TaskCreate(title="Team reminder", scope="organization", scope_id=data.org.id),
+    )
+    await tasks.update(
+        data.contexts[0],
+        own.id,
+        TaskUpdate(title="Updated reminder", expected_revision=own.revision),
+    )
+    service = PersonalDataService(db)
+    exported = await service.export(data.users[0].id, actor_user_id=data.users[0].id)
+    assert [record.id for record in exported.private_task_records] == [own.id]
+    assert [board.table_id for board in exported.private_task_boards] == [own.table_id]
+    assert all(row.table_id == own.table_id for row in exported.private_task_history)
+    assert all(row.table_id == own.table_id for row in exported.private_task_schemas)
+    encoded = exported.model_dump_json()
+    assert "Private notes" in encoded and "Updated reminder" in encoded
+    assert "Other person's reminder" not in encoded and "Team reminder" not in encoded
+    before = await personal_data_repo.private_task_export_size(db, data.users[0].id)
+    latest = await tasks.get(data.contexts[0], own.id)
+    await tasks.update(
+        data.contexts[0],
+        own.id,
+        TaskUpdate(title=latest.title, description="x" * 9000, expected_revision=latest.revision),
+    )
+    after = await personal_data_repo.private_task_export_size(db, data.users[0].id)
+    assert after > before + 18000
+    assert await personal_data_repo.private_task_export_size(db, uuid4()) == 0
+    monkeypatch.setattr(settings, "PERSONAL_DATA_EXPORT_MAX_CHARS", before + 1000)
+    with pytest.raises(BadRequestError, match="more conversation text"):
+        await service.export(data.users[0].id, actor_user_id=data.users[0].id)

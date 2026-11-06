@@ -5,8 +5,9 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
+from app.schemas.routine_actions import RoutineConsent
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.telephony import PhoneContactConfig
 
@@ -55,6 +56,7 @@ class RoutineSourceExport(BaseModel):
     id: UUID
     organization_id: UUID
     approved_sources: RoutineSourcePolicy | None
+    action_consents: list[RoutineConsent] = Field(default_factory=list)
 
 
 class ProjectTrackingExport(BaseModel):
@@ -161,6 +163,47 @@ class ConnectedAccountExport(BaseModel):
     updated_at: datetime | None
 
 
+class PrivateTaskBoardExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    organization_id: UUID
+    table_id: UUID
+    column_ids: dict[str, str]
+    status_ids: dict[str, str]
+
+
+class PrivateTaskRecordExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    table_id: UUID
+    schema_version: int
+    values: dict[str, JsonValue]
+    revision: int
+    created_at: datetime
+    updated_at: datetime | None
+
+
+class PrivateTaskHistoryExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    table_id: UUID
+    record_id: UUID
+    revision: int
+    operation: str
+    before: dict[str, JsonValue] | None
+    after: dict[str, JsonValue] | None
+    created_at: datetime
+
+
+class PrivateTaskSchemaExport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    table_id: UUID
+    version: int
+    columns: list[dict[str, JsonValue]]
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -177,6 +220,10 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    private_task_history: list[PrivateTaskHistoryExport] = Field(default_factory=list)
+    private_task_schemas: list[PrivateTaskSchemaExport] = Field(default_factory=list)
+    private_task_boards: list[PrivateTaskBoardExport] = Field(default_factory=list)
+    private_task_records: list[PrivateTaskRecordExport] = Field(default_factory=list)
     connected_accounts: list[ConnectedAccountExport] = Field(default_factory=list)
     coding_task_changes: list[CodingTaskChangeExport] = Field(default_factory=list)
     outcomes: list[OutcomeExport] = Field(default_factory=list)

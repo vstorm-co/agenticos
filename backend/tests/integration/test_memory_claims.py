@@ -731,3 +731,52 @@ async def test_a_share_cannot_recreate_a_personal_claim_erased_after_it_was_read
         db, organization_id=org.id, scopes=[ClaimScope(organization_owner_key(org.id), None)]
     )
     assert remaining == []
+
+
+@pytest.mark.parametrize("scope_kind", ["project", "organization"])
+async def test_sharing_waits_for_a_correction_to_its_shared_source(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, scope_kind: str
+) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.core.exceptions import ConflictError
+    from app.services.memory import _claims
+
+    org, user, _, _ = await _tenant(db)
+    key = (
+        organization_owner_key(org.id)
+        if scope_kind == "organization"
+        else f"project:{uuid.uuid4()}"
+    )
+    original = (await _say(db, org, ClaimScope(key, None), "Old contact")).claim
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+    entered = asyncio.Event()
+    hold = _claims._hold_scope
+    async with sessions() as writer, sessions() as reader:
+        source = await claim_repo.get(reader, organization_id=org.id, claim_id=original.id)
+        changing = await claim_repo.get(writer, organization_id=org.id, claim_id=original.id)
+        assert source is not None and changing is not None
+        await claims.correct(
+            writer, claim=changing, statement="New contact", author_user_id=user.id
+        )
+
+        async def observed_hold(session, *, organization_id, scope_key):
+            if session is reader and scope_key == key:
+                entered.set()
+            await hold(session, organization_id=organization_id, scope_key=scope_key)
+
+        monkeypatch.setattr(_claims, "_hold_scope", observed_hold)
+        task = asyncio.create_task(
+            claims.share(
+                reader, claim=source, to=ClaimScope("group:team", None), author_user_id=user.id
+            )
+        )
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        assert not task.done()
+        await writer.commit()
+        with pytest.raises(ConflictError, match="no longer current"):
+            await task
+        await reader.rollback()

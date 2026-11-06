@@ -48,8 +48,14 @@ from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.routine_health import RoutineHealthObservation
 from app.db.models.session import Session
 from app.db.models.suggestion import Suggestion
+from app.db.models.task_board import TaskBoard
 from app.db.models.telephony import PhoneCall, PhoneContact
 from app.db.models.user_slash_command import UserSlashCommand
+from app.db.models.virtual_table import (
+    VirtualTableRecord,
+    VirtualTableRecordHistory,
+    VirtualTableSchemaVersion,
+)
 from app.db.models.watch import Watch
 from app.repositories import memory_claim as memory_claim_repo
 
@@ -554,7 +560,8 @@ async def routine_sources_of(db: AsyncSession, user_id: UUID) -> list[AgentTrigg
 async def routine_source_export_size(db: AsyncSession, user_id: UUID) -> int:
     size = await db.scalar(
         select(
-            func.coalesce(func.sum(func.pg_column_size(AgentTrigger.approved_sources)), 0)
+            func.coalesce(func.sum(func.length(cast(AgentTrigger.approved_sources, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(AgentTrigger.action_consents, Text))), 0)
             + func.count(AgentTrigger.id) * 1024
         ).where(AgentTrigger.created_by_user_id == user_id)
     )
@@ -731,5 +738,88 @@ async def connected_accounts_of(db: AsyncSession, user_id: UUID) -> list[McpConn
                 McpConnection.user_id == user_id,
                 McpConnection.purpose == "account",
             )
+        )
+    )
+
+
+async def private_task_boards_of(db: AsyncSession, user_id: UUID) -> list[TaskBoard]:
+    return list(
+        await db.scalars(
+            select(TaskBoard)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(TaskBoard.id)
+        )
+    )
+
+
+async def private_task_records_of(db: AsyncSession, user_id: UUID) -> list[VirtualTableRecord]:
+    return list(
+        await db.scalars(
+            select(VirtualTableRecord)
+            .join(TaskBoard, TaskBoard.table_id == VirtualTableRecord.table_id)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(VirtualTableRecord.id)
+        )
+    )
+
+
+async def private_task_export_size(db: AsyncSession, user_id: UUID) -> int:
+    records = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(VirtualTableRecord.values, Text))), 0)
+            + func.count(VirtualTableRecord.id) * 2048
+        )
+        .join(TaskBoard, TaskBoard.table_id == VirtualTableRecord.table_id)
+        .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    boards = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(TaskBoard.column_ids, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(TaskBoard.status_ids, Text))), 0)
+            + func.count(TaskBoard.id) * 1024
+        ).where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    history = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(VirtualTableRecordHistory.before, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(VirtualTableRecordHistory.after, Text))), 0)
+            + func.count(VirtualTableRecordHistory.id) * 2048
+        )
+        .join(TaskBoard, TaskBoard.table_id == VirtualTableRecordHistory.table_id)
+        .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    schemas = await db.scalar(
+        select(
+            func.coalesce(func.sum(func.length(cast(VirtualTableSchemaVersion.columns, Text))), 0)
+            + func.count(VirtualTableSchemaVersion.id) * 1024
+        )
+        .join(TaskBoard, TaskBoard.table_id == VirtualTableSchemaVersion.table_id)
+        .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+    )
+    return int(records or 0) + int(boards or 0) + int(history or 0) + int(schemas or 0)
+
+
+async def private_task_history_of(
+    db: AsyncSession, user_id: UUID
+) -> list[VirtualTableRecordHistory]:
+    return list(
+        await db.scalars(
+            select(VirtualTableRecordHistory)
+            .join(TaskBoard, TaskBoard.table_id == VirtualTableRecordHistory.table_id)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(VirtualTableRecordHistory.id)
+        )
+    )
+
+
+async def private_task_schemas_of(
+    db: AsyncSession, user_id: UUID
+) -> list[VirtualTableSchemaVersion]:
+    return list(
+        await db.scalars(
+            select(VirtualTableSchemaVersion)
+            .join(TaskBoard, TaskBoard.table_id == VirtualTableSchemaVersion.table_id)
+            .where(TaskBoard.scope_kind == "private", TaskBoard.scope_id == user_id)
+            .order_by(VirtualTableSchemaVersion.table_id, VirtualTableSchemaVersion.version)
         )
     )

@@ -81,12 +81,18 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         }
         secondaryActions={
           project && (
-            <ShareResourceButton
-              resourceType="project"
-              resourceId={project.id}
-              name={project.name}
-              canManage={project.can_edit}
-            />
+            <>
+              <ShareResourceButton
+                resourceType="project"
+                resourceId={project.id}
+                name={project.name}
+                canManage={project.can_edit}
+              />
+              {project.can_use &&
+                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
+                  <ProjectTrackingControl project={project} />
+                )}
+            </>
           )
         }
         actions={
@@ -94,10 +100,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <>
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
-                  <>
-                    <TaskBoardButton scope="project" scopeId={project.id} />
-                    <ProjectTrackingControl project={project} />
-                  </>
+                  <TaskBoardButton scope="project" scopeId={project.id} />
                 )}
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (

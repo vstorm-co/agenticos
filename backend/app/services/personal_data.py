@@ -42,6 +42,10 @@ from app.schemas.personal_data import (
     PhoneCallExport,
     PhoneCaseAttemptExport,
     PhoneContactExport,
+    PrivateTaskBoardExport,
+    PrivateTaskHistoryExport,
+    PrivateTaskRecordExport,
+    PrivateTaskSchemaExport,
     ProjectTrackingExport,
     RoutineAnswerExport,
     RoutineDeviceWaitExport,
@@ -207,6 +211,22 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            private_task_history=[
+                PrivateTaskHistoryExport.model_validate(row)
+                for row in await personal_data_repo.private_task_history_of(self.db, user_id)
+            ],
+            private_task_schemas=[
+                PrivateTaskSchemaExport.model_validate(row)
+                for row in await personal_data_repo.private_task_schemas_of(self.db, user_id)
+            ],
+            private_task_boards=[
+                PrivateTaskBoardExport.model_validate(row)
+                for row in await personal_data_repo.private_task_boards_of(self.db, user_id)
+            ],
+            private_task_records=[
+                PrivateTaskRecordExport.model_validate(row)
+                for row in await personal_data_repo.private_task_records_of(self.db, user_id)
+            ],
             connected_accounts=[
                 ConnectedAccountExport.model_validate(row)
                 for row in await personal_data_repo.connected_accounts_of(self.db, user_id)
@@ -375,6 +395,7 @@ class PersonalDataService:
         size += await personal_data_repo.decision_episode_export_size(self.db, user_id)
         size += await personal_data_repo.phone_export_size(self.db, user_id)
         size += await personal_data_repo.outcome_export_size(self.db, user_id)
+        size += await personal_data_repo.private_task_export_size(self.db, user_id)
         ceiling = settings.PERSONAL_DATA_EXPORT_MAX_CHARS
         if size > ceiling:
             raise BadRequestError(

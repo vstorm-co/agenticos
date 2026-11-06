@@ -290,7 +290,13 @@ async def share(
         raise ConflictError(
             message="The claim is already in that scope", details={"claim_id": claim.id}
         )
-    await _hold_person(db, claim.scope_key)
+    # Acquire person locks before scope locks, then scopes in a stable order:
+    # simultaneous cross-scope shares must not deadlock each other or erasure.
+    keys = sorted({claim.scope_key, to.scope_key})
+    for key in keys:
+        await _hold_person(db, key)
+    for key in keys:
+        await _hold_scope(db, organization_id=claim.organization_id, scope_key=key)
     current = await claim_repo.get(db, organization_id=claim.organization_id, claim_id=claim.id)
     if current is None or not mutable(current):
         raise ConflictError(

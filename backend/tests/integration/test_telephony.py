@@ -801,8 +801,9 @@ async def test_signed_completion_reconciles_cost_after_local_teardown_without_re
     assert row.status == "completed" and row.estimated_cost_usd == Decimal("0.1")
 
 
+@pytest.mark.parametrize("authority_change", ["none", "ended", "endpoint", "expired", "revoked"])
 async def test_interactive_outbound_call_queues_without_a_report_conversation(
-    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, authority_change: str
 ) -> None:
     from app.agents.spec import AgentSpec, VoiceSpec
     from app.db.models.credential import ModelProfile
@@ -847,6 +848,91 @@ async def test_interactive_outbound_call_queues_without_a_report_conversation(
         )
     )
     assert len(jobs) == 1 and jobs[0].payload["call_id"] == str(row.id)
+
+    import json
+    from unittest.mock import AsyncMock, MagicMock
+
+    from fastapi import WebSocket
+
+    from app.db.models.conversation import Conversation
+    from app.services.telephony import runtime
+    from app.services.telephony.provider import stream_nonce
+
+    source = Conversation(
+        organization_id=ctx.organization_id, user_id=ctx.user_id, title="Phone source"
+    )
+    db.add(source)
+    await db.flush()
+    row.source_conversation_id = source.id
+    await db.commit()
+    provider = FakePhone()
+    factory = sessions(db)
+    await dial(row.id, provider=provider, sessions=factory)
+    await db.refresh(row)
+    _, _, auth = await PhonePolicyService(db).load_endpoint(endpoint.id)
+    socket = MagicMock(spec=WebSocket)
+    socket.headers = {
+        "x-twilio-signature": twilio_signature(url(f"/media/{row.id}", websocket=True), {}, TOKEN)
+    }
+    socket.accept = AsyncMock()
+    socket.close = AsyncMock()
+    socket.receive_text = AsyncMock(
+        return_value=json.dumps(
+            {
+                "event": "start",
+                "streamSid": "MZ" + "c" * 32,
+                "start": {
+                    "accountSid": ACCOUNT,
+                    "callSid": SID,
+                    "streamSid": "MZ" + "c" * 32,
+                    "tracks": ["inbound"],
+                    "mediaFormat": {"encoding": "audio/x-mulaw", "sampleRate": 8000, "channels": 1},
+                    "customParameters": {"nonce": stream_nonce(auth, row)},
+                },
+            }
+        )
+    )
+    caller_seen = []
+
+    class Session:
+        def __init__(self, stream, caller, *, sessions, reauthorize):
+            self.reauthorize = reauthorize
+            caller_seen.append(caller)
+
+        async def run(self):
+            async with factory() as fresh:
+                admitted = await repo.call(fresh, row.id)
+                assert admitted is not None
+                if authority_change == "ended":
+                    admitted.status = "ending"
+                elif authority_change == "endpoint":
+                    route = await repo.endpoint(
+                        fresh, endpoint.id, organization_id=ctx.organization_id
+                    )
+                    assert route is not None
+                    route.generation = uuid4()
+                elif authority_change == "expired":
+                    admitted.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+                elif authority_change == "revoked":
+                    person = await repo.contact_by_id(
+                        fresh, admitted.contact_id, organization_id=ctx.organization_id
+                    )
+                    assert person is not None
+                    person.allow_calls = False
+                await fresh.flush()
+                current = await self.reauthorize(fresh)
+                assert (current is not None) == (authority_change == "none")
+                await fresh.commit()
+            raise TimeoutError
+
+    monkeypatch.setattr(runtime, "VoiceCallSession", Session)
+    await runtime.media(socket, row.id, provider=provider, sessions=factory)
+    assert len(caller_seen) == 1
+    assert caller_seen[0].conversation_id == source.id and not caller_seen[0].anonymous
+    assert caller_seen[0].phone_agent_version_id == row.agent_version_id
+    assert provider.stops == [SID]
+    await db.refresh(row)
+    assert row.status == "completed" and row.end_reason == "disconnected"
 
 
 async def test_bot_deletion_keeps_live_call_receipts_until_calls_end(

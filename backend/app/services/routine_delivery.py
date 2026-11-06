@@ -14,12 +14,12 @@ from app.db.models.outcome import OutcomeStatus
 from app.db.models.suggestion import SuggestionKind, SuggestionStatus
 from app.repositories import conversation_repo, outcome_repo, suggestion_repo
 from app.repositories import routine_delivery as delivery_repo
-from app.repositories import telephony as phone_repo
 from app.schemas.routine_notifications import RoutineFinding
 from app.services.background_jobs import enqueue
 from app.services.change_feed import announce_conversation
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
+from app.services.telephony.cases import cancel_pending_case_calls
 from app.worker.jobs import DELIVER_ROUTINE_ANSWER, DeliverRoutineAnswer
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ class RoutineFindingService:
             await outcome_repo.skip_unsent_deliveries(
                 self.db, outcome_id=outcome.id, reason="new source revision"
             )
-            await phone_repo.cancel_case_calls(self.db, outcome.id, at=datetime.now(UTC))
+            await cancel_pending_case_calls(self.db, outcome.id, at=datetime.now(UTC))
             await outcome_repo.set_status(
                 self.db, outcome, status=OutcomeStatus.OPEN.value, settled_at=None, via=None
             )
