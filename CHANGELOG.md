@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.52.0] - 2026-11-06
+
 ### Fixed
 
 - Opening chat on a phone no longer focuses the editor automatically. The keyboard stays closed, and the welcome screen reserves matching space for loading placeholders and agent details so the attachment action stays in place while being tapped.
@@ -20520,7 +20522,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.52.0...HEAD
+[1.52.0]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...v1.51.0
 [1.50.2]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...v1.50.2
 [1.50.1]: https://github.com/vstorm-co/agenticos/compare/v1.50.0...v1.50.1
