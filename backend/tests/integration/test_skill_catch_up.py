@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
@@ -294,6 +294,27 @@ class TestReturnToMain:
         assert desk.agent.name == "Desk" and desk.published is False
         assert desk.refused is not None
         assert (returned.hidden, returned.remaining, returned.archived) == (1, 2, False)
+
+    @pytest.mark.security
+    async def test_a_system_agent_stays_with_its_reason_and_the_others_move(self, db):
+        """Changing a system agent needs org:settings; that one refusal stops nobody else."""
+        owner = await _owner(db)
+        skill = await _skill(db, owner)
+        fork = await _fork(db, owner, skill)
+        spec = await _runnable(db, owner, skill, fork_id=str(fork.id))
+        await _serving(db, owner, "Desk", spec)
+        judge = await _serving(db, owner, "Judge", spec)
+        judge.kind = AgentKind.JUDGE.value
+        await db.flush()
+        builder = await _member(db, owner, OrgRoleName.BUILDER)
+
+        returned = await SkillCatchUpService(db).return_to_main(
+            builder, skill.id, fork.id, ReturnToMain()
+        )
+
+        by_name = {row.agent.name: row for row in returned.agents}
+        assert by_name["Desk"].refused is None
+        assert by_name["Judge"].refused is not None and "system agent" in by_name["Judge"].refused
 
     async def test_a_move_an_environment_does_not_follow_leaves_the_fork_read(self, db):
         """Published, but production waits for a promotion: it still serves the fork."""
