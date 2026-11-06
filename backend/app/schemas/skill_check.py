@@ -59,6 +59,17 @@ class SkillCheckStart(BaseSchema):
         return self
 
 
+class SkillCheckRequest(SkillCheckStart):
+    """A check as a caller asks for it: a text names the version it was written against,
+    so a save made meanwhile is refused rather than written over."""
+
+    @model_validator(mode="after")
+    def _text_names_its_base(self) -> Self:
+        if self.candidate is not None and self.base_version_id is None:
+            raise ValueError("Name the version the text was written against")
+        return self
+
+
 class SkillUpdateCheck(BaseSchema):
     """How thoroughly to check main's newest version on one pinned agent."""
 

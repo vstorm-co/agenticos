@@ -1756,6 +1756,9 @@ class AgentRegistryService:
                 details={"slug": slug},
             )
 
+        # As a draft save does: a delete of a skill this agent binds either finishes first
+        # or waits for this agent and then sees it.
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         agent = await agent_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -2434,7 +2437,10 @@ class AgentRegistryService:
         bindings += [
             b for specialist in (config.inline if config else []) for b in specialist.skill_bindings
         ]
-        forks = await skill_version_repo.get_forks(
+        # Held, not only read: an archive or a delete in progress finishes first and is seen
+        # here, and one started now waits for this version to be served and then sees it.
+        await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
+        forks = await skill_version_repo.hold_forks(
             self.db,
             {binding.fork_id for binding in bindings if binding.fork_id is not None},
             organization_id=ctx.organization_id,
@@ -2546,13 +2552,12 @@ class AgentRegistryService:
                     problems.append(f"Skill '{skill.name}' has no version {binding.version}")
             else:
                 assert binding.fork_id is not None, "a binding names a version or a fork"
-                fork = await skill_version_repo.get_fork(
-                    self.db,
-                    binding.fork_id,
-                    organization_id=ctx.organization_id,
-                    skill_id=skill.id,
-                )
-                if fork is None or fork.archived_at is not None:
+                fork = (
+                    await skill_version_repo.hold_forks(
+                        self.db, [binding.fork_id], organization_id=ctx.organization_id
+                    )
+                ).get(binding.fork_id)
+                if fork is None or fork.skill_id != skill.id or fork.archived_at is not None:
                     problems.append(f"Skill fork not found: {binding.fork_id}")
         return problems
 

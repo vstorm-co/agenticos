@@ -109,14 +109,18 @@ class SkillImprovementRun(Base):
         index=True,
     )
     skill_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
-    fork_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    fork_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True, index=True
+    )
     purpose: Mapped[str] = mapped_column(
         String(16),
         nullable=False,
         default=SkillImprovementPurpose.IMPROVE.value,
         server_default=SkillImprovementPurpose.IMPROVE.value,
     )
-    source_fork_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
+    source_fork_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), nullable=True, index=True
+    )
     improver_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
     )
@@ -151,6 +155,7 @@ class SkillImprovementRun(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
+        index=True,
     )
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
     budget_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
@@ -158,6 +163,7 @@ class SkillImprovementRun(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("skill_improvement_iterations.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
+        index=True,
     )
     outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
     applied_version_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -271,11 +277,13 @@ class SkillImprovementIteration(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     batch_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("spec_proposal_batches.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     included_hunk_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=True
@@ -294,6 +302,7 @@ class SkillImprovementIteration(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("skill_checks.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     main_alone_check_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),

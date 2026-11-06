@@ -113,7 +113,6 @@ from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.improvement_data import MIN_HOLDOUT_CASES
-from app.services.improvement_states import CheckResult
 from app.services.notifications import NotificationService
 from app.services.skill_agents import LineAgent, SkillAgentService
 from app.services.skill_versions import SkillVersionService, manifest_of
@@ -742,6 +741,9 @@ class SkillCheckService:
                 },
             )
         if plan.proposal is not None:
+            await skill_proposal_repo.lock(
+                self.db, plan.proposal.id, organization_id=ctx.organization_id
+            )
             for open_check in await skill_check_repo.open_for_proposal(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             ):
@@ -945,7 +947,7 @@ class SkillCheckService:
             # its row shows where the change broke the agent.
             if stage is not None and (
                 check.mode == CheckMode.THOROUGH.value
-                or rules.stage_state(await self._stage_result(ctx, current)) is not AgentState.WORSE
+                or not await self._worse_already(ctx, current)
             ):
                 dataset = await dataset_repo.get(
                     self.db, stage[0], organization_id=ctx.organization_id
@@ -957,24 +959,11 @@ class SkillCheckService:
                     return
         await self._judge(ctx, check, row)
 
-    async def _stage_result(self, ctx: AuthContext, run_id: UUID) -> rules.StageResult:
-        comparison = await self.evals.compare(ctx, run_id)
-        mine, theirs = comparison.candidate_summary, comparison.baseline_summary
-        return rules.StageResult(
-            check=CheckResult(
-                comparable=comparison.baseline is not None and comparison.verdict != "invalid",
-                incomplete=mine.incomplete + (theirs.incomplete if theirs else 0),
-                ungraded=mine.ungraded + (theirs.ungraded if theirs else 0),
-                crashed=mine.crashed + (theirs.crashed if theirs else 0),
-                regressions_confirmed=comparison.regressions_confirmed,
-                fixed_confirmed=comparison.fixed_confirmed,
-                candidate_pass_rate=mine.pass_rate,
-                baseline_pass_rate=None if theirs is None else theirs.pass_rate,
-            ),
-            fixed_unconfirmed=comparison.fixed_unconfirmed,
-            regressions_unconfirmed=comparison.regressions_unconfirmed,
-            compared=comparison.compared,
-        )
+    async def _worse_already(self, ctx: AuthContext, run_id: UUID) -> bool:
+        """Whether a first stage alone makes the agent worse, by the rule it is judged by."""
+        comparison = await self.evals.compare(ctx, run_id, holdout_minimum=False)
+        stage = _stage_comparison(comparison)
+        return rules.agent_state([stage], minimum=MIN_HOLDOUT_CASES) is AgentState.WORSE
 
     async def _judge(self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent) -> None:
         """An agent's result from every stage it ran, their held-out questions pooled, and
@@ -992,6 +981,10 @@ class SkillCheckService:
             for kind, run_id in runs
         ]
         stages = [_stage_comparison(comparison) for _, _, comparison in compared]
+        counted = [
+            await self._stage_counts(ctx, kind, run_id, comparison)
+            for kind, run_id, comparison in compared
+        ]
         result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
         state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
         await skill_check_repo.update_agent(
@@ -1004,14 +997,11 @@ class SkillCheckService:
                 else None,
                 "fixed": result.check.fixed_confirmed + result.fixed_unconfirmed,
                 "broken": result.check.regressions_confirmed + result.regressions_unconfirmed,
-                "held_out": result.compared,
+                "held_out": sum(int(entry["compared"]) for entry in counted),
                 "fixed_confirmed": result.check.fixed_confirmed,
                 "regressions_confirmed": result.check.regressions_confirmed,
                 "noisy": rules.noisy(result),
-                "stages": [
-                    await self._stage_counts(ctx, kind, run_id, comparison)
-                    for kind, run_id, comparison in compared
-                ],
+                "stages": counted,
             },
         )
 
@@ -1425,6 +1415,10 @@ class SkillCheckService:
         for found in await skill_check_repo.open_for_proposal(
             self.db, proposal_id, organization_id=ctx.organization_id
         ):
+            # A finished check is never locked here: applying it holds the check and then
+            # claims the proposal, the order a lock here would invert.
+            if found.status != CheckStatus.RUNNING.value:
+                continue
             check = await skill_check_repo.get(
                 self.db, found.id, organization_id=ctx.organization_id, skill_id=skill_id, lock=True
             )

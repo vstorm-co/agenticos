@@ -9,7 +9,7 @@ import contextlib
 from typing import Any
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.spec import AgentSpec
@@ -18,14 +18,18 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
-from app.repositories import agent_repo, skill_repo
+from app.repositories import agent_repo, promotion_gate_repo, skill_repo
+from app.services.agent_registry import AgentRegistryService
+from app.services.eval_suite import EvalSuiteService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published
+from tests.integration.test_eval_suites import _dataset, _suite_data
 from tests.integration.test_skill_bindings import (
     _runnable,
     _serving,
     _skill,
     _spec,
+    _waiting_for_a_lock,
     _with_specialist,
 )
 
@@ -197,6 +201,26 @@ class TestRefusingTheWholeDelete:
         await db.refresh(agent)
         assert agent.draft_spec == _spec(skill)
 
+    async def test_a_following_environment_held_by_its_guards_refuses_it(self, db):
+        """A publish does not move a follower its guard suites hold, so it waits like one
+        that waits for promotion, and the refusal says so."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _following(db, ctx, "Clerk", _spec(skill))
+        suite = await EvalSuiteService(db).create(
+            ctx, agent.id, _suite_data(await _dataset(db, ctx))
+        )
+        await promotion_gate_repo.replace_guards(
+            db, (await _environment(db, agent)).id, [suite.id], organization_id=ctx.organization_id
+        )
+
+        refused = await _delete(db, ctx, skill)
+
+        assert refused.details["waiting"] == [
+            {"id": agent.id, "name": "Clerk", "environments": ["production"]}
+        ]
+        assert "only a promotion moves" in refused.message
+
     @pytest.mark.parametrize("unreadable", ["draft", "served", "newest"])
     async def test_a_spec_that_no_longer_reads_refuses_it(self, db, unreadable):
         ctx = await _owner(db)
@@ -237,32 +261,6 @@ class TestRefusingTheWholeDelete:
         )
         assert refused.value.details["problems"]
         assert refused.value.message.startswith("'Clerk' does not publish without 'refunds'")
-
-
-async def _waiting_for_a_lock(
-    factory: async_sessionmaker[AsyncSession], task: asyncio.Task[None]
-) -> None:
-    """Return once some session of this database waits for a lock.
-
-    A loaded runner can take seconds to reach the lock, so the bound is generous;
-    a delete that finishes instead of waiting is awaited, so its own error, not a
-    timeout, is what fails the test.
-    """
-    async with factory() as session:
-        for _ in range(600):
-            if task.done():
-                await task
-                raise AssertionError("the delete finished without waiting for a lock")
-            waiting = await session.scalar(
-                text(
-                    "SELECT count(*) FROM pg_stat_activity "
-                    "WHERE wait_event_type = 'Lock' AND datname = current_database()"
-                )
-            )
-            if waiting:
-                return
-            await asyncio.sleep(0.1)
-    raise AssertionError("nothing waited for a lock within 60s")
 
 
 class TestBesideAnotherWriter:
@@ -309,6 +307,80 @@ class TestBesideAnotherWriter:
             assert await reading.get(Skill, skill.id) is None
             after = await reading.get(Agent, agent.id)
             assert after is not None and AgentSpec.model_validate(after.draft_spec).skill_ids == []
+
+    async def test_a_check_decision_holding_the_skill_lets_the_delete_wait_its_turn(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Deciding a check locks the skill and then an agent it pins or moves; the delete
+        takes them in that order too, so it waits rather than deadlocking."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        agent = await _published(db, ctx, name="Clerk", spec=_spec(skill))
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id, remove_from_agents=True)
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as deciding:
+            try:
+                await skill_repo.lock(deciding, skill.id)
+                task = asyncio.create_task(delete())
+                await _waiting_for_a_lock(factory, task)
+
+                await asyncio.wait_for(
+                    agent_repo.get(
+                        deciding, agent.id, organization_id=ctx.organization_id, for_update=True
+                    ),
+                    5,
+                )
+                await deciding.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        async with factory() as reading:
+            assert await reading.get(Skill, skill.id) is None
+
+    async def test_an_agent_created_with_it_meanwhile_refuses_the_delete(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Creating an agent holds the skills it binds, as a draft save does, so the delete
+        waits for it and then sees it."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id)
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as creating:
+            try:
+                await AgentRegistryService(creating).create(
+                    ctx, AgentSpec.model_validate(_spec(skill))
+                )
+                task = asyncio.create_task(delete())
+                await _waiting_for_a_lock(factory, task)
+
+                await creating.commit()
+                with pytest.raises(InUseError):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     async def test_an_agent_that_starts_using_it_meanwhile_refuses_the_delete(
         self, db: AsyncSession, engine: AsyncEngine

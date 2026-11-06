@@ -20,7 +20,7 @@ from app.schemas.skill_check import (
     SkillCheckForked,
     SkillCheckList,
     SkillCheckRead,
-    SkillCheckStart,
+    SkillCheckRequest,
     SkillTestSetStart,
     SkillUpdateCheck,
 )
@@ -32,7 +32,7 @@ router = APIRouter()
     "/{skill_id}/checks/estimate", response_model=SkillCheckEstimate, dependencies=[ASSISTANT]
 )
 async def estimate_check(
-    skill_id: UUID, data: SkillCheckStart, service: SkillCheckSvc, ctx: Auth
+    skill_id: UUID, data: SkillCheckRequest, service: SkillCheckSvc, ctx: Auth
 ) -> Any:
     """Which agents a check would run, on which questions, and what it would cost.
 
@@ -50,7 +50,7 @@ async def estimate_check(
     dependencies=[ASSISTANT],
 )
 async def start_check(
-    skill_id: UUID, data: SkillCheckStart, service: SkillCheckSvc, ctx: Auth
+    skill_id: UUID, data: SkillCheckRequest, service: SkillCheckSvc, ctx: Auth
 ) -> Any:
     """Start checking a change: each agent of the line answers with the stored text and with
     the change, its published version otherwise unchanged. Each agent's share is billed

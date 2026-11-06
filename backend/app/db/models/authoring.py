@@ -260,10 +260,16 @@ class SpecProposalBatch(Base):
         PG_UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=True
     )
     skill_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("skills.id", ondelete="CASCADE"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     fork_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("skill_forks.id", ondelete="CASCADE"), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("skill_forks.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     base_skill_version_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), nullable=True
@@ -272,6 +278,7 @@ class SpecProposalBatch(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     # Supersession compares start times: an older request finishing last must never
     # replace a newer batch.

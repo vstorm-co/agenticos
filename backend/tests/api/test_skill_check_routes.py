@@ -177,6 +177,17 @@ class TestStarting:
 
         assert response.status_code == 422
 
+    @pytest.mark.parametrize("tail", ["/checks", "/checks/estimate"])
+    async def test_a_text_without_its_base_version_is_refused(self, client, service, tail):
+        """Without it a text read on v3 would be checked, and applied, over v4."""
+        text = {"candidate": {"description": "d", "content": "c"}}
+        async with client() as opened:
+            bare = await opened.post(_url(tail), json=text)
+            based = await opened.post(_url(tail), json={**text, "base_version_id": str(BASE.id)})
+
+        assert bare.status_code == 422
+        assert based.status_code in (200, 201)
+
 
 class TestAPinnedAgentsUpdate:
     async def test_its_estimate_names_the_skill_and_the_agent(self, client, service):

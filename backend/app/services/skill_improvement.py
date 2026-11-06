@@ -143,7 +143,7 @@ from app.services.background_jobs import enqueue
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.skill_agents import SkillAgentService
-from app.services.skill_catch_up import SkillCatchUpService
+from app.services.skill_catch_up import MergeSides, SkillCatchUpService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_versions import SkillVersionService
 from app.worker.jobs import ADVANCE_SKILL_IMPROVEMENT, AdvanceSkillImprovement
@@ -498,7 +498,7 @@ class SkillImprovementService:
             BadRequestError: The fork is archived.
             ConcurrentChangeError: There is nothing to merge.
         """
-        estimate, _, _ = await self._merge_estimate(ctx, skill_id, fork_id, purpose)
+        estimate, _, _, _ = await self._merge_estimate(ctx, skill_id, fork_id, purpose)
         return estimate
 
     async def start_merge(
@@ -521,7 +521,9 @@ class SkillImprovementService:
                 conflicts' texts.
             AlreadyExistsError: The line the merge changes has an open session.
         """
-        estimate, source, target = await self._merge_estimate(ctx, skill_id, fork_id, purpose)
+        estimate, source, target, sides = await self._merge_estimate(
+            ctx, skill_id, fork_id, purpose
+        )
         if not estimate.affordable or data.budget_usd < estimate.total_usd:
             raise PaymentRequiredError(
                 message="The spending limit does not cover proposing the conflicts' texts",
@@ -557,7 +559,9 @@ class SkillImprovementService:
         await skill_improvement_repo.create_iteration(
             self.db, organization_id=ctx.organization_id, run_id=run.id, number=1, note=None
         )
-        await self.merges.build_merge(ctx, run=run, skill=source.skill, fork=source.fork)
+        await self.merges.build_merge(
+            ctx, run=run, skill=source.skill, fork=source.fork, sides=sides
+        )
         await self._audit(run, "started", actor_user_id=ctx.subject_id)
         await self._queue(run)
         return await self._read(ctx, run, target)
@@ -573,8 +577,9 @@ class SkillImprovementService:
 
     async def _merge_estimate(
         self, ctx: AuthContext, skill_id: UUID, fork_id: UUID, purpose: Purpose
-    ) -> tuple[SkillMergeEstimate, SessionLine, SessionLine]:
-        """The estimate, the fork merged from, and the line the merge becomes a version of."""
+    ) -> tuple[SkillMergeEstimate, SessionLine, SessionLine, MergeSides]:
+        """The estimate, the fork merged from, the line the merge becomes a version of, and
+        the merge the estimate priced."""
         self._require_runs_view(ctx)
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
         fork = await skill_version_repo.get_fork(
@@ -606,7 +611,7 @@ class SkillImprovementService:
             hidden_agents=hidden,
             affordable=priced is None or priced.affordable,
         )
-        return estimate, source, target
+        return estimate, source, target, sides
 
     async def list_for_skill(
         self,
@@ -923,8 +928,19 @@ class SkillImprovementService:
             return await self._catch_up(ctx, line, run, check_id, data)
         merged_from_id = None
         if run.purpose == Purpose.TO_MAIN.value:
+            merge = await self._merge(run)
+            # The check is on main, so deciding it locks no fork: lock the skill and then the
+            # fork, as every writer of the fork does, before reading whether it moved.
+            await skill_repo.lock(self.db, run.skill_id)
+            await skill_version_repo.get_fork(
+                self.db,
+                merge.fork_id,
+                organization_id=run.organization_id,
+                skill_id=run.skill_id,
+                lock=True,
+            )
             await self._refuse_merge_moved(run, line.skill)
-            merged_from_id = (await self._merge(run)).fork_version_id
+            merged_from_id = merge.fork_version_id
         applied = await self.checks.apply(
             ctx,
             skill_id,
@@ -2391,6 +2407,12 @@ class SkillImprovementService:
                 message="Taking a skill session's steps needs edit access to the skill",
                 details={"permission": Perm.SKILLS_EDIT.value},
             )
+        if lock:
+            # The skill before the session: deleting the skill locks it and then cascades
+            # into its sessions, and every decision locks the skill anyway.
+            locked = await skill_repo.lock(self.db, skill.id)
+            if locked is None:
+                raise NotFoundError(message="Skill not found", details={"skill_id": skill_id})
         run = await self._row(ctx, skill, run_id, lock=lock)
         return await self._line_of(skill, run), run
 

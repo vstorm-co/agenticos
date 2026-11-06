@@ -6,6 +6,7 @@ the fake the improvement session's tests use, and the conflicts' model call is p
 here and answered by settling its request, so each move is the session's own.
 """
 
+import threading
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -32,7 +34,7 @@ from app.db.models.skill import Skill
 from app.db.models.skill_check import AgentState, CheckStatus, SkillCheck
 from app.db.models.skill_improvement import SkillImprovementPurpose, SkillImprovementRun
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import skill_improvement_repo
+from app.repositories import skill_improvement_repo, skill_version_repo
 from app.schemas.authoring import AuthoringEstimate
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import AgentRef, SkillCheckAgentRead
@@ -46,6 +48,7 @@ from app.schemas.skill_improvement import (
     SkillMergeStart,
 )
 from app.schemas.skill_version import SkillForkRead, SkillVersionCreate
+from app.services import skill_catch_up as skill_catch_up_module
 from app.services.authoring import AuthoringService
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_improvement import SkillImprovementService
@@ -195,6 +198,22 @@ async def _finish_request(db: AsyncSession, run: SkillImprovementRun, status: st
     await db.flush()
 
 
+def _unknown(fake: Any, *, name: str, hidden: bool) -> None:
+    """The check's one agent that could not be checked, named or one the reader cannot see."""
+    if hidden:
+        fake.hidden_unknown = 1
+        return
+    fake.agents = [
+        SkillCheckAgentRead(
+            agent=AgentRef(id=uuid.uuid4(), name=name),
+            state=AgentState.UNKNOWN,
+            stages=[],
+            expected_usd=Decimal(0),
+            at_most_usd=Decimal(0),
+        )
+    ]
+
+
 class TestStarting:
     async def test_a_catch_up_runs_on_the_fork_and_a_move_to_main_on_main(
         self, db, call_price, monkeypatch
@@ -226,6 +245,28 @@ class TestStarting:
         assert caught.merge_id is not None and caught.max_iterations == 1
         assert (moved.purpose, moved.fork_id, moved.source_fork_id) == ("to_main", None, fork.id)
         assert call_price["chars"] == []
+
+    async def test_starting_merges_once_and_off_the_event_loop(self, db, call_price, monkeypatch):
+        """A long text takes the merge seconds of CPU, which the API's event loop serves
+        every tenant's requests in between; starting reuses the merge the estimate made."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx)
+        threads: list[int] = []
+        merging = skill_catch_up_module.merge_text
+
+        def merge(base: str, fork_text: str, main: str) -> Any:
+            threads.append(threading.get_ident())
+            return merging(base, fork_text, main)
+
+        monkeypatch.setattr(skill_catch_up_module, "merge_text", merge)
+
+        await SkillImprovementService(db).start_merge(
+            ctx, skill.id, fork.id, CATCH_UP, SkillMergeStart(budget_usd=Decimal("0"))
+        )
+
+        assert len(threads) == 1
+        assert threads[0] != threading.get_ident()
 
     @pytest.mark.security
     async def test_conflicts_are_priced_as_one_call_the_budget_has_to_cover(
@@ -454,8 +495,9 @@ class TestACatchUp:
                 ctx, skill.id, run.id, SkillImprovementApply(confirmed=True)
             )
 
+    @pytest.mark.parametrize("hidden", [False, True])
     async def test_agents_it_could_not_check_are_acknowledged_first(
-        self, db, call_price, monkeypatch
+        self, db, call_price, monkeypatch, hidden
     ):
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
@@ -463,15 +505,7 @@ class TestACatchUp:
         await _check_now(db, ctx, run)
         await db.refresh(run)
         await _settle(db, run, "passed", "passed")
-        fake.agents = [
-            SkillCheckAgentRead(
-                agent=AgentRef(id=uuid.uuid4(), name="Desk"),
-                state=AgentState.UNKNOWN,
-                stages=[],
-                expected_usd=Decimal(0),
-                at_most_usd=Decimal(0),
-            )
-        ]
+        _unknown(fake, name="Desk", hidden=hidden)
         service = SkillImprovementService(db)
 
         with pytest.raises(BadRequestError):
@@ -510,8 +544,9 @@ class TestACatchUp:
         assert [item.agent.name for item in returned.returned.agents] == ["Desk"]
         assert len([call for call in fake.calls if call[0] == "discard"]) == 2
 
+    @pytest.mark.parametrize("hidden", [False, True])
     async def test_agents_main_alone_could_not_check_are_acknowledged_before_returning(
-        self, db, call_price, monkeypatch
+        self, db, call_price, monkeypatch, hidden
     ):
         fake = _checked(db, monkeypatch)
         ctx = await _owner(db)
@@ -523,15 +558,7 @@ class TestACatchUp:
         await _check_now(db, ctx, run)
         await db.refresh(run)
         await _settle(db, run, "passed", "needs_ack")
-        fake.agents = [
-            SkillCheckAgentRead(
-                agent=AgentRef(id=uuid.uuid4(), name="Shop"),
-                state=AgentState.UNKNOWN,
-                stages=[],
-                expected_usd=Decimal(0),
-                at_most_usd=Decimal(0),
-            )
-        ]
+        _unknown(fake, name="Shop", hidden=hidden)
         service = SkillImprovementService(db)
 
         with pytest.raises(BadRequestError) as refused:
@@ -601,6 +628,35 @@ class TestAMoveToMain:
         assert read.outcomes == ["apply", "discard"]
         assert fake.merged_from == [merge.fork_version_id]
         assert applied.session.outcome == "applied"
+
+    async def test_a_fork_edit_committed_meanwhile_refuses_taking_the_merge_in(
+        self, db, call_price, monkeypatch
+    ):
+        """The fork is read again under its lock: an edit another transaction committed
+        after this one first read the fork is seen, and main does not take in an old merge."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx, TO_MAIN)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, "passed")
+        merge = await SkillCatchUpService(db).merge_for_run(
+            run.id, organization_id=ctx.organization_id
+        )
+        assert merge is not None
+        read_before = await skill_version_repo.get_fork(
+            db, merge.fork_id, organization_id=ctx.organization_id, skill_id=skill.id
+        )
+        await db.execute(
+            text("UPDATE skill_forks SET latest_version_id = :other WHERE id = :fork"),
+            {"other": merge.main_version_id, "fork": merge.fork_id},
+        )
+
+        with pytest.raises(ConcurrentChangeError, match="The fork changed"):
+            await SkillImprovementService(db).apply(
+                ctx, skill.id, run.id, SkillImprovementApply(confirmed=True)
+            )
+        assert read_before is not None
 
     async def test_one_that_helped_nobody_stops(self, db, call_price, monkeypatch):
         _checked(db, monkeypatch)

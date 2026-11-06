@@ -167,6 +167,7 @@ class SkillProposal(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("authoring_requests.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
 
     def __repr__(self) -> str:

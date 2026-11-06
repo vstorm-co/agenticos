@@ -5,12 +5,14 @@ skill page lists and what moving an agent publishes - each through the services,
 on rows the database holds.
 """
 
+import asyncio
+import contextlib
 import uuid
 from typing import Any
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.capabilities.skills import served_skills
 from app.agents.spec import AgentSpec, SkillBindingSpec
@@ -110,6 +112,32 @@ def _with_specialist(spec: dict[str, Any], skill: Skill, **binding: Any) -> dict
         "skill_bindings": bindings,
     }
     return {**spec, "capabilities": [{"id": "subagents", "config": {"inline": [specialist]}}]}
+
+
+async def _waiting_for_a_lock(
+    factory: async_sessionmaker[AsyncSession], task: asyncio.Task[None]
+) -> None:
+    """Return once some session of this database waits for a lock.
+
+    A loaded runner can take seconds to reach the lock, so the bound is generous;
+    a delete that finishes instead of waiting is awaited, so its own error, not a
+    timeout, is what fails the test.
+    """
+    async with factory() as session:
+        for _ in range(600):
+            if task.done():
+                await task
+                raise AssertionError("the delete finished without waiting for a lock")
+            waiting = await session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE wait_event_type = 'Lock' AND datname = current_database()"
+                )
+            )
+            if waiting:
+                return
+            await asyncio.sleep(0.1)
+    raise AssertionError("nothing waited for a lock within 60s")
 
 
 class TestWhatAnAgentReads:
@@ -483,6 +511,7 @@ class TestTheSkillsAgents:
         assert [(row.agent.name, row.via_specialist) for row in listed.items] == [
             ("Delegates", "returns")
         ]
+        assert listed.hidden == 0
         assert sum(by_version.values()) == 1
         assert sorted(agent.name for agent in cards[skill.id]) == [
             "Delegates",
@@ -768,6 +797,60 @@ class TestArchivingAFork:
                 EnvironmentUpdate(tracks_latest=False, version_id=on_fork),
             )
 
+    async def test_an_environment_moved_onto_the_fork_meanwhile_refuses_the_archive(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """The archive waits for an environment being moved onto a version that reads the
+        fork, and then sees it, rather than archiving a fork that is about to be served."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        agent = await _serving(
+            db, ctx, "Clerk", await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        )
+        on_fork = agent.current_version_id
+        production = await db.scalar(
+            select(AgentEnvironment).where(AgentEnvironment.agent_id == agent.id)
+        )
+        assert production is not None and on_fork is not None
+        production.tracks_latest = False
+        await db.flush()
+        await SkillAgentService(db).change_binding(
+            ctx, skill.id, agent.id, SkillBindingChange(state="main")
+        )
+        await AgentEnvironmentService(db).update(
+            ctx, agent.id, production.id, EnvironmentUpdate(tracks_latest=True)
+        )
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def archive() -> None:
+            async with factory() as session:
+                await SkillVersionService(session).archive_fork(ctx, skill.id, fork.id)
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as moving:
+            try:
+                await AgentEnvironmentService(moving).update(
+                    ctx,
+                    agent.id,
+                    production.id,
+                    EnvironmentUpdate(tracks_latest=False, version_id=on_fork),
+                )
+                task = asyncio.create_task(archive())
+                await _waiting_for_a_lock(factory, task)
+
+                await moving.commit()
+                with pytest.raises(InUseError):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
     async def test_a_fork_an_agent_reads_is_not_archived(self, db):
         ctx = await _owner(db)
         skill = await _skill(db, ctx)
@@ -778,6 +861,23 @@ class TestArchivingAFork:
             await SkillVersionService(db).archive_fork(ctx, skill.id, fork.id)
 
         assert refused.value.details["agents"][0]["name"] == "Draft"
+
+    async def test_a_hidden_agent_refuses_the_archive_without_being_named(self, db):
+        owner = await _owner(db)
+        member = await _member(db, owner, OrgRoleName.MEMBER)
+        skill = await _skill(db, member)
+        fork = await _fork(db, member, skill)
+        secret = await _published(db, owner, name="Secret", spec=_spec(skill, fork_id=str(fork.id)))
+        secret.visibility = "private"
+        await db.flush()
+
+        with pytest.raises(InUseError) as refused:
+            await SkillVersionService(db).archive_fork(member, skill.id, fork.id)
+
+        assert refused.value.details["hidden"] == 1
+        assert refused.value.details["agents"] == []
+        assert "Secret" not in refused.value.message
+        assert "Secret" not in str(refused.value.details)
 
     async def test_a_fork_only_a_specialist_reads_is_read_counted_and_listed(self, db):
         """The agent reads main itself and the fork through its specialist: both count."""

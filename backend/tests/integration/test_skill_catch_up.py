@@ -4,11 +4,13 @@ Against a real database, because "behind" is read off what each agent's
 environments serve and off the version rows themselves.
 """
 
+import asyncio
+import contextlib
 from typing import Any
 
 import pytest
 from sqlalchemy import update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import NotFoundError
@@ -17,6 +19,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill
+from app.repositories import agent_repo, skill_repo
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_version import ReturnToMain, SkillForkCreate, SkillVersionRestore
 from app.services.skill_catch_up import SkillCatchUpService
@@ -29,6 +32,7 @@ from tests.integration.test_skill_bindings import (
     _serving,
     _skill,
     _spec,
+    _waiting_for_a_lock,
     _with_specialist,
 )
 
@@ -334,3 +338,54 @@ class TestReturnToMain:
             await SkillCatchUpService(db).return_to_main(
                 ours, skill.id, their_fork.id, ReturnToMain()
             )
+
+
+class TestReturningBesideADecision:
+    async def test_a_decision_holding_the_skill_lets_the_return_wait_its_turn(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Deciding a fork's check locks the skill and then an agent; returning the fork's
+        agents to main takes them in that order too, so it waits rather than deadlocking."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        fork = await _fork(db, ctx, skill)
+        desk = await _serving(
+            db, ctx, "Desk", await _runnable(db, ctx, skill, fork_id=str(fork.id))
+        )
+        await _following(db, desk)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def returning() -> None:
+            async with factory() as session:
+                await SkillCatchUpService(session).return_to_main(
+                    ctx, skill.id, fork.id, ReturnToMain()
+                )
+                await session.commit()
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as deciding:
+            try:
+                await skill_repo.lock(deciding, skill.id)
+                task = asyncio.create_task(returning())
+                await _waiting_for_a_lock(factory, task)
+
+                await asyncio.wait_for(
+                    agent_repo.get(
+                        deciding, desk.id, organization_id=ctx.organization_id, for_update=True
+                    ),
+                    5,
+                )
+                await deciding.commit()
+                await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        async with factory() as reading:
+            moved = await reading.get(Agent, desk.id)
+            assert moved is not None
+            assert AgentSpec.model_validate(moved.draft_spec).skill_bindings == []

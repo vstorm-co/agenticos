@@ -31,6 +31,8 @@ past its keys - is left without a version rather than failing the upgrade.
 version and its number. Specs written by the binding that comes with versions
 (`skill_bindings`) lose it, so every agent reads its skills' main text again. The
 skill uses recorded since keep their rows and lose the version they were served.
+A change still waiting for a fork is discarded: without its fork it would read as a
+change to main, and applying it would put the fork's text on main.
 
 Revision ID: 0250_skill_versions
 Revises: 0249_run_skill_uses
@@ -409,9 +411,31 @@ def _strip_bindings(table: str, column: str) -> None:
         )
 
 
+_STORED_SPECS = (
+    ("agents", "draft_spec"),
+    ("agent_versions", "spec"),
+    ("agent_runs", "test_spec"),
+    ("eval_run_arms", "spec"),
+)
+"""Every column holding a whole agent spec, each of which the older code validates
+again: a parked test run resumed, an eval arm run again."""
+
+
+def _strip_every_binding() -> None:
+    for table, column in _STORED_SPECS:
+        _strip_bindings(table, column)
+
+
+def _discard_fork_proposals() -> None:
+    op.execute(
+        "UPDATE skill_proposals SET status = 'discarded', decided_at = now(), "
+        "revision = revision + 1 WHERE fork_id IS NOT NULL AND status = 'pending'"
+    )
+
+
 def downgrade() -> None:
-    _strip_bindings("agents", "draft_spec")
-    _strip_bindings("agent_versions", "spec")
+    _strip_every_binding()
+    _discard_fork_proposals()
 
     _forget_served_versions()
     op.drop_index(op.f("run_skill_uses_skill_version_id_idx"), table_name="run_skill_uses")

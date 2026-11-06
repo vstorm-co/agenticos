@@ -269,6 +269,27 @@ async def get_forks(
     return {fork.id: fork for fork in result.scalars().all()}
 
 
+async def hold_forks(
+    db: AsyncSession, fork_ids: Collection[UUID], *, organization_id: UUID
+) -> dict[UUID, SkillFork]:
+    """Forks an agent is about to read, read afresh and kept from being archived until the
+    transaction ends.
+
+    `FOR KEY SHARE`: archiving locks the fork `FOR UPDATE`, so it waits for a binding
+    written now and then sees it, and a binding waits for an archive in progress and
+    then finds the fork archived.
+    """
+    if not fork_ids:
+        return {}
+    result = await db.execute(
+        select(SkillFork)
+        .where(SkillFork.id.in_(list(fork_ids)), SkillFork.organization_id == organization_id)
+        .with_for_update(read=True, key_share=True)
+        .execution_options(populate_existing=True)
+    )
+    return {fork.id: fork for fork in result.scalars().all()}
+
+
 async def get_fork_by_name(
     db: AsyncSession, name: str, *, organization_id: UUID, skill_id: UUID
 ) -> SkillFork | None:

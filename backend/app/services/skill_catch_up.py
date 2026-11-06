@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
+import anyio
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -201,12 +202,15 @@ class SkillCatchUpService:
             NotFoundError: The skill, or the fork, is not one the caller may reach.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_VIEW)
+        # The skill, the fork and then each agent by id: the order a decision on the fork's
+        # check takes, and the one archiving the fork needs afterwards.
+        await skill_repo.lock(self.db, skill.id)
         fork = await skill_version_repo.get_fork(
-            self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id
+            self.db, fork_id, organization_id=ctx.organization_id, skill_id=skill.id, lock=True
         )
         if fork is None:
             raise NotFoundError(message="Fork not found", details={"fork_id": fork_id})
-        readers = await self.agents.fork_users(skill, fork.id)
+        readers = sorted(await self.agents.fork_users(skill, fork.id), key=lambda agent: agent.id)
         visible = await accessible_ids(self.db, ctx, readers, Perm.AGENTS_VIEW, resource_type=AGENT)
         wanted = None if data.agent_ids is None else set(data.agent_ids)
         returned: list[ReturnedAgent] = []
@@ -236,7 +240,7 @@ class SkillCatchUpService:
         if archived:
             await self.versions.archive_fork(ctx, skill.id, fork.id)
         return ReturnedToMain(
-            agents=returned,
+            agents=sorted(returned, key=lambda row: row.agent.name),
             hidden=len(readers) - len(visible),
             remaining=len(remaining),
             archived=archived,
@@ -287,7 +291,10 @@ class SkillCatchUpService:
                 details={"fork_id": fork.id},
             )
         try:
-            parts = merge_text(base.content, ours.content, main.content)
+            # Seconds of CPU for a long text: off the event loop, which serves every tenant.
+            parts = await anyio.to_thread.run_sync(
+                merge_text, base.content, ours.content, main.content
+            )
         except MergeTooLarge as exc:
             raise TooLargeToMerge(
                 message=(
@@ -308,16 +315,24 @@ class SkillCatchUpService:
         )
 
     async def build_merge(
-        self, ctx: AuthContext, *, run: SkillImprovementRun, skill: Skill, fork: SkillFork
+        self,
+        ctx: AuthContext,
+        *,
+        run: SkillImprovementRun,
+        skill: Skill,
+        fork: SkillFork,
+        sides: MergeSides | None = None,
     ) -> SkillMerge:
-        """Merge the session's three versions, without the model, and keep the parts.
+        """Merge the session's three versions, without the model, and keep the parts;
+        `sides` is a merge of them already made in this transaction.
 
         Raises:
             ConflictError: There is nothing to merge; see `merge_sides`.
         """
         kind = SkillImprovementPurpose(run.purpose)
         assert kind is not SkillImprovementPurpose.IMPROVE, "only a catch-up or a move merges"
-        sides = await self.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
+        if sides is None:
+            sides = await self.merge_sides(ctx, skill=skill, fork=fork, kind=kind)
         return await skill_merge_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -407,19 +422,6 @@ class SkillCatchUpService:
             if not row["edited"]:
                 row["result"] = text
         await self._store(locked, description, parts, locked.files)
-
-    async def refuse_moved(self, merge: SkillMerge) -> None:
-        """Refuse a merge either of whose lines has a newer version than it read.
-
-        Raises:
-            ConcurrentChangeError: Main or the fork moved since the merge.
-        """
-        skill = await skill_repo.get(self.db, merge.skill_id, organization_id=merge.organization_id)
-        fork = await skill_version_repo.get_fork(
-            self.db, merge.fork_id, organization_id=merge.organization_id, skill_id=merge.skill_id
-        )
-        assert skill is not None and fork is not None, "a merge goes with its skill and fork"
-        _refuse_moved(merge, skill, fork)
 
     async def accept_catch_up(
         self, ctx: AuthContext, *, skill: Skill, fork: SkillFork, merge: SkillMerge
