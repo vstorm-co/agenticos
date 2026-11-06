@@ -3,7 +3,7 @@
 import type { KeyboardEvent } from "react";
 import { useCallback } from "react";
 
-import { scopedGraph } from "./scope-view";
+import { currentScopeId, scopedGraph } from "./scope-view";
 
 import { copySelection, pasteClipboard } from "@/components/workflows/clipboard";
 import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workflow-editor-store";
@@ -22,7 +22,12 @@ export function copyToClipboard(store: WorkflowEditorState): void {
 /** Paste the store clipboard back into the graph with fresh ids, if it holds one. */
 export function pasteFromClipboard(store: WorkflowEditorState): void {
   if (store.clipboard === null) return;
-  const { clipboard } = pasteClipboard(store.clipboard, () => crypto.randomUUID(), PASTE_OFFSET);
+  const { clipboard } = pasteClipboard(
+    store.clipboard,
+    () => crypto.randomUUID(),
+    PASTE_OFFSET,
+    currentScopeId(store.scopePath),
+  );
   store.insertSubgraph(clipboard);
 }
 

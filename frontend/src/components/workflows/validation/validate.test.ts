@@ -183,7 +183,13 @@ const TWO_PORTS = makeDefinition({
 const FOREACH = makeDefinition({
   id: "control.foreach",
   kind: "control",
-  ports: [port("in", "input", null), port("body", "output", null), port("done", "output", null)],
+  ports: [port("in", "input", null), port("done", "output", null)],
+});
+const LOOP_ITEM = makeDefinition({
+  id: "loop.item",
+  kind: "control",
+  ports: [port("out", "output", PLAIN_OUTPUT)],
+  output_schema: PLAIN_OUTPUT,
 });
 
 const WEBHOOK = makeDefinition({
@@ -235,6 +241,7 @@ const CATALOG = makeCatalog([
   SWITCH,
   TWO_PORTS,
   FOREACH,
+  LOOP_ITEM,
 ]);
 
 function codesOf(problems: ValidationProblem[]): string[] {
@@ -812,12 +819,11 @@ describe("drift parity — graphs the backend refuses", () => {
       nodes: [
         echo("entry"),
         node("loop", "control.foreach"),
-        node("body", "test.consumer_noreq"),
+        { ...node("body", "test.consumer_noreq"), scope_id: "loop" },
         echo("intruder"),
       ],
       edges: [
         edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "body", "in"),
         edge("e3", "loop", "done", "intruder", "in"),
         edge("e4", "intruder", "out", "body", "in"),
       ],
@@ -825,20 +831,16 @@ describe("drift parity — graphs the backend refuses", () => {
     expect(codesOf(run(g))).toEqual(["edge-crosses-scope"]);
   });
 
-  it("rule 6 — the two declared boundary edges publish", () => {
+  it("rule 6 — the loop's exit edge publishes", () => {
     const g = graph({
       entry: "entry",
       nodes: [
         echo("entry"),
         node("loop", "control.foreach"),
-        node("body", "test.consumer_noreq"),
+        { ...node("body", "test.consumer_noreq"), scope_id: "loop" },
         echo("after"),
       ],
-      edges: [
-        edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "body", "in"),
-        edge("e3", "loop", "done", "after", "in"),
-      ],
+      edges: [edge("e1", "entry", "out", "loop", "in"), edge("e3", "loop", "done", "after", "in")],
     });
     expect(run(g)).toEqual([]);
   });
@@ -849,14 +851,10 @@ describe("drift parity — graphs the backend refuses", () => {
       nodes: [
         echo("entry"),
         node("loop", "control.foreach"),
-        node("body", "test.consumer_noreq"),
+        { ...node("body", "test.consumer_noreq"), scope_id: "loop" },
         node("after", "test.consumer"),
       ],
-      edges: [
-        edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "body", "in"),
-        edge("e3", "loop", "done", "after", "in"),
-      ],
+      edges: [edge("e1", "entry", "out", "loop", "in"), edge("e3", "loop", "done", "after", "in")],
       bindings: [nodeOutputBinding("after", "value", "body", "out", ["value"])],
     });
     // The binding both crosses the boundary and reads a node not on every path.
@@ -882,17 +880,62 @@ describe("drift parity — graphs the backend refuses", () => {
       nodes: [
         echo("entry"),
         node("loop", "control.foreach"),
-        node("x", "test.consumer_noreq"),
-        node("y", "test.consumer_noreq"),
+        { ...node("x", "test.consumer_noreq"), scope_id: "loop" },
+        { ...node("y", "test.consumer_noreq"), scope_id: "loop" },
       ],
       edges: [
         edge("e1", "entry", "out", "loop", "in"),
-        edge("e2", "loop", "body", "x", "in"),
         edge("e3", "x", "out", "y", "in"),
         edge("e4", "y", "out", "x", "in"),
       ],
     });
     expect(codesOf(run(g))).toEqual(["node-in-scope-cycle", "node-in-scope-cycle"]);
+  });
+
+  it("a step naming a loop that is gone, or one inside itself", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        { ...echo("lost"), scope_id: "gone" },
+        { ...node("a", "control.foreach"), scope_id: "b" },
+        { ...node("b", "control.foreach"), scope_id: "a" },
+      ],
+      edges: [edge("e1", "entry", "out", "lost", "in")],
+    });
+    expect(codesOf(run(g))).toEqual(["loop-scope-cycle", "loop-scope-cycle", "loop-scope-missing"]);
+  });
+
+  it("a step placed inside a step that is not a loop", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [echo("entry"), { ...echo("inside"), scope_id: "entry" }],
+    });
+    // Not in any loop either, so it is a top-level step nothing reaches.
+    expect(codesOf(run(g))).toEqual(["loop-scope-not-a-loop", "unreachable-node"]);
+  });
+
+  it("a body step its loop item never reaches, beside one it does", () => {
+    const g = graph({
+      entry: "entry",
+      nodes: [
+        echo("entry"),
+        node("loop", "control.foreach"),
+        { ...node("item", "loop.item"), scope_id: "loop" },
+        { ...node("x", "test.consumer_noreq"), scope_id: "loop" },
+        { ...node("y", "test.consumer_noreq"), scope_id: "loop" },
+        { ...node("z", "test.consumer_noreq"), scope_id: "loop" },
+      ],
+      edges: [
+        edge("e1", "entry", "out", "loop", "in"),
+        edge("e2", "item", "out", "x", "in"),
+        edge("e3", "item", "out", "y", "in"),
+        edge("e4", "x", "out", "y", "in"),
+      ],
+    });
+    expect(codesOf(run(g)).filter((code) => code.startsWith("loop-"))).toEqual([
+      "loop-body-unreachable",
+    ]);
   });
 
   it("rule 8 — a non-control node sending through two ports", () => {

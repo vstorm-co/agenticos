@@ -38,7 +38,6 @@ function scope(scopeId: string, exitId: string, body: string[]): ScopeBoundary {
   return {
     scope_node_id: scopeId,
     body_node_ids: body,
-    entry_port: "body",
     exit_node_id: exitId,
     exit_port: "next",
   };
@@ -289,5 +288,51 @@ describe("pasteClipboard", () => {
     pasteClipboard(clip, minter(), { x: 100, y: 100 });
     expect(clip.nodes[0]?.id).toBe("a");
     expect(clip.nodes[0]?.layout).toEqual({ x: 10, y: 20 });
+  });
+});
+
+describe("copying and pasting around loops (#2770)", () => {
+  const inLoop = (id: string, definitionId: string, scopeId: string): NodeInstance => ({
+    ...node(id),
+    definition_id: definitionId,
+    scope_id: scopeId,
+  });
+  const graph: WorkflowGraph = {
+    entry_node_id: "loop",
+    nodes: [
+      { ...node("loop"), definition_id: "control.foreach" },
+      inLoop("item", "loop.item", "loop"),
+      inLoop("map", "data.map", "loop"),
+      inLoop("result", "loop.yield", "loop"),
+    ],
+    edges: [edge("e1", "item", "map")],
+    bindings: [],
+    scopes: [],
+  };
+
+  it("copies a loop with its whole body, the body naming the pasted loop", () => {
+    const clip = copySelection(graph, select(["loop"])) as WorkflowClipboard;
+    expect(clip.nodes.map((one) => one.id)).toEqual(["loop", "item", "map", "result"]);
+    const { clipboard, idMap } = pasteClipboard(clip, minter(), undefined, "elsewhere");
+    expect(clipboard.nodes.map((one) => one.scope_id)).toEqual([
+      "elsewhere",
+      idMap.loop,
+      idMap.loop,
+      idMap.loop,
+    ]);
+  });
+
+  it("never copies an item or result step without its loop", () => {
+    const clip = copySelection(graph, select(["item", "map", "result"])) as WorkflowClipboard;
+    expect(clip.nodes.map((one) => one.id)).toEqual(["map"]);
+    expect(copySelection(graph, select(["item"]))).toBeNull();
+  });
+
+  it("pastes a step into the loop being viewed, or the top level", () => {
+    const clip = copySelection(graph, select(["map"])) as WorkflowClipboard;
+    expect(pasteClipboard(clip, minter(), undefined, "other").clipboard.nodes[0]?.scope_id).toBe(
+      "other",
+    );
+    expect(pasteClipboard(clip, minter()).clipboard.nodes[0]).not.toHaveProperty("scope_id");
   });
 });

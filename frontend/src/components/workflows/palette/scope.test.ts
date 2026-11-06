@@ -73,10 +73,10 @@ describe("isAddableInScope", () => {
     expect(MAX_SCOPE_NESTING_DEPTH).toBe(3);
   });
 
-  it("offers a loop's own item and result steps only inside a body", () => {
+  it("never offers a loop's own item and result steps: every loop already holds them", () => {
     const item = def({ id: "loop.item", kind: "control", loop_body_only: true });
     expect(isAddableInScope(item, [])).toBe(false);
-    expect(isAddableInScope(item, ["fe-1"])).toBe(true);
+    expect(isAddableInScope(item, ["fe-1"])).toBe(false);
   });
 
   it("never offers the debug nodes", () => {
