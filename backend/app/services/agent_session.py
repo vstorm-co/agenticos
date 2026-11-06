@@ -1058,6 +1058,11 @@ class AgentSession:
             await self._emit(
                 "error", {"message": _UNSAVED_REPLY_NOTICE, "code": "message_save_failed"}
             )
+        else:
+            await self._emit(
+                "message_saved",
+                {"message_id": assistant_msg_id, "conversation_id": self.current_conversation_id},
+            )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
         """Put one question to the client and return the answer as a string.

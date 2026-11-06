@@ -2162,6 +2162,10 @@ class TestATurnThatDidNotFinishStillKeepsWhatItSaid:
         # produced - a transcript naming no model cannot answer "which one said
         # this" for the turn most likely to be asked about.
         assert written.args[2] == "gpt-4.1"
+        assert (
+            "message_saved",
+            {"message_id": "saved-1", "conversation_id": session.current_conversation_id},
+        ) in _sent_events(session)
 
     async def test_an_unsaved_partial_reply_reports_the_save_failure_too(self) -> None:
         session = _session()

@@ -5895,3 +5895,64 @@ it("does not recover a second parked turn after leaving during the first failed 
   });
   expect(get).not.toHaveBeenCalledWith("/runs/older-run/parked");
 });
+
+it("binds the stopped partial reply to its saved row and immediately clears sidebar activity", () => {
+  const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+  receive("model_request_start", {});
+  receive("text_delta", { content: "Partial answer" });
+  receive("tool_call", {
+    tool_name: "web_fetch",
+    tool_call_id: "call",
+    args: { url: "https://example.com" },
+  });
+  const partial = useChatStore.getState().messages.find((m) => m.role === "assistant")!;
+  act(() => result.current.stopGeneration());
+  expect(useWorkingStore.getState().finishedAt["c-1"]).toBeDefined();
+  expect(useWorkingStore.getState().since["c-1"]).toBeUndefined();
+  expect(useChatStore.getState().messages.find((m) => m.id === partial.id)?.wasStopped).toBe(true);
+  receive("thinking_delta", { content: "Late thought" });
+  receive("model_request_start", {});
+  act(() =>
+    useChatStore.getState().rereadMessages([
+      {
+        ...partial,
+        id: "saved-stop",
+        isTemporaryId: false,
+        isStreaming: false,
+        wasStopped: true,
+      },
+    ]),
+  );
+  receive("message_saved", { message_id: "saved-stop", conversation_id: "c-1" });
+  receive("complete", { stopped: true });
+  receive("session_ready", {});
+  const replies = useChatStore.getState().messages.filter((m) => m.role === "assistant");
+  expect(replies).toHaveLength(1);
+  expect(replies[0]).toMatchObject({
+    id: "saved-stop",
+    wasStopped: true,
+    isStreaming: false,
+    content: "Partial answer",
+  });
+  expect(result.current.isProcessing).toBe(false);
+});
+
+it("ignores buffered model frames after Stop before the first assistant message", () => {
+  const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+  act(() => result.current.sendMessage("start"));
+  act(() => result.current.stopGeneration());
+  receive("model_request_start", {});
+  receive("thinking_delta", { content: "Too late" });
+  receive("text_delta", { content: "Too late" });
+  receive("complete", { stopped: true });
+  expect(useChatStore.getState().messages.filter((m) => m.role === "assistant")).toHaveLength(0);
+  expect(useWorkingStore.getState().finishedAt["c-1"]).toBeDefined();
+  receive("session_ready", {});
+  act(() => result.current.sendMessage("next"));
+  receive("user_prompt", { message_id: "next-prompt" });
+  receive("model_request_start", {});
+  receive("text_delta", { content: "Next answer" });
+  expect(useChatStore.getState().messages.find((m) => m.role === "assistant")?.content).toBe(
+    "Next answer",
+  );
+});

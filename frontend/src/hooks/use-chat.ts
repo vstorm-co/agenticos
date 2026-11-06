@@ -224,6 +224,7 @@ export function useChat(options: UseChatOptions = {}) {
   // Stop ends streaming immediately, but its partial reply is saved afterwards.
   // Keep a target for that write's failure until session_ready ends cleanup.
   const stoppedMessageIdRef = useRef<string | null>(null);
+  const stopRequestedRef = useRef(false);
   const currentUserMessageIdRef = useRef<string | null>(null);
   const createdConversationIdRef = useRef<string | null>(null);
   const setCurrentMessageId = useCallback((id: string | null) => {
@@ -557,6 +558,16 @@ export function useChat(options: UseChatOptions = {}) {
         return;
       }
 
+      // Buffered model frames may arrive after Stop; only persistence and the
+      // terminal frame may still settle the stopped turn.
+      if (
+        stopRequestedRef.current &&
+        !processingRef.current &&
+        TURN_FRAMES.has(wsEvent.type) &&
+        wsEvent.type !== "complete"
+      )
+        return;
+
       // Opens the turn's message. It used to close a previous one first, which is
       // no longer reachable and would be the wrong place for it if it were: every
       // caller now opens a message only when the turn has none, and what ends the
@@ -625,6 +636,7 @@ export function useChat(options: UseChatOptions = {}) {
           declinedRef.current = null;
           followingRef.current = conversation_id;
           stoppedMessageIdRef.current = null;
+          stopRequestedRef.current = false;
           setCurrentMessageId(null);
           setLeftRunning((threads) => withoutThread(threads, conversation_id));
           setIsProcessing(true);
@@ -772,8 +784,9 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "message_saved": {
           const { message_id } = wsEvent.data as { message_id: string };
-          if (currentMessageIdRef.current) {
-            updateMessage(currentMessageIdRef.current, (msg) => ({
+          const target = currentMessageIdRef.current ?? stoppedMessageIdRef.current;
+          if (target) {
+            updateMessage(target, (msg) => ({
               ...msg,
               id: message_id,
               isTemporaryId: false,
@@ -784,7 +797,8 @@ export function useChat(options: UseChatOptions = {}) {
             // the message through this ref, and a ref still holding the temporary id
             // addresses a message that no longer exists. The cost was being written
             // to nothing, so it appeared only after a reload fetched it from the row.
-            setCurrentMessageId(message_id);
+            if (currentMessageIdRef.current) setCurrentMessageId(message_id);
+            if (stoppedMessageIdRef.current === target) stoppedMessageIdRef.current = message_id;
           } else {
             // This handles cases where currentMessageId was already cleared
             const messages = chatApi.getState().messages;
@@ -1205,6 +1219,7 @@ export function useChat(options: UseChatOptions = {}) {
 
         case "session_ready": {
           stoppedMessageIdRef.current = null;
+          stopRequestedRef.current = false;
           sessionReadyRef.current = true;
           setSessionReady(true);
           break;
@@ -1216,7 +1231,10 @@ export function useChat(options: UseChatOptions = {}) {
               conversationApi.getState().currentConversationId ?? activeConversationId;
             const completedMessage = chatApi
               .getState()
-              .messages.find((message) => message.id === currentMessageIdRef.current);
+              .messages.find(
+                (message) =>
+                  message.id === (currentMessageIdRef.current ?? stoppedMessageIdRef.current),
+              );
             const parked = completedMessage?.toolCalls?.some(
               (call) => call.status === "awaiting_approval" || call.status === "awaiting_answer",
             );
@@ -1346,6 +1364,7 @@ export function useChat(options: UseChatOptions = {}) {
   useLayoutEffect(() => {
     pendingNextSteps.current.clear();
     stoppedMessageIdRef.current = null;
+    stopRequestedRef.current = false;
   }, [queueAccountId, tenantId, activeOrgId]);
   const { wsUrl: wsOrigin } = usePublicConfig();
   const wsUrl = useMemo(() => {
@@ -1430,6 +1449,7 @@ export function useChat(options: UseChatOptions = {}) {
       mentions?: Mentionable[],
     ): string => {
       stoppedMessageIdRef.current = null;
+      stopRequestedRef.current = false;
       unconfirmedRef.current = null;
       sessionReadyRef.current = false;
       setSessionReady(false);
@@ -1821,6 +1841,7 @@ export function useChat(options: UseChatOptions = {}) {
     // approval is exactly that turn.
     if (previous === activeConversationId || previous === null) return;
     stoppedMessageIdRef.current = null;
+    stopRequestedRef.current = false;
     stoppingRef.current = null;
     setIsStopping(false);
     setDelegations([]);
@@ -2564,10 +2585,21 @@ export function useChat(options: UseChatOptions = {}) {
       })();
       return;
     }
+    stopRequestedRef.current = true;
     stoppedMessageIdRef.current ??= currentMessageIdRef.current;
+    if (stoppedMessageIdRef.current) {
+      updateMessage(stoppedMessageIdRef.current, (message) => ({ ...message, wasStopped: true }));
+    }
+    const stoppingConversation =
+      conversationApi.getState().currentConversationId ?? activeConversationId;
+    if (stoppingConversation) {
+      useWorkingStore.getState().finish(stoppingConversation);
+      useWorkingStore.getState().setWaiting(stoppingConversation, null);
+    }
     sendMessage({ type: "stop" });
     endTurnLocally();
   }, [
+    conversationApi,
     sendMessage,
     endTurnLocally,
     parkedQuestion,
@@ -2670,6 +2702,7 @@ export function useChat(options: UseChatOptions = {}) {
     wasConnected.current = isConnected;
     if (returned) {
       stoppedMessageIdRef.current = null;
+      stopRequestedRef.current = false;
       sessionReadyRef.current = true;
       setSessionReady(true);
     }
