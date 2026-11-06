@@ -99,7 +99,7 @@ class SubagentsConfig(BaseModel):
         default=False,
         description=(
             "Offer the current published versions of other agents this person may run in this "
-            "organization, under agent-<slug> handles. Explicit pins keep their selected versions. "
+            "organization, under agent-prefixed slug handles. Explicit pins keep their selected versions. "
             "The catalog is resolved at the start of each interactive run; unattended work stays "
             "limited to reviewed pins. Large catalogs increase setup time and context."
         ),

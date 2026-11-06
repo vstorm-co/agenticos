@@ -8915,7 +8915,7 @@
       "elapsedMinutes": "{minutes} dk.{seconds, plural, =0 {} other { # sn.}}",
       "stopped": "Durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
       "stoppedAfter": "{duration} sonra durduruldu{count, plural, =0 {} =1 { · 1 adım} other { · # adım}}",
-      "activityCount": "{count} işlem"
+      "activityCount": "{count, plural, one {# işlem} other {# işlem}}"
     },
     "streamError": "❌ Hata: {message}",
     "turnInterrupted": "Yanıtın ortasında bağlantı kesildi. Agent turu tamamlayıp yanıtı bu konuşmaya kaydeder.",
@@ -9170,7 +9170,23 @@
       "backgroundTasks": "Arka plan konuları",
       "listingBackgroundTasks": "Arka plan konuları okunuyor",
       "startingBackgroundTask": "Arka plan konusu başlatılıyor",
-      "stoppingBackgroundTask": "Arka plan konusu durduruluyor"
+      "stoppingBackgroundTask": "Arka plan konusu durduruluyor",
+      "approveCreateRecord": "{table} tablosuna kayıt ekle",
+      "approveDeleteRecord": "{table} tablosundan kayıt sil",
+      "approveUpdateRecord": "{table} tablosundaki kaydı değiştir",
+      "approveUpsertRecord": "{table} tablosunda kayıt oluştur veya güncelle",
+      "recordsChecking": "Kayıt aranıyor",
+      "recordsCreating": "Kayıt ekleniyor",
+      "recordsDeleting": "Kayıt siliniyor",
+      "recordsListing": "Kayıtlar listeleniyor",
+      "recordsReading": "Kayıt okunuyor",
+      "recordsUpdating": "Kayıt güncelleniyor",
+      "recordsUpserting": "Kayıt kaydediliyor",
+      "tablesChecking": "Bir tablo denetleniyor",
+      "tablesCreating": "Tablo oluşturuluyor",
+      "tablesDescribing": "Tablonun sütunları okunuyor",
+      "tablesListing": "Kullanabileceği tablolar denetleniyor",
+      "viewsListing": "Tablonun kayıtlı görünümleri listeleniyor"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",

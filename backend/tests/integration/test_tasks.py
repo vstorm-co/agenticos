@@ -267,6 +267,12 @@ async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_revi
             start_at=datetime.now(UTC) + timedelta(seconds=delay - 1),
         ),
     )
+    from app.services.agent_registry import AgentRegistryService
+
+    registry = AgentRegistryService(db)
+    with pytest.raises(BadRequestError, match="still has scheduled task work"):
+        await registry.delete(data.contexts[0], agent.id)
+    assert await db.get(Agent, agent.id) is agent
     link = await db.get(TaskLink, task.id)
     assert link is not None and link.trigger_id is not None and task.conversation_id is not None
     working = await db.get(Conversation, task.conversation_id)
@@ -301,6 +307,8 @@ async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_revi
     current = await service.get(data.contexts[0], task.id)
     assert current.status == "waiting_for_user" and current.outcome_id is not None
     assert not trigger.is_active
+    await registry.delete(data.contexts[0], agent.id)
+    assert await db.get(Agent, agent.id) is None
 
 
 async def test_project_and_organization_scopes_are_reused_without_implicit_cross_tenant_access(

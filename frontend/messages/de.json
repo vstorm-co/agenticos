@@ -1832,7 +1832,23 @@
       "memoryRecordedResult": "Im Gedächtnis gespeichert",
       "memoryCorrectedResult": "Korrigiert; frühere Version im Verlauf erhalten",
       "writingDraft": "Schreibt einen Entwurf",
-      "draft": "Hat einen Entwurf geschrieben"
+      "draft": "Hat einen Entwurf geschrieben",
+      "approveCreateRecord": "Einen Datensatz zu {table} hinzufügen",
+      "approveDeleteRecord": "Einen Datensatz aus {table} löschen",
+      "approveUpdateRecord": "Einen Datensatz in {table} ändern",
+      "approveUpsertRecord": "Einen Datensatz in {table} anlegen oder aktualisieren",
+      "recordsChecking": "Sucht nach einem Datensatz",
+      "recordsCreating": "Fügt einen Datensatz hinzu",
+      "recordsDeleting": "Löscht einen Datensatz",
+      "recordsListing": "Listet Datensätze auf",
+      "recordsReading": "Liest einen Datensatz",
+      "recordsUpdating": "Aktualisiert einen Datensatz",
+      "recordsUpserting": "Speichert einen Datensatz",
+      "tablesChecking": "Prüft eine Tabelle",
+      "tablesCreating": "Erstellt eine Tabelle",
+      "tablesDescribing": "Liest die Spalten einer Tabelle",
+      "tablesListing": "Prüft, welche Tabellen es nutzen kann",
+      "viewsListing": "Listet die gespeicherten Ansichten einer Tabelle auf"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -11557,7 +11573,7 @@
       },
       "allow_any_agent": {
         "title": "Andere zugängliche Agenten verwenden",
-        "description": "Bietet die aktuellen veröffentlichten Versionen anderer Agenten an, die diese Person in dieser Organisation ausführen darf, unter agent-<slug>. Explizite Pins behalten ihre gewählten Versionen. Der Katalog wird zu Beginn jedes interaktiven Laufs aufgelöst; unbeaufsichtigte Arbeit bleibt auf geprüfte Pins begrenzt. Große Kataloge erhöhen Vorbereitungszeit und Kontext."
+        "description": "Bietet die aktuellen veröffentlichten Versionen anderer Agenten an, die diese Person in dieser Organisation ausführen darf, unter Slug-Namen mit dem Präfix agent-. Explizite Pins behalten ihre gewählten Versionen. Der Katalog wird zu Beginn jedes interaktiven Laufs aufgelöst; unbeaufsichtigte Arbeit bleibt auf geprüfte Pins begrenzt. Große Kataloge erhöhen Vorbereitungszeit und Kontext."
       }
     },
     "system_reminders": {

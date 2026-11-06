@@ -49,6 +49,14 @@ class TaskService:
         self.db = db
         self.tables = VirtualTableService(db)
 
+    async def require_no_agent_execution(self, ctx: AuthContext, agent_id: UUID) -> None:
+        """Keep deleting an agent from silently discarding a task's scheduled work."""
+        if await task_repo.has_agent_execution(self.db, ctx.organization_id, agent_id):
+            raise BadRequestError(
+                message="This agent still has scheduled task work. Reassign, complete or cancel those tasks before deleting the agent.",
+                details={"agent_id": agent_id},
+            )
+
     async def purge_scope(
         self, kind: str, scope_id: UUID, *, organization_id: UUID | None = None
     ) -> None:

@@ -63,10 +63,16 @@ const BRAND_DOMAIN: Readonly<Record<string, string>> = {
   "ai.todoist.net": "todoist.com",
 };
 
+const fetched = new Map<string, Promise<string | null>>();
+
 async function fetchLogoFor(host: string): Promise<string | null> {
-  const labels = (BRAND_DOMAIN[host] ?? host).split(".");
+  const brand = host.endsWith(".googleapis.com") ? "google.com" : (BRAND_DOMAIN[host] ?? host);
+  const labels = brand.split(".");
   for (let start = 0; start <= labels.length - 2; start++) {
-    const uri = await fetchDataUri(labels.slice(start).join("."));
+    const domain = labels.slice(start).join(".");
+    const pending = fetched.get(domain) ?? fetchDataUri(domain);
+    fetched.set(domain, pending);
+    const uri = await pending;
     if (uri) return uri;
   }
   return null;

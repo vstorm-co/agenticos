@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Refuse deleting an agent while a managed task still depends on its scheduled execution; reassign or settle the task first.
+
 ### Added
 
 - Official Google Workspace and Cloud remote MCP catalog entries, including Calendar, Gmail, Drive, Docs, Sheets, Slides, Chat, People and Universal Search; Google OAuth offline consent and visible connection prerequisites.

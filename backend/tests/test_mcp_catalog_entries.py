@@ -5,6 +5,7 @@ Microsoft keeps for compatibility only are not, and `work-iq` states its terms.
 """
 
 import json
+from urllib.parse import urlsplit
 
 from app.core import catalog
 from app.services import mcp_audit
@@ -77,7 +78,8 @@ def test_google_cloud_uses_verified_remote_addresses_without_region_placeholders
     official = [
         entry
         for entry in CATALOG
-        if entry.url.startswith("https://") and ".googleapis.com/" in entry.url
+        if urlsplit(entry.url).scheme == "https"
+        and (urlsplit(entry.url).hostname or "").endswith(".googleapis.com")
     ]
     assert len(official) >= 70
     assert len({entry.url for entry in official}) == len(official)

@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.outcome import Outcome
 from app.db.models.suggestion import Suggestion
 from app.db.models.task_board import TaskBoard, TaskLink
@@ -139,3 +140,16 @@ async def purge_table(db: AsyncSession, board: TaskBoard) -> None:
         )
     )
     await db.flush()
+
+
+async def has_agent_execution(db: AsyncSession, organization_id: UUID, agent_id: UUID) -> bool:
+    result = await db.execute(
+        select(TaskLink.record_id)
+        .join(AgentTrigger, TaskLink.trigger_id == AgentTrigger.id)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.agent_id == agent_id,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None

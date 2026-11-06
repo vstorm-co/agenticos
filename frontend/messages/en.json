@@ -1832,7 +1832,23 @@
       "memoryRecordedResult": "Saved to memory",
       "memoryCorrectedResult": "Corrected; earlier version kept in history",
       "writingDraft": "Writing a draft",
-      "draft": "Wrote a draft"
+      "draft": "Wrote a draft",
+      "approveCreateRecord": "Add a record to {table}",
+      "approveDeleteRecord": "Delete a record from {table}",
+      "approveUpdateRecord": "Change a record in {table}",
+      "approveUpsertRecord": "Create or update a record in {table}",
+      "recordsChecking": "Checking for a record",
+      "recordsCreating": "Adding a record",
+      "recordsDeleting": "Deleting a record",
+      "recordsListing": "Listing records",
+      "recordsReading": "Reading a record",
+      "recordsUpdating": "Updating a record",
+      "recordsUpserting": "Saving a record",
+      "tablesChecking": "Checking a table",
+      "tablesCreating": "Creating a table",
+      "tablesDescribing": "Reading a table's columns",
+      "tablesListing": "Checking which tables it can use",
+      "viewsListing": "Listing a table's saved views"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -11678,7 +11694,7 @@
       },
       "allow_any_agent": {
         "title": "Use other accessible agents",
-        "description": "Offer the current published versions of other agents this person may run in this organization, under agent-<slug> handles. Explicit pins keep their selected versions. The catalog is resolved at the start of each interactive run; unattended work stays limited to reviewed pins. Large catalogs increase setup time and context."
+        "description": "Offer the current published versions of other agents this person may run in this organization, under agent-prefixed slug handles. Explicit pins keep their selected versions. The catalog is resolved at the start of each interactive run; unattended work stays limited to reviewed pins. Large catalogs increase setup time and context."
       }
     },
     "system_reminders": {

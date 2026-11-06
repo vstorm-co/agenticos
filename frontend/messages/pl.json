@@ -880,7 +880,23 @@
       "memoryRecordedResult": "Zapisano w pamięci",
       "memoryCorrectedResult": "Poprawiono; wcześniejsza wersja pozostała w historii",
       "writingDraft": "Pisze wersję roboczą",
-      "draft": "Napisał wersję roboczą"
+      "draft": "Napisał wersję roboczą",
+      "approveCreateRecord": "Dodaj rekord do tabeli {table}",
+      "approveDeleteRecord": "Usuń rekord z tabeli {table}",
+      "approveUpdateRecord": "Zmień rekord w tabeli {table}",
+      "approveUpsertRecord": "Utwórz albo zaktualizuj rekord w tabeli {table}",
+      "recordsChecking": "Sprawdzam, czy rekord istnieje",
+      "recordsCreating": "Dodaję rekord",
+      "recordsDeleting": "Usuwam rekord",
+      "recordsListing": "Wyświetlam rekordy",
+      "recordsReading": "Czytam rekord",
+      "recordsUpdating": "Zmieniam rekord",
+      "recordsUpserting": "Zapisuję rekord",
+      "tablesChecking": "Sprawdzam tabelę",
+      "tablesCreating": "Tworzę tabelę",
+      "tablesDescribing": "Czytam kolumny tabeli",
+      "tablesListing": "Sprawdzam, których tabel może używać",
+      "viewsListing": "Przeglądam zapisane widoki tabeli"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -9091,7 +9107,7 @@
       },
       "allow_any_agent": {
         "title": "Korzystaj z innych dostępnych agentów",
-        "description": "Udostępnia bieżące opublikowane wersje innych agentów, których ta osoba może uruchomić w tej organizacji, pod nazwami agent-<slug>. Jawne przypięcia zachowują wybrane wersje. Katalog jest rozwiązywany na początku każdego interaktywnego uruchomienia; praca bez nadzoru korzysta wyłącznie z przejrzanych przypięć. Duży katalog wydłuża przygotowanie i zwiększa kontekst."
+        "description": "Udostępnia bieżące opublikowane wersje innych agentów, których ta osoba może uruchomić w tej organizacji, pod nazwami ze slugiem poprzedzonym agent-. Jawne przypięcia zachowują wybrane wersje. Katalog jest rozwiązywany na początku każdego interaktywnego uruchomienia; praca bez nadzoru korzysta wyłącznie z przejrzanych przypięć. Duży katalog wydłuża przygotowanie i zwiększa kontekst."
       }
     },
     "system_reminders": {

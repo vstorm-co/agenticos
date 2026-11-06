@@ -1,5 +1,5 @@
 ---
-source_sha: "04a676a5dcd5"
+source_sha: "5feb1347875c"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -809,3 +809,5 @@ Notatki zadania są dokumentami rich text w Markdown, z edytorem i podglądem ja
 
 
 **Group by** zapisuje się automatycznie, gdy edytor wybierze kolumnę. Zmiana aktualizuje zapisany widok Kanban, którym może zarządzać; bez takiego widoku tworzy i wybiera widok prywatny. Odmowa zapisu zachowuje poprzednie grupowanie. Czytelnik może zmienić grupowanie tymczasowo. **Set as default** na pasku narzędzi zapisuje bieżący format dla wszystkich; zwykłe tabele otwierają się jako Table, dopóki edytor nie wybierze innego widoku domyślnego.
+
+Nie można usunąć agenta, dopóki zarządzane zadanie zależy od jego zaplanowanego wykonania. Najpierw przepisz, ukończ lub anuluj te zadania; usunięcie agenta nie może po cichu porzucać ich wykonania.

@@ -835,7 +835,9 @@ class TestTheRoutes:
         app.dependency_overrides.clear()
 
     @pytest.mark.parametrize(
-        "method,path", [("get", "/me/watches"), ("delete", f"/me/watches/{uuid.uuid4()}")]
+        "method,path",
+        [("get", "/me/watches"), ("delete", f"/me/watches/{uuid.uuid4()}")],
+        ids=["list", "delete"],
     )
     async def test_unrelated_api_key_scope_cannot_read_or_delete(
         self, client: AsyncClient, service, method: str, path: str

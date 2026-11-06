@@ -192,8 +192,8 @@ describe("where the OAuth callback lands", () => {
     expect(window.sessionStorage.getItem("oauthReturnTo")).toBeNull();
   });
 
-  it("lands on the dashboard when the trip carried no deep link", async () => {
-    expect(await signIn()).toBe("/dashboard");
+  it("lands on chat when the trip carried no deep link", async () => {
+    expect(await signIn()).toBe("/chat");
   });
 
   it("refuses a path that leaves this origin", async () => {
@@ -201,7 +201,7 @@ describe("where the OAuth callback lands", () => {
     // the one place: nothing on the way here re-implements the check.
     rememberReturnTo("//evil.example/agents");
 
-    expect(await signIn()).toBe("/dashboard");
+    expect(await signIn()).toBe("/chat");
   });
 });
 
@@ -238,13 +238,13 @@ describe("the magic link", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/agents/a-1"));
   });
 
-  it("lands on the dashboard when the link named nowhere", async () => {
+  it("lands on chat when the link named nowhere", async () => {
     searchParams.set("token", "m-1");
     vi.mocked(apiClient.post).mockResolvedValue({ access_token: "t-new", return_to: null });
     vi.mocked(apiClient.get).mockResolvedValue(arriving);
     mountOver(<MagicLinkPage />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/chat"));
   });
 
   it("refuses a path the token should never have carried", async () => {
@@ -260,7 +260,7 @@ describe("the magic link", () => {
     vi.mocked(apiClient.get).mockResolvedValue(arriving);
     mountOver(<MagicLinkPage />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/chat"));
   });
 });
 

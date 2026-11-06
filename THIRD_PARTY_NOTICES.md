@@ -23,9 +23,9 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 102 | 253 |
-| Apache-2.0 | 72 | 24 |
-| BSD-3-Clause | 23 | 4 |
+| MIT | 99 | 253 |
+| Apache-2.0 | 70 | 24 |
+| BSD-3-Clause | 22 | 4 |
 | ISC | 3 | 21 |
 | BSD-2-Clause | 7 | 0 |
 | MPL-2.0 | 5 | 0 |
@@ -50,7 +50,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-229 distributions.
+223 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|

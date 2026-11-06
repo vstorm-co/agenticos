@@ -3371,6 +3371,7 @@ class TestArchiveAndDelete:
             patch(f"{REGISTRY_PATH}.agent_repo.delete", new=AsyncMock()) as delete,
             patch(f"{REGISTRY_PATH}.record_audit", new=AsyncMock()) as audit,
             patch("app.services.agent_trigger.AgentTriggerService") as triggers_cls,
+            patch("app.repositories.task.has_agent_execution", new=AsyncMock(return_value=False)),
         ):
             triggers = triggers_cls.return_value
             triggers.deregister_agent_webhooks = AsyncMock()
@@ -5285,6 +5286,9 @@ class TestUndoingADraft:
         delete = AsyncMock()
         monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
 
+        monkeypatch.setattr(
+            "app.repositories.task.has_agent_execution", AsyncMock(return_value=False)
+        )
         await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
 
         delete.assert_awaited_once_with(db, agent)

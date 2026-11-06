@@ -317,7 +317,7 @@ mod tests {
                 execute: false,
             },
         };
-        save(&path, &[grant.clone()]).unwrap();
+        save(&path, std::slice::from_ref(&grant)).unwrap();
         assert_eq!(load(&path).unwrap(), vec![grant]);
         #[cfg(unix)]
         {
