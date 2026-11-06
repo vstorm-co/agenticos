@@ -85,6 +85,18 @@ describe("SkillUsageCard", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills/s1/usage?days=30");
   });
 
+  it("says an agent that only named the skill's folder probably used it", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      ...USAGE,
+      agents: [{ ...USAGE.agents[1]!, loads: 0, workspace_reads: 2 }],
+    });
+    mount();
+
+    const row = (await screen.findByRole("link", { name: "Wholesale desk" })).closest("tr")!;
+    expect(row).toHaveTextContent("Probably: named its folder in 2 runs");
+    expect(row).not.toHaveTextContent("Not yet");
+  });
+
   it("overlays the agents picked on one chart, the busiest five to start with", async () => {
     const agents = Array.from({ length: 6 }, (_, index) => ({
       ...USAGE.agents[0]!,

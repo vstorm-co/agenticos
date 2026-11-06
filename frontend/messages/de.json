@@ -8521,6 +8521,7 @@
           "label": "Nutzung pro Agent"
         },
         "never": "Noch nicht",
+        "probable": "Wahrscheinlich: hat seinen Ordner in {count, plural, =1 {1 Run} other {# Runs}} genannt",
         "pick": "Agents im Diagramm",
         "pickNone": "Wähle oben einen Agent, um seine Linie zu zeichnen.",
         "noLoads": "Die gewählten Agents haben den Skill in den letzten 30 Tagen nicht geladen."

@@ -140,7 +140,11 @@ function UsageTable({
             <td className="px-4 py-2 text-right tabular-nums">{agent.loads}</td>
             <td className="px-4 py-2 text-right tabular-nums">{agent.resource_reads}</td>
             <td className="text-muted-foreground px-4 py-2 text-right text-xs">
-              {agent.last_loaded_at ? formatDate(agent.last_loaded_at, locale) : t("never")}
+              {agent.last_loaded_at
+                ? formatDate(agent.last_loaded_at, locale)
+                : agent.workspace_reads > 0
+                  ? t("probable", { count: agent.workspace_reads })
+                  : t("never")}
             </td>
           </tr>
         ))}

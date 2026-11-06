@@ -8403,6 +8403,7 @@
           "label": "Użycie według agenta"
         },
         "never": "Jeszcze nie",
+        "probable": "Prawdopodobnie: nazwał jego folder w {count, plural, one {1 runie} few {# runach} many {# runach} other {# runach}}",
         "pick": "Agenci na wykresie",
         "pickNone": "Wybierz agenta powyżej, żeby narysować jego linię.",
         "noLoads": "Wybrani agenci nie wczytali skilla w ostatnich 30 dniach."
