@@ -42,6 +42,8 @@ export function CanvasContextMenu({
   const switchable =
     node !== undefined && node.id !== graph?.entry_node_id && definition?.kind !== "control";
   const sized = node !== undefined && (node.layout.width != null || node.layout.height != null);
+  // A loop's Loop item and Loop result go only with their loop: never deleted or copied alone.
+  const loopPart = definition?.loop_body_only === true;
   return (
     <ContextMenuContent className="w-56">
       <ContextMenuItem onSelect={() => editNode(nodeId)}>
@@ -49,15 +51,17 @@ export function CanvasContextMenu({
         {t("menuOpenSettings")}
         <ContextMenuShortcut>↵</ContextMenuShortcut>
       </ContextMenuItem>
-      <ContextMenuItem
-        onSelect={() => {
-          copyToClipboard(store());
-          pasteFromClipboard(store());
-        }}
-      >
-        <Copy />
-        {t("menuDuplicate")}
-      </ContextMenuItem>
+      {!loopPart && (
+        <ContextMenuItem
+          onSelect={() => {
+            copyToClipboard(store());
+            pasteFromClipboard(store());
+          }}
+        >
+          <Copy />
+          {t("menuDuplicate")}
+        </ContextMenuItem>
+      )}
       {switchable && (
         <ContextMenuItem onSelect={() => updateNodeDetails(node.id, { disabled: !node.disabled })}>
           {node.disabled ? <CirclePlay /> : <CirclePause />}
@@ -70,15 +74,19 @@ export function CanvasContextMenu({
           {t("menuResetSize")}
         </ContextMenuItem>
       )}
-      <ContextMenuSeparator />
-      <ContextMenuItem
-        variant="destructive"
-        onSelect={() => applyNodeChanges([{ type: "remove", id: nodeId }])}
-      >
-        <Trash2 />
-        {t("nodeEditorDelete")}
-        <ContextMenuShortcut>⌫</ContextMenuShortcut>
-      </ContextMenuItem>
+      {!loopPart && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            variant="destructive"
+            onSelect={() => applyNodeChanges([{ type: "remove", id: nodeId }])}
+          >
+            <Trash2 />
+            {t("nodeEditorDelete")}
+            <ContextMenuShortcut>⌫</ContextMenuShortcut>
+          </ContextMenuItem>
+        </>
+      )}
     </ContextMenuContent>
   );
 }

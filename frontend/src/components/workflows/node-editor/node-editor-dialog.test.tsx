@@ -193,6 +193,14 @@ describe("NodeEditorDialog", () => {
     expect(store.getState().editingNodeId).toBeNull();
   });
 
+  it("offers no delete for a loop's item step, which goes only with its loop", () => {
+    const item = makeDefinition({ id: "loop.item", kind: "control", loop_body_only: true });
+    seed(node("a"), { ...node("i", "loop.item"), scope_id: "a" });
+    store.getState().editNode("i");
+    render(<NodeEditorDialog catalog={[DEBUG_ECHO, item]} />);
+    expect(screen.queryByRole("button", { name: "Delete step" })).toBeNull();
+  });
+
   it("reads without writing on a read-only editor, and says when a step's type is unknown", () => {
     seed(node("u", "gone.step"));
     store.getState().editNode("u");
