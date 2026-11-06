@@ -77,6 +77,7 @@ from app.services.authoring_evidence import EvidencePack, PackedRun
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.personal_data import PersonalDataService
+from app.services.skill_agents import SkillAgentService
 from app.services.skill_check import SkillCheckService
 from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
@@ -849,6 +850,31 @@ class TestEnding:
 
 
 class TestListing:
+    async def test_a_page_reads_each_lines_agents_once(self, db, evidence, monkeypatch):
+        """Every session on a line counts the same agents, so a page asks once per line."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        service = SkillImprovementService(db)
+        for _ in range(2):
+            read = await service.start(ctx, skill.id, _start())
+            await service.cancel(ctx, skill.id, read.id)
+        await service.start(ctx, skill.id, _start())
+        asked: list[uuid.UUID | None] = []
+        original = SkillAgentService.line_agents
+
+        async def counted(self, skill, fork_id):
+            asked.append(fork_id)
+            return await original(self, skill, fork_id)
+
+        monkeypatch.setattr(SkillAgentService, "line_agents", counted)
+
+        listed = await service.list_for_skill(
+            ctx, skill.id, fork_id=None, main_only=True, skip=0, limit=50
+        )
+
+        assert len(listed) == 3 and asked == [None]
+        assert {(read.agents, read.hidden_agents) for read in listed} == {(1, 0)}
+
     async def test_sessions_list_by_line_and_waiting_ones_reach_waiting_for_you(self, db, evidence):
         ctx = await _owner(db)
         skill = await _skill_on_main(db, ctx)

@@ -640,10 +640,16 @@ class SkillImprovementService:
             limit=limit,
         )
         people = await self.versions.people(ctx, [row.created_by_user_id for row in rows])
-        return [
-            await self._read(ctx, row, await self._line_of(skill, row), people=people)
-            for row in rows
-        ]
+        # A page holds a handful of lines at most: each is read, and its agents counted, once.
+        lines: dict[UUID | None, tuple[SessionLine, tuple[int, int]]] = {}
+        reads: list[SkillImprovementRead] = []
+        for row in rows:
+            if row.fork_id not in lines:
+                line = await self._line_of(skill, row)
+                lines[row.fork_id] = (line, await self._line_agents(ctx, line))
+            line, counted = lines[row.fork_id]
+            reads.append(await self._read(ctx, row, line, people=people, line_agents=counted))
+        return reads
 
     async def read(self, ctx: AuthContext, skill_id: UUID, run_id: UUID) -> SkillImprovementRead:
         self._require_runs_view(ctx)
@@ -2272,16 +2278,18 @@ class SkillImprovementService:
         line: SessionLine,
         *,
         people: Mapping[UUID, PersonRef] | None = None,
+        line_agents: tuple[int, int] | None = None,
     ) -> SkillImprovementRead:
-        """One session as the console reads it. `people` names who started it, read once
-        for a whole page by the caller listing many; a single read looks its starter up."""
+        """One session as the console reads it. `people` names who started it, and
+        `line_agents` counts its line's agents, each read once for a whole page by the
+        caller listing many; a single read looks both up."""
         iterations = await skill_improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run.id
         )
         base = await skill_version_repo.get_version(
             self.db, run.base_version_id, organization_id=ctx.organization_id, skill_id=run.skill_id
         )
-        visible, hidden = await self._line_agents(ctx, line)
+        visible, hidden = line_agents or await self._line_agents(ctx, line)
         result = SkillImprovementRead.model_validate(run)
         result.line_name = line.name
         result.base_version = (
