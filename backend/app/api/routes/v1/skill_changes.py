@@ -5,11 +5,16 @@ it is not a permission being cautious: a proposal carries the full body an agent
 wrote, so reading one is reading a candidate version of the organization's own
 instructions - and whoever may read it is exactly whoever may accept it.
 
+The gate is only the first half. Below it, `SkillProposalService` lists and reads
+a proposal only for a caller who may edit the skill it targets, as
+`resolve_access` decides with grants, and reports any other as missing (#2422).
+A proposal for a new skill has no skill to ask and is decided by whoever holds
+`skills:edit` at all.
+
 These are collection routes and per-resource routes in the same file, and both
-carry the gate, which is the one place this repository's rule bends. A proposal
-has no sharing model of its own - there are no grants on one, and
-`resolve_access` has nothing to widen - so the gate cannot refuse somebody a
-grant would have admitted.
+carry the gate, which is the one place this repository's rule bends: a proposal
+has no sharing model of its own - there are no grants on one - so the gate
+admits the kind of caller and the service narrows to the rows.
 """
 
 from typing import Any

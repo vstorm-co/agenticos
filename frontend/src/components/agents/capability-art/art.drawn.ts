@@ -13,6 +13,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   video_generation: 300,
   follow_ups: 172,
   monitor: 55,
+  drafts: 36,
 };
 
 /** Independent topic windows with a return path to the main conversation. */
@@ -226,6 +227,36 @@ const FOLLOW_UPS =
   '<text x="0" y="2.4" class="tx mono s7 mid b" >next →</text></g></g>' +
   "</svg>";
 
+/**
+ * Drafts: a card standing on the base with two stacked segments, each ruled with
+ * lines of text, and a small copy glyph lifting off its corner.
+ */
+const DRAFTS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<g><polygon class="ict" points="120,33.1 195.7,76.8 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icl" points="44.3,82 120,125.7 120,120.5 44.3,76.8"/>' +
+  '<polygon class="icr" points="195.7,82 120,125.7 120,120.5 195.7,76.8"/></g>' +
+  '<g><polygon class="int" points="120,30 195.7,73.7 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inl" points="44.3,76.8 120,120.5 120,117.4 44.3,73.7"/>' +
+  '<polygon class="inr" points="195.7,76.8 120,120.5 120,117.4 195.7,73.7"/></g>' +
+  '<g transform="matrix(0.9 0.5 -0.9 0.5 120 30)"><path class="igrid2" d="M21 3V81M42 3V81M63 3V81M3 21H81M3 42H81M3 63H81"/></g>' +
+  '<polygon class="int" points="71.2,16 128.8,48 126.6,49 69.4,17"/>' +
+  '<polygon class="inr" points="128.8,48 128.8,90 126.6,91 126.6,49"/>' +
+  '<polygon class="inl" points="69.4,59 126.6,91 126.6,49 69.4,17"/>' +
+  '<g transform="matrix(0.9 0.5 0 1 69.4 17)">' +
+  '<rect x="6" y="7" width="22" height="3" rx="1.5" class="ac" />' +
+  '<rect x="6" y="13" width="44" height="3" rx="1.5" class="mu" />' +
+  '<path class="igrid" d="M4 22H53"/>' +
+  '<rect x="6" y="28" width="40" height="3" rx="1.5" class="mu" />' +
+  '<rect x="6" y="34" width="44" height="3" rx="1.5" class="mu" /></g>' +
+  '<g class="bob"><g transform="matrix(0.9 0.5 0 1 112 20)">' +
+  '<rect x="0" y="0" width="9" height="11" rx="2" class="ict" />' +
+  '<rect x="3" y="3" width="9" height="11" rx="2" class="ac" /></g></g>' +
+  '<g class="bob"><g transform="translate(172 36)"><rect x="-19" y="-9" width="38" height="16" rx="8" class="pp" />' +
+  '<text x="0" y="2.4" class="tx mono s7 mid b" >copy</text></g></g>' +
+  "</svg>";
+
 /** Tables: a slab on the base ruled into rows, a few cells filled in, and `rows` above. */
 const VIRTUAL_TABLES =
   '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
@@ -284,4 +315,5 @@ export const DRAWN_ART: Readonly<Record<string, string>> = {
   computer_use: COMPUTER_USE,
   video_generation: VIDEO_GENERATION,
   follow_ups: FOLLOW_UPS,
+  drafts: DRAFTS,
 };

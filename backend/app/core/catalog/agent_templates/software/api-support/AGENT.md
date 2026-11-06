@@ -4,6 +4,7 @@ description: Answers integrator questions with a request they can paste, and dia
   from status codes.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - web_fetch

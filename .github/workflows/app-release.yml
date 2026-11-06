@@ -405,6 +405,7 @@ jobs:
       - name: Publish the cask to the Homebrew tap
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_META_TOKEN: ${{ github.token }}
           TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
           TAG: ${{ needs.resolve.outputs.tag }}
         run: |
@@ -415,8 +416,8 @@ jobs:
             hosts="$RUNNER_TEMP/tap_known_hosts"
             trap 'rm -f "$key" "$hosts"' EXIT
             printf '%s\n' "$TAP_DEPLOY_KEY" > "$key"
-            # GitHub publishes its SSH host keys over authenticated HTTPS.
-            curl -fsSL https://api.github.com/meta | python3 -c 'import json,sys; print("\n".join("github.com " + key for key in json.load(sys.stdin)["ssh_keys"]))' > "$hosts"
+            # Authenticate metadata access separately from the optional tap token.
+            GH_TOKEN="$GH_META_TOKEN" gh api meta --jq '.ssh_keys[] | "github.com " + .' > "$hosts"
             export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$hosts"
             git clone git@github.com:vstorm-co/homebrew-agenticos.git "$RUNNER_TEMP/tap"
           elif [ -n "$GH_TOKEN" ]; then

@@ -4,6 +4,7 @@ description: Takes a first notification of loss completely on the first contact,
   escalates what must not wait.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - clock

@@ -35,6 +35,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from functools import partial
+from uuid import UUID
 
 import httpx2
 from mcp.client.auth import PKCEParameters
@@ -280,6 +281,8 @@ class McpOAuthPayload(BaseModel):
     refresh_token: SealedStr | None = None
     expires_at: float | None = None
     provider: str | None = None
+    browser_nonce_digest: str | None = None
+    account_initiator_id: UUID | None = None
 
 
 @dataclass(frozen=True)

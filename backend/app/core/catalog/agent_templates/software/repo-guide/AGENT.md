@@ -4,6 +4,7 @@ description: Answers a new engineer from the repository's own docs, always with 
   file path.
 capabilities:
 - ask_user
+- drafts
 - id: knowledge
   config:
     default_top_k: 4

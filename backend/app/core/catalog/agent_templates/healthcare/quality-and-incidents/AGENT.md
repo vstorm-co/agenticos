@@ -4,6 +4,7 @@ description: Writes up patient-safety incidents factually and blamelessly, and f
   what the account does not establish.
 capabilities:
 - ask_user
+- drafts
 - knowledge
 - skills
 - clock

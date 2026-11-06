@@ -15,7 +15,18 @@ always, built by the factory from the spec's `budget` block and the
 organization's limit. Making it optional would make "an agent with no spending
 limit" a thing someone could configure by accident.
 
-Prices come from [`genai-prices`](https://github.com/pydantic/genai-prices),
+Stav's validated billed cost takes precedence over a catalog estimate. USD is
+used directly; NOK requires the operator-maintained `STAV_NOK_PER_USD` setting
+(NOK per dollar). Body costs supersede the response headers, including zero.
+The request usage retains the amount, currency, conversion rate and USD result;
+the ledger marks the entry `provider_reported`. No exchange-rate service is
+called. Missing conversion or invalid amounts leave the catalog fallback in
+place, with an unpriced request still flagged incomplete. Billed USD and a
+numeric reported-request counter survive auxiliary usage aggregation; a mixed
+aggregate that includes requests without reported prices stays partial while
+its known spend still counts towards the budget.
+
+Otherwise prices come from [`genai-prices`](https://github.com/pydantic/genai-prices),
 not from a table here. There was a table - nine models, hand-maintained - and
 it was wrong in a way a table cannot be right: Gemini 2.5 Pro charges one rate
 below a 200k-token context and double above it, and a flat

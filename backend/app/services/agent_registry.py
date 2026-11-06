@@ -49,6 +49,8 @@ from app.agents.capabilities.computer_use import (
     validate_daemon_url,
 )
 from app.agents.capabilities.follow_ups import FollowUpsConfig
+from app.agents.capabilities.mirage import MirageConfig, OrganizationAccount
+from app.agents.capabilities.mirage import backend as mirage_backend
 from app.agents.capabilities.sandbox import SandboxConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -68,6 +70,7 @@ from app.agents.spec import (
     VoiceSpec,
 )
 from app.core.audit import current_impersonator, record_audit
+from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -146,6 +149,7 @@ from app.services.file_storage import (
     avatar_filename,
     get_file_storage,
 )
+from app.services.mirage_mounts import address_fields, default_address, hosts_of
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.model_profile import (
     MAX_FALLBACK_DEPTH,
@@ -1939,6 +1943,8 @@ class AgentRegistryService:
             if isinstance(config, FollowUpsConfig) and config.model_profile_id is not None:
                 problems.add(await self.model_profile_problems(ctx, config.model_profile_id))
             problems.add(ungateable_tool_problems(binding, definition, config))
+            if isinstance(config, MirageConfig):
+                problems.add(await self._mirage_problems(ctx, config))
         # A tool_approval key that matches nothing is the dangerous kind of
         # typo: it is not an error at run time, it is silence - the tool the
         # author meant to gate runs unapproved and nobody is told.
@@ -1952,6 +1958,65 @@ class AgentRegistryService:
             )
         problems.add(_tool_override_problems(binding, definition))
         problems.add(await self._secret_problems(ctx, binding, definition))
+        return problems
+
+    async def _mirage_problems(self, ctx: AuthContext, config: MirageConfig) -> list[str]:
+        """What a virtual terminal's folders point at that this publisher cannot lend.
+
+        The config itself validated already - known services, the right credential
+        fields - so this is the part only the database can answer: each secret is
+        this organization's and the publisher may use it, each organization account
+        is still connected, each typed host is one the operator allowed. A host held
+        inside a secret (a Postgres DSN) cannot be read here; the run checks it.
+        """
+        problems: list[str] = []
+        allowed = {host.lower() for host in settings.MIRAGE_ALLOWED_HOSTS}
+        for mount in config.mounts:
+            info = mirage_backend(mount.backend)
+            if info is None:
+                continue
+            for credential, secret_id in mount.secrets.items():
+                secret = await organization_secret_repo.get(
+                    self.db, secret_id, organization_id=ctx.organization_id
+                )
+                if secret is None or not await resolve_access(
+                    self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+                ):
+                    problems.append(
+                        f"{mount.path} points at a secret this organization does not have: "
+                        f"{secret_id}"
+                    )
+                    continue
+                expected = (
+                    SecretKind.ENTRA_APP if info.credential == "microsoft" else SecretKind.API_KEY
+                )
+                if secret.kind != expected.value:
+                    problems.append(
+                        f"{mount.path} needs a {expected.value} secret for {credential}, but "
+                        f"'{secret.name}' holds a {secret.kind}"
+                    )
+                elif secret.purpose not in (*info.secret_purposes, "custom"):
+                    problems.append(
+                        f"{mount.path} needs a {' or '.join(info.secret_purposes)} secret for "
+                        f"{credential}, but '{secret.name}' is for {secret.purpose}"
+                    )
+            if isinstance(mount.account, OrganizationAccount):
+                account = await mcp_connection_repo.get_account(
+                    self.db, mount.account.connection_id
+                )
+                if account is None or account.organization_id != ctx.organization_id:
+                    problems.append(
+                        f"{mount.path} reads an account the organization has not connected"
+                    )
+            for address in address_fields(info, mount.options):
+                value = mount.options.get(address) or default_address(info, address)
+                if isinstance(value, str) and (
+                    not (hosts := hosts_of(value)) or not set(hosts) <= allowed
+                ):
+                    problems.append(
+                        f"{mount.path}: {address} names a host this deployment does not allow; "
+                        "an operator adds it to MIRAGE_ALLOWED_HOSTS"
+                    )
         return problems
 
     async def model_profile_problems(self, ctx: AuthContext, profile_id: UUID) -> list[str]:
