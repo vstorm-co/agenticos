@@ -28,7 +28,7 @@ from app.db.models.resource_grant import GrantLevel, Visibility
 from app.db.models.sync_log import SyncLog
 from app.db.models.sync_source import SyncSource
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
-from app.repositories import collection_teardown_repo
+from app.repositories import collection_teardown_repo, rag_document_repo
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
@@ -159,6 +159,11 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
         return False
 
     monkeypatch.setattr(collection_teardown_repo, "is_reserved", not_reserved)
+    # No content without a base under the name, unless a test says otherwise (#2747).
+    monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=False)
+    )
 
     async def get_accessible(_db: object, **_kwargs: object) -> list[KnowledgeBase]:
         return rows.accessible
@@ -544,6 +549,69 @@ class TestClaimingACollectionName:
 
         with pytest.raises(AlreadyExistsError):
             await service.claim(_ctx(), "handbook")
+
+    @pytest.mark.security
+    async def test_a_name_holding_another_tenants_unfiled_documents_is_refused(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`rag-ingest` files its rows under no base and no organization. A member
+        claiming the name could delete their base and drop the operator's table
+        with it, so the name is not theirs to take (#2747)."""
+        rows.collections = []
+        unfiled = AsyncMock(return_value=True)
+        monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", unfiled)
+
+        with pytest.raises(AlreadyExistsError):
+            await service.claim(_ctx(), "manuals")
+
+        unfiled.assert_awaited_once_with(service.db, collection_name="manuals", tenant=HOME_ORG)
+
+    @pytest.mark.security
+    async def test_a_table_no_base_holds_with_foreign_chunks_is_refused(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Chunks with no tracking row - written before rows existed - are as unowned
+        as the rows are, and go with the table just the same."""
+        rows.collections = []
+        chunks = AsyncMock(return_value=True)
+        monkeypatch.setattr(rag_document_repo, "table_holds_chunks_outside", chunks)
+
+        with pytest.raises(AlreadyExistsError):
+            await service.claim(_ctx(), "manuals")
+
+        chunks.assert_awaited_once_with(service.db, collection_name="manuals", tenant=HOME_ORG)
+
+    async def test_a_name_the_caller_holds_is_not_refused_for_unowned_content(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The caller may write every base holding the name, so may delete them all
+        and drop the table anyway: refusing a repeat claim protects nothing, and
+        `POST /rag/collections/{name}` is idempotent."""
+        rows.collections = [_kb("handbook")]
+        unfiled = AsyncMock(return_value=True)
+        chunks = AsyncMock(return_value=True)
+        monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", unfiled)
+        monkeypatch.setattr(rag_document_repo, "table_holds_chunks_outside", chunks)
+
+        await service.claim(_ctx(), "handbook")
+
+        # Not asked at all: a held name's table can be large, and the scan has no index.
+        unfiled.assert_not_awaited()
+        chunks.assert_not_awaited()
+
+    async def test_an_app_admin_may_adopt_unowned_content(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """They administer the deployment and can already drop any collection."""
+        rows.collections = []
+        monkeypatch.setattr(
+            rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=True)
+        )
+        monkeypatch.setattr(
+            rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=True)
+        )
+
+        await service.claim(_ctx(app_admin=True), "manuals")
 
     @pytest.mark.parametrize(
         "name", ["foo-bar", "all", "documents", "a" * (MAX_COLLECTION_NAME_LENGTH + 1)]

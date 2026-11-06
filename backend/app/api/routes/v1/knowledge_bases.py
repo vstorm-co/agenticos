@@ -138,7 +138,9 @@ async def delete_knowledge_base(
 
     Default KBs cannot be deleted. The physical `rag_<collection>` table is dropped
     by the durable cleanup the service dispatches after the commit, which builds its
-    own vector engine - so the route no longer wires a store in (#1266, #1349).
+    own vector engine - so the route no longer wires a store in (#1266, #1349). It
+    stays, with this base's chunks purged, while another base holds the name or it
+    holds chunks this base does not take, such as an operator's `rag-ingest` (#2747).
     """
     await service.delete(kb_id, ctx=ctx)
 

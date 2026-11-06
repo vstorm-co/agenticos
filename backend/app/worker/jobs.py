@@ -255,7 +255,7 @@ class Restamp(Payload):
 
 
 class BasePurge(Payload):
-    """A deleted knowledge base whose collection's table another base keeps (#2537)."""
+    """A deleted knowledge base whose collection's table stays (#2537, #2747)."""
 
     collection: str
     knowledge_base_id: UUID
