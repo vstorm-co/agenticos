@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "9cdf9953bdd6"
 ---
 
 # Berechtigungen { #permissions }
@@ -142,6 +142,14 @@ Teilmenge dieser Berechtigungen, nie mehr, als sein Aussteller jetzt hat.
     den Endpunkt eines Profils mit Schlüssel zu verschieben, braucht
     `secrets:view` auf diesem Schlüssel
     ([Modelle](models.md#changing-a-profiles-key-or-endpoint)).
+
+    Es ist auch das, was die Sync-Integrationen der Organisation auflistet:
+    `/org/integrations` und das Angebot des Knowledge-Base-Assistenten, eine davon
+    wiederzuverwenden (`GET /kb/{kb_id}/sync-sources/org-integrations`). Beide
+    liefern die Quellen jeder Base, mit ihrer Konfiguration, dem Vault-Secret, das
+    jede nutzt, und ihrem letzten Fehler. Eine Base zu lesen oder einen Grant auf
+    sie zu halten, öffnet diese Liste nicht, und der Assistent lässt das Angebot
+    für einen Aufrufer ohne die Berechtigung weg.
 
 **Ressourcen**-Berechtigungen tragen einen `Scope`, denn sie beantworten die
 zweite Frage, die eine Rolle nicht kann: nicht "darf diese Rolle Agents

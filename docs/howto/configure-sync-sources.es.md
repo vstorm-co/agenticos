@@ -1,5 +1,5 @@
 ---
-source_sha: "71cd0f76685e"
+source_sha: "62bbbfa3f37a"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -614,6 +614,17 @@ Todos los endpoints de las fuentes de sincronización viven bajo
 fuente exige `collections:edit`, en ambos casos sobre la colección a la que
 pertenece la fuente: no interviene ningún rol de administrador. Consulta
 [quién puede llegar a una colección](../file-processing.md#who-may-reach-a-collection).
+
+Para actualizar, eliminar o lanzar una fuente que alimenta una base de
+conocimiento, debes poder escribir en esa base, igual que en la página de la base
+de conocimiento. Esto incluye un `PATCH` que pone `collection_name` a `null`. Una
+fuente sin asignar solo necesita tu organización. El historial de sincronización
+y el registro de ejecuciones de una fuente muestran solo las fuentes de tu
+organización, también a través de una base de ámbito de aplicación que lee toda
+organización. Un administrador de la plataforma las ve todas. La lista de
+integraciones existentes que el asistente de la base de conocimiento ofrece
+reutilizar exige `connections:manage`, igual que
+[`/org/integrations`](../permissions.md).
 
 ### CRUD de fuentes de sincronización { #sync-sources-crud }
 

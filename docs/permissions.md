@@ -126,6 +126,13 @@ subset of the permissions here, never more than its issuer holds now.
     `secrets:view` on that key
     ([Models](models.md#changing-a-profiles-key-or-endpoint)).
 
+    It is also what lists the organization's sync integrations: `/org/integrations`
+    and the knowledge base wizard's offer to reuse one
+    (`GET /kb/{kb_id}/sync-sources/org-integrations`). Both return every base's
+    sources, with their configuration, the vault secret each uses and their last
+    error. Reading one base, or holding a grant on it, does not open that list, and
+    the wizard leaves out the offer for a caller without the permission.
+
 **Resource** permissions carry a `Scope`, because they answer the second question
 a role cannot: not "may this role touch agents?" but *which* agents.
 

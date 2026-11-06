@@ -1,5 +1,5 @@
 ---
-source_sha: "12680197c058"
+source_sha: "9cdf9953bdd6"
 ---
 
 # Permisos { #permissions }
@@ -138,6 +138,14 @@ de lo que su emisor tiene ahora.
     protegida. Poner la clave de un perfil, o mover el endpoint de un perfil que
     tiene clave, requiere `secrets:view` sobre esa clave
     ([Modelos](models.md#changing-a-profiles-key-or-endpoint)).
+
+    También es lo que lista las integraciones de sincronización de la
+    organización: `/org/integrations` y la oferta del asistente de la base de
+    conocimiento de reutilizar una (`GET /kb/{kb_id}/sync-sources/org-integrations`).
+    Ambas devuelven las fuentes de todas las bases, con su configuración, el secreto
+    del vault que usa cada una y su último error. Leer una base, o tener un grant
+    sobre ella, no abre esa lista, y el asistente omite la oferta para quien llama
+    sin el permiso.
 
 Los permisos de **recurso** llevan un `Scope`, porque responden a la segunda
 pregunta que un rol no puede: no "¿puede este rol tocar agents?" sino *qué*

@@ -1,5 +1,5 @@
 ---
-source_sha: "71cd0f76685e"
+source_sha: "62bbbfa3f37a"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -613,6 +613,15 @@ Wypisanie listy wymaga `collections:view`, a wszystko, co zmienia źródło, wym
 `collections:edit` — w obu przypadkach wobec kolekcji, do której źródło należy;
 rola administratora w tym nie występuje. Zobacz
 [kto może sięgnąć do kolekcji](../file-processing.md#who-may-reach-a-collection).
+
+Aby zaktualizować, usunąć lub uruchomić źródło, które zasila bazę wiedzy, musisz
+mieć prawo zapisu do tej bazy, tak jak na stronie bazy wiedzy. Dotyczy to też
+`PATCH`, który ustawia `collection_name` na `null`. Nieprzypisane źródło wymaga
+tylko Twojej organizacji. Historia synchronizacji i log uruchomień źródła pokazują
+tylko źródła Twojej organizacji, także przez bazę o zasięgu aplikacji, którą czyta
+każda organizacja. Administrator platformy widzi wszystkie. Lista istniejących
+integracji, którą kreator bazy wiedzy proponuje do ponownego użycia, wymaga
+`connections:manage`, tak samo jak [`/org/integrations`](../permissions.md).
 
 ### CRUD źródeł synchronizacji { #sync-sources-crud }
 

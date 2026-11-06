@@ -586,6 +586,15 @@ in both cases reaching the collection the source belongs to — there is no admi
 role in it. See
 [who may reach a collection](../file-processing.md#who-may-reach-a-collection).
 
+To update, delete or trigger a source that feeds a knowledge base, you must be able
+to write that base, as on the knowledge base page. This includes a `PATCH` that
+sets `collection_name` to `null`. An unassigned source needs only your
+organization. Sync history and a source's run log show only your organization's
+sources, also through an app-scoped base that every organization reads. A platform
+admin sees all of them. The list of existing integrations that the knowledge base
+wizard offers to reuse needs `connections:manage`, the same as
+[`/org/integrations`](../permissions.md).
+
 ### Sync sources CRUD
 
 | Method | Endpoint | Description |

@@ -1,5 +1,5 @@
 ---
-source_sha: "71cd0f76685e"
+source_sha: "62bbbfa3f37a"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -622,6 +622,16 @@ verlangt `collections:view`, und alles, was eine Quelle verändert, verlangt
 `collections:edit` — in beiden Fällen bezogen auf die Collection, zu der die
 Quelle gehört. Eine Adminrolle kommt darin nicht vor. Siehe
 [wer eine Collection erreichen darf](../file-processing.md#who-may-reach-a-collection).
+
+Um eine Quelle zu aktualisieren, zu löschen oder auszulösen, die eine Knowledge
+Base speist, müssen Sie in diese Base schreiben dürfen, wie auf der Seite der
+Knowledge Base. Das gilt auch für einen `PATCH`, der `collection_name` auf `null`
+setzt. Eine nicht zugeordnete Quelle braucht nur Ihre Organisation. Der
+Sync-Verlauf und das Laufprotokoll einer Quelle zeigen nur die Quellen Ihrer
+Organisation, auch über eine app-weite Base, die jede Organisation liest. Ein
+Plattform-Admin sieht alle. Die Liste vorhandener Integrationen, die der Assistent
+der Knowledge Base zur Wiederverwendung anbietet, verlangt `connections:manage`,
+genau wie [`/org/integrations`](../permissions.md).
 
 ### CRUD für Sync-Quellen { #sync-sources-crud }
 
