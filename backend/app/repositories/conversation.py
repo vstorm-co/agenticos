@@ -1136,6 +1136,9 @@ async def person_requests_since(
 
     Their own messages: written by them in a shared chat, or unattributed in a
     conversation that is theirs - a one-person chat records no author per turn.
+    Never a prompt a guardrail refused: the input edge kept it from every model,
+    and the nightly look hands what this returns to one with no guardrails of its
+    own (#2746).
     """
     result = await db.execute(
         select(Message)
@@ -1143,6 +1146,7 @@ async def person_requests_since(
         .where(
             Conversation.organization_id == organization_id,
             Message.role == "user",
+            Message.guardrail_refused.is_(False),
             Message.created_at >= since,
             or_(
                 Message.author_user_id == user_id,
