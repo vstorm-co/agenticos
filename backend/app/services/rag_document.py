@@ -360,11 +360,10 @@ class RAGDocumentService:
         # slipped into that window would `_ensure_collection`-recreate the table the
         # drop then destroys, orphaning this row and losing its vectors. The reservation
         # is committed with the delete, so this catches every upload that arrives after
-        # it. Deliberately unlocked: taking the teardown lock here, before the insert's
-        # foreign-key lock on the knowledge_bases row, would invert
-        # `KnowledgeBaseService.delete`'s order (that row first, then the teardown lock)
-        # and deadlock. Fully serialising the narrow commit-to-reserve window, and the
-        # worker ingestion paths, is #1382 (#1362, #1364).
+        # it. Unlocked, so it is best-effort: the teardown takes the name and then the
+        # base row (`KnowledgeBaseService._tear_down`), and nothing here holds the name.
+        # Fully serialising the narrow commit-to-reserve window, and the worker
+        # ingestion paths, is #1382 (#1362, #1364).
         if await collection_teardown_repo.is_reserved(self.db, collection_name):
             raise AlreadyExistsError(
                 message=f"A collection named '{collection_name}' is being torn down; "
