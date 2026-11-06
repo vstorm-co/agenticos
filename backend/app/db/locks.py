@@ -35,7 +35,8 @@ class LockScope(IntEnum):
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
-    #: A collection name's claim-and-create against its vector-table drop (#1355).
+    #: A collection name's claim-and-create against its vector-table drop (#1355),
+    #: and a chunk write with no base through its commit (#2747).
     COLLECTION_TEARDOWN = 3
     #: Which of a member's accounts on one service is the default. The partial
     #: unique index allows one, and the write is read-then-clear-then-set - so

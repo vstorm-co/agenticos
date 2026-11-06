@@ -1,5 +1,5 @@
 ---
-source_sha: "5ceebb576717"
+source_sha: "aa26227d35e6"
 ---
 
 # Comandos { #commands }
@@ -591,7 +591,8 @@ uv run agenticos cmd rag-drop docs --knowledge-base <knowledge-base-id> --yes
 un worker borra la tabla de vectores y los archivos guardados después del commit del
 comando. Un nombre que tienen varias bases de conocimiento - también en organizaciones
 distintas - se rechaza, con sus ids, hasta que `--knowledge-base` indique una; la tabla
-se queda entonces para las demás.
+se queda entonces para las demás. A diferencia del borrado desde la consola, también
+elimina la tabla de la última base aunque tenga fragmentos que no son de ninguna base.
 
 #### Sincronización con Google Drive { #google-drive-sync }
 

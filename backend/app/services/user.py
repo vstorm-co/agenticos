@@ -1083,9 +1083,9 @@ class UserService:
         tables are a cleanup job queued in this transaction
         (`queue_external_state_cleanup`), so a rollback keeps them, a worker
         restart mid-cleanup does not orphan them (#1349), and
-        the drop takes the `COLLECTION_TEARDOWN` lock and re-reads the reference
-        check on its own session, so a name a second base still holds - or is
-        mid-claim on - keeps its table (#913, #1355). A table is queued for drop
+        the drop takes the `COLLECTION_TEARDOWN` lock and goes ahead only while the
+        name is reserved, so a name a second base still holds - or is mid-claim
+        on - keeps its table (#913, #1355). A table is queued for drop
         only when no other base claims the name; it is not tenant-unique, so two
         bases can share one.
         """

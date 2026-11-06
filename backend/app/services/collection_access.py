@@ -42,9 +42,11 @@ from app.db.vector_tables import validate_collection_name
 from app.repositories import (
     collection_teardown_repo,
     knowledge_base_repo,
+    organization_repo,
     rag_document_repo,
     sync_log_repo,
     sync_source_repo,
+    user_repo,
 )
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
@@ -120,6 +122,26 @@ def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[Knowledge
         return False
     target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
     return target is not None and target.id == kb.id
+
+
+def _reaches_source(ctx: AuthContext, source: SyncSource) -> bool:
+    """Whether this caller may see a sync source that feeds a base they read.
+
+    Feeding a readable base is not enough on its own: every member of every
+    organization reads an app-scoped base, and a source of any organization
+    with no base of the name feeds it (:func:`_feeds`). Its settings and run
+    history - error text naming files and endpoints - are still that
+    organization's, so a source is the caller organization's or, for a
+    platform admin, anyone's (#2745).
+    """
+    return ctx.is_app_admin or source.organization_id == ctx.organization_id
+
+
+def _taken(name: str) -> AlreadyExistsError:
+    return AlreadyExistsError(
+        message=f"A collection named '{name}' already exists",
+        details={"collection": name},
+    )
 
 
 def _no_collection(name: str) -> NotFoundError:
@@ -221,11 +243,13 @@ class CollectionAccessService:
         """The sync runs a listing may include: the collection asked for, or all of theirs.
 
         A run started by a sync source is listed when that source feeds a base
-        the caller reads (:func:`_feeds`, the rule the per-source routes apply);
-        on the name alone, a member reading only an app-scoped base listed the
-        runs - errors and file counts - of a private base sharing its name
-        (#2486). A run with no source carries nothing but its name, so it is
-        listed by the name. The unfiltered case means "mine", never "everything".
+        the caller reads (:func:`_feeds`, the rule the per-source routes apply)
+        and is the caller organization's (:func:`_reaches_source`); on the name
+        alone, a member reading only an app-scoped base listed the runs - errors
+        and file counts - of a private base sharing its name (#2486), and on the
+        base alone, those of every organization feeding that app base (#2745). A
+        run with no source carries nothing but its name, so it is listed by the
+        name. The unfiltered case means "mine", never "everything".
         """
         kbs = await self._readable_kbs_for(ctx, name)
         names = list(dict.fromkeys(kb.collection_name for kb in kbs))
@@ -236,9 +260,36 @@ class CollectionAccessService:
             sync_source_ids=[
                 source.id
                 for source in sources
-                if any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
+                if _reaches_source(ctx, source)
+                and any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
             ],
         )
+
+    async def readable_sync_sources(self, ctx: AuthContext, name: str | None) -> list[SyncSource]:
+        """The caller organization's sync sources this caller may list, newest first.
+
+        The whole list - every base's sources, with their config, credential id
+        and last error, and the unassigned templates - is the organization's
+        integrations, and `connections:manage` is what reads those, as on
+        `/org/integrations`. Anybody else gets the sources feeding a base they
+        read (:func:`_feeds`), which is what each base's own page lists: under
+        `collections:view` alone this answered every reader of one base with
+        everything (#2745). A `name` narrows either answer to that collection,
+        and for a caller listing by base it must be one they read, or 404.
+        """
+        sources = await sync_source_repo.get_all(
+            self.db, organization_id=ctx.organization_id, collection_name=name
+        )
+        if ctx.has(Perm.CONNECTIONS_MANAGE):
+            return sources
+        kbs = await self._readable_kbs_for(ctx, name)
+        names = list(dict.fromkeys(kb.collection_name for kb in kbs))
+        candidates = await knowledge_base_repo.list_by_collection_names(self.db, names)
+        return [
+            source
+            for source in sources
+            if any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
+        ]
 
     async def _readable_kbs_for(self, ctx: AuthContext, name: str | None) -> list[KnowledgeBase]:
         """Every base claiming `name` that this caller reads, or all of theirs; 404 for none."""
@@ -280,17 +331,34 @@ class CollectionAccessService:
         what is in it.
 
         The taken-check and the row this request goes on to write are serialized
-        against a concurrent teardown of the same name: the drop re-reads the same
-        reference check before dropping the table, and without the lock a claim that
-        reads "free" and a drop that reads "unreferenced" both act, leaving this
+        against a concurrent teardown of the same name: the teardown reads the same
+        reference check to decide the drop, and without the lock a claim that
+        reads "free" and a teardown that reads "unreferenced" both act, leaving this
         base's committed row pointing at a table the drop removed (#1355, #913). The
         lock is transaction-scoped, so it is held until this request commits the
         row - past `create_collection`, which builds the table this protects.
 
+        Content no base owns is the third refusal (#2747). A name can hold rows
+        and chunks with no knowledge base behind them - `rag-ingest` writes both,
+        tagged with no organization. A claim adopting such a name let a member with
+        ordinary `collections:edit` create a base on it and, in deleting that base,
+        drop the operator's chunks. The last holder's teardown now keeps a table
+        holding such chunks; this keeps the name from being adopted at all, an
+        ingest still running included. So a name no base holds is refused while it
+        holds unfiled rows describing chunks of any tenant but the caller's
+        organization, or a vector table with such chunks. A name a base holds is
+        not checked: the caller passed `writable_kb` on every holder, and may
+        delete or clear them all anyway. Only an app admin passes: they administer the
+        deployment and can already drop any collection with `rag-drop`. The
+        refusal is the same "already exists", saying nothing about whose content
+        it is; that the name holds content at all is the global namespace's
+        price, as for a held name.
+
         Raises:
             BadRequestError: If the name could not safely become an identifier.
             AlreadyExistsError: If a knowledge base outside the caller's reach
-                already owns the name.
+                already owns the name, or no base holds it, it holds content of
+                another tenant and the caller is not an app admin.
         """
         validate_collection_name(name, metadata=Base.metadata)
         await hold_name(self.db, LockScope.COLLECTION_TEARDOWN, name)
@@ -302,12 +370,23 @@ class CollectionAccessService:
                 message=f"A collection named '{name}' is being torn down; try again shortly",
                 details={"collection": name},
             )
-        for kb in await knowledge_base_repo.list_by_collection_name(self.db, name):
+        holders = await knowledge_base_repo.list_by_collection_name(self.db, name)
+        for kb in holders:
             if not await writable_kb(self.db, ctx, kb):
-                raise AlreadyExistsError(
-                    message=f"A collection named '{name}' already exists",
-                    details={"collection": name},
-                )
+                raise _taken(name)
+        # A caller who may write every holder may already delete or clear them all,
+        # so a held name has nothing more to refuse: the teardown spares what is not
+        # theirs.
+        if ctx.is_app_admin or holders:
+            return
+        if await rag_document_repo.holds_unfiled_outside(
+            self.db, collection_name=name, tenant=ctx.organization_id
+        ):
+            raise _taken(name)
+        if await rag_document_repo.table_holds_chunks_outside(
+            self.db, collection_name=name, tenant=ctx.organization_id
+        ):
+            raise _taken(name)
 
     async def _document(self, doc_id: str) -> RAGDocument:
         parsed = _as_uuid(doc_id)
@@ -355,20 +434,52 @@ class CollectionAccessService:
             )
         return doc
 
-    async def kb_sync_source(self, kb: KnowledgeBase, source_id: str) -> SyncSource:
+    async def _hold_source(self, ctx: AuthContext, source: SyncSource) -> SyncSource | None:
+        """The source as committed, locked until this transaction ends, or `None` if gone.
+
+        Which base a source feeds is its `collection_name`, so an answer about
+        that base is only good while the name cannot change: a move committing
+        between an unlocked read and the write it authorized left a caller
+        changing a source that now feeds a base they cannot write (#2745). Decide
+        on the row this returns and hold it through the change.
+
+        Locks are taken in the order the teardowns take them: a collection name a
+        move targets (:meth:`source_target`) before this, as a base's deletion
+        takes the name and then its sources; then the organization and the
+        caller, as their foreign keys would take them, before the row, as a purge
+        or an account deletion locks them and then deletes the source (#2682).
+        The source's organization rather than the caller's: a platform admin
+        reaches another organization's.
+        """
+        await organization_repo.hold_key_share(self.db, source.organization_id)
+        await user_repo.hold_key_share(self.db, [] if ctx.user_id is None else [ctx.user_id])
+        return await sync_source_repo.lock(self.db, source.id)
+
+    async def kb_sync_source(
+        self, ctx: AuthContext, kb: KnowledgeBase, source_id: str, *, for_update: bool = False
+    ) -> SyncSource:
         """A sync source loaded by id, if it feeds this knowledge base, or 404.
 
         Which base a source feeds is :func:`_feeds`. On the name and organization
         alone, an app-scoped base would reach every organization's source by its
         name - its run history and settings shown to any member of any
-        organization, since such a base is readable by all.
+        organization, since such a base is readable by all. On the base alone it
+        still did, for every organization with no base of the name, which is why
+        the source must also be the caller's (:func:`_reaches_source`, #2745).
+
+        `for_update` is for a route that goes on to change or run the source: the
+        source then stays where it was checked until that lands
+        (:meth:`_hold_source`). A read leaves it off, and does not wait behind a
+        change.
         """
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
+        if for_update and source is not None and _reaches_source(ctx, source):
+            source = await self._hold_source(ctx, source)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
-        if not _feeds(source, kb, candidates):
+        if not _reaches_source(ctx, source) or not _feeds(source, kb, candidates):
             raise NotFoundError(
                 message="Sync source not found in this knowledge base",
                 details={"kb_id": kb.id, "source_id": source_id},
@@ -472,6 +583,36 @@ class CollectionAccessService:
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
         if source is None or source.organization_id != ctx.organization_id:
+            raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
+        return source
+
+    async def writable_sync_source(self, ctx: AuthContext, source_id: str) -> SyncSource:
+        """A sync source of the caller's organization they may change, run or delete.
+
+        :meth:`sync_source`, and when the source feeds a base, write access to
+        that base (:func:`writable_kb`) - the check the knowledge-base routes make
+        through the base in their path. A source writes into its base, so
+        detaching it, changing its config or credential, deleting it or running it
+        changes that base; `/rag/sync/sources/{id}` checked the organization and,
+        on a move, only the base the source was moved to (#2745). A source that
+        feeds no base - an unassigned template, or a name no base holds - has only
+        its organization to decide it. The refusal is the absent source's, so it
+        does not confirm that the id exists.
+
+        The decision is made on the locked row, which stays where it was checked
+        until this transaction ends (:meth:`_hold_source`), so a route moving the
+        source calls :meth:`source_target` first.
+        """
+        source = await self._hold_source(ctx, await self.sync_source(ctx, source_id))
+        if source is None:
+            raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
+        if source.collection_name is None:
+            return source
+        candidates = await knowledge_base_repo.list_by_collection_name(
+            self.db, source.collection_name
+        )
+        target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
+        if target is not None and not await writable_kb(self.db, ctx, target):
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         return source
 
