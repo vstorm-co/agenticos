@@ -35,6 +35,7 @@ from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
+from app.db.models.coding_account import CodingAccount
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.mcp_connection import McpConnection
@@ -50,7 +51,7 @@ def _org_scope(
     return VaultScope.organization(row.organization_id)
 
 
-def _person_scope(row: BrowserSignIn) -> VaultScope:
+def _person_scope(row: BrowserSignIn | CodingAccount) -> VaultScope:
     return VaultScope.user(row.user_id)
 
 
@@ -82,6 +83,7 @@ class SealedTable:
         | AgentTrigger
         | WorkflowExposure
         | BrowserSignIn
+        | CodingAccount
         | DeploymentSettings
         | DiagnosticsIdentity
     ]
@@ -138,6 +140,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("secret_encrypted",),
         version_attr="secret_key_version",
         scope=_org_scope,
+    ),
+    SealedTable(
+        label="coding_accounts",
+        model=CodingAccount,
+        columns=("sealed_secret",),
+        version_attr="key_version",
+        scope=_person_scope,
     ),
     SealedTable(
         label="browser_sign_ins",

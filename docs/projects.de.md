@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "3ba3ec38d6e7"
+source_sha: "e9573cb4bf21"
 ---
 
 # Projekte { #projects }
@@ -286,8 +286,8 @@ mit ihm.
 
 ## Wo Projekte erscheinen { #where-projects-show-up }
 
-- **Projekte** in der Seitenleiste listet die fünf zuletzt genutzten über dem
-  Link zu allen.
+- **Projekte** in der Seitenleiste listet die drei zuletzt genutzten über dem
+  Link zu allen. Ein Symbol kennzeichnet Projekte mit einer noch ungelesenen Chatantwort.
 - Die Chat-Liste führt jeden Chat in den Projekten, die du sehen kannst - deine
   und die deiner Kolleginnen und Kollegen - unter dem Namen des Projekts, über
   den Chats außerhalb von Projekten.
@@ -296,3 +296,15 @@ mit ihm.
 - `GET /api/v1/projects` und seine Unterrouten gehören zur öffentlichen API, sodass
   ein Skript ein Projekt anlegen und mit Dateien füllen kann. Siehe [die
   API](api.md).
+
+
+## Ein Projekt auf Kurs halten { #keep-a-project-on-track }
+
+Wähle auf der Projektseite **Projekt auf Kurs halten**. Wähle einen veröffentlichten Agenten, den du bearbeiten darfst, prüfe Ressourcen und verbundene Konten, benenne den neuen Agenten und die Aufgabentabelle, wähle das Intervall und bestätige ausdrücklich die Veröffentlichung und den Start. Es entstehen eine private Kopie des Agenten, eine Aufgabentabelle (privat, sofern du nicht die Organisation als Zielgruppe wählst), gespeicherte Ansichten für alle Aufgaben, Board, offene Aufgaben und Blockaden sowie eine an die neue Version gebundene Routine. Der ursprüngliche Agent bleibt unverändert.
+
+Die Routine handelt als du im Projekt und berichtet in dessen Unterhaltung. Sie liest Aufgaben, prüft Fortschritte anhand der genehmigten Quellen, aktualisiert nächste Schritte und meldet Blockaden und Fristen. Externe Nachrichten benötigen weiterhin die übliche Autorisierung. Neue Quellen, eine erneute Kontozustimmung oder ein ersetzter Projektarbeitsbereich verlangen eine neue Quellenprüfung. Verlorener Projektzugriff stoppt weitere Werkzeuge; wartende Projektbenachrichtigungen prüfen den aktuellen Zugriff des Empfängers erneut. Ein identischer Wiederholungsversuch verwendet vorhandene Ressourcen. Intervall und Quellen verwaltest du unter Routinen; die Tabelle öffnest du auf der Projektseite.
+
+Eine geplante Unterhaltung ohne Eigentümer in einem Projekt kann von Personen mit Bearbeitungsrecht für dieses Projekt umbenannt, archiviert oder gelöscht werden. Von einer anderen Person gestartete Chats bleiben unter deren Verwaltung.
+
+
+Beim Löschen eines Projekts werden auch seine Gedächtniseinträge und abgeleiteten geteilten Kopien entfernt. Registrierte Provider-Webhooks werden vor der kaskadierenden Löschung der Routinen bestmöglich entfernt. Ein nicht erreichbarer Provider wird protokolliert und blockiert die Löschung nicht.

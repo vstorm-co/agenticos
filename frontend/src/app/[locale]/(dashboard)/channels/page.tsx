@@ -53,7 +53,7 @@ function BotsCard({ count, children }: { count: number | null; children: ReactNo
 export default function ChannelsPage() {
   const t = useTranslations("pages.channels");
   const tErrors = useTranslations("errors");
-  const { can } = usePermissions();
+  const { can, isLoading: permissionsLoading, error: permissionsError } = usePermissions();
   // The backend gates every write here on `channels:manage`, and the listing
   // too - so the hook is told not to fetch at all for somebody without it,
   // rather than putting a 403 in the network log of every member who visits.
@@ -65,7 +65,7 @@ export default function ChannelsPage() {
   const [editing, setEditing] = useState<ChannelBot | null>(null);
   const [mapping, setMapping] = useState<ChannelBot | null>(null);
 
-  if (!canManage) {
+  if (!permissionsLoading && !permissionsError && !canManage) {
     return (
       <div className="flex flex-1 flex-col space-y-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
@@ -80,7 +80,7 @@ export default function ChannelsPage() {
 
   // The same card the page renders, with row skeletons in it. A skeleton that
   // draws a different shape from what follows is a layout jump on every load.
-  if (isLoading) {
+  if (isLoading || permissionsLoading) {
     return (
       <div className="flex flex-1 flex-col space-y-4">
         <PageHeader title={t("channels")} description={t("pageDescription")} />
@@ -108,18 +108,23 @@ export default function ChannelsPage() {
         title={t("channels")}
         description={t("pageDescription")}
         actions={
-          <Button data-tour="channels-new" onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4" />
-            {t("addChannel")}
-          </Button>
+          canManage ? (
+            <Button data-tour="channels-new" onClick={() => setAdding(true)}>
+              <Plus className="h-4 w-4" />
+              {t("addChannel")}
+            </Button>
+          ) : undefined
         }
       />
 
-      <BotsCard count={error ? null : bots.length}>
-        {error ? (
+      <BotsCard count={error || permissionsError ? null : bots.length}>
+        {error || permissionsError ? (
           // A failed read has no rows either, and "No channels yet" over a 502
           // is a refusal dressed as reassurance (#32's shape).
-          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+          <ErrorState
+            description={getErrorMessage(error ?? permissionsError, tErrors)}
+            className="m-5"
+          />
         ) : bots.length === 0 ? (
           <ListCardEmpty
             icon={MessagesSquare}

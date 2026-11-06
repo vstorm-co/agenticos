@@ -1,5 +1,5 @@
 ---
-source_sha: "d6e3bf78d15a"
+source_sha: "1297bb7c3062"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -18,6 +18,8 @@ bez ponownego wdrożenia, bez zmiennej środowiskowej, bez przebudowy.
 
     To ta sama władza, która już administruje użytkownikami i tenantami w całej
     instalacji.
+
+Konsola dzieli ustawienia na Wygląd i nazwę, Dostęp i konta, Komunikaty, Głos i aplikację oraz Utrzymanie. Przełączanie sekcji zachowuje niezapisane zmiany. Zapis obejmuje edytowane pola ze wszystkich sekcji; Odrzuć zmiany przywraca ich zapisane wartości. Wysyłanie obrazów i dane uwierzytelniające powiadomień mobilnych nadal zapisują się niezależnie.
 
 ## Tożsamość { #identity }
 

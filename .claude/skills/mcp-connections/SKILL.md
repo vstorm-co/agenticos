@@ -121,6 +121,10 @@ link-local and metadata answers for it. The catalog audit stays strict. Never
 compute the allowlist from a URL a remote server named: that is how a public
 server would aim its token endpoint at a listed host.
 
+Google's authorization endpoint additionally needs `access_type=offline` and
+`prompt=consent`; requesting the OIDC `offline_access` scope alone is insufficient.
+The provider-specific consent parameters live in `authorization_url`.
+
 An organization's OAuth connection is still the consenting person's grant at the
 provider. Revoking their access there breaks the organization's server.
 
@@ -130,8 +134,8 @@ provider. Revoking their access there breaks the organization's server.
 by `ApprovalMarked` and enforced by the same `ApprovalGate`. A binding's `writes`
 policy trusts only `readOnlyHint: true`; missing or false hints require approval.
 `all` also gates reads, and `none` waives the binding's gate. The platform server
-always enforces at least `writes`, with deliberate exceptions in `HELD` and
-`UNGATED` in `services/platform_mcp/_tools.py`.
+always enforces at least `writes`, with the explicit `UNGATED` exceptions in
+`services/platform_mcp/_tools.py`.
 
 Channel runs, including delegates and resumptions, enforce at least `writes` on
 all MCP bindings. Read-only calls no longer acquire an extra approval merely by

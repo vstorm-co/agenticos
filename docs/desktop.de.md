@@ -1,5 +1,5 @@
 ---
-source_sha: "27e31adcbb5e"
+source_sha: "3ef65d6f2f43"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -385,7 +385,7 @@ eigener ist - nie ein API-Schlüssel, ein Widget-Besucher oder der Chat eines
 anderen - und ein [Trigger](triggers.md) nur, wenn er als sein Ersteller handelt,
 der ihm unter **Arbeiten auf** des Triggers einen Ordner seines Computers zuweist.
 
-**Wenn der Computer weg ist.** Ein Run, der diesen Computer angefordert hat und die
+**Im interaktiven Chat: Wenn der Computer weg ist.** Ein Run, der diesen Computer angefordert hat und die
 App nicht verbunden vorfindet, wartet bis zu zehn Minuten auf sie, und der Chat
 sagt es. Eine Operation, die die App mitten im Run getrennt vorfindet - Deckel zu,
 Netz gewechselt -, wartet bis zu fünf Minuten auf ihre Rückkehr in derselben
@@ -692,3 +692,15 @@ ein unsignierter lokaler Build kann sie nicht bestätigen.
 Quick Ask unterstützt bis zu acht unabhängige Tabs pro Fenster. Jeder behält Entwurf, Anhänge, Agentenauswahl und laufende Antworten. Letzte Unterhaltungen öffnet eine durchsuchbare Liste und verwendet einen bereits offenen Tab erneut; gespeicherte Chats laden Nachrichten und frühere Beiträge. Inaktive Tabs übernehmen weder Dateiabgaben noch Diktiershortcuts oder Fokus. Letzte Unterhaltungen zeigt Agenten-Avatare in einem ausklappbaren Abschnitt, der nur seinen tatsächlichen Platz belegt. Neuer Chat ist die einzige Aktion für einen frischen Tab. Die Browser-Seitenleiste bietet den Desktop-Download an; Schließen pausiert die Erinnerung für dieses Konto und diesen Browser für 14 Tage.
 
 Quick Ask bietet eine Mikrofontaste für Diktat per Klick zusätzlich zum Gedrückthalten des Kurzbefehls. Sprachgespräche verwenden dieselben Steuerelemente wie der Chat, mit dem konfigurierten Transport des ausgewählten Agenten, Untertiteln, Freigaben und Fragen. Gesprochene Beiträge werden in der Unterhaltung gespeichert. Textversand und Diktat warten während eines Anrufs. Ein Tab- oder Agentenwechsel beendet den Anruf und gibt das Mikrofon frei.
+
+## Lokale Routinen { #local-routines }
+
+Erstelle eine lokale Routine mit **Als ich ausführen**, wähle einen Ordner und separat Lesen, Schreiben und Befehlsausführung. Befehle benötigen Schreibzugriff. Beim Speichern entsteht zunächst eine pausierte Routine. Anschließend bestätigt die Desktop-App nativ deren ID, Organisation, Server, Ordner und Vorgänge. Abbrechen lässt dieselbe Routine pausiert; ein erneuter Versuch vervollständigt sie ohne Duplikat. Eine allgemeine Ordnerfreigabe aus einem Chat berechtigt keine Routine.
+
+**Einstellungen → Desktop → Routine-Berechtigungen** zeigt die Freigaben des aktuellen Kontos und der Organisation auf diesem Computer. Ein Widerruf stoppt weitere Vorgänge. Erneute Kopplung, Trennung, Abmeldung oder Serverwechsel löscht die Freigaben. Ein anderer Ordner oder zusätzliche Vorgänge benötigen eine neue native Bestätigung. Browser, Bildschirm, lokale Modelle, lokale MCP-Dienste und Vollzugriff sind ausgeschlossen. Der veröffentlichte Agent muss Sandbox bereits aktivieren; das lokale Ziel aktiviert keine Fähigkeiten.
+
+Ist genau der bestätigte Computer vor der Ausführung offline, wartet eine dauerhafte Aktivierung in PostgreSQL. Die Routine zeigt die Anzahl wartender Aktivierungen. Zeitplan- und manuelle Auslösungen werden währenddessen zusammengefasst; unterschiedliche eingehende Ereignisse behalten ihren Kontext und ihre Aktivierungs-ID. Der bestehende Minuten-Worker prüft die Wiederverbindung. Bereitschaftsprüfungen rufen kein Modell auf und verbrauchen keine Fehlstartversuche. Die Zulassung wird mit dem Lauf vor dem ersten Modellaufruf festgeschrieben. Eine gestartete Aktivierung wird nach einem Worker-Absturz nicht automatisch wiederholt; ein ungewisser Datei- oder Befehlsvorgang erzeugt keinen neuen Lauf.
+
+Pause, geänderte Aufgabe oder lokale Berechtigung, Löschung und Ablauf der Routine stornieren alte wartende Arbeit statt sie auf einen anderen Ordner umzulenken. Eine widerrufene Gerätesitzung benötigt Prüfung. Drei tote oder verlorene Aufträge vor der Zulassung stoppen die Routine und erzeugen einen Vorfall für die besitzende Person. Der fehlgeschlagene Ereigniskontext bleibt in deren Datenexport verfügbar. Gestartete und stornierte Kontexte werden sofort gelöscht. Abgeschlossene Metadaten und fehlgeschlagene Kontexte folgen der Laufaufbewahrung der Organisation; aktive Offline-Arbeit bleibt bis Zulassung, Stornierung oder Löschung erhalten.
+
+API, Worker und Desktop gemeinsam aktualisieren und alte Worker vor Aktivierung des Vertrags leeren. Ältere Desktops bestätigen keine Routine-Freigaben; bestehende lokale Routinen benötigen ausdrückliche Prüfung. Migration `0272_routine_device_waits.py` ergänzt Wartezustände ohne neue Routine-Identität. Vor einem Downgrade lokale Routinen pausieren und deren Aufträge leeren: der Downgrade löscht wartenden Kontext und führt ihn nicht aus. Ältere geparkte lokale Läufe ohne Ziel-Snapshot benötigen einen neuen Lauf.

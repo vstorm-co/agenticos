@@ -36,7 +36,7 @@ export function ListFilters({
           setOwn(!open);
           onOpenChange?.(!open);
         }}
-        className="border-border bg-background touch:min-h-11 touch:min-w-11 inline-flex min-h-9 touch-manipulation items-center gap-1.5 rounded-lg border px-3 text-sm"
+        className="border-input bg-field touch:min-h-11 touch:min-w-11 hover:bg-control-hover focus-visible:outline-foreground/40 inline-flex min-h-9 touch-manipulation items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <SlidersHorizontal className="size-4" aria-hidden />
         <span className={cn(compact && "max-[359px]:sr-only")}>{t("filters")}</span>

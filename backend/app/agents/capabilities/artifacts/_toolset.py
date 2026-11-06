@@ -162,6 +162,8 @@ draws a binding as a finished table with its loading, empty and unavailable stat
 record text with `textContent`, never `innerHTML`.
 - When `{PAGES_GUIDE}` is listed as a capability to load, load it before your first page: \
 it has the templates and every component.
+- Decks: load presentation-decks, deck-storyline and deck-review when available. Preview and repair.
+- For LaTeX/PPTX load document-production: pages do not compile/export native files. Verify outputs.
 """
 """What a page must look like, in the system prompt of every Artifacts agent.
 

@@ -5,6 +5,7 @@ import { saveBlob } from "@/lib/file-access";
 
 import {
   cancelWorkflowRun,
+  editReplyExpectation,
   downloadWorkflowRunFile,
   getWorkflowRun,
   getWorkflowRunGraph,
@@ -22,7 +23,7 @@ vi.mock("@/lib/file-access", () => ({ saveBlob: vi.fn() }));
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
-  return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), raw: vi.fn() } };
+  return { ...actual, apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), raw: vi.fn() } };
 });
 
 beforeEach(() => vi.clearAllMocks());
@@ -157,4 +158,18 @@ describe("isRunTerminal", () => {
     expect(isRunTerminal("budget_exceeded")).toBe(true);
     expect(isRunTerminal("waiting_approval")).toBe(false);
   });
+});
+
+it("saves explicit reply criteria without allowing account replacement", async () => {
+  const body = {
+    thread_id: "thread",
+    expected_sender: "a@example.com",
+    not_before: "2026-11-03T10:00:00Z",
+    deadline: "2026-11-04T10:00:00Z",
+    anchor_message_id: null,
+    paused: true,
+    review_mailbox: false,
+  };
+  await editReplyExpectation("r", "n", body);
+  expect(apiClient.put).toHaveBeenCalledWith("/workflow-runs/r/steps/n/reply-expectation", body);
 });

@@ -10,6 +10,9 @@ export interface ConversationState {
   // (qk.conversations.list). This store holds the current selection, the
   // loaded messages for that selection, and the fetch/select status.
   currentConversationId: string | null;
+  /** Explicit New chat requests, including starting over in an empty draft. */
+  composerFocusRequest: number;
+  requestComposerFocus: () => void;
   currentMessages: ConversationMessage[];
   hasEarlierMessages: boolean;
   /**
@@ -55,6 +58,7 @@ export interface ConversationState {
 
 const initialState = {
   currentConversationId: null,
+  composerFocusRequest: 0,
   currentMessages: [],
   hasEarlierMessages: false,
   currentCost: null,
@@ -67,6 +71,8 @@ const conversationState: StateCreator<ConversationState> = (set) => ({
   ...initialState,
 
   setCurrentConversationId: (id) => set({ currentConversationId: id }),
+  requestComposerFocus: () =>
+    set((state) => ({ composerFocusRequest: state.composerFocusRequest + 1 })),
 
   // The total travels with the messages it totals. Set separately, a switch
   // between conversations would leave one thread's figure under another's

@@ -10,6 +10,24 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  codingAccounts: {
+    all: () => ["coding-accounts"] as const,
+    mine: (scope: string) => ["coding-accounts", scope] as const,
+  },
+  durableTasks: {
+    root: () => ["durable-tasks"] as const,
+    all: (scope: string) => ["durable-tasks", scope] as const,
+    boards: (scope: string) => ["durable-tasks", scope, "boards"] as const,
+    records: (scope: string, table: string | undefined, skip: number) =>
+      ["durable-tasks", scope, "records", table, skip] as const,
+  },
+  phone: {
+    all: (org: string) => ["phone", org] as const,
+    settings: (org: string) => ["phone", org, "settings"] as const,
+    calls: (org: string) => ["phone", org, "calls"] as const,
+    call: (org: string, id: string) => ["phone", org, "call", id] as const,
+    transfers: (org: string, id: string) => ["phone", org, "call", id, "transfers"] as const,
+  },
   conversationTasks: {
     all: (tenant: string) => ["conversation-tasks", tenant] as const,
     list: (tenant: string, conversationId: string | null | undefined) =>
@@ -34,11 +52,22 @@ export const qk = {
     /** Whether the deployment names a browser to sign in with from Settings. */
     browser: () => ["browser-sign-ins", "browser"] as const,
   },
+  systemAgents: {
+    /** The platform roles and their history in one organization. */
+    list: (orgId: string) => ["system-agents", orgId] as const,
+  },
   memory: {
     /** Every page of one organization's notes, for invalidating after a write. */
     all: (orgId: string) => ["memory", orgId] as const,
     /** One page of what the agents in one organization have written about the caller. */
-    mine: (orgId: string, skip: number) => ["memory", orgId, "mine", skip] as const,
+    mine: (orgId: string, skip: number, q = "") => ["memory", orgId, "mine", skip, q] as const,
+    /** The claims recorded about the caller; history adds what they replaced. */
+    claims: (
+      orgId: string,
+      history: boolean,
+      skip: number,
+      filters: import("./memory-api").MemoryClaimFilters = {},
+    ) => ["memory", orgId, "claims", history, skip, filters] as const,
   },
   organizations: {
     all: () => ["organizations"] as const,
@@ -216,6 +245,10 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
+    sources: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "sources", triggerId] as const,
+    actionConsents: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "action-consents", triggerId] as const,
     all: () => ["triggers"] as const,
     // One agent's schedules and event triggers, for the Builder's panel.
     list: (agentId: string) => ["triggers", agentId] as const,
@@ -285,6 +318,8 @@ export const qk = {
     purposes: () => ["secrets", "purposes"] as const,
   },
   runs: {
+    consents: (org: string | null, user: string | undefined) =>
+      ["runs", "consents", org, user] as const,
     all: () => ["runs"] as const,
     canStop: (orgId: string | null, accountId: string | null, runId: string) =>
       ["runs", "can-stop", orgId, accountId, runId] as const,
@@ -587,9 +622,16 @@ export const qk = {
     history: () => ["suggestions", "history"] as const,
     starters: () => ["suggestions", "starters"] as const,
   },
+  outcomes: {
+    all: () => ["outcomes"] as const,
+    // Under `all`'s prefix, so settling one anywhere refreshes every card showing it.
+    conversation: (conversationId: string) => ["outcomes", "conversation", conversationId] as const,
+  },
   notifications: {
     all: () => ["notifications"] as const,
     preferences: () => ["notifications", "preferences"] as const,
+    destinations: (organizationId: string | null) =>
+      ["notifications", "destinations", organizationId] as const,
     inbox: () => ["notifications", "inbox"] as const,
     unreadCount: () => ["notifications", "unread-count"] as const,
   },
@@ -611,6 +653,10 @@ export const qk = {
     // What the editor of one workflow may pick: its own endpoint and projection, so its own key.
     usable: (workflowId: string) => ["mcp-connections", "usable", workflowId] as const,
     calls: (connectionId: string) => ["mcp-connections", "calls", connectionId] as const,
+  },
+  // What one coding-agent task changed: written once, when the task ends, and never again.
+  codingChanges: {
+    detail: (changeId: string) => ["coding-changes", changeId] as const,
   },
   conversationWorkspace: {
     all: () => ["conversation-workspace"] as const,
@@ -648,6 +694,10 @@ export const qk = {
     source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,
   },
   projects: {
+    tracking: (id: string) => ["projects", id, "tracking"] as const,
+    trackingReviews: (id: string) => ["projects", id, "tracking-review"] as const,
+    trackingReview: (id: string, agentId: string | null, versionId: string | null) =>
+      ["projects", id, "tracking-review", agentId, versionId] as const,
     all: () => ["projects"] as const,
     list: (query: { search: string; skip: number; limit: number }) =>
       ["projects", "list", query] as const,
@@ -764,6 +814,8 @@ export const qk = {
     state: () => ["desktop", "state"] as const,
     /** This computer's own connection, which the shell reports and pushes. */
     device: () => ["desktop", "device"] as const,
+    routineGrants: (org: string | null, user: string | null, device: string | null) =>
+      ["desktop", "routine-grants", org, user, device] as const,
     local: () => ["desktop", "local"] as const,
     services: () => ["desktop", "services"] as const,
     agents: () => ["desktop", "agents"] as const,
@@ -781,6 +833,7 @@ export const qk = {
     notice: () => ["branding", "notice"] as const,
   },
   tables: {
+    assignees: (id: string) => ["tables", id, "assignees"] as const,
     all: () => ["tables"] as const,
     // The whole query object as the key, matching `skills.list`/`context.list`:
     // the server applies `search`/`includeArchived`/paging, so two filters are

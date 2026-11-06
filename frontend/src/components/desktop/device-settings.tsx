@@ -1,5 +1,7 @@
 "use client";
 
+import { RoutinePermissions } from "./routine-permissions";
+
 import { LocalAgentSettings } from "./local-agent-settings";
 import { LocalServiceSettings } from "./local-service-settings";
 
@@ -55,6 +57,8 @@ export function DeviceSettings() {
               )}
             </div>
           </SectionCard>
+          <RoutinePermissions />
+
           <LocalAgentSettings />
           <LocalServiceSettings />
         </>

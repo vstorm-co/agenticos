@@ -32,7 +32,8 @@ export function useLiveUpdates(): void {
   const principal = useAuthStore((state) => state.user?.id);
   const { wsUrl: wsOrigin } = usePublicConfig();
   const url = useMemo(
-    () => `${wsOrigin}/api/v1/ws/events?organization_id=${encodeURIComponent(activeOrgId ?? "")}`,
+    () =>
+      `${wsOrigin}/api/v1/ws/events?organization_id=${encodeURIComponent(activeOrgId ?? "")}&conversation_events=true`,
     [wsOrigin, activeOrgId],
   );
   const protocols = useCallback(() => {

@@ -3,7 +3,7 @@
 import { useId, useMemo, useState } from "react";
 import { AlertTriangle, BookOpen, ChevronDown, FolderOpen, FilePlus, Upload } from "lucide-react";
 
-import { Alert, AlertDescription, Button, DialogFooter, Textarea, Label } from "@/components/ui";
+import { Alert, AlertDescription, Button, DialogFooter, Input, Label } from "@/components/ui";
 import { FileEditor } from "@/components/files";
 import { ResourceActions } from "@/components/sharing/resource-actions";
 import { ShareResourceButton } from "@/components/sharing/share-resource-button";
@@ -131,10 +131,8 @@ export function SkillWorkbench({
       >
         <div className="min-w-0 flex-1 basis-72 space-y-1.5">
           <Label htmlFor="skill-description">{t("description3")}</Label>
-          <Textarea
+          <Input
             id="skill-description"
-            rows={2}
-            className="min-h-20 resize-y"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             readOnly={!canEdit}
@@ -189,7 +187,7 @@ export function SkillWorkbench({
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-36">
+          <div className="bg-background min-h-0 flex-1 overflow-auto rounded-xl border p-1 max-md:max-h-36">
             <button
               type="button"
               onClick={() => {

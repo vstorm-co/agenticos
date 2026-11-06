@@ -876,7 +876,7 @@ class TestRenderDispatch:
 
 
 class TestOutcomesAndRetry:
-    async def test_a_dangling_notification_fails_the_row(self, db):
+    async def test_a_deleted_notification_revokes_the_delivery_claim(self, db):
         owner = await _user(db)
         org = await _org(db, owner)
         recipient = await _member(db, org, role="member")
@@ -891,7 +891,7 @@ class TestOutcomesAndRetry:
 
         outcome = await NotificationDeliveryService(db).send_and_settle(delivery.id, claimed_at=now)
 
-        assert outcome == "failed"
+        assert outcome == "lost_claim"
 
     async def test_a_provider_rejection_with_attempts_remaining_retries(self, db):
         owner = await _user(db)

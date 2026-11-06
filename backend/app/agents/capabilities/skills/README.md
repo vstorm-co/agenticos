@@ -22,3 +22,9 @@ instead - see `app/services/skill_workspace.py`.
 
 Which skills an agent gets is a field on the spec, resolved server-side by the
 runner. A capability never queries the database.
+
+Long static references are adapted to SDK callable resources with bounded
+character ranges: 8,000 by default and at most 20,000 per read. The existing
+`read_skill_resource` tool accepts `args` containing `offset` and `limit`; the
+reply names the next offset. Skill loading and resource authority stay with the
+SDK, while the adapter validates page arguments before slicing.

@@ -96,7 +96,7 @@ test.describe("desktop pointer controls", () => {
     await page.getByLabel("Email", { exact: true }).fill(OWNER_EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(OWNER_PASSWORD);
     await page.getByRole("button", { name: "Login", exact: true }).click();
-    await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/chat(?:\?.*)?$/, { timeout: 30_000 });
   });
 
   test("opens New agent and templates from their centers, then closes both dialogs", async ({
@@ -279,16 +279,9 @@ test.describe("desktop pointer controls", () => {
   test("scrolls a large file listing without moving the chat or its close control", async ({
     page,
   }) => {
-    const listing = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/conversations" &&
-        response.request().method() === "GET" &&
-        new URL(response.request().headers()["referer"] ?? "about:blank").pathname.endsWith(
-          "/chat",
-        ),
-    );
-    await page.goto("/chat");
-    const response = await listing;
+    // Fetch the seed explicitly: a background sidebar refresh may abort its
+    // response when navigation hands ownership to the new page.
+    const response = await page.request.get("/api/conversations");
     expect(response.ok()).toBe(true);
     const conversations = listingItems(await response.json());
     expect(conversations.length).toBeGreaterThan(0);

@@ -22,7 +22,7 @@ export interface MapEdge {
 }
 
 /** How far the wheel and the buttons may take the scale, either way. */
-const MIN_SCALE = 0.4;
+const MIN_SCALE = 0.15;
 const MAX_SCALE = 2.5;
 
 /** A cubic curve between two points, flat at both ends so it meets the box square-on. */
@@ -172,7 +172,33 @@ export function useMapView(edgeInputs: EdgeInput[]) {
     [zoomAt],
   );
 
-  const resetView = useCallback(() => setView({ x: 0, y: 0, scale: 1 }), []);
+  const resetView = useCallback(() => {
+    const frame = viewport.current;
+    const content = container.current;
+    if (!frame || !content || !frame.clientWidth || !content.offsetHeight) {
+      setView({ x: 0, y: 0, scale: 1 });
+      return;
+    }
+    const scale = Math.min(
+      1,
+      (frame.clientWidth - 32) / content.offsetWidth,
+      (frame.clientHeight - 32) / content.offsetHeight,
+    );
+    setView({
+      scale,
+      x: (frame.clientWidth - content.offsetWidth * scale) / 2,
+      y: (frame.clientHeight - content.offsetHeight * scale) / 2,
+    });
+  }, []);
+
+  // Fit on opening and actual layout changes, never while the person pans.
+  useLayoutEffect(() => {
+    resetView();
+    const observer = new ResizeObserver(resetView);
+    if (viewport.current) observer.observe(viewport.current);
+    if (container.current) observer.observe(container.current);
+    return () => observer.disconnect();
+  }, [resetView]);
 
   // The wheel listener is attached by hand: React registers `onWheel` as
   // passive, and a passive listener cannot stop the dialog behind the map from
@@ -195,6 +221,8 @@ export function useMapView(edgeInputs: EdgeInput[]) {
 
   const panHandlers = {
     onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => {
+      // Capturing a node's pointer retargets its click to the canvas, hiding details.
+      if (event.target instanceof Element && event.target.closest("button, a")) return;
       drag.current = {
         pointerId: event.pointerId,
         startX: event.clientX - view.x,

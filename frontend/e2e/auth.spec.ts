@@ -184,7 +184,7 @@ test.describe("Signing out", () => {
     await page.getByLabel("Email").fill(OWNER_EMAIL);
     await page.getByLabel("Password").fill(OWNER_PASSWORD);
     await page.getByRole("button", { name: "Login" }).click();
-    await expect(page).toHaveURL(/\/dashboard(\?.*)?$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/chat(\?.*)?$/, { timeout: 30_000 });
 
     await accountMenu(page).click();
     await page.getByRole("menuitem", { name: /log out|sign out/i }).click();
@@ -210,6 +210,6 @@ test("the bootstrapped owner can sign in", async ({ page }) => {
   await page.getByLabel("Password").fill(OWNER_PASSWORD);
   await page.getByRole("button", { name: "Login" }).click();
 
-  await expect(page).toHaveURL(/\/dashboard(\?.*)?$/);
+  await expect(page).toHaveURL(/\/chat(\?.*)?$/);
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 });

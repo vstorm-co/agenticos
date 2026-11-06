@@ -20,7 +20,6 @@ import {
   DialogTitle,
   Input,
   Label,
-  Textarea,
 } from "@/components/ui";
 import { CategoryInput, categorySuggestions } from "@/components/skills/category-input";
 import { FileEditor } from "@/components/files";
@@ -231,9 +230,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
               data-tour="skill-dialog-description"
             >
               <Label htmlFor="new-skill-description">{t("description")}</Label>
-              <Textarea
-                rows={2}
-                className="min-h-20 resize-y"
+              <Input
                 id="new-skill-description"
                 value={description}
                 onChange={(event) => edit("description", event.target.value)}
@@ -283,7 +280,7 @@ export function CreateSkillDialog({ open, onOpenChange, onCreated }: CreateSkill
                 <UploadButton icon={Upload} label={t("folder")} directory onPick={addFiles} />
               </div>
 
-              <div className="min-h-0 flex-1 overflow-auto rounded-md border p-1 max-md:max-h-48 max-md:min-h-24">
+              <div className="bg-background min-h-0 flex-1 overflow-auto rounded-xl border p-1 max-md:max-h-48 max-md:min-h-24">
                 <button
                   type="button"
                   onClick={() => {

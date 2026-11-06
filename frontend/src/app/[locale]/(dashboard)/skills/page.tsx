@@ -1,5 +1,7 @@
 "use client";
 
+import { FILTER_CONTROL } from "@/components/ui/control-styles";
+
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-react";
@@ -159,7 +161,7 @@ export default function SkillsPage() {
   // something the server has not said yet.
   if (!isBusy && !can(Perm.skillsView)) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
         <EmptyState
           icon={Lock}
@@ -174,9 +176,9 @@ export default function SkillsPage() {
   // that draws a different shape from what follows is a layout jump on load.
   if (isBusy) {
     return (
-      <div className="space-y-4">
+      <div className="flex flex-1 flex-col space-y-4">
         {header}
-        <ListCard layout="grid" namedByPage title={t("skills")} counted={null}>
+        <ListCard fill namedByPage title={t("skills")} counted={null}>
           <LoadingState variant="skeleton-cards" rows={3} />
         </ListCard>
       </div>
@@ -213,11 +215,12 @@ export default function SkillsPage() {
                   <DropdownMenuTrigger asChild>
                     {/* Drawn like every other filter in the console - the
                           agents' label filters and the selects beside them. */}
-                    <Button
-                      variant="outline"
-                      className="border-input h-9 rounded-lg border-[1.5px] px-3 font-normal"
-                    >
-                      <ListFilter className="h-4 w-4" />
+                    <Button variant="outline" className={FILTER_CONTROL}>
+                      <ListFilter
+                        className="size-3.5 shrink-0 opacity-70"
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
                       {selectedCategories.length === 0
                         ? t("allCategories")
                         : selectedCategories.length === 1
@@ -290,7 +293,7 @@ export default function SkillsPage() {
     ) : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-1 flex-col space-y-4">
       {header}
 
       {/* Above the list, because it is a decision somebody has to make and the
@@ -298,7 +301,7 @@ export default function SkillsPage() {
       <ProposedChanges canEdit={canCreate} />
 
       <ListCard
-        layout="grid"
+        fill
         data-tour="skills-list"
         namedByPage
         title={t("skills")}

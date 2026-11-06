@@ -350,24 +350,25 @@ class TestSkillManagement:
         """
         ctx = _ctx()
         installed, local = _row("refunds"), _row("our-own-thing")
+        starter_skill = _row("agent-budgets")
         bundled = MagicMock()
         bundled.name = "refunds"
 
         with (
             patch(
                 f"{SKILLS_PATH}.skill_repo.list_visible",
-                new=AsyncMock(return_value=([installed, local], 2)),
+                new=AsyncMock(return_value=([installed, starter_skill, local], 3)),
             ),
             patch(f"{SKILLS_PATH}.skill_repo.list_categories", new=AsyncMock(return_value=[])),
             patch(
                 f"{SKILLS_PATH}.skill_repo.list_names",
-                new=AsyncMock(return_value={"refunds", "our-own-thing"}),
+                new=AsyncMock(return_value={"refunds", "agent-budgets", "our-own-thing"}),
             ),
             patch(f"{SKILLS_PATH}.skill_library.library", return_value=[bundled]),
         ):
             listing = await SkillService(_db()).list_readable(ctx)
 
-        assert [item.built_in for item in listing.items] == [True, False]
+        assert [item.built_in for item in listing.items] == [True, True, False]
         # The card peeks at the body without the listing carrying it: front
         # matter is dropped, because the card already shows the name.
         assert listing.items[0].excerpt == "# Refunds\n\nCheck the order first."
@@ -756,6 +757,20 @@ class TestSkillLibrary:
             "review-comment.md",
         }
         assert all(resource.size_bytes > 0 for resource in skill.resources)
+
+    @pytest.mark.parametrize("key", ["visual-design", "artifact-pages", "presentation-decks"])
+    def test_visual_recipes_are_available_without_loading_them_with_the_procedure(self, key):
+        skill = skill_library.get(key)
+        assert skill is not None
+        recipe = next(
+            resource
+            for resource in skill.resources
+            if resource.name == "references/design-recipes.md"
+        )
+        assert recipe.size_bytes > 1000
+        assert recipe.content not in skill.content
+        assert "references/design-recipes.md" in skill.content
+        assert "Current tool contracts" in skill.content
 
     def test_every_bundled_skill_names_its_shelf(self):
         """The listing groups by category, and a shipped skill that arrived
@@ -1542,7 +1557,7 @@ class TestTheGalleryOnDisk:
         # 75 - the AgenticOS guide among them - the seven the AI Architect ships
         # with (#2069), the bundled visual-design (#2171) and the three that build,
         # plan and check a slide deck as a published page (#2576).
-        assert len(names) == 88
+        assert len(names) == 97
         for name in names:
             assert SKILL_NAME_PATTERN.fullmatch(name), name
             SkillCreate(name=name, description="d")

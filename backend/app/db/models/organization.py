@@ -145,19 +145,10 @@ class Organization(Base, TimestampMixin):
     )
     welcome_dm_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Whether a chat session may grant standing consent to this agent's gated
-    # tools - `ApprovalMode.APPROVE_ALL` (#925). Off by default, and the default is
-    # the point: without a ceiling a Builder's deliberate gate on `send_email` is
-    # one click from nothing in every conversation, which makes the whole per-tool
-    # approval model advisory. An organization decides once that waiving is
-    # allowed at all; who may then do it is `approvals:decide`, which is a
-    # separate question and already answered.
-    #
-    # Only ever *widens* nothing: switching it off does not tighten an existing
-    # spec, it removes an override. So an upgrade changes nobody's behaviour until
-    # somebody turns it on deliberately.
+    # Whether a permitted chat user may choose standing consent for gated tools.
+    # New organizations allow the choice; the conversation must still opt in.
     chat_may_waive_approvals: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
+        Boolean, nullable=False, default=True, server_default="true"
     )
 
     # Whether a page's data may reach anonymous visitors of its public link or its

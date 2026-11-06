@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Building2, Lock, Table2, Users } from "lucide-react";
+import { Building2, Lock, Users } from "lucide-react";
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
-import { Beam } from "@/components/ui/beam";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
 import type { TableListItem } from "@/types/tables";
@@ -22,19 +21,12 @@ export function TableCard({ table }: { table: TableListItem }) {
   const tc = useTranslations("common");
   const tt = useTranslations("time");
   const locale = useLocale();
-  const [hovered, setHovered] = useState(false);
   const VisibilityIcon = VISIBILITY_ICON[table.visibility];
   const edited = table.updated_at ?? table.created_at;
 
   return (
-    <Beam
-      size="md"
-      borderRadius={12}
-      active={hovered}
-      onHoverChange={setHovered}
-      className="h-full rounded-xl"
-    >
-      <div className="border-border bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
+    <div className="h-full rounded-xl">
+      <div className="border-foreground/8 bg-card hover:border-foreground/25 relative flex h-full flex-col gap-3 rounded-xl border p-4 transition-colors">
         <Link
           href={ROUTES.TABLE_DETAIL(table.id)}
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
@@ -61,7 +53,7 @@ export function TableCard({ table }: { table: TableListItem }) {
             </p>
           </div>
         </div>
-        <div className="text-muted-foreground pointer-events-none relative mt-auto flex items-center gap-2 border-t pt-3 text-xs">
+        <div className="text-muted-foreground pointer-events-none relative mt-auto flex items-center gap-2 pt-3 text-xs">
           <span
             role="img"
             aria-label={t(`visibility.${table.visibility}`)}
@@ -74,6 +66,6 @@ export function TableCard({ table }: { table: TableListItem }) {
           {t("editedWhen", { when: timeAgo(edited, tt, locale) })}
         </div>
       </div>
-    </Beam>
+    </div>
   );
 }

@@ -321,6 +321,7 @@ export function RecordCellEditor({
     <div className="space-y-1.5">
       {PRINCIPAL_COLUMN_TYPES.has(column.type) && (
         <PrincipalCell
+          tableId={tableId}
           id={id}
           label={column.label}
           value={value}

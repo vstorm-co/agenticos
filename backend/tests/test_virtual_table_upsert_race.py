@@ -138,3 +138,10 @@ async def test_a_create_that_loses_the_insert_to_the_same_external_id_is_already
 
     with pytest.raises(AlreadyExistsError):
         await ops.create_record(ctx, table.id, RecordCreate(external_id="A-1", values={}))
+
+
+@pytest.fixture(autouse=True)
+def ordinary_tables_only(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("app.repositories.task.for_table", AsyncMock(return_value=None))

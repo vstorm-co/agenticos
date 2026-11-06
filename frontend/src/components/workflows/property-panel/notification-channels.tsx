@@ -4,6 +4,7 @@ import { Bell, Mail } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Checkbox, Label } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { CHAT_NOTIFICATION_CHANNELS } from "@/lib/notification-preferences-api";
 
 export function NotificationChannels({
   value,
@@ -15,6 +16,7 @@ export function NotificationChannels({
   onChange: (value: string[]) => void;
 }) {
   const t = useTranslations("workflows");
+  const names = useTranslations("notificationRoutes");
   const picked = Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : ["in_app"];
@@ -22,7 +24,7 @@ export function NotificationChannels({
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-medium">{t("notificationChannels")}</legend>
       <div className="grid gap-2 sm:grid-cols-2">
-        {(["in_app", "email"] as const).map((channel) => {
+        {(["in_app", "email", "push", ...CHAT_NOTIFICATION_CHANNELS] as const).map((channel) => {
           const Icon = channel === "email" ? Mail : Bell;
           const on = picked.includes(channel);
           return (
@@ -43,7 +45,13 @@ export function NotificationChannels({
                 }
               />
               <Icon className="text-muted-foreground size-4" aria-hidden />
-              <span>{t(channel === "email" ? "notificationEmail" : "notificationInApp")}</span>
+              <span>
+                {channel === "in_app"
+                  ? t("notificationInApp")
+                  : channel === "email"
+                    ? t("notificationEmail")
+                    : names(channel)}
+              </span>
             </Label>
           );
         })}

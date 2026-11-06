@@ -49,6 +49,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     Auth,
+    DurableTaskSvc,
     StreamingVirtualTableSvc,
     VirtualTableSvc,
     limit_table_write,
@@ -72,6 +73,7 @@ from app.schemas.virtual_table import (
     RecordQuery,
     RecordRead,
     RecordSort,
+    RecordSource,
     RecordUpdate,
     RecordUpsert,
     SchemaUpdate,
@@ -517,3 +519,9 @@ async def discard_table_image(
 ) -> Any:
     """Discard an abandoned upload; images in records or their history are retained."""
     await service.discard_image(ctx, table_id, media_id)
+
+
+@router.get("/{table_id}/assignee-options", response_model=list[RecordSource] | None)
+async def assignee_options(table_id: UUID, ctx: Auth, service: DurableTaskSvc) -> Any:
+    """Eligible task reviewers; null for an ordinary table's unrestricted people columns."""
+    return await service.assignee_options(ctx, table_id)

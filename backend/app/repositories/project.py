@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.background_job import BackgroundJob
-from app.db.models.conversation import Conversation
+from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.project import Project
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
@@ -77,10 +78,26 @@ async def list_visible(
         )
     if only_ids is not None:
         where.append(Project.id.in_(only_ids))
+    latest_chat = (
+        select(func.max(func.coalesce(Conversation.updated_at, Conversation.created_at)))
+        .where(
+            Conversation.project_id == Project.id,
+            Conversation.organization_id == organization_id,
+            Conversation.is_archived.is_(False),
+        )
+        .correlate(Project)
+        .scalar_subquery()
+    )
     items = await db.execute(
         select(Project)
         .where(*where)
-        .order_by(func.coalesce(Project.updated_at, Project.created_at).desc(), Project.name)
+        .order_by(
+            func.greatest(
+                func.coalesce(Project.updated_at, Project.created_at), latest_chat
+            ).desc(),
+            Project.name,
+            Project.id,
+        )
         .offset(skip)
         .limit(limit)
     )
@@ -138,6 +155,35 @@ async def chat_activity(
         for project_id, count, last in result.all()
         if project_id is not None
     }
+
+
+async def unread_projects(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, project_ids: Sequence[UUID]
+) -> set[UUID]:
+    """Visible projects with a non-archived chat answer this reader has not seen."""
+    if not project_ids:
+        return set()
+    result = await db.execute(
+        select(Conversation.project_id)
+        .join(Message, Message.conversation_id == Conversation.id)
+        .outerjoin(
+            ConversationLastRead,
+            (ConversationLastRead.conversation_id == Conversation.id)
+            & (ConversationLastRead.user_id == user_id),
+        )
+        .where(
+            Conversation.organization_id == organization_id,
+            Conversation.project_id.in_(project_ids),
+            Conversation.is_archived.is_(False),
+            Message.role == "assistant",
+            or_(
+                ConversationLastRead.read_at.is_(None),
+                Message.created_at > ConversationLastRead.read_at,
+            ),
+        )
+        .distinct()
+    )
+    return {project_id for project_id in result.scalars().all() if project_id is not None}
 
 
 async def create(

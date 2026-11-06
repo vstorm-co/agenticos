@@ -116,3 +116,41 @@ def test_computer_opt_in_needs_no_published_capability_or_file_access(folder: st
     assert enabled.enabled and enabled.approval == "required"
     assert enabled.tool_approval == {"computer_act": "required"}
     assert enabled.config == {"desktop": "local", "max_actions": 10}
+
+
+@pytest.mark.parametrize("enabled", [None, False])
+def test_routine_local_selection_never_enables_an_unpublished_capability(
+    enabled: bool | None,
+) -> None:
+    from app.core.exceptions import BadRequestError
+
+    capabilities = [] if enabled is None else [CapabilityBindingSpec(id="sandbox", enabled=enabled)]
+    spec = AgentSpec(name="Routine", capabilities=capabilities)
+    with pytest.raises(BadRequestError):
+        _with_local_capabilities(spec, LocalTarget(folder="/approved"), routine=True)
+
+
+def test_routine_keeps_the_published_sandbox_policy_without_mutating_it() -> None:
+    spec = AgentSpec(
+        name="Routine", capabilities=[CapabilityBindingSpec(id="sandbox", approval="required")]
+    )
+    assert _with_local_capabilities(spec, LocalTarget(folder="/approved"), routine=True) is spec
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        LocalTarget(folder="/approved", browser=True),
+        LocalTarget(folder="/approved", computer=True),
+        LocalTarget(folder="/approved", model_service="local"),
+        LocalTarget(folder="/approved", mcp_services=["local"]),
+    ],
+)
+def test_routine_folder_consent_cannot_expand_to_other_native_services(
+    selection: LocalTarget,
+) -> None:
+    from app.core.exceptions import AuthorizationError
+
+    spec = AgentSpec(name="Routine", capabilities=[CapabilityBindingSpec(id="sandbox")])
+    with pytest.raises(AuthorizationError):
+        _with_local_capabilities(spec, selection, routine=True)

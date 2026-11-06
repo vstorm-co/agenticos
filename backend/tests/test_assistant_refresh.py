@@ -121,15 +121,15 @@ async def test_missing_gallery_key_is_an_explicit_failure(monkeypatch):
         )
 
 
-async def test_refresh_attaches_new_workflow_skills_without_dropping_custom_ones(installed):
+async def test_refresh_preserves_custom_skills_without_reattaching_optional_ones(installed):
     service, ctx, row, agent, version = installed
-    added = uuid4()
     old = list(agent.draft_spec["skill_ids"])
-    service.registry.template_skills.return_value = [SimpleNamespace(id=added)]
+    service.registry.template_skills.return_value = [SimpleNamespace(id=uuid4())]
     result = await service.refresh(ctx)
-    updated = service.registry.save_draft.await_args.args[2]
-    assert [str(value) for value in updated.skill_ids] == [*old, str(added)]
-    assert result.published_version == 2
+    assert agent.draft_spec["skill_ids"] == old
+    assert result.published_version is None
+    service.registry.save_draft.assert_not_awaited()
+    service.registry.template_skills.assert_not_awaited()
 
 
 async def test_workflow_upgrade_preserves_pending_draft_and_published_settings(installed):

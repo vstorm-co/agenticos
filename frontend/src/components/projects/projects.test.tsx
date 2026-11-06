@@ -174,6 +174,7 @@ describe("ProjectCard", () => {
       />,
     );
     expect(screen.getByRole("link")).toHaveAttribute("href", "/projects/p-1");
+    expect(screen.getByText("L")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("2 chats")).toBeInTheDocument();
     expect(screen.getByText("Starts with Writer")).toBeInTheDocument();
     expect(screen.getByText(/Active/)).toBeInTheDocument();

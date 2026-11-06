@@ -9,7 +9,6 @@ import {
   ArrowRight,
   ChevronRight,
   Library,
-  MessageSquare,
   MessagesSquare,
   Plug,
   Rocket,
@@ -19,6 +18,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { Button, Card, CardContent, Skeleton } from "@/components/ui";

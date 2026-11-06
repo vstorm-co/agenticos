@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 interface McpServerCardProps {
   name: string;
   icon: string | null;
+  category?: string;
   /** Drawn in place of the catalog icon - the deployment's own mark, which no catalog holds. */
   mark?: ReactNode;
   url: string | null;
@@ -43,6 +44,7 @@ interface McpServerCardProps {
 export function McpServerCard({
   name,
   icon,
+  category,
   mark,
   url,
   description,
@@ -79,6 +81,7 @@ export function McpServerCard({
             {mark ?? (
               <McpServerIcon
                 icon={icon}
+                category={category}
                 name={name}
                 url={url}
                 className="size-6 text-neutral-900"

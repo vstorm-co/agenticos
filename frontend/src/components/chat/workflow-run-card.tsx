@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Workflow } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { WorkflowRunStatusBadge } from "@/components/workflows/runs/run-status";

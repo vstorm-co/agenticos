@@ -195,8 +195,31 @@ describe("OrgProactivity", () => {
 
   it("explains fixed attribution and the separate proactivity model", () => {
     render(<OrgProactivity org={org()} />);
-    expect(screen.getByText(/This assignment is fixed by the platform/)).toBeVisible();
-    expect(screen.getByText(/independently of the agent’s own model/)).toBeVisible();
+    expect(screen.getByText(/Suggestions use a dedicated model/)).toBeVisible();
+    expect(screen.getByText(/monitoring uses its selected agent/)).toBeVisible();
+  });
+
+  it("discards a welcome-message draft without saving it", async () => {
+    state.held = [Perm.orgSettings];
+    render(<OrgProactivity org={org()} />);
+    const toggle = screen.getByRole("switch", { name: "Welcome message in chat apps" });
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(toggle).not.toBeChecked();
+    expect(screen.queryByText("You have unsaved changes")).toBeNull();
+    expect(state.setWelcomeDm).not.toHaveBeenCalled();
+  });
+
+  it("discards local settings without updating the organization", async () => {
+    render(<OrgProactivity org={org(ON)} />);
+    const limit = screen.getByLabelText("Limit per person (USD a month)");
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "25");
+    expect(screen.getByRole("status")).toHaveTextContent("You have unsaved changes");
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(limit).toHaveValue(1);
+    expect(screen.queryByText("You have unsaved changes")).toBeNull();
+    expect(state.setProactivity).not.toHaveBeenCalled();
   });
 
   it("starts off, and is not turned on without a model to run on", async () => {
@@ -433,22 +456,32 @@ describe("OrgProactivity", () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Nightly suggestions saved"));
   });
 
-  it("does not let watches on without the model they share with the nightly look", async () => {
+  it("enables monitoring without a conversation-suggestions model", async () => {
     render(<OrgProactivity org={org()} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Watch people's connections" }));
-    // The model and the limit appear for watches alone; the nightly schedule does not.
-    expect(screen.getByRole("radiogroup", { name: "Model" })).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Days" })).toBeNull();
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
+    );
+    // Monitoring uses its own agent; the shared budget and digest timing remain editable.
+    expect(screen.queryByRole("radiogroup", { name: "Model" })).toBeNull();
+    expect(screen.getByRole("group", { name: "Days" })).toBeVisible();
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
-    expect(screen.getByText("Choose the model it runs on before turning it on.")).toBeVisible();
-    expect(state.setProactivity).not.toHaveBeenCalled();
+    expect(state.setProactivity).toHaveBeenCalledWith(
+      "o1",
+      expect.objectContaining({
+        proactive_enabled: false,
+        proactive_watches_enabled: true,
+        proactive_model_profile_id: null,
+      }),
+    );
   });
 
   it("turns watches on with how often at most", async () => {
     render(<OrgProactivity org={org({ proactive_model_profile_id: "mp-1" })} />);
-    await userEvent.click(screen.getByRole("switch", { name: "Watch people's connections" }));
-    await userEvent.click(screen.getByRole("combobox", { name: "Most often" }));
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Allow read-only monitoring routines" }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Minimum check interval" }));
     await userEvent.click(await screen.findByRole("option", { name: "Every 3 hours" }));
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
 
@@ -473,7 +506,9 @@ describe("OrgProactivity", () => {
         })}
       />,
     );
-    expect(screen.getByRole("combobox", { name: "Most often" })).toHaveTextContent("Daily");
+    expect(screen.getByRole("combobox", { name: "Minimum check interval" })).toHaveTextContent(
+      "Daily",
+    );
   });
 
   it("is turned on with a model from the organization's, before work, at seven", async () => {

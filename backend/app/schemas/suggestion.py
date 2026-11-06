@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field
 
+from app.db.models.outcome import OutcomeStatus
 from app.schemas.base import BaseSchema
 
 SuggestionKindName = Literal["routine", "agent", "profile", "role_pack", "finding"]
@@ -29,6 +30,8 @@ class SuggestionRead(BaseSchema):
             "them null; accepting one only records it as dealt with."
         ),
     )
+    outcome_id: UUID | None = None
+    outcome_status: OutcomeStatus | None = None
     watch_id: UUID | None = Field(default=None, description="The watch a finding came from.")
     urgent: bool = Field(
         default=False, description="A finding sent at once rather than kept for the briefing."

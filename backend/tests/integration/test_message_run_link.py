@@ -375,7 +375,7 @@ class TestHowEachRunEnded:
 
         outcomes = await conversation_repo.run_outcomes(db, {finished.id, still_running.id})
 
-        assert outcomes[finished.id] == conversation_repo.RunOutcome("completed", 12_400)
+        assert outcomes[finished.id] == conversation_repo.RunOutcome("completed", 12_400, _START)
         # Nothing to measure yet, which is not the same claim as "took no time".
         assert outcomes[still_running.id].duration_ms is None
 
@@ -431,6 +431,26 @@ class TestWhichConversationsAreAtWork:
         )
 
         assert since == {busy.id: started}
+
+    async def test_overlapping_runs_keep_their_distinct_identities(self, db) -> None:
+        organization = await _org(db)
+        owner = await _user(db)
+        agent = await _agent(db, organization, owner)
+        conversation = await _conversation(db, organization, owner)
+        now = datetime.now(UTC)
+        first = await self._run_in(
+            db, conversation, agent, status="running", started_at=now - timedelta(seconds=12)
+        )
+        second = await self._run_in(db, conversation, agent, status="running", started_at=now)
+        activity = await conversation_repo.running_activity(db, [conversation.id])
+        assert set(activity[conversation.id].run_ids) == {first.id, second.id}
+        first.status = "completed"
+        first.ended_at = now
+        await db.flush()
+        remaining = await conversation_repo.running_activity(db, [conversation.id])
+        assert remaining[conversation.id].run_ids == [second.id]
+        assert remaining[conversation.id].since == now
+        assert await conversation_repo.running_activity(db, []) == {}
 
     async def test_no_conversations_asks_nothing(self, db) -> None:
         assert await conversation_repo.running_since(db, []) == {}

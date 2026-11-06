@@ -69,6 +69,7 @@ function serve(role: string, { seesSpend = false } = {}) {
   if (seesSpend)
     granted.permissions = [...granted.permissions, { permission: "runs:view", scope: "all" }];
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === "/tasks/boards") return Promise.resolve([]);
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
     if (url.startsWith("/me/permissions")) return Promise.resolve(granted);
     if (url === "/orgs/org-1/groups") return Promise.resolve({ items: [FINANCE], total: 1 });

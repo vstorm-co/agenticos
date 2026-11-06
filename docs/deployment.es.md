@@ -1,5 +1,5 @@
 ---
-source_sha: "d6e3bf78d15a"
+source_sha: "1297bb7c3062"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -18,6 +18,8 @@ redespliegue, sin variable de entorno, sin reconstrucción.
 
     Es la misma autoridad que ya administra usuarios y tenants en toda la
     instalación.
+
+La consola agrupa los ajustes en Identidad, Acceso y cuentas, Anuncios, Voz y móvil, y Mantenimiento. Cambiar de sección conserva los cambios sin guardar. Guardar aplica los campos editados de todas las secciones; Descartar cambios restaura sus valores guardados. Las imágenes y las credenciales de notificaciones móviles mantienen su guardado independiente.
 
 ## Identidad { #identity }
 

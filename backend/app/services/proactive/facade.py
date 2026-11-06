@@ -106,6 +106,9 @@ class ProactiveService:
                 ),
                 organization_id=candidate.organization_id,
                 dedupe_key=_per_person("think", candidate.organization_id, candidate.user_id),
+                concurrency_key=_per_person(
+                    "proactivity", candidate.organization_id, candidate.user_id
+                ),
                 dedupe_active=True,
             )
             queued += 1
@@ -135,23 +138,26 @@ class ProactiveService:
         """Queue a look for every watch whose time has come. Returns how many were queued."""
         from app.services.proactive._watch import WatchLook
 
-        due = await WatchLook(self.db).due(now=now)
+        look = WatchLook(self.db)
+        await look.expire_due(now=now)
+        due = await look.due(now=now)
         for watch in due:
             await enqueue(
                 self.db,
                 LOOK_THROUGH_WATCH,
-                LookThroughWatch(watch_id=watch.id),
+                LookThroughWatch(watch_id=watch.id, scheduled_for=now),
                 organization_id=watch.organization_id,
                 dedupe_key=f"watch:{watch.id}",
+                concurrency_key=_per_person("proactivity", watch.organization_id, watch.user_id),
                 dedupe_active=True,
             )
         return len(due)
 
-    async def look_through(self, watch_id: UUID) -> int:
+    async def look_through(self, watch_id: UUID, *, scheduled_for: datetime | None = None) -> int:
         """One look through one watch's connection. Returns how many findings are new."""
         from app.services.proactive._watch import WatchLook
 
-        return await WatchLook(self.db).look(watch_id)
+        return await WatchLook(self.db).look(watch_id, scheduled_for=scheduled_for)
 
     async def brief(self, organization_id: UUID, user_id: UUID) -> int:
         """One person's morning briefing. Returns how many findings it listed."""

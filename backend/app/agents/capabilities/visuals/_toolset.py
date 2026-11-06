@@ -249,6 +249,14 @@ class VisualsToolset:
         shows as it streams. Before a first drawing, load the `visual-design` skill if
         it is available - it has the house style and a template for each kind of answer.
 
+        Give the drawing one clear explanatory purpose and make its controls work.
+        Label sourced values, units and assumptions; do not fill a template with
+        invented numbers. Inspect the rendered result with the available visual
+        tools and revise defects before claiming it is checked. This tool renders
+        SVG, Mermaid or HTML; it does not compile LaTeX or export editable slides.
+        For a paper or native presentation load document-production when available
+        and use a workspace compiler/generator and renderer instead.
+
         Args:
             title: What the drawing shows, in a few words, e.g. `Order flow`.
             kind: `svg`, `mermaid` or `html`, as above.

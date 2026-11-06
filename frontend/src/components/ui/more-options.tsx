@@ -39,7 +39,7 @@ export function MoreOptions({
         type="button"
         aria-expanded={open}
         onClick={toggle}
-        className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm font-medium transition-colors"
+        className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 border-t pt-4 text-[13px] font-medium transition-colors"
       >
         <ChevronRight
           className={cn("h-4 w-4 transition-transform", open && "rotate-90")}

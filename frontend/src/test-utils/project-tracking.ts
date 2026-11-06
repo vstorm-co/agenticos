@@ -1,0 +1,20 @@
+import type { Project } from "@/types/projects";
+export const trackingProject: Project = {
+  id: "launch",
+  name: "Launch",
+  description: null,
+  instructions: "",
+  default_agent_id: null,
+  default_agent_name: null,
+  owner_user_id: "me",
+  visibility: "private",
+  backend: "state",
+  runtime: null,
+  chat_count: 0,
+  last_active_at: null,
+  shared_groups: [],
+  can_use: true,
+  can_edit: true,
+  created_at: null,
+  updated_at: null,
+};

@@ -10,8 +10,16 @@ from pydantic import Field, field_validator
 
 from app.agents.ask_user import QuestionItem
 from app.agents.capabilities import CapabilityToolInfo
-from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode, SpecialistSpec
+from app.agents.spec import (
+    AgentSpec,
+    CapabilityBindingSpec,
+    DelegationMode,
+    SpecialistSpec,
+    StarterIcons,
+    StarterTitles,
+)
 from app.core.secret_kinds import SecretRequirement
+from app.db.models.agent_run import RunStatus
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import AudienceChoice
 
@@ -260,6 +268,14 @@ class AgentRead(BaseSchema):
             "with none. Filled by the listing, same bargain as shared_user_count."
         ),
     )
+    starter_titles: StarterTitles = Field(
+        default_factory=dict,
+        description="Published opener card titles keyed by starter text; the message is their description.",
+    )
+    starter_icons: StarterIcons = Field(
+        default_factory=dict,
+        description="Published chat opener icons keyed by starter text; never taken from the draft.",
+    )
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -317,8 +333,10 @@ class AgentCreate(AudienceChoice):
         default=False,
         description=(
             "Start as the AgenticOS agent does: whatever of its instructions, "
-            "capabilities, skills, platform tools, first messages and budget the spec "
+            "common capabilities, skills, platform tools, first messages and budget the spec "
             "leaves empty is filled from it - what the console's New agent sends. "
+            "Computer use, browser and coding tools remain specific to the shipped AgenticOS "
+            "unless explicitly selected. "
             "Without it, a spec with no instructions gets only the starter's instructions"
         ),
     )
@@ -736,8 +754,8 @@ class PlatformMcpTool(BaseSchema):
     held: bool = Field(
         default=False,
         description=(
-            "A read held for approval under `approval: writes` all the same - reading a "
-            "whole past conversation, which an injected instruction could carry off"
+            "Legacy read-approval exception flag; always false. Read-only platform tools "
+            "run automatically under `writes` and require approval under `all`."
         ),
     )
 
@@ -805,6 +823,8 @@ class AgentRunRequest(BaseSchema):
 
 
 class ParkedCall(BaseSchema):
+    can_remember: bool = False
+    subagent_name: str | None = None
     """A tool call a run is waiting on a decision for."""
 
     id: UUID = Field(description="The approval to decide, which is what a client posts to.")
@@ -880,6 +900,15 @@ class SettledCall(BaseSchema):
     result: str
 
 
+class SettledDelegation(BaseSchema):
+    """A published delegate that reached its own outcome in this execution."""
+
+    task_id: str = Field(description="Stable delegation task ID, shared with subagent frames")
+    status: RunStatus = Field(
+        description="The delegate's outcome, independent of the parent run status"
+    )
+
+
 class AgentRunResult(BaseSchema):
     """What the agent answered, and what the run cost."""
 
@@ -937,6 +966,14 @@ class AgentRunResult(BaseSchema):
             "call somebody approved. It was made by the previous execution, so it is not "
             "in `steps`; it belongs to a step the caller already drew. Empty on a run "
             "that inherited nothing."
+        ),
+    )
+    delegations: list[SettledDelegation] = Field(
+        default_factory=list,
+        description=(
+            "Published delegates settled by this execution. A delegate may finish while "
+            "the parent parks on a new approval; HTTP continuations carry no socket "
+            "completion frames, so clients reconcile each task by its own outcome."
         ),
     )
     parked: list[ParkedCall] = Field(

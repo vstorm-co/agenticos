@@ -51,34 +51,28 @@ export function DelegationPanels({
   agents?: readonly DelegateRef[];
   /** The agent that handed the work out, at the head of the strip. */
   parent?: DelegateRef;
-  /**
-   * The turn is over. A delegation that answered in it is then the "Asked …" step
-   * and the team under the answer, so its panel goes; so does one the person
-   * stopped, which the step now reads as "Stopped asking …". One still out in the
-   * background, one that failed, and a specialist that can still be kept stay.
-   * Finished coding tasks already have a tool step and report in their turn.
-   */
+  /** Keep finished exchanges; coding tasks already have their own saved report. */
   settled?: boolean;
   /** The turn is still running: draw the delegations as a conversation. */
   conversation?: boolean;
 }) {
-  const roots = rootsOf(delegations).filter(
+  const visible = delegations.filter(
     (delegation) =>
       !(
         settled &&
         delegation.harness !== null &&
         ["completed", "failed", "cancelled"].includes(delegation.status)
-      ) &&
-      (!settled ||
-        delegation.specialist !== null ||
-        (delegation.status === "completed"
-          ? delegation.mode === "async"
-          : delegation.status !== "cancelled")),
+      ),
   );
+  const roots = rootsOf(visible);
   if (roots.length === 0) return null;
-  // While the turn runs, the team is drawn as the exchange it is - see
-  // `DelegationChat`; the panels are what remains once it is over.
-  if (conversation) return <DelegationChat delegations={roots} agents={agents} parent={parent} />;
+  // Preserve the exchange after completion; promotable specialists retain their controls.
+  if (
+    conversation ||
+    (settled &&
+      visible.every((delegation) => delegation.harness === null && delegation.specialist === null))
+  )
+    return <DelegationChat delegations={visible} agents={agents} parent={parent} />;
   return (
     <div className="space-y-1 pb-2">
       {roots.map((delegation) => (

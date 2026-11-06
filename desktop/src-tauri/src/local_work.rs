@@ -262,6 +262,7 @@ pub async fn local_file(app: AppHandle, root: String, path: String) -> Result<St
 
 #[tauri::command]
 pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> {
+    crate::routine_access::revoke_folder(&app, &path)?;
     let (settings, ()) = settings::update(&app, |settings| {
         settings.coding_consents.retain(|consent| !consent.is_for_folder(&path));
         settings.local_grants.retain(|existing| existing.path != path);
@@ -281,6 +282,27 @@ pub async fn run(app: &AppHandle, op: &str, args: &Map<String, Value>) -> Result
     let root = text(args, "root")?;
     let asked: Mode = serde_json::from_value(args.get("mode").cloned().unwrap_or(Value::Null))
         .map_err(|_| Refusal::new("denied", "No mode was named."))?;
+    if let agenticos_shell_core::routine_grants::WorkContext::Routine(scope) =
+        crate::routine_access::context(args).map_err(|error| Refusal::new("denied", error))?
+    {
+        let mode = if scope.operations.write {
+            Mode::WorkspaceWrite
+        } else {
+            Mode::ReadOnly
+        };
+        if asked != mode || args.contains_key("computer_grant") {
+            return Err(Refusal::new(
+                "denied",
+                "Routine access cannot use full-computer or a different folder mode",
+            ));
+        }
+        crate::routine_access::check(app, &scope, &root, op).map_err(|error| Refusal::new("denied", error))?;
+        let root = PathBuf::from(root);
+        return match op {
+            "shell.run" => shell(app, &root, mode, args, false).await,
+            _ => files(op, &root, mode, args).await,
+        };
+    }
     if args.contains_key("computer_grant") {
         crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
         let root = PathBuf::from(&root);

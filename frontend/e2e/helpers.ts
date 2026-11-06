@@ -222,7 +222,7 @@ export async function signInAs(
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);
     await page.getByRole("button", { name: "Login" }).click();
-    await expect(page).toHaveURL(/\/dashboard(\?.*)?$/);
+    await expect(page).toHaveURL(/\/chat(\?.*)?$/);
     await page.close();
     return context;
   } catch (error) {

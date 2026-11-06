@@ -81,3 +81,10 @@ async def test_another_organizations_table_is_refused_even_to_an_owner():
         assert not await resolve_access(
             MagicMock(), ctx, table, Perm.TABLES_VIEW, resource_type=TABLE
         )
+
+
+@pytest.fixture(autouse=True)
+def ordinary_tables_only(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("app.repositories.task.for_table", AsyncMock(return_value=None))

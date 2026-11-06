@@ -3,8 +3,10 @@
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Bot, Check, ChevronDown, Star, Workflow } from "lucide-react";
+import { Bot, Check, ChevronDown, Star } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useAgents, usePermissions, useWorkflows } from "@/hooks";
@@ -117,13 +119,24 @@ export function AgentPicker() {
         <button
           type="button"
           data-tour="chat-agent-picker"
-          aria-label={t("current", { name: answererName ?? t("noneSelected") })}
+          aria-label={
+            isLoading && !selected && !selectedWorkflow
+              ? t("loading")
+              : t("current", { name: answererName ?? t("noneSelected") })
+          }
+          aria-busy={isLoading && !selected && !selectedWorkflow}
+          disabled={isLoading && !selected && !selectedWorkflow}
           // `min-w-0` so the name inside can actually give way: the trigger is
           // in a row that runs out of room at 390px, and `max-w-[160px]` on the
           // name is a cap rather than permission to shrink.
           className="bg-foreground/[0.06] hover:bg-foreground/[0.1] text-foreground touch:min-h-11 inline-flex min-w-0 touch-manipulation items-center gap-1.5 rounded-lg py-1 pr-2 pl-1 transition-colors"
         >
-          {selectedWorkflow ? (
+          {isLoading && !selected && !selectedWorkflow ? (
+            <Skeleton
+              data-testid="agent-picker-loading-icon"
+              className="size-6 shrink-0 rounded-full"
+            />
+          ) : selectedWorkflow ? (
             <WorkflowMark />
           ) : selected ? (
             <AgentAvatar
@@ -139,7 +152,11 @@ export function AgentPicker() {
             </span>
           )}
           <span className="max-w-[160px] truncate text-sm font-medium">
-            {answererName ?? t("none")}
+            {isLoading && !selected && !selectedWorkflow ? (
+              <Skeleton data-testid="agent-picker-loading-name" className="h-3.5 w-20 rounded" />
+            ) : (
+              (answererName ?? t("none"))
+            )}
           </span>
           <ChevronDown className="text-muted-foreground h-3 w-3" />
         </button>

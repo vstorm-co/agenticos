@@ -267,3 +267,58 @@ async def test_workspace_transfer_is_accepted_with_a_pollable_job(
     assert response.status_code == 202
     assert response.json()["job_id"] == str(job_id)
     assert queued.call_args.args[2].backend == "state"
+
+
+async def test_project_tracker_requires_explicit_publication_of_the_reviewed_version(
+    client: OpenClient, monkeypatch
+):
+    from app.schemas.project_tracking import ProjectTrackingRead, ProjectTrackingReview
+    from app.services.project_tracking import ProjectTrackingService
+
+    agent_id, version_id = uuid.uuid4(), uuid.uuid4()
+    review = ProjectTrackingReview(
+        review_token="a" * 64,
+        base_agent_id=agent_id,
+        base_version_id=version_id,
+        base_agent_name="Tracker",
+        resources=["Project files"],
+        accounts=[],
+        unavailable_sources=[],
+    )
+    tracker = ProjectTrackingRead(
+        id=uuid.uuid4(),
+        project_id=PROJECT_ID,
+        agent_id=agent_id,
+        agent_version_id=version_id,
+        table_id=uuid.uuid4(),
+        trigger_id=uuid.uuid4(),
+        conversation_id=None,
+    )
+    reviewed, create = AsyncMock(return_value=review), AsyncMock(return_value=tracker)
+    monkeypatch.setattr(ProjectTrackingService, "get", AsyncMock(return_value=None))
+    monkeypatch.setattr(ProjectTrackingService, "review", reviewed)
+    monkeypatch.setattr(ProjectTrackingService, "create", create)
+    root = f"/api/v1/projects/{PROJECT_ID}/tracking"
+    data = {
+        "base_agent_id": str(agent_id),
+        "base_version_id": str(version_id),
+        "source_review_token": "a" * 64,
+        "publish_and_start": True,
+        "agent_name": "Tracker",
+        "table_name": "Tasks",
+    }
+    async with client() as http:
+        absent = await http.get(root)
+        response = await http.get(
+            root + "/review",
+            params={"base_agent_id": str(agent_id), "base_version_id": str(version_id)},
+        )
+        refused = await http.post(root, json={**data, "publish_and_start": False})
+        created = await http.post(root, json=data)
+    assert absent.status_code == 200 and absent.json() is None
+    assert response.json()["resources"] == ["Project files"]
+    assert refused.status_code == 422
+    assert created.status_code == 201 and created.json()["table_id"] == str(tracker.table_id)
+    assert reviewed.await_args.kwargs == {"agent_id": agent_id, "version_id": version_id}
+    assert create.await_args.args[2].source_review_token == "a" * 64
+    create.assert_awaited_once()

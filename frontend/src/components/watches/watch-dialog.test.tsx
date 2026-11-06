@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +26,19 @@ const refusal = vi.hoisted(() => ({
 }));
 
 vi.mock("@/hooks", () => ({
+  useAgents: () => ({
+    agents: [
+      {
+        id: "a-monitor",
+        name: "Monitor",
+        slug: "monitor",
+        can_run: true,
+        current_version_id: "v1",
+      },
+    ],
+    isLoading: false,
+  }),
+  useAgentEnvironments: () => ({ environments: [] }),
   useMcpConnections: () => ({
     connections: [
       { id: "c-gh", name: "github", label: null, catalog_key: "github" },
@@ -74,6 +87,11 @@ const FAILING: WatchPreset = {
 
 const watch = (overrides: Partial<Watch> = {}): Watch => ({
   id: "w1",
+  agent_id: "a-monitor",
+  environment_id: null,
+  pinned_version_id: null,
+  source_conversation_id: null,
+  ends_at: null,
   connection_id: "c-gh",
   connection_name: "github",
   server: "github",
@@ -87,6 +105,8 @@ const watch = (overrides: Partial<Watch> = {}): Watch => ({
   stopped: null,
   next_run_at: "2026-10-22T10:00:00Z",
   last_run_at: null,
+  last_attempt_at: null,
+  last_attempt_status: null,
   waiting: 0,
   created_at: "2026-10-22T09:00:00Z",
   ...overrides,
@@ -105,22 +125,80 @@ beforeEach(() => {
 });
 
 describe("WatchDialog", () => {
+  it("persists an explicit disabled failure policy", async () => {
+    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+    await userEvent.click(screen.getByRole("combobox", { name: "Pause after repeated failures" }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Do not pause for repeated execution failures" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.update).toHaveBeenCalledWith(
+      expect.objectContaining({ changes: expect.objectContaining({ max_failures: null }) }),
+    );
+  });
+  it("saves an explicit no-change report and app-only delivery together", async () => {
+    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+    await userEvent.click(screen.getByRole("combobox", { name: "When to report" }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "After every check, including no changes" }),
+    );
+    await userEvent.click(screen.getByRole("combobox", { name: "Notifications for this routine" }));
+    await userEvent.click(await screen.findByRole("option", { name: "In the app only" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: expect.objectContaining({ report_mode: "every_check", notification_channels: [] }),
+      }),
+    );
+  });
+  it("requires an explicit agent in the global creation flow", async () => {
+    render(<WatchDialog open onOpenChange={vi.fn()} connectionId="c-gh" />);
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
+    await userEvent.click(
+      await screen.findByRole("option", { name: "Pull requests waiting on my review" }),
+    );
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Monitor" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ agent_id: "a-monitor" }));
+  });
+  it("preserves the exact stored end on an unrelated edit and only refreshes sources explicitly", async () => {
+    const endsAt = "2027-01-02T03:04:05.123456Z";
+    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch({ ends_at: endsAt })} />);
+    await userEvent.click(screen.getByRole("switch", { name: "Approve attached sources again" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const changes = state.update.mock.calls[0]![0].changes;
+    expect(changes.review_sources).toBe(true);
+    expect(changes).not.toHaveProperty("ends_at");
+  });
   it("fills a preset in the person's words, within the organization's floor", async () => {
     state.floor = 180;
     const onOpenChange = vi.fn();
-    render(<WatchDialog open onOpenChange={onOpenChange} connectionId="c-gh" />);
+    render(
+      <WatchDialog agentId="a-monitor" open onOpenChange={onOpenChange} connectionId="c-gh" />,
+    );
 
     // Only the presets for this connection's server, and one's own words.
     expect(screen.queryByRole("radio", { name: "Issues assigned to me" })).toBeNull();
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
     await userEvent.click(
-      screen.getByRole("radio", { name: "Failing checks on my pull requests" }),
+      await screen.findByRole("option", { name: "Failing checks on my pull requests" }),
     );
     expect(screen.getByLabelText("Name")).toHaveValue("Failing checks on my pull requests");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("switch", { name: "Tell me at once when it is urgent" })).toBeChecked();
     expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 3 hours");
-    await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     expect(state.create).toHaveBeenCalledWith({
+      agent_id: "a-monitor",
+      environment_id: null,
+      pinned_version_id: null,
+      ends_at: null,
       connection_id: "c-gh",
       preset_key: "github-failing-checks",
       title: "Failing checks on my pull requests",
@@ -141,13 +219,15 @@ describe("WatchDialog", () => {
 
   it("names each account by its server, and offers no way to Routines from Routines", async () => {
     state.path = "/pl/routines";
-    render(<WatchDialog open onOpenChange={vi.fn()} />);
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} />);
     await userEvent.click(screen.getByRole("combobox", { name: "Account" }));
     expect(await screen.findByRole("option", { name: "GitHub" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("option", { name: "Our wiki" }));
     await userEvent.type(screen.getByLabelText("Name"), "Wiki");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.type(screen.getByLabelText("Look for"), "Pricing");
-    await userEvent.click(screen.getByRole("button", { name: "Start watching" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
     expect(toastSuccess.mock.calls[0]![1].action).toBeUndefined();
@@ -155,20 +235,27 @@ describe("WatchDialog", () => {
 
   it("takes the person's own words for a server with no presets", async () => {
     state.floor = null;
-    render(<WatchDialog open onOpenChange={vi.fn()} />);
-    const start = screen.getByRole("button", { name: "Start watching" });
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} />);
+    const start = screen.getByRole("button", { name: "Continue" });
     expect(start).toBeDisabled();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Account" }));
     await userEvent.click(await screen.findByRole("option", { name: "Our wiki" }));
     expect(screen.queryByRole("radio", { name: "Something else" })).toBeNull();
     await userEvent.type(screen.getByLabelText("Name"), "  Wiki edits ");
+    await userEvent.click(start);
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Look for"), "Pages about pricing");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(screen.getByRole("combobox", { name: "How often" }));
     await userEvent.click(await screen.findByRole("option", { name: "Every 15 minutes" }));
-    await userEvent.click(start);
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
 
     expect(state.create).toHaveBeenCalledWith({
+      agent_id: "a-monitor",
+      environment_id: null,
+      pinned_version_id: null,
+      ends_at: null,
       connection_id: "c-mine",
       preset_key: null,
       title: "Wiki edits",
@@ -179,14 +266,15 @@ describe("WatchDialog", () => {
   });
 
   it("goes back to one's own words from a preset", async () => {
-    render(<WatchDialog open onOpenChange={vi.fn()} connectionId="c-gh" />);
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} connectionId="c-gh" />);
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
     await userEvent.click(
-      screen.getByRole("radio", { name: "Pull requests waiting on my review" }),
+      await screen.findByRole("option", { name: "Pull requests waiting on my review" }),
     );
-    await userEvent.click(screen.getByRole("radio", { name: "Something else" }));
-    expect(screen.getByRole("radio", { name: "Something else" })).toHaveAttribute(
-      "aria-checked",
-      "true",
+    await userEvent.click(screen.getByRole("combobox", { name: "What to look for" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Something else" }));
+    expect(screen.getByRole("combobox", { name: "What to look for" })).toHaveTextContent(
+      "Something else",
     );
     // What the preset wrote stays, to edit from.
     expect(screen.getByLabelText("Name")).toHaveValue("Pull requests waiting on my review");
@@ -194,7 +282,7 @@ describe("WatchDialog", () => {
 
   it("changes a watch it was opened with, what to leave out included", async () => {
     const onOpenChange = vi.fn();
-    render(<WatchDialog open onOpenChange={onOpenChange} watch={watch()} />);
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={onOpenChange} watch={watch()} />);
     expect(screen.getByRole("combobox", { name: "Account" })).toBeDisabled();
     expect(screen.queryByRole("radio")).toBeNull();
     await userEvent.type(screen.getByLabelText("Leave out"), "\nrenovate");
@@ -206,6 +294,8 @@ describe("WatchDialog", () => {
     expect(state.update).toHaveBeenCalledWith({
       id: "w1",
       changes: {
+        environment_id: null,
+        pinned_version_id: null,
         title: "Reviews",
         instructions: "Waiting on me",
         urgent: true,
@@ -219,7 +309,7 @@ describe("WatchDialog", () => {
   it("puts a refusal under the field it names and toasts the rest", async () => {
     refusal.value = { fields: { interval_minutes: "Too often" }, toast: "Also this" };
     state.update.mockRejectedValue(new Error("400"));
-    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} watch={watch()} />);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Too often")).toBeVisible();
@@ -229,17 +319,155 @@ describe("WatchDialog", () => {
   it("says nothing more than the field when that is all the refusal named", async () => {
     refusal.value = { fields: { title: "Taken" }, toast: null };
     state.update.mockRejectedValue(new Error("400"));
-    render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={vi.fn()} watch={watch()} />);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Taken")).toBeVisible();
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  it("keeps the draft when moving back and exposes just one advanced panel", async () => {
+    render(<WatchDialog open agentId="a-monitor" connectionId="c-gh" onOpenChange={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "My review queue");
+    expect(screen.queryByRole("textbox", { name: "Look for" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.type(screen.getByLabelText("Look for"), "Find reviews waiting on me");
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getAllByText("Advanced options")).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByLabelText("Look for")).toHaveValue("Find reviews waiting on me");
+    await userEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByLabelText("Name")).toHaveValue("My review queue");
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
+  it("returns a create refusal to the step containing the rejected field", async () => {
+    refusal.value = { fields: { title: "Taken" }, toast: null };
+    state.create.mockRejectedValue(new Error("400"));
+    render(
+      <WatchDialog
+        open
+        agentId="a-monitor"
+        connectionId="c-gh"
+        onOpenChange={vi.fn()}
+        initialTask={{ title: "My reviews", instructions: "Find reviews" }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+    expect(await screen.findByText("Taken")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("My reviews");
+    expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
+  });
+
   it("closes on Cancel", async () => {
     const onOpenChange = vi.fn();
-    render(<WatchDialog open onOpenChange={onOpenChange} watch={watch()} />);
+    render(<WatchDialog agentId="a-monitor" open onOpenChange={onOpenChange} watch={watch()} />);
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+it("starts a proposed watch with a visible cadence that respects a nonstandard floor", async () => {
+  state.floor = 90;
+  render(
+    <WatchDialog
+      open
+      agentId="a-monitor"
+      connectionId="c-gh"
+      onOpenChange={vi.fn()}
+      initialTask={{ title: "My reviews", instructions: "Find review requests" }}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(screen.getByRole("combobox", { name: "How often" })).toHaveTextContent("Every 90 minutes");
+  await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+  expect(state.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      title: "My reviews",
+      instructions: "Find review requests",
+      interval_minutes: 90,
+      urgent: false,
+    }),
+  );
+});
+
+vi.mock("./watch-agent-fields", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./watch-agent-fields")>();
+  return {
+    ...actual,
+    WatchExecutionFields: ({
+      onEnvironment,
+      onVersion,
+    }: {
+      onEnvironment: (id: string | null) => void;
+      onVersion: (id: string | null) => void;
+    }) => (
+      <>
+        <button onClick={() => onEnvironment("prod")}>Select production environment</button>
+        <button onClick={() => onEnvironment(null)}>Select default environment</button>
+        <button onClick={() => onVersion("pinned-version")}>Pin reviewed version</button>
+      </>
+    ),
+  };
+});
+it("saves explicit version and end-time changes without silently refreshing source consent", async () => {
+  render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+  await userEvent.click(screen.getByRole("button", { name: "Select production environment" }));
+  await userEvent.click(screen.getByRole("button", { name: "Select default environment" }));
+  await userEvent.click(screen.getByRole("button", { name: "Pin reviewed version" }));
+  fireEvent.change(screen.getByLabelText("Ends at (device time)"), {
+    target: { value: "2028-01-02T03:04" },
+  });
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(state.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      changes: expect.objectContaining({
+        environment_id: null,
+        pinned_version_id: "pinned-version",
+        ends_at: expect.stringContaining("2028-"),
+      }),
+    }),
+  );
+});
+
+it("rechecks an edited end time at submission even if time advanced after validation", async () => {
+  render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+  fireEvent.change(screen.getByLabelText("Ends at (device time)"), {
+    target: { value: "2028-01-02T03:04" },
+  });
+  const clock = vi.spyOn(Date, "now").mockReturnValue(new Date("2029-01-01T00:00:00Z").getTime());
+  try {
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.update).not.toHaveBeenCalled();
+  } finally {
+    clock.mockRestore();
+  }
+});
+it.each(["instructions", "interval_minutes"])(
+  "returns a rejected create to the %s step without losing the draft",
+  async (field) => {
+    refusal.value = { fields: { [field]: "Please revise this" }, toast: null };
+    state.create.mockRejectedValue(new Error("Rejected"));
+    render(
+      <WatchDialog
+        open
+        agentId="a-monitor"
+        connectionId="c-gh"
+        onOpenChange={vi.fn()}
+        initialTask={{ title: "My reviews", instructions: "Find reviews" }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+    expect(await screen.findByText("Please revise this")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: field === "instructions" ? "Continue" : "Create routine",
+      }),
+    ).toBeInTheDocument();
+  },
+);

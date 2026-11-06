@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Plus, Workflow as WorkflowIcon } from "lucide-react";
+import { AlertTriangle, Plus } from "lucide-react";
+import { WorkflowIcon as WorkflowIcon } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
