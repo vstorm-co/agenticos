@@ -493,6 +493,7 @@ class TestTheSkillsAgents:
         assert [(row.agent.name, row.via_specialist) for row in listed.items] == [
             ("Delegates", "returns")
         ]
+        assert listed.hidden == 0
         assert sum(by_version.values()) == 1
         assert sorted(agent.name for agent in cards[skill.id]) == [
             "Delegates",

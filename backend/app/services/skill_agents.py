@@ -360,7 +360,7 @@ class SkillAgentService:
         return SkillAgentList(
             main_latest=VersionNumberRef(id=skill.latest_version_id, number=skill.version),
             items=items,
-            hidden=len(uses) - len({item.agent.id for item in items}),
+            hidden=len({use.agent.id for use in uses} - visible),
         )
 
     async def _rows(
