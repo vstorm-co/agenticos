@@ -1908,3 +1908,11 @@ async def test_parallel_named_sandbox_calls_do_not_overlap_change_capture(
         group.start_soon(task, "api")
         group.start_soon(task, "web")
     assert maximum == 1
+
+
+def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapshots() -> None:
+    local = CodingAgent(runs_on="this_computer").get_instructions()
+    sandbox = CodingAgent(runs_on="sandbox").get_instructions()
+    assert "[session:api]" in local and "can work at once" in local
+    assert "queue" in sandbox and "not separate files" in sandbox
+    assert "can work at once" not in sandbox
