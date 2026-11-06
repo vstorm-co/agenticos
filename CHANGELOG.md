@@ -21,6 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Opening chat on a phone no longer focuses the editor automatically. The keyboard stays closed and the attachment action keeps its position while being tapped.
 - Creating a knowledge base or claiming a collection name now waits at most one second for a name held by an unfiled chunk write, then answers 409 with a request to retry. Previously an unbounded wait could occupy the database connection pool and delay or refuse unrelated requests. The timeout rolls back only its savepoint, leaving the caller's transaction usable. Teardown and ingestion locks remain transaction-scoped and keep their existing behavior. (#2781)
 
 ### Added
