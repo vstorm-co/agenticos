@@ -54,6 +54,7 @@ def contact_and_call() -> tuple[PhoneContact, PhoneCall, AuthContext]:
         "case_removed",
         "source_wrong_person",
         "source_agent_revoked",
+        "routine_authorized",
     ],
 )
 async def test_outbound_authority_is_rechecked_at_every_live_boundary(
@@ -85,7 +86,7 @@ async def test_outbound_authority_is_rechecked_at_every_live_boundary(
         row.source_required = True
     elif change == "case_removed":
         row.purpose = "important"
-    elif change in {"source_wrong_person", "source_agent_revoked"}:
+    elif change in {"source_wrong_person", "source_agent_revoked", "routine_authorized"}:
         row.source_run_id = uuid4()
         monkeypatch.setattr(
             runtime.agent_run_repo,
@@ -97,7 +98,17 @@ async def test_outbound_authority_is_rechecked_at_every_live_boundary(
                 )
             ),
         )
-    if change == "none":
+    if change == "routine_authorized":
+        from app.services.routine_authority import RoutineAuthority
+
+        source = runtime.agent_run_repo.get_run.return_value
+        contact.agent_ids = [str(source.agent_id)]
+        row.contact_hash = contact_fingerprint(contact)
+        authority = MagicMock(check_in=AsyncMock())
+        monkeypatch.setattr(RoutineAuthority, "capture", AsyncMock(return_value=authority))
+        assert await runtime.live_contact(MagicMock(), row) == ctx
+        assert authority.check_in.await_args.args[1] == source.agent_id
+    elif change == "none":
         row.source_conversation_id = uuid4()
         assert await runtime.live_contact(MagicMock(), row) == ctx
     else:

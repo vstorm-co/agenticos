@@ -949,6 +949,7 @@ class TestEditingADraft:
                 "model_profile_id": str(KB),
                 "skill_ids": [str(skill)],
                 "collection_ids": [str(KB)],
+                "context_ids": [str(KB)],
                 "starters": ["How do refunds work?"],
             },
         )
@@ -965,6 +966,7 @@ class TestEditingADraft:
             "capabilities": [{"id": "clock", "config": {"timezone": "UTC"}}, {"id": "knowledge"}],
             "skill_ids": [str(skill)],
             "collection_ids": [str(KB)],
+            "context_ids": [str(KB)],
             "starters": ["How do refunds work?"],
         }
 
@@ -1620,3 +1622,29 @@ async def test_answering_a_draft_question_uses_the_owned_run_answer_endpoint(
     assert api.request.await_args.kwargs["json"] == {
         "responses": {"question-call": [{"selected": ["Ray"], "answer": "", "skipped": False}]}
     }
+
+
+async def test_task_receipts_and_unfiltered_context_use_the_current_api(server, api):
+    await server.call_tool("get_task", {"task_id": str(RUN)})
+    assert api.request.await_args.args == ("GET", f"/tasks/{RUN}")
+    await server.call_tool("list_context_files", {})
+    assert api.request.await_args.kwargs == {"params": {"limit": 50, "skip": 0}}
+    await server.call_tool(
+        "create_routine", {"agent_id": str(AGENT), "prompt": "Check", "answer_to": "primary"}
+    )
+    assert api.request.await_args.kwargs["json"]["answer_to"] == "primary"
+
+
+@pytest.mark.security
+async def test_routine_notification_override_and_inheritance_are_mutually_exclusive(server, api):
+    with pytest.raises(ToolError, match="not both"):
+        await server.call_tool(
+            "update_routine",
+            {
+                "agent_id": str(AGENT),
+                "routine_id": str(RUN),
+                "inherit_notifications": True,
+                "notification_channels": [],
+            },
+        )
+    api.request.assert_not_awaited()

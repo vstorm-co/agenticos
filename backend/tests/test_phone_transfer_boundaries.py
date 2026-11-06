@@ -54,7 +54,7 @@ async def test_transfers_preserve_owner_consent_deadline_and_ambiguous_acceptanc
         endpoint.generation = uuid4()
     elif change == "unlisted":
         endpoint.transfer_contact_ids = []
-    elif change == "expired":
+    elif change in {"expired", "rotated", "transfer_removed", "expired_unavailable"}:
         row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     db = AsyncMock()
     monkeypatch.setattr(runtime, "hold_subject", AsyncMock())
@@ -182,7 +182,23 @@ async def test_hangup_cancels_queued_calls_without_claiming_they_connected(monke
 
 
 @pytest.mark.parametrize(
-    "change", ["live", "expired", "unavailable", "late_receipt", "no_sid", "settled_during_cleanup"]
+    "change",
+    [
+        "live",
+        "expired",
+        "unavailable",
+        "late_receipt",
+        "no_sid",
+        "settled_during_cleanup",
+        "missing",
+        "terminal",
+        "rotated",
+        "inbound",
+        "transfer_removed",
+        "transfer_live",
+        "settled_before_cleanup",
+        "expired_unavailable",
+    ],
 )
 async def test_reaper_keeps_uncertain_reservations_until_the_hard_deadline(monkeypatch, change):
     _, row, _ = contact_and_call()
@@ -192,7 +208,7 @@ async def test_reaper_keeps_uncertain_reservations_until_the_hard_deadline(monke
     row.stream_claimed_at, row.transferred_contact_id = None, None
     row.expires_at = (
         now - timedelta(seconds=1)
-        if change in {"expired", "settled_during_cleanup"}
+        if change in {"expired", "settled_during_cleanup", "expired_unavailable"}
         else now + timedelta(minutes=1)
     )
     row.provider_sid = None if change == "no_sid" else SID
@@ -211,12 +227,33 @@ async def test_reaper_keeps_uncertain_reservations_until_the_hard_deadline(monke
         AsyncMock(return_value=(MagicMock(generation=row.endpoint_generation), None, AUTH)),
     )
     monkeypatch.setattr(runtime, "live_contact", AsyncMock())
+    if change == "missing":
+        runtime.repo.call.return_value = None
+    elif change == "terminal":
+        row.status = "completed"
+    elif change == "rotated":
+        runtime.PhonePolicyService.load_endpoint.return_value[0].generation = uuid4()
+    elif change == "inbound":
+        row.direction = "inbound"
+    elif change in {"transfer_removed", "transfer_live"}:
+        row.transferred_contact_id = uuid4()
+        monkeypatch.setattr(
+            runtime.repo,
+            "contact_by_id",
+            AsyncMock(return_value=None if change == "transfer_removed" else MagicMock()),
+        )
+        monkeypatch.setattr(
+            runtime.PhonePolicyService, "available_contact", AsyncMock(return_value=row.destination)
+        )
+    elif change == "settled_before_cleanup":
+        row.expires_at = now - timedelta(seconds=1)
+        runtime.repo.call.side_effect = [row, None]
     cleanup = AsyncMock(return_value=AUTH)
     monkeypatch.setattr(runtime, "_cleanup_credentials", cleanup)
     adapter = MagicMock(hangup=AsyncMock())
     if change in {"unavailable", "late_receipt", "no_sid"}:
         row.status = "ending"
-    if change == "unavailable":
+    if change in {"unavailable", "expired_unavailable"}:
         cleanup.side_effect = AuthorizationError(message="Account removed")
     elif change == "late_receipt":
         adapter.hangup.side_effect = BadRequestError(message="Provider unreachable")
@@ -227,11 +264,13 @@ async def test_reaper_keeps_uncertain_reservations_until_the_hard_deadline(monke
 
         adapter.hangup.side_effect = settle
     result = await runtime._reap_one(row.id, provider=adapter, sessions=sessions)
-    assert result is (change == "expired")
-    if change == "live":
+    assert result is (change in {"expired", "rotated", "transfer_removed", "expired_unavailable"})
+    if change in {"missing", "terminal", "settled_before_cleanup"}:
+        adapter.hangup.assert_not_awaited()
+    elif change in {"live", "inbound", "transfer_live"}:
         adapter.hangup.assert_not_awaited()
         assert row.status == "active"
-    elif change == "expired":
+    elif change in {"expired", "rotated", "transfer_removed", "expired_unavailable"}:
         assert row.status == "failed" and row.finished_at is not None
     elif change == "settled_during_cleanup":
         assert row.status == "completed"

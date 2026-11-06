@@ -309,6 +309,13 @@ async def test_stream_playback_marks_stop_and_unrecognized_events_are_bounded(mo
     )
     assert json.loads((await stream.receive())["text"]) == {"type": "played", "bytes": 960}
     assert json.loads((await stream.receive())["text"]) == {}
+    raw.receive_text.return_value = json.dumps({"event": "connected", "streamSid": STREAM})
+    assert json.loads((await stream.receive())["text"]) == {}
+    for mark in [{}, {"name": "unknown"}, "invalid"]:
+        raw.receive_text.return_value = json.dumps(
+            {"event": "mark", "streamSid": STREAM, "mark": mark}
+        )
+        assert json.loads((await stream.receive())["text"]) == {}
     raw.receive_text.return_value = json.dumps({"event": "stop", "streamSid": STREAM})
     assert (await stream.receive())["type"] == "websocket.disconnect"
     stream._frames = 500

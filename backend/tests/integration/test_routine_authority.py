@@ -600,3 +600,85 @@ async def test_leaving_and_rejoining_cannot_restore_routine_waivers(db: AsyncSes
     assert not world.trigger.is_active
     assert world.trigger.action_consents == []
     assert world.trigger.approved_sources is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "kind",
+        "missing_trigger",
+        "local_type",
+        "local_length",
+        "local_chars",
+        "consents",
+        "watch_sources",
+    ],
+)
+async def test_resumed_routine_refuses_corrupt_or_removed_original_authority(
+    db, monkeypatch, change
+):
+    world = await _world(db)
+    policy = {"approved_sources": world.trigger.approved_sources}
+    run = AgentRun(
+        user_id=world.user.id,
+        routine_origin_id=world.trigger.id,
+        routine_kind="trigger",
+        routine_policy=policy,
+        agent_id=world.agent.id,
+        agent_version_id=None,
+        surface="schedule",
+    )
+    if change == "kind":
+        run.routine_kind = "unknown"
+    elif change == "missing_trigger":
+        run.routine_origin_id = uuid4()
+    elif change == "local_type":
+        policy["local_target_hash"] = 123
+    elif change == "local_length":
+        policy["local_target_hash"] = "a"
+    elif change == "local_chars":
+        policy["local_target_hash"] = "z" * 64
+    elif change == "consents":
+        policy["action_consents"] = [{"invalid": True}]
+    elif change == "watch_sources":
+        from app.db.models.watch import Watch
+
+        watch = Watch(
+            id=uuid4(),
+            organization_id=world.organization.id,
+            user_id=world.user.id,
+            agent_id=world.agent.id,
+            instructions="Check",
+            approved_sources={},
+        )
+        from unittest.mock import AsyncMock
+
+        from app.services import routine_authority
+
+        monkeypatch.setattr(
+            routine_authority.watch_repo, "get_by_id", AsyncMock(return_value=watch)
+        )
+        run.routine_kind, run.routine_origin_id, run.routine_policy = "watch", watch.id, {}
+    with pytest.raises(AuthorizationError):
+        await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=run)
+
+
+@pytest.mark.parametrize("change", ["no_member", "no_execution_access"])
+async def test_one_shot_authority_requires_current_task_execution_access(db, monkeypatch, change):
+    from unittest.mock import AsyncMock
+
+    from app.services import access, task_access
+
+    world = await _world(db)
+    authority = await RoutineAuthority.capture(db, world.ctx, agent_id=world.agent.id, run=None)
+    assert authority is not None
+    world.trigger.one_shot = True
+    await db.flush()
+    monkeypatch.setattr(
+        access,
+        "member_context",
+        AsyncMock(return_value=None if change == "no_member" else world.ctx),
+    )
+    monkeypatch.setattr(task_access, "execution_allows", AsyncMock(return_value=False))
+    with pytest.raises(AuthorizationError):
+        await authority.check_in(db, world.agent.id)

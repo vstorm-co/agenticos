@@ -524,7 +524,6 @@ export function foldWork(
       answer -= 1;
     }
   }
-  if (answer === 0) return null;
   const folded = runs.slice(0, answer);
   return {
     folded,

@@ -6,6 +6,11 @@ import type { MessagePart, ToolCall } from "@/types";
 
 import { TurnParts, browseCalls, type PartRun } from "./turn-parts";
 
+vi.mock("./tool-call-card", () => ({
+  ToolCallCard: ({ toolCall }: { toolCall: ToolCall }) =>
+    createElement("span", null, toolCall.name),
+}));
+
 vi.mock("@/components/phone/phone-call-card", () => ({
   PhoneCallCard: ({ callId }: { callId: string }) =>
     createElement("span", null, `Phone call ${callId}`),
@@ -127,4 +132,18 @@ it("does not treat incomplete or nonvisual tool steps as visual artifacts", asyn
     { kind: "other", isLast: true, part: { id: "text", type: "text" }, content: "Done" },
   ];
   expect(visualCalls(runs)).toEqual([]);
+});
+
+it("groups tool calls between progress messages in the live turn", () => {
+  render(
+    createElement(TurnParts, {
+      parts: [tool("read", "read_file"), tool("search", "search_tools")],
+      isStreaming: true,
+      isUser: false,
+      mcpServers: [],
+      openLastStep: true,
+    }),
+  );
+  expect(screen.getByText("read_file")).toBeInTheDocument();
+  expect(screen.getByText("search_tools")).toBeInTheDocument();
 });

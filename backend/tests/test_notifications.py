@@ -2388,3 +2388,97 @@ def test_notification_links_preserve_project_binding_without_trusting_malformed_
     assert _outcome_links(run)["cause"] == f"watch:{run.routine_origin_id}"
     run.routine_policy = {"approved_sources": {"project_id": "not-a-project"}}
     assert _outcome_links(run)["project_id"] == ""
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("kind", ["trigger", "watch"])
+@pytest.mark.parametrize(
+    "change", ["current", "missing", "tenant", "paused", "person", "older", "no_occurrence"]
+)
+async def test_budget_incidents_belong_only_to_the_current_routine_attempt(
+    monkeypatch, written, kind, change
+):
+    from datetime import timedelta
+
+    from app.services.outcome import OutcomeService
+
+    owner, org, origin = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    run = _run(org_id=org, user_id=owner)
+    run.routine_origin_id, run.routine_kind = origin, kind
+    run.ended_at, run.started_at, run.routine_activation_at = now, now, now
+    run.routine_policy = {}
+    service = NotificationService(MagicMock())
+    service._audience_ids = AsyncMock(return_value={owner})
+    routine = MagicMock(
+        id=origin,
+        organization_id=uuid.uuid4() if change == "tenant" else org,
+        is_active=change != "paused",
+        user_id=uuid.uuid4() if change == "person" else owner,
+        created_by_user_id=uuid.uuid4() if change == "person" else owner,
+        last_attempt_at=now + timedelta(seconds=1) if change == "older" else now,
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.agent_trigger_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else routine),
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.watch_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else routine),
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.agent_run_repo.latest_terminal_for_trigger",
+        AsyncMock(return_value=uuid.uuid4() if change == "older" else run.id),
+    )
+    occurrence = AsyncMock(return_value=None if change == "no_occurrence" else "incident")
+    monkeypatch.setattr(OutcomeService, "routine_failure_occurrence", occurrence)
+    monkeypatch.setattr(f"{MODULE}.organization_repo.get_by_id", AsyncMock(return_value=None))
+    await service.budget_exceeded(
+        run=run,
+        agent=_agent(owner_user_id=owner),
+        spec=AgentSpec(name="Worker"),
+        reason="Limit",
+        scope=BudgetScope.AGENT,
+    )
+    expected = change in {"current", "no_occurrence"}
+    assert bool(occurrence.await_count) is expected
+    assert bool(written.calls) is (change not in {"no_occurrence", "older"})
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "change", ["missing", "tenant", "person", "no_clock", "newer", "current", "budget"]
+)
+async def test_watch_terminal_results_do_not_report_an_obsolete_attempt(monkeypatch, change):
+    from datetime import timedelta
+
+    from app.db.models.agent_run import AgentRun
+
+    org, owner, origin = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org,
+        user_id=owner,
+        routine_origin_id=origin,
+        routine_kind="watch",
+        status="budget_exceeded" if change == "budget" else "failed",
+        started_at=None if change == "no_clock" else now,
+        routine_activation_at=None,
+    )
+    watch = MagicMock(
+        organization_id=uuid.uuid4() if change == "tenant" else org,
+        user_id=uuid.uuid4() if change == "person" else owner,
+        auto_stopped_at=None,
+        last_attempt_at=now + timedelta(seconds=1) if change == "newer" else now,
+    )
+    monkeypatch.setattr(
+        f"{MODULE}.watch_repo.get_by_id",
+        AsyncMock(return_value=None if change == "missing" else watch),
+    )
+    service = NotificationService(MagicMock())
+    service.watch_blocked = AsyncMock()
+    await service._routine_result(run, origin_id=origin, budget_recipients=set())
+    assert service.watch_blocked.await_count == (1 if change in {"current", "budget"} else 0)

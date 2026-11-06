@@ -130,3 +130,72 @@ async def test_public_voice_routing_refuses_a_published_agent_without_live_voice
     )
     with pytest.raises(BadRequestError, match="not ready"):
         await policy.PhonePolicyService(AsyncMock()).public_embed(ctx, uuid4())
+
+
+@pytest.mark.parametrize(
+    "change", ["role", "missing_bot", "wrong_platform", "missing_target", "unconsented_target"]
+)
+async def test_phone_routing_refuses_unmanageable_accounts_or_transfer_targets(monkeypatch, change):
+    from app.core.exceptions import NotFoundError
+    from app.schemas.telephony import PhoneEndpointConfig
+
+    contact, _, ctx = contact_and_call()
+    ctx = replace(ctx, role="member" if change == "role" else "owner")
+    contact.allow_transfers = change != "unconsented_target"
+    bot = MagicMock(platform="telegram" if change == "wrong_platform" else "sms")
+    monkeypatch.setattr(policy, "hold_subject", AsyncMock())
+    monkeypatch.setattr(
+        policy.channel_bot_repo,
+        "get_for_org",
+        AsyncMock(return_value=None if change == "missing_bot" else bot),
+    )
+    monkeypatch.setattr(policy, "credentials", lambda _bot: None)
+    monkeypatch.setattr(
+        policy.repo,
+        "contact_by_id",
+        AsyncMock(return_value=None if change == "missing_target" else contact),
+    )
+    data = PhoneEndpointConfig(
+        enabled=False, price_per_minute_usd="0.10", transfer_contact_ids=[contact.id]
+    )
+    with pytest.raises((AuthorizationError, NotFoundError, BadRequestError)):
+        await policy.PhonePolicyService(AsyncMock()).configure(ctx, uuid4(), data)
+
+
+async def test_phone_budget_reserves_the_entire_worst_case_before_admission(monkeypatch):
+    from decimal import Decimal
+
+    endpoint = MagicMock(
+        transfer_contact_ids=[],
+        price_per_minute_usd=Decimal("1"),
+        max_call_seconds=120,
+        calls_per_hour=5,
+        calls_per_day=10,
+        max_concurrent=2,
+        daily_budget_usd=Decimal("2"),
+    )
+    monkeypatch.setattr(
+        policy.repo, "allowance", AsyncMock(return_value=(0, 0, 0, Decimal("0.01")))
+    )
+    with pytest.raises(RateLimitError, match="worst case"):
+        await policy.PhonePolicyService(AsyncMock()).admit_budget(endpoint)
+
+
+@pytest.mark.parametrize(
+    "change", ["missing", "inactive", "private", "wrong_kind", "voice_disabled"]
+)
+async def test_inbound_voice_requires_an_active_public_voice_exposure(monkeypatch, change):
+    _, _, ctx = contact_and_call()
+    embed = MagicMock(
+        is_active=change != "inactive",
+        auth_mode="private" if change == "private" else "public",
+        kind="other" if change == "wrong_kind" else "widget",
+        config={"voice_conversation": change != "voice_disabled"},
+    )
+    monkeypatch.setattr(
+        policy.agent_embed_repo,
+        "get",
+        AsyncMock(return_value=None if change == "missing" else embed),
+    )
+    with pytest.raises(BadRequestError, match="active public"):
+        await policy.PhonePolicyService(AsyncMock()).public_embed(ctx, uuid4())

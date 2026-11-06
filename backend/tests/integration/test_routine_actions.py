@@ -1071,3 +1071,37 @@ async def test_delegate_instruction_edits_invalidate_the_parent_fingerprint(
         db, organization_id=world.org.id, spec=world.spec, project_id=None
     )
     assert before is not None and after != before
+
+
+@pytest.mark.parametrize(
+    "change", ["missing_organization", "missing_member", "malformed_consents", "missing_version"]
+)
+async def test_standing_consent_refuses_removed_or_corrupt_authority(
+    db, world, monkeypatch, change
+):
+    from unittest.mock import AsyncMock
+
+    from app.services import routine_authority
+
+    await RoutineActionService(db).replace(world.ctx, world.trigger, _request(world, [WRITE]))
+    authority = await capture(db, world)
+    if change == "missing_organization":
+        monkeypatch.setattr(
+            routine_authority.organization_repo, "get_by_id", AsyncMock(return_value=None)
+        )
+    elif change == "missing_member":
+        monkeypatch.setattr(
+            routine_authority.member_repo, "get_active", AsyncMock(return_value=None)
+        )
+    elif change == "malformed_consents":
+        world.trigger.action_consents = [{"invalid": True}]
+        await db.flush()
+    else:
+        monkeypatch.setattr(
+            routine_authority.agent_repo, "get_version", AsyncMock(return_value=None)
+        )
+    if change == "missing_version":
+        assert await authority._consent_in(db, world.agent.id, WRITE) is None
+    else:
+        with pytest.raises(AuthorizationError):
+            await authority._consent_in(db, world.agent.id, WRITE)

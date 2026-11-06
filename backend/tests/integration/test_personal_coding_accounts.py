@@ -235,6 +235,9 @@ async def test_codex_refresh_preserves_owner_identity_and_checks_the_written_pai
         "revoke",
         "share",
         "share_before_publish",
+        "revoked_at_publication",
+        "conversation_gone_at_publication",
+        "revoked_after_lock",
         "cancel",
         "codex",
         "cleanup",
@@ -333,6 +336,32 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
         redis=redis,
     )
 
+    if ending in {
+        "revoked_at_publication",
+        "conversation_gone_at_publication",
+        "revoked_after_lock",
+    }:
+        from unittest.mock import AsyncMock
+
+        if ending == "conversation_gone_at_publication":
+            monkeypatch.setattr(
+                coding_module.conversation_share_repo,
+                "lock_private_publication",
+                AsyncMock(return_value=False),
+            )
+        else:
+            original_active_in = type(factory)._active_in
+
+            async def active_in(self, db, *args, lock=False):
+                if lock and ending == "revoked_at_publication":
+                    return False
+                result = await original_active_in(self, db, *args, lock=lock)
+                if lock and ending == "revoked_after_lock":
+                    monkeypatch.setattr(type(factory), "_active", AsyncMock(return_value=False))
+                return result
+
+            monkeypatch.setattr(type(factory), "_active_in", active_in)
+
     async def execute() -> str:
         async with factory.session(
             run, harness="codex" if ending == "codex" else "claude_code", timeout_seconds=60
@@ -390,13 +419,24 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
             "revoke",
             "share",
             "share_before_publish",
+            "revoked_at_publication",
+            "conversation_gone_at_publication",
+            "revoked_after_lock",
             "cleanup",
             "failure_cleanup",
             "missing_workspace",
         ):
             error = (
                 AuthorizationError
-                if ending in ("revoke", "share", "share_before_publish")
+                if ending
+                in (
+                    "revoke",
+                    "share",
+                    "share_before_publish",
+                    "revoked_at_publication",
+                    "conversation_gone_at_publication",
+                    "revoked_after_lock",
+                )
                 else ExternalServiceError
                 if ending == "cleanup"
                 else RuntimeError

@@ -6157,3 +6157,12 @@ it("uses a new segment when the HTTP resume beats its first streamed model frame
   expect(result.current.pendingApproval?.messageId).not.toBe(old);
   expect(result.current.pendingApproval?.messageId).toBe(result.current.messages.at(-1)?.id);
 });
+
+it("does not restore approvals from stale transcript rows after a terminal receipt", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  renderHook(() => useChat(), { wrapper: decider });
+  receive("message_saved", { message_id: "finished", run_id: "r-1", run_status: "completed" });
+  act(() => useChatStore.getState().addMessage(parkedTurn()));
+  await act(async () => {});
+  expect(get).not.toHaveBeenCalledWith("/runs/r-1/parked");
+});
