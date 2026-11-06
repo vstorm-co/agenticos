@@ -122,6 +122,19 @@ def _feeds(source: SyncSource, kb: KnowledgeBase, candidates: Sequence[Knowledge
     return target is not None and target.id == kb.id
 
 
+def _reaches_source(ctx: AuthContext, source: SyncSource) -> bool:
+    """Whether this caller may see a sync source that feeds a base they read.
+
+    Feeding a readable base is not enough on its own: every member of every
+    organization reads an app-scoped base, and a source of any organization
+    with no base of the name feeds it (:func:`_feeds`). Its settings and run
+    history - error text naming files and endpoints - are still that
+    organization's, so a source is the caller organization's or, for a
+    platform admin, anyone's (#2745).
+    """
+    return ctx.is_app_admin or source.organization_id == ctx.organization_id
+
+
 def _no_collection(name: str) -> NotFoundError:
     return NotFoundError(message="Collection not found", details={"collection": name})
 
@@ -221,11 +234,13 @@ class CollectionAccessService:
         """The sync runs a listing may include: the collection asked for, or all of theirs.
 
         A run started by a sync source is listed when that source feeds a base
-        the caller reads (:func:`_feeds`, the rule the per-source routes apply);
-        on the name alone, a member reading only an app-scoped base listed the
-        runs - errors and file counts - of a private base sharing its name
-        (#2486). A run with no source carries nothing but its name, so it is
-        listed by the name. The unfiltered case means "mine", never "everything".
+        the caller reads (:func:`_feeds`, the rule the per-source routes apply)
+        and is the caller organization's (:func:`_reaches_source`); on the name
+        alone, a member reading only an app-scoped base listed the runs - errors
+        and file counts - of a private base sharing its name (#2486), and on the
+        base alone, those of every organization feeding that app base (#2745). A
+        run with no source carries nothing but its name, so it is listed by the
+        name. The unfiltered case means "mine", never "everything".
         """
         kbs = await self._readable_kbs_for(ctx, name)
         names = list(dict.fromkeys(kb.collection_name for kb in kbs))
@@ -236,7 +251,8 @@ class CollectionAccessService:
             sync_source_ids=[
                 source.id
                 for source in sources
-                if any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
+                if _reaches_source(ctx, source)
+                and any(_feeds(source, kb, candidates.get(kb.collection_name, [])) for kb in kbs)
             ],
         )
 
@@ -355,20 +371,24 @@ class CollectionAccessService:
             )
         return doc
 
-    async def kb_sync_source(self, kb: KnowledgeBase, source_id: str) -> SyncSource:
+    async def kb_sync_source(
+        self, ctx: AuthContext, kb: KnowledgeBase, source_id: str
+    ) -> SyncSource:
         """A sync source loaded by id, if it feeds this knowledge base, or 404.
 
         Which base a source feeds is :func:`_feeds`. On the name and organization
         alone, an app-scoped base would reach every organization's source by its
         name - its run history and settings shown to any member of any
-        organization, since such a base is readable by all.
+        organization, since such a base is readable by all. On the base alone it
+        still did, for every organization with no base of the name, which is why
+        the source must also be the caller's (:func:`_reaches_source`, #2745).
         """
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
         if source is None:
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         candidates = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
-        if not _feeds(source, kb, candidates):
+        if not _reaches_source(ctx, source) or not _feeds(source, kb, candidates):
             raise NotFoundError(
                 message="Sync source not found in this knowledge base",
                 details={"kb_id": kb.id, "source_id": source_id},
@@ -472,6 +492,30 @@ class CollectionAccessService:
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
         if source is None or source.organization_id != ctx.organization_id:
+            raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
+        return source
+
+    async def writable_sync_source(self, ctx: AuthContext, source_id: str) -> SyncSource:
+        """A sync source of the caller's organization they may change, run or delete.
+
+        :meth:`sync_source`, and when the source feeds a base, write access to
+        that base (:func:`writable_kb`) - the check the knowledge-base routes make
+        through the base in their path. A source writes into its base, so
+        detaching it, changing its config or credential, deleting it or running it
+        changes that base; `/rag/sync/sources/{id}` checked the organization and,
+        on a move, only the base the source was moved to (#2745). A source that
+        feeds no base - an unassigned template, or a name no base holds - has only
+        its organization to decide it. The refusal is the absent source's, so it
+        does not confirm that the id exists.
+        """
+        source = await self.sync_source(ctx, source_id)
+        if source.collection_name is None:
+            return source
+        candidates = await knowledge_base_repo.list_by_collection_name(
+            self.db, source.collection_name
+        )
+        target = knowledge_base_repo.choose_for_collection(candidates, source.organization_id)
+        if target is not None and not await writable_kb(self.db, ctx, target):
             raise NotFoundError(message="Sync source not found", details={"source_id": source_id})
         return source
 

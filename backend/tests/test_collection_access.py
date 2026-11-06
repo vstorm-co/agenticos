@@ -422,7 +422,29 @@ class TestResolvingACollectionName:
 
         scope = await service.readable_sync_log_scope(member, "handbook")
 
-        assert scope == SyncLogScope(collections=["handbook"], sync_source_ids=[apps.id])
+        # `apps` feeds the app base, but it is another organization's (#2745).
+        assert scope == SyncLogScope(collections=["handbook"], sync_source_ids=[])
+
+    @pytest.mark.security
+    async def test_a_run_listing_through_an_app_base_takes_only_the_callers_sources(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2745: an app base is read by every organization, so a source feeding it
+        lists its runs only for its own organization - and for a platform admin."""
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        rows.collections = [app_kb]
+        ours = _source(organization_id=HOME_ORG)
+        theirs = _source(organization_id=OTHER_ORG)
+        rows.sources = [ours, theirs]
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+        admin = _ctx(role=OrgRoleName.MEMBER.value, app_admin=True)
+
+        assert await service.readable_sync_log_scope(member, "handbook") == SyncLogScope(
+            collections=["handbook"], sync_source_ids=[ours.id]
+        )
+        assert await service.readable_sync_log_scope(admin, "handbook") == SyncLogScope(
+            collections=["handbook"], sync_source_ids=[ours.id, theirs.id]
+        )
 
     async def test_a_document_listing_carries_each_collection_s_knowledge_base(
         self, service: CollectionAccessService, rows: Rows
@@ -749,7 +771,7 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         rows.collections = [kb]
         rows.sources = [source]
 
-        assert (await service.kb_sync_source(kb, str(source.id))).id == source.id
+        assert (await service.kb_sync_source(_ctx(), kb, str(source.id))).id == source.id
 
     @pytest.mark.security
     async def test_an_app_base_reaches_no_source_of_a_tenant_with_its_own_base(
@@ -761,17 +783,20 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         theirs = _kb("handbook", organization_id=OTHER_ORG)
         tenants = self._source(organization_id=OTHER_ORG)
         apps = self._source(organization_id=HOME_ORG)
+        their_member = _ctx(organization_id=OTHER_ORG)
         rows.collections = [app_kb, theirs]
         rows.sources = [tenants, apps]
 
         with pytest.raises(NotFoundError) as refusal:
-            await service.kb_sync_source(app_kb, str(tenants.id))
+            await service.kb_sync_source(their_member, app_kb, str(tenants.id))
         with pytest.raises(NotFoundError):
-            await service.kb_sync_source(theirs, str(apps.id))
+            await service.kb_sync_source(_ctx(), theirs, str(apps.id))
 
         assert refusal.value.message == "Sync source not found in this knowledge base"
-        assert (await service.kb_sync_source(theirs, str(tenants.id))).id == tenants.id
-        assert (await service.kb_sync_source(app_kb, str(apps.id))).id == apps.id
+        assert (await service.kb_sync_source(their_member, theirs, str(tenants.id))).id == (
+            tenants.id
+        )
+        assert (await service.kb_sync_source(_ctx(), app_kb, str(apps.id))).id == apps.id
 
     @pytest.mark.security
     async def test_a_base_with_no_tenant_reaches_only_the_sources_that_resolve_to_it(
@@ -787,9 +812,12 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         rows.collections = [mine, app_kb]
         rows.sources = [source]
 
+        their_member = _ctx(organization_id=OTHER_ORG)
         with pytest.raises(NotFoundError):
-            await service.kb_sync_source(mine, str(source.id))
-        assert (await service.kb_sync_source(app_kb, str(source.id))).id == source.id
+            await service.kb_sync_source(their_member, mine, str(source.id))
+        assert (await service.kb_sync_source(their_member, app_kb, str(source.id))).id == (
+            source.id
+        )
 
     @pytest.mark.security
     async def test_a_source_of_another_collection_or_organization_is_refused(
@@ -803,15 +831,129 @@ class TestResolvingASyncSourceInAKnowledgeBase:
 
         for source in (elsewhere, foreign):
             with pytest.raises(NotFoundError):
-                await service.kb_sync_source(kb, str(source.id))
+                await service.kb_sync_source(_ctx(), kb, str(source.id))
+
+    @pytest.mark.security
+    async def test_an_app_base_reaches_only_the_callers_organizations_sources(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """#2745: every member of every organization reads an app base, so feeding it
+        is not enough - another organization's source is theirs, run log included.
+        A platform admin, who writes the app base, still reaches every source."""
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        foreign = self._source(organization_id=OTHER_ORG)
+        rows.collections = [app_kb]
+        rows.sources = [foreign]
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        with pytest.raises(NotFoundError) as refusal:
+            await service.kb_sync_source(member, app_kb, str(foreign.id))
+
+        assert refusal.value.message == "Sync source not found in this knowledge base"
+        admin = _ctx(role=OrgRoleName.MEMBER.value, app_admin=True)
+        assert (await service.kb_sync_source(admin, app_kb, str(foreign.id))).id == foreign.id
 
     async def test_a_missing_source_is_reported_as_one(
         self, service: CollectionAccessService
     ) -> None:
         with pytest.raises(NotFoundError) as refusal:
-            await service.kb_sync_source(_kb("handbook"), "not-an-id")
+            await service.kb_sync_source(_ctx(), _kb("handbook"), "not-an-id")
 
         assert refusal.value.message == "Sync source not found"
+
+
+class TestResolvingASyncSourceToChange:
+    """`writable_sync_source`: changing a source takes write on the base it feeds (#2745).
+
+    `/rag/sync/sources/{id}` checked the organization and, on a move, the target
+    base - so a member could detach, reconfigure, delete or run the source of a
+    base they cannot write.
+    """
+
+    @pytest.mark.security
+    async def test_the_source_of_a_base_the_caller_cannot_write_is_not_found(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        kb = _kb("handbook")
+        source = _source(organization_id=HOME_ORG)
+        rows.collections = [kb]
+        rows.sources = [source]
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        with pytest.raises(NotFoundError) as refusal:
+            await service.writable_sync_source(member, str(source.id))
+
+        # The refusal an absent source gets: it confirms nothing.
+        assert refusal.value.message == "Sync source not found"
+        assert refusal.value.details == {"source_id": str(source.id)}
+
+    @pytest.mark.security
+    async def test_an_edit_grant_on_the_base_reaches_its_source(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """A grant widens the role: the member who may write this base changes its source."""
+        kb = _kb("handbook")
+        source = _source(organization_id=HOME_ORG)
+        rows.collections = [kb]
+        rows.sources = [source]
+        rows.grants[(CALLER, kb.id)] = GrantLevel.EDIT
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        assert (await service.writable_sync_source(member, str(source.id))).id == source.id
+
+    @pytest.mark.security
+    async def test_the_base_checked_is_the_one_the_source_feeds(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """Owning a newer same-named personal base does not reach the org base's source."""
+        org_kb = _kb("handbook")
+        mine = _kb("handbook", scope=KBScope.PERSONAL, owner_user_id=CALLER)
+        source = _source(organization_id=HOME_ORG)
+        rows.collections = [org_kb, mine]
+        rows.sources = [source]
+
+        with pytest.raises(NotFoundError):
+            await service.writable_sync_source(_ctx(role=OrgRoleName.MEMBER.value), str(source.id))
+        assert (await service.writable_sync_source(_ctx(), str(source.id))).id == source.id
+
+    @pytest.mark.security
+    async def test_an_app_base_source_takes_a_platform_admin(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        source = _source(organization_id=HOME_ORG)
+        rows.collections = [app_kb]
+        rows.sources = [source]
+
+        with pytest.raises(NotFoundError):
+            await service.writable_sync_source(_ctx(), str(source.id))
+        assert (await service.writable_sync_source(_ctx(app_admin=True), str(source.id))).id == (
+            source.id
+        )
+
+    @pytest.mark.security
+    async def test_another_organizations_source_is_not_found(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        source = _source(organization_id=OTHER_ORG)
+        rows.collections = [_kb("handbook", organization_id=OTHER_ORG)]
+        rows.sources = [source]
+
+        with pytest.raises(NotFoundError):
+            await service.writable_sync_source(_ctx(app_admin=True), str(source.id))
+
+    async def test_a_source_feeding_no_base_takes_only_the_organization(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """An unassigned template, or a name no base holds, has no base to ask."""
+        template = _source(organization_id=HOME_ORG)
+        template.collection_name = None
+        orphan = _source(organization_id=HOME_ORG, collection_name="gone")
+        rows.sources = [template, orphan]
+        member = _ctx(role=OrgRoleName.MEMBER.value)
+
+        assert (await service.writable_sync_source(member, str(template.id))).id == template.id
+        assert (await service.writable_sync_source(member, str(orphan.id))).id == orphan.id
 
 
 class TestPointingASyncSourceAtACollectionByName:

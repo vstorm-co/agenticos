@@ -494,6 +494,10 @@ CALLS: tuple[Call, ...] = (
     # caller's scope and grants against the row - `readable_kb`/`writable_kb`.
     Call("GET", "/kb", Perm.COLLECTIONS_VIEW),
     Call("POST", "/kb", Perm.COLLECTIONS_EDIT, body={"name": "Docs", "scope": "org"}),
+    # The exception under /kb/{kb_id}: the organization's integrations - every
+    # base's, not this one's - which `/org/integrations` gates the same way, so
+    # no grant on the base in the path could widen it (#2745).
+    Call("GET", "/kb/{kb_id}/sync-sources/org-integrations", Perm.CONNECTIONS_MANAGE),
     # Org-level sync integrations hold encrypted credentials, so the whole
     # surface is `connections:manage` - the permission, not a role-name list,
     # which is what this router used to check.

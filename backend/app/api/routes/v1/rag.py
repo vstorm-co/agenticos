@@ -693,8 +693,15 @@ async def update_sync_source(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """Update an existing sync source configuration."""
-    source = await access.sync_source(ctx, source_id)
+    """Update an existing sync source configuration.
+
+    The source must be one the caller may change: in their organization, and
+    when it feeds a knowledge base, one they can write - detaching it with
+    `collection_name: null`, or changing its config, credential or schedule,
+    changes what that base syncs. Moving it also needs write on the base it
+    moves to (`CollectionAccessService.source_target`).
+    """
+    source = await access.writable_sync_source(ctx, source_id)
     if data.collection_name is not None:
         await access.source_target(ctx, data.collection_name)
     return await sync_source_svc.update_source(str(source.id), data, ctx=ctx)
@@ -712,8 +719,12 @@ async def delete_sync_source(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> None:
-    """Delete a sync source configuration."""
-    source = await access.sync_source(ctx, source_id)
+    """Delete a sync source configuration.
+
+    A source feeding a knowledge base is deleted only by a caller who can
+    write that base (`CollectionAccessService.writable_sync_source`).
+    """
+    source = await access.writable_sync_source(ctx, source_id)
     await sync_source_svc.delete_source(str(source.id), ctx=ctx)
 
 
@@ -728,8 +739,12 @@ async def trigger_sync_source(
     access: CollectionAccessSvc,
     ctx: Auth,
 ) -> Any:
-    """Trigger a manual sync for a configured source."""
-    source = await access.sync_source(ctx, source_id)
+    """Trigger a manual sync for a configured source.
+
+    A run writes into the base the source feeds, so it takes write access to
+    that base (`CollectionAccessService.writable_sync_source`).
+    """
+    source = await access.writable_sync_source(ctx, source_id)
     sync_log = await sync_source_svc.trigger_sync(str(source.id), user_id=ctx.user_id)
     return RAGSyncResponse(
         id=str(sync_log.id),

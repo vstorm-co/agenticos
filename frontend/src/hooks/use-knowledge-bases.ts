@@ -21,6 +21,7 @@ import type {
 } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
+import { usePermissions } from "./use-permissions";
 import type {
   CreateKnowledgeBaseInput,
   EmbeddingProviderInput,
@@ -32,6 +33,7 @@ import type {
   KnowledgeBase,
   KnowledgeBaseList,
 } from "@/types";
+import { Perm } from "@/types/permissions";
 import { useCreatedToast } from "./use-created-toast";
 
 const listKnowledgeBases = async (): Promise<KnowledgeBase[]> =>
@@ -245,10 +247,14 @@ export function useKBDetail(id: string | null) {
     enabled,
     retry: false,
   });
+  // The organization's integrations, every base's, behind `connections:manage`
+  // (#2745). Not asked without it: the answer would be a 403, which the wizard
+  // reports as a list that failed to load rather than one that is not theirs.
+  const { can } = usePermissions();
   const orgIntegrationsQuery = useQuery({
     queryKey: qk.kb.orgIntegrations(id ?? "none"),
     queryFn: () => apiClient.get<SyncSourceList>(`/kb/${id}/sync-sources/org-integrations`),
-    enabled,
+    enabled: enabled && can(Perm.connectionsManage),
     retry: false,
   });
   const connectorsQuery = useQuery({

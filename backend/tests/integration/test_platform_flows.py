@@ -1374,6 +1374,161 @@ class TestReadingOneSyncSourcesHistory:
         assert body["total"] == 3
 
 
+class TestSyncSourcesStayWithTheirAudience:
+    """A source's settings and runs reach only who may see or change its base (#2745).
+
+    Three routes authorized less than they returned or changed: the wizard's
+    integration listing answered every reader of one base with every source of
+    the organization, an app-scoped base - read by every member of every
+    organization - reached other organizations' sources and runs, and the
+    `/rag` routes changed a source without asking about the base it feeds.
+    """
+
+    @pytest.mark.security
+    async def test_the_wizard_lists_the_organizations_integrations_only_to_their_managers(
+        self, db, kb_api: KbClient, rag_estate: RagEstate
+    ) -> None:
+        # A base every member of the organization reads, so a refusal is the gate's.
+        wiki = await _kb_row(db, tenant=rag_estate.home, collection_name="home_wiki")
+        url = f"{settings.API_V1_STR}/kb/{wiki.id}/sync-sources/org-integrations"
+        viewer = await _joined_tenant(db, rag_estate.home, OrgRoleName.VIEWER)
+        # An edit grant on the base whose source would be listed: a grant widens
+        # access to that base, not to the organization's integrations.
+        grantee = await _joined_tenant(db, rag_estate.home, OrgRoleName.MEMBER)
+        await SharingService(db).share(
+            rag_estate.home.ctx,
+            rag_estate.home_collection,
+            resource_type=COLLECTION,
+            subject_user_id=grantee.user.id,
+            level=GrantLevel.EDIT,
+        )
+        builder = await _joined_tenant(db, rag_estate.home, OrgRoleName.BUILDER)
+
+        assert (await kb_api(viewer).get(url)).status_code == 403
+        assert (await kb_api(grantee).get(url)).status_code == 403
+        for manager in (rag_estate.home, builder):
+            response = await kb_api(manager).get(url)
+            assert response.status_code == 200
+            assert [item["id"] for item in response.json()["items"]] == [
+                str(rag_estate.home_source.id)
+            ]
+
+    @pytest.mark.security
+    async def test_an_app_base_shows_another_organizations_runs_only_to_a_platform_admin(
+        self, db, kb_api: KbClient, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """The other organization has no base of the name, so its source feeds the
+        app base every organization reads - and its runs are still its own."""
+        app_kb = KnowledgeBase(
+            id=uuid.uuid4(),
+            name="Shared handbook",
+            collection_name="shared_handbook",
+            scope=KBScope.APP.value,
+            organization_id=None,
+            visibility=Visibility.PRIVATE.value,
+            ingestion_config=deployment_defaults().model_dump(mode="json"),
+            embedding_model=_BUILT_WITH,
+            embedding_dim=_BUILT_WIDTH,
+        )
+        db.add(app_kb)
+        await db.flush()
+        theirs = await _sync_source_row(
+            db, tenant=rag_estate.other, collection_name=app_kb.collection_name
+        )
+        run = await _sync_log_row(
+            db, collection_name=app_kb.collection_name, sync_source_id=theirs.id
+        )
+        logs_url = f"{settings.API_V1_STR}/kb/{app_kb.id}/sync-sources/{theirs.id}/logs"
+        admin_user = await _new_user(db)
+        admin = Tenant(
+            organization=rag_estate.home.organization,
+            user=admin_user,
+            ctx=AuthContext(
+                user_id=admin_user.id,
+                organization_id=rag_estate.home.organization.id,
+                role=OrgRoleName.MEMBER.value,
+                is_app_admin=True,
+            ),
+        )
+
+        assert (await kb_api(rag_estate.home).get(logs_url)).status_code == 404
+        listed = await rag_api(rag_estate.home.ctx).get(
+            _rag("/sync/logs?collection_name=shared_handbook")
+        )
+        assert listed.status_code == 200
+        assert listed.json()["items"] == []
+
+        response = await kb_api(admin).get(logs_url)
+        assert response.status_code == 200
+        assert [item["id"] for item in response.json()["items"]] == [str(run.id)]
+
+    @pytest.mark.security
+    async def test_a_source_is_changed_only_by_a_writer_of_the_base_it_feeds(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        """A member holds `collections:edit` for their own bases, not the
+        organization's - so detaching, reconfiguring, running or deleting that
+        base's source through `/rag` is refused as if it did not exist."""
+        member = rag_estate.home_member
+        url = _rag(f"/sync/sources/{rag_estate.home_source.id}")
+
+        responses = [
+            await rag_api(member).patch(url, json={"collection_name": None}),
+            await rag_api(member).patch(url, json={"config": {"folder_id": "elsewhere"}}),
+            await rag_api(member).patch(url, json={"schedule_minutes": 5}),
+            await rag_api(member).post(f"{url}/trigger"),
+            await rag_api(member).delete(url),
+        ]
+
+        assert [response.status_code for response in responses] == [404] * 5
+        await db.refresh(rag_estate.home_source)
+        assert rag_estate.home_source.collection_name == "home_handbook"
+        assert rag_estate.home_source.config == {"folder_id": "abc"}
+        assert rag_estate.home_source.schedule_minutes is None
+
+    @pytest.mark.security
+    async def test_an_edit_grant_on_the_base_lets_a_member_change_its_source(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        member = rag_estate.home_member
+        await SharingService(db).share(
+            rag_estate.home.ctx,
+            rag_estate.home_collection,
+            resource_type=COLLECTION,
+            subject_user_id=member.user_id,
+            level=GrantLevel.EDIT,
+        )
+        url = _rag(f"/sync/sources/{rag_estate.home_source.id}")
+
+        renamed = await rag_api(member).patch(url, json={"name": "Renamed"})
+        removed = await rag_api(member).delete(url)
+
+        assert renamed.status_code == 200
+        assert renamed.json()["name"] == "Renamed"
+        assert removed.status_code == 204
+        assert await db.get(SyncSource, rag_estate.home_source.id) is None
+
+    async def test_an_unassigned_template_takes_only_the_organization(
+        self, db, rag_api: RagClient, rag_estate: RagEstate
+    ) -> None:
+        template = SyncSource(
+            id=uuid.uuid4(),
+            organization_id=rag_estate.home.organization.id,
+            name="Drive",
+            connector_type="gdrive",
+            collection_name=None,
+            config={"folder_id": "abc"},
+        )
+        db.add(template)
+        await db.flush()
+
+        response = await rag_api(rag_estate.home_member).patch(
+            _rag(f"/sync/sources/{template.id}"), json={"name": "Renamed"}
+        )
+
+        assert response.status_code == 200
+
+
 # -- how a collection reads its documents -------------------------------------
 
 
