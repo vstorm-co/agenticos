@@ -35,6 +35,7 @@ from app.db.locks import LockScope, hold_subject
 from app.repositories import personal_data_repo, user_repo
 from app.schemas.personal_data import (
     CodingTaskChangeExport,
+    ConnectedAccountExport,
     OutcomeExport,
     PersonalDataExport,
     PersonalDataPurge,
@@ -206,6 +207,10 @@ class PersonalDataService:
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
+            connected_accounts=[
+                ConnectedAccountExport.model_validate(row)
+                for row in await personal_data_repo.connected_accounts_of(self.db, user_id)
+            ],
             coding_task_changes=[
                 CodingTaskChangeExport.model_validate(row)
                 for row in await personal_data_repo.coding_changes_in(self.db, conversation_ids)

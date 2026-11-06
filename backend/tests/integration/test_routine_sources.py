@@ -814,3 +814,52 @@ async def test_budgeted_event_fires_share_one_worker_concurrency_key(db: AsyncSe
     assert len(jobs) == 2 and all(
         job.concurrency_key == f"routine-budget:{trigger.id}" for job in jobs
     )
+
+
+@pytest.mark.security
+async def test_mirage_secret_generation_is_part_of_source_consent(db: AsyncSession):
+    from app.db.models.organization_secret import OrganizationSecret
+
+    ctx, trigger, spec, _ = await world(db)
+    secret = OrganizationSecret(
+        organization_id=ctx.organization_id,
+        name="Terminal storage",
+        kind="api_key",
+        sealed_secret="sealed",
+        key_version=1,
+        created_by_user_id=ctx.user_id,
+    )
+    db.add(secret)
+    await db.flush()
+    spec = spec.model_copy(
+        update={
+            "capabilities": [
+                {
+                    "id": "mirage",
+                    "config": {
+                        "mounts": [
+                            {
+                                "path": "/storage/",
+                                "backend": "postgres",
+                                "secrets": {"dsn": str(secret.id)},
+                            }
+                        ]
+                    },
+                }
+            ]
+        }
+    )
+    # Validate the same stored representation the runner reads.
+    spec = AgentSpec.model_validate(spec.model_dump())
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = spec.model_dump(mode="json")
+    await db.flush()
+    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    assert policy.secret_sources == {secret.id: secret.authorization_generation}
+    trigger.approved_sources = policy.model_dump(mode="json")
+    await db.flush()
+    secret.authorization_generation = uuid4()
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await RoutineSourceService(db).require_current(ctx, trigger, expected_id=policy.id)

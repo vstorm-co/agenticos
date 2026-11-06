@@ -21,6 +21,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Bind Google account grants to their OAuth client’s organization and current credential generation; preserve that authority across terminal approval pauses and routine source reviews. Include safe account metadata in personal exports and audit organization account changes. Older unverifiable personal grants need reconnecting after migration 0293.
+- Keep draft cards and shared drafts visible when their tool is renamed.
+
+
+### Fixed
+
 - Refuse deleting an agent while a managed task still depends on its scheduled execution; reassign or settle the task first.
 
 ### Added

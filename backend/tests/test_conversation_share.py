@@ -366,3 +366,14 @@ def test_the_order_is_applied_before_the_newest_fifty_are_kept() -> None:
     kept = shared_drafts(conv)[message.id]
 
     assert [d.id for d in kept] == [f"c{i}" for i in range(1, SHARED_MAX_DRAFTS + 1)]
+
+
+def test_a_renamed_draft_is_shared_using_its_stable_result_identity() -> None:
+    from app.agents.capabilities.drafts._spec import DRAFT_IDENTITY
+
+    call = _draft_call("renamed", _card())
+    call.tool_name = "prepare_reply"
+    call.result += f" {DRAFT_IDENTITY}"
+    conversation, message = _thread(call)
+    drafts = shared_drafts(conversation)
+    assert drafts[message.id][0].title == "Reply to Marta"

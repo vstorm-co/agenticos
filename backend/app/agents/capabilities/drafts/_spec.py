@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 
 DRAFTS_CAPABILITY_ID = "drafts"
 WRITE_DRAFT = "write_draft"
+DRAFT_IDENTITY = "[agenticos:draft:v1]"
 
 DRAFTED = "Drafted "
 """What a tool result opens with when a card was made. Anything else is a refusal."""

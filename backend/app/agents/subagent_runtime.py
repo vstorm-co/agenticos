@@ -509,6 +509,8 @@ class DelegationStash:
     from the same key on the resume.
     """
 
+    mirage_authorities: dict[str, str] = field(default_factory=dict)
+    restoring_mirage: bool = False
     discovered: dict[str, list[SubagentRef]] = field(default_factory=dict)
     """Interactive delegate catalogs pinned by ancestor path, retained across approval parks."""
 

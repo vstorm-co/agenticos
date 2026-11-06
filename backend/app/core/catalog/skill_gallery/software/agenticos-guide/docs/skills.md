@@ -162,7 +162,8 @@ conversation nobody is reviewing, and the next reader would have no way to tell 
 considered improvement from a hallucinated one.
 
 So a write becomes a **proposal**, and it appears above the list on the Skills page
-for anyone holding `skills:edit`:
+for anyone who may edit that skill. A proposal for a new skill appears for anyone
+holding `skills:edit`. Nobody else can list or open it:
 
 - **Apply** rewrites the skill and bumps its version, which reaches every bound
   agent on its next run.

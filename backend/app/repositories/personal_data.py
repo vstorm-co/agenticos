@@ -32,6 +32,7 @@ from app.db.models.coding_account import CodingAccount
 from app.db.models.coding_task_change import CodingTaskChange
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim
 from app.db.models.message_rating import MessageRating
@@ -720,3 +721,15 @@ async def coding_change_export_size(db: AsyncSession, conversation_ids: list[UUI
         ).where(CodingTaskChange.conversation_id.in_(conversation_ids))
     )
     return int(size or 0)
+
+
+async def connected_accounts_of(db: AsyncSession, user_id: UUID) -> list[McpConnection]:
+    return list(
+        await db.scalars(
+            select(McpConnection).where(
+                McpConnection.scope == "user",
+                McpConnection.user_id == user_id,
+                McpConnection.purpose == "account",
+            )
+        )
+    )

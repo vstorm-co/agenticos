@@ -125,6 +125,12 @@ def action_review(
 
 
 def routine_effect(definition: CapabilityDef, tool: CapabilityToolInfo, *, local: bool) -> bool:
+    if definition.id == "mirage" and tool.id in {
+        "mirage_write_file",
+        "mirage_edit_file",
+        "mirage_execute",
+    }:
+        return True
     if definition.id == "sandbox" and local and tool.id in ("write_file", "edit_file"):
         return True
     # A task may cross an external-agent boundary where this deployment cannot

@@ -27,6 +27,28 @@ from app.services.portals import google_oauth
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 NONCE = "n" * 43
 INITIATOR = uuid4()
+SOURCE_ORG = uuid4()
+SOURCE_SECRET = uuid4()
+SOURCE_GENERATION = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def live_source(monkeypatch):
+    from app.repositories import organization_secret_repo
+
+    monkeypatch.setattr(
+        service_module,
+        "decider_context",
+        AsyncMock(
+            return_value=AuthContext(user_id=INITIATOR, organization_id=SOURCE_ORG, role="owner")
+        ),
+    )
+    monkeypatch.setattr(
+        organization_secret_repo,
+        "authorization_generation",
+        AsyncMock(return_value=SOURCE_GENERATION),
+    )
+    monkeypatch.setattr(service_module, "record_audit", AsyncMock())
 
 
 @pytest.fixture
@@ -53,7 +75,9 @@ def repo(monkeypatch) -> MagicMock:
 def client(monkeypatch) -> GoogleOAuthAppSecret:
     creds = GoogleOAuthAppSecret(client_id="org-client", client_secret="org-secret")
     monkeypatch.setattr(
-        service_module.OrganizationSecretService, "oauth_app", AsyncMock(return_value=creds)
+        service_module.OrganizationSecretService,
+        "oauth_app_identity",
+        AsyncMock(return_value=(creds, SOURCE_SECRET, SOURCE_GENERATION)),
     )
     return creds
 
@@ -63,6 +87,7 @@ def _account(**overrides) -> McpConnection:
         "id": uuid4(),
         "user_id": uuid4(),
         "organization_id": None,
+        "account_source_organization_id": SOURCE_ORG,
         "scope": "user",
         "catalog_key": "google",
         "purpose": "account",
@@ -94,6 +119,9 @@ def _payload(**overrides) -> McpOAuthPayload:
         "provider": "google",
         "browser_nonce_digest": hashlib.sha256(NONCE.encode()).hexdigest(),
         "account_initiator_id": INITIATOR,
+        "account_source_organization_id": SOURCE_ORG,
+        "account_source_secret_id": SOURCE_SECRET,
+        "account_source_generation": SOURCE_GENERATION,
         "access_token": "AT",
         "refresh_token": "RT",
     }
@@ -203,6 +231,7 @@ async def test_a_new_account_is_named_by_its_address(repo, monkeypatch):
 
     update = repo.update.await_args.kwargs["update_data"]
     assert update == {
+        "account_source_organization_id": SOURCE_ORG,
         "account_email": "ana@acme.com",
         "label": "ana@acme.com",
         "name": f"google-account-{account.id.hex}",
@@ -324,7 +353,9 @@ async def test_a_run_is_handed_the_refresh_token_and_its_client():
     account = _account(label="ana@acme.com", granted_scopes=[google_oauth.DRIVE])
     account.oauth_payload = _sealed(account, _payload())
 
-    grant = await McpConnectionService(AsyncMock()).account_grant(account)
+    grant = await McpConnectionService(AsyncMock()).account_grant(
+        account, organization_id=SOURCE_ORG
+    )
 
     assert grant is not None and grant.email == "ana@acme.com"
     assert grant.client_id == "org-client" and grant.refresh_token.get_secret_value() == "RT"
@@ -335,9 +366,15 @@ async def test_a_run_is_handed_the_refresh_token_and_its_client():
 async def test_a_grant_without_a_refresh_token_cannot_be_mounted():
     account = _account()
     account.oauth_payload = _sealed(account, _payload(refresh_token=None))
-    assert await McpConnectionService(AsyncMock()).account_grant(account) is None
+    assert (
+        await McpConnectionService(AsyncMock()).account_grant(account, organization_id=SOURCE_ORG)
+        is None
+    )
     account.oauth_payload = None
-    assert await McpConnectionService(AsyncMock()).account_grant(account) is None
+    assert (
+        await McpConnectionService(AsyncMock()).account_grant(account, organization_id=SOURCE_ORG)
+        is None
+    )
 
 
 # -- the address, from Google ---------------------------------------------------
@@ -467,7 +504,10 @@ async def test_a_revoked_grant_is_not_handed_to_a_mount():
 
     account = _account(last_status="error", last_error=AUTHORIZATION_EXPIRED)
     account.oauth_payload = _sealed(account, _payload())
-    assert await McpConnectionService(AsyncMock()).account_grant(account) is None
+    assert (
+        await McpConnectionService(AsyncMock()).account_grant(account, organization_id=SOURCE_ORG)
+        is None
+    )
 
 
 async def test_reconnecting_an_unreadable_old_key_rekeys_the_preserved_account(repo, monkeypatch):
@@ -505,7 +545,7 @@ async def test_org_consent_rechecks_current_authority_before_exchanging_a_code(
     org = uuid4()
     pending = _account(scope="org", user_id=None, organization_id=org, oauth_state="state")
     pending.oauth_pending_payload = _sealed(
-        pending, _payload(access_token=None, refresh_token=None)
+        pending, _payload(access_token=None, refresh_token=None, account_source_organization_id=org)
     )
     repo.get_by_oauth_state = AsyncMock(return_value=pending)
     context = (
@@ -513,7 +553,9 @@ async def test_org_consent_rechecks_current_authority_before_exchanging_a_code(
     )
     authority = AsyncMock(return_value=context)
     monkeypatch.setattr(service_module, "decider_context", authority)
-    exchange = AsyncMock(return_value=(_payload(), [google_oauth.DRIVE]))
+    exchange = AsyncMock(
+        return_value=(_payload(account_source_organization_id=org), [google_oauth.DRIVE])
+    )
     monkeypatch.setattr(service_module, "_complete_google_flow", exchange)
     monkeypatch.setattr(McpConnectionService, "_name_account", AsyncMock(return_value=pending))
     if role == "owner":

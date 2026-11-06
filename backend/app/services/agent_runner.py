@@ -51,6 +51,7 @@ agent already resolved, and a recorder that writes one row.
 """
 
 import asyncio
+import hashlib
 import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
@@ -869,6 +870,9 @@ class PausedRunState(BaseModel):
     )
     delegations: list[DelegationFrame] = Field(
         default_factory=list, description="The delegations this run parked inside"
+    )
+    mirage_authorities: dict[str, str] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
     )
     discovered_delegates: dict[str, list[SubagentRef]] = Field(
         default_factory=dict,
@@ -3499,6 +3503,7 @@ class AgentRunnerService:
         answer_only: bool = False,
         specialists: Mapping[str | None, Sequence[RegisteredSpecialist]] | None = None,
         discovered_delegates: dict[str, list[SubagentRef]] | None = None,
+        mirage_authorities: dict[str, str] | None = None,
         model_profile_id: UUID | None = None,
         version_id: UUID | None = None,
         environment_id: UUID | None = None,
@@ -3848,7 +3853,15 @@ class AgentRunnerService:
             ):
                 raise RoutineSourcesRequired(message="A reviewed routine source is unavailable")
             routine_check = routine.check
-        await self._add_mirage_terminal(resources, ctx, spec, person_id=personal_mcp_user_id)
+        terminal_authorities = {} if mirage_authorities is None else dict(mirage_authorities)
+        await self._add_mirage_terminal(
+            resources,
+            ctx,
+            spec,
+            person_id=personal_mcp_user_id,
+            authorities=terminal_authorities,
+            restoring=mirage_authorities is not None,
+        )
 
         project_ctx = (
             routine.local_context(ctx, public_origin=public_origin)
@@ -4274,6 +4287,8 @@ class AgentRunnerService:
         delegations: list[RecordedDelegation] = []
         delegate_recorders: list[tuple[UUID, RunRecorder]] = []
         stash = DelegationStash(
+            mirage_authorities=terminal_authorities,
+            restoring_mirage=mirage_authorities is not None,
             discovered={} if discovered_delegates is None else discovered_delegates,
             resuming=resuming,
             spent=already_spent,
@@ -5006,6 +5021,8 @@ class AgentRunnerService:
             shared=shared,
             parent_resources=resources,
             person_id=delegation.personal_mcp_user_id,
+            authorities=delegation.stash.mirage_authorities,
+            restoring=delegation.stash.restoring_mirage,
         )
         return ResolvedSubagent(
             name=specialist.name,
@@ -5135,6 +5152,8 @@ class AgentRunnerService:
             shared=shared,
             parent_resources=resources,
             person_id=delegation.personal_mcp_user_id,
+            authorities=delegation.stash.mirage_authorities,
+            restoring=delegation.stash.restoring_mirage,
         )
         runnable = pinned
         nested_config = _delegation_config(pinned)
@@ -5261,6 +5280,8 @@ class AgentRunnerService:
         shared: list[CapabilityBindingSpec],
         parent_resources: dict[str, Any],
         person_id: UUID | None,
+        authorities: dict[str, str] | None = None,
+        restoring: bool = False,
     ) -> dict[str, Any]:
         """A resource dict of the delegate's own, resolved from the delegate's spec.
 
@@ -5305,7 +5326,9 @@ class AgentRunnerService:
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).
             resources[SPILL_LOG_RESOURCE] = parent_resources.get(SPILL_LOG_RESOURCE)
-        await self._add_mirage_terminal(resources, ctx, spec, person_id=person_id)
+        await self._add_mirage_terminal(
+            resources, ctx, spec, person_id=person_id, authorities=authorities, restoring=restoring
+        )
         return resources
 
     async def _add_mirage_terminal(
@@ -5315,6 +5338,8 @@ class AgentRunnerService:
         spec: AgentSpec,
         *,
         person_id: UUID | None,
+        authorities: dict[str, str] | None = None,
+        restoring: bool = False,
     ) -> None:
         """The virtual terminal's folders, when the spec binds one.
 
@@ -5325,9 +5350,23 @@ class AgentRunnerService:
         """
         config = _mirage_config(spec)
         if config is not None:
-            resources[MIRAGE_MOUNTS_RESOURCE] = await MirageMountService(self.db).resolve(
-                ctx, config, person_id=person_id
-            )
+            key = hashlib.sha256(
+                f"{ctx.organization_id}:{person_id}:{config.model_dump_json()}".encode()
+            ).hexdigest()
+            service = MirageMountService(self.db)
+            identity = await service.authority(ctx, config, person_id=person_id)
+            if restoring and (authorities is None or authorities.get(key) != identity):
+                raise AuthorizationError(
+                    message="A terminal account or credential changed while this run waited. Start a new run to review its targets."
+                )
+            terminal = await service.resolve(ctx, config, person_id=person_id)
+            if await service.authority(ctx, config, person_id=person_id) != identity:
+                raise AuthorizationError(
+                    message="A terminal source changed while the run was preparing"
+                )
+            if authorities is not None:
+                authorities[key] = identity
+            resources[MIRAGE_MOUNTS_RESOURCE] = terminal
 
     async def _workspace_shared(
         self, ctx: AuthContext, scope: str, conversation_id: UUID | None
@@ -5943,6 +5982,11 @@ class AgentRunnerService:
                 },
                 "delegations": _delegation_frames(prepared.stash.parked, prepared.stash.registered),
                 "discovered_delegates": prepared.stash.discovered,
+                **(
+                    {"mirage_authorities": prepared.stash.mirage_authorities}
+                    if prepared.stash.mirage_authorities
+                    else {}
+                ),
                 "dynamic_specialists": [
                     DynamicSpecialistFrame(
                         name=specialist.name,
@@ -6513,6 +6557,7 @@ class AgentRunnerService:
             decided=decided,
             resuming=plan.delegations,
             discovered_delegates=state.discovered_delegates,
+            mirage_authorities=state.mirage_authorities,
             already_spent=plan.spent,
             already_started=plan.started,
             # The specialists each level kept before it parked, rebuilt into that

@@ -30,6 +30,8 @@ class RoutineSourcePolicy(BaseModel):
     scope_hash: Fingerprint
     spec_hash: Fingerprint
     mcp_sources: dict[UUID, RoutineSourceAccount] = Field(default_factory=dict, max_length=100)
+    mirage_accounts: dict[UUID, UUID] = Field(default_factory=dict, max_length=100)
+    secret_sources: dict[UUID, UUID] = Field(default_factory=dict, max_length=100)
     phone_sources: dict[UUID, Fingerprint] = Field(default_factory=dict, max_length=100)
     project_id: UUID | None = None
     project_hash: Fingerprint | None = None

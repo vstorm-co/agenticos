@@ -975,6 +975,8 @@ shown in the connection dialog and enter the client ID and secret there. Chat
 also requires a configured Chat app; Classroom requires a test class and student.
 See [Google's Workspace setup guide](https://developers.google.com/workspace/guides/configure-mcp-servers).
 
+Google-hosted MCP connections open the required client setup before sign-in, including the callback URL and a link to Google’s setup guide. Both the client ID and secret are required; AgenticOS does not attempt automatic client registration at Google. Other providers that reject registration return recovery instructions instead of a generic rejection.
+
 Cloud entries include BigQuery, Cloud Storage, Cloud Run, Compute Engine, GKE,
 Firestore, Cloud SQL, Spanner, Logging, Monitoring and more. Enable each service's
 APIs and grant the account MCP Tool User plus its product-specific IAM roles.
@@ -1286,3 +1288,11 @@ for on-demand access. Both agent draft tools accept `context_ids`; the supplied
 list replaces the complete binding list. Editing a bound Context file affects the
 next run; changing a draft binding requires publication. Normal permissions and
 write approvals remain in force.
+
+### Connected account source authority
+
+A Google account connected through an organization's OAuth client can only be used in that organization. Personal use also requires current membership. Rotating or removing that client invalidates the copied grant until the person reconnects. Organization account connections, reconnections and disconnections are audited. Personal exports include account metadata, never tokens or client secrets.
+
+Migration `0293_connected_account_sources.py` leaves unverifiable older personal grants disconnected until reconsent. Downgrading it removes personal connected-account grants because older versions cannot enforce their source tenant; ordinary MCP connections remain.
+
+Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.

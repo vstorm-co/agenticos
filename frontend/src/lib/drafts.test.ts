@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DRAFT_IDENTITY,
   copyableText,
   draftOf,
   draftsAsText,
@@ -248,4 +249,14 @@ describe("placeholderParts", () => {
   it("returns no part for no text", () => {
     expect(placeholderParts("", "text")).toEqual([]);
   });
+});
+
+it("renders and copies a renamed draft using its stable result identity", () => {
+  const renamed = call({
+    name: "prepare_reply",
+    result: `Drafted Reply to Marta. ${DRAFT_IDENTITY}`,
+  });
+  const draft = draftOf(renamed);
+  expect(draft?.title).toBe("Reply to Marta");
+  expect(draft ? draftsAsText([draft]) : "").toContain("Hi Marta,");
 });

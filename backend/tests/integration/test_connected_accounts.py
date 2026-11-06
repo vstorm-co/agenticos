@@ -189,3 +189,42 @@ async def test_account_identity_is_unique_per_owner(db: AsyncSession, scope: str
         async with db.begin_nested():
             db.add(account(owner))
             await db.flush()
+
+
+async def test_same_person_can_connect_one_address_through_two_tenants(db: AsyncSession) -> None:
+    from sqlalchemy import delete, select
+
+    user = await _person(db)
+    first, second = await _organization(db, user), await _organization(db, user)
+    accounts = []
+    for organization in (first, second):
+        account = McpConnection(
+            user_id=user.id,
+            account_source_organization_id=organization.id,
+            name=f"google:{organization.id}",
+            url="https://www.googleapis.com",
+            secret_key_version=1,
+            purpose="account",
+            catalog_key="google",
+            account_email="same@example.com",
+            oauth_payload="sealed credential must never be exported",
+        )
+        db.add(account)
+        accounts.append(account)
+    await db.flush()
+    identifiers = [account.id for account in accounts]
+    from app.services.personal_data import PersonalDataService
+
+    export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+    assert {row.id for row in export.connected_accounts} == set(identifiers)
+    assert {row.account_source_organization_id for row in export.connected_accounts} == {
+        first.id,
+        second.id,
+    }
+    assert "sealed credential" not in export.model_dump_json()
+    assert "oauth_payload" not in export.model_dump_json()
+    await db.execute(delete(Organization).where(Organization.id == first.id))
+    remaining = list(
+        (await db.scalars(select(McpConnection.id).where(McpConnection.id.in_(identifiers)))).all()
+    )
+    assert remaining == [identifiers[1]]

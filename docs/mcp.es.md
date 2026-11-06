@@ -1,5 +1,5 @@
 ---
-source_sha: "f65a014f571c"
+source_sha: "93fff3b44d1d"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1371,3 +1371,11 @@ herramientas de borrador aceptan `context_ids`; la lista sustituye todos los
 vínculos Context. Editar un archivo vinculado afecta al próximo uso; cambiar
 el vínculo del borrador requiere publicación. Se mantienen permisos y
 aprobaciones de escritura.
+
+### Autoridad de origen de las cuentas conectadas { #connected-account-source-authority }
+
+Una cuenta de Google conectada mediante el cliente OAuth de una organización solo funciona allí. El uso personal requiere pertenencia vigente. Rotar o eliminar el cliente invalida la autorización copiada hasta volver a conectar la cuenta. Las conexiones, reconexiones y desconexiones de cuentas de organización quedan auditadas. Las exportaciones personales incluyen metadatos, nunca tokens ni secretos del cliente.
+
+La migración `0293_connected_account_sources.py` exige renovar el consentimiento de cuentas personales antiguas sin origen verificable. Revertirla elimina autorizaciones personales porque las versiones anteriores no pueden imponer la organización de origen; conserva las conexiones MCP normales.
+
+Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de fuentes de rutinas fijan las mismas generaciones; escrituras y comandos del terminal requieren consentimiento para efectos de la rutina incluso con las aprobaciones de escritura del montaje desactivadas.

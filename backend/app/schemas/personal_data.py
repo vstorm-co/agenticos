@@ -144,6 +144,23 @@ class CodingTaskChangeExport(BaseModel):
     created_at: datetime
 
 
+class ConnectedAccountExport(BaseModel):
+    """Personal connection metadata; credentials are deliberately not serializable."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    account_source_organization_id: UUID | None
+    catalog_key: str | None
+    account_email: str | None
+    granted_scopes: list[str] | None
+    last_status: str | None
+    authorization_generation: UUID
+    is_enabled: bool
+    created_at: datetime
+    updated_at: datetime | None
+
+
 class PersonalDataExport(BaseModel):
     """Everything this deployment holds about one person, as one document.
 
@@ -160,6 +177,7 @@ class PersonalDataExport(BaseModel):
     the inventory.
     """
 
+    connected_accounts: list[ConnectedAccountExport] = Field(default_factory=list)
     coding_task_changes: list[CodingTaskChangeExport] = Field(default_factory=list)
     outcomes: list[OutcomeExport] = Field(default_factory=list)
     phone_contacts: list[PhoneContactExport] = Field(default_factory=list)

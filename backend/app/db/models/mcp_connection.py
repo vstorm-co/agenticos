@@ -74,8 +74,10 @@ class McpConnection(Base, TimestampMixin):
             "uq_connected_accounts_user_email",
             "user_id",
             "catalog_key",
+            "account_source_organization_id",
             "account_email",
             unique=True,
+            postgresql_nulls_not_distinct=True,
             postgresql_where=text(
                 "purpose = 'account' AND scope = 'user' AND account_email IS NOT NULL"
             ),
@@ -215,6 +217,9 @@ class McpConnection(Base, TimestampMixin):
     # `notion` and `notion-2`, and neither says which workspace it reaches.
     # Optional, not unique, and never a replacement - the slug stays on screen
     # beside it, because a run's tool calls are recorded under the prefix.
+    account_source_organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
     account_email: Mapped[str | None] = mapped_column(String(254), nullable=True)
 
     label: Mapped[str | None] = mapped_column(String(64), nullable=True)

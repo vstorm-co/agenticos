@@ -154,6 +154,24 @@ async def external_fingerprint(db: AsyncSession, agent: ExternalAgent) -> str:
 async def require_bound_sources(
     db: AsyncSession, *, organization_id: UUID, policy: RoutineSourcePolicy
 ) -> None:
+    from app.repositories import organization_secret_repo
+
+    for identifier, expected in policy.mirage_accounts.items():
+        account = await mcp_connection_repo.get_account(db, identifier)
+        if (
+            account is None
+            or not account.is_enabled
+            or account.authorization_generation != expected
+        ):
+            raise RoutineSourcesRequired()
+    for identifier, expected in policy.secret_sources.items():
+        if (
+            await organization_secret_repo.authorization_generation(
+                db, identifier, organization_id=organization_id
+            )
+            != expected
+        ):
+            raise RoutineSourcesRequired()
     if policy.phone_sources:
         from app.repositories import channel_bot_repo
         from app.repositories import telephony as phone_repo
@@ -300,11 +318,67 @@ class RoutineSourceService:
                     raise RoutineSourcesRequired()
                 specs.append(AgentSpec.model_validate(child_version.spec))
                 resources.add(f"Delegate · {delegate.agent_id} · {delegate.agent_version_id}")
-        from app.repositories import channel_bot_repo
+        from app.agents.capabilities.mirage import MirageConfig, OrganizationAccount
+        from app.repositories import channel_bot_repo, organization_secret_repo
         from app.repositories import telephony as phone_repo
         from app.schemas.telephony import PhoneCallsConfig
+        from app.services.mcp_connection import account_client_identity
+        from app.services.portals import google_oauth
         from app.services.telephony.policy import endpoint_fingerprint
 
+        secret_sources: dict[UUID, UUID] = {}
+        mirage_accounts: dict[UUID, UUID] = {}
+        for candidate in specs:
+            for binding in candidate.capabilities:
+                if not binding.enabled or binding.id != "mirage":
+                    continue
+                config = MirageConfig.model_validate(binding.config)
+                for mount in config.mounts:
+                    accounts = []
+                    if isinstance(mount.account, OrganizationAccount):
+                        account = await mcp_connection_repo.get_account(
+                            self.db, mount.account.connection_id
+                        )
+                        if account is not None and account.organization_id == ctx.organization_id:
+                            accounts = [account]
+                        else:
+                            unavailable.add(f"Terminal account · {mount.account.connection_id}")
+                    elif mount.account is not None:
+                        accounts = await mcp_connection_repo.list_accounts(
+                            self.db, provider=google_oauth.PROVIDER, user_id=ctx.subject_id
+                        )
+                        accounts = [
+                            a
+                            for a in accounts
+                            if a.account_source_organization_id == ctx.organization_id
+                        ]
+                        if not accounts:
+                            unavailable.add(f"Terminal account · {mount.path}")
+                    for account in accounts:
+                        client = account_client_identity(account)
+                        if client is None or client[0] != ctx.organization_id:
+                            unavailable.add(f"Terminal account · {account.id}")
+                            continue
+                        current_client = await organization_secret_repo.authorization_generation(
+                            self.db, client[1], organization_id=ctx.organization_id
+                        )
+                        if not account.is_enabled or current_client != client[2]:
+                            unavailable.add(f"Terminal account · {account.id}")
+                            continue
+                        mirage_accounts[account.id] = account.authorization_generation
+                        secret_sources[client[1]] = client[2]
+                        resources.add(f"Terminal account · {account.id}")
+                    for identifier in mount.secrets.values():
+                        generation = await organization_secret_repo.authorization_generation(
+                            self.db, identifier, organization_id=ctx.organization_id
+                        )
+                        resources.add(f"Terminal credential · {identifier}")
+                        if generation is None:
+                            unavailable.add(f"Terminal credential · {identifier}")
+                        else:
+                            secret_sources[identifier] = generation
+        if len(secret_sources) > 100 or len(mirage_accounts) > 100:
+            raise RoutineSourcesRequired()
         phone_sources: dict[UUID, str] = {}
         for candidate in specs:
             for binding in candidate.capabilities:
@@ -441,6 +515,8 @@ class RoutineSourceService:
                 root_mcp_ids=tuple(sorted(root_sources)),
                 external_sources=external_sources,
                 phone_sources=phone_sources,
+                secret_sources=secret_sources,
+                mirage_accounts=mirage_accounts,
                 input_connection_id=trigger.connection_id if input_source is not None else None,
                 input_source=input_source,
             ),

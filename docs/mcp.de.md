@@ -1,5 +1,5 @@
 ---
-source_sha: "f65a014f571c"
+source_sha: "93fff3b44d1d"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1391,3 +1391,11 @@ bei Bedarf. Beide Agentenentwurfs-Tools akzeptieren `context_ids`; die Liste
 ersetzt alle Context-Bindungen. Änderungen gebundener Dateien gelten beim
 nächsten Lauf; neue Entwurfsbindungen müssen veröffentlicht werden. Berechtigungen
 und Schreibfreigaben bleiben bestehen.
+
+### Herkunft und Berechtigung verbundener Konten { #connected-account-source-authority }
+
+Ein über den OAuth-Client einer Organisation verbundenes Google-Konto funktioniert nur dort. Persönliche Nutzung setzt aktuelle Mitgliedschaft voraus. Rotation oder Entfernung des Clients macht die kopierte Freigabe bis zur erneuten Verbindung ungültig. Verbindungen, erneute Verbindungen und Trennungen von Organisationskonten werden protokolliert. Persönliche Exporte enthalten Kontometadaten, niemals Token oder Client-Geheimnisse.
+
+Die Migration `0293_connected_account_sources.py` verlangt erneute Zustimmung für ältere persönliche Konten ohne überprüfbare Herkunft. Ein Downgrade entfernt persönliche Kontofreigaben, da ältere Versionen deren Herkunftsorganisation nicht durchsetzen können; gewöhnliche MCP-Verbindungen bleiben erhalten.
+
+Mirage-Freigabepausen binden Kontoidentitäten und Geheimnisgenerationen. Änderungen während der Pause erfordern einen neuen Lauf mit Freigabe. Routinenprüfungen binden dieselben Generationen; Terminalschreibvorgänge und Befehle brauchen die Zustimmung zu Routinenaktionen, auch wenn Schreibfreigaben des Mounts deaktiviert sind.

@@ -8,7 +8,7 @@ import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { BROWSER_TOOLS, DESKTOP_TOOLS } from "@/lib/browse";
 import { toolEntry } from "@/lib/tool-catalog";
 import { drawnUnderTheAnswer } from "@/lib/turn-extras";
-import { WRITE_DRAFT } from "@/lib/drafts";
+import { draftOf } from "@/lib/drafts";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
@@ -497,7 +497,9 @@ export function visualCalls(runs: PartRun[]): ToolCall[] {
 export function draftCalls(runs: PartRun[]): ToolCall[] {
   return runs.flatMap((run) =>
     run.kind === "tools"
-      ? run.parts.flatMap((part) => (part.toolCall?.name === WRITE_DRAFT ? [part.toolCall] : []))
+      ? run.parts.flatMap((part) =>
+          part.toolCall && draftOf(part.toolCall) !== null ? [part.toolCall] : [],
+        )
       : [],
   );
 }

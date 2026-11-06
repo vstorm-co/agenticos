@@ -524,6 +524,12 @@ class OrganizationSecretService:
         )
 
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
+        value, _, _ = await self.oauth_app_identity(ctx, kind=kind)
+        return value
+
+    async def oauth_app_identity(
+        self, ctx: AuthContext, *, kind: SecretKind
+    ) -> tuple[OAuthAppSecret, UUID, UUID]:
         """Unseal the organization's OAuth client credentials for a token exchange.
 
         The third plaintext reader here, and deliberately the narrowest: it opens one
@@ -587,7 +593,7 @@ class OrganizationSecretService:
         # `unseal_secret` refuses anything whose sealed kind is not the one asked
         # for, so this is the concrete type - the cast narrows it without a branch
         # that could never run.
-        return cast(OAuthAppSecret, value)
+        return cast(OAuthAppSecret, value), row.id, row.authorization_generation
 
     async def app_secret(self, organization_id: UUID, *, kind: SecretKind) -> SecretValue:
         """The organization's single org-visible secret of one kind, by id alone.

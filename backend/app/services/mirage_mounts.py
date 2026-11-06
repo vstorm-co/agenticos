@@ -16,6 +16,8 @@ Hosts an author typed are checked here, at the moment they are dialled, against
 publish cannot read.
 """
 
+import hashlib
+import json
 import logging
 import re
 from collections.abc import Mapping, Sequence
@@ -42,7 +44,11 @@ from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret, EntraAppSecret
 from app.db.models.mcp_connection import McpConnection
 from app.repositories import mcp_connection_repo, organization_secret_repo
-from app.services.mcp_connection import AccountGrant, McpConnectionService
+from app.services.mcp_connection import (
+    AccountGrant,
+    McpConnectionService,
+    account_source_organization,
+)
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import google_oauth
 
@@ -75,6 +81,29 @@ class MirageMountService:
         self.db = db
         self.secrets = OrganizationSecretService(db)
         self.connections = McpConnectionService(db)
+
+    async def authority(
+        self, ctx: AuthContext, config: MirageConfig, *, person_id: UUID | None
+    ) -> str:
+        """An opaque identity of the accounts and credential generations a terminal can reach."""
+        material: list[tuple[str, str]] = []
+        for mount in config.mounts:
+            for identifier in sorted(set(mount.secrets.values())):
+                generation = await organization_secret_repo.authorization_generation(
+                    self.db, identifier, organization_id=ctx.organization_id
+                )
+                material.append((f"secret:{mount.path}:{identifier}", str(generation)))
+            info = backend(mount.backend)
+            if info is not None and info.credential == "google":
+                try:
+                    accounts = await self._accounts(ctx, mount, person_id)
+                except _Unmountable:
+                    accounts = []
+                material.extend(
+                    (f"account:{mount.path}:{account.id}", str(account.authorization_generation))
+                    for account in accounts
+                )
+        return hashlib.sha256(json.dumps(sorted(material)).encode()).hexdigest()
 
     async def resolve(
         self, ctx: AuthContext, config: MirageConfig, *, person_id: UUID | None
@@ -167,7 +196,9 @@ class MirageMountService:
         needed = _GOOGLE_SCOPES[info.name]
         resolved: list[ResolvedMount] = []
         for account in accounts:
-            grant = await self.connections.account_grant(account)
+            grant = await self.connections.account_grant(
+                account, organization_id=ctx.organization_id
+            )
             if grant is None:
                 notes.append(
                     f"{mount.path}: {account.label or 'the account'} has to be connected again."
@@ -211,6 +242,11 @@ class MirageMountService:
         accounts = await mcp_connection_repo.list_accounts(
             self.db, provider=google_oauth.PROVIDER, user_id=person_id
         )
+        accounts = [
+            account
+            for account in accounts
+            if account_source_organization(account) == ctx.organization_id
+        ]
         if not accounts:
             raise _Unmountable(
                 "it reads each person's own Google account, and they have not connected one. "

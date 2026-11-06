@@ -1,5 +1,5 @@
 ---
-source_sha: "f65a014f571c"
+source_sha: "93fff3b44d1d"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1332,3 +1332,11 @@ Wybierz `inject` dla kontekstu każdego uruchomienia albo `link` dla odczytu na
 zastępuje cały zestaw powiązań. Edycja podpiętego pliku działa przy kolejnym
 uruchomieniu; zmiana powiązania draftu wymaga publikacji. Nadal obowiązują
 uprawnienia i zatwierdzenia zapisów.
+
+### Uprawnienia źródłowe połączonego konta { #connected-account-source-authority }
+
+Konto Google połączone przez klienta OAuth organizacji działa wyłącznie w tej organizacji. Użycie konta osobistego wymaga aktualnego członkostwa. Rotacja lub usunięcie klienta unieważnia skopiowaną zgodę do ponownego połączenia konta. Połączenia, ponowne połączenia i odłączenia kont organizacji są audytowane. Eksport osobisty zawiera metadane kont, bez tokenów i sekretów klienta.
+
+Migracja `0293_connected_account_sources.py` wymaga ponownej zgody dla starszych kont osobistych bez potwierdzonego źródła. Jej cofnięcie usuwa zgody kont osobistych, ponieważ starsza wersja nie potrafi egzekwować organizacji źródłowej; zwykłe połączenia MCP pozostają.
+
+Pauzy akceptacji Mirage przypinają tożsamość kont i generacje sekretów. Ich zmiana podczas oczekiwania wymaga nowego uruchomienia i zgody. Przegląd źródeł rutyny wiąże te same generacje, a zapis i komendy terminala wymagają zgody na skutki rutyny nawet przy wyłączonych akceptacjach zapisu dla montowania.

@@ -1062,3 +1062,26 @@ class TestConnectedAccountMigration:
                 )
         finally:
             engine.dispose()
+
+
+class TestConnectedAccountSources:
+    def test_source_tenant_upgrade_and_downgrade_keep_mcp_connections(self) -> None:
+        up = _alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns WHERE table_name = 'mcp_connections' AND column_name = 'account_source_organization_id'"
+                        )
+                    ).scalar_one()
+                    == 1
+                )
+            down = _alembic("downgrade", "0292_merge_connected_accounts")
+            assert down.returncode == 0, down.stderr
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
+            engine.dispose()
