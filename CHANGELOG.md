@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.51.0] - 2026-11-06
+
 ### Fixed
 
 - A local instance created by the desktop app can be set up with a provider key again. The app wrote a `SANDBOXD_TOKEN` for a sandbox service it never starts, so new agents kept container workspaces publish refused, and bootstrap stopped at the Architect's publish. The instance no longer gets a token, and its agents get the files-only workspace. A publish refusal now leaves the Architect waiting for a model instead of failing every console load. An instance created earlier keeps its token: delete the `SANDBOXD_TOKEN` line from its `.env` and restart it.
@@ -20505,7 +20507,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.51.0...HEAD
+[1.51.0]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...v1.51.0
 [1.50.2]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...v1.50.2
 [1.50.1]: https://github.com/vstorm-co/agenticos/compare/v1.50.0...v1.50.1
 [1.50.0]: https://github.com/vstorm-co/agenticos/compare/v1.49.0...v1.50.0
