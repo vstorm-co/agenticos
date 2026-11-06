@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodingAccounts } from "@/components/settings/coding-accounts";
+import { RememberedApprovals } from "./remembered-approvals";
 import { ChatModelPicker } from "./chat-model-picker";
 import { WorkOn, ConversationNotifications } from "./work-on";
 import { YourConnections } from "./your-connections";
@@ -312,6 +313,7 @@ export function ChatControls({
                     );
                   })}
                 </div>
+                {can(Perm.approvalsDecide) && <RememberedApprovals />}
                 {!mayWaive && (
                   <div className="text-muted-foreground mt-2 space-y-2 text-xs leading-relaxed">
                     <p id={waiverHintId}>

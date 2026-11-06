@@ -2359,7 +2359,15 @@
     },
     "drafts": {
       "versions": "Versions of this draft"
-    }
+    },
+    "approvalRememberOptions": "More approval options",
+    "approvalRememberChat": "Allow this tool in this chat",
+    "approvalRememberAgent": "Always allow this tool for this agent",
+    "approvalRememberedTitle": "Remembered tool approvals",
+    "approvalRememberedEmpty": "No remembered approvals.",
+    "approvalRememberForget": "Ask again",
+    "approvalRememberFailed": "Could not forget this approval. Try again.",
+    "approvalRememberRetry": "Retry"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

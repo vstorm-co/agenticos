@@ -2592,3 +2592,67 @@ async def latest_terminal_for_trigger(
         )
         .limit(1)
     )
+
+
+async def remembered_tool_approval(
+    db: AsyncSession,
+    *,
+    run: AgentRun,
+    user_id: UUID,
+    tool_name: str,
+    account: str | None,
+) -> ToolApproval | None:
+    """A click for this person, version, tool and account, within its chosen scope."""
+    from app.db.models.organization import OrganizationMember
+
+    return await db.scalar(
+        select(ToolApproval)
+        .join(AgentRun, ToolApproval.run_id == AgentRun.id)
+        .join(
+            OrganizationMember,
+            and_(
+                OrganizationMember.organization_id == ToolApproval.organization_id,
+                OrganizationMember.user_id == user_id,
+            ),
+        )
+        .where(
+            ToolApproval.organization_id == run.organization_id,
+            ToolApproval.agent_id == run.agent_id,
+            ToolApproval.tool_id == tool_name,
+            ToolApproval.account.is_not_distinct_from(account),
+            ToolApproval.subagent_name.is_(None),
+            ToolApproval.status == ApprovalStatus.APPROVED.value,
+            ToolApproval.decided_via == ApprovalDecidedVia.CLICK.value,
+            ToolApproval.decided_by_user_id == user_id,
+            ToolApproval.decided_at >= OrganizationMember.joined_at,
+            AgentRun.agent_version_id == run.agent_version_id,
+            AgentRun.test_spec.is_(None),
+            AgentRun.surface == RunSurface.WEB.value,
+            or_(
+                ToolApproval.remember_scope == "agent",
+                and_(
+                    ToolApproval.remember_scope == "conversation",
+                    AgentRun.conversation_id == run.conversation_id,
+                    AgentRun.conversation_id.is_not(None),
+                ),
+            ),
+        )
+        .order_by(ToolApproval.decided_at.desc())
+        .limit(1)
+    )
+
+
+async def list_tool_consents(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> list[tuple[ToolApproval, str]]:
+    rows = await db.execute(
+        select(ToolApproval, Agent.name)
+        .join(Agent, Agent.id == ToolApproval.agent_id)
+        .where(
+            ToolApproval.organization_id == organization_id,
+            ToolApproval.decided_by_user_id == user_id,
+            ToolApproval.remember_scope.is_not(None),
+        )
+        .order_by(ToolApproval.decided_at.desc())
+    )
+    return [(row[0], row[1]) for row in rows]

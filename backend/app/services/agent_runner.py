@@ -982,6 +982,7 @@ class ParkedApproval:
     """Which account of an MCP service the call acts as, where its binding names one."""
 
     routine_consented_by: UUID | None = None
+    tool_consented_by: UUID | None = None
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
@@ -1056,6 +1057,8 @@ class ApprovalChannel:
     approval channel, and standing consent must not become the way a schedule
     approves itself."""
 
+    tool_consent: Callable[[ApprovalRequest], Awaitable[UUID | None]] | None = None
+
     requested: list[ParkedApproval] = field(default_factory=list)
     """What was parked, in enough detail for a surface to put it to somebody and
     for :meth:`AgentRunnerService._write_approvals` to write the row.
@@ -1091,6 +1094,8 @@ class ApprovalChannel:
         # added to `parked`, because nothing is waiting - `paused_state` names the
         # calls a resume has to answer, and this one already ran (#925).
         consenting = self.standing_consent_by or request.routine_consented_by
+        if consenting is None and delegate is None and self.tool_consent is not None:
+            consenting = await self.tool_consent(request)
         if consenting is None:
             self.parked[str(approval_id)] = request.tool_call_id
         self.requested.append(
@@ -1104,6 +1109,7 @@ class ApprovalChannel:
                 account=request.account,
                 standing=consenting is not None,
                 routine_consented_by=request.routine_consented_by,
+                tool_consented_by=consenting,
                 subagent=None if delegate is None else delegate.name,
                 # The delegate's own agent, which is *not* `self.agent_id`: that one
                 # is the agent whose run this is and what the row is scoped by. Null
@@ -4266,11 +4272,29 @@ class AgentRunnerService:
                 resolved_session if isinstance(resolved_session, UUID) else None,
             )
 
+        async def tool_consent(request: ApprovalRequest) -> UUID | None:
+            async with get_db_context() as consent_db:
+                return await ApprovalService(consent_db).remembered_consent(
+                    ctx,
+                    run.id,
+                    tool_name=request.tool_name,
+                    account=request.account,
+                )
+
         channel = ApprovalChannel(
             organization_id=ctx.organization_id,
             agent_id=agent.id,
             run_id=run.id,
             decided=decided,
+            tool_consent=(
+                tool_consent
+                if approval_mode is ApprovalMode.FOLLOW_AGENT
+                and surface is RunSurface.WEB
+                and ctx.user_id is not None
+                and run.parent_run_id is None
+                and run.conversation_id is not None
+                else None
+            ),
             # Only ever set by a checked `APPROVE_ALL` - `_allowed_approval_mode`
             # has already refused a caller who may not waive, an organization that
             # does not allow it, and every surface but the web chat.
@@ -5652,7 +5676,11 @@ class AgentRunnerService:
                 # rather than parked. `None` leaves the row pending, which is every
                 # other approval there has ever been.
                 standing_consent_by=(
-                    (parked.routine_consented_by or channel.standing_consent_by)
+                    (
+                        parked.tool_consented_by
+                        or parked.routine_consented_by
+                        or channel.standing_consent_by
+                    )
                     if parked.standing
                     else None
                 ),
@@ -6370,6 +6398,9 @@ class AgentRunnerService:
                 id=approval.id,
                 tool_call_id=by_approval.get(str(approval.id)),
                 tool_name=approval.tool_id,
+                subagent_name=approval.subagent_name,
+                can_remember=ApprovalService.can_remember_in_run(ctx, run)
+                and approval.subagent_name is None,
                 tool_args=approval.tool_args or {},
                 capability_tool_id=approval.capability_tool_id,
                 context=approval.context,

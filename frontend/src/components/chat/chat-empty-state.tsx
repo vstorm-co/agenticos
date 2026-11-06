@@ -17,6 +17,7 @@ import { TableIcon as Table2 } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { STARTER_ICONS } from "@/lib/starter-icons";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents, useAuth } from "@/hooks";
 import { usePersonalStarterQuery } from "@/hooks/use-suggestions";
@@ -83,7 +84,10 @@ export function ChatEmptyState({ onPick, suggestionsSlot }: ChatEmptyStateProps)
   // (#2301) - read only here, so no other agent's empty chat asks for them.
   const own = agent?.starters ?? [];
   const personal = usePersonalStarterQuery(agent?.slug === STARTER_SLUG && !own.length);
-  const waiting = isLoading || (agent?.slug === STARTER_SLUG && !own.length && personal.isPending);
+  const resolvingAgent =
+    isLoading || (!agent && agents.some((candidate) => candidate.status === "published"));
+  const waiting =
+    resolvingAgent || (agent?.slug === STARTER_SLUG && !own.length && personal.isPending);
   return (
     <Welcome
       agent={agent}
@@ -142,6 +146,8 @@ function Welcome({ agent, starters, loading, onPick, suggestionsSlot }: WelcomeP
             colorSlot={agent.avatar_color}
             size="lg"
           />
+        ) : loading ? (
+          <Skeleton className="size-10 rounded-full" data-testid="welcome-agent-loading" />
         ) : (
           <WelcomeIcon icon={Sparkles} />
         )

@@ -588,6 +588,7 @@ class ToolApproval(Base, TimestampMixin):
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remember_scope: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     # How, not what. A row approved by a click and one granted in advance by a
     # conversation's approval mode are both `approved`, and telling them apart is
@@ -616,6 +617,17 @@ class ToolApproval(Base, TimestampMixin):
         # `status` index the column declares cannot serve it - every row in the
         # deployment shares four status values.
         Index("ix_tool_approvals_org_status", "organization_id", "status"),
+        Index(
+            "ix_tool_approval_consent",
+            "organization_id",
+            "decided_by_user_id",
+            "tool_id",
+            postgresql_where=text("remember_scope IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "remember_scope IS NULL OR (remember_scope IN ('conversation', 'agent') AND status = 'approved' AND decided_via = 'click')",
+            name="ck_tool_approval_consent",
+        ),
     )
 
     def __repr__(self) -> str:

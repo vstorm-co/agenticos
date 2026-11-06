@@ -1413,6 +1413,11 @@ Five properties worth knowing:
 
 ### How much one conversation wants to be asked
 
+The approval card also offers **Allow this tool in this chat** and **Always allow this tool for this agent**. These remember only the named tool and account, for the consenting person and the published agent version. They require the same permission and organization switch as **Approve everything**. They never authorize a delegate or an unattended run. Changing the agent version requires a new choice.
+
+Remembered choices are stored on the server. **Chat controls → Preferences → Remembered tool approvals → Ask again** withdraws one without erasing the original approval. Current membership, approval permission and organization policy are checked again before each remembered grant. **Ask about everything** overrides remembered choices. Each automatic grant still records who consented and the actual call arguments.
+
+
 The rule above is the agent's, decided at publish time and per tool, and that is
 the right place for it: it is a statement about what the agent *is*. What it
 cannot express is the mood of one session — somebody working through twenty turns

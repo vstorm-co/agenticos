@@ -18,6 +18,11 @@ import {
   FolderOpen,
   Globe,
   ImageIcon,
+  Inbox,
+  KeyRound,
+  MessageSquare,
+  PanelsTopLeft,
+  Workflow,
   Plug,
   Search,
   TerminalSquare,
@@ -74,5 +79,14 @@ export function toolIcon(name: string, kind: StepKind = "tool"): LucideIcon {
   if (/(^|_)agents?(_|$)/.test(action)) return Bot;
   if (/(^|_)context(_|$)/.test(action)) return NotebookText;
   if (/(^|_)skills?(_|$)/.test(action)) return BookOpen;
+  if (/(^|_)(documents?|files?)(_|$)/.test(action)) return FileText;
+  if (/(^|_)folders?(_|$)/.test(action)) return FolderOpen;
+  if (/(^|_)apps?(_|$)/.test(action)) return PanelsTopLeft;
+  if (/(^|_)workflows?(_|$)/.test(action)) return Workflow;
+  if (/(^|_)(users?|members?|groups?)(_|$)/.test(action)) return Users;
+  if (/(^|_)channels?(_|$)/.test(action)) return MessageSquare;
+  if (/(^|_)(inbox|cases?|notifications?)(_|$)/.test(action)) return Inbox;
+  if (/(^|_)(secrets?|credentials?)(_|$)/.test(action)) return KeyRound;
+  if (action.startsWith("search_")) return Search;
   return STEP_ICONS[kind];
 }

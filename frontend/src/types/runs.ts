@@ -522,6 +522,8 @@ export interface CacheByAgentModel {
  */
 /** A tool call a resumed run is now waiting on. */
 export interface ParkedCall {
+  can_remember?: boolean;
+  subagent_name?: string | null;
   id: string;
   tool_call_id: string | null;
   tool_name: string;

@@ -60,6 +60,7 @@ vi.mock("@/stores", () => ({
 
 // The agent's own-account section is tested on its own, and reads hooks this
 // file does not stage.
+vi.mock("./remembered-approvals", () => ({ RememberedApprovals: () => null }));
 vi.mock("./your-connections", () => ({ YourConnections: () => null }));
 vi.mock("@/components/settings/coding-accounts", () => ({
   CodingAccounts: ({ compact }: { compact?: boolean }) =>

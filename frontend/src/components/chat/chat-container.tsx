@@ -469,6 +469,7 @@ export function ChatContainer({
     setModelProfile,
     setApprovalMode,
     pendingApproval,
+    mayRememberApproval,
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,
@@ -863,6 +864,7 @@ export function ChatContainer({
       sentTurnSpacerRef={sentTurnSpacerRef}
       pendingApproval={pendingApproval}
       onResumeDecisions={sendResumeDecisions}
+      mayRememberApproval={mayRememberApproval}
       pendingQuestions={pendingQuestions}
       onAnswerQuestions={sendAskUserResponses}
       pendingConnection={pendingConnection}
@@ -987,6 +989,7 @@ interface ChatUIProps {
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
+  mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;
   /** The service a paused run waits for the person to connect. */
@@ -1054,6 +1057,7 @@ function ChatUI({
   sentTurnSpacerRef,
   pendingApproval,
   onResumeDecisions,
+  mayRememberApproval,
   pendingQuestions,
   onAnswerQuestions,
   pendingConnection,
@@ -1546,6 +1550,7 @@ function ChatUI({
                   actionRequests={pendingApproval.actionRequests}
                   reviewConfigs={pendingApproval.reviewConfigs}
                   onDecisions={onResumeDecisions}
+                  mayRemember={mayRememberApproval}
                   disabled={!isConnected || isStopping}
                 />
               </div>

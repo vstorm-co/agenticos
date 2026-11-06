@@ -1180,3 +1180,35 @@ async def test_an_agent_task_cannot_mark_its_own_commitment_complete(db: AsyncSe
         )
     link.trigger_id = None
     assert (await TaskService(db).get(data.contexts[0], task.id)).status == "planned"
+
+
+async def test_assignment_options_follow_live_board_audience(db: AsyncSession) -> None:
+    data = await world(db)
+    service = TaskService(db)
+    private = await service.ensure_board(data.contexts[0], BoardEnsure())
+    options = await service.assignee_options(data.contexts[0], private.table_id)
+    assert options is not None
+    assert [person.id for person in options] == [data.users[0].id]
+    with pytest.raises(NotFoundError):
+        await service.assignee_options(data.contexts[1], private.table_id)
+    group = Group(organization_id=data.org.id, name="Eligible", created_by_user_id=data.users[0].id)
+    db.add(group)
+    await db.flush()
+    membership = GroupMember(group_id=group.id, user_id=data.users[0].id)
+    db.add(membership)
+    await db.flush()
+    board = await service.ensure_board(
+        data.contexts[0], BoardEnsure(scope="group", scope_id=group.id)
+    )
+    options = await service.assignee_options(data.contexts[0], board.table_id)
+    assert options is not None
+    assert [person.id for person in options] == [data.users[0].id]
+    db.add(GroupMember(group_id=group.id, user_id=data.users[1].id))
+    await db.flush()
+    options = await service.assignee_options(data.contexts[0], board.table_id)
+    assert options is not None
+    assert {person.id for person in options} == {user.id for user in data.users}
+    await db.delete(membership)
+    await db.flush()
+    with pytest.raises(NotFoundError):
+        await service.assignee_options(data.contexts[0], board.table_id)

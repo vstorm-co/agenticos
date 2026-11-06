@@ -1507,7 +1507,15 @@
     },
     "drafts": {
       "versions": "Warianty tej wersji roboczej"
-    }
+    },
+    "approvalRememberOptions": "Więcej opcji akceptacji",
+    "approvalRememberChat": "Zezwalaj na ten tool w tej rozmowie",
+    "approvalRememberAgent": "Zawsze zezwalaj na ten tool dla tego agenta",
+    "approvalRememberedTitle": "Zapamiętane akceptacje tooli",
+    "approvalRememberedEmpty": "Brak zapamiętanych akceptacji.",
+    "approvalRememberForget": "Pytaj ponownie",
+    "approvalRememberFailed": "Nie udało się usunąć zgody. Spróbuj ponownie.",
+    "approvalRememberRetry": "Spróbuj ponownie"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

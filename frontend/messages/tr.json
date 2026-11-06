@@ -9690,7 +9690,15 @@
       "workflow": "İş akışı",
       "skill": "Beceri",
       "context": "Bağlam dosyası"
-    }
+    },
+    "approvalRememberOptions": "Diğer onay seçenekleri",
+    "approvalRememberChat": "Bu sohbette bu araca izin ver",
+    "approvalRememberAgent": "Bu ajan için bu araca her zaman izin ver",
+    "approvalRememberedTitle": "Hatırlanan araç onayları",
+    "approvalRememberedEmpty": "Hatırlanan onay yok.",
+    "approvalRememberForget": "Tekrar sor",
+    "approvalRememberFailed": "Onay kaldırılamadı. Tekrar deneyin.",
+    "approvalRememberRetry": "Tekrar dene"
   },
   "admin": {
     "actions": "Eylemler",

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "b2581a8347a6"
+source_sha: "3f4038d74bdc"
 ---
 
 # Proyectos { #projects }
@@ -300,3 +300,5 @@ borró su cuenta: solo el proyecto llegaba a él, así que se va con el proyecto
 En la página del proyecto, elige **Mantener el proyecto al día**. Selecciona un agente publicado que puedas editar, revisa sus recursos y cuentas conectadas, nombra el nuevo agente y la tabla de tareas, elige la frecuencia y confirma expresamente la publicación y el inicio. Se crean una copia privada del agente, una tabla de tareas (privada salvo que elijas la organización), vistas guardadas de todas las tareas, tablero, tareas abiertas y bloqueos, y una rutina fijada a la nueva versión. El agente original no cambia.
 
 La rutina actúa como tú dentro del proyecto y publica informes en su conversación. Lee las tareas, verifica avances con las fuentes aprobadas, actualiza próximos pasos y señala bloqueos y plazos. Enviar mensajes externos sigue requiriendo la autorización habitual. Las fuentes nuevas, un nuevo consentimiento de cuenta o la sustitución del espacio de trabajo requieren otra revisión de fuentes. Perder acceso al proyecto detiene las herramientas siguientes; las notificaciones pendientes vuelven a comprobar el acceso actual del destinatario. Un intento idéntico reutiliza los recursos existentes. Gestiona la frecuencia y las fuentes en Rutinas y abre la tabla desde el proyecto.
+
+Una conversación programada sin propietario dentro de un proyecto puede ser renombrada, archivada o eliminada por quien tenga permiso para editar ese proyecto. Los chats iniciados por otra persona siguen bajo la gestión de esa persona.

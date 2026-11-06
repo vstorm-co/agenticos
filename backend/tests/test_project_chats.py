@@ -422,3 +422,31 @@ class TestTheProjectsChatList:
         present.assert_awaited_once_with([str(chat.id), str(quiet.id)])
         empty = ProjectChatRead.model_validate(items[1])
         assert (empty.owner, empty.seen_by, empty.working, empty.here) == (None, [], None, [])
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("owner", [None, OWNER])
+@pytest.mark.parametrize("may_edit", [False, True])
+async def test_only_project_editors_manage_ownerless_automation_logs(owner, may_edit):
+    chat = _chat(project_id=uuid4())
+    chat.user_id = owner
+    allowed = {Perm.PROJECTS_VIEW, Perm.PROJECTS_USE}
+    if may_edit:
+        allowed.add(Perm.PROJECTS_EDIT)
+    with _Access(allows=allowed):
+        assert await _service(chat)._may_write(chat, TEAMMATE) is (owner is None and may_edit)
+
+
+async def test_deletion_preserves_the_callers_project_grant_context():
+    chat = _chat(project_id=uuid4())
+    chat.user_id = None
+    ctx = AuthContext(user_id=TEAMMATE, organization_id=ORG, role=OrgRoleName.VIEWER)
+    service = _service(chat)
+    with (
+        patch.object(service, "get_conversation", AsyncMock(return_value=chat)) as get,
+        patch.object(service, "forget_stored_files", AsyncMock()),
+        patch(f"{MODULE}.conversation_repo.delete_conversation", AsyncMock()) as delete,
+    ):
+        await service.delete_conversation(chat.id, organization_id=ORG, user_id=TEAMMATE, ctx=ctx)
+    assert get.await_args.kwargs["ctx"] is ctx
+    delete.assert_awaited_once_with(service.db, db_conversation=chat)

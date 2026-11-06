@@ -823,6 +823,8 @@ class AgentRunRequest(BaseSchema):
 
 
 class ParkedCall(BaseSchema):
+    can_remember: bool = False
+    subagent_name: str | None = None
     """A tool call a run is waiting on a decision for."""
 
     id: UUID = Field(description="The approval to decide, which is what a client posts to.")

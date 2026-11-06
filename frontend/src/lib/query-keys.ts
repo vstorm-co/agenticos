@@ -318,6 +318,8 @@ export const qk = {
     purposes: () => ["secrets", "purposes"] as const,
   },
   runs: {
+    consents: (org: string | null, user: string | undefined) =>
+      ["runs", "consents", org, user] as const,
     all: () => ["runs"] as const,
     canStop: (orgId: string | null, accountId: string | null, runId: string) =>
       ["runs", "can-stop", orgId, accountId, runId] as const,
@@ -831,6 +833,7 @@ export const qk = {
     notice: () => ["branding", "notice"] as const,
   },
   tables: {
+    assignees: (id: string) => ["tables", id, "assignees"] as const,
     all: () => ["tables"] as const,
     // The whole query object as the key, matching `skills.list`/`context.list`:
     // the server applies `search`/`includeArchived`/paging, so two filters are

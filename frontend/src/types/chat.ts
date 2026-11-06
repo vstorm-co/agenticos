@@ -57,6 +57,8 @@ export type TurnFileSource =
   | { readonly kind: "conversation"; readonly id: string };
 
 export interface ChatMessage {
+  /** A synthetic HTTP resume segment, replaced by its persisted run transcript. */
+  isLocalContinuation?: boolean;
   /** Submission correlation, retained when the persistence frame was lost. */
   clientMessageId?: string;
   /** A saved bubble still addressed by its local id while deltas arrive. */
@@ -487,6 +489,8 @@ export interface WSEvent {
    handler. Deleting four wrong ones is not that refactor. */
 
 export interface ActionRequest {
+  can_remember?: boolean;
+  subagent_name?: string | null;
   /** The `approvals` row. What a decision is recorded against. */
   id: string;
   /** The model's own id for the call, so the card drawn for it can be resolved. */
@@ -538,6 +542,7 @@ export interface PendingApproval {
 export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
+  remember_scope?: "conversation" | "agent";
   type: DecisionType;
   editedAction?: {
     id: string;

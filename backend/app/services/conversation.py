@@ -615,7 +615,8 @@ class ConversationService:
         A project's chat is the project's here as on read: a turn needs the
         right to work in the project, whoever started the chat, and renaming,
         archiving or deleting it stays its starter's while the project is still
-        theirs to see.
+        theirs to see. An ownerless automation log can instead be managed by
+        someone who may edit the project.
         """
         if conversation.origin == "workflow":
             return False
@@ -624,10 +625,10 @@ class ConversationService:
         if getattr(conversation, "project_id", None) is not None:
             if turn:
                 return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_USE)
-            return (
-                owner is not None
-                and str(owner) == str(user_id)
-                and await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
+            if owner is None:
+                return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_EDIT)
+            return str(owner) == str(user_id) and await self._project_allows(
+                conversation, user_id, ctx, Perm.PROJECTS_VIEW
             )
         if owner is not None and str(owner) == str(user_id):
             return True
@@ -1192,6 +1193,7 @@ class ConversationService:
         *,
         organization_id: UUID,
         user_id: UUID | None = None,
+        ctx: AuthContext | None = None,
     ) -> bool:
         """Delete one thread, its turns, and the files that arrived with them.
 
@@ -1218,6 +1220,7 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
             include_favourite=False,
+            ctx=ctx,
         )
         await self.forget_stored_files(organization_id, [conversation_id])
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)

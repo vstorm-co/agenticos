@@ -1,5 +1,13 @@
 "use client";
 
+import { ChevronDown, MessageSquare, ShieldCheck } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 import {
   AGENT_DRAFT_TOOL,
   AgentDraftProposal,
@@ -25,6 +33,7 @@ interface ToolApprovalDialogProps {
   reviewConfigs: ReviewConfig[];
   onDecisions: (decisions: Decision[]) => void;
   disabled?: boolean;
+  mayRemember?: boolean;
 }
 
 /**
@@ -58,6 +67,7 @@ export function ToolApprovalDialog({
   actionRequests,
   onDecisions,
   disabled = false,
+  mayRemember = false,
 }: ToolApprovalDialogProps) {
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
@@ -66,8 +76,22 @@ export function ToolApprovalDialog({
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 
-  const decideAll = (type: "approve" | "reject") =>
-    onDecisions(actionRequests.map(() => ({ type })));
+  const sameTool =
+    actionRequests.length > 0 &&
+    actionRequests.every(
+      (action) =>
+        action.can_remember === true &&
+        !action.subagent_name &&
+        action.tool_name === actionRequests[0]!.tool_name &&
+        action.account === actionRequests[0]!.account,
+    );
+  const decideAll = (type: "approve" | "reject", scope?: Decision["remember_scope"]) =>
+    onDecisions(
+      actionRequests.map((_, index) => ({
+        type,
+        ...(index === 0 && scope ? { remember_scope: scope } : {}),
+      })),
+    );
 
   return (
     // A batch uses the full card width, with decisions below the scrolling
@@ -157,9 +181,36 @@ export function ToolApprovalDialog({
             >
               {t("reject")}
             </Button>
-            <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
-              {t("approve")}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button size="sm" onClick={() => decideAll("approve")} disabled={disabled}>
+                {t("approve")}
+              </Button>
+              {mayRemember && sameTool && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="px-2"
+                      disabled={disabled}
+                      aria-label={t("approvalRememberOptions")}
+                    >
+                      <ChevronDown className="size-3.5" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-w-[calc(100vw-2rem)]">
+                    <DropdownMenuItem onSelect={() => decideAll("approve", "conversation")}>
+                      <MessageSquare className="size-4" aria-hidden />
+                      {t("approvalRememberChat")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => decideAll("approve", "agent")}>
+                      <ShieldCheck className="size-4" aria-hidden />
+                      {t("approvalRememberAgent")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         ) : (
           <p className="text-muted-foreground max-w-56 shrink-0 text-xs @xl:pt-4">

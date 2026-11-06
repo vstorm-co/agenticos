@@ -318,6 +318,7 @@ async def delete_conversation(
         conversation_id,
         organization_id=active_org.id,
         user_id=current_user.id,
+        ctx=ctx,
     )
     # The rows would cascade away with the conversation, but a container-backed
     # workspace lives outside this database and would sit on the host until its

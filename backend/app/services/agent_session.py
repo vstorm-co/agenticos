@@ -888,6 +888,9 @@ class AgentSession:
                                 "id": str(parked.approval_id),
                                 "tool_call_id": parked.tool_call_id,
                                 "tool_name": parked.tool_name,
+                                "subagent_name": parked.subagent,
+                                "can_remember": turn.agent_version_id is not None
+                                and parked.subagent is None,
                                 "args": parked.tool_args,
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,

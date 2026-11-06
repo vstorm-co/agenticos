@@ -1001,6 +1001,8 @@ class TestATurnThatFinished:
                         "id": str(approval_id),
                         "tool_call_id": "call-1",
                         "tool_name": "send_email",
+                        "subagent_name": None,
+                        "can_remember": True,
                         "args": {"to": "ops@example.com"},
                         # The tool's stable id, which the card words the call by.
                         "capability_tool_id": "send_email",

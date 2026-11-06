@@ -413,6 +413,7 @@ class ApprovalList(BaseSchema):
 
 
 class ApprovalDecision(BaseSchema):
+    remember_scope: Literal["conversation", "agent"] | None = None
     approved: bool
     note: str | None = Field(default=None, max_length=500)
 
@@ -595,3 +596,14 @@ class CostSummary(BaseSchema):
             "busts first; empty when every cache held"
         ),
     )
+
+
+class ToolConsentRead(BaseSchema):
+    """A person's revocable remembered approval, without the call's arguments."""
+
+    agent_name: str
+    id: UUID
+    agent_id: UUID
+    tool_id: str
+    account: str | None
+    remember_scope: Literal["conversation", "agent"]

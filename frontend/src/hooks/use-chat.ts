@@ -1916,6 +1916,8 @@ export function useChat(options: UseChatOptions = {}) {
               id: call.id,
               tool_call_id: call.tool_call_id ?? "",
               tool_name: call.tool_name,
+              subagent_name: call.subagent_name,
+              can_remember: call.can_remember,
               args: call.tool_args,
               capability_tool_id: call.capability_tool_id,
               context: call.context,
@@ -1938,8 +1940,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
-    (approvalId: string, approved: boolean) =>
-      apiClient.post<ToolApproval>(`/approvals/${approvalId}`, { approved }),
+    (approvalId: string, approved: boolean, rememberScope?: Decision["remember_scope"]) =>
+      apiClient.post<ToolApproval>(`/approvals/${approvalId}`, {
+        approved,
+        ...(rememberScope ? { remember_scope: rememberScope } : {}),
+      }),
     [],
   );
 
@@ -2043,6 +2048,7 @@ export function useChat(options: UseChatOptions = {}) {
         // transcript is exactly what changed.
         addMessage({
           id: continuation,
+          isLocalContinuation: true,
           role: "assistant",
           content: resumed.output,
           toolCalls: steps,
@@ -2086,6 +2092,8 @@ export function useChat(options: UseChatOptions = {}) {
             id: call.id,
             tool_call_id: call.tool_call_id ?? "",
             tool_name: call.tool_name,
+            subagent_name: call.subagent_name,
+            can_remember: call.can_remember,
             args: call.tool_args,
             capability_tool_id: call.capability_tool_id,
             context: call.context,
@@ -2217,7 +2225,11 @@ export function useChat(options: UseChatOptions = {}) {
         for (const [index, request] of parked.actionRequests.entries()) {
           const decision = decisions[index];
           if (decision === undefined) continue;
-          const decided = await decideApproval(request.id, decision.type === "approve");
+          const decided = await decideApproval(
+            request.id,
+            decision.type === "approve",
+            decision.remember_scope,
+          );
           if (decided?.continues_in_chat) continuesInChat = true;
           // `parked.messageId`, never the live ref: the turn ended at `complete`
           // the moment the run parked, so the ref is null by now and every one of
@@ -2931,6 +2943,9 @@ export function useChat(options: UseChatOptions = {}) {
       approvalModeRef.current = mode;
     },
     pendingApproval,
+    mayRememberApproval:
+      canDecide &&
+      controlOrgs?.find((org) => org.id === activeOrgId)?.chat_may_waive_approvals === true,
     sendResumeDecisions,
     pendingQuestions,
     sendAskUserResponses,

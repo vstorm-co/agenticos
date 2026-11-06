@@ -190,7 +190,11 @@ class TestDeciding:
         assert decided.approval is p.decided
         assert decided.continues_in_chat is False
         assert p.approvals.decide.await_args.args == (_person(), APPROVAL)
-        assert p.approvals.decide.await_args.kwargs == {"approved": True, "note": "n"}
+        assert p.approvals.decide.await_args.kwargs == {
+            "approved": True,
+            "note": "n",
+            "remember_scope": None,
+        }
 
     async def test_a_decision_on_a_chat_run_parked_before_its_chat_was_recorded_leaves_resuming_to_the_browser(
         self,

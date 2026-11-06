@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Filter managed task reviewers by current board access, keep agent placeholders as skeletons during chat loading, and let project editors manage ownerless scheduled project conversations. Other members’ private conversation ownership remains unchanged.
+
+- Reconcile HTTP continuation answers with their stored text and tool-call identities, preventing duplicate final replies before a reload. Show animated tool activity while calls run, then restore the operation's object icon.
+
 - Always show Google sign-in and registration; disable the button with an explanation when the deployment has no Google credentials.
 
 - Keep the mobile chat welcome visible when an empty composer receives focus; collapse it only after writing starts.
@@ -37,6 +41,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Refuse deleting an agent while a managed task still depends on its scheduled execution; reassign or settle the task first.
 
 ### Added
+
+- Remember a tool approval for this conversation or this agent version and account, scoped to the consenting person. Recheck organization policy and current membership on use; revoke remembered choices from Chat controls. Apply `0295_tool_approval_consent.py` and update API and workers together.
 
 - Official Google Workspace and Cloud remote MCP catalog entries, including Calendar, Gmail, Drive, Docs, Sheets, Slides, Chat, People and Universal Search; Google OAuth offline consent and visible connection prerequisites.
 

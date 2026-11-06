@@ -14,6 +14,7 @@ from app.db.models.virtual_table import VirtualTableRecord
 from app.repositories import (
     conversation_repo,
     group_repo,
+    member_repo,
     project_repo,
     user_repo,
     virtual_table_repo,
@@ -34,6 +35,7 @@ from app.schemas.virtual_table import (
     RecordCreate,
     RecordFilter,
     RecordQuery,
+    RecordSource,
     RecordUpdate,
     TableCreate,
 )
@@ -349,6 +351,44 @@ class TaskService:
                 "created_at": record.created_at,
             }
         )
+
+    async def assignee_options(self, ctx: AuthContext, table_id: UUID) -> list[RecordSource] | None:
+        """Managed-task people must satisfy the same live scope check as a write."""
+        from app.services.access import member_context
+
+        await self.tables.describe_table(ctx, table_id)
+        board = await task_repo.for_table(self.db, table_id, ctx.organization_id)
+        if board is None:
+            return None
+        if not await board_allows(self.db, ctx, board, Perm.TABLES_EDIT):
+            raise NotFoundError(message="Task board not found")
+        options: list[RecordSource] = []
+        skip = 0
+        while True:
+            members = await member_repo.list_for_org(
+                self.db, ctx.organization_id, skip=skip, limit=100
+            )
+            for member, email, name, _avatar_url, avatar_color in members:
+                if board.scope_kind == "private" and member.user_id != board.scope_id:
+                    continue
+                person = await member_context(
+                    self.db, organization_id=ctx.organization_id, user_id=member.user_id
+                )
+                if person is not None and await board_allows(
+                    self.db, person, board, Perm.TABLES_EDIT
+                ):
+                    options.append(
+                        RecordSource(
+                            kind="user",
+                            id=member.user_id,
+                            name=name or email,
+                            avatar_color=avatar_color,
+                        )
+                    )
+            if len(members) < 100:
+                break
+            skip += len(members)
+        return options
 
     async def list_tasks(
         self, ctx: AuthContext, table_id: UUID, *, skip: int = 0, limit: int = 50

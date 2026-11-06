@@ -2359,7 +2359,15 @@
     },
     "drafts": {
       "versions": "Varianten dieses Entwurfs"
-    }
+    },
+    "approvalRememberOptions": "Weitere Freigabeoptionen",
+    "approvalRememberChat": "Dieses Tool in diesem Chat erlauben",
+    "approvalRememberAgent": "Dieses Tool für diesen Agenten immer erlauben",
+    "approvalRememberedTitle": "Gespeicherte Tool-Freigaben",
+    "approvalRememberedEmpty": "Keine gespeicherten Freigaben.",
+    "approvalRememberForget": "Erneut fragen",
+    "approvalRememberFailed": "Die Freigabe konnte nicht entfernt werden. Erneut versuchen.",
+    "approvalRememberRetry": "Erneut versuchen"
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",

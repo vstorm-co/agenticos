@@ -14,28 +14,30 @@ the model cannot change its mind between asking and acting.
 import logging
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import Any, Final
+from typing import Any, Final, Literal
 from uuid import UUID
 
 from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_run import (
     CHANNEL_SURFACES,
     AgentRun,
     ApprovalStatus,
     RunStatus,
+    RunSurface,
     ToolApproval,
 )
-from app.repositories import agent_run_repo, channel_prompt_repo, voice_call_repo
+from app.repositories import agent_run_repo, channel_prompt_repo, organization_repo, voice_call_repo
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
+from app.schemas.agent_run import ToolConsentRead
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
     STRANDED_NOTICE,
@@ -204,6 +206,7 @@ class ApprovalService:
         approved: bool,
         note: str | None = None,
         via_call: bool = False,
+        remember_scope: Literal["conversation", "agent"] | None = None,
     ) -> ToolApproval:
         """Approve or reject a parked tool call.
 
@@ -236,6 +239,17 @@ class ApprovalService:
                 details={"approval_id": str(approval_id)},
             )
 
+        if remember_scope is not None:
+            if not approved or via_call or approval.subagent_name is not None:
+                raise BadRequestError(
+                    message="Remembered approval requires approving this agent's own chat tool"
+                )
+            run = await agent_run_repo.get_run(
+                self.db, approval.run_id, organization_id=ctx.organization_id
+            )
+            if not self.can_remember_in_run(ctx, run) or not await self._may_remember(ctx):
+                raise AuthorizationError(message="This chat cannot remember tool approvals")
+            approval.remember_scope = remember_scope
         status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
         decided = await agent_run_repo.decide_approval(
             self.db,
@@ -259,6 +273,94 @@ class ApprovalService:
             name="workflow-approval-wake",
         )
         return decided
+
+    @staticmethod
+    def can_remember_in_run(ctx: AuthContext, run: AgentRun | None) -> bool:
+        return (
+            run is not None
+            and run.surface == RunSurface.WEB.value
+            and run.user_id == ctx.user_id
+            and ctx.user_id is not None
+            and ctx.api_key_id is None
+            and not ctx.subject_is_publisher_fallback
+            and current_impersonator() is None
+            and run.parent_run_id is None
+            and run.conversation_id is not None
+            and run.agent_version_id is not None
+            and run.test_spec is None
+        )
+
+    async def _may_remember(self, ctx: AuthContext) -> bool:
+        from app.services.access import member_context
+
+        if ctx.user_id is None:
+            return False
+        current = await member_context(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.user_id
+        )
+        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
+        return (
+            current is not None
+            and current.has(Perm.APPROVALS_DECIDE)
+            and organization is not None
+            and organization.chat_may_waive_approvals
+        )
+
+    async def remembered_consent(
+        self, ctx: AuthContext, run_id: UUID, *, tool_name: str, account: str | None
+    ) -> UUID | None:
+        """Recheck current authority before consuming a scoped, version-pinned human choice."""
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        if not self.can_remember_in_run(ctx, run) or not await self._may_remember(ctx):
+            return None
+        if run is None or ctx.user_id is None:
+            return None
+        consent = await agent_run_repo.remembered_tool_approval(
+            self.db,
+            run=run,
+            user_id=ctx.user_id,
+            tool_name=tool_name,
+            account=account,
+        )
+        return ctx.user_id if consent is not None else None
+
+    async def list_consents(self, ctx: AuthContext) -> list[ToolConsentRead]:
+        if ctx.user_id is None or ctx.api_key_id is not None:
+            return []
+        rows = await agent_run_repo.list_tool_consents(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.user_id
+        )
+        return [
+            ToolConsentRead.model_validate(
+                {
+                    "id": row.id,
+                    "agent_id": row.agent_id,
+                    "agent_name": name,
+                    "tool_id": row.tool_id,
+                    "account": row.account,
+                    "remember_scope": row.remember_scope,
+                }
+            )
+            for row, name in rows
+        ]
+
+    async def revoke_consent(self, ctx: AuthContext, approval_id: UUID) -> None:
+        """The consenting person can withdraw a remembered approval without changing history."""
+        approval = await agent_run_repo.get_approval(
+            self.db, approval_id, organization_id=ctx.organization_id, for_update=True
+        )
+        if approval is None or approval.decided_by_user_id != ctx.subject_id:
+            raise NotFoundError(message="Remembered approval not found")
+        approval.remember_scope = None
+        await self.db.flush()
+        await record_audit(
+            self.db,
+            organization_id=ctx.organization_id,
+            actor_user_id=ctx.subject_id,
+            action="approval.consent_revoked",
+            target_type="tool_approval",
+            target_id=str(approval_id),
+        )
 
     async def expire_now(
         self, approval_id: UUID, *, organization_id: UUID, note: str | None = None
@@ -647,6 +749,7 @@ class ApprovalService:
             # the trail as much as the decision does.
             details={
                 "tool_id": approval.tool_id,
+                **({"remember_scope": approval.remember_scope} if approval.remember_scope else {}),
                 "run_id": str(approval.run_id),
                 "tool_args": approval.tool_args,
                 "note": note,

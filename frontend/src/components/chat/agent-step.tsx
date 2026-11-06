@@ -2,7 +2,7 @@
 
 import { Children, useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronDown, ChevronRight, X, type LucideIcon } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, LoaderCircle, X, type LucideIcon } from "lucide-react";
 
 import { logoDataUri } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
@@ -140,7 +140,9 @@ export function AgentStep({
         className="bg-background relative z-10 flex size-5 shrink-0 items-center justify-center"
         aria-hidden
       >
-        {mark !== undefined ? (
+        {state === "running" ? (
+          <LoaderCircle className="text-foreground size-3.5 motion-safe:animate-spin" />
+        ) : mark !== undefined ? (
           mark
         ) : brand !== null ? (
           // eslint-disable-next-line @next/next/no-img-element -- a bundled brand URI
@@ -154,12 +156,8 @@ export function AgentStep({
                 : state === "parked"
                   ? "text-amber-700 dark:text-amber-400"
                   : "text-muted-foreground",
-              state === "running" && "text-foreground",
             )}
           />
-        )}
-        {state === "running" && (
-          <span className="bg-foreground/65 ring-background absolute right-0 bottom-0 size-1.5 rounded-full ring-2 motion-safe:animate-pulse" />
         )}
       </span>
       <span

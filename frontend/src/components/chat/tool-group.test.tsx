@@ -93,3 +93,24 @@ describe("consecutive tool groups", () => {
     expect(screen.getByText("2 actions")).toBeVisible();
   });
 });
+
+it("animates an executing batch and restores its object icon after completion", () => {
+  const calls: ToolCall[] = [
+    { ...search("one"), name: "agenticos_upsert_virtual_table_record" },
+    { ...search("two"), status: "running" },
+  ];
+  const view = render(
+    <ToolGroup calls={calls} mcpServers={[]}>
+      Details
+    </ToolGroup>,
+  );
+  expect(view.container.querySelector("summary .lucide-loader-circle")).toBeInTheDocument();
+  expect(screen.getByText("Running")).toBeInTheDocument();
+  view.rerender(
+    <ToolGroup calls={calls.map((call) => ({ ...call, status: "completed" }))} mcpServers={[]}>
+      Details
+    </ToolGroup>,
+  );
+  expect(view.container.querySelector(".lucide-loader-circle")).toBeNull();
+  expect(view.container.querySelector("summary .lucide-table-2")).toBeInTheDocument();
+});

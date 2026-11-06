@@ -195,3 +195,10 @@ it("renders stable server markup without guessing a local-time greeting", () => 
   const html = renderToString(<ChatEmptyState onPick={vi.fn()} />);
   expect(html).not.toContain("Good morning");
 });
+
+it("shows a neutral avatar skeleton rather than a demo mark while resolving the agent", () => {
+  env.loading = true;
+  env.agents = [];
+  render(<ChatEmptyState onPick={vi.fn()} />);
+  expect(screen.getByTestId("welcome-agent-loading")).toBeVisible();
+});

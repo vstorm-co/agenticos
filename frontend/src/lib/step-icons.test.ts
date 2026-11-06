@@ -36,3 +36,18 @@ describe("tool object marks", () => {
     expect(toolIcon("external_create_task", "mcp")).toBe(Plug);
   });
 });
+
+it.each([
+  "agenticos_get_document",
+  "agenticos_read_file",
+  "agenticos_create_folder",
+  "agenticos_create_app",
+  "agenticos_get_workflow",
+  "agenticos_list_members",
+  "agenticos_get_channel",
+  "agenticos_list_inbox_cases",
+  "agenticos_get_secret",
+  "agenticos_search_mcp_servers",
+])("uses an object icon for %s instead of a generic MCP plug", (name) => {
+  expect(toolIcon(name, "mcp")).not.toBe(Plug);
+});

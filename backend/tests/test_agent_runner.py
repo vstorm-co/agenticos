@@ -4643,6 +4643,7 @@ class TestResume:
             capability_tool_id="execute",
             context=None,
             account=None,
+            subagent_name=None,
         )
         with patch(
             "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
@@ -4680,6 +4681,7 @@ class TestResume:
             capability_tool_id=None,
             context=None,
             account=None,
+            subagent_name=None,
         )
         with patch(
             "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
@@ -8719,3 +8721,50 @@ async def test_http_continuation_keeps_the_delegate_outcome_when_the_parent_park
     assert response.model_dump(mode="json")["delegations"] == [
         {"task_id": "architect-task", "status": delegate_status.value}
     ]
+
+
+@pytest.mark.anyio
+async def test_a_remembered_tool_choice_is_audited_as_standing_consent():
+    from app.agents.approval import ApprovalGranted, ApprovalRequest
+
+    person = uuid.uuid4()
+    lookup = AsyncMock(return_value=person)
+    channel = ApprovalChannel(
+        organization_id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        tool_consent=lookup,
+    )
+    request = ApprovalRequest(
+        capability_id=None,
+        tool_name="agenticos_upsert_virtual_table_record",
+        tool_call_id="remembered",
+        tool_args={"title": "Task"},
+    )
+    result = await channel(request)
+    assert isinstance(result, ApprovalGranted)
+    assert result.tool_args == request.tool_args
+    assert channel.parked == {}
+    assert channel.requested[0].standing
+    assert channel.requested[0].tool_consented_by == person
+
+
+@pytest.mark.anyio
+async def test_a_revoked_remembered_choice_parks_the_tool_instead():
+    from app.agents.approval import ApprovalPending, ApprovalRequest
+
+    channel = ApprovalChannel(
+        organization_id=uuid.uuid4(),
+        agent_id=uuid.uuid4(),
+        run_id=uuid.uuid4(),
+        tool_consent=AsyncMock(return_value=None),
+    )
+    assert isinstance(
+        await channel(
+            ApprovalRequest(
+                capability_id=None, tool_name="write", tool_call_id="revoked", tool_args={}
+            )
+        ),
+        ApprovalPending,
+    )
+    assert not channel.requested[0].standing

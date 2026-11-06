@@ -316,3 +316,48 @@ it("renders a task description as readable text without loading embedded remote 
   expect(await screen.findByText("Checklist")).toHaveProperty("tagName", "STRONG");
   expect(screen.queryByRole("img", { name: "private" })).toBeNull();
 });
+
+it.each([
+  ["Allow this tool in this chat", "conversation"],
+  ["Always allow this tool for this agent", "agent"],
+] as const)("remembers only the chosen tool scope: %s", async (label, scope) => {
+  const onDecisions = vi.fn();
+  render(
+    <ToolApprovalDialog
+      actionRequests={[
+        action("a-1", { can_remember: true }),
+        action("a-2", { can_remember: true }),
+      ]}
+      reviewConfigs={[]}
+      onDecisions={onDecisions}
+      mayRemember
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "More approval options" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: label }));
+  expect(onDecisions).toHaveBeenCalledWith([
+    { type: "approve", remember_scope: scope },
+    { type: "approve" },
+  ]);
+});
+
+it("does not offer remembered approval for delegates or mixed tools", () => {
+  const view = render(
+    <ToolApprovalDialog
+      actionRequests={[action("a-1", { subagent_name: "Architect" })]}
+      reviewConfigs={[]}
+      onDecisions={vi.fn()}
+      mayRemember
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
+  view.rerender(
+    <ToolApprovalDialog
+      actionRequests={[action("a-1"), action("a-2", { tool_name: "other" })]}
+      reviewConfigs={[]}
+      onDecisions={vi.fn()}
+      mayRemember
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "More approval options" })).toBeNull();
+});

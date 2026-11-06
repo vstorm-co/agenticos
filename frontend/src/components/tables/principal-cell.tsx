@@ -4,7 +4,11 @@ import { useRef, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import { useTablePrincipals } from "@/hooks/use-table-principals";
+import {
+  useTablePrincipals,
+  useTableAssignees,
+  type PrincipalOption,
+} from "@/hooks/use-table-principals";
 import { RecordSourceBadge } from "./record-source-badge";
 import type { CellValue, RecordSource } from "@/types/tables";
 
@@ -39,16 +43,7 @@ export function PrincipalBadges({ value, kind }: { value: CellValue; kind: "user
   return <Chosen ids={idsOf(value)} items={items} kind={kind} />;
 }
 
-/** One or many identities, chosen by name and stored by stable id. */
-export function PrincipalCell({
-  id,
-  label,
-  value,
-  kind,
-  multiple,
-  onChange,
-  disabled,
-}: {
+interface PrincipalCellProps {
   id: string;
   label: string;
   value: CellValue;
@@ -56,13 +51,51 @@ export function PrincipalCell({
   multiple: boolean;
   onChange: (value: CellValue) => void;
   disabled?: boolean;
+  tableId?: string;
+}
+
+/** Only managed-task assignment narrows the ordinary identity directory. */
+export function PrincipalCell(props: PrincipalCellProps) {
+  return props.tableId && props.kind === "user" ? (
+    <ScopedPrincipalCell {...props} tableId={props.tableId} />
+  ) : (
+    <PrincipalInput {...props} />
+  );
+}
+
+function ScopedPrincipalCell(props: PrincipalCellProps & { tableId: string }) {
+  const query = useTableAssignees(props.tableId);
+  return (
+    <PrincipalInput
+      {...props}
+      options={
+        query.data === null
+          ? undefined
+          : { items: query.data ?? [], isLoading: query.isPending, error: query.error }
+      }
+    />
+  );
+}
+
+function PrincipalInput({
+  id,
+  label,
+  value,
+  kind,
+  multiple,
+  onChange,
+  disabled,
+  options,
+}: PrincipalCellProps & {
+  options?: { items: PrincipalOption[]; isLoading: boolean; error: Error | null };
 }) {
   const t = useTranslations("tables.principals");
   const [open, setOpen] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   const searchField = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
-  const { items, isLoading, error } = useTablePrincipals(kind);
+  const directory = useTablePrincipals(kind, options === undefined);
+  const { items, isLoading, error } = options ?? directory;
   const selected = idsOf(value);
   const atLimit = multiple && selected.length >= 100;
   const matches = items
