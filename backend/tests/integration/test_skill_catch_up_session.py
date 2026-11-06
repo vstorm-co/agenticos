@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -32,7 +33,7 @@ from app.db.models.skill import Skill
 from app.db.models.skill_check import AgentState, CheckStatus, SkillCheck
 from app.db.models.skill_improvement import SkillImprovementPurpose, SkillImprovementRun
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import skill_improvement_repo
+from app.repositories import skill_improvement_repo, skill_version_repo
 from app.schemas.authoring import AuthoringEstimate
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import AgentRef, SkillCheckAgentRead
@@ -601,6 +602,35 @@ class TestAMoveToMain:
         assert read.outcomes == ["apply", "discard"]
         assert fake.merged_from == [merge.fork_version_id]
         assert applied.session.outcome == "applied"
+
+    async def test_a_fork_edit_committed_meanwhile_refuses_taking_the_merge_in(
+        self, db, call_price, monkeypatch
+    ):
+        """The fork is read again under its lock: an edit another transaction committed
+        after this one first read the fork is seen, and main does not take in an old merge."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run, skill, _ = await _at_changes(db, ctx, TO_MAIN)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, "passed")
+        merge = await SkillCatchUpService(db).merge_for_run(
+            run.id, organization_id=ctx.organization_id
+        )
+        assert merge is not None
+        read_before = await skill_version_repo.get_fork(
+            db, merge.fork_id, organization_id=ctx.organization_id, skill_id=skill.id
+        )
+        await db.execute(
+            text("UPDATE skill_forks SET latest_version_id = :other WHERE id = :fork"),
+            {"other": merge.main_version_id, "fork": merge.fork_id},
+        )
+
+        with pytest.raises(ConcurrentChangeError, match="The fork changed"):
+            await SkillImprovementService(db).apply(
+                ctx, skill.id, run.id, SkillImprovementApply(confirmed=True)
+            )
+        assert read_before is not None
 
     async def test_one_that_helped_nobody_stops(self, db, call_price, monkeypatch):
         _checked(db, monkeypatch)

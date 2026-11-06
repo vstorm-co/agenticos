@@ -923,8 +923,19 @@ class SkillImprovementService:
             return await self._catch_up(ctx, line, run, check_id, data)
         merged_from_id = None
         if run.purpose == Purpose.TO_MAIN.value:
+            merge = await self._merge(run)
+            # The check is on main, so deciding it locks no fork: lock the skill and then the
+            # fork, as every writer of the fork does, before reading whether it moved.
+            await skill_repo.lock(self.db, run.skill_id)
+            await skill_version_repo.get_fork(
+                self.db,
+                merge.fork_id,
+                organization_id=run.organization_id,
+                skill_id=run.skill_id,
+                lock=True,
+            )
             await self._refuse_merge_moved(run, line.skill)
-            merged_from_id = (await self._merge(run)).fork_version_id
+            merged_from_id = merge.fork_version_id
         applied = await self.checks.apply(
             ctx,
             skill_id,
