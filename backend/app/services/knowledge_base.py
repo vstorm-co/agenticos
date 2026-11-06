@@ -327,11 +327,11 @@ class KnowledgeBaseService:
         unless it holds an unfiled chunk the base does not take: an operator's
         `rag-ingest` or CLI sync into the held name, or another tenant's. A claim
         cannot refuse content that arrives after it, and the caller holds no
-        authority over it, so the table stays with only the base's chunks purged,
-        as on a table another base keeps (#2747). That leaves the name as such a
-        writer left it: no base on it, a claim refused, and `rag-drop` to remove it.
-        `force_drop` is that operator's override, so a `rag-drop` of a held name
-        still drops the table.
+        authority over it, so the table stays with every chunk the base takes
+        purged (#2747). Unless the base is a kept default, that leaves the name as
+        such a writer left it: no base on it, a claim refused unless the chunks left
+        are all the claimant's, and `rag-drop` to remove it. `force_drop` is that
+        operator's override, so a `rag-drop` of a held name still drops the table.
 
         When the table does go, another tenant's unfiled rows under the name stay
         with their files - the caller holds no authority over them, so what happens
@@ -472,11 +472,13 @@ class KnowledgeBaseService:
         from the kept table. Its own rows go by its id; a kept default's purge
         snapshots committed vector ids while holding the base lock, including
         inserts not yet settled onto tracking rows, since it takes uploads again
-        under the same id. The unfiled rows the base takes - its tenant's - go
-        with it, unless another base of that tenant on the name takes them too
-        and still reads them: a kept default would otherwise go on listing them,
-        and a deleted base would hand them to its tenant's next base on the name
-        (#2560). Their chunks are purged by document id within the tenant.
+        under the same id. A last holder's does too: the drop it stands in for took
+        every chunk the base takes, the ones no row names included. The unfiled rows
+        the base takes - its tenant's - go with it, unless another base of that
+        tenant on the name takes them too and still reads them: a kept default would
+        otherwise go on listing them, and a deleted base would hand them to its
+        tenant's next base on the name (#2560). Their chunks are purged by document
+        id within the tenant.
 
         Runs before the KB row is deleted: `ON DELETE SET NULL` would unfile the
         base's rows first, and a delete by its id would then find nothing.
@@ -484,8 +486,7 @@ class KnowledgeBaseService:
         collection = kb.collection_name
         scope = CollectionScope.of(kb)
         takes_unfiled, unfiled = await self._delete_unfiled_taken(kb, others)
-        base_purges: list[BasePurge] = []
-        if kb.is_default:
+        if kb.is_default or not others:
             stored = await rag_document_repo.stored_vector_ids_at_clear(
                 self.db, kb, takes_unfiled=takes_unfiled
             )
@@ -500,7 +501,9 @@ class KnowledgeBaseService:
                 + unfiled.storage_paths
             )
             named = unfiled.vector_document_ids
-            base_purges = [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        base_purges = (
+            [] if kb.is_default else [BasePurge(collection=collection, knowledge_base_id=kb.id)]
+        )
         # Split, so a large purge spreads across entries and jobs rather than
         # one payload and one array holding every document.
         base_purges += [
@@ -1031,7 +1034,8 @@ class KnowledgeBaseService:
         the collection name still blocking reuse (#1266). So the documents go,
         then the row, then the table - dropped only when no other base still
         references the name, which is not tenant-unique (#913). The teardown is
-        `_tear_down`, the one `DELETE /rag/collections/{name}` runs too (#2568).
+        `_tear_down`, the one `DELETE /rag/collections/{name}` runs too (#2568),
+        which also keeps a table holding content the base does not take (#2747).
         """
         # Access first, then the rule about default bases: "cannot delete the
         # default knowledge base" is a statement about a row, so answering it for

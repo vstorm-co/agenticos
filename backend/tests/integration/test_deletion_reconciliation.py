@@ -1294,9 +1294,9 @@ class TestADeletedBasesChunksOnAKeptTable:
         tenant-less ones `rag-ingest` writes for an app-scoped one. Another
         tenant's unfiled rows stay with their files, since the caller has no
         authority over them, but the table holds no chunk of theirs to keep it, so
-        it goes: they are marked
-        failed, so their next base lists them as failed rather than as
-        indexed, and one still being ingested has its attempt superseded. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
+        it goes: they are marked failed, so their next base lists them as failed
+        rather than as indexed, and one still being ingested has its attempt
+        superseded. `DELETE /kb/{id}` left the tenant's unfiled rows behind the
         dropped table, and the collection drop deleted every row under the name,
         in every organization (#2568)."""
         factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -2424,6 +2424,79 @@ class TestALastHolderLeavesContentThatIsNotItsOwn:
             async with factory() as s:
                 await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 await s.commit()
+
+    @pytest.mark.security
+    @_TEARDOWN_ROUTES
+    async def test_a_kept_table_loses_everything_the_base_takes(
+        self, engine: AsyncEngine, route: str
+    ) -> None:
+        """The drop this replaces took every chunk of the base's, so the keep has to:
+        a chunk no row names, and a filed row's chunk that was never stamped with
+        the base, stayed behind and came back with the tenant's next base."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        collection = f"kboper{uuid.uuid4().hex[:12]}"
+        table = f"rag_{collection}"
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.flush()
+            filed = _kb_document(collection, base.id, org.id, "")
+            filed.vector_document_id = "filed-doc"
+            s.add(filed)
+            await _chunked_table(s, table)
+            await _document_chunk(s, table, "filed-0", "filed-doc", base.id)
+            await _document_chunk(s, table, "unstamped-0", "filed-doc", None, org.id)
+            await _document_chunk(s, table, "rowless-0", "rowless-doc", None, org.id)
+            await _document_chunk(s, table, "operator-0", "operator-doc", None)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        try:
+            async with factory() as s:
+                await _tear_down(s, route, base_id, ctx)
+                await s.commit()
+                start_deferred(s)
+            await drain()
+
+            async with factory() as s:
+                assert await _chunk_ids(s, table) == {"operator-0"}
+        finally:
+            async with factory() as s:
+                await s.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                await s.commit()
+
+    @_TEARDOWN_ROUTES
+    @pytest.mark.parametrize("collection", ["documents", "Legacy_Upper"])
+    async def test_a_name_the_store_refuses_can_still_be_deleted(
+        self, engine: AsyncEngine, route: str, collection: str
+    ) -> None:
+        """A base from before a naming rule is documented as deletable. No chunk can
+        reach it through the store, so the teardown does not ask, and asking would
+        refuse the delete."""
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with factory() as s:
+            owner = _user()
+            s.add(owner)
+            await s.flush()
+            org = await _org(s, owner)
+            base = _org_collection(org.id, collection)
+            s.add(base)
+            await s.commit()
+            ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+            base_id = base.id
+
+        async with factory() as s:
+            await _tear_down(s, route, base_id, ctx)
+            await s.commit()
+            discard_deferred(s)
+
+        async with factory() as s:
+            assert await s.get(KnowledgeBase, base_id) is None
 
     @pytest.mark.security
     async def test_clearing_a_last_default_keeps_the_operators_chunks(

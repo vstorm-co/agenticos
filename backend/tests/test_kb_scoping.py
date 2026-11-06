@@ -27,9 +27,10 @@ def _no_sync_sources(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _nothing_left_unindexed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A last holder's teardown marks another tenant's rows left under the name;
-    the statement hits the database, so it is a no-op unless a test asserts it."""
+def _last_holders_table_goes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A last holder's teardown asks its table for chunks it does not take, and
+    marks another tenant's rows left under the name. Both hit the database, so
+    the table holds none and the marking is a no-op unless a test asserts it."""
     monkeypatch.setattr("app.repositories.rag_document_repo.mark_unindexed", AsyncMock())
     monkeypatch.setattr(
         "app.repositories.rag_document_repo.table_holds_unfiled_outside",

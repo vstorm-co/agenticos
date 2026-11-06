@@ -31,6 +31,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.db.base import Base
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
@@ -844,7 +845,9 @@ async def table_holds_chunks_outside(
 
     For a name no base holds, where every chunk is unowned: one with no tag, or
     another organization's, is not this tenant's to adopt. A table that does not
-    exist holds nothing.
+    exist holds nothing. No index serves `IS DISTINCT FROM` (the tag's is a hash
+    index), so a table holding only the caller's chunks is scanned to the end;
+    asked only when a name no base holds is claimed, which is rare.
     """
     return await _table_holds(
         db,
@@ -858,15 +861,20 @@ async def table_holds_unfiled_outside(db: AsyncSession, scope: CollectionScope) 
 
     For the last holder of a name, whose caller has no authority over such a chunk:
     `rag-ingest` and the CLI syncs write them into a held name, the syncs with no
-    tracking row, so the table is asked rather than the rows (#2747). A chunk the
-    base takes goes with it. A filed one is never in the way: with no other base
-    on the name it is the base's own, or a deleted base's awaiting its purge.
+    tracking row, so the table is asked rather than the rows (#2747). A filed one
+    is never in the way: with no other base on the name it is the base's own, or
+    a deleted base's awaiting its purge. A base with a name from before a naming
+    rule has no table the store can write, and refusing here would make the base
+    impossible to delete, so such a name holds nothing.
     """
     outside = _CHUNK_METADATA["knowledge_base_id"].astext.is_(None)
     if scope.takes_unfiled:
         tenant = None if scope.tenant is None else str(scope.tenant)
         outside = and_(outside, _CHUNK_METADATA["organization_id"].astext.is_distinct_from(tenant))
-    return await _table_holds(db, scope.collection_name, outside)
+    try:
+        return await _table_holds(db, scope.collection_name, outside)
+    except BadRequestError:
+        return False
 
 
 async def _table_holds(
@@ -874,10 +882,8 @@ async def _table_holds(
 ) -> bool:
     """Whether the name's vector table holds a chunk `matching` selects.
 
-    A table that does not exist holds nothing. No index serves these predicates
-    (the tenant's is a hash index, and neither it nor the base's btree finds a
-    missing tag), so a table with no match is scanned to the end. Asked only by a
-    claim of a name no base holds and by a last holder's teardown, both rare.
+    A table that does not exist holds nothing. The name is validated first: a
+    name colliding with a model's table would otherwise reach that table.
     """
     validate_collection_name(collection_name, metadata=Base.metadata)
     name = f"{VECTOR_TABLE_PREFIX}{collection_name}"
