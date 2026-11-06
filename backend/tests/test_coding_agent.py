@@ -1916,3 +1916,5 @@ def test_coding_instructions_distinguish_parallel_local_work_from_sandbox_snapsh
     assert "[session:api]" in local and "can work at once" in local
     assert "queue" in sandbox and "not separate files" in sandbox
     assert "can work at once" not in sandbox
+    private = CodingAgent(runs_on="personal_sandbox").get_instructions()
+    assert "isolated copy" in private and "queue" not in private
