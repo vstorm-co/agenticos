@@ -1,5 +1,5 @@
 ---
-source_sha: "becc901db10a"
+source_sha: "ae8b5a53d44f"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1161,6 +1161,12 @@ Ein Schreibvorgang, der den Namen erreicht, solange er reserviert ist, wird abge
 die Datei muss erneut indexiert werden. Der Bereinigungsjob löscht nur einen reservierten
 Namen, ein erneuter Lauf lässt also einen Schreibvorgang nach seinem ersten Löschen
 bestehen.
+
+Ein großes Dokument kann den Namen mehrere Sekunden lang halten. Ein Anlegen auf
+diesem Namen (`POST /kb`, `POST /rag/collections/{name}`) wartet eine Sekunde und
+antwortet dann mit 409 und der Bitte, es erneut zu versuchen, denn jede wartende
+Anfrage belegt eine Datenbankverbindung, und genug davon lassen alle anderen Anfragen
+scheitern. Ein Löschen wartet, bis der Schreibvorgang beendet ist.
 
 Eine persönliche Basis außerhalb einer Organisation übernimmt keinen nicht zugeordneten
 Chunk, doch ein Chunk, den ihre eigenen Zeilen nennen, geht mit ihr. Ein Alt-Chunk ohne

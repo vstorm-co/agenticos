@@ -1024,6 +1024,12 @@ after any such write already running has finished. A write that reaches the name
 it is reserved is refused, and the file has to be ingested again. The cleanup job drops
 only a reserved name, so a rerun of the job leaves a write made after its first drop.
 
+A large document can hold the name for several seconds. A create on the name
+(`POST /kb`, `POST /rag/collections/{name}`) waits for one second and then answers
+409 with a request to try again, because each waiting request occupies a database
+connection and enough of them refuse every other request. A delete waits for the
+write to finish.
+
 A personal base outside an organization takes no unfiled chunk, though a chunk its own
 rows name goes with it. A legacy chunk with no base, no organization and no row cannot
 be told from an operator's: it keeps the table too, stays until `rag-drop <name>`, and

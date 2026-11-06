@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
@@ -31,7 +32,12 @@ from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import collection_teardown_repo, rag_document_repo
 from app.repositories.rag_document import CollectionScope
 from app.repositories.sync_log import SyncLogScope
-from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
+from app.services.collection_access import (
+    _CLAIM_WAIT_MS,
+    CollectionAccessService,
+    readable_kb,
+    writable_kb,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -227,8 +233,12 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     monkeypatch.setattr(rag_document_repo, "get_by_id", by_id("documents"))
     monkeypatch.setattr(sync_source_repo, "get_by_id", by_id("sources"))
     monkeypatch.setattr(sync_log_repo, "get_by_id", by_id("logs"))
+    monkeypatch.setattr(
+        "app.services.collection_access.hold_name_within", AsyncMock(return_value=True)
+    )
     # A stand-in session whose only job is to carry the advisory-lock execute the
-    # claim path takes (#1355); every repository call the tests exercise is patched.
+    # other name holders take (#1355); every repository call the tests exercise is
+    # patched.
     return CollectionAccessService(db=MagicMock(execute=AsyncMock()))  # ty: ignore[invalid-argument-type]
 
 
@@ -498,12 +508,37 @@ class TestClaimingACollectionName:
         from app.db.locks import LockScope
 
         rows.collections = []
-        lock = AsyncMock()
-        monkeypatch.setattr("app.services.collection_access.hold_name", lock)
+        lock = AsyncMock(return_value=True)
+        monkeypatch.setattr("app.services.collection_access.hold_name_within", lock)
 
         await service.claim(_ctx(), "handbook")
 
-        lock.assert_awaited_once_with(service.db, LockScope.COLLECTION_TEARDOWN, "handbook")
+        lock.assert_awaited_once_with(
+            service.db, LockScope.COLLECTION_TEARDOWN, "handbook", wait_ms=_CLAIM_WAIT_MS
+        )
+
+    async def test_a_name_held_past_the_wait_is_refused_before_anything_is_read(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A write holding the name for a whole document must not hold this request's
+        connection with it (#2747). Nothing is known about the name yet, so the
+        refusal says to try again and not that the name is taken."""
+        monkeypatch.setattr(
+            "app.services.collection_access.hold_name_within", AsyncMock(return_value=False)
+        )
+        is_reserved = AsyncMock()
+        monkeypatch.setattr(collection_teardown_repo, "is_reserved", is_reserved)
+
+        with pytest.raises(AlreadyExistsError, match="try again") as refused:
+            await service.claim(_ctx(), "handbook")
+
+        assert refused.value.details == {"collection": "handbook"}
+        is_reserved.assert_not_awaited()
+
+    def test_the_wait_is_well_under_the_wait_for_a_connection(self) -> None:
+        """Fifteen claims at a held name exhaust the pool for this long. At or past
+        `DB_POOL_TIMEOUT`, every other request of the API is refused meanwhile."""
+        assert _CLAIM_WAIT_MS * 3 <= settings.DB_POOL_TIMEOUT * 1000
 
     async def test_a_name_another_organization_owns_is_refused(
         self, service: CollectionAccessService, rows: Rows

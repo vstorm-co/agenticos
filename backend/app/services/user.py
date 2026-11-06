@@ -31,7 +31,13 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LockScope, hold_name, try_hold_name, try_hold_subject
+from app.db.locks import (
+    LOCK_NOT_AVAILABLE,
+    LockScope,
+    hold_name,
+    try_hold_name,
+    try_hold_subject,
+)
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
@@ -73,7 +79,6 @@ logger = logging.getLogger(__name__)
 _ACCOUNT_LOCK_SECONDS = 10.0
 """How long an account deletion's lock phase keeps starting again before refusing."""
 
-_LOCK_NOT_AVAILABLE = "55P03"
 """The SQLSTATE a `NOWAIT` lock raises when another transaction holds the row."""
 
 _DEADLOCK_DETECTED = "40P01"
@@ -1011,7 +1016,7 @@ class UserService:
                     locked = await self._lock_user_rows(user_id, app_admins=app_admins, nowait=True)
                     await self._hold_late_names(user_id, personal_orgs, names)
             except DBAPIError as failed:
-                if getattr(failed.orig, "sqlstate", None) != _LOCK_NOT_AVAILABLE:
+                if getattr(failed.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
                     raise
             else:
                 return locked

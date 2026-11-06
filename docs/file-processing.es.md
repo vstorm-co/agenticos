@@ -1,5 +1,5 @@
 ---
-source_sha: "becc901db10a"
+source_sha: "ae8b5a53d44f"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1109,6 +1109,12 @@ se consulta solo cuando ha terminado cualquier escritura de ese tipo que ya estu
 curso. Una escritura que llega al nombre mientras está reservado se rechaza, y el
 archivo debe ingerirse de nuevo. El trabajo de limpieza solo elimina un nombre reservado,
 así que repetirlo respeta una escritura hecha después de su primera eliminación.
+
+Un documento grande puede retener el nombre durante varios segundos. Una creación
+sobre el nombre (`POST /kb`, `POST /rag/collections/{name}`) espera un segundo y
+después responde 409 pidiendo que se reintente, porque cada petición en espera ocupa
+una conexión a la base de datos y suficientes de ellas hacen rechazar todas las demás.
+Un borrado espera a que termine la escritura.
 
 Una base personal fuera de una organización no toma ningún fragmento sin asignar,
 aunque un fragmento que nombran sus propias filas se va con ella. Un fragmento antiguo
