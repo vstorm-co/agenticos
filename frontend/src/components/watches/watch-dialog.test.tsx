@@ -432,3 +432,42 @@ it("saves explicit version and end-time changes without silently refreshing sour
     }),
   );
 });
+
+it("rechecks an edited end time at submission even if time advanced after validation", async () => {
+  render(<WatchDialog open onOpenChange={vi.fn()} watch={watch()} />);
+  fireEvent.change(screen.getByLabelText("Ends at (device time)"), {
+    target: { value: "2028-01-02T03:04" },
+  });
+  const clock = vi.spyOn(Date, "now").mockReturnValue(new Date("2029-01-01T00:00:00Z").getTime());
+  try {
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(state.update).not.toHaveBeenCalled();
+  } finally {
+    clock.mockRestore();
+  }
+});
+it.each(["instructions", "interval_minutes"])(
+  "returns a rejected create to the %s step without losing the draft",
+  async (field) => {
+    refusal.value = { fields: { [field]: "Please revise this" }, toast: null };
+    state.create.mockRejectedValue(new Error("Rejected"));
+    render(
+      <WatchDialog
+        open
+        agentId="a-monitor"
+        connectionId="c-gh"
+        onOpenChange={vi.fn()}
+        initialTask={{ title: "My reviews", instructions: "Find reviews" }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create routine" }));
+    expect(await screen.findByText("Please revise this")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: field === "instructions" ? "Continue" : "Create routine",
+      }),
+    ).toBeInTheDocument();
+  },
+);
