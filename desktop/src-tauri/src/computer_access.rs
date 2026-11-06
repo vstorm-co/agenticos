@@ -137,7 +137,11 @@ pub async fn local_allow_computer(
         agent_name,
     });
     save(&path, &grants)?;
-    Ok(Some(Granted { id, path: root, agent_id }))
+    Ok(Some(Granted {
+        id,
+        path: root,
+        agent_id,
+    }))
 }
 
 /// What the native dialog says, and its allow button: for this conversation, or

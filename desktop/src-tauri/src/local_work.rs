@@ -108,7 +108,10 @@ pub fn local_grants(app: AppHandle) -> Result<LocalState, String> {
     Ok(LocalState {
         grants: settings::current(&app).local_grants,
         modes: modes(),
-        computer_grants: crate::computer_access::active(&app)?.into_iter().map(|grant| grant.id).collect(),
+        computer_grants: crate::computer_access::active(&app)?
+            .into_iter()
+            .map(|grant| grant.id)
+            .collect(),
     })
 }
 
@@ -276,7 +279,10 @@ pub fn local_revoke(app: AppHandle, path: String) -> Result<LocalState, String> 
     Ok(LocalState {
         grants: settings.local_grants,
         modes: modes(),
-        computer_grants: crate::computer_access::active(&app)?.into_iter().map(|grant| grant.id).collect(),
+        computer_grants: crate::computer_access::active(&app)?
+            .into_iter()
+            .map(|grant| grant.id)
+            .collect(),
     })
 }
 
