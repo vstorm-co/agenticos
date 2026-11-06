@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- A coding agent runs several named sessions at once. `run_coding_agent` takes a `session` name: the same name continues that session, a new one opens another, and `main` keeps the session conversations used before. On the person's computer a session may also choose its `harness` (Claude Code or Codex, on that computer's sign-in) and a `folder` inside the chat's folder, so two projects or both harnesses work side by side. The desktop app runs up to eight sessions and lets one start in a folder inside a full-access grant; revoking a folder stops the sessions inside it too.
+
 ### Changed
 
 - An agent whose workspace is **Computer** no longer fails a new desktop chat with "This agent uses your computer". The first message asks once where it may work - the whole computer or a folder - and the answer is remembered for that agent, so its later chats start there. **Work on** offers no Cloud for such an agent. Whole-computer consent given this way belongs to the agent in the desktop app rather than to one conversation; consent given in a chat's **Work on** still belongs to that chat. A local coding agent can now work under whole-computer consent, in the home folder or a folder inside it. Device operations under whole-computer consent carry the run's agent, and the agent listing gains `local_workspace`. The desktop app must be updated for agent consent; an older app keeps asking per conversation.

@@ -1,5 +1,5 @@
 ---
-source_sha: "afc28abbddcd"
+source_sha: "63656025a4ad"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -538,7 +538,7 @@ Siguen vigentes las aprobaciones de tareas y los permisos del sistema.
 
 La aprobación de la capability se aplica una vez por tarea. `edit` permite las operaciones solicitadas y `read_only` rechaza cambios. Claude desactiva la omisión de permisos en modo lectura y ofrece solo herramientas de lectura. Codex selecciona su sandbox nativa de solo lectura. Los agentes locales usan su propia configuración de modelo. El uso de suscripción no tiene precio registrado; el coste mostrado del run es un mínimo.
 
-Las tareas posteriores reanudan la sesión del mismo harness para la conversación, agente, carpeta, cuenta y política de acceso. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
+Las tareas posteriores reanudan la sesión con nombre (`main` cuando una tarea no indica ninguna) para la conversación, agente, harness, carpeta, cuenta y política de acceso; varias sesiones se ejecutan a la vez, hasta ocho en un ordenador, cada una en la carpeta del chat o en una carpeta dentro de ella. `fresh_session` comienza de nuevo explícitamente. Los identificadores quedan en los ajustes del escritorio, fuera del repositorio, y se borran al desvincular o cambiar de cuenta. Si no se puede cargar una sesión guardada, la tarea falla explícitamente; inicia una nueva cuando corresponda. La desconexión detiene el proceso, pero permite reanudar el historial guardado del harness.
 
 Una corrección enviada durante la tarea local interrumpe el turno ACP actual. Tras confirmar el adaptador la parada, la misma sesión continúa con la corrección. La transcripción registra la corrección aplicada. Un mensaje que llega tras finalizar queda disponible para el agente principal.
 

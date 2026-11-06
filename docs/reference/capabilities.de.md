@@ -1,5 +1,5 @@
 ---
-source_sha: "c60a0a5cad27"
+source_sha: "49b066d2aa03"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1725,6 +1725,8 @@ und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufga
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
 gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
 Tools-Tab: Das eine Tool ist die Capability.
+
+**Benannte Sitzungen.** Jede Aufgabe nennt eine `session` - `main`, wenn sie keine nennt. Derselbe Name setzt die bisherige Arbeit dieser Sitzung in der Unterhaltung fort; ein neuer Name öffnet eine weitere, und unabhängige Sitzungen laufen nebeneinander, wenn der Agent das Tool mehrmals gleichzeitig aufruft. `fresh_session` beginnt eine Sitzung neu. Auf diesem Computer kann eine Sitzung außerdem ihren `harness` wählen - Claude Code oder Codex, mit der Anmeldung dieses Computers - und einen `folder` innerhalb des Chat-Ordners, sodass zwei Projekte oder beide Harnesses gleichzeitig arbeiten. In einer Sandbox oder einer privaten Cloud-Aufgabe ist der Harness des Bindings der einzige, da Schlüssel oder Konto zu ihm gehören.
 
 **Auf diesem Computer.** Setze `runs_on` auf `this_computer`, um den installierten Harness über das [Agent Client Protocol](https://agentclientprotocol.com) zu nutzen. Die Desktop-App startet einen fest versionierten Adapter mit `npx`; der Server spricht ACP. Wähle einen Ordner mit Vollzugriff in **Work on** und bestätige jeden Start nativ. Der Ordner ist ein Arbeitsverzeichnis, keine Betriebssystem-Sandbox. Der Harness verwendet seine eigene Anmeldung; ein Vault-Schlüssel ist optional. Berechtigungsanfragen folgen `access`; die Freigabe gilt einmal pro Aufgabe. Claude read-only deaktiviert Bypass und Schreibwerkzeuge; lokales Codex wählt seinen nativen Lesemodus.
 

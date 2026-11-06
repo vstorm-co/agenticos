@@ -39,7 +39,9 @@ fn package(agent: AgentId) -> &'static str {
     }
 }
 
-const MAX_SESSIONS: usize = 4;
+/// Several named sessions at once - two projects on one harness, or both
+/// harnesses side by side - each one an adapter process of its own.
+const MAX_SESSIONS: usize = 8;
 static CONFIRMING: Mutex<()> = Mutex::const_new(());
 /// One ACP message; larger ones are an attack or a bug, not a conversation.
 const MAX_LINE: usize = 4 << 20;
@@ -361,7 +363,7 @@ fn authorized_root(app: &AppHandle, args: &Map<String, Value>, root: &str) -> Re
         crate::computer_access::check(app, args).map_err(|error| Refusal::new("denied", error))?;
         return Ok(PathBuf::from(root));
     }
-    local_work::granted_folder(app, root, Mode::FullAccess)
+    local_work::granted_folder_within(app, root, Mode::FullAccess)
 }
 
 async fn open(app: &AppHandle, args: &Map<String, Value>, call_id: &str) -> Result<Map<String, Value>, Refusal> {
@@ -568,9 +570,15 @@ pub async fn close_for_folder(app: &AppHandle, root: &str) {
     remove_for_folder(&mut *sessions.map.lock().await, Path::new(root));
 }
 
+/// Stop the agents working in `root` or in a folder inside it: a session may
+/// have started in one project of a granted folder.
 fn remove_for_folder(map: &mut HashMap<String, Session>, root: &Path) {
     map.retain(|_, session| {
-        if session.workspace_root.as_deref() != Some(root) {
+        if !session
+            .workspace_root
+            .as_deref()
+            .is_some_and(|folder| folder.starts_with(root))
+        {
             return true;
         }
         if let Some(kill) = session.kill.take() {
@@ -755,10 +763,17 @@ mod tests {
         removed.workspace_root = Some("/revoked".into());
         let stopped = Arc::clone(&removed.output);
         let mut retained = shell("sleep 60");
-        retained.workspace_root = Some("/other".into());
-        let mut sessions = HashMap::from([("removed".into(), removed), ("retained".into(), retained)]);
+        retained.workspace_root = Some("/revoked-not".into());
+        let mut inside = shell("sleep 60");
+        inside.workspace_root = Some("/revoked/app".into());
+        let mut sessions = HashMap::from([
+            ("removed".into(), removed),
+            ("retained".into(), retained),
+            ("inside".into(), inside),
+        ]);
         remove_for_folder(&mut sessions, Path::new("/revoked"));
         assert!(!sessions.contains_key("removed"));
+        assert!(!sessions.contains_key("inside"));
         assert!(sessions.contains_key("retained"));
         let (_, _, exit) = drain(&stopped, 0).await;
         assert!(exit.is_some());

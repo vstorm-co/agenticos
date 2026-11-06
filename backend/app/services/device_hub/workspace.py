@@ -11,6 +11,8 @@ server asked.
 
 import base64
 import errno
+import ntpath
+import posixpath
 from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
@@ -108,7 +110,26 @@ class DeviceWorkspace:
     async def working_dir(self) -> str:
         return self._root
 
-    async def _call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
+    def subfolder(self, path: str) -> str:
+        """`path` - relative to this workspace's folder, or absolute - when it lies inside it.
+
+        A coding session may work in one project of the folder the person chose. The
+        app resolves the folder again on disk and refuses one outside its grant; this
+        is the early, readable refusal.
+
+        Raises:
+            WorkspaceUnavailableError: The folder is outside this workspace's folder.
+        """
+        paths = posixpath if self._root.startswith("/") else ntpath
+        root = paths.normpath(self._root)
+        folder = paths.normpath(paths.join(root, path))
+        if folder != root and not folder.startswith(root.rstrip(paths.sep) + paths.sep):
+            raise WorkspaceUnavailableError(f"{path} is outside the folder this chat works in")
+        return folder
+
+    async def _call(
+        self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
+    ) -> dict[str, Any]:
         """One operation in this folder and mode, with the hub's failures as the workspace's.
 
         A computer that is gone when the operation is sent is waited for, and the
@@ -116,7 +137,7 @@ class DeviceWorkspace:
         """
         payload = {
             **args,
-            "root": self._root,
+            "root": root or self._root,
             "mode": self._target.mode,
             "work_context": {"kind": "interactive"}
             if self._routine_scope is None
@@ -154,9 +175,14 @@ class DeviceWorkspace:
             raise WorkspaceUnavailableError("The computer did not identify its platform")
         return str(platform)
 
-    async def agent_call(self, op: str, args: dict[str, Any], *, timeout: float) -> dict[str, Any]:
-        """An `agent.*` operation: a coding agent started on this computer, in this folder."""
-        return await self._call(op, args, timeout=timeout)
+    async def agent_call(
+        self, op: str, args: dict[str, Any], *, timeout: float, root: str | None = None
+    ) -> dict[str, Any]:
+        """An `agent.*` operation: a coding agent started on this computer, in this folder.
+
+        `root` is a folder inside it, from `subfolder`, for a session working in one project.
+        """
+        return await self._call(op, args, timeout=timeout, root=root)
 
     async def run(
         self,

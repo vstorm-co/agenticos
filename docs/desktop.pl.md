@@ -1,5 +1,5 @@
 ---
-source_sha: "afc28abbddcd"
+source_sha: "63656025a4ad"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -515,7 +515,7 @@ uruchamia też coding agenta, w katalogu domowym albo folderze wewnątrz niego. 
 
 Zgoda capability obowiązuje raz na zadanie. W jego trakcie `edit` zezwala na żądane operacje, a `read_only` odmawia zmian. Claude w trybie odczytu wyłącza bypass uprawnień i udostępnia tylko narzędzia do czytania. Codex wybiera swój natywny sandbox tylko do odczytu. Lokalny agent używa własnych ustawień modelu; użycie subskrypcji nie jest wyceniane, więc koszt runu stanowi dolną granicę.
 
-Kolejne zadania wznawiają sesję tego samego harnessu dla danej rozmowy, agenta, folderu, konta i polityki dostępu. `fresh_session` jawnie zaczyna od nowa. Identyfikatory sesji pozostają w ustawieniach desktopu, poza repozytorium, i są usuwane po odłączeniu lub zmianie konta. Niedostępna zapisana sesja kończy zadanie jawnym błędem; w razie potrzeby zacznij od nowa. Odłączenie zatrzymuje proces, ale zapisaną historię harnessu można wznowić.
+Kolejne zadania wznawiają nazwaną sesję (`main`, gdy zadanie nie wskazuje żadnej) dla danej rozmowy, agenta, harnessu, folderu, konta i polityki dostępu; kilka sesji działa naraz, do ośmiu na jednym komputerze, każda w folderze czatu albo folderze wewnątrz niego. `fresh_session` jawnie zaczyna od nowa. Identyfikatory sesji pozostają w ustawieniach desktopu, poza repozytorium, i są usuwane po odłączeniu lub zmianie konta. Niedostępna zapisana sesja kończy zadanie jawnym błędem; w razie potrzeby zacznij od nowa. Odłączenie zatrzymuje proces, ale zapisaną historię harnessu można wznowić.
 
 Korekta wysłana podczas lokalnego zadania przerywa bieżącą turę ACP. Po potwierdzeniu zatrzymania przez adapter ta sama sesja kontynuuje z korektą. Transkrypt zapisuje zastosowaną korektę; wiadomość po zakończeniu pozostaje dostępna dla nadrzędnego agenta.
 
