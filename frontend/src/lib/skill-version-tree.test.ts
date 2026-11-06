@@ -39,6 +39,7 @@ function fork(id: string, name: string, base: number, latest: number): SkillFork
     skill_id: "skill",
     name,
     base: { id: `main-${base}`, number: base },
+    started_from: { id: `main-${base}`, number: base },
     latest: latest === 0 ? null : { id: `${id}-${latest}`, number: latest },
     changes: latest,
     behind_main: 0,
@@ -172,5 +173,15 @@ describe("versionTree", () => {
 
   it("draws a skill with one version as one row", () => {
     expect(shape(versionTree({ mainLatest: 1, forks: [], agents: [] }))).toEqual(["v1"]);
+  });
+
+  it("hangs a fork that caught up where it started, not where it caught up", () => {
+    const caughtUp = { ...fork("f1", "Returns", 7, 3), started_from: { id: "main-3", number: 3 } };
+    const rows = versionTree({ mainLatest: 7, forks: [caughtUp], agents: [] });
+    const at = (number: number) =>
+      rows.find((row) => row.kind === "version" && row.number === number);
+
+    expect(at(3)).toMatchObject({ forks: [{ fork: { id: "f1" } }] });
+    expect(at(7)).toMatchObject({ forks: [] });
   });
 });

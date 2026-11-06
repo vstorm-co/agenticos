@@ -71,7 +71,9 @@ export function versionTree({ mainLatest, forks, agents, expanded }: TreeInput):
       unfolded: expanded?.get(fork.id) ?? NONE,
     });
     const branch = { fork, rows, agents: latest === 0 ? users : [] };
-    forksAt.set(fork.base.number, [...(forksAt.get(fork.base.number) ?? []), branch]);
+    // Hung where it started: catching up moves its base, not where its own versions began.
+    const start = fork.started_from.number;
+    forksAt.set(start, [...(forksAt.get(start) ?? []), branch]);
   }
   return lineRows({
     latest: mainLatest,

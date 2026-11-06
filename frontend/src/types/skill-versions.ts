@@ -72,8 +72,10 @@ export interface SkillFork {
   id: string;
   skill_id: string;
   name: string;
-  /** The main version it started from. */
+  /** The main version it is based on now: where it started, or the one it last caught up with. */
   base: SkillVersionRef;
+  /** The main version it started from, which catching up never moves. */
+  started_from: SkillVersionRef;
   /** Null until the fork saves a version of its own; it serves its base until then. */
   latest: SkillVersionRef | null;
   changes: number;

@@ -218,6 +218,7 @@ describe("VersionTree's forks", () => {
     skill_id: "s1",
     name: "Returns",
     base: { id: "m3", number: 3 },
+    started_from: { id: "m3", number: 3 },
     latest: latest === null ? null : { id: `r${latest}`, number: latest },
     changes: latest ?? 0,
     behind_main: 22,

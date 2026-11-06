@@ -9,6 +9,7 @@ const fork = (id: string, base: number, latest: number | null): SkillFork => ({
   skill_id: "s1",
   name: id,
   base: { id: `m${base}`, number: base },
+  started_from: { id: `m${base}`, number: base },
   latest: latest === null ? null : { id: `${id}${latest}`, number: latest },
   changes: latest ?? 0,
   behind_main: 0,
