@@ -1,6 +1,6 @@
 import type { APIRequestContext, Page, TestInfo } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { AUTH_STATE, walkPageTour } from "./helpers";
+import { AUTH_STATE, callApi, walkPageTour } from "./helpers";
 
 // A click that cannot happen fails within a minute, not at the end of the whole journey.
 test.use({ storageState: AUTH_STATE, actionTimeout: 60_000 });
@@ -20,27 +20,8 @@ function items(value: Record<string, unknown>): Record<string, unknown>[] {
   if (!Array.isArray(value.items)) throw new Error("Expected an API collection");
   return value.items.map(record);
 }
-/**
- * One call to the API, renewing the session once when it answers 401.
- *
- * The page's own requests renew the 15-minute access cookie through `apiClient`;
- * these share its cookies but not that renewal, so a journey that outlives the
- * cookie it started with would read as signed out halfway through.
- */
-async function call(
-  api: APIRequestContext,
-  method: "get" | "post" | "put" | "patch",
-  path: string,
-  options: { headers: Record<string, string>; data?: object },
-) {
-  const response = await api[method](`/api${path}`, options);
-  if (response.status() !== 401) return response;
-  const renewed = await api.post("/api/auth/refresh");
-  expect(renewed.ok(), `the session could not be renewed: ${await renewed.text()}`).toBeTruthy();
-  return api[method](`/api${path}`, options);
-}
 async function read(api: APIRequestContext, path: string, headers: Record<string, string>) {
-  const response = await call(api, "get", path, { headers });
+  const response = await callApi(api, "get", path, { headers });
   expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
   return record(await response.json());
 }
@@ -51,7 +32,7 @@ async function write(
   headers: Record<string, string>,
   data: object,
 ) {
-  const response = await call(api, method, path, { headers, data });
+  const response = await callApi(api, method, path, { headers, data });
   expect(response.ok(), `${path}: ${await response.text()}`).toBeTruthy();
   return record(await response.json());
 }
