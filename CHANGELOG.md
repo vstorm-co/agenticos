@@ -199,6 +199,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Google MCP sign-in now opens required OAuth client setup before connecting, and client registration errors explain how to recover.
+
 - Constrain dialog grid columns to their viewport width and keep the project picker searchable on small screens, with wrapped descriptions and an independently scrolling list.
 
 - Let the default agents finish one-off requests without blocking the completed answer on an optional automation question. Ask setup questions only after the person requests or accepts recurring work.

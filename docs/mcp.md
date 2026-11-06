@@ -975,6 +975,8 @@ shown in the connection dialog and enter the client ID and secret there. Chat
 also requires a configured Chat app; Classroom requires a test class and student.
 See [Google's Workspace setup guide](https://developers.google.com/workspace/guides/configure-mcp-servers).
 
+Google-hosted MCP connections open the required client setup before sign-in, including the callback URL and a link to Google’s setup guide. Both the client ID and secret are required; AgenticOS does not attempt automatic client registration at Google. Other providers that reject registration return recovery instructions instead of a generic rejection.
+
 Cloud entries include BigQuery, Cloud Storage, Cloud Run, Compute Engine, GKE,
 Firestore, Cloud SQL, Spanner, Logging, Monitoring and more. Enable each service's
 APIs and grant the account MCP Tool User plus its product-specific IAM roles.

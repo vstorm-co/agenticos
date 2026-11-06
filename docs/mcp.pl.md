@@ -1,5 +1,5 @@
 ---
-source_sha: "16240954ce92"
+source_sha: "f65a014f571c"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -1012,6 +1012,8 @@ utwórz klienta OAuth typu web przeznaczonego dla agenta AI. Zarejestruj dokład
 adres callback z okna połączenia i podaj tam identyfikator oraz sekret klienta.
 Chat wymaga też skonfigurowanej aplikacji Chat, a Classroom klasy i ucznia testowego.
 Zobacz [instrukcję Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Połączenia z hostowanymi serwerami MCP Google otwierają wymagany formularz klienta przed logowaniem, z adresem przekierowania i linkiem do instrukcji Google. Identyfikator i sekret klienta są wymagane; AgenticOS nie próbuje automatycznie rejestrować klienta w Google. Odrzucenie rejestracji przez innych dostawców zwraca instrukcję naprawy zamiast ogólnego komunikatu.
 
 Pozycje Cloud obejmują BigQuery, Cloud Storage, Cloud Run, Compute Engine, GKE,
 Firestore, Cloud SQL, Spanner, Logging, Monitoring i inne. Włącz API danej usługi

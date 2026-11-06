@@ -5325,6 +5325,36 @@ class TestOAuthRefusalsDoNotQuoteTheServer:
         )
 
     @pytest.mark.anyio
+    async def test_google_registration_explains_required_cloud_client_without_sending(
+        self, monkeypatch
+    ):
+        from dataclasses import replace
+
+        send = AsyncMock()
+        monkeypatch.setattr(mcp_oauth, "_send", send)
+        server = replace(
+            self._discovered(),
+            authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
+        )
+        with pytest.raises(mcp_oauth.OAuthError, match="Google Cloud") as error:
+            await mcp_oauth.register_client(server, "https://app.example.com/callback")
+        assert "Client ID" in str(error.value)
+        assert "redirect URL" in str(error.value)
+        send.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_registration_rejection_offers_recovery_without_vendor_body(self, monkeypatch):
+        async def refuse(client, request):
+            return httpx2.Response(400, text="client_secret=do-not-show", request=request)
+
+        monkeypatch.setattr(mcp_oauth, "_send", refuse)
+        with pytest.raises(mcp_oauth.OAuthError) as error:
+            await mcp_oauth.register_client(self._discovered(), "https://app.example.com/callback")
+        assert "More options" in str(error.value)
+        assert "redirect URL" in str(error.value)
+        assert "do-not-show" not in str(error.value)
+
+    @pytest.mark.anyio
     async def test_an_unreachable_token_endpoint_is_named_by_its_class(self, monkeypatch, caplog):
         vendor_text = f"[Errno 61] Connection refused for {self._LEAKY_URL}"
 

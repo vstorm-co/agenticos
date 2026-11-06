@@ -84,7 +84,7 @@
     "auth": "oauth",
     "url": "https://gmailmcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "gmail"
   },
   {
@@ -95,7 +95,7 @@
     "auth": "oauth",
     "url": "https://calendarmcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "googlecalendar"
   },
   {
@@ -106,7 +106,7 @@
     "auth": "oauth",
     "url": "https://chatmcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/chat/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret. Configure a Chat app in the same Cloud project.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog. Configure a Chat app in the same Cloud project.",
     "icon": "googlechat"
   },
   {
@@ -117,7 +117,7 @@
     "auth": "oauth",
     "url": "https://classroommcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/guides/configure-mcp-servers",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret. Classroom requires a test class and test student; tools depend on preview access.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog. Classroom requires a test class and test student; tools depend on preview access.",
     "icon": "googleclassroom"
   },
   {
@@ -128,7 +128,7 @@
     "auth": "oauth",
     "url": "https://docsmcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/docs/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "googledocs"
   },
   {
@@ -139,7 +139,7 @@
     "auth": "oauth",
     "url": "https://drivemcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/drive/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "gdrive"
   },
   {
@@ -150,7 +150,7 @@
     "auth": "oauth",
     "url": "https://people.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/people/v1/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "google"
   },
   {
@@ -161,7 +161,7 @@
     "auth": "oauth",
     "url": "https://sheetsmcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/sheets/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "googlesheets"
   },
   {
@@ -172,7 +172,7 @@
     "auth": "oauth",
     "url": "https://slidesmcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/slides/api/guides/configure-mcp-server",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "googleslides"
   },
   {
@@ -183,7 +183,7 @@
     "auth": "oauth",
     "url": "https://workspacemcp.googleapis.com/mcp/v1",
     "docs_url": "https://developers.google.com/workspace/guides/universal-search-mcp",
-    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Open More options, add the displayed redirect URL at Google, and enter the client ID and secret.",
+    "token_hint": "Developer Preview: join the Google Workspace Developer Preview Program, enable this product API and MCP service, and register a web OAuth client marked for an AI-powered agent. Add the displayed redirect URL at Google and enter the client ID and secret in the connection dialog.",
     "icon": "google"
   },
   {

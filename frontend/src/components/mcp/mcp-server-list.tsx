@@ -42,6 +42,7 @@ import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import {
   type McpOAuthClient,
   mcpOAuthClient,
+  needsGoogleOAuthClient,
   rememberMcpOAuthReturn,
   secretWithoutClientId,
 } from "@/lib/mcp-oauth";
@@ -304,7 +305,8 @@ export function McpServerList({
       row.auth === "oauth" &&
       row.entry !== null &&
       name !== undefined &&
-      !hasAccount(scope, row)
+      !hasAccount(scope, row) &&
+      !needsGoogleOAuthClient(row.url ?? "")
     ) {
       void handleOAuth(row, name, scope);
       return;
@@ -410,7 +412,9 @@ export function McpServerList({
   // soon as the catalog has named the row - derived, so nothing has to be set.
   // Closing it is what clears the request.
   const requestedDraft: DraftState | null =
-    draft === null && requestedRow !== null && requestedRow.auth !== "oauth"
+    draft === null &&
+    requestedRow !== null &&
+    (requestedRow.auth !== "oauth" || needsGoogleOAuthClient(requestedRow.url ?? ""))
       ? {
           scope: "personal",
           row: requestedRow,
@@ -440,7 +444,7 @@ export function McpServerList({
       toast.error(t("noSuchServerToConnect", { key: connectKey }));
       return;
     }
-    if (requestedRow.auth !== "oauth") return;
+    if (requestedRow.auth !== "oauth" || needsGoogleOAuthClient(requestedRow.url ?? "")) return;
     const taken = new Set(personal.connections.map((connection) => connection.name));
     const name = freeName(requestedRow, taken) ?? slugForPrefix(connectKey);
     startMcpOAuth({ name, url: requestedRow.url ?? "", catalog_key: connectKey }, "personal")
@@ -477,6 +481,10 @@ export function McpServerList({
     // Sending the form would make an unauthorized bearer connection that then
     // has to be repaired.
     if (values.auth === "oauth" && existing === null) {
+      if (needsGoogleOAuthClient(url) && (!values.clientId.trim() || !values.clientSecret.trim())) {
+        toast.error(t("googleOAuthClientRequired"));
+        return;
+      }
       if (secretWithoutClientId(values.clientId, values.clientSecret)) {
         toast.error(t("clientSecretNeedsId"));
         return;

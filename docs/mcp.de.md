@@ -1,5 +1,5 @@
 ---
-source_sha: "16240954ce92"
+source_sha: "f65a014f571c"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1058,6 +1058,8 @@ Registrieren Sie die genaue Callback-Adresse aus dem Verbindungsdialog und geben
 Sie dort Client-ID und Geheimnis ein. Chat benötigt zusätzlich eine konfigurierte
 Chat-App, Classroom eine Testklasse und einen Testschüler.
 Siehe [Googles Anleitung](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Verbindungen zu Googles gehosteten MCP-Servern öffnen vor der Anmeldung die erforderliche Client-Einrichtung mit Weiterleitungs-URL und einem Link zu Googles Anleitung. Client-ID und Secret sind erforderlich; AgenticOS versucht keine automatische Client-Registrierung bei Google. Lehnen andere Anbieter die Registrierung ab, erscheinen Hinweise zur Behebung statt einer allgemeinen Ablehnung.
 
 Die Cloud-Einträge umfassen BigQuery, Cloud Storage, Cloud Run, Compute Engine,
 GKE, Firestore, Cloud SQL, Spanner, Logging, Monitoring und weitere Dienste.

@@ -1,5 +1,5 @@
 ---
-source_sha: "16240954ce92"
+source_sha: "f65a014f571c"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1042,6 +1042,8 @@ Registra la dirección callback exacta del diálogo de conexión e introduce all
 el ID y el secreto del cliente. Chat también requiere una aplicación Chat
 configurada; Classroom necesita una clase y un alumno de prueba.
 Consulta [la guía de Google](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Las conexiones a los servidores MCP alojados por Google abren la configuración obligatoria del cliente antes de iniciar sesión, con la URL de redirección y un enlace a la guía de Google. El ID y el secreto son obligatorios; AgenticOS no intenta registrar el cliente automáticamente en Google. Si otro proveedor rechaza el registro, se muestran instrucciones de recuperación en lugar de un rechazo genérico.
 
 Las entradas Cloud incluyen BigQuery, Cloud Storage, Cloud Run, Compute Engine,
 GKE, Firestore, Cloud SQL, Spanner, Logging, Monitoring y otros servicios.
