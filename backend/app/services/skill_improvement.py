@@ -836,7 +836,8 @@ class SkillImprovementService:
             return await self._merge_continuation(
                 ctx, line, run, mode=data.mode, main_alone=data.main_alone
             )
-        return await self._continuation(ctx, line, run, mode=data.mode)
+        quote, _ = await self._continuation(ctx, line, run, mode=data.mode)
+        return quote
 
     async def continue_run(
         self, ctx: AuthContext, skill_id: UUID, run_id: UUID, consent: SkillContinuationConsent
@@ -858,7 +859,7 @@ class SkillImprovementService:
         if run.purpose != Purpose.IMPROVE.value:
             await self._continue_merge(ctx, line, run, consent)
             return await self._read(ctx, run, line)
-        quote = await self._continuation(ctx, line, run, mode=consent.mode)
+        quote, covered = await self._continuation(ctx, line, run, mode=consent.mode)
         moved = line.latest != run.base_version_id
         if consent.candidate_hash != quote.candidate_hash and moved:
             self._refuse_moved(run, line)
@@ -875,6 +876,11 @@ class SkillImprovementService:
             raise PaymentRequiredError(
                 message="The spending limit does not cover this step",
                 details={"estimate_usd": str(quote.total_usd), "budget_usd": str(budget)},
+            )
+        if not covered:
+            raise PaymentRequiredError(
+                message="The organization's budget, or the helper's, does not cover this step",
+                details={"estimate_usd": str(quote.total_usd)},
             )
         values: dict[str, object] = {
             "budget_usd": budget,
@@ -2146,7 +2152,13 @@ class SkillImprovementService:
         run: SkillImprovementRun,
         *,
         mode: CheckMode | None,
-    ) -> SkillContinuationEstimate:
+    ) -> tuple[SkillContinuationEstimate, bool]:
+        """The next step's quote, and whether the organization's and the helper's budgets
+        cover it - the session's own limit may be raised with consent, those may not.
+
+        Raises:
+            BadRequestError: A proposal would have nothing on the line to learn from.
+        """
         spent = await skill_improvement_repo.spent(
             self.db, run.id, organization_id=ctx.organization_id
         )
@@ -2181,7 +2193,7 @@ class SkillImprovementService:
                     start.candidate.description, start.candidate.content, check
                 ),
                 check_estimate=check,
-            )
+            ), check.affordable
         self._refuse_moved(run, line)
         step: Literal["next_step", "next_round"]
         if run.status == Status.WAITING and run.stage == Stage.CLASSIFYING:
@@ -2203,18 +2215,28 @@ class SkillImprovementService:
                 details={"status": run.status, "stage": run.stage},
             )
         pack = await self._evidence(ctx, line, run.window_days)
-        price = (
-            await self.authoring.estimate_pack(ctx, pack, improver_agent_id=run.improver_agent_id)
-        ).estimate_usd
+        priced = await self.authoring.estimate_pack(
+            ctx, pack, improver_agent_id=run.improver_agent_id
+        )
+        if priced.reason is not None:
+            raise BadRequestError(
+                message=(
+                    "Nothing to learn from on this line now: no answer in the session's window "
+                    "that loaded it was rated down or failed"
+                ),
+                details={"reason": priced.reason},
+            )
+        price = priced.estimate_usd
         return SkillContinuationEstimate(
             mode=step,
             number=number,
             total_usd=price,
             expected_usd=price,
             budget_usd=run.budget_usd,
-            affordable=rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd),
+            affordable=priced.affordable
+            and rules.affordable(spent=spent, step_estimate=price, budget=run.budget_usd),
             candidate_hash=hashlib.sha256(f"{run.base_version_id}:{number}".encode()).hexdigest(),
-        )
+        ), priced.affordable
 
     async def _read(
         self,

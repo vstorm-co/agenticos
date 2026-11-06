@@ -999,6 +999,38 @@ class TestEdges:
 
         assert (run.status, run.stage, run.stop_reason) == ("stopped", "proposing", "budget")
 
+    @pytest.mark.security
+    async def test_a_proposal_the_organization_cannot_afford_is_refused_not_queued(
+        self, db, evidence
+    ):
+        """The session's own limit can be raised with consent; the organization's cannot."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        evidence["affordable"] = False
+        service = SkillImprovementService(db)
+
+        quote = await service.estimate_continuation(ctx, skill.id, run.id, SkillContinue())
+        with pytest.raises(PaymentRequiredError):
+            await _continue(db, ctx, run)
+
+        assert quote.affordable is False
+        read = await service.read(ctx, skill.id, run.id)
+        assert (read.status, read.stage) == ("waiting", "classifying")
+
+    async def test_a_proposal_with_nothing_left_to_learn_from_is_refused(self, db, evidence):
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        run = await _at_understand(db, ctx, skill)
+        evidence["runs"] = []
+
+        with pytest.raises(BadRequestError) as refused:
+            await SkillImprovementService(db).estimate_continuation(
+                ctx, skill.id, run.id, SkillContinue()
+            )
+
+        assert refused.value.details == {"reason": "no_evidence"}
+
 
 class TestTheLinesEvidence:
     async def test_main_reads_its_versions_and_a_fork_without_its_own_reads_its_base(
