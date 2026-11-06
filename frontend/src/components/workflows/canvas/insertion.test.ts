@@ -305,6 +305,16 @@ describe("planInsertion", () => {
     expect(plan(graph([node("a", INPUT)]), LOOP).companions).toBeUndefined();
   });
 
+  it("puts a new loop's item and result steps inside it when it is dropped onto a wire", () => {
+    const line = graph([node("a", INPUT), node("b", STEP, 640, 0)], [edge("a", "out", "b")]);
+    const split = plan(line, LOOP, {
+      between: edge("a", "out", "b"),
+      loopSteps: { item: ITEM, result: RESULT },
+    });
+    expect(split.split).toBeDefined();
+    expect(split.companions?.map((step) => step.scope_id)).toEqual(["new", "new"]);
+  });
+
   it("takes the catalog's newest loop item and result, and none when either is missing", () => {
     const newer = { ...ITEM, version: 2 };
     expect(loopStepsOf([ITEM, newer, RESULT])).toEqual({ item: newer, result: RESULT });

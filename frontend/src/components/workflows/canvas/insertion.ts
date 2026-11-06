@@ -324,9 +324,17 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
     };
   }
 
+  // A new loop's body comes with it however the loop is placed, dropped onto a wire too.
+  const companions =
+    request.loopSteps !== undefined && ownsAScope(definition)
+      ? loopBody(request.loopSteps, id)
+      : undefined;
+  const withBody = (planned: NodeInsertion): NodeInsertion =>
+    companions === undefined ? planned : { ...planned, companions };
+
   if (request.between !== undefined) {
     const planned = splitting(request.between, graph, visible, definitions, definition, id);
-    if (planned !== null) return planned;
+    if (planned !== null) return withBody(planned);
   }
 
   // A drop at the top level is placed where it fell and left for the user to wire;
@@ -360,18 +368,13 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
           graph,
           definitions,
         );
-  const companions =
-    request.loopSteps !== undefined && ownsAScope(definition)
-      ? loopBody(request.loopSteps, id)
-      : undefined;
-  return {
+  return withBody({
     node: { ...blank(definition, id), layout: position },
     edge: link?.edge ?? null,
     bindings: link?.bindings ?? [],
     becomesEntry: graph.nodes.length === 0,
     replaces: null,
-    ...(companions !== undefined ? { companions } : {}),
-  };
+  });
 }
 
 /**
