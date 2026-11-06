@@ -408,13 +408,13 @@ class CollectionAccessService:
         changing a source that now feeds a base they cannot write (#2745). Decide
         on the row this returns and hold it through the change.
 
-        One order, so a wait here closes no cycle: a collection name a move
-        targets (:meth:`source_target`) before this, as a base's deletion takes
-        the name and then its sources; then the organization and the caller, as
-        their foreign keys would take them, before the row, as a purge or an
-        account deletion locks them and then deletes the source (#2682). The
-        source's organization rather than the caller's: a platform admin reaches
-        another organization's.
+        Locks are taken in the order the teardowns take them: a collection name a
+        move targets (:meth:`source_target`) before this, as a base's deletion
+        takes the name and then its sources; then the organization and the
+        caller, as their foreign keys would take them, before the row, as a purge
+        or an account deletion locks them and then deletes the source (#2682).
+        The source's organization rather than the caller's: a platform admin
+        reaches another organization's.
         """
         await organization_repo.hold_key_share(self.db, source.organization_id)
         await user_repo.hold_key_share(self.db, [] if ctx.user_id is None else [ctx.user_id])
@@ -433,8 +433,9 @@ class CollectionAccessService:
         the source must also be the caller's (:func:`_reaches_source`, #2745).
 
         `for_update` is for a route that goes on to change or run the source: the
-        answer then holds until that lands (:meth:`_hold_source`). A read leaves
-        it off, and does not wait behind a change.
+        source then stays where it was checked until that lands
+        (:meth:`_hold_source`). A read leaves it off, and does not wait behind a
+        change.
         """
         parsed = _as_uuid(source_id)
         source = None if parsed is None else await sync_source_repo.get_by_id(self.db, parsed)
@@ -563,9 +564,9 @@ class CollectionAccessService:
         its organization to decide it. The refusal is the absent source's, so it
         does not confirm that the id exists.
 
-        The decision is made on the locked row and holds until this transaction
-        ends (:meth:`_hold_source`), so a route moving the source calls
-        :meth:`source_target` first.
+        The decision is made on the locked row, which stays where it was checked
+        until this transaction ends (:meth:`_hold_source`), so a route moving the
+        source calls :meth:`source_target` first.
         """
         source = await self._hold_source(ctx, await self.sync_source(ctx, source_id))
         if source is None:

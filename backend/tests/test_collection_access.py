@@ -224,7 +224,8 @@ def service(rows: Rows, monkeypatch: pytest.MonkeyPatch) -> CollectionAccessServ
     monkeypatch.setattr(sync_source_repo, "lock", by_id("sources"))
     monkeypatch.setattr(sync_log_repo, "get_by_id", by_id("logs"))
     # A stand-in session whose only job is to carry the advisory-lock execute the
-    # claim path takes (#1355); every repository call the tests exercise is patched.
+    # claim path takes (#1355) and the `FOR KEY SHARE` holds a change to a source
+    # takes (#2745); every other repository call the tests exercise is patched.
     return CollectionAccessService(db=MagicMock(execute=AsyncMock()))  # ty: ignore[invalid-argument-type]
 
 
@@ -853,6 +854,46 @@ class TestResolvingASyncSourceInAKnowledgeBase:
         assert refusal.value.message == "Sync source not found in this knowledge base"
         admin = _ctx(role=OrgRoleName.MEMBER.value, app_admin=True)
         assert (await service.kb_sync_source(admin, app_kb, str(foreign.id))).id == foreign.id
+
+    @pytest.mark.security
+    async def test_a_refused_change_takes_no_lock_on_another_organizations_rows(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """A guessed id ends in the 404 either way, and must not get there by
+        holding the other organization's row and its source (#2745)."""
+        app_kb = _kb("handbook", scope=KBScope.APP, organization_id=None)
+        foreign = self._source(organization_id=OTHER_ORG)
+        rows.collections = [app_kb]
+        rows.sources = [foreign]
+        execute = service.db.execute
+        assert isinstance(execute, AsyncMock)
+
+        with pytest.raises(NotFoundError):
+            await service.kb_sync_source(
+                _ctx(role=OrgRoleName.MEMBER.value), app_kb, str(foreign.id), for_update=True
+            )
+
+        execute.assert_not_awaited()
+
+    async def test_a_change_on_a_source_gone_during_the_wait_is_not_found(
+        self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.repositories import sync_source_repo
+
+        kb = _kb("handbook")
+        source = self._source(organization_id=HOME_ORG)
+        rows.collections = [kb]
+        rows.sources = [source]
+
+        async def gone(_db: object, _source_id: uuid.UUID) -> None:
+            return None
+
+        monkeypatch.setattr(sync_source_repo, "lock", gone)
+
+        with pytest.raises(NotFoundError):
+            await service.kb_sync_source(_ctx(), kb, str(source.id), for_update=True)
+        with pytest.raises(NotFoundError):
+            await service.writable_sync_source(_ctx(), str(source.id))
 
     async def test_a_missing_source_is_reported_as_one(
         self, service: CollectionAccessService

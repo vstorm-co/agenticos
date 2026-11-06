@@ -7471,7 +7471,6 @@
     "everySixHours": "Every 6h",
     "failedCount": "{count} failed",
     "ingestedCount": "{count} ingested",
-    "integration": "Integration",
     "leaveEmptyAutoGenerate": "Leave empty to auto-generate",
     "loading": "Loading…",
     "modeFull": "Full",

@@ -57,7 +57,6 @@ class _Estate:
     member: AuthContext
     kb_id: uuid.UUID
     collection: str
-    other_kb_id: uuid.UUID
     other_collection: str
     source_id: uuid.UUID
 
@@ -156,7 +155,6 @@ async def estate(engine: AsyncEngine) -> _Estate:
         ),
         kb_id=base.id,
         collection=base.collection_name,
-        other_kb_id=other.id,
         other_collection=other.collection_name,
         source_id=source.id,
     )
@@ -258,6 +256,10 @@ async def _until_it_waits_or_finishes(estate: _Estate, task: asyncio.Task[object
     """
     waiting = asyncio.ensure_future(_until_a_statement_waits_on_a_lock(estate.factory))
     await asyncio.wait({task, waiting}, return_when=asyncio.FIRST_COMPLETED)
+    if waiting.done():
+        # Neither parked nor finished is a test that raced nothing.
+        waiting.result()
+        return
     waiting.cancel()
     await asyncio.gather(waiting, return_exceptions=True)
 
@@ -379,7 +381,7 @@ class TestTheLockOrder:
         assert await estate.runs() == 1
 
 
-class TestReading:
+class TestAReadDoesNotWait:
     async def test_reading_a_sources_runs_does_not_wait_for_a_change_to_it(
         self, estate: _Estate
     ) -> None:

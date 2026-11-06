@@ -41,9 +41,12 @@ Two things are versioned separately from this file and worth knowing about:
   base the source feeds. An unassigned source still needs only the organization.
   That check and the change it allows now run under a lock on the source, on
   these routes and on their `/kb/{kb_id}/sync-sources/{id}` counterparts, so a
-  move that commits between them can no longer leave a caller changing a source
-  that feeds a base they cannot write. The wizard also stops offering
-  integrations it already fetched when the member loses `connections:manage`.
+  move that commits between them can no longer leave a caller changing, or
+  queueing a run of, a source that feeds a base they cannot write. A run already
+  queued when a move lands still runs into the new base. The wizard also stops
+  offering integrations it already fetched when the member loses
+  `connections:manage`, and leaves clone mode if none remain to pick. A run that
+  finishes while its source is deleted keeps its outcome.
   See [Configure sync sources](docs/howto/configure-sync-sources.md#api-reference).
 
 ## [1.49.0] - 2026-11-05

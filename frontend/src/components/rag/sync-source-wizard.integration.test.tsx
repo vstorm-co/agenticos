@@ -305,6 +305,51 @@ describe("the audience of what a source ingests", () => {
     expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain("/secrets");
   });
 
+  it("drops a picked integration when the list it came from empties", async () => {
+    // A member losing `connections:manage` mid-flow, or the last integration going
+    // elsewhere: nothing is left to pick, so nothing can be cloned (#2745).
+    const onClone = vi.fn();
+    const integration: SyncSourceRead = {
+      id: "src-1",
+      organization_id: "org-1",
+      name: "Company Drive",
+      connector_type: "gdrive",
+      collection_name: null,
+      config: {},
+      secret_id: DRIVE_CREDENTIAL.id,
+      secret_hint: DRIVE_CREDENTIAL.hint,
+      organizational_unit: null,
+      sync_mode: "full",
+      schedule_minutes: null,
+      is_active: true,
+      last_sync_at: null,
+      last_sync_status: null,
+      last_error: null,
+      created_at: null,
+    };
+    const wizard = (orgIntegrations: SyncSourceRead[]) => (
+      <SyncSourceWizard
+        open
+        onOpenChange={vi.fn()}
+        connectors={[GDRIVE]}
+        collections={[{ name: "org_handbook", scope: "org" }]}
+        defaultCollection="org_handbook"
+        orgIntegrations={orgIntegrations}
+        onSubmit={vi.fn()}
+        onClone={onClone}
+      />
+    );
+    const { rerender } = withQuery(wizard([integration]));
+    await userEvent.click(screen.getByRole("button", { name: /Use existing/ }));
+    await userEvent.click(screen.getByText(/Company Drive/));
+    expect(screen.getByRole("button", { name: "Use this integration" })).toBeEnabled();
+
+    rerender(wizard([]));
+
+    expect(screen.queryByRole("button", { name: "Use this integration" })).toBeNull();
+    expect(onClone).not.toHaveBeenCalled();
+  });
+
   it("is stated for a clone too, which repoints somebody else's credential", async () => {
     // A clone references the same vault secret and names a different collection,
     // so the audience changes while nothing about the credential does - and it
