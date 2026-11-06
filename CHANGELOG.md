@@ -25,6 +25,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Creating a knowledge base or collection (`POST /kb`, `POST /rag/collections/{name}`) now refuses a name that no knowledge base holds while it holds content of another tenant, for example a collection written by `rag-ingest`. Until now a member with `collections:edit` could create a base on such a name and then delete it, which dropped the operator's vector table. An app admin can still adopt such a name. A name held only by bases the caller may write is not affected. (#2747)
 - Deleting the last knowledge base on a name (`DELETE /kb/{id}`, `DELETE /rag/collections/{name}`) now keeps the vector table while it holds unfiled chunks the base does not take: an operator's `rag-ingest` or `rag-sync-gdrive`/`rag-sync-s3` into the held name, or another organization's. Only the chunks the base takes are purged, and the other rows under the name stay as they are. Until now the table went with those chunks, so a member with `collections:edit` could destroy content written after their base claimed the name. `rag-drop` still drops the whole table. A chunk write with no base now holds the name until it commits, so the table is asked only after such a write in flight has finished, and one that reaches the name while it is reserved is refused. The cleanup job now drops only a reserved name, so a rerun leaves what was written after its first drop. (#2747)
 
+## [1.50.1] - 2026-11-06
+
+### Security
+
+- The nightly proactive job now reads only a prompt that passed the input guardrail of the agent it was sent to. It read every message a person sent in the last week and passed them to the organization's proactivity model, which runs with no guardrails, so a prompt the input edge had stopped, or never reached, still reached a model once a night and could come back in a suggestion or a first message. Left out: a refused prompt, a prompt no run took (an archived agent, a refusal before the run opened, a chat prompt passed to a workflow) and a prompt whose run stopped before its first model request and that the run's own input guardrail blocks when the job asks it. A prompt whose run is still going waits, and a later look reads it once the run has ended. A prompt that lost its run to retention is read only if a model's answer follows it, so `POST /conversations/{id}/messages` no longer stores `model_name` on a turn a person writes. A refused prompt no longer counts as new activity that wakes the look. Prompts a guardrail redacted rather than refused are stored unredacted and still reach it; that is #2655. (#2746)
+
 ## [1.50.0] - 2026-11-06
 
 ### Fixed
@@ -20459,7 +20465,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...HEAD
+[1.50.1]: https://github.com/vstorm-co/agenticos/compare/v1.50.0...v1.50.1
 [1.50.0]: https://github.com/vstorm-co/agenticos/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/vstorm-co/agenticos/compare/v1.48.1...v1.49.0
 [1.48.1]: https://github.com/vstorm-co/agenticos/compare/v1.48.0...v1.48.1
