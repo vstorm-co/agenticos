@@ -822,16 +822,16 @@ A name a caller does not supply is derived from the display name plus six random
 characters, and is claimed on the same path rather than trusted for being random.
 
 **Nor is a name holding content no base owns.** `rag-ingest` writes tracking rows and
-a `rag_<name>` table with no knowledge base and no organization, and the last
-holder's teardown drops the name's table. So `claim` refuses a name no base holds
-while it has unfiled rows describing chunks of any tenant but the caller's
-organization, or a vector table with such chunks. Otherwise a member with
-`collections:edit` could create a base on an operator's collection and delete it,
-dropping the operator's chunks with it ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). A name a base holds is not asked: the
-caller may write every holder, and could delete them all anyway. An app admin may
-adopt such a name; a failed row with no vector id describes no chunk and does not
-hold it. A `rag-ingest` killed mid-file leaves a `processing` row that holds the
-name until an app admin adopts it or runs `rag-drop <name>`.
+a `rag_<name>` table with no knowledge base and no organization, and the last holder's
+teardown drops the name's table. So `claim` refuses a name no base holds while it has
+unfiled rows describing chunks of any tenant but the caller's organization, or a
+vector table with such chunks. Otherwise a member with `collections:edit` could create
+a base on an operator's collection and delete it, dropping the operator's chunks with
+it ([#2747](https://github.com/vstorm-co/agenticos/issues/2747)). A name a base holds
+is not checked: the caller may write every holder, and could delete or clear them all
+anyway. An app admin may adopt such a name; a failed row with no vector id describes
+no chunk and does not hold it. A `rag-ingest` killed mid-file leaves a `processing`
+row that holds the name until an app admin adopts it or runs `rag-drop <name>`.
 
 Content arriving *after* a base claims the name is not covered: an operator's
 `rag-ingest` into a held name still goes with the table when the last holder is

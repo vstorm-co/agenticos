@@ -302,8 +302,8 @@ class CollectionAccessService:
         operator's chunks with it. So a name no base holds is refused while it
         holds unfiled rows describing chunks of any tenant but the caller's
         organization, or a vector table with such chunks. A name a base holds is
-        not asked: the caller passed `writable_kb` on every holder, and may
-        delete them all anyway. Only an app admin passes: they administer the
+        not checked: the caller passed `writable_kb` on every holder, and may
+        delete or clear them all anyway. Only an app admin passes: they administer the
         deployment and can already drop any collection with `rag-drop`. The
         refusal is the same "already exists", saying nothing about whose content
         it is; that the name holds content at all is the global namespace's
@@ -329,8 +329,8 @@ class CollectionAccessService:
         for kb in holders:
             if not await writable_kb(self.db, ctx, kb):
                 raise _taken(name)
-        # A caller who may write every holder may already delete them all and drop
-        # the table with them, so a held name has nothing more to refuse.
+        # A caller who may write every holder may already delete or clear them all
+        # and drop the table with them, so a held name has nothing more to refuse.
         if ctx.is_app_admin or holders:
             return
         if await rag_document_repo.holds_unfiled_outside(

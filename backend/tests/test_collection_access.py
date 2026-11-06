@@ -555,14 +555,16 @@ class TestClaimingACollectionName:
         and drop the table anyway: refusing a repeat claim protects nothing, and
         `POST /rag/collections/{name}` is idempotent."""
         rows.collections = [_kb("handbook")]
-        monkeypatch.setattr(
-            rag_document_repo, "holds_unfiled_outside", AsyncMock(return_value=True)
-        )
-        monkeypatch.setattr(
-            rag_document_repo, "table_holds_chunks_outside", AsyncMock(return_value=True)
-        )
+        unfiled = AsyncMock(return_value=True)
+        chunks = AsyncMock(return_value=True)
+        monkeypatch.setattr(rag_document_repo, "holds_unfiled_outside", unfiled)
+        monkeypatch.setattr(rag_document_repo, "table_holds_chunks_outside", chunks)
 
         await service.claim(_ctx(), "handbook")
+
+        # Not asked at all: a held name's table can be large, and the scan has no index.
+        unfiled.assert_not_awaited()
+        chunks.assert_not_awaited()
 
     async def test_an_app_admin_may_adopt_unowned_content(
         self, service: CollectionAccessService, rows: Rows, monkeypatch: pytest.MonkeyPatch
