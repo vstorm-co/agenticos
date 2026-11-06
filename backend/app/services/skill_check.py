@@ -2096,9 +2096,15 @@ class SkillCheckService:
         """Give the skill its test questions, empty or from recent answers that loaded it.
 
         Raises:
+            AuthorizationError: The caller may not create datasets.
             AlreadyExistsError: The skill has its test questions already.
         """
         skill = await self.versions.skill_for(ctx, skill_id, Perm.SKILLS_EDIT)
+        if not ctx.has(Perm.DATASETS_EDIT):
+            raise AuthorizationError(
+                message="A skill's test questions are a dataset, which needs datasets:edit",
+                details={"permission": Perm.DATASETS_EDIT.value},
+            )
         if await self._test_set(ctx, skill) is not None:
             raise AlreadyExistsError(
                 message="This skill has its test questions already", details={"skill_id": skill.id}
