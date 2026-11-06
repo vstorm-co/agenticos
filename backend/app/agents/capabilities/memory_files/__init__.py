@@ -25,10 +25,8 @@ class MemoryFilesConfig(BaseModel):
 
     One field, and that is the point. This capability used to be one binding with
     six - two store toggles, two write levers, a backend and its URL - so a
-    builder configured a matrix instead of picking a thing. Semantic recall is now
-    its own capability (`memory_mem0`) and the organisation-wide store is gone
-    (`context` already does that job), which leaves exactly one genuine choice
-    (#1470).
+    builder configured a matrix instead of picking a thing. Semantic recall (mem0) went with the organisation-wide store, which
+    leaves exactly one genuine choice (#1470, #2090).
     """
 
     allow_personal: bool = Field(
@@ -78,6 +76,26 @@ class MemoryFilesConfig(BaseModel):
             id="delete_memory",
             description="Forget a note you saved, removing it entirely.",
             side_effecting=True,
+        ),
+        CapabilityToolInfo(
+            id="remember",
+            description="Record one durable fact, preference or decision, with where it came from.",
+            side_effecting=True,
+        ),
+        CapabilityToolInfo(
+            id="recall",
+            description="Find recorded facts, preferences and decisions relevant to a question.",
+        ),
+        CapabilityToolInfo(
+            id="correct_memory",
+            description="Record the person's correction of a claim, keeping the history it corrects.",
+            side_effecting=True,
+        ),
+        CapabilityToolInfo(
+            id="share_memory",
+            description="Share one claim with the project or the whole organization - only when asked.",
+            side_effecting=True,
+            always_requires_approval=True,
         ),
     ),
     config_schema=MemoryFilesConfig,

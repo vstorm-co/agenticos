@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import { ChevronRight, OctagonPause } from "lucide-react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import {
+  ChevronRight,
+  Check,
+  MessageCircleQuestion,
+  OctagonPause,
+  ShieldCheck,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
@@ -24,9 +30,9 @@ export function useTurnElapsed(startedAt: Date | undefined, running: boolean): n
   useEffect(() => {
     if (!running || start === undefined) return;
     const tick = () => setElapsed(Date.now() - start);
-    // A quarter-second beat, so a second boundary shows within one: on a 1s
-    // beat out of phase with the clock, a display lags by almost a second.
-    const id = window.setInterval(tick, 250);
+    // The label only shows whole seconds; rebuilding a long activity timeline
+    // four times a second adds renders without conveying more progress.
+    const id = window.setInterval(tick, 1000);
     return () => {
       window.clearInterval(id);
       // The last reading stands as the turn's duration once it stops.
@@ -63,7 +69,7 @@ export function WorkingLine({
           "text-muted-foreground hover:text-foreground min-h-9 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2",
       )}
     >
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+      <span className="flex size-5 shrink-0 items-center justify-center">
         <ThinkingOrb state="breathing" size={20} className="h-6 w-6 opacity-80" />
       </span>
       <span className="shimmer-text font-medium">
@@ -97,69 +103,120 @@ export function WorkFold({
   steps,
   durationMs,
   stopped = false,
+  running = false,
+  waiting,
   children,
+  activity,
+  live = false,
 }: {
   /** Tool calls folded away; none means the turn only thought. */
   steps: number;
   durationMs: number | null;
   /** The run was stopped, which the line says instead of "Worked". */
   stopped?: boolean;
+  running?: boolean;
+  waiting?: "awaiting_answer" | "awaiting_approval";
   children: ReactNode;
+  /** A short live action label, never a streaming thought or a nested tool card. */
+  activity?: string;
+  /** Show progress in place until the run settles; finished history stays scrollable. */
+  live?: boolean;
 }) {
   const t = useTranslations("chat.steps");
   const tChat = useTranslations("chat");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(live);
+  const historyId = useId();
+  const toggleId = useId();
   const duration = durationMs === null ? null : formatElapsed(durationMs, t);
-  const label = stopped
-    ? duration === null
-      ? t("stopped", { count: steps })
-      : t("stoppedAfter", { duration, count: steps })
-    : steps === 0
+  const runText = useTranslations("pages.runs");
+  const label = waiting
+    ? runText("toolState", { status: waiting })
+    : running
       ? duration === null
-        ? tChat("thoughtAboutIt")
-        : t("thoughtFor", { duration })
-      : duration === null
-        ? t("worked", { count: steps })
-        : t("workedFor", { duration, count: steps });
+        ? t("working")
+        : t("workingFor", { duration })
+      : stopped
+        ? duration === null
+          ? t("stopped", { count: steps })
+          : t("stoppedAfter", { duration, count: steps })
+        : steps === 0
+          ? duration === null
+            ? tChat("thoughtAboutIt")
+            : t("thoughtFor", { duration })
+          : duration === null
+            ? t("worked", { count: steps })
+            : t("workedFor", { duration, count: steps });
 
   return (
     <div>
       <button
         type="button"
+        id={toggleId}
+        aria-controls={open ? historyId : undefined}
         aria-expanded={open}
         onClick={() => setOpen((was) => !was)}
-        className="group text-muted-foreground hover:text-foreground flex min-h-9 items-center gap-2 rounded-md py-0.5 text-left text-[13px] transition-colors md:min-h-0"
+        className="group text-muted-foreground hover:text-foreground hover:bg-muted/60 focus-visible:ring-ring flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg py-1 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none"
       >
-        <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
-          {/* The mark of work done; the way in once the pointer is on it, and the way
-              back - staying put - once it is open. */}
-          {!open && stopped && (
-            <OctagonPause
-              className="h-3.5 w-3.5 transition-opacity group-hover:opacity-0"
-              aria-hidden
-            />
+        <span className="flex size-5 shrink-0 items-center justify-center" aria-hidden>
+          {waiting === "awaiting_approval" ? (
+            <ShieldCheck className="size-3.5 text-amber-700 dark:text-amber-400" />
+          ) : waiting === "awaiting_answer" ? (
+            <MessageCircleQuestion className="size-3.5" />
+          ) : stopped ? (
+            <OctagonPause className="size-3.5" />
+          ) : running ? (
+            <ThinkingOrb state="breathing" size={20} className="size-5 opacity-80" />
+          ) : (
+            <Check className="size-3.5" />
           )}
-          {!open && !stopped && (
-            <ThinkingOrb
-              state="breathing"
-              size={20}
-              paused
-              className="h-6 w-6 opacity-80 transition-opacity group-hover:opacity-0"
-            />
-          )}
-          <ChevronRight
-            className={cn(
-              "absolute h-3.5 w-3.5 transition-[transform,opacity]",
-              open
-                ? "rotate-90 opacity-100"
-                : "opacity-100 md:opacity-0 md:group-hover:opacity-100",
-            )}
-            aria-hidden
-          />
         </span>
-        {label}
+        <span
+          className={cn(
+            "shrink-0 leading-5 whitespace-nowrap tabular-nums",
+            (running || waiting) && "text-foreground/85",
+          )}
+        >
+          {label}
+        </span>
+        <ChevronRight
+          aria-hidden
+          className={cn(
+            "size-3.5 shrink-0 opacity-50 transition-transform motion-reduce:transition-none",
+            open && "rotate-90",
+          )}
+        />
+        {!open && running && activity && (
+          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs" title={activity}>
+            {activity}
+          </span>
+        )}
+        {running && steps > 0 && (
+          <span
+            className={cn(
+              "text-muted-foreground shrink-0 text-xs",
+              activity && !open && "hidden sm:inline",
+            )}
+          >
+            {t("activityCount", { count: steps })}
+          </span>
+        )}
       </button>
-      {open && <div className="mt-2 space-y-3 pl-1">{children}</div>}
+      {open && (
+        <div
+          id={historyId}
+          role="region"
+          aria-labelledby={toggleId}
+          // Focus lets keyboard users scroll to steps outside the visible region.
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          className={cn(
+            "focus-visible:ring-ring mt-2 rounded-lg p-1 focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset",
+            !live && "max-h-[min(24rem,50dvh)] scrollbar-thin overflow-y-auto overscroll-contain",
+          )}
+        >
+          <div className="space-y-2">{children}</div>
+        </div>
+      )}
     </div>
   );
 }

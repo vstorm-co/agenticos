@@ -1,5 +1,5 @@
 ---
-source_sha: "f5d1507c01d1"
+source_sha: "171618534c74"
 ---
 
 # Arquitectura { #architecture }
@@ -1031,3 +1031,6 @@ dice cómo encontrar los documentos, publicado al asistente como JSON Schema.
   con `spawn`.
 - Un dominio fino es un módulo; uno grueso es un subpaquete con una fachada, y nada
   fuera de él importa sus submódulos.
+
+
+Los efectos telefónicos también requieren una frontera duradera: `telephony.runtime.dial`, la admisión entrante, transferencia y finalización confirman su intención antes de llamar al proveedor. La aceptación incierta conserva esa intención para callbacks firmados y limpieza, sin volver a marcar. La admisión de audio confirma su reserva de un solo uso antes de abrir la sesión del modelo.

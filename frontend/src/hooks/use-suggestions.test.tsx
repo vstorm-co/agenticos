@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/suggestions-api", () => api);
 
-import { usePersonalStarters, useSuggestionHistory, useSuggestions } from "./use-suggestions";
+import { usePersonalStarterQuery, useSuggestionHistory, useSuggestions } from "./use-suggestions";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -54,13 +54,33 @@ describe("useSuggestionHistory", () => {
   });
 });
 
-describe("usePersonalStarters", () => {
+describe("usePersonalStarterQuery", () => {
+  it("reuses fresh starters across mounts and does not fetch for another agent", async () => {
+    api.listPersonalStarters.mockClear();
+    api.listPersonalStarters.mockResolvedValue(["Plan my week"]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const shared = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const disabled = renderHook(() => usePersonalStarterQuery(false), { wrapper: shared });
+    expect(api.listPersonalStarters).not.toHaveBeenCalled();
+    disabled.unmount();
+    const first = renderHook(() => usePersonalStarterQuery(), { wrapper: shared });
+    await waitFor(() => expect(first.result.current.data).toEqual(["Plan my week"]));
+    first.unmount();
+    const second = renderHook(() => usePersonalStarterQuery(), { wrapper: shared });
+    expect(second.result.current.data).toEqual(["Plan my week"]);
+    expect(api.listPersonalStarters).toHaveBeenCalledTimes(1);
+    second.unmount();
+    client.clear();
+  });
+
   it("offers none until they are read, then the ones written for the person", async () => {
     api.listPersonalStarters.mockResolvedValue(["Plan my week"]);
 
-    const { result } = renderHook(() => usePersonalStarters(), { wrapper });
+    const { result } = renderHook(() => usePersonalStarterQuery(), { wrapper });
 
-    expect(result.current).toEqual([]);
-    await waitFor(() => expect(result.current).toEqual(["Plan my week"]));
+    expect(result.current.data).toBeUndefined();
+    await waitFor(() => expect(result.current.data).toEqual(["Plan my week"]));
   });
 });

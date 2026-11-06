@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import type { ArtifactAgent } from "@/types/artifact";
@@ -12,6 +14,7 @@ const EVERY = "every";
 interface AgentFilterProps {
   /** The publishers of what the caller can see, as the server named them. */
   agents: ArtifactAgent[];
+  loading?: boolean;
   /** The agent the list is narrowed to, or null for all of them. */
   value: string | null;
   onChange: (agentId: string | null) => void;
@@ -23,12 +26,13 @@ interface AgentFilterProps {
  * Nothing to choose between with one publisher, so the control appears only
  * once there are two - or while a filter is on, so it can be taken off again.
  */
-export function AgentFilter({ agents, value, onChange }: AgentFilterProps) {
+export function AgentFilter({ agents, loading, value, onChange }: AgentFilterProps) {
   const t = useTranslations("artifacts");
+  if (loading) return <Skeleton aria-hidden className="h-8 w-full sm:w-48" />;
   if (agents.length < 2 && value === null) return null;
   return (
     <Select value={value ?? EVERY} onValueChange={(next) => onChange(next === EVERY ? null : next)}>
-      <SelectTrigger className="w-full sm:w-48" aria-label={t("filterByAgent")}>
+      <SelectTrigger size="sm" className="w-full sm:w-48" aria-label={t("filterByAgent")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -394,6 +394,7 @@ async def persist_assistant_turn(
     run_id: UUID | None = None,
     parked_tool_call_ids: Collection[str] = (),
     mcp_origins: Mapping[str, UUID] | None = None,
+    draft_tools: Collection[str] = (),
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
@@ -521,6 +522,7 @@ async def persist_assistant_turn(
                         ),
                         parked=tc["tool_call_id"] in parked_tool_call_ids and not stopped,
                         mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
+                        presentation_kind="draft" if tc["tool_name"] in draft_tools else None,
                     )
                     result = tc.get("result")
                     if stopped and tc["tool_call_id"] in parked_tool_call_ids:

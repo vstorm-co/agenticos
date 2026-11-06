@@ -272,3 +272,22 @@ describe("reading a call's arguments", () => {
     expect(pathArg(undefined)).toBeNull();
   });
 });
+
+it("names the built-in AgenticOS MCP without a configured server connection", () => {
+  expect(mcpCall("agenticos_list_projects", [])).toEqual({
+    server: "AgenticOS",
+    action: "list_projects",
+    domain: null,
+  });
+});
+
+it("leads platform steps with the operation and the nested object title", () => {
+  const step = toolStep(
+    "agenticos_create_task",
+    { task: { title: "Review supplier draft" } },
+    false,
+    (key) => key,
+  );
+  expect(step.label).toBe("Create task");
+  expect(step.detail).toBe("Review supplier draft");
+});

@@ -19,6 +19,7 @@ import type {
   RecordList,
   RecordQuery,
   RecordRead,
+  RecordSource,
   RecordUpdate,
   SchemaUpdate,
   TableCreate,
@@ -170,3 +171,6 @@ export function uploadTableImage(
 export function discardTableImage(tableId: string, mediaId: string): Promise<void> {
   return apiClient.delete(`/tables/${tableId}/media/${mediaId}`);
 }
+
+export const getTableAssignees = (tableId: string) =>
+  apiClient.get<RecordSource[] | null>(`/tables/${tableId}/assignee-options`);

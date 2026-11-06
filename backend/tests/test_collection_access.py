@@ -284,6 +284,15 @@ class TestWhoMayReadACollection:
         assert await readable_kb(None, _ctx(), kb)
         assert not await readable_kb(None, _ctx(user_id=STRANGER), kb)
 
+    async def test_a_personal_collection_follows_its_owner_but_an_org_base_does_not(self) -> None:
+        personal = _kb(
+            "notes", scope=KBScope.PERSONAL, organization_id=OTHER_ORG, owner_user_id=CALLER
+        )
+        assert await readable_kb(None, _ctx(), personal)
+        assert not await readable_kb(None, _ctx(user_id=STRANGER), personal)
+        organization_base = _kb("handbook", organization_id=OTHER_ORG, owner_user_id=CALLER)
+        assert not await readable_kb(None, _ctx(), organization_base)
+
     async def test_a_key_reaches_its_issuers_personal_collection_only_within_its_scopes(
         self,
     ) -> None:

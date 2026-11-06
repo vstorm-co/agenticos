@@ -24,10 +24,18 @@ and binds to agents - and one job with two mechanisms is how the two disagree
 `context`.
 """
 
-from app.agents.audience import RunAudience
-from app.core.memory_keys import person_owner_key
+from uuid import UUID
 
-__all__ = ["may_inject_memory", "memory_owner_key"]
+from app.agents.audience import RunAudience
+from app.core.memory_keys import organization_owner_key, person_owner_key, project_owner_key
+from app.repositories.memory_claim import ClaimScope
+
+__all__ = [
+    "claim_write_scope",
+    "may_inject_memory",
+    "memory_owner_key",
+    "readable_claim_scopes",
+]
 
 
 def memory_owner_key(audience: RunAudience, *, allow_personal: bool) -> str | None:
@@ -64,3 +72,52 @@ def may_inject_memory(audience: RunAudience, *, allow_personal: bool) -> bool:
     return (
         audience.private and memory_owner_key(audience, allow_personal=allow_personal) is not None
     )
+
+
+def claim_write_scope(
+    audience: RunAudience, *, agent_id: UUID, allow_personal: bool, shared_with_agents: bool
+) -> ClaimScope | None:
+    """Where an automatic claim lands: in the source conversation's own scope, never wider.
+
+    A private run writes the person's profile (`shared_with_agents`: general facts
+    and preferences every agent acting for them may use) or the person-agent
+    relationship (case detail, the default). A room run writes the room. A run with
+    no store writes nothing. Project and organization scopes are reached only by
+    `share_memory`, on an explicit instruction - never from here.
+    """
+    key = memory_owner_key(audience, allow_personal=allow_personal)
+    if key is None:
+        return None
+    if audience.room_key is not None:
+        return ClaimScope(key, agent_id)
+    return ClaimScope(key, None if shared_with_agents else agent_id)
+
+
+def readable_claim_scopes(
+    audience: RunAudience,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    project_id: UUID | None,
+    allow_personal: bool,
+) -> list[ClaimScope]:
+    """Every scope this run may read claims from.
+
+    The conversation's own store; and, when the person is alone with the agent, their
+    shared profile, the project the conversation belongs to and the organization.
+    An anonymous run reads nothing: an organization's claims are not for a public
+    embed, and there is no person whose profile it could be.
+    """
+    key = memory_owner_key(audience, allow_personal=allow_personal)
+    if key is None:
+        return []
+    scopes = [ClaimScope(key, agent_id)]
+    if audience.room_key is not None:
+        # What a room reads aloud is the room's own: a channel's members are not
+        # necessarily a project's, and the organization's claims are not for it.
+        return scopes
+    scopes.append(ClaimScope(key, None))
+    if project_id is not None:
+        scopes.append(ClaimScope(project_owner_key(project_id), None))
+    scopes.append(ClaimScope(organization_owner_key(organization_id), None))
+    return scopes

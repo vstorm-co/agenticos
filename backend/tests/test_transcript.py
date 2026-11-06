@@ -407,7 +407,8 @@ class TestWritingTheTranscript:
             MagicMock(id=prompt_id),
             MagicMock(id=answer_id),
         ]
-        await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        saved_id = await TranscriptService(db).record(run, prompt="Question", answer="Answer")
+        assert saved_id == answer_id
         steps.assert_called_once_with(db, answer_id, run.organization_id)
 
     @pytest.fixture
@@ -640,6 +641,26 @@ class TestWritingTheTranscript:
         written = conversations.create_tool_call.await_args.kwargs
         assert (written["tool_name"], written["args"]) == ("send_email", {"to": "ada@example.com"})
         assert conversations.complete_tool_call.await_args.kwargs["result"] == "sent"
+
+    @pytest.mark.parametrize("tool_name,expected", [("save_reply", "draft"), ("external", None)])
+    async def test_only_server_resolved_draft_tools_receive_presentation_provenance(
+        self, conversations, tool_name, expected
+    ):
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt=None,
+            answer="",
+            draft_tools={"save_reply"},
+            tool_calls=[
+                RecordedToolCall(
+                    tool_call_id="c1",
+                    tool_name=tool_name,
+                    args={},
+                    result="DRAFTED [agenticos:draft:v1]",
+                )
+            ],
+        )
+        assert conversations.create_tool_call.await_args.kwargs["presentation_kind"] == expected
 
     async def test_a_call_an_organization_server_served_is_stored_against_it(self, conversations):
         """What a server's call log reads (#2072): the connection, not a prefix

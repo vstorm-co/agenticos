@@ -976,3 +976,6 @@ add one, and `docs/howto/add-sync-connector.md` for a worked example.
   is handed over with **`spawn_after_commit`**, never `spawn`.
 - A thin domain is a module; a thick one is a subpackage with a facade, and nothing
   outside it imports its sub-modules.
+
+
+Telephone effects also need a durable boundary: `telephony.runtime.dial`, inbound admission, transfer and hang-up commit their intent before provider I/O. Unknown acceptance retains that intent for signed callbacks and cleanup, never automatic redial. Media admission commits its single-use claim before opening the model session.

@@ -207,6 +207,14 @@ class TestTheDoor:
             trigger_type="event",
             event_source="hubspot",
             is_active=True,
+            approved_sources={
+                "id": str(uuid.uuid4()),
+                "consented_by": str(uuid.uuid4()),
+                "reviewed_at": "2026-11-06T00:00:00Z",
+                "version_id": str(uuid.uuid4()),
+                "scope_hash": "0" * 64,
+                "spec_hash": "0" * 64,
+            },
             event_config={"subscription_types": ["deal.propertyChange"]},
         )
         body = json.dumps([_EVENT]).encode()
@@ -219,6 +227,9 @@ class TestTheDoor:
                 AsyncMock(return_value=Decision(allowed=True, retry_after_seconds=0)),
             ),
             patch.object(AgentTriggerService, "_claim", AsyncMock(return_value=True)),
+            patch.object(
+                AgentTriggerService, "_polled_source_current", AsyncMock(return_value=True)
+            ),
             patch("app.services.trigger_events.time.time", return_value=_NOW),
         ):
             repo.get_by_id = AsyncMock(return_value=trigger)

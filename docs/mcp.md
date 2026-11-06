@@ -195,12 +195,12 @@ arguments, and the approved ones are what runs. `all` holds every call. The
 read-only hint is the server's own claim, so `writes` is only as strict as the
 server is honest — choose `all` for a server you do not control.
 
-The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
-the person it acts for. Any agent's binding to that server is held to at least
-`writes`, `none` included: its tools act with the authority of whoever is asking,
-an Admin's too. Two reads wait like writes: `read_conversation` releases a
-whole past conversation, and `get_project` releases a chosen project's
-instructions. A page the agent read must not silently trigger either disclosure.
+The Architect's template uses `writes` for the platform server. Bindings to that
+server enforce at least `writes`, including when configured as `none`, because
+tools act with the caller's permissions. Read-only tools, including `get_project`
+and `read_conversation`, run automatically under `writes`. Creating, updating,
+deleting and other state-changing operations require approval. Use `all` to
+require approval for reads as well.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely
@@ -696,10 +696,7 @@ listing:
   under *other* rather than guessed into a heading. The **Sign-in** filter asks
   for what a server wants - OAuth, a token, nothing - which for a mirrored
   listing is what the catalog check found.
-- **No baked logo.** The console inlines a favicon per curated host so a badge
-  renders offline; at 1.9 KB each, doing that for the mirror would be 10.5 MB of
-  base64 in a module the browser loads. Registry rows fall through to the
-  runtime favicon service, which is what it was written for.
+- **Local icons.** Curated services use bundled brand marks. Registry rows without a known logo use service or category pictograms rather than fetching a favicon for every server. Private, unclassified connections retain a monogram. Browsing the catalog works offline and does not disclose the viewed server domains to a third-party favicon service.
 - **A snapshot, not a proxy.** An install must not stop working because somebody
   else's registry is down, and a name that resolved yesterday resolving to
   nothing today is worse than one that was never there.
@@ -810,7 +807,7 @@ per-account endpoint.
 | Airtable | token | `https://mcp.airtable.com/mcp` |
 | Snowflake | token | self-hosted |
 | Databricks | token | self-hosted |
-| Google BigQuery | oauth | self-hosted |
+| Google BigQuery | oauth | `https://bigquery.googleapis.com/mcp` |
 | PostHog | token | `https://mcp.posthog.com/mcp` |
 | Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
 | Google Analytics 4 | token | self-hosted |
@@ -967,6 +964,113 @@ bind **Microsoft 365 (self-hosted)** or **Microsoft Work IQ** instead.
 
 ### Gmail and Google Workspace
 
+### Official Google remote servers
+
+The catalog includes Google's hosted Workspace servers: Gmail, Calendar, Drive,
+Docs, Sheets, Slides, Chat, People, Classroom and Universal Search. These are
+Developer Preview services, separate from the self-hosted Workspace integration.
+Join Google's preview program, enable the product API and MCP service, and create
+a web OAuth client marked for an AI-powered agent. Register the exact callback
+shown in the connection dialog and enter the client ID and secret there. Chat
+also requires a configured Chat app; Classroom requires a test class and student.
+See [Google's Workspace setup guide](https://developers.google.com/workspace/guides/configure-mcp-servers).
+
+Google-hosted MCP connections open the required client setup before sign-in, including the callback URL and a link to Google’s setup guide. Both the client ID and secret are required; AgenticOS does not attempt automatic client registration at Google. Other providers that reject registration return recovery instructions instead of a generic rejection.
+
+Cloud entries include BigQuery, Cloud Storage, Cloud Run, Compute Engine, GKE,
+Firestore, Cloud SQL, Spanner, Logging, Monitoring and more. Enable each service's
+APIs and grant the account MCP Tool User plus its product-specific IAM roles.
+Consult the linked guide for availability, billing and regional restrictions.
+Secure Source Manager defaults to US Central code review, and Gemini Enterprise
+Agent Platform to its generate toolset; edit the endpoint for another documented
+region or toolset. [Google's directory](https://docs.cloud.google.com/mcp/supported-products)
+also lists services whose endpoints or authentication are not yet included here.
+
+Google OAuth requests offline access and fresh consent so the account can receive
+a refresh token. Reconnect an existing Google account if it lacks one. Public
+handshake and tool discovery do not mean tools can access account data anonymously:
+the catalog audit checks OAuth metadata too. Catalog entries appear on existing
+installations after updating and restarting; accounts are connected explicitly,
+and existing connection URLs and credentials are preserved.
+
+| Server | Official endpoint |
+|---|---|
+| Gmail | `https://gmailmcp.googleapis.com/mcp/v1` |
+| Google Calendar | `https://calendarmcp.googleapis.com/mcp/v1` |
+| Google Chat | `https://chatmcp.googleapis.com/mcp/v1` |
+| Google Classroom | `https://classroommcp.googleapis.com/mcp/v1` |
+| Google Docs | `https://docsmcp.googleapis.com/mcp/v1` |
+| Google Drive | `https://drivemcp.googleapis.com/mcp/v1` |
+| Google People API | `https://people.googleapis.com/mcp/v1` |
+| Google Sheets | `https://sheetsmcp.googleapis.com/mcp/v1` |
+| Google Slides | `https://slidesmcp.googleapis.com/mcp/v1` |
+| Google Workspace Universal Search | `https://workspacemcp.googleapis.com/mcp/v1` |
+| Google API keys | `https://apikeys.googleapis.com/mcp` |
+| Google Agent Registry | `https://agentregistry.googleapis.com/mcp` |
+| Google Agent Search | `https://discoveryengine.googleapis.com/mcp` |
+| Google AlloyDB for PostgreSQL | `https://alloydb.googleapis.com/mcp` |
+| Google Android Management API | `https://androidmanagement.googleapis.com/mcp` |
+| Google Apigee API hub | `https://apihub.googleapis.com/mcp` |
+| Google App Lifecycle Manager | `https://saasservicemgmt.googleapis.com/mcp` |
+| Google App Topology | `https://apptopology.googleapis.com/mcp` |
+| Google Audit Manager | `https://auditmanager.googleapis.com/mcp` |
+| Google Backup and DR Service | `https://backupdr.googleapis.com/mcp` |
+| Google BigQuery Data Transfer Service | `https://bigquerydatatransfer.googleapis.com/mcp` |
+| Google BigQuery Migration Service | `https://bigquerymigration.googleapis.com/mcp` |
+| Google Bigtable | `https://bigtableadmin.googleapis.com/mcp` |
+| Google Capacity Planner | `https://capacityplanner.googleapis.com/mcp` |
+| Google Cloud Asset Inventory | `https://cloudasset.googleapis.com/mcp` |
+| Google Cloud CLI | `https://cloudcli.googleapis.com/mcp` |
+| Google Cloud Location Finder | `https://cloudlocationfinder.googleapis.com/mcp` |
+| Google Cloud Logging | `https://logging.googleapis.com/mcp` |
+| Google Cloud Monitoring | `https://monitoring.googleapis.com/mcp` |
+| Google Cloud NetApp Volumes | `https://netapp.googleapis.com/mcp` |
+| Google Cloud Quotas | `https://cloudquotas.googleapis.com/mcp` |
+| Google Cloud Run | `https://run.googleapis.com/mcp` |
+| Google Cloud SQL | `https://sqladmin.googleapis.com/mcp` |
+| Google Cloud Storage | `https://storage.googleapis.com/storage/mcp` |
+| Google Cloud Support API | `https://cloudsupport.googleapis.com/mcp` |
+| Google Cloud Trace | `https://cloudtrace.googleapis.com/mcp` |
+| Google Compute Engine | `https://compute.googleapis.com/mcp` |
+| Google Database Center | `https://databasecenter.googleapis.com/mcp` |
+| Google Database Migration Service | `https://datamigration.googleapis.com/mcp` |
+| Google Dataform | `https://dataform.googleapis.com/mcp` |
+| Google Datastream | `https://datastream.googleapis.com/mcp` |
+| Google Developer Connect | `https://developerconnect.googleapis.com/mcp` |
+| Google Developer Knowledge API | `https://developerknowledge.googleapis.com/mcp` |
+| Google Error Reporting | `https://clouderrorreporting.googleapis.com/mcp` |
+| Google Filestore | `https://file.googleapis.com/mcp` |
+| Google Firebase SQL Connect | `https://firebasedataconnect.googleapis.com/mcp` |
+| Google Firestore | `https://firestore.googleapis.com/mcp` |
+| Google GKE | `https://container.googleapis.com/mcp` |
+| Google Gemini Cloud Assist | `https://geminicloudassist.googleapis.com/mcp` |
+| Google Gemini Enterprise Agent Platform | `https://aiplatform.googleapis.com/mcp/generate` |
+| Google Home Developer | `https://homedevelopers.googleapis.com/mcp` |
+| Google Identity and Access Management | `https://iam.googleapis.com/mcp` |
+| Google Knowledge Catalog | `https://dataplex.googleapis.com/mcp` |
+| Google Managed Service for Apache Kafka | `https://managedkafka.googleapis.com/mcp` |
+| Google Managed Service for Apache Spark | `https://dataproc.googleapis.com/mcp` |
+| Google Maps Grounding Lite | `https://mapstools.googleapis.com/mcp` |
+| Google Memorystore | `https://redis.googleapis.com/mcp` |
+| Google Network Intelligence Center | `https://networkmanagement.googleapis.com/mcp` |
+| Google Oracle Database@Google Cloud | `https://oracledatabase.googleapis.com/mcp` |
+| Google Organization Policy Service | `https://orgpolicy.googleapis.com/mcp` |
+| Google Pay and Wallet | `https://paydeveloper.googleapis.com/mcp` |
+| Google Personalized Service Health | `https://servicehealth.googleapis.com/mcp` |
+| Google Policy Assist | `https://policyassist.googleapis.com/mcp` |
+| Google Policy Troubleshooter | `https://policytroubleshooter.googleapis.com/mcp` |
+| Google Pub/Sub | `https://pubsub.googleapis.com/mcp` |
+| Google Recommender | `https://recommender.googleapis.com/mcp` |
+| Google Resource Manager | `https://cloudresourcemanager.googleapis.com/mcp` |
+| Google Secure Source Manager | `https://securesourcemanager.us-central1.rep.googleapis.com/mcp/code_review` |
+| Google Security Command Center Management | `https://securitycentermanagement.googleapis.com/mcp/manage-services` |
+| Google Service Metadata API | `https://cloud.googleapis.com/mcp` |
+| Google Spanner | `https://spanner.googleapis.com/mcp` |
+| Google Stitch | `https://stitch.googleapis.com/mcp` |
+| Google Unified Maintenance | `https://maintenance.googleapis.com/mcp` |
+
+Catalog services use bundled brand marks, including distinct Workspace application icons. Registry entries without a supplied logo use a service or category pictogram, such as a calendar for CalendarMCP. Private, unclassified connections retain a monogram. Rendering these icons does not request third-party favicons.
+
 **Google Workspace (self-hosted)** is
 [`taylorwilsdon/google_workspace_mcp`](https://github.com/taylorwilsdon/google_workspace_mcp),
 run with `--transport streamable-http` and `MCP_ENABLE_OAUTH21=true`, using your own
@@ -1047,18 +1151,23 @@ would be; an expected refusal returns an explicit error envelope naming the miss
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `create_skill` | `skills:edit` |
+| `get_skill` | `skills:view` |
+| `update_skill`, `add_skill_resource` | `skills:edit` |
+| `list_context_files`, `get_context_file` | `context:view` |
+| `create_context_file`, `update_context_file` | `context:edit` |
 | `list_projects` | `projects:view` |
 | `get_project` | access to that project |
 | `create_project` | `projects:edit` |
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `set_my_language`, `set_my_profile` | — (the caller's own) |
+| `list_watches`, `delete_watch` | the caller’s own watches |
+| `create_watch`, `update_watch` | private-human consent; `agents:run` when selecting an agent |
 
-Project discovery with `list_projects` returns only project ids and names,
-excluding descriptions, instructions and other authored labels. Reading one chosen
-project with `get_project` includes them and waits for approval under the `writes`
-policy, just like `read_conversation`. Instructions from another shared project
-should not enter the model merely because it searched for a workspace.
+Project discovery with `list_projects` returns only project ids and names.
+Read a selected project's instructions and configuration with `get_project`.
+This is a read-only operation and runs without approval under `writes`, subject
+to the caller's existing access to the project.
 
 An agent can be built end to end here: drafted, edited, tried as the unpublished
 draft with `test_agent_draft` - a test run, budgeted and recorded, refused with the
@@ -1106,15 +1215,13 @@ named after this deployment; switching it on binds it as
   holding that person's permissions, so a Viewer's agent can read what the Viewer
   can read and create nothing. Nothing new is granted, and where nobody is behind
   the run - a public widget, a schedule acting for nobody - the binding is absent.
-- **Changes wait for approval.** `writes`, the default, holds every tool that
-  changes something (`create_agent_draft`, `publish_agent`, `create_routine`,
-  `run_agent`, `invite_member` and the rest) for the person to approve; `all` holds
-  reading too. `none` is not offered: these tools act with a person's authority.
-  The one write that never waits is `set_my_language`: it changes the asker's
-  own console language, on their word, and an approval card for "switch to
-  English" would be the whole conversation. `set_my_profile` waits like the
-  rest, because what it saves is told to every agent the person runs, and a page
-  an agent read must not be able to write it unseen.
+- **Changes follow the binding's approval policy.** `writes`, the default, holds
+  publishing, inviting, deletion, running now, and creation or editing of personal
+  routines and watches; `all` also holds reads. Only `set_my_language` bypasses
+  this gate. Private-human identity, ownership and permissions remain necessary,
+  but do not replace confirmation of a persistent automation call.
+  `set_my_profile` also waits because its content reaches future agent runs.
+
 - **The tools can be narrowed** in the card's settings, which list every tool and
   mark the ones that change something.
 
@@ -1163,8 +1270,31 @@ The platform MCP server also supplies workflow and Virtual Table tools. Start wi
 For operational records use `list_virtual_tables`, `get_virtual_table`, `create_virtual_table`, `update_virtual_table_schema`, `query_virtual_table`, `add_virtual_table_record` and `update_virtual_table_record`. Schema and record writes preserve revision checks. All tools use the caller's organization, permissions and resource grants; write tools retain the platform MCP approval gate. Architect's workflow-builder and virtual-tables skills explain choosing triggers, wrapping a documented HTTP API when the MCP gallery lacks an integration, and binding a published callable workflow to an agent. Credentials are configured in the vault UI, never embedded in graphs or model output.
 
 
-Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, and writes retain approval. Saved-view listing uses the same authenticated public API and table access checks. Legacy capability bindings remain editable with their resource grants; they are not automatically converted to broader MCP access.
+Workflows and Tables use the AgenticOS platform MCP server as their common tool interface. Allow only the tools an agent needs. `run_workflow` starts a published workflow and returns its admitted run; poll `get_workflow_execution` for the result. Table tools include `get_virtual_table_record`, `virtual_table_record_exists`, `upsert_virtual_table_record`, `delete_virtual_table_record` and `list_virtual_table_views`. Updates and deletions use the revision read, and writes retain approval. Saved-view listing uses the same authenticated public API and table access checks. Legacy Workflows bindings remain editable. The Tables capability is removed: stored app grants migrate to `table_bindings`, and table operations require an explicit platform MCP connection.
 
 Expected API refusals return an explicit `error` envelope with HTTP status, code, message and safe field details. This is a refused operation, never a successful write. The envelope stays visible in chat history; unexpected server failures still use masked MCP errors. New workflow drafts can use `prepare_workflow_draft` to review their table and graph together. The read-only `check_workflow_draft` validates without executing actions. Refreshing an unmodified Architect also installs and binds its workflow-builder and virtual-tables skills, preserving existing bindings and refusing to overwrite pending draft changes.
 
 For existing customized Architects, run `uv run agenticos cmd refresh-assistant --org <organization-id> --workflow-support`.
+
+
+## Context and skill authoring { #context-and-skill-authoring }
+
+Use `get_skill` before `update_skill`; omitted fields retain their values.
+`add_skill_resource` attaches a text reference or template, not an executed script.
+Discover Context with `list_context_files`, inspect its body and mode with
+`get_context_file`, and use `create_context_file` or `update_context_file` to save
+focused standing material. Choose `inject` for every-run prompt context and `link`
+for on-demand access. Both agent draft tools accept `context_ids`; the supplied
+list replaces the complete binding list. Editing a bound Context file affects the
+next run; changing a draft binding requires publication. Normal permissions and
+write approvals remain in force.
+
+### Connected account source authority
+
+A Google account connected through an organization's OAuth client can only be used in that organization. Personal use also requires current membership. Rotating or removing that client invalidates the copied grant until the person reconnects. Organization account connections, reconnections and disconnections are audited. Personal exports include account metadata, never tokens or client secrets.
+
+Migration `0293_connected_account_sources.py` leaves unverifiable older personal grants disconnected until reconsent. Downgrading it removes personal connected-account grants because older versions cannot enforce their source tenant; ordinary MCP connections remain.
+
+Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.
+
+Removing a member permanently revokes their personal grants issued through this organization; inviting them back requires new consent.

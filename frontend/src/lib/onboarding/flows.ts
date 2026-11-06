@@ -5,6 +5,7 @@ import {
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  PROJECT_DETAIL,
   TABLE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
@@ -34,6 +35,7 @@ export type FlowId =
   | "create-mcp"
   | "create-org"
   | "create-group"
+  | "create-project-tracker"
   | "create-routine"
   | "create-table"
   | "create-workflow"
@@ -796,6 +798,23 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // that picked one for the reader would teach the wrong half. So it points at the
   // pair, says what each is for, and ends when a routine appears in the list,
   // whichever door it came through.
+  "create-project-tracker": {
+    id: "create-project-tracker",
+    permission: Perm.agentsEdit,
+    steps: [
+      {
+        id: "flow-project-tracker-create",
+        page: PROJECT_DETAIL,
+        target: "project-tracking-create",
+        include: (state, can) =>
+          state.hasRunnableAgent &&
+          state.hasRoomForAgent &&
+          can(Perm.agentsPublish) &&
+          can(Perm.tablesCreate),
+        signal: { kind: "created", resource: "routine" },
+      },
+    ],
+  },
   "create-routine": {
     id: "create-routine",
     // The floor a trigger is actually created at is per resource, and the
@@ -944,6 +963,8 @@ export function flowForPage(pageId: string): FlowId | null {
       return "create-table";
     case ROUTES.MCP_SERVERS:
       return "create-mcp";
+    case PROJECT_DETAIL:
+      return "create-project-tracker";
     case ROUTES.ROUTINES:
       return "create-routine";
     case ROUTES.WORKFLOWS:

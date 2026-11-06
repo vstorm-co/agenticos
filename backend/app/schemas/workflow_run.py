@@ -16,6 +16,7 @@ from app.db.models.workflow_run import (
     WorkflowRunTrigger,
 )
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.reply_expectation import ReplyExpectation
 from app.workflows.graph.model import pinned_output_fits
 
 MAX_RUN_DEADLINE_SECONDS = 30 * 24 * 3600
@@ -200,6 +201,7 @@ class WorkflowNodeRunRead(BaseSchema):
     )
     started_at: datetime | None
     ended_at: datetime | None
+    reply_expectation: ReplyExpectation | None = None
 
 
 class WorkflowRunGraph(BaseSchema):

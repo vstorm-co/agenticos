@@ -54,6 +54,10 @@ class NotificationRead(BaseSchema):
         default=None,
         description="The agent the row is about, for its face; null for a row about none.",
     )
+    outcome_id: UUID | None = Field(
+        default=None,
+        description="The shared outcome this row is a delivery of; settling it clears every one.",
+    )
 
     @classmethod
     def from_row(
@@ -75,6 +79,7 @@ class NotificationRead(BaseSchema):
             read_at=notification.read_at,
             created_at=notification.created_at,
             agent=_agent_of(notification.render_context),
+            outcome_id=notification.outcome_id,
         )
 
 

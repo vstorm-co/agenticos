@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -49,6 +50,9 @@ const PLATFORMS: readonly ChannelPlatform[] = [
   "slack",
   "teams",
   "telegram",
+  "sms",
+  "email",
+  "imessage",
 ];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
@@ -57,6 +61,12 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   mattermost: "Mattermost",
   // i18n-exempt: a product\'s own name, written the same in every language
   teams: "Microsoft Teams",
+  // i18n-exempt: Twilio is the provider's own name
+  sms: "SMS (Twilio)",
+  // i18n-exempt: the name of the protocol, written the same in every language
+  email: "Email",
+  imessage: "iMessage",
+
   discord: "Discord",
 };
 
@@ -66,8 +76,21 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
   teams: "botTokenHintTeams",
+  sms: "botTokenHintSms",
+  email: "botTokenHintEmail",
+  imessage: "botTokenHintImessage",
+
   discord: "botTokenHintDiscord",
 };
+
+/** The shortest secret the backend accepts for a relay to sign with. */
+const MIN_RELAY_SECRET = 8;
+
+/** A long random string, so nobody has to invent one. */
+function generateRelaySecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 /** An Entra app or tenant id - what the backend accepts for either. */
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -149,17 +172,20 @@ export function AddChannelDialog({
   // Mattermost is self-hosted: without its server's address a bot cannot reply,
   // cannot open its event stream and cannot fetch an attachment, so the backend
   // refuses to save one. Said here rather than after the round trip.
-  const missingServerUrl = platform === "mattermost" && serverUrl.trim() === "";
+  const missingServerUrl =
+    (platform === "mattermost" || platform === "imessage") && serverUrl.trim() === "";
   // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
   const missingTeamsIds =
     platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
   const badReaction =
     answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
+  const missingRelaySecret = platform === "email" && webhookSecret.trim().length < MIN_RELAY_SECRET;
   const complete =
     name.trim().length > 0 &&
     token.trim().length >= MIN_TOKEN &&
     !missingServerUrl &&
     !missingTeamsIds &&
+    !missingRelaySecret &&
     !badReaction &&
     (platform !== "discord" || validDiscordGuilds(discordGuilds));
 
@@ -183,6 +209,7 @@ export function AddChannelDialog({
 
   /** Another platform asks other questions, so the answers to the old ones go. */
   function choosePlatform(next: ChannelPlatform) {
+    if (next !== platform) setToken("");
     setPlatform(next);
     setDiscordGuilds("");
     setServerUrl("");
@@ -204,15 +231,19 @@ export function AddChannelDialog({
         token: token.trim(),
         // Absent rather than empty, like the token itself: the backend applies
         // what it was sent, and a blank string is a value.
-        ...(platform === "mattermost" && serverUrl.trim()
+        ...((platform === "mattermost" || platform === "imessage") && serverUrl.trim()
           ? { api_base_url: serverUrl.trim() }
           : {}),
-        ...(platform === "mattermost" && webhookSecret.trim()
+        ...((platform === "mattermost" || platform === "email") && webhookSecret.trim()
           ? { webhook_secret: webhookSecret.trim() }
           : {}),
         // Only the credential the chosen direction uses: Slack calling us is
         // verified with the signing secret, us connecting out uses the app token.
         ...(platform === "slack" ? { webhook_mode: slackWebhook } : {}),
+        // A text arrives by webhook only: there is no connection to open.
+        ...(platform === "sms" || platform === "email" || platform === "imessage"
+          ? { webhook_mode: true }
+          : {}),
         ...(platform === "slack" && slackWebhook && signingSecret.trim()
           ? { slack_signing_secret: signingSecret.trim() }
           : {}),
@@ -287,9 +318,9 @@ export function AddChannelDialog({
 
         <div className={cn(DIALOG_BODY, "space-y-5")}>
           {/* A caption over a group of buttons, not a `Label`: a label names one
-              control and this one names three. */}
+              control and this one names a set of platforms. */}
           <div className="space-y-2">
-            <p id="channel-platform" className="text-sm leading-none font-medium">
+            <p id="channel-platform" className="text-muted-foreground text-xs font-medium">
               {t("platform")}
             </p>
             <div
@@ -304,14 +335,21 @@ export function AddChannelDialog({
                   onClick={() => choosePlatform(option)}
                   aria-pressed={platform === option}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                    "focus-visible:ring-ring flex min-h-14 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13px] transition-colors outline-none focus-visible:ring-2",
                     platform === option
-                      ? "border-foreground bg-accent text-foreground"
-                      : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
+                      ? "border-foreground/35 bg-accent text-foreground"
+                      : "bg-background/70 text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent/60 border-transparent",
                   )}
                 >
-                  <ChannelPlatformIcon platform={option} />
-                  <span className="font-medium">{PLATFORM_LABEL[option]}</span>
+                  <ChannelPlatformIcon
+                    platform={option}
+                    className="h-6 w-6 rounded-none bg-transparent"
+                  />
+                  <span className="min-w-0 flex-1 font-medium">{PLATFORM_LABEL[option]}</span>
+                  <Check
+                    className={cn("size-3.5 shrink-0", platform !== option && "invisible")}
+                    aria-hidden
+                  />
                 </button>
               ))}
             </div>
@@ -327,26 +365,30 @@ export function AddChannelDialog({
             >
               <Input
                 id="channel-name"
+                name="channel_name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={t("supportBot")}
+                autoComplete="off"
                 maxLength={MAX_NAME}
               />
             </FormField>
 
             <FormField
-              label={t("botToken")}
+              label={t(platform === "email" ? "emailAddress" : "botToken")}
               htmlFor="channel-token"
               error={errors.token}
               description={t(TOKEN_HINT[platform])}
               required
             >
               <Input
+                key={platform}
                 id="channel-token"
-                type="password"
+                name="channel_credential"
+                type={platform === "email" ? "email" : "password"}
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
-                autoComplete="off"
+                autoComplete={platform === "email" ? "off" : "new-password"}
               />
             </FormField>
           </div>
@@ -392,6 +434,52 @@ export function AddChannelDialog({
                 />
               </FormField>
             </div>
+          )}
+
+          {platform === "imessage" && (
+            <FormField
+              label={t("imessageServerUrl")}
+              htmlFor="imessage-server-url"
+              description={t("imessageServerUrlHint")}
+              error={errors.api_base_url}
+              required
+            >
+              <Input
+                id="imessage-server-url"
+                value={serverUrl}
+                onChange={(event) => setServerUrl(event.target.value)}
+                maxLength={MAX_URL}
+                placeholder="http://mac-bridge:1234"
+              />
+            </FormField>
+          )}
+
+          {platform === "email" && (
+            <FormField
+              label={t("emailRelaySecret")}
+              htmlFor="channel-relay-secret"
+              error={errors.webhook_secret}
+              description={t("emailRelaySecretHint")}
+              required
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="channel-relay-secret"
+                  type="password"
+                  value={webhookSecret}
+                  onChange={(event) => setWebhookSecret(event.target.value)}
+                  autoComplete="off"
+                  maxLength={MAX_NAME}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setWebhookSecret(generateRelaySecret())}
+                >
+                  {t("emailGenerateSecret")}
+                </Button>
+              </div>
+            </FormField>
           )}
 
           {platform === "teams" && (

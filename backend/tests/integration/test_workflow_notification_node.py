@@ -8,13 +8,19 @@ workflow-access rules every other surface uses.
 import json
 import uuid
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.permissions import AuthContext
-from app.db.models.notification import Notification, NotificationEventType
+from app.db.models.notification import (
+    Notification,
+    NotificationChannel,
+    NotificationEventType,
+)
+from app.db.models.notification_delivery import NotificationDelivery
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRunStatus
@@ -40,14 +46,16 @@ def _node(definition_id: str, config: dict[str, Any] | None = None) -> NodeInsta
     )
 
 
-def _graph(recipients: list[uuid.UUID]) -> tuple[WorkflowGraph, NodeInstance]:
+def _graph(
+    recipients: list[uuid.UUID], *, channels: list[str] | None = None
+) -> tuple[WorkflowGraph, NodeInstance]:
     entry = _node("core.input")
     notify = _node(
         "notification.send",
         {
             "recipients": [str(r) for r in recipients],
             "subject": "Lead scored",
-            "channels": ["in_app"],
+            "channels": ["in_app"] if channels is None else channels,
         },
     )
     graph = WorkflowGraph(
@@ -210,3 +218,43 @@ async def test_a_retried_attempt_writes_no_second_notification(engine: AsyncEngi
             .where(Notification.recipient_user_id == admin.id)
         )
     assert count == 1
+
+
+@pytest.mark.parametrize(
+    "channel", ["push", "slack", "telegram", "mattermost", "teams", "sms", "imessage"]
+)
+async def test_selected_external_channel_reaches_the_shared_notification_center(
+    engine: AsyncEngine, channel: str
+):
+    owner = await _owner(engine)
+    graph, _ = _graph([owner[0].id], channels=[channel])
+    seeded = await seed_run(engine, graph, member=owner)
+    async with seeded.factory() as db:
+        await validate_graph(db, seeded.ctx, graph)
+    with patch(
+        "app.services.notification_center.NotificationCenterService.write", AsyncMock()
+    ) as write:
+        run = await drive(seeded)
+    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert write.await_args is not None and write.await_args.kwargs["channels"] == {
+        NotificationChannel(channel)
+    }
+
+
+@pytest.mark.parametrize("channel", ["slack", "telegram", "mattermost", "teams", "sms", "imessage"])
+async def test_selecting_a_chat_channel_never_opts_the_recipient_in(
+    engine: AsyncEngine, channel: str
+):
+    owner = await _owner(engine)
+    graph, _ = _graph([owner[0].id], channels=["in_app", channel])
+    seeded = await seed_run(engine, graph, member=owner)
+    assert (await drive(seeded)).status == WorkflowRunStatus.SUCCEEDED.value
+    async with seeded.factory() as db:
+        assert (
+            await db.scalar(
+                select(func.count())
+                .select_from(NotificationDelivery)
+                .where(NotificationDelivery.channel == channel)
+            )
+            == 0
+        )

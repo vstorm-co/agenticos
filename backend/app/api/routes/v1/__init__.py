@@ -53,7 +53,7 @@ from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
-from app.api.routes.v1 import virtual_tables
+from app.api.routes.v1 import virtual_tables, tasks
 from app.api.routes.v1 import (
     workflow_approvals,
     workflow_evals,
@@ -66,9 +66,11 @@ from app.api.routes.v1 import (
 from app.api.routes.v1 import table_views
 from app.api.routes.v1 import virtual_table_triggers
 from app.api.routes.v1 import memory as memory_files
+from app.api.routes.v1 import outcomes, primary_conversations, system_agents
 from app.api.routes.v1 import browser_sign_ins
+from app.api.routes.v1 import coding_accounts
 from app.api.routes.v1 import permissions
-from app.api.routes.v1 import telegram_webhook
+from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
 from app.api.routes.v1 import teams_webhook
@@ -136,6 +138,7 @@ v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
 v1_router.include_router(virtual_tables.router, prefix="/tables", tags=["tables"])
+v1_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 v1_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 v1_router.include_router(workflow_runs.router, prefix="/workflow-runs", tags=["workflow-runs"])
 v1_router.include_router(workflow_runs.logs_router, prefix="/workflows", tags=["workflows:logs"])
@@ -186,6 +189,10 @@ v1_router.include_router(
 )
 v1_router.include_router(artifacts.embed_router, prefix="/artifact-embed", tags=["artifacts:embed"])
 v1_router.include_router(memory_files.router, prefix="/memory", tags=["memory"])
+v1_router.include_router(
+    primary_conversations.router, prefix="/agents", tags=["primary-conversations"]
+)
+v1_router.include_router(system_agents.router, prefix="/system-agents", tags=["system-agents"])
 v1_router.include_router(
     browser_sign_ins.router, prefix="/browser-sign-ins", tags=["browser-sign-ins"]
 )
@@ -270,6 +277,10 @@ v1_router.include_router(admin_users.router, prefix="/admin/users", tags=["admin
 v1_router.include_router(channels.router, prefix="/channels", tags=["channels"])
 
 v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["telegram"])
+v1_router.include_router(sms_webhook.router, prefix="/sms", tags=["sms"])
+v1_router.include_router(email_webhook.router, prefix="/email", tags=["email"])
+v1_router.include_router(imessage_webhook.router, prefix="/imessage", tags=["imessage"])
+v1_router.include_router(outcomes.router, prefix="/outcomes", tags=["outcomes"])
 
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 
@@ -309,3 +320,9 @@ v1_router.include_router(
     org_integrations.router, prefix="/org/integrations", tags=["org:integrations"]
 )
 v1_router.include_router(voice.router, tags=["voice"])
+
+v1_router.include_router(phone.router, prefix="/phone", tags=["voice"])
+
+v1_router.include_router(
+    coding_accounts.router, prefix="/coding-accounts", tags=["coding-accounts"]
+)

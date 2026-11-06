@@ -32,6 +32,7 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.field_errors import field_details
 from app.core.permissions import Perm
 from app.db.models.workflow_run import WorkflowRunMode, WorkflowRunStatus, WorkflowRunTrigger
+from app.schemas.reply_expectation import ReplyExpectation, ReplyExpectationEdit
 from app.schemas.workflow_log_entry import (
     LOG_SUMMARY_DAYS,
     LogFilters,
@@ -185,6 +186,24 @@ async def resolve_workflow_run_step(
     click), has no error route, or has no late result; 404 `WORKFLOW_STEP_NOT_FOUND`
     for a step of another run."""
     return await service.resolve_step(ctx, run_id, node_run_id, body)
+
+
+@router.put("/{run_id}/steps/{node_run_id}/reply-expectation", response_model=ReplyExpectation)
+async def edit_workflow_reply_expectation(
+    run_id: UUID,
+    node_run_id: UUID,
+    body: ReplyExpectationEdit,
+    service: WorkflowExecutionSvc,
+    ctx: Auth,
+) -> Any:
+    """Correct or pause a parked mail reply expectation.
+
+    Uses step-resolution authority: the run's principal or a workflow editor,
+    and only an editor for test runs. An executing check answers 409. The
+    selected mailbox cannot change; `review_mailbox` explicitly accepts its
+    renewed consent. A step needing attention still needs an explicit rerun.
+    """
+    return await service.edit_reply_expectation(ctx, run_id, node_run_id, body)
 
 
 @router.get("/{run_id}/graph", response_model=WorkflowRunGraph)

@@ -126,14 +126,14 @@ describe("the filter bar", () => {
     expect(screen.getByText("Threads this agent answered in")).toBeVisible();
   });
 
-  it("marks its button when anything narrows or reorders the list", () => {
-    mount({ hideApi: true });
+  it("marks its button when the ordering differs from the default", () => {
+    mount({ hideApi: true, sort: "title:asc" });
     const button = screen.getByRole("button", { name: "Filter and sort" });
     expect(button.querySelector("span[aria-hidden]")).not.toBeNull();
   });
 
-  it("leaves its button unmarked on the plain list", () => {
-    mount();
+  it("leaves its button unmarked with the default API conversations hidden", () => {
+    mount({ hideApi: true });
     const button = screen.getByRole("button", { name: "Filter and sort" });
     expect(button.querySelector("span[aria-hidden]")).toBeNull();
   });

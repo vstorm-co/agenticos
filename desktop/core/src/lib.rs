@@ -6,6 +6,7 @@
 //! this owns the rules that make a sign-in theirs and nobody else's.
 
 pub mod device;
+pub mod routine_grants;
 
 use std::sync::Mutex;
 

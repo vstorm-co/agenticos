@@ -273,10 +273,11 @@ describe("the chat's agent picker", () => {
   it("does not claim there is nothing published while the list is still loading", async () => {
     loading = true;
 
-    await open([], null);
-
+    listed.mockReturnValue([]);
+    selectedId.mockReturnValue(null);
+    render(<AgentPicker />);
     expect(screen.queryByText(/No published agents yet/)).not.toBeInTheDocument();
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Loading…" })).toBeDisabled();
   });
 });
 
@@ -376,4 +377,17 @@ it("opens without focusing a clipped agent outline and supports deliberate keybo
   expect(select).toHaveBeenCalledWith("a2");
   await userEvent.keyboard("{Escape}");
   expect(screen.getByRole("button", { name: /^Agent:/ })).toHaveFocus();
+});
+
+it("keeps demo icons and choose-agent text off the loading trigger", () => {
+  loading = true;
+  listed.mockReturnValue([]);
+  selectedId.mockReturnValue(null);
+  render(<AgentPicker />);
+  const trigger = screen.getByRole("button", { name: "Loading…" });
+  expect(trigger).toBeDisabled();
+  expect(trigger).toHaveAttribute("aria-busy", "true");
+  expect(trigger.querySelector(".lucide-bot")).toBeNull();
+  expect(screen.getByTestId("agent-picker-loading-icon")).toBeVisible();
+  expect(screen.getByTestId("agent-picker-loading-name")).toBeVisible();
 });

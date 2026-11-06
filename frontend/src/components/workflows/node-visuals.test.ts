@@ -1,3 +1,4 @@
+import { TableIcon as Table2 } from "@/components/icons/product-icons";
 import {
   ArrowUpDown,
   Bot,
@@ -12,7 +13,6 @@ import {
   Reply,
   Search,
   Send,
-  Table2,
   WandSparkles,
   Zap,
 } from "lucide-react";

@@ -24,7 +24,6 @@ import {
   ClipboardList,
   FileText,
   GitPullRequest,
-  Inbox,
   Lightbulb,
   ListChecks,
   Sparkles,
@@ -32,6 +31,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { InboxIcon as Inbox } from "@/components/icons/product-icons";
 
 const ICONS: Record<string, LucideIcon> = {
   daily_briefing: Sunrise,

@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -80,7 +82,7 @@ function anchorOf(id: string): HTMLElement | null {
 
 /** Scrolls a message into view, when the transcript still holds it. */
 function jumpTo(id: string) {
-  anchorOf(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  anchorOf(id)?.scrollIntoView({ behavior: glideOrJump(), block: "center" });
 }
 
 /** Scrolls the transcript, and only the transcript, so a message starts at the top of it. */

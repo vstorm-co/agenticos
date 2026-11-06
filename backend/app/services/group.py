@@ -291,6 +291,9 @@ class GroupService:
                     ),
                     details={"role": discord_mapping.role},
                 )
+        from app.services.tasks import TaskService
+
+        await TaskService(self.db).purge_scope("group", group.id, organization_id=organization_id)
         name = group.name
         await group_repo.delete_group(self.db, group)
         await record_audit(

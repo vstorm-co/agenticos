@@ -86,7 +86,7 @@ export default function AdminOrganizationsPage() {
       {
         key: "name",
         header: t("name"),
-        className: "w-full max-w-0 pl-3 sm:pl-5",
+        className: "w-full max-w-0 sm:w-[35%] pl-3 sm:pl-5",
         sortable: true,
         cell: (org) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -101,7 +101,9 @@ export default function AdminOrganizationsPage() {
               className="shrink-0"
             />
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className="text-foreground truncate font-medium">{org.name}</span>
+              <span title={org.name} className="text-foreground truncate font-medium">
+                {org.name}
+              </span>
               <span className="text-muted-foreground block w-full truncate font-mono text-xs sm:hidden">
                 {org.slug}
               </span>

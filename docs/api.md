@@ -19,6 +19,11 @@ Three ways in, for three different callers.
 | **JWT** | `Authorization: Bearer <access token>` | A person, or something acting as one. Short-lived, refreshed with a refresh token |
 | **Session cookie** | set by the console | The browser only — the token is HttpOnly and never reaches JavaScript |
 
+Use `Authorization: Bearer aos_…` for organization keys. `X-API-Key` is a separate deployment
+service credential; sending an `aos_…` key there does not authenticate an organization request.
+Vault routes such as `GET /api/v1/secrets` and the console messages route require a signed-in
+session. API clients read conversation messages through `GET /api/v1/conversations/{id}/transcript`.
+
 ### Organization API keys
 
 A key is issued by a member, in one organization, from **Settings → API**
@@ -164,6 +169,17 @@ shows the same object as a JSON block.
 `"draft": true` runs the unpublished draft instead, as the Builder's test panel
 does: a test run, for a key whose issuer may edit the agent, refused with the
 reason when the draft would not publish, and never with `Prefer: respond-async`.
+
+Synchronous runs, including draft tests, return `status: awaiting_answer` and `questions` when the
+agent asks the person. Answer with `POST /api/v1/runs/{run_id}/answers`, using
+`{"responses":{"<tool_call_id>":[{"selected":["Choice"]}]}}`; use `answer` for custom text or
+`skipped: true` to skip deliberately. No response is treated as a refusal automatically. Platform
+MCP exposes the same flow as `test_agent_draft` and `answer_agent_questions`.
+
+Conversation history retains answered question cards and successful deferred capability loads.
+Current registered skills resolve their current instructions on the next turn; revoked skills are
+not re-enabled. Historical table results are not cached as current data. Top-level agent `starters`
+describes the published version; draft starters live under `draft_spec.starters`.
 
 A key also reaches an agent's routines - `GET /api/v1/triggers` and
 `GET`, `POST`, `PATCH` and `DELETE` under `/api/v1/agents/{agent_id}/triggers`,
@@ -844,3 +860,6 @@ only moves forward.
   poll, so a long run does not hold a connection open.
 - **The public API is in `/api/v1/public/openapi.json`** and changes only
   additively within v1, with 90 days' deprecation; there is no SDK yet.
+
+
+Skills whose load requires approval must be approved again in each turn; historical loads never bypass that gate.

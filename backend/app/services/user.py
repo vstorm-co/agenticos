@@ -19,6 +19,7 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConflictError,
     NotFoundError,
     RateLimitError,
 )
@@ -30,7 +31,7 @@ from app.core.security import (
     verify_password,
     verify_special_token,
 )
-from app.db.locks import LockScope, hold_name, try_hold_name
+from app.db.locks import LockScope, hold_name, try_hold_name, try_hold_subject
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.updates import writable
@@ -981,6 +982,16 @@ class UserService:
                 still being taken by other writers after `_ACCOUNT_LOCK_SECONDS`.
                 Nothing was deleted.
         """
+        from app.repositories import telephony as phone_repo
+
+        # Phone admission takes this before creating its intent. Never wait while
+        # a bulk deletion may already hold another account's rows or audit lock.
+        if not await try_hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, user_id):
+            raise ConcurrentChangeError(
+                message="This account is busy; nothing was deleted. Try again."
+            )
+        if await phone_repo.user_has_unfinished_calls(self.db, user_id):
+            raise ConflictError(message="End all telephone calls before deleting this account")
         # Created with the account (`create_personal_org`) and never afterwards,
         # so a read before the locks is the set the locks need.
         personal_orgs = [

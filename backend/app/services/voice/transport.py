@@ -1,9 +1,21 @@
 """The socket's edges: what an offer may contain, and sending a frame (#54)."""
 
-from fastapi import WebSocket, WebSocketDisconnect
+from collections.abc import Mapping
+from typing import Protocol
+
+from fastapi import WebSocketDisconnect
 
 from app.schemas.voice import ServerFrame
 from app.services.voice.exceptions import VoiceRefused
+
+
+class VoiceSocket(Protocol):
+    """The frame transport shared by the browser and telephone relay."""
+
+    async def receive(self) -> Mapping[str, object]: ...
+    async def send_text(self, data: str) -> None: ...
+    async def send_bytes(self, data: bytes) -> None: ...
+
 
 MAX_SDP_BYTES = 20_000
 
@@ -24,7 +36,7 @@ def refuse_data_channel(sdp: str) -> None:
         raise VoiceRefused("bad_offer", "The call could not be set up.")
 
 
-async def send_frame(websocket: WebSocket, frame: ServerFrame) -> bool:
+async def send_frame(websocket: VoiceSocket, frame: ServerFrame) -> bool:
     """Send one JSON frame. `False` when the socket is already gone - never an exception.
 
     Only the fields the frame was built with: an optional one left out is absent
@@ -37,7 +49,7 @@ async def send_frame(websocket: WebSocket, frame: ServerFrame) -> bool:
     return True
 
 
-async def send_audio_frame(websocket: WebSocket, data: bytes) -> bool:
+async def send_audio_frame(websocket: VoiceSocket, data: bytes) -> bool:
     """Send one binary frame of the agent's audio (the relay). `False` when the socket is gone."""
     try:
         await websocket.send_bytes(data)

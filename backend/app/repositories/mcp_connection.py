@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,8 +24,14 @@ from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 
 
-async def get_by_id(db: AsyncSession, connection_id: UUID) -> McpConnection | None:
-    result = await db.execute(select(McpConnection).where(McpConnection.id == connection_id))
+async def get_by_id(
+    db: AsyncSession, connection_id: UUID, *, fresh: bool = False
+) -> McpConnection | None:
+    result = await db.execute(
+        select(McpConnection)
+        .where(McpConnection.id == connection_id)
+        .execution_options(populate_existing=fresh)
+    )
     return result.scalar_one_or_none()
 
 
@@ -59,7 +66,12 @@ async def get_for_token_refresh(db: AsyncSession, connection_id: UUID) -> McpCon
 
 
 async def get_org_scoped_by_id(
-    db: AsyncSession, *, connection_id: UUID, organization_id: UUID, for_update: bool = False
+    db: AsyncSession,
+    *,
+    connection_id: UUID,
+    organization_id: UUID,
+    for_update: bool = False,
+    fresh: bool = False,
 ) -> McpConnection | None:
     """One organization-scoped connection, looked up inside one organization.
 
@@ -80,6 +92,7 @@ async def get_org_scoped_by_id(
         McpConnection.organization_id == organization_id,
         McpConnection.scope == "org",
     )
+    stmt = stmt.execution_options(populate_existing=fresh)
     if for_update:
         stmt = (
             stmt.options(lazyload(McpConnection.user))
@@ -199,7 +212,7 @@ async def get_org_scoped_by_catalog_key(
 
 
 async def list_user_scoped_by_catalog_key(
-    db: AsyncSession, *, user_id: UUID, catalog_key: str
+    db: AsyncSession, *, user_id: UUID, catalog_key: str, fresh: bool = False
 ) -> list[McpConnection]:
     """This person's own enabled connections to one catalog entry.
 
@@ -217,6 +230,7 @@ async def list_user_scoped_by_catalog_key(
             McpConnection.is_enabled.is_(True),
         )
         .order_by(McpConnection.created_at.asc())
+        .execution_options(populate_existing=fresh)
     )
     return list(result.scalars())
 
@@ -474,11 +488,13 @@ async def create(
     label: str | None = None,
     catalog_key: str | None = None,
     purpose: str = "mcp",
+    account_source_organization_id: UUID | None = None,
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
         catalog_key=catalog_key,
         purpose=purpose,
+        account_source_organization_id=account_source_organization_id,
         name=name,
         url=url,
         auth_token=auth_token,
@@ -513,6 +529,7 @@ async def create_org_scoped(
     oauth_state: str | None = None,
     oauth_pending_payload: str | None = None,
     purpose: str = "mcp",
+    account_source_organization_id: UUID | None = None,
     portal_key: str | None = None,
     label: str | None = None,
     visibility: str = Visibility.ORG.value,
@@ -544,6 +561,7 @@ async def create_org_scoped(
         oauth_state=oauth_state,
         oauth_pending_payload=oauth_pending_payload,
         purpose=purpose,
+        account_source_organization_id=account_source_organization_id,
         portal_key=portal_key,
         label=label,
         visibility=visibility,
@@ -626,6 +644,7 @@ async def list_accounts(
     )
     result = await db.execute(
         select(McpConnection)
+        .execution_options(populate_existing=True)
         .where(
             owner,
             McpConnection.purpose == "account",
@@ -640,9 +659,9 @@ async def list_accounts(
 async def get_account(db: AsyncSession, account_id: UUID) -> McpConnection | None:
     """One connected account by id, whoever owns it - the caller checks the owner."""
     result = await db.execute(
-        select(McpConnection).where(
-            McpConnection.id == account_id, McpConnection.purpose == "account"
-        )
+        select(McpConnection)
+        .execution_options(populate_existing=True)
+        .where(McpConnection.id == account_id, McpConnection.purpose == "account")
     )
     return result.scalar_one_or_none()
 
@@ -686,3 +705,19 @@ async def lock_account_owner(
         raise ValueError("An account has exactly one owner")
     subject = f"user:{user_id}" if user_id is not None else f"org:{organization_id}"
     await hold_name(db, LockScope.CONNECTED_ACCOUNTS, subject)
+
+
+async def delete_accounts_for_member(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> None:
+    """A later invitation must not resurrect a former member's copied OAuth client."""
+    await lock_account_owner(db, user_id=user_id)
+    await db.execute(
+        sql_delete(McpConnection).where(
+            McpConnection.scope == "user",
+            McpConnection.purpose == "account",
+            McpConnection.user_id == user_id,
+            McpConnection.account_source_organization_id == organization_id,
+        )
+    )
+    await db.flush()

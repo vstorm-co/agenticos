@@ -1,4 +1,4 @@
-"""`notification.send`: tell members of the organization something, in the app or by email.
+"""`notification.send`: tell members through their opted-in notification channels.
 
 Recipients are members, named by id - never a free-text address - and each one
 is checked when the step runs: still an active member of the organization, and
@@ -6,6 +6,11 @@ able to see this workflow. A recipient who fails either is dropped, the way an
 agent's alert audience drops a member who left; if nobody is left the step
 fails with `NO_PERMITTED_RECIPIENTS` rather than claiming to have told anyone.
 Publishing refuses a recipient who is not a member at all.
+
+Push uses the recipient's subscribed devices. Slack, Telegram, Mattermost,
+Microsoft Teams, SMS and iMessage require their own explicit private notification
+route and channel preference. Selecting a channel never opts the recipient in,
+and the step accepts no free-text chat destination.
 
 The rows go through `NotificationCenterService.write`, so each recipient's own
 channel preferences still decide what reaches them. `Completed` means the rows
@@ -20,7 +25,6 @@ occurrence_id)` uniqueness turns a second write into a no-op.
 """
 
 import hashlib
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -50,10 +54,10 @@ class NotificationSendConfig(BaseModel):
         description="Members of the organization to notify.",
     )
     subject: str = Field(min_length=1, max_length=200, description="The notification's headline.")
-    channels: tuple[Literal["in_app", "email"], ...] = Field(
-        default=("in_app",),
+    channels: tuple[NotificationChannel, ...] = Field(
+        default=(NotificationChannel.IN_APP,),
         min_length=1,
-        description="Where it may reach them. Each person's own preferences still apply.",
+        description="Where it may reach them. Each person's preferences and explicit private-channel opt-in still apply; a workflow cannot select a chat destination for them.",
     )
 
 

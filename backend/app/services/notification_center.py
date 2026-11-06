@@ -10,10 +10,12 @@ mark-all-read would otherwise return gate-blind.
 import contextlib
 import logging
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -21,18 +23,28 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.announcement import Announcement
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
+from app.db.models.notification import (
+    CHAT_NOTIFICATION_CHANNELS,
+    Notification,
+    NotificationChannel,
+    NotificationEventType,
+)
+from app.db.models.notification_route import NotificationRoute
 from app.db.models.user import NotificationPreference
 from app.repositories import artifact as artifact_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import member as member_repo
 from app.repositories import notification as notification_repo
+from app.repositories import notification_route as route_repo
+from app.repositories import project as project_repo
 from app.repositories import workflow as workflow_repo
 from app.services import rate_limit
-from app.services.access import ARTIFACT, WORKFLOW, resolve_access
+from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
+from app.services.outcome import OutcomeService
 from app.services.push import PushService
+from app.services.routine_notifications import allowed_channels as routine_channels
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +144,7 @@ def _build_togglable_pairs() -> frozenset[tuple[NotificationEventType, Notificat
             continue
         pairs.add((event_type, NotificationChannel.IN_APP))
         pairs.add((event_type, NotificationChannel.PUSH))
+        pairs.update((event_type, channel) for channel in CHAT_NOTIFICATION_CHANNELS)
         if event_type not in LEGACY_EMAIL_COLUMN:
             pairs.add((event_type, NotificationChannel.EMAIL))
     return frozenset(pairs)
@@ -154,6 +167,8 @@ class _ChannelReads:
     email: dict[uuid.UUID, bool] = field(default_factory=dict)
     push: dict[uuid.UUID, bool] = field(default_factory=dict)
     subscribed: set[uuid.UUID] = field(default_factory=set)
+    chat_routes: dict[uuid.UUID, list[NotificationRoute]] = field(default_factory=dict)
+    chat_preferences: dict[str, dict[uuid.UUID, bool]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -398,6 +413,7 @@ class _GateCache:
     announcement_visible_by_id: dict[uuid.UUID, bool]
     artifact_visible_by_id: dict[uuid.UUID, bool]
     workflow_visible_by_id: dict[uuid.UUID, bool]
+    project_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
 
 
 class NotificationCenterService:
@@ -586,7 +602,10 @@ class NotificationCenterService:
         channels_read = _ChannelReads()
         if not use_savepoint:
             channels_read = await self._read_channels(
-                recipients=recipients, event_type=event_type, mandatory=mandatory
+                recipients=recipients,
+                event_type=event_type,
+                mandatory=mandatory,
+                organization_id=organization_id,
             )
         else:
             # Inside a savepoint of its own, for the same reason the
@@ -601,7 +620,10 @@ class NotificationCenterService:
             try:
                 async with self.db.begin_nested():
                     channels_read = await self._read_channels(
-                        recipients=recipients, event_type=event_type, mandatory=mandatory
+                        recipients=recipients,
+                        event_type=event_type,
+                        mandatory=mandatory,
+                        organization_id=organization_id,
                     )
             except Exception:
                 logger.exception(
@@ -619,6 +641,26 @@ class NotificationCenterService:
 
         written: list[Notification] = []
         for recipient_id in recipients:
+            recipient_channels = channels
+            if not mandatory and render_context and "routine_origin_id" in render_context:
+                try:
+                    async with self.db.begin_nested() if use_savepoint else nullcontext():
+                        current = await routine_channels(
+                            self.db,
+                            organization_id=organization_id,
+                            recipient_user_id=recipient_id,
+                            context=render_context,
+                        )
+                except SQLAlchemyError:
+                    if not use_savepoint:
+                        raise
+                    logger.exception(
+                        "routine_notification_policy_failed",
+                        extra={"event_type": event_type.value, "occurrence_id": occurrence_id},
+                    )
+                    continue
+                if current is not None:
+                    recipient_channels = current if channels is None else current & channels
             # A recipient absent from either map means the same as a `None`
             # read did before batching: no preference row yet (or, for the
             # legacy column, a user row already gone) - default enabled.
@@ -626,11 +668,11 @@ class NotificationCenterService:
             # rather than replacing it - a recipient who has turned a
             # channel off stays off regardless of what the sender picked.
             in_app_visible = mandatory or (
-                _channel_allowed(channels, NotificationChannel.IN_APP)
+                _channel_allowed(recipient_channels, NotificationChannel.IN_APP)
                 and channels_read.in_app.get(recipient_id, True)
             )
             email_enabled = mandatory or (
-                _channel_allowed(channels, NotificationChannel.EMAIL)
+                _channel_allowed(recipient_channels, NotificationChannel.EMAIL)
                 and channels_read.email.get(recipient_id, True)
             )
             # Only for somebody with a browser to push to: a delivery row for
@@ -638,10 +680,21 @@ class NotificationCenterService:
             push_enabled = recipient_id in channels_read.subscribed and (
                 mandatory
                 or (
-                    _channel_allowed(channels, NotificationChannel.PUSH)
+                    _channel_allowed(recipient_channels, NotificationChannel.PUSH)
                     and channels_read.push.get(recipient_id, True)
                 )
             )
+            chat_routes = [
+                route
+                for route in channels_read.chat_routes.get(recipient_id, [])
+                if mandatory
+                or (
+                    _channel_allowed(recipient_channels, NotificationChannel(route.channel))
+                    and channels_read.chat_preferences.get(route.channel, {}).get(
+                        recipient_id, True
+                    )
+                )
+            ]
             if not use_savepoint:
                 notification = await self._write_one(
                     recipient_id=recipient_id,
@@ -655,6 +708,7 @@ class NotificationCenterService:
                     in_app_visible=in_app_visible,
                     email_enabled=email_enabled,
                     push_enabled=push_enabled,
+                    chat_routes=chat_routes,
                 )
                 if notification is not None:
                     written.append(notification)
@@ -679,6 +733,7 @@ class NotificationCenterService:
                         in_app_visible=in_app_visible,
                         email_enabled=email_enabled,
                         push_enabled=push_enabled,
+                        chat_routes=chat_routes,
                     )
             except Exception:  # pragma: no cover
                 # Directly verified (a forced FK violation logs exactly this
@@ -704,15 +759,34 @@ class NotificationCenterService:
         return written
 
     async def _read_channels(
-        self, *, recipients: list[uuid.UUID], event_type: NotificationEventType, mandatory: bool
+        self,
+        *,
+        recipients: list[uuid.UUID],
+        event_type: NotificationEventType,
+        mandatory: bool,
+        organization_id: uuid.UUID | None = None,
     ) -> _ChannelReads:
         """Every channel's preference for the whole fan-out, one query each, and
         who has a browser or an iPhone to push to. A mandatory event reads no
         preference - it reaches every channel - but still only pushes to a
         subscriber."""
         subscribed = await PushService(self.db).subscribed(recipients)
+        chat_routes: dict[uuid.UUID, list[NotificationRoute]] = {}
+        chat_preferences: dict[str, dict[uuid.UUID, bool]] = {}
+        if organization_id is not None:
+            for route in await route_repo.routes(
+                self.db, organization_id=organization_id, user_ids=recipients
+            ):
+                chat_routes.setdefault(route.user_id, []).append(route)
+            if not mandatory:
+                for channel in {
+                    route.channel for routes in chat_routes.values() for route in routes
+                }:
+                    chat_preferences[channel] = await notification_repo.get_channel_preferences(
+                        self.db, user_ids=recipients, event_type=event_type.value, channel=channel
+                    )
         if mandatory:
-            return _ChannelReads(subscribed=subscribed)
+            return _ChannelReads(subscribed=subscribed, chat_routes=chat_routes)
         in_app_by_recipient = await notification_repo.get_channel_preferences(
             self.db,
             user_ids=recipients,
@@ -747,6 +821,8 @@ class NotificationCenterService:
             email=email_by_recipient,
             push=push_by_recipient,
             subscribed=subscribed,
+            chat_routes=chat_routes,
+            chat_preferences=chat_preferences,
         )
 
     async def _write_one(
@@ -763,6 +839,7 @@ class NotificationCenterService:
         in_app_visible: bool,
         email_enabled: bool,
         push_enabled: bool,
+        chat_routes: list[NotificationRoute] | None = None,
     ) -> Notification | None:
         notification = Notification(
             id=uuid.uuid4(),
@@ -779,6 +856,11 @@ class NotificationCenterService:
         inserted = await notification_repo.insert_notification_if_new(self.db, notification)
         if not inserted:
             return None
+        # The shared state (#2575): a muted cause arrives already cleared, with nothing
+        # queued to e-mail or push.
+        outcome = await OutcomeService(self.db).attach(notification)
+        if outcome is not None and outcome.status != "open":
+            return notification
 
         if email_enabled:
             await notification_repo.insert_delivery(
@@ -791,6 +873,10 @@ class NotificationCenterService:
                 self.db,
                 notification_id=notification.id,
                 channel=NotificationChannel.PUSH.value,
+            )
+        for route in chat_routes or []:
+            await notification_repo.insert_delivery(
+                self.db, notification_id=notification.id, channel=route.channel, route_id=route.id
             )
         return notification
 
@@ -808,6 +894,13 @@ class NotificationCenterService:
         """The send-time recheck for a push delivery (Decision 3): the
         preference table, as for every channel but the four legacy email pairs."""
         return await self._channel_enabled(user_id, event_type, NotificationChannel.PUSH)
+
+    async def chat_channel_enabled(
+        self, user_id: uuid.UUID, event_type: NotificationEventType, channel: NotificationChannel
+    ) -> bool:
+        if channel not in CHAT_NOTIFICATION_CHANNELS:
+            raise ValueError("Not a chat notification channel")
+        return await self._channel_enabled(user_id, event_type, channel)
 
     async def email_channel_enabled(
         self, user_id: uuid.UUID, event_type: NotificationEventType
@@ -962,7 +1055,16 @@ class NotificationCenterService:
             notification = await notification_repo.mark_read(
                 self.db, notification, read_at=datetime.now(UTC)
             )
+        await self._stop_case_calls(ctx, [notification.id])
         return notification, gate
+
+    async def _stop_case_calls(self, ctx: AuthContext, ids: list[uuid.UUID]) -> None:
+        from app.services.telephony.cases import cancel_pending_case_calls
+
+        for outcome_id in await notification_repo.outcome_ids_for_notifications(
+            self.db, ids=ids, user_id=self._require_caller(ctx), organization_id=ctx.organization_id
+        ):
+            await cancel_pending_case_calls(self.db, outcome_id, at=datetime.now(UTC))
 
     async def mark_all_read(
         self, ctx: AuthContext, *, after: tuple[datetime, uuid.UUID] | None = None
@@ -985,6 +1087,7 @@ class NotificationCenterService:
         marked = await notification_repo.mark_ids_read(
             self.db, ids=scan.visible, read_at=datetime.now(UTC)
         )
+        await self._stop_case_calls(ctx, scan.visible)
         return MarkAllRead(marked=marked, remaining=scan.truncated, resume=scan.resume)
 
     async def dismiss_one(self, ctx: AuthContext, notification_id: uuid.UUID) -> None:
@@ -998,6 +1101,7 @@ class NotificationCenterService:
         """
         notification = await self._own_visible(ctx, notification_id)
         await notification_repo.dismiss(self.db, notification, dismissed_at=datetime.now(UTC))
+        await self._stop_case_calls(ctx, [notification.id])
 
     async def clear_inbox(self, ctx: AuthContext) -> int:
         """Clear everything the caller can currently see, read or not.
@@ -1050,9 +1154,11 @@ class NotificationCenterService:
             if len(visible_ids) >= _DISMISS_CANDIDATE_CAP or len(batch) < _DISMISS_CANDIDATE_CAP:
                 break
             cursor = (batch[-1].created_at, batch[-1].id)
-        return await notification_repo.dismiss_ids(
+        marked = await notification_repo.dismiss_ids(
             self.db, ids=visible_ids, dismissed_at=datetime.now(UTC)
         )
+        await self._stop_case_calls(ctx, visible_ids)
+        return marked
 
     async def _own_visible(self, ctx: AuthContext, notification_id: uuid.UUID) -> Notification:
         """One of the caller's own rows, or `NotFoundError`.
@@ -1158,7 +1264,12 @@ class NotificationCenterService:
         announcement_ids: set[uuid.UUID] = set()
         artifact_ids: set[uuid.UUID] = set()
         workflow_ids: set[uuid.UUID] = set()
+        project_ids: set[uuid.UUID] = set()
         for notification in notifications:
+            context = notification.render_context or {}
+            if "project_id" in context:
+                with contextlib.suppress(ValueError):
+                    project_ids.add(uuid.UUID(str(context["project_id"])))
             gate = content_gate_for(NotificationEventType(notification.event_type))
             if gate is ContentGate.WORKFLOWS_VIEW:
                 with contextlib.suppress(ValueError):
@@ -1210,12 +1321,21 @@ class NotificationCenterService:
                 self.db, sorted(workflow_ids), organization_id=ctx.organization_id
             )
         }
+        project_visible_by_id = {
+            project.id: await resolve_access(
+                self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
+            )
+            for project in await project_repo.get_many(
+                self.db, sorted(project_ids), organization_id=ctx.organization_id
+            )
+        }
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
             announcement_visible_by_id=announcement_visible_by_id,
             artifact_visible_by_id=artifact_visible_by_id,
             workflow_visible_by_id=workflow_visible_by_id,
+            project_visible_by_id=project_visible_by_id,
         )
 
     async def gate_for(
@@ -1240,6 +1360,14 @@ class NotificationCenterService:
         """
         if cache is None:
             cache = await self._build_gate_cache(ctx, [notification])
+        context = notification.render_context or {}
+        if "project_id" in context:
+            try:
+                project_id = uuid.UUID(str(context["project_id"]))
+            except ValueError:
+                return _Gate(visible=False)
+            if not cache.project_visible_by_id.get(project_id, False):
+                return _Gate(visible=False)
         gate = content_gate_for(NotificationEventType(notification.event_type))
         if gate is ContentGate.NONE:
             return _Gate(visible=True)

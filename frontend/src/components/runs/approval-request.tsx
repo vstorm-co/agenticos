@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { serviceAction, spokenArgs } from "@/lib/approval-view";
 import { Badge } from "@/components/ui/badge";
 import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
-import { STEP_ICONS } from "@/lib/step-icons";
+import { toolIcon } from "@/lib/step-icons";
 import { toolEntry, toolLabel } from "@/lib/tool-catalog";
 import { titleWords } from "@/lib/tool-steps";
 import { cn } from "@/lib/utils";
@@ -29,10 +30,10 @@ export function ToolMark({ toolName, className }: { toolName: string; className?
   const entry = toolEntry(toolName);
   const { service } = serviceAction(toolName, entry !== null);
   const tile = cn(
-    "bg-background ring-foreground/10 flex size-9 shrink-0 items-center justify-center rounded-xl ring-1",
+    "bg-muted/35 border-border/70 flex size-8 shrink-0 items-center justify-center rounded-lg border",
     className,
   );
-  if (service !== null) {
+  if (service !== null && service !== "AgenticOS") {
     const logo = serviceLogo(service);
     return (
       <span className={tile} aria-hidden>
@@ -47,10 +48,9 @@ export function ToolMark({ toolName, className }: { toolName: string; className?
       </span>
     );
   }
-  const Icon = STEP_ICONS[entry?.kind ?? "tool"];
   return (
     <span className={tile} aria-hidden>
-      <Icon className="text-foreground/70 size-4" />
+      {createElement(toolIcon(toolName, entry?.kind), { className: "text-foreground/70 size-4" })}
     </span>
   );
 }
@@ -88,9 +88,16 @@ export function AccountBadge({ account }: { account: string | null | undefined }
 }
 
 /** A value as text a person reads, nested values as lines of their own. */
-function Value({ value }: { value: unknown }) {
+function Value({ value, field }: { value: unknown; field: string }) {
   if (typeof value === "string") {
-    return <span className="line-clamp-6 break-words whitespace-pre-wrap">{value}</span>;
+    if (field === "description" || field === "notes") {
+      return (
+        <div className="text-sm leading-relaxed [&_p]:my-1 [&_ul]:my-1">
+          <MarkdownContent content={value} inertImages />
+        </div>
+      );
+    }
+    return <span className="break-words whitespace-pre-wrap">{value}</span>;
   }
   if (Array.isArray(value) && value.every((item) => typeof item !== "object" || item === null)) {
     return <span className="break-words">{value.map(String).join(", ")}</span>;
@@ -104,31 +111,45 @@ function Value({ value }: { value: unknown }) {
   return <span className="font-mono text-xs">{String(value)}</span>;
 }
 
+/** Put the content being approved before routing metadata and opaque IDs. */
+function argumentOrder(name: string): number {
+  if (name === "title" || name === "name") return 0;
+  if (name === "description" || name === "notes") return 1;
+  if (name === "id" || name.endsWith("_id")) return 3;
+  return 2;
+}
+
 /** Each argument as its name in words and its value as text. */
 function Fields({ args, nested = false }: { args: Record<string, unknown>; nested?: boolean }) {
   return (
-    <dl
-      className={cn(
-        "text-sm",
-        nested ? "space-y-1" : "bg-muted/40 divide-foreground/[0.06] divide-y rounded-lg",
-      )}
-    >
-      {Object.entries(args).map(([name, value]) => (
-        <div
-          key={name}
-          className={cn(
-            "grid gap-1",
-            nested
-              ? "grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-2"
-              : "px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3",
-          )}
-        >
-          <dt className="text-muted-foreground text-xs sm:pt-0.5">{titleWords(name)}</dt>
-          <dd className="min-w-0">
-            <Value value={value} />
-          </dd>
-        </div>
-      ))}
+    <dl className={cn("divide-border/60 divide-y text-sm", !nested && "rounded-lg border px-3")}>
+      {Object.entries(args)
+        .sort(([left], [right]) => argumentOrder(left) - argumentOrder(right))
+        .map(([name, value]) => {
+          const object = value !== null && typeof value === "object" && !Array.isArray(value);
+          const prose = name === "description" || name === "notes";
+          return (
+            <div
+              key={name}
+              className={cn(
+                "gap-x-4 gap-y-1.5 py-2.5",
+                object || prose ? "space-y-2" : "grid @sm:grid-cols-[7rem_minmax(0,1fr)]",
+              )}
+            >
+              <dt className="text-muted-foreground text-xs leading-5 font-medium">
+                {titleWords(name)}
+              </dt>
+              <dd
+                className={cn(
+                  "min-w-0",
+                  !prose && !object && /(^id$|_id$)/.test(name) && "font-mono text-xs break-all",
+                )}
+              >
+                <Value value={value} field={name} />
+              </dd>
+            </div>
+          );
+        })}
     </dl>
   );
 }
@@ -157,7 +178,7 @@ export function ApprovalDetails({
         type="button"
         onClick={() => setOpen((shown) => !shown)}
         aria-expanded={open}
-        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs font-medium"
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring inline-flex min-h-8 items-center gap-1 rounded-md text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
       >
         <ChevronRight
           className={cn("size-3.5 transition-transform", open && "rotate-90")}
@@ -166,7 +187,7 @@ export function ApprovalDetails({
         {t("approvalDetails")}
       </button>
       {open && (
-        <div className="space-y-2">
+        <div className="max-h-[min(28dvh,18rem)] scrollbar-thin space-y-2 overflow-y-auto overscroll-contain pr-1">
           {Object.keys(fields).length > 0 ? (
             <Fields args={fields} />
           ) : (

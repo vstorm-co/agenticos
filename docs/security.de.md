@@ -1,5 +1,5 @@
 ---
-source_sha: "28251d1c4760"
+source_sha: "cc979d116092"
 ---
 
 # Sicherheit { #security }
@@ -144,12 +144,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 
 !!! warning "Was die Löschung nicht erreicht — und die Doku sagt es, statt dass ein Deployment es herausfindet"
 
-    **Ein konfigurierter externer Gedächtnisspeicher.** `mem0` hält das, was ein
-    Agent sich gemerkt hat, im System eines Dritten, und dieses Deployment kann
-    nur um Vergessen bitten, solange es das Credential der Organisation hat.
-    `MemoryService.forget_person` tut das für eine Person, die noch Mitglied ist;
-    die Notizen eines gelöschten Kontos in einem externen Speicher gehören dem
-    Betreiber.
+    **Erinnerungen in einer entfernten mem0-Integration.** Ein Deployment, das mem0 nutzte (in #2090 entfernt), kann diese Erinnerungen weiterhin im externen Dienst halten. Das Upgrade stoppt bei verbleibenden alten Bindungen und erhält Endpunkte und Zugangsdatenzuordnungen, bis der Betreiber die externe Löschung bestätigt und die Bindungen ausdrücklich entfernt. Es löscht weder Vault-Zugangsdaten noch Remote-Daten und importiert diese nicht. Das Vergessen einer Person oder Leeren eines Agents erreicht diesen Dienst nicht mehr. Prüfe ungenutzte Vault-Schlüssel, widerrufe ausgemusterte Anbieter-Zugangsdaten und behandle externe Erinnerungen getrennt. Siehe die [Upgrade-Checkliste](deploy.md#native-memory-upgrade).
 
     **Backups.** Eine Löschung entfernt Zeilen aus der laufenden Datenbank. Der
     Backup-Zeitplan eines Deployments behält sie bis zu seiner Rotation, und

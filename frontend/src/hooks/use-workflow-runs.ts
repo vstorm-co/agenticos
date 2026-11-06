@@ -10,6 +10,7 @@ import { qk } from "@/lib/query-keys";
 import { listRunLogs } from "@/lib/workflows/logs-api";
 import {
   cancelWorkflowRun,
+  editReplyExpectation,
   getWorkflowRun,
   getWorkflowRunGraph,
   listWorkflowRunFiles,
@@ -23,6 +24,7 @@ import {
 import {
   isRunTerminal,
   type RunHistoryQuery,
+  type ReplyExpectationEdit,
   type StepChoice,
   type WorkflowRunRead,
 } from "@/lib/workflows/types";
@@ -184,4 +186,20 @@ export function useWorkflowRun(runId: string) {
     retry,
     resolveStep,
   };
+}
+
+/** Private expectation controls use the same run and step cache as the run page. */
+export function useEditReplyExpectation(runId: string, nodeRunId: string) {
+  const client = useQueryClient();
+  const tErrors = useTranslations("errors");
+  return useMutation({
+    mutationFn: (body: ReplyExpectationEdit) => editReplyExpectation(runId, nodeRunId, body),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, tErrors));
+      void client.invalidateQueries({ queryKey: qk.workflows.runNodes(runId) });
+    },
+  });
 }

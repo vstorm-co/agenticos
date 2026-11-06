@@ -85,7 +85,7 @@ export function CadenceChoices({
       <div
         role="radiogroup"
         aria-labelledby="cadence-choices-label"
-        className="flex flex-wrap gap-2"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-4"
       >
         {CADENCE_CHOICES.map((choice) => {
           const active = choice === value;
@@ -97,10 +97,11 @@ export function CadenceChoices({
               aria-checked={active}
               onClick={() => onChange(choice)}
               className={cn(
-                "border-input inline-flex rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                "focus-visible:ring-ring inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                choice === "custom" && "col-span-2",
                 active
-                  ? "bg-foreground text-background border-foreground"
-                  : "text-foreground hover:border-foreground/40 hover:bg-accent",
+                  ? "bg-foreground/10 text-foreground border-foreground/25"
+                  : "border-border/70 bg-foreground/[0.025] text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
               {t(LABEL_KEYS[choice])}

@@ -55,7 +55,7 @@ function lines(name: string, result: string): string[] | null {
  * If the path turns out to be wrong the viewer says so in a sentence, which is a far
  * better answer than a control that was never offered.
  */
-function WorkspaceFileCard({
+export function WorkspaceFileCard({
   fileSource,
   path,
 }: {

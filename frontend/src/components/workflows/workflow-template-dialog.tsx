@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Database, FlaskConical, Workflow } from "lucide-react";
+import { ArrowLeft, Database, FlaskConical } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 import {
   Button,
@@ -34,7 +35,7 @@ export function WorkflowTemplateDialog({
   const [category, setCategory] = useState<Category | null>(null);
   const templates =
     category === "automations"
-      ? (["publicApi", "markdownNotes"] as const).map((id) => ({
+      ? (["publicApi", "markdownNotes", "awaitReply"] as const).map((id) => ({
           id,
           graph: null,
           template_id: id,
@@ -62,7 +63,10 @@ export function WorkflowTemplateDialog({
               </Button>
               <div className="grid items-stretch gap-4 sm:grid-cols-2">
                 {templates.map((template) => (
-                  <div key={template.id} className="flex flex-col gap-4 rounded-xl border p-5">
+                  <div
+                    key={template.id}
+                    className="bg-muted flex flex-col gap-4 rounded-xl border p-5"
+                  >
                     <Workflow className="text-muted-foreground size-8" aria-hidden />
                     <div className="flex-1 space-y-2">
                       <h3 className="font-semibold">{t(`templates.${template.id}.name`)}</h3>
@@ -72,9 +76,13 @@ export function WorkflowTemplateDialog({
                     </div>
                     <Button
                       variant="outline"
-                      disabled={!!template.template_id && !canProvisionTables}
+                      disabled={
+                        !!template.template_id &&
+                        template.id !== "awaitReply" &&
+                        !canProvisionTables
+                      }
                       title={
-                        template.template_id && !canProvisionTables
+                        template.template_id && template.id !== "awaitReply" && !canProvisionTables
                           ? t("templatesNeedTables")
                           : undefined
                       }
@@ -102,7 +110,7 @@ export function WorkflowTemplateDialog({
                     type="button"
                     key={id}
                     onClick={() => setCategory(id)}
-                    className="hover:bg-accent hover:border-foreground/30 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
+                    className="bg-muted hover:bg-accent focus-visible:ring-ring/40 grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none sm:flex sm:flex-col sm:gap-2 sm:p-5 sm:text-center"
                   >
                     <Icon
                       className="text-muted-foreground row-span-4 size-7 sm:size-8"
@@ -113,7 +121,7 @@ export function WorkflowTemplateDialog({
                     </span>
                     <span className="text-muted-foreground text-sm">
                       {t("templateCount", {
-                        count: id === "automations" ? 2 : WORKFLOW_TEMPLATES.length,
+                        count: id === "automations" ? 3 : WORKFLOW_TEMPLATES.length,
                       })}
                     </span>
                     <span className="text-muted-foreground text-sm">

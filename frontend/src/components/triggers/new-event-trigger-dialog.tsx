@@ -3,17 +3,10 @@
 import { useTranslations } from "next-intl";
 
 import { PortalCatalog } from "@/components/triggers/portal-catalog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui";
+import { Dialog } from "@/components/ui";
+import { RoutineDialogFrame } from "./routine-dialog-frame";
 import { useCanCreateTrigger, usePermissions } from "@/hooks";
 import { Perm } from "@/types/permissions";
-import { cn } from "@/lib/utils";
-import { DIALOG_BROAD, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 
 interface NewEventTriggerDialogProps {
   open: boolean;
@@ -44,13 +37,9 @@ export function NewEventTriggerDialog({ open, onOpenChange }: NewEventTriggerDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(DIALOG_SCROLL, DIALOG_BROAD)}>
-        <DialogHeader>
-          <DialogTitle>{t("newEventTitle")}</DialogTitle>
-          <DialogDescription>{t("newEventDescription")}</DialogDescription>
-        </DialogHeader>
-        <PortalCatalog canRun={canCreate} canManageConnections={can(Perm.mcpManage)} />
-      </DialogContent>
+      <RoutineDialogFrame title={t("newEventTitle")} description={t("newEventDescription")}>
+        <PortalCatalog compact canRun={canCreate} canManageConnections={can(Perm.mcpManage)} />
+      </RoutineDialogFrame>
     </Dialog>
   );
 }

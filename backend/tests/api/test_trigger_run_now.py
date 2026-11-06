@@ -62,3 +62,41 @@ async def test_running_now_is_accepted_rather_than_answered_with_the_finished_ru
             f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/run", json={}
         )
     assert response.status_code == 202
+
+
+async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
+    from app.schemas.routine_actions import RoutineActionOptions
+    from app.schemas.routine_sources import RoutineSourceReview
+
+    trigger_id, version_id = uuid4(), uuid4()
+    action_review = RoutineActionOptions(can_waive=True, review_token="a" * 64, items=[])
+    sources = RoutineSourceReview(
+        review_token="b" * 64,
+        version_id=version_id,
+        current=True,
+        resources=[],
+        accounts=[],
+        unavailable_sources=[],
+    )
+    service = MagicMock(
+        action_options=AsyncMock(return_value=action_review),
+        set_action_consents=AsyncMock(return_value=action_review),
+        source_options=AsyncMock(return_value=sources),
+        set_source_consents=AsyncMock(return_value=sources),
+    )
+    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}"
+    async with _client(service) as client:
+        actions = await client.get(root + "/action-consents")
+        revoked = await client.put(
+            root + "/action-consents", json={"actions": [], "review_token": "a" * 64}
+        )
+        review = await client.get(root + "/sources")
+        approved = await client.put(root + "/sources", json={"review_token": "b" * 64})
+        invalid = await client.put(root + "/sources", json={"review_token": "invalid"})
+    assert actions.json()["items"] == revoked.json()["items"] == []
+    assert review.json()["version_id"] == str(version_id)
+    assert approved.json()["current"] is True
+    assert invalid.status_code == 422
+    assert service.set_action_consents.await_args.args[1:3] == (_AGENT_ID, trigger_id)
+    assert service.set_action_consents.await_args.args[3].actions == []
+    assert service.set_source_consents.await_args.args[3].review_token == "b" * 64

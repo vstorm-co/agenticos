@@ -52,6 +52,7 @@ describe("ProjectsWidget", () => {
     expect(useProjectsMock).toHaveBeenCalledWith({ limit: 4 });
     expect(screen.getByRole("link", { name: /launch/ })).toHaveAttribute("href", "/projects/p-1");
     expect(screen.getByText("launch")).toBeInTheDocument();
+    expect(screen.getByText("L")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText(/3 chats ·/)).toBeInTheDocument();
     expect(screen.getByText("No chats yet")).toBeInTheDocument();
   });

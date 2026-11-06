@@ -186,6 +186,7 @@ test.describe("Onboarding", () => {
       .then(() => true)
       .catch(() => false);
 
+    await page.getByRole("button", { name: "More information" }).click();
     await page.getByRole("button", { name: HELP }).click();
     // The Agents walk opens on its own first stop, not the first-run welcome.
     // Its first stop is the template gallery, which sits before "Build an
@@ -208,7 +209,9 @@ test.describe("Onboarding", () => {
     // carry one, so an assertion passing because the header failed to render is
     // not mistaken for the refusal.
     await page.goto("/agents");
+    await page.getByRole("button", { name: "More information" }).click();
     await expect(page.getByRole("button", { name: HELP })).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // By its own title, not by "some h1": a redirect, a 403 or an error boundary
     // renders a heading too, and against `toBeVisible()` alone the count below

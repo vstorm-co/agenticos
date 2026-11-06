@@ -354,7 +354,7 @@ never an API key, a widget visitor or someone else's chat - and a
 [trigger](triggers.md) only when it acts as its creator, who points it at a folder
 of their computer under the trigger's **Work on**.
 
-**When the computer is away.** A run that asked for this computer and finds the app
+**When the computer is away.** An interactive chat run that asked for this computer and finds the app
 not connected waits up to ten minutes for it, and the chat says so. An operation
 that finds the app gone mid-run - a closed lid, a changed network - waits up to five
 minutes for it to come back on the same session, then carries on. While a run's
@@ -646,3 +646,15 @@ cannot be verified by an unsigned local build.
 Quick Ask supports up to eight independent tabs in each window. The tab bar keeps drafts, attachments, selected agents and running answers separate. Recent conversations opens a searchable list and reuses an already open tab; saved chats restore messages and offer earlier history. Inactive tabs do not capture file drops, dictation shortcuts or focus. Recent conversations shows agent avatars in a compact expandable section. It uses only the space its contents need, without reserving blank window height. New chat is the single action for opening a fresh tab. The browser sidebar offers the desktop download; dismissing it pauses reminders for 14 days in that browser account.
 
 Quick Ask has a microphone button for click-to-start dictation as well as hold-to-talk, and the same live voice call controls as chat. Calls use the selected agent’s configured transport, show captions, approvals and questions, and save spoken turns in the conversation. Text sending and dictation wait while a call is active. Leaving the tab or changing its agent ends the call and releases the microphone.
+
+## Local routines { #local-routines }
+
+Create a local routine with **Run as me**, choose its folder and select read, write and command access separately. Commands require write access. Saving first creates a paused routine, then the desktop app asks native confirmation for that routine's ID, organization, server, folder and operations. Cancelling keeps the same routine paused; retrying completes its setup without creating another routine. A general chat folder grant never authorizes a routine.
+
+**Settings → Desktop → Routine permissions** lists the current account and organization's grants on this computer. Revoke one there to stop future operations. Re-pairing, unlinking, signing out or changing server clears these grants. Changing a folder or increasing operations needs fresh native confirmation. Browser, screen, local models, local MCP services and whole-computer access are outside a routine folder grant. The published agent must already enable Sandbox; choosing a local target does not enable capabilities.
+
+When the exact approved computer is offline before execution, a durable activation waits in PostgreSQL. The routine row shows the pending count. Scheduled/manual occurrences coalesce while waiting; distinct incoming events retain their own context and activation ID. The existing minute worker checks for reconnection. Offline readiness checks make no model call and do not consume dispatch failure attempts. Start admission commits with the run before its first model call. A started activation is never automatically replayed after a worker crash; an uncertain file or shell operation is never turned into a new run.
+
+Pausing, changing the task or native authority, deleting the routine or reaching its end cancels the old waiting work rather than moving it to another folder. A revoked device session requires review. Three dead or missing pre-admission dispatches stop the routine and create an owner incident; the failed event context remains available in the owner's data export. Completed/cancelled contexts are cleared immediately. Finished wait metadata and failed context follow the organization's run-history retention; live offline waits remain until admission, cancellation or deletion.
+
+Deploy API, workers and desktop together and drain old workers before enabling this contract. Older desktops cannot confirm routine grants; legacy local routines need explicit review. Migration `0272_routine_device_waits.py` adds the waits without changing routine identity. Before downgrading, pause local routines and drain their jobs: downgrade removes pending wait context and does not run it again. Existing parked local runs without the native-target snapshot require a fresh run.

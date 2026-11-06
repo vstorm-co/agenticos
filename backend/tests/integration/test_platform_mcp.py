@@ -42,6 +42,117 @@ def _run_context() -> RunContext[None]:
 pytestmark = pytest.mark.anyio
 
 
+async def test_context_and_skill_resources_are_saved_and_bound_through_mcp(
+    db: AsyncSession, served: None
+) -> None:
+    key, _org = await _owner_key(
+        db,
+        Perm.CONTEXT_VIEW,
+        Perm.CONTEXT_EDIT,
+        Perm.SKILLS_VIEW,
+        Perm.SKILLS_EDIT,
+        Perm.AGENTS_VIEW,
+        Perm.AGENTS_EDIT,
+    )
+    async with _connected(key) as session:
+        context = _content(
+            await session.call_tool(
+                "create_context_file",
+                {
+                    "context": {
+                        "name": "supplier-conventions",
+                        "content": "Business days exclude weekends.",
+                        "mode": "link",
+                        "visibility": "private",
+                    }
+                },
+            )
+        )
+        context_id = context["id"]
+        listed = _content(await session.call_tool("list_context_files", {"q": "supplier"}))
+        assert [row["id"] for row in listed["items"]] == [context_id]
+        edited = _content(
+            await session.call_tool(
+                "update_context_file",
+                {
+                    "context_id": context_id,
+                    "changes": {"description": "Working-day definitions"},
+                },
+            )
+        )
+        assert edited["content"] == context["content"] and edited["mode"] == "link"
+        assert (
+            _content(await session.call_tool("get_context_file", {"context_id": context_id}))[
+                "content"
+            ]
+            == context["content"]
+        )
+        skill = _content(
+            await session.call_tool(
+                "create_skill",
+                {
+                    "name": "supplier-brief",
+                    "description": "Prepare a supplier brief.",
+                    "content": "Read the status table and flag missing evidence.",
+                },
+            )
+        )
+        resource = await session.call_tool(
+            "add_skill_resource",
+            {
+                "skill_id": skill["id"],
+                "resource": {"name": "report.md", "content": "# Blockers\n\n# Next actions"},
+            },
+        )
+        assert not resource.is_error
+        updated = _content(
+            await session.call_tool(
+                "update_skill",
+                {
+                    "skill_id": skill["id"],
+                    "changes": {"content": "Read report.md for the output shape."},
+                },
+            )
+        )
+        assert updated["description"] == skill["description"]
+        saved = _content(await session.call_tool("get_skill", {"skill_id": skill["id"]}))
+        assert [row["name"] for row in saved["resources"]] == ["report.md"]
+        agent = _content(
+            await session.call_tool(
+                "create_agent_draft",
+                {
+                    "name": "Supplier assistant",
+                    "instructions": "Prepare evidence-backed briefs.",
+                    "context_ids": [context_id],
+                    "skill_ids": [skill["id"]],
+                },
+            )
+        )
+        assert agent.get("id") is not None
+        saved_agent = _content(await session.call_tool("get_agent", {"agent_id": agent["id"]}))
+        assert saved_agent["draft_spec"]["context_ids"] == [context_id]
+        changed = _content(
+            await session.call_tool(
+                "update_agent_draft",
+                {
+                    "agent_id": agent["id"],
+                    "description": "Supplier operations",
+                },
+            )
+        )
+        assert changed.get("id") == agent["id"]
+        saved_agent = _content(await session.call_tool("get_agent", {"agent_id": agent["id"]}))
+        assert saved_agent["draft_spec"]["context_ids"] == [context_id]
+
+    other, _other_org = await _owner_key(db, Perm.CONTEXT_VIEW, Perm.SKILLS_VIEW)
+    async with _connected(other) as session:
+        assert (await session.call_tool("get_context_file", {"context_id": context_id})).is_error
+        assert (await session.call_tool("get_skill", {"skill_id": skill["id"]})).is_error
+        assert (
+            await session.call_tool("create_context_file", {"context": {"name": "refused"}})
+        ).is_error
+
+
 @pytest.fixture
 async def served(db: AsyncSession) -> AsyncIterator[None]:
     async def session() -> AsyncIterator[AsyncSession]:
@@ -194,7 +305,7 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
 
     assert tools["agenticos_create_project"].tool_def.metadata[NEEDS_APPROVAL] is True
     assert tools["agenticos_list_projects"].tool_def.metadata[NEEDS_APPROVAL] is False
-    assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
@@ -573,3 +684,227 @@ async def test_architect_keeps_platform_domain_errors_readable(db: AsyncSession,
         )
     assert result["error"]["status"] == 403
     assert result["error"]["code"] == "AUTHORIZATION_ERROR"
+
+
+async def test_watch_chat_tools_preserve_private_consent_and_source_conversation(
+    db: AsyncSession,
+    served: None,
+) -> None:
+    from unittest.mock import AsyncMock, patch
+
+    from app.agents.spec import AgentSpec, PersonalMcpServerRef
+    from app.db.models.conversation import Conversation
+    from app.db.models.mcp_connection import McpConnection
+    from app.db.models.watch import Watch
+    from app.services.watches import WatchService
+
+    key, organization = await _owner_key(db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW)
+    organization.proactive_watches_enabled = True
+    agent = Agent(
+        organization_id=organization.id,
+        owner_user_id=organization.created_by_user_id,
+        name="Monitor",
+        slug=f"monitor-{uuid.uuid4()}",
+    )
+    connection = McpConnection(
+        user_id=organization.created_by_user_id,
+        scope="user",
+        purpose="mcp",
+        name="GitHub",
+        catalog_key="github",
+        url="https://github.example/mcp",
+        is_enabled=True,
+    )
+    db.add_all([agent, connection])
+    await db.flush()
+    conversation = Conversation(
+        organization_id=organization.id, user_id=organization.created_by_user_id
+    )
+    db.add(conversation)
+    await db.flush()
+    ctx = AuthContext(
+        user_id=organization.created_by_user_id, organization_id=organization.id, role="owner"
+    )
+    private_key = await ApiKeyService(db).issue_for_run(
+        ctx, agent_id=agent.id, conversation_id=conversation.id
+    )
+    assert private_key is not None
+    await db.commit()
+    args = {
+        "agent_id": str(agent.id),
+        "connection_id": str(connection.id),
+        "title": "Reviews",
+        "instructions": "Reviews waiting on me",
+        "every_minutes": 60,
+    }
+    async with _connected(key) as session:
+        listed = await session.call_tool("list_watches", {})
+        assert not listed.is_error and _content(listed)["total"] == 0
+        refused = await session.call_tool("create_watch", args)
+        assert refused.is_error and "own consent" in str(refused.content)
+    with patch.object(
+        WatchService,
+        "_selected_spec",
+        new=AsyncMock(
+            return_value=AgentSpec(
+                name="Monitor",
+                mcp_servers=[PersonalMcpServerRef(account="personal", catalog_key="github")],
+            )
+        ),
+    ):
+        async with _connected(private_key) as session:
+            created = await session.call_tool("create_watch", args)
+    assert not created.is_error, created
+    saved = await db.get(Watch, uuid.UUID(_content(created)["id"]))
+    assert saved is not None
+    assert saved.agent_id == agent.id and saved.source_conversation_id == conversation.id
+    assert saved.approved_sources["connection_id"] == str(connection.id)
+
+
+async def test_private_chat_mcp_lists_and_resolves_only_its_own_inbox_cases(
+    db: AsyncSession, served: None
+):
+    from app.core.permissions import AuthContext
+    from app.db.models.agent import Agent
+    from app.db.models.conversation import Conversation
+    from app.db.models.outcome import Outcome
+    from app.db.models.suggestion import Suggestion
+    from app.services.api_key import ApiKeyService
+
+    ordinary_key, organization = await _owner_key(db, Perm.AGENTS_RUN)
+    owner = organization.created_by_user_id
+    agent = Agent(
+        organization_id=organization.id,
+        owner_user_id=owner,
+        name="Assistant",
+        slug=f"assistant-{uuid.uuid4()}",
+    )
+    chats = [Conversation(organization_id=organization.id, user_id=owner) for _ in range(2)]
+    db.add_all([agent, *chats])
+    await db.flush()
+    cases = [
+        Outcome(
+            organization_id=organization.id,
+            user_id=owner,
+            kind="finding",
+            dedupe_key=f"draft-{uuid.uuid4()}",
+            summary="Draft awaiting review",
+            source_conversation_id=chat.id,
+        )
+        for chat in chats
+    ]
+    db.add_all(cases)
+    await db.flush()
+    finding = Suggestion(
+        organization_id=organization.id,
+        user_id=owner,
+        kind="finding",
+        title="Draft",
+        dedupe_key=f"source-{uuid.uuid4()}",
+        outcome_id=cases[0].id,
+        payload={
+            "source_item_id": "mail-thread",
+            "revision": "mail-1",
+            "url": "https://mail.example/thread",
+        },
+    )
+    db.add(finding)
+    await db.flush()
+    ctx = AuthContext(user_id=owner, organization_id=organization.id, role="owner")
+    private_key = await ApiKeyService(db).issue_for_run(
+        ctx, agent_id=agent.id, conversation_id=chats[0].id
+    )
+    assert private_key is not None
+    group = Conversation(organization_id=organization.id, user_id=None)
+    db.add(group)
+    await db.flush()
+    group_key = await ApiKeyService(db).issue_for_run(
+        ctx, agent_id=agent.id, conversation_id=group.id
+    )
+    assert group_key is not None
+    await db.commit()
+    async with _connected(group_key) as session:
+        refused = await session.call_tool("list_inbox_cases", {})
+        assert refused.is_error
+    async with _connected(ordinary_key) as session:
+        refused = await session.call_tool("list_inbox_cases", {})
+        assert refused.is_error
+    async with _connected(private_key) as session:
+        listed = await session.call_tool("list_inbox_cases", {})
+        assert not listed.is_error
+        assert [item["id"] for item in _content(listed)["items"]] == [str(cases[0].id)]
+        assert _content(listed)["items"][0]["source"] == {
+            "item_id": "mail-thread",
+            "revision": "mail-1",
+            "url": "https://mail.example/thread",
+        }
+        other_chat = await session.call_tool(
+            "list_inbox_cases", {"conversation_id": str(chats[1].id)}
+        )
+        assert other_chat.is_error
+        other_case = await session.call_tool(
+            "settle_inbox_case", {"outcome_id": str(cases[1].id), "action": "resolve"}
+        )
+        assert other_case.is_error
+        settled = await session.call_tool(
+            "settle_inbox_case", {"outcome_id": str(cases[0].id), "action": "resolve"}
+        )
+        assert not settled.is_error and _content(settled)["status"] == "resolved"
+    await db.refresh(cases[0])
+    await db.refresh(cases[1])
+    assert cases[0].settled_via == "chat"
+    assert cases[1].status == "open"
+
+
+async def test_tasks_mcp_reuses_scope_tables_and_updates_the_same_record(
+    db: AsyncSession, served: None
+):
+    key, organization = await _owner_key(db, Perm.TABLES_VIEW, Perm.TABLES_EDIT, Perm.TABLES_CREATE)
+    await db.commit()
+    async with _connected(key) as session:
+        first = await session.call_tool(
+            "create_task",
+            {"task": {"title": "Prepare the monthly summary", "external_id": "monthly-summary"}},
+        )
+        assert not first.is_error, first
+        task = _content(first)
+        replay = await session.call_tool(
+            "create_task",
+            {"task": {"title": "Prepare the monthly summary", "external_id": "monthly-summary"}},
+        )
+        assert not replay.is_error and _content(replay)["id"] == task["id"]
+        boards = await session.call_tool("list_task_boards", {})
+        assert not boards.is_error and len(_content(boards)["items"]) == 1
+        listed = await session.call_tool("list_tasks", {"table_id": task["table_id"]})
+        assert not listed.is_error and _content(listed)["items"][0]["id"] == task["id"]
+        fields = {
+            name: task[name]
+            for name in (
+                "title",
+                "description",
+                "assignee_user_id",
+                "assignee_agent_id",
+                "start_at",
+                "due_at",
+            )
+        }
+        updated = await session.call_tool(
+            "update_task",
+            {
+                "task_id": task["id"],
+                "task": {**fields, "status": "done", "expected_revision": task["revision"]},
+            },
+        )
+        assert not updated.is_error and _content(updated)["status"] == "done"
+        stale = await session.call_tool(
+            "update_task",
+            {
+                "task_id": task["id"],
+                "task": {**fields, "status": "cancelled", "expected_revision": task["revision"]},
+            },
+        )
+        assert stale.is_error and "409" in str(stale.content)
+        foreign_scope = await session.call_tool(
+            "ensure_task_board", {"scope": "private", "scope_id": str(uuid.uuid4())}
+        )
+        assert foreign_scope.is_error

@@ -66,6 +66,7 @@ from pydantic_ai.toolsets import ToolsetTool, WrapperToolset
 from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.deps import AgentDeps
 from app.agents.subagent_events import SpecialistDefinition
+from app.core.exceptions import AuthorizationError, NotFoundError
 
 TASK_TOOL = "task"
 """The library's delegation entry point, under the id this repository declares it.
@@ -193,11 +194,17 @@ class DelegatingToolset(WrapperToolset[AgentDeps]):
         if self.journal.in_flight() >= self.journal.max_fanout:
             return self.journal.refusal()
 
+        delegate = self.journal.runtime.named(name_asked)
+        if delegate is not None and delegate.authorize is not None:
+            try:
+                await delegate.authorize()
+            except AuthorizationError, NotFoundError:
+                return "Delegation refused: this person can no longer run that published agent."
         delegation = self.journal.begin(
             # `None` for a specialist the model invented, exactly as for a name it
             # made up: neither has a resolved entry, so neither has an agent row
             # to attribute a run to and neither carries a preferred mode.
-            delegate=self.journal.runtime.named(name_asked),
+            delegate=delegate,
             name=name_asked,
             prompt=str(tool_args.get(entry.prompt, "")),
             tool_args=tool_args,

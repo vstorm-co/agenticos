@@ -1,6 +1,6 @@
 "use client";
 
-import { Workflow as WorkflowIcon } from "lucide-react";
+import { WorkflowIcon as WorkflowIcon } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import {

@@ -25,6 +25,15 @@ from app.worker.tasks.approval_tasks import expire_approvals
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
+@pytest.fixture(autouse=True)
+def _outcome_projection():
+    # This file isolates expiry/run state; real case settlement is covered against Postgres.
+    with patch(
+        "app.services.approvals.OutcomeService.resolve_run_approvals", new=AsyncMock(return_value=0)
+    ) as project:
+        yield project
+
+
 def _db() -> MagicMock:
     return MagicMock(flush=AsyncMock(), refresh=AsyncMock(), add=MagicMock())
 
@@ -784,10 +793,12 @@ class TestALiveCallsApproval:
                 "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
             ) as decided,
             patch.object(ApprovalService, "_record_decision", new=AsyncMock()),
+            patch.object(ApprovalService, "_settle_outcomes", new=AsyncMock()) as settled,
         ):
             await ApprovalService(_db()).decide(ctx, approval.id, approved=True, via_call=True)
 
         live.assert_not_awaited()
+        settled.assert_awaited_once()
         assert decided.await_args.kwargs["status"] == ApprovalStatus.APPROVED.value
 
     async def test_an_approval_nobody_decided_in_the_call_expires_with_nobody_named(self):
@@ -801,6 +812,7 @@ class TestALiveCallsApproval:
                 "app.services.approvals.agent_run_repo.decide_approval", new=AsyncMock()
             ) as decided,
             patch.object(ApprovalService, "_record_decision", new=AsyncMock()) as audited,
+            patch.object(ApprovalService, "_settle_outcomes", new=AsyncMock()) as settled,
         ):
             await ApprovalService(_db()).expire_now(
                 approval.id, organization_id=approval.organization_id, note="n"
@@ -813,6 +825,7 @@ class TestALiveCallsApproval:
             "n",
         )
         assert audited.await_args.kwargs["actor_user_id"] is None
+        settled.assert_awaited_once()
 
     @pytest.mark.parametrize("found", ["missing", "decided"])
     async def test_expiring_leaves_a_decided_or_missing_row_alone(self, found):

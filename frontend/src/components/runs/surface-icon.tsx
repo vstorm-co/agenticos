@@ -3,13 +3,17 @@ import {
   CalendarClock,
   Code2,
   Globe,
-  MessageSquare,
   Mic,
   Network,
-  Workflow,
+  Mail,
+  Smartphone,
   Sparkles,
   Zap,
 } from "lucide-react";
+import {
+  ChatIcon as MessageSquare,
+  WorkflowIcon as Workflow,
+} from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { brandMark } from "@/components/icons/brand-icon";
@@ -41,6 +45,9 @@ const MARKS = {
   // Another system's agent, which A2A names by no brand of its own.
   a2a: Network,
   teams: brandMark("microsoftteams"),
+  sms: Smartphone,
+  email: Mail,
+
   discord: brandMark("discord"),
   // Nobody sat at a keyboard for these two: a clock for the run a schedule was
   // due to make, a bolt for the one an event fired. They are in this table and
@@ -66,6 +73,9 @@ const LABEL_KEYS = {
   mattermost: "surfaceMattermost",
   a2a: "surfaceA2a",
   teams: "surfaceTeams",
+  sms: "surfaceSms",
+  email: "surfaceEmail",
+
   discord: "surfaceDiscord",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",

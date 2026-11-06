@@ -620,6 +620,36 @@ describe("what the page does with the frames it is sent", () => {
     expect(screen.getByText("Searching the documents")).toBeInTheDocument();
   });
 
+  it.each([true, false])("preserves server draft provenance on hosted tool calls: %s", (native) => {
+    render(<HostedChat config={config()} />);
+    act(() =>
+      socket().deliver({
+        type: "tool_call",
+        data: {
+          tool_call_id: "draft-1",
+          tool_name: "save_reply",
+          presentation_kind: native ? "draft" : "external",
+          args: {
+            title: "Refund response",
+            kind: "email",
+            versions: [{ fields: [{ text: "Your refund is ready.", format: "text" }] }],
+          },
+        },
+      }),
+    );
+    act(() =>
+      socket().deliver({
+        type: "tool_result",
+        data: {
+          tool_call_id: "draft-1",
+          content: "Drafted Refund response",
+        },
+      }),
+    );
+    if (native) expect(screen.getByText("Refund response")).toBeInTheDocument();
+    else expect(screen.queryByText("Refund response")).not.toBeInTheDocument();
+  });
+
   it("opens a step into what came back, when the server sent it", async () => {
     // A name the catalog has never heard of - an MCP tool, or one a binding renamed
     // - which is the generic renderer and the one that shows a result verbatim.

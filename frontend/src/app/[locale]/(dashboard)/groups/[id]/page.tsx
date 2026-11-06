@@ -17,6 +17,7 @@ import { useTranslations } from "next-intl";
 
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TaskBoardButton } from "@/components/tasks/task-board-button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { AddToGroupDialog } from "@/components/groups/add-to-group-dialog";
 import { DepartmentBudget } from "@/components/groups/department-budget";
@@ -114,6 +115,7 @@ export default function GroupPage({ params }: PageProps) {
         description={group.description ?? undefined}
         actions={
           <>
+            <TaskBoardButton scope="group" scopeId={group.id} />
             <Button variant="outline" onClick={() => setMembers(true)} data-tour="group-members">
               <Users className="h-4 w-4" />
               {t("memberCount", { count: group.member_count })}

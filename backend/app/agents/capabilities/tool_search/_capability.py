@@ -12,8 +12,8 @@ package has the same shape as every other capability: `__init__.py` registers,
 `_capability.py` builds. A reader looking for what `tool_search` *does* finds it
 where the other capabilities put it.
 
-Why it needs no metering, unlike most things that touch the model. The two local
-strategies offered here - `auto`'s keyword fallback and `keywords` - run in
+Why it needs no metering, unlike most things that touch the model. The local
+strategies offered here - `auto`'s keyword fallback, `keywords` and `local_bm25` - run in
 Python and spend no tokens; the native strategies run inside the provider's own
 request, whose usage the budget guard already meters; and the `search_tools`
 round-trips are ordinary model requests the same guard wraps. The one shape that
@@ -28,11 +28,12 @@ from typing import Literal
 from pydantic_ai.capabilities import ToolSearch, ToolSearchStrategy
 
 from app.agents.capabilities._tool_text import ToolText
+from app.agents.capabilities.tool_search._ranking import rank_tools
 
 # "auto" is the library's own `None`: native tool search where the provider
 # offers it, local keyword matching everywhere else. Kept as an explicit value
 # rather than an absent one so the Builder's picker always has something to show.
-Strategy = Literal["auto", "keywords", "bm25", "regex"]
+Strategy = Literal["auto", "keywords", "local_bm25", "bm25", "regex"]
 
 SEARCH_TEXT = ToolText(
     summary=(
@@ -70,7 +71,8 @@ def build_tool_search(strategy: Strategy, max_results: int) -> ToolSearch[object
     author accepts by naming one, since the model is resolved separately and this
     capability cannot see it at publish.
     """
-    named: ToolSearchStrategy[object] | None = None if strategy == "auto" else strategy
+    named: ToolSearchStrategy[object] | None
+    named = rank_tools if strategy == "local_bm25" else None if strategy == "auto" else strategy
     return ToolSearch(
         strategy=named, max_results=max_results, tool_description=SEARCH_TEXT.render()
     )
