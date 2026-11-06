@@ -32,9 +32,9 @@ from tests.integration.test_skill_bindings import (
     _serving,
     _skill,
     _spec,
+    _waiting_for_a_lock,
     _with_specialist,
 )
-from tests.integration.test_skill_delete_from_agents import _waiting_for_a_lock
 
 pytestmark = pytest.mark.anyio
 

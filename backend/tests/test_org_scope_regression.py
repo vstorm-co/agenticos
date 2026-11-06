@@ -268,6 +268,7 @@ TENANT_REQUIRED = [
     (skill_version_repo, "create_fork"),
     (skill_version_repo, "get_fork"),
     (skill_version_repo, "get_forks"),
+    (skill_version_repo, "hold_forks"),
     (skill_version_repo, "get_fork_by_name"),
     (skill_version_repo, "list_forks"),
     (skill_version_repo, "count_versions"),

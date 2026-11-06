@@ -85,8 +85,13 @@ from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published, _rated
-from tests.integration.test_skill_bindings import _fork, _serving, _skill, _spec
-from tests.integration.test_skill_delete_from_agents import _waiting_for_a_lock
+from tests.integration.test_skill_bindings import (
+    _fork,
+    _serving,
+    _skill,
+    _spec,
+    _waiting_for_a_lock,
+)
 
 pytestmark = pytest.mark.anyio
 

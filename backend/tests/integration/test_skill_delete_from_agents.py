@@ -9,7 +9,7 @@ import contextlib
 from typing import Any
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.agents.spec import AgentSpec
@@ -19,6 +19,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.skill import Skill
 from app.repositories import agent_repo, promotion_gate_repo, skill_repo
+from app.services.agent_registry import AgentRegistryService
 from app.services.eval_suite import EvalSuiteService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published
@@ -28,6 +29,7 @@ from tests.integration.test_skill_bindings import (
     _serving,
     _skill,
     _spec,
+    _waiting_for_a_lock,
     _with_specialist,
 )
 
@@ -261,32 +263,6 @@ class TestRefusingTheWholeDelete:
         assert refused.value.message.startswith("'Clerk' does not publish without 'refunds'")
 
 
-async def _waiting_for_a_lock(
-    factory: async_sessionmaker[AsyncSession], task: asyncio.Task[None]
-) -> None:
-    """Return once some session of this database waits for a lock.
-
-    A loaded runner can take seconds to reach the lock, so the bound is generous;
-    a delete that finishes instead of waiting is awaited, so its own error, not a
-    timeout, is what fails the test.
-    """
-    async with factory() as session:
-        for _ in range(600):
-            if task.done():
-                await task
-                raise AssertionError("the delete finished without waiting for a lock")
-            waiting = await session.scalar(
-                text(
-                    "SELECT count(*) FROM pg_stat_activity "
-                    "WHERE wait_event_type = 'Lock' AND datname = current_database()"
-                )
-            )
-            if waiting:
-                return
-            await asyncio.sleep(0.1)
-    raise AssertionError("nothing waited for a lock within 60s")
-
-
 class TestBesideAnotherWriter:
     """Two sessions on one skill: the delete and a draft save or a new binding."""
 
@@ -372,6 +348,39 @@ class TestBesideAnotherWriter:
 
         async with factory() as reading:
             assert await reading.get(Skill, skill.id) is None
+
+    async def test_an_agent_created_with_it_meanwhile_refuses_the_delete(
+        self, db: AsyncSession, engine: AsyncEngine
+    ):
+        """Creating an agent holds the skills it binds, as a draft save does, so the delete
+        waits for it and then sees it."""
+        ctx = await _owner(db)
+        skill = await _skill(db, ctx)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def delete() -> None:
+            async with factory() as session:
+                await SkillService(session).delete(ctx, skill.id)
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as creating:
+            try:
+                await AgentRegistryService(creating).create(
+                    ctx, AgentSpec.model_validate(_spec(skill))
+                )
+                task = asyncio.create_task(delete())
+                await _waiting_for_a_lock(factory, task)
+
+                await creating.commit()
+                with pytest.raises(InUseError):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     async def test_an_agent_that_starts_using_it_meanwhile_refuses_the_delete(
         self, db: AsyncSession, engine: AsyncEngine
