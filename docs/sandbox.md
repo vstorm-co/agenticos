@@ -603,6 +603,51 @@ The chat's **Files** panel and a workspace's own listing draw their tiles the
 way **All files** does: the first lines of a stored text file, and an image as a
 thumbnail within the same bound.
 
+### Downloading a folder as a zip { #downloading-a-folder-as-a-zip }
+
+The chat's **Files** panel has **Download as .zip** for the whole workspace, and a
+download button on each folder. Both call
+`GET /api/v1/conversations/{id}/workspace/archive?path=<folder>` (an empty `path` is
+the whole workspace), which is authorised the same way as `/workspace/raw`: by
+reading the conversation. So a person the chat was shared with can download a
+folder of it, and nobody else can.
+
+The zip holds what the panel shows. The prefixes and tooling folders listed above
+(`.git`, `node_modules`, `.venv`, ...) are left out. The listing for a zip goes 64
+levels deep, not six, because a repository is deeper than a page of tiles, and asks
+the host for up to 100,000 entries, because the host lists the hidden folders too.
+The files are under one top folder named after the folder that was downloaded.
+
+Folders are entries of their own, so an empty folder, such as one unpacked from an
+attached archive, is in the zip too. An empty folder downloaded on its own is a zip
+holding just that folder, not a 404: the panel shows it, so the download gives what
+was shown. A folder the panel does not show is a 404.
+
+A backslash, a `%` or a control character in a file's name is percent-encoded in the
+zip (`a\b` becomes `a%5Cb`), because an unpacker on Windows reads a backslash as a
+folder separator.
+
+It is listed in full before the first byte is sent. A folder with more than
+`WORKSPACE_ARCHIVE_MAX_ENTRIES` entries (files and folders, the top folder included,
+as an attached archive's are counted) or more than `WORKSPACE_ARCHIVE_MAX_BYTES`, or
+one the host could not list completely, is refused with a 413; a zip that is missing
+files without saying so would be worse. The files are then read and streamed one at
+a time.
+
+A file that cannot be read after the download has started is left out and named,
+with the host's reason, in a `NOT-INCLUDED.txt` in the zip's top folder
+(`_NOT-INCLUDED.txt` if the folder has a file of that name). That is a file deleted
+since the listing, or one larger than the host's own read limit
+(`SANDBOXD_MAX_READ_BYTES`, 8 MiB by default). If the host stops answering, or the
+files grow past the byte limit after the listing, the stream stops, and the download
+is incomplete and will not open.
+
+A folder on this computer, in the desktop app, has no such button: it is already a
+folder on this computer.
+
+Archives go the other way too: a `.zip` or `.tar.gz` attached to a chat is
+unpacked into `uploads/` — see [Archives](file-processing.md#archives).
+
 ## How long anything survives
 
 Files live on the host, at `{SANDBOXD_WORKSPACE_ROOT}/{session_id}/workspace` —

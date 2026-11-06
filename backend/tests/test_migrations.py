@@ -1000,3 +1000,65 @@ class TestProactivityMainMerge:
             assert restored.returncode == 0, restored.stderr
         finally:
             engine.dispose()
+
+
+class TestConnectedAccountMigration:
+    def test_upgrade_and_downgrade_preserve_mcp_rows(self) -> None:
+        before = _alembic("upgrade", "head")
+        assert before.returncode == 0, before.stderr
+        owner, server, account = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO users (id, email, is_active, is_app_admin) VALUES (:id, :email, true, false)"
+                    ),
+                    {"id": owner, "email": f"{owner}@example.com"},
+                )
+                for connection_id, purpose in ((server, "mcp"), (account, "account")):
+                    connection.execute(
+                        text(
+                            "INSERT INTO mcp_connections "
+                            "(id, user_id, scope, purpose, name, url, secret_key_version, account_email, is_enabled, auth_type) "
+                            "VALUES (:id, :user, 'user', :purpose, :name, 'https://example.com', 1, :email, true, 'oauth')"
+                        ),
+                        {
+                            "id": connection_id,
+                            "user": owner,
+                            "purpose": purpose,
+                            "name": f"connection-{connection_id}",
+                            "email": "ana@example.com" if purpose == "account" else None,
+                        },
+                    )
+            down = _alembic("downgrade", "0256_discord_role_mappings")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text("SELECT id, purpose FROM mcp_connections WHERE user_id = :user"),
+                    {"user": owner},
+                ).all()
+                assert rows == [(server, "mcp")]
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM information_schema.columns "
+                            "WHERE table_name = 'mcp_connections' AND column_name = 'account_email'"
+                        )
+                    ).scalar_one()
+                    == 0
+                )
+            up = _alembic("upgrade", "0257_connected_accounts")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                assert (
+                    connection.execute(
+                        text(
+                            "SELECT count(*) FROM pg_indexes WHERE tablename = 'mcp_connections' "
+                            "AND indexname IN ('uq_connected_accounts_user_email', 'uq_connected_accounts_org_email')"
+                        )
+                    ).scalar_one()
+                    == 2
+                )
+        finally:
+            engine.dispose()

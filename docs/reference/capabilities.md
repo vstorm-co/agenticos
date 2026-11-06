@@ -69,6 +69,7 @@ browser is pointed at the deployment's browser service
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
+| `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
@@ -91,6 +92,7 @@ browser is pointed at the deployment's browser service
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | not available |
 | `phone_calls` | [Telephone calls](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
+| `drafts` | Drafts | utility | `write_draft` | — | — | not available |
 | `follow_ups` | Follow-ups | utility | `suggest_next_steps`, `propose_setup` | — | — | not available |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
@@ -1187,6 +1189,85 @@ Those files are writable, and what the agent writes does **not** become a skill.
 skill is instructions every agent bound to it follows on every run, so a change is
 recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
 see [Skills](../skills.md).
+
+## Mirage (virtual terminal) { #mirage }
+
+The seven `sandbox` tools, prefixed `mirage_`, over the services an author mounts:
+a Google Drive, a GitHub repository, Notion, a Postgres database, an SSH server, a
+mailbox. [Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) mounts each
+service as a folder and runs the shell over it through the service's own API, so
+the agent answers "which contracts mention Acme?" with a `grep` across a Drive
+folder. No container starts. An agent can have both this and a sandbox: the
+terminal's tools always reach the terminal, and `execute` still reaches the
+sandbox.
+
+| Config | Default | Values |
+|---|---|---|
+| `mounts` | required | One to ten folders, each described below |
+| `allowed_commands` | all virtual commands except `curl`/`wget` | Command names the shell may run, such as `ls`, `cat`, `grep` |
+| `hidden_paths` | none | Absolute paths the agent cannot see at all, such as `/drive/HR/` |
+
+**A folder is a path, a service and how it signs in.** The path is one lowercase
+name between slashes (`/drive/`). The service is one of the backends the
+deployment can mount, with that service's own options: a repository, a folder id,
+a host. A folder is read only unless the author makes it writable. A writable
+folder asks a person to approve each write unless the author turns that off. The
+Builder lists every service Mirage ships, and gives the reason for each one this
+deployment cannot mount.
+
+**How a folder signs in depends on the service:**
+
+| Credential | Services | What the spec holds |
+|---|---|---|
+| Vault keys | GitHub, Notion, Linear, Slack, Postgres, SSH, IMAP mail and the rest | An `api_key` secret per credential field (`token`, `dsn`, `password`) |
+| An Entra app | OneDrive, SharePoint | An `entra_app` secret, which the run signs in as for a Microsoft Graph token |
+| A Google account | Drive, Docs, Sheets, Slides, Gmail, Calendar | One of the organization's [connected accounts](../secrets.md#connected-accounts), or each person's own |
+| None | Scratch space (`ram`) | Nothing |
+
+**Each person's own accounts are found when that person talks to the agent.**
+Somebody with two Google accounts gets two folders under the mount, one named
+after each address. Somebody with none, such as an API key or a schedule, gets no
+folder, and the agent is told so. An organization's account answers for everybody
+who talks to the agent.
+
+**A spec never holds a credential, an endpoint override or a path on the API
+host.** Publishing refuses a secret the publisher may not lend, a secret of the
+wrong kind and an account the organization does not have. A host the author types
+must be on [`MIRAGE_ALLOWED_HOSTS`](../configuration.md), such as an SSH server or
+the host in a DSN. Publishing checks the typed host, and the run checks the hosts
+stored inside secrets.
+
+**Approval is per folder, not per tool.** `mirage_execute ls` and
+`mirage_execute rm /drive/q3.pdf` are the same tool, so gating the tool would ask
+about both. Instead, a call that would write into a folder marked "approve each
+write" goes to the [approval gate](../governance.md) before it runs. For
+`mirage_write_file` and `mirage_edit_file` the call's `path` decides. For
+`mirage_execute`, Mirage dry-runs the command line first, so a redirect, `cp`,
+`tee` and `rm` are all caught. A write that no dry run predicted, such as
+`echo x > $TARGET`, is refused unless the call was approved.
+
+**Limits and approval resumes.** Mirage 0.0.8 runs with a 16 MiB file cache and a
+16 MiB workspace memory budget. Each command returns at most 64 KiB per output
+stream; exceeding that limit stops collection and reports an incomplete result.
+RAM folders are retained in the parked run's message metadata and restored on
+approval resume, including inside delegates. Remote credentials and service
+caches are not included. A folder for each personal account includes its stable
+account id, so similar email addresses cannot overwrite one another.
+
+**It is an optional install.** Install the `mirage` extra (`EXTRAS="--extra mirage"`). Mirage 0.0.8 no longer needs the previous shell parser's compiler step. Without the extra, the Builder says the terminal is not installed and publishing refuses a spec that binds it. The S3 family remains unavailable because its async SDK conflicts with the current AWS dependencies; the Builder explains why. All effective configurable hosts, including backend defaults, must be permitted by `MIRAGE_ALLOWED_HOSTS`.
+
+**Box and LanceDB.** Box uses a service account through Client Credentials: supply `client_id`, `enterprise_id` and a vault API-key secret (`custom` purpose) for `client_secret`. Developer tokens and rotating OAuth refresh tokens are not accepted. LanceDB is Cloud/Enterprise only: provide `uri: db://database-name`, a required `host_override` HTTPS endpoint permitted by `MIRAGE_ALLOWED_HOSTS`, and a vault API-key secret (`custom`) for `api_key`. Local paths, object-store URIs and `storage_options` are refused. The extra includes LanceDB and PyArrow, so an image built with it is larger.
+
+Qdrant and Langfuse are available with the extra. Qdrant supports file listing,
+reading and text grep; model-backed semantic search is not enabled. Connected-account
+consent must finish in the same browser and signed-in account that started it.
+
+
+Vault secrets must match the backend’s purpose; `custom` is the explicit escape hatch. OneDrive and SharePoint accept the `sharepoint` Entra-app purpose, and Hugging Face services accept `huggingface`. Publish and runtime enforce the same rule. Every host in a PostgreSQL seed list must be on the deployment allowlist. MongoDB and GridFS require one `mongodb://` host: the platform forces `directConnection=true` and refuses SRV discovery. Unlinked channel senders require approval for every Mirage tool, including reads; linking an account restores the author’s ordinary folder policy.
+
+PostgreSQL mounts require a nonempty password in the vault DSN; empty passwords and passwordless authentication are not supported. They do not fall back to `PGPASSWORD` or `.pgpass`. DSN parameters naming host credential or TLS files (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) are refused.
+
+SSH uses an explicit username and a password referenced from the vault. Supply the server’s trusted public `host_key`; the adapter pins that key and disables local SSH configuration, local private keys and the SSH agent. Passwordless ambient authentication is not available.
 
 ## Charts
 
@@ -2593,7 +2674,7 @@ Python guard.
 | Edge | Reads | Redact | Block |
 |---|---|---|---|
 | input | the user's prompt | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| output | the agent's answer | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| output | the agent's answer, and the text its drafts, drawings, charts, pages and questions show | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | tool result | what a tool returned, before the model reads it | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | tool arguments | what the agent passes a tool, before the tool runs | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2660,7 +2741,14 @@ is what the tool receives, what the transcript stores and what the stream shows,
 and a blocked keyword ends the run before any tool is called. It is separate from
 the output check because redacting an argument changes what the tool does: an
 e-mail goes out with a placeholder where the key was. While it is on, a call's
-arguments are held back until the call is complete, as the answer is.
+arguments are held back until the call is complete, as the answer is. The one
+exception is what a call shows the person - a [draft](#drafts), a drawing, a chart, a page or a
+question: the output edge checks its text as it checks the answer, whether or not this
+edge is on. In a drawing or page that is the text, the readable attributes (`alt`, `title`,
+`aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, except an inline image or a base64 `data:` URI) and the strings in a script; tags, comments,
+styles and code are not changed. A drawing or page appears when the call is complete, not
+as it is written.
 
 **A delegate streams under its delegating run's output check.** The text and
 reasoning a delegate writes in the delegation panel pass the same check as the
@@ -2699,8 +2787,7 @@ does any other.
 on untrusted content entering the loop — a fetched page, a file, an MCP server's
 response — where a prompt-injection payload would otherwise reach the model unread.
 
-Two things are deliberately out of scope. **Tool arguments** are a structured
-mapping with no text detector, so they are not an edge. And the harness's tool
+One thing is deliberately out of scope: the harness's tool
 `approve` verdict is not ported: [approvals](../governance.md) already park a run per
 tool for a human decision, and a second, rule-driven path to the same mechanism is
 what a single door avoids.
@@ -2769,6 +2856,70 @@ asked can answer, through `POST /runs/{run_id}/answers`; `GET
 /runs/{run_id}/questions` reads the card back. After a day
 (`QUESTION_EXPIRY_HOURS`, 24) the run ends as cancelled and the step records that
 the person did not answer in time.
+
+## Drafts
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+When someone asks for an e-mail, a reply on Slack, a post or an issue
+description, the agent puts the text in a card of its own instead of mixing it
+into the answer, so nothing has to be selected by hand or cleaned up where it
+lands.
+
+The card has a title and a kind (Email, Slack message, Post). A draft
+with parts that are pasted in different places - an e-mail's subject and body -
+has one segment per part, and each segment has its own copy icon in the corner.
+A segment shows its name only where that tells the parts apart, and a small
+type hint in its bottom corner: `text` by default, `markdown` when the person
+asked for it, or a language for a snippet the draft carries.
+
+Copy puts **plain text** on the clipboard: exactly the segment's text, without
+its name, trimmed of blank lines at either end. Never HTML or rich text, so it
+pastes in the destination's own font and colours. A field is shown as typed, and `<b>` is
+never interpreted. A `markdown` part has a Preview button that shows it rendered, with
+links that work and images shown as links, not loaded; Source returns to the text.
+Copy always gives the source.
+
+Where the person has to supply a detail the agent does not know, it writes a short
+placeholder in square brackets such as `[Your Name]` or `[date]` instead of inventing
+one. The card shows in red any text in square brackets that has a letter in it, except
+links, footnotes, quoted lines and code, so nothing is sent unfilled, except in a
+markdown part's preview. Copy keeps the brackets.
+
+Two to five takes on the same draft ("give me two versions") go in one call as
+**versions**, shown as tabs named by a word or two ("Short", "With details").
+The limits: a title of up to 120 characters, up to 10 fields per version, up to
+20,000 characters in a field, and no empty field, title or kind. A call that breaks one is
+refused with a message naming what to fix, so the model retries and no empty
+card is ever drawn.
+
+An agent's [output guardrails](#guardrails) check a draft as they check its answer:
+a secret or personal data it redacts is redacted in the card, and a blocked keyword
+stops the run. Drafts stored before the agent had the guardrail are not rewritten.
+
+The card is rebuilt from the stored call's arguments, so reopening a
+conversation shows the same card. A conversation shared by link carries its
+drafts too (up to the newest 50, and 500,000 characters of text between them,
+since anyone with the link can load it). A call that was refused, or whose
+arguments no longer parse, shows no card.
+
+It is offered **only in the web chat**, because that is the one surface that
+draws the card. The desktop and phone apps load the same console, so they get
+it too, quick ask included. On every other surface - hosted pages and the
+embed widget, chat channels, the API, schedules, workflows, background topics, voice - and for a subagent,
+whose output goes to the parent model and not to the person, the agent does not
+see the tool and writes the draft into its answer as before.
+
+It is on by default in every new agent, every template and the agents the
+Architect creates, and an author can switch it off. Existing agents are
+unchanged until their author turns it on and publishes a new version.
+
+!!! note "Limit: a renamed tool"
+    The console finds the card by the tool's name, as it does for `draw` and
+    `create_chart`. A binding that renames `write_draft` loses the card: the
+    call shows as an ordinary step. Tracked in
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Follow-ups { #follow-ups }
 

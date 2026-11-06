@@ -1,5 +1,5 @@
 ---
-source_sha: "dd2bf814f1d0"
+source_sha: "cd5a3c0d3d72"
 ---
 
 # Die Konsole { #the-console }
@@ -559,6 +559,8 @@ sie: Sie sind Wissen für den Agent, kein Zeitplan.
 
 Beim erneuten Öffnen eines Gesprächs sehen Sie die neuesten Nachrichten. Mit **Ältere Nachrichten laden** über dem Verlauf lesen Sie frühere Beiträge. Laufende Antworten und ungespeicherte Ergebnisse bleiben sichtbar, während der gespeicherte Verlauf aktualisiert wird.
 
+Wenn eine Antwort des Assistenten nicht gespeichert werden kann, fordert der Chat Sie auf, benötigten Text vor dem Verlassen des Gesprächs zu kopieren. Das gilt auch für Teilantworten aus unterbrochenen Ausführungen. Der live übertragene Text bleibt sichtbar, kann aber beim erneuten Öffnen des Gesprächs fehlen.
+
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
 hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
@@ -599,6 +601,12 @@ Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheb
 fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
 Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
 gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
+
+**Entwürfe.** Ein Agent mit [Entwürfen](reference/capabilities.md#drafts) zeigt Text,
+den Sie anderswo versenden oder einfügen - eine E-Mail, eine Antwort, einen Beitrag -
+als Karte in seiner Antwort. Jeder Teil hat ein eigenes Kopiersymbol, das reinen Text
+kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eigene
+**Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
 öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.

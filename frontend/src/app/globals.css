@@ -2267,6 +2267,9 @@ body .tour-spotlight {
   /* The Error label is 10.5px text and needs 4.5:1: the shared destructive token is
      3.05:1 on the dark card, so the dark blocks below lift it - for this label only. */
   --family-error-ink: var(--color-destructive);
+  /* A placeholder in a draft ("[Your Name]"): 14px medium text on the card's
+     bg-muted/40, measured 6.05:1 here and 5.84:1 in the dark block below. */
+  --draft-placeholder-ink: oklch(50% 0.19 27);
 }
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
@@ -2274,6 +2277,7 @@ body .tour-spotlight {
     --family-ai-foreground: oklch(16% 0.04 300);
     --family-data-tint: oklch(35% 0.06 178);
     --family-error-ink: oklch(72% 0.15 25);
+    --draft-placeholder-ink: oklch(72% 0.15 25);
   }
 }
 :root.dark {
@@ -2281,6 +2285,7 @@ body .tour-spotlight {
   --family-ai-foreground: oklch(16% 0.04 300);
   --family-data-tint: oklch(35% 0.06 178);
   --family-error-ink: oklch(72% 0.15 25);
+  --draft-placeholder-ink: oklch(72% 0.15 25);
 }
 
 .node-tile-start {

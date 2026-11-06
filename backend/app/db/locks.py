@@ -31,6 +31,7 @@ class LockScope(IntEnum):
     #: How many organizations one account may own.
     CONVERSATION_TURN = 23
     CONVERSATION_TASKS = 24
+    CONNECTED_ACCOUNTS = 25
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
@@ -93,7 +94,7 @@ class LockScope(IntEnum):
     #: Cumulative inline results across retained runs, before run-row locks.
     WORKFLOW_INLINE_RESULTS_PER_ORG = 19
     #: Telephone reservations, opt-in changes and endpoint admission share one order.
-    PHONE_CALLS_PER_ORG = 25
+    PHONE_CALLS_PER_ORG = 28
     #: Read/compare/write of claims within one organization, owner and agent scope.
     MEMORY_CLAIMS_PER_SCOPE = 26
     TASK_BOARD = 27

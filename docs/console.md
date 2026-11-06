@@ -502,6 +502,8 @@ knowledge for the agent, not a schedule.
 
 Reopening a conversation shows its newest messages first. Use **Load earlier messages** above the transcript to read older turns. Live answers and unsaved results stay visible while stored history refreshes.
 
+If an assistant reply cannot be saved, the chat tells you to copy any text you need before leaving. This also applies to partial replies from interrupted runs. The streamed text stays visible, but it may be missing when you reopen the conversation.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into
@@ -535,6 +537,11 @@ show its code, download it, copy an SVG as an image, zoom in, and save it as an
 error, the agent has already been told; **Fix it** asks again. On a phone a tap opens
 it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
 you, each opening the conversation it was drawn in.
+
+**Drafts.** An agent with [Drafts](reference/capabilities.md#drafts) shows text you will
+send or paste elsewhere - an e-mail, a reply, a post - as a card in its answer. Each
+part has its own copy icon, which copies plain text; several variants of one draft
+are tabs in the same card. A message's own **Copy** includes its drafts.
 
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
 opens automatically in a full-height side panel while the transcript scrolls.

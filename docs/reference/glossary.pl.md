@@ -1,5 +1,5 @@
 ---
-source_sha: "c7d098e193ca"
+source_sha: "bfeef046e22e"
 ---
 
 # Słownik { #glossary }
@@ -65,6 +65,7 @@ w [Capabilities](capabilities.md).
 |---|---|
 | Aplikacje | `artifacts` |
 | Pytania do użytkownika | `ask_user` |
+| Wersje robocze | `drafts` |
 | Przeglądarka | `browser_use` |
 | Informacje o kanale czatu | `channel_tools` |
 | Połączenia telefoniczne | `phone_calls` |
@@ -82,6 +83,7 @@ w [Capabilities](capabilities.md).
 | Wyszukiwanie wiedzy | `knowledge` |
 | Odciążenie z obrazów | `media` |
 | Pamięć | `memory_files` |
+| Mirage (wirtualny terminal) | `mirage` |
 | Planowanie | `planning` |
 | Praca w trakcie narzędzi | `background_tools` |
 | Tematy w tle | `background_tasks` |

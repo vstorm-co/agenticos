@@ -162,6 +162,18 @@ class Settings(BaseSettings):
     CHAT_ARCHIVE_TOTAL_MAX_BYTES: int = Field(default=100 * 1024 * 1024, gt=0)
     CHAT_ARCHIVE_MAX_MEMBERS: int = Field(default=2000, gt=0)
 
+    # A `.zip` or `.tar.gz` attached to an agent with a workspace is unpacked into
+    # it, and a workspace folder is downloaded as a `.zip`; both directions share
+    # these bounds (#2479). Entries count files and folders. The ratio is the most
+    # an unpacked archive's contents may be over its compressed size - past it the
+    # archive is read as a decompression bomb and refused.
+    WORKSPACE_ARCHIVE_MAX_ENTRIES: int = Field(default=5000, gt=0)
+    WORKSPACE_ARCHIVE_MAX_BYTES: int = Field(default=200 * 1024 * 1024, gt=0)
+    WORKSPACE_ARCHIVE_MAX_RATIO: int = Field(default=100, gt=0)
+    # One file in an attached archive: the most an unpack holds in memory at
+    # once, since it writes one member at a time.
+    WORKSPACE_ARCHIVE_MAX_MEMBER_BYTES: int = Field(default=50 * 1024 * 1024, gt=0)
+
     # The layered text budget. Stored extracted text is capped so a ZIP/OLE
     # expansion cannot bloat the row; the per-file and per-turn prompt caps bound
     # what the no-workspace paste path puts in front of the model, the aggregate
@@ -276,6 +288,8 @@ class Settings(BaseSettings):
     # must be positive - `0` is an org whose agents can never answer, which the
     # `ck_organization_budget_positive` constraint already refuses.
     DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
+
+    STAV_NOK_PER_USD: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
 
     @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
     @classmethod
@@ -1101,6 +1115,17 @@ class Settings(BaseSettings):
     # internet, which is worse. So the operator names the hosts instead, exactly
     # like any spec-supplied address. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
+
+    # Hosts a virtual terminal (`mirage`) may mount by an address its author typed:
+    # an SSH server, a Postgres or MongoDB DSN, an IMAP server, a self-hosted
+    # Nextcloud or Dify. The address is in an agent's spec, which whoever holds
+    # `edit` on the agent writes, so for the reason `BROWSER_CDP_ALLOWED_HOSTS` is
+    # an allowlist the SSRF guard is the wrong control here: it refuses the
+    # company's own database, which is the point of mounting one, and admits any
+    # public host, which is the address an author could otherwise exfiltrate a
+    # bound secret to. Exact host names. Empty allows no typed address at all;
+    # SaaS backends (Drive, GitHub, Notion...) reach their fixed APIs regardless.
+    MIRAGE_ALLOWED_HOSTS: list[str] = []
 
     # The browser a person signs in to a site with from Settings (#2129). An
     # agent's browser is named in its spec; signing in from Settings involves no

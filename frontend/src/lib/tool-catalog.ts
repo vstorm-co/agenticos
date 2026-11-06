@@ -454,6 +454,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   },
   execute: { kind: "shell", render: "workspace", verbs: { now: "executing", done: "executed" } },
 
+  // mirage - the same console tools over a virtual terminal's mounted services. The
+  // generic renderer shows a command's output as the text it is: a file written
+  // there lives in a Drive or a repository, not in this conversation's workspace,
+  // so it is not one the workspace renderer could open.
+  mirage_ls: { kind: "list", render: "generic", verbs: { now: "listing", done: "listed" } },
+  mirage_read_file: { kind: "read", render: "generic", verbs: { now: "reading", done: "read" } },
+  mirage_glob: {
+    kind: "search",
+    render: "generic",
+    verbs: { now: "lookingFor", done: "lookedFor" },
+  },
+  mirage_grep: {
+    kind: "search",
+    render: "generic",
+    verbs: { now: "searchingFor", done: "searchedFor" },
+  },
+  mirage_write_file: { kind: "write", render: "generic", verbs: { now: "writing", done: "wrote" } },
+  mirage_edit_file: { kind: "edit", render: "generic", verbs: { now: "editing", done: "edited" } },
+  mirage_execute: {
+    kind: "shell",
+    render: "generic",
+    verbs: { now: "executing", done: "executed" },
+  },
+
   // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
   // panel of their own while it works; what it read, ran and changed opens under
   // the step afterwards, because that is what a person checks before trusting it.
@@ -518,41 +542,6 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "knowledgeBaseSearch",
   },
 
-  // virtual_tables - reads are lookups, writes are edits; `delete_record` is `edit`
-  // because `StepKind` has no delete, the same choice `delete_memory` makes.
-  list_tables: { kind: "list", render: "generic", captionKey: "tablesListing" },
-  table_exists: { kind: "read", render: "generic", captionKey: "tablesChecking" },
-  describe_table: { kind: "read", render: "generic", captionKey: "tablesDescribing" },
-  list_views: { kind: "list", render: "generic", captionKey: "viewsListing" },
-  create_table: { kind: "write", render: "generic", captionKey: "tablesCreating" },
-  record_exists: { kind: "read", render: "generic", captionKey: "recordsChecking" },
-  list_records: { kind: "list", render: "generic", captionKey: "recordsListing" },
-  get_record: { kind: "read", render: "generic", captionKey: "recordsReading" },
-  create_record: {
-    kind: "write",
-    render: "generic",
-    captionKey: "recordsCreating",
-    approvalSummary: { key: "approveCreateRecord", needs: ["table"] },
-  },
-  upsert_record: {
-    kind: "write",
-    render: "generic",
-    captionKey: "recordsUpserting",
-    approvalSummary: { key: "approveUpsertRecord", needs: ["table"] },
-  },
-  update_record: {
-    kind: "edit",
-    render: "generic",
-    captionKey: "recordsUpdating",
-    approvalSummary: { key: "approveUpdateRecord", needs: ["table"] },
-  },
-  delete_record: {
-    kind: "edit",
-    render: "generic",
-    captionKey: "recordsDeleting",
-    approvalSummary: { key: "approveDeleteRecord", needs: ["table"] },
-  },
-
   // workflows - starting one is a write: it sets a process going.
   list_workflows: { kind: "list", render: "generic", captionKey: "workflowsListing" },
   get_phone_contact_policy: { kind: "read", render: "generic", captionKey: "phoneContactPolicy" },
@@ -562,6 +551,17 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
   end_phone_call: { kind: "write", render: "generic", captionKey: "phoneEnding" },
   run_workflow: { kind: "write", render: "generic", captionKey: "workflowRunning" },
   get_workflow_run: { kind: "read", render: "generic", captionKey: "workflowRunReading" },
+
+  // drafts - the card draws in the turn; the step stays a line, since opening it
+  // would print the draft's arguments as JSON under the card. Not hidden: a hidden
+  // step is dropped from the turn's runs and no card would be drawn.
+  write_draft: {
+    kind: "write",
+    render: "generic",
+    captionKey: "writingDraft",
+    displayNameKey: "draft",
+    staysClosed: true,
+  },
 
   // follow_ups - next steps, drawn as buttons under the answer (#2301).
   suggest_next_steps: {

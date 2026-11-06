@@ -1408,7 +1408,7 @@ function ChatUI({
                     emptyState((picked) => sendMessage(picked))
                   ) : (
                     <ChatEmptyState
-                      suggestionsSlot={!compact && !emptyState ? homeHintsSlot : undefined}
+                      suggestionsSlot={!compact ? homeHintsSlot : undefined}
                       onPick={(picked) => sendMessage(picked)}
                     />
                   )}

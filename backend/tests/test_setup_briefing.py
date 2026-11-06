@@ -25,6 +25,15 @@ def _halves(text: str) -> tuple[str, str]:
     return has, missing
 
 
+def test_drafts_is_neither_offered_nor_missed() -> None:
+    with_it = setup_briefing(_spec("drafts", "ask_user"), agent_id=None)
+    without = setup_briefing(_spec("ask_user"), agent_id=None)
+
+    for text in (with_it, without):
+        assert "Drafts" not in text
+        assert "`drafts`" not in text
+
+
 class TestWhatItSays:
     def test_what_is_bound_is_listed_in_the_words_the_toolbox_leads_with(self) -> None:
         has, missing = _halves(setup_briefing(_spec("web_research", "ask_user"), agent_id=None))

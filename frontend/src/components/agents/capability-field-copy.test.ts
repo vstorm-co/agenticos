@@ -74,3 +74,11 @@ it.each([
     });
   } else expect(result.current("desktop")?.options).toBeUndefined();
 });
+
+it("offers the personal coding account alongside the other execution modes", () => {
+  const { result } = renderHook(() => useCapabilityFieldCopy("coding_agent"));
+  expect(result.current("runs_on")?.description).toContain("initiating person's profile account");
+  expect(result.current("runs_on")?.options?.personal_sandbox?.label).toBe(
+    "Private cloud task with my account",
+  );
+});

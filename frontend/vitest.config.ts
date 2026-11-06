@@ -244,6 +244,8 @@ export default defineConfig({
         // Voice calls (#54): the call button, the approval card, captions, the
         // level meter, the controls and the status line. New, so inside the gate.
         "src/components/voice/**/*.tsx",
+        "src/components/chat/draft-card.tsx",
+        "src/components/chat/draft-segment.tsx",
         "src/components/chat/file-preview-panel.tsx",
         "src/components/chat/markdown-content.impl.tsx",
         "src/components/chat/markdown-content.tsx",
@@ -336,6 +338,9 @@ export default defineConfig({
         // The one key field every speech-to-text level names its key with
         // (#1797), new and so inside the gate.
         "src/components/vault/speech-key-field.tsx",
+        // The connected accounts a virtual terminal reads as (#2191), new and so
+        // inside the gate.
+        "src/components/vault/connected-accounts-card.tsx",
       ],
       exclude: [
         "node_modules",

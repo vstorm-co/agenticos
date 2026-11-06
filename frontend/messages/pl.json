@@ -434,7 +434,10 @@
       "storedSuffix": "zapisano {size}",
       "title": "Pliki",
       "beforeStart": "Pliki, które dołączysz, i pliki zapisane przez agenta pojawią się tutaj, gdy rozmowa się zacznie.",
-      "onThisComputer": "W {folder} na tym komputerze"
+      "onThisComputer": "W {folder} na tym komputerze",
+      "downloadAll": "Pobierz jako .zip",
+      "downloadFolder": "Pobierz {name} jako .zip",
+      "zipFailed": "Nie udało się pobrać folderu."
     },
     "generateShareLink": "Wygeneruj link do udostępnienia",
     "helpful": "Pomocne",
@@ -750,22 +753,6 @@
       "readVisual": "Przeczytał wizual",
       "workingInText": "Pracuje nad tym w trybie tekstowym",
       "workedInText": "Popracował nad tym w trybie tekstowym",
-      "tablesListing": "Sprawdzam, których tabel może używać",
-      "tablesChecking": "Sprawdzam tabelę",
-      "tablesDescribing": "Czytam kolumny tabeli",
-      "viewsListing": "Przeglądam zapisane widoki tabeli",
-      "tablesCreating": "Tworzę tabelę",
-      "recordsChecking": "Sprawdzam, czy rekord istnieje",
-      "recordsListing": "Wyświetlam rekordy",
-      "recordsReading": "Czytam rekord",
-      "recordsCreating": "Dodaję rekord",
-      "recordsUpserting": "Zapisuję rekord",
-      "recordsUpdating": "Zmieniam rekord",
-      "recordsDeleting": "Usuwam rekord",
-      "approveCreateRecord": "Dodaj rekord do tabeli {table}",
-      "approveUpsertRecord": "Utwórz albo zaktualizuj rekord w tabeli {table}",
-      "approveUpdateRecord": "Zmień rekord w tabeli {table}",
-      "approveDeleteRecord": "Usuń rekord z tabeli {table}",
       "workflowsListing": "Sprawdza, które workflow może uruchomić",
       "workflowRunning": "Uruchamia workflow",
       "workflowRunReading": "Sprawdza przebieg workflow",
@@ -891,7 +878,9 @@
       "memoryResult": "Pamięć",
       "manageMemory": "Twoja pamięć",
       "memoryRecordedResult": "Zapisano w pamięci",
-      "memoryCorrectedResult": "Poprawiono; wcześniejsza wersja pozostała w historii"
+      "memoryCorrectedResult": "Poprawiono; wcześniejsza wersja pozostała w historii",
+      "writingDraft": "Pisze wersję roboczą",
+      "draft": "Napisał wersję roboczą"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1498,6 +1487,9 @@
       "workflow": "Workflow",
       "skill": "Umiejętność",
       "context": "Plik kontekstu"
+    },
+    "drafts": {
+      "versions": "Warianty tej wersji roboczej"
     }
   },
   "errors": {
@@ -2811,7 +2803,23 @@
       "storedCount": "{count, plural, one {1 zapisany klucz} few {# zapisane klucze} many {# zapisanych kluczy} other {# zapisanego klucza}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje."
+      "whoCanBindKey": "Kto może związać ten klucz z agentem i kto może go zrotować lub usunąć. Klucz, do którego nikt nie sięga, to capability, którego nikt nie skonfiguruje.",
+      "connectedAccounts": {
+        "personalTitle": "Twoje podłączone konta",
+        "organizationTitle": "Podłączone konta organizacji",
+        "count": "{count, plural, one {# konto} few {# konta} many {# kont} other {# konta}}",
+        "connect": "Podłącz konto Google",
+        "noneYet": "Nie podłączono jeszcze żadnego konta",
+        "personalDetail": "Agent, którego wirtualny terminal czyta własne konta każdej osoby, montuje je, gdy z nim rozmawiasz.",
+        "organizationDetail": "Wirtualny terminal agenta może czytać jedno z tych kont dla każdego, kto z nim rozmawia.",
+        "needsReconnect": "Logowanie przestało działać. Podłącz konto ponownie.",
+        "scopes": "{count, plural, one {# przyznane uprawnienie} few {# przyznane uprawnienia} many {# przyznanych uprawnień} other {# przyznanego uprawnienia}}",
+        "reconnect": "Podłącz ponownie",
+        "disconnect": "Odłącz {email}",
+        "disconnectTitle": "Odłączyć {email}?",
+        "disconnectDetail": "Agenci czytający to konto stracą jego foldery przy następnym uruchomieniu. Zgoda zostanie usunięta z vault.",
+        "disconnectConfirm": "Odłącz"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Nie udało się wczytać workspace",
@@ -4198,7 +4206,8 @@
       "replyMailboxFailed": "Nie udało się wczytać skrzynek",
       "replyMailboxUnavailable": "Wybrana skrzynka niedostępna",
       "replyMailboxConnect": "Najpierw połącz Gmail lub Outlook w Integracjach.",
-      "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)"
+      "replySharedMailbox": "Współdzielona skrzynka Outlook (opcjonalnie)",
+      "startRunListHint": "Jeden element w wierszu. Puste wiersze są pomijane."
     },
     "adminApns": {
       "title": "Powiadomienia na iPhone'a",
@@ -9200,14 +9209,7 @@
       },
       "runs_on": {
         "title": "Gdzie działa",
-        "description": "W sandboxie agenta, na kluczu zapisanym tutaj - albo w folderze, który osoba wybiera na własnym komputerze w aplikacji desktopowej, gdzie Claude Code i Codex używają logowania, które już mają, i nie potrzebują klucza.",
-        "options": {
-          "personal_sandbox": {
-            "label": "Prywatne zadanie chmurowe z moim kontem",
-            "description": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików.",
-            "summary": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików."
-          }
-        }
+        "description": "Sandbox agenta ze skonfigurowanym kluczem, jednorazowe prywatne zadanie w chmurze na koncie z profilu osoby inicjującej albo folder wybrany na jej komputerze w aplikacji desktopowej, gdzie Claude Code i Codex korzystają z istniejącego logowania i nie potrzebują klucza."
       }
     },
     "workflows": {
@@ -9338,6 +9340,20 @@
       "endpoint_id": {
         "title": "Numer do połączeń",
         "description": "Skonfigurowany punkt telefonii Twilio z Kanałów. Połączenie wymaga jawnej zgody członka i mieści się w bieżących limitach."
+      }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Foldery",
+        "description": "Co terminal montuje, każde jako folder."
+      },
+      "allowed_commands": {
+        "title": "Dozwolone polecenia",
+        "description": "Uruchamiaj tylko te polecenia, np. ls, cat, grep. Pusta lista dopuszcza polecenia wirtualne; bezpośrednie curl/wget są wyłączone."
+      },
+      "hidden_paths": {
+        "title": "Ukryte ścieżki",
+        "description": "Ścieżki, których agent w ogóle nie widzi, np. /drive/HR/."
       }
     }
   },
@@ -10006,6 +10022,7 @@
       "add": "Dodaj pole",
       "types": {
         "text": "Tekst",
+        "string_list": "Lista tekstów",
         "number": "Liczba",
         "integer": "Całkowita",
         "boolean": "Tak lub nie",
@@ -12009,6 +12026,23 @@
       "needs": "Opublikowany agent w konsoli, aktywny członek organizacji i zatwierdzony folder do pracy lokalnej.",
       "never": "Nie kopiuje całej rozmowy, nie pomija zgód, nie powtarza przerwanych działań ani nie tworzy watchów i rutyn.",
       "example1": "Zbadaj błąd eksportu w nowym temacie, a my kontynuujmy planowanie wydania."
+    },
+    "drafts": {
+      "name": "Wersje robocze",
+      "does": "Pokazuje wersję roboczą tekstu, który agent pisze do wysłania - e-mail, odpowiedź na czacie, wpis - jako kartę z przyciskiem kopiowania przy każdej części.",
+      "example1": "Odpowiedź do Marty w sprawie prezentacji Q4",
+      "example2": "Dwie wersje ogłoszenia na Slacku",
+      "needs": "Nic dodatkowego. Karta pojawia się w czacie w przeglądarce.",
+      "never": "Nigdy niczego nie wysyła - kopiujesz tekst i wysyłasz go sam."
+    },
+    "mirage": {
+      "name": "Mirage (wirtualny terminal)",
+      "does": "Montuje wybrane usługi - Dysk, repozytorium GitHub, Notion, bazę danych, serwer SSH - jako foldery, więc agent przegląda je, przeszukuje i czyta w powłoce, a pisze tam, gdzie mu pozwolisz.",
+      "example1": "Znajdź w folderze na Dysku każdą umowę, która wspomina klienta",
+      "example2": "Przeszukaj naraz repozytorium i przestrzeń w Notion",
+      "example3": "Odczytaj tabelę z bazy danych i ją podsumuj",
+      "needs": "Dane dostępowe usług w vaulcie albo połączone konto Google. Wdrożenie instaluje terminal z extra mirage, a operator zezwala na hosty serwerów, które wpiszesz.",
+      "never": "Nigdy nie pisze w folderze zamontowanym tylko do odczytu i pyta osobę przed każdym zapisem tam, gdzie tak ustawisz."
     }
   },
   "capabilityCategories": {
@@ -12807,6 +12841,15 @@
           "description": "Wymaga sparowanej aplikacji desktopowej i wybrania lokalnej przeglądarki w tym czacie. Nie udostępnia Twojej osobistej sesji przeglądarki."
         }
       }
+    },
+    "coding_agent": {
+      "runs_on": {
+        "personal_sandbox": {
+          "label": "Prywatne zadanie chmurowe z moim kontem",
+          "description": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików.",
+          "summary": "Użyj konta z profilu w odizolowanym kontenerze. Zwraca diff i archiwum do przeglądu, bez zmieniania wspólnych plików."
+        }
+      }
     }
   },
   "outcomes": {
@@ -13132,5 +13175,31 @@
     "personalAccount": "Konto osobiste: {label}",
     "baseRevision": "Snapshot workspace: {revision}",
     "chatHelp": "Podłącz tutaj swoje konto do prywatnych zadań coding w chmurze. Tool Coding agent musi używać trybu Private cloud task with my account. Lokalny coding na desktopie korzysta z osobnego logowania."
+  },
+  "mirage": {
+    "folders": "Foldery",
+    "foldersDetail": "Każde źródło dodajesz osobno: wybierz integrację, dane dostępowe i uprawnienia. Integracja staje się folderem, który agent może przeglądać, przeszukiwać i czytać.",
+    "addFolder": "Dodaj integrację",
+    "folder": "Folder",
+    "service": "Integracja",
+    "servicePlaceholder": "Wybierz usługę ({name} nie jest tu dostępna)",
+    "removeFolder": "Usuń {folder}",
+    "writable": "Agent może tu zapisywać",
+    "approveWrites": "Zatwierdzaj każdy zapis",
+    "secretFor": "Sekret dla {field}",
+    "entraApp": "Aplikacja Entra",
+    "chooseSecret": "Wybierz sekret",
+    "noSecret": "Brak",
+    "noSecrets": "Nie ma jeszcze pasującego sekretu. Dodaj go w <link>vault</link>.",
+    "account": "Konto",
+    "chooseAccount": "Wybierz konto",
+    "personalAccounts": "Własne konta każdej osoby",
+    "personalAccountsDetail": "Każda osoba rozmawiająca z agentem widzi własne konta, po jednym folderze na konto. Podłącza je w <link>vault</link>.",
+    "organizationAccountsDetail": "Każdy, kto rozmawia z agentem, czyta to konto. Organizacja podłącza konta w <link>vault</link>.",
+    "backendsUnavailable": "Nie udało się wczytać listy usług.",
+    "notInstalled": "To wdrożenie nie ma zainstalowanego wirtualnego terminala. Operator instaluje go z dodatkiem mirage.",
+    "jsonLabel": "{name} (JSON)",
+    "jsonHint": "Edytuj jako JSON. Poprawne zmiany są zapisywane; niepełny JSON zachowuje ostatnią poprawną wartość.",
+    "jsonInvalid": "Wpisz poprawny JSON wymaganego typu. Ostatnia poprawna wartość pozostaje bez zmian."
   }
 }

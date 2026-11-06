@@ -1,5 +1,5 @@
 ---
-source_sha: "4c08e05cfff7"
+source_sha: "17ca6408dd22"
 ---
 
 # Funktionen { #features }
@@ -93,7 +93,7 @@ sagen.
 
 | Der Agent kann… | Einschalten |
 |---|---|
-| **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe und was auch immer an diese Unterhaltung angehängt wurde | Knowledge search · Skills · Context |
+| **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe, was auch immer an diese Unterhaltung angehängt wurde, und die als Ordner eingebundenen Dienste, etwa ein Drive oder ein Repository | Knowledge search · Skills · Context · Virtual terminal |
 | **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Past conversations |
 | **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
 | **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen, einen Text vorlesen oder einen kurzen Clip machen | Calculations · Sandbox · Charts · Image generation · Text to speech · Video generation |

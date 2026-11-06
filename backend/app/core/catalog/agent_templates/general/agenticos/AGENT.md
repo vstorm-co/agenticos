@@ -5,6 +5,7 @@ description: The organization's general-purpose assistant - it researches, write
   preferences, sets up routines, and shows people what else the platform can do for them.
 capabilities:
 - ask_user
+- drafts
 - follow_ups
 - id: sandbox
   config:

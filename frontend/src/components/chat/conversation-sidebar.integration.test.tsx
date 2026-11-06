@@ -197,25 +197,41 @@ describe("a sidebar that leaves while refreshing", () => {
     expect(useConversationStore.getState().currentConversationId).toBe("c-reopen");
   });
 
-  it("does not open a linked thread after unmount during invalidation", async () => {
+  it("does not restore a linked transcript after unmount during invalidation", async () => {
     window.history.replaceState({}, "", "/chat?id=c-late");
     let finish = () => {};
     const pending = new Promise<void>((resolve) => {
       finish = resolve;
     });
+    let finishTranscript = (_: unknown) => {};
+    const transcript = new Promise((resolve) => {
+      finishTranscript = resolve;
+    });
+    const ordinaryGet = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/conversations/c-late/messages?latest=true&limit=101") return transcript;
+      return ordinaryGet?.(path, options);
+    });
     const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockReturnValue(pending);
     try {
       const { unmount } = mount();
       await waitFor(() => expect(invalidate).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).toContain(
+          "/conversations/c-late/messages?latest=true&limit=101",
+        ),
+      );
       unmount();
       await act(async () => {
         finish();
-        await pending;
+        finishTranscript({
+          items: [{ id: "m-late", role: "assistant", content: "Late" }],
+          total: 1,
+        });
+        await Promise.all([pending, transcript]);
       });
-      expect(vi.mocked(apiClient.get).mock.calls.map(([path]) => path)).not.toContain(
-        "/conversations/c-late/messages?latest=true&limit=101",
-      );
       expect(useConversationStore.getState().currentConversationId).toBeNull();
+      expect(useConversationStore.getState().currentMessages).toEqual([]);
     } finally {
       invalidate.mockRestore();
     }

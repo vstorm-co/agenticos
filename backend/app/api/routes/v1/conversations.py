@@ -2,6 +2,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from app.api.deps import (
     ActiveOrg,
@@ -17,6 +18,7 @@ from app.api.deps import (
     WorkspaceSvc,
     require,
 )
+from app.api.responses import content_disposition
 from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
@@ -703,3 +705,40 @@ async def read_workspace_bytes(
     )
     data = await workspaces.read_bytes(ctx, conversation_id=conversation_id, path=path)
     return file_response(data, path=path, download=download)
+
+
+@router.get("/{conversation_id}/workspace/archive", response_model=None)
+async def download_workspace_folder(
+    conversation_id: UUID,
+    conversation_service: ConversationSvc,
+    workspaces: WorkspaceSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+    path: str = Query(
+        "", description="Folder inside the workspace, as the listing gives it; empty for all of it"
+    ),
+) -> Any:
+    """One workspace folder as a `.zip`, streamed (#2479).
+
+    Authorised exactly as `/raw` is, by fetching the conversation first - so
+    somebody a chat was shared with downloads a folder of it, and nobody who
+    could not open one of its files can. Bounded by
+    `WORKSPACE_ARCHIVE_MAX_ENTRIES` and `WORKSPACE_ARCHIVE_MAX_BYTES`: a folder
+    past either is refused with a 413 before anything is sent, rather than
+    arriving as a zip that silently lacks files. Tooling folders the panel hides
+    (`.git`, `node_modules`, `.venv`, ...) are left out.
+    """
+    await conversation_service.get_conversation(
+        conversation_id,
+        organization_id=active_org.id,
+        include_messages=False,
+        user_id=current_user.id,
+        include_favourite=False,
+    )
+    folder = await workspaces.folder_zip(ctx, conversation_id=conversation_id, folder=path)
+    return StreamingResponse(
+        folder.chunks,
+        media_type="application/zip",
+        headers={"Content-Disposition": content_disposition("attachment", folder.name)},
+    )

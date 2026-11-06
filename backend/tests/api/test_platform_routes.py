@@ -257,6 +257,7 @@ CALLS: tuple[Call, ...] = (
     ),
     Call("PATCH", "/assistant", Perm.ORG_SETTINGS, body={"enabled": False}),
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/capabilities/mirage/backends", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
     Call("GET", "/agents/platform-mcp-tools", Perm.AGENTS_VIEW),
@@ -1208,9 +1209,37 @@ class TestSharingRoutesRefuseWithoutAGrant:
         async with as_role(OrgRoleName.MEMBER, overrides) as client:
             response = await client.request(method, _url(path), json=body)
 
-        # Reading reports the row as missing rather than forbidden, so ids
-        # cannot be probed; changing it is an outright refusal.
-        assert response.status_code == (404 if method == "GET" else 403)
+        # A row the caller cannot view is reported as missing, reading and
+        # changing alike, so the sharing routes cannot be used to probe ids (#2619).
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        # An MCP server is seen and managed by one permission, so nobody can view
+        # one they may not edit.
+        [
+            call
+            for call in _sharing_calls()
+            if call[0] != "GET" and not call[1].startswith("/mcp-connections/")
+        ],
+        ids=lambda value: value if isinstance(value, str) else "",
+    )
+    async def test_a_member_who_can_view_but_not_edit_is_forbidden(
+        self, method: str, path: str, body: dict[str, Any] | None, as_role: ClientFactory
+    ) -> None:
+        """An org-visible row: they know it exists, so the refusal can say why."""
+        resource = _SomeoneElsesResource(
+            organization_id=_ORGANIZATION_ID, visibility=Visibility.ORG.value
+        )
+        session = _NoGrantsSession(resource)
+        overrides = {
+            deps.get_db_session: lambda: session,
+            deps.get_sharing_service: lambda: SharingService(session),
+        }
+        async with as_role(OrgRoleName.MEMBER, overrides) as client:
+            response = await client.request(method, _url(path), json=body)
+
+        assert response.status_code == 403
 
 
 class TestReadingWhatARunIsParkedOn:

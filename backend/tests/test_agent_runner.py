@@ -232,6 +232,7 @@ def _parked_run(**overrides):
         key_scopes=None,
         chat_notice_sent_at=None,
         trigger_id=None,
+        parent_run_id=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
         paused_state={"messages": [], "tool_call_ids": {}},
@@ -3799,6 +3800,7 @@ class TestResume:
         run_limit_usd: Decimal | None = None,
         orphaned: bool = False,
         surface: RunSurface = RunSurface.API,
+        parent_run_id: uuid.UUID | None = None,
     ) -> MagicMock:
         """Resume a parked run and hand back the `build_agent` mock.
 
@@ -3813,6 +3815,7 @@ class TestResume:
             paused_state=paused_state,
             user_id=None if orphaned else uuid.uuid4(),
             surface=surface.value,
+            parent_run_id=parent_run_id,
         )
         run.paused_state["tool_call_ids"] = {str(approval.id): "call-1"}
 
@@ -3870,6 +3873,36 @@ class TestResume:
 
             with pytest.raises(CallDeferred):
                 await callback(AskUserRequest(questions=[]))
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("surface", "parent", "task", "shown"),
+        [
+            (RunSurface.WEB, None, None, True),
+            (RunSurface.SLACK, None, None, False),
+            (RunSurface.WEB, uuid.uuid4(), None, False),
+            (RunSurface.WEB, None, uuid.uuid4(), False),
+        ],
+        ids=["web turn", "slack", "delegate", "background topic"],
+    )
+    async def test_a_resume_offers_drafts_only_to_the_consoles_own_turn(
+        self, surface: RunSurface, parent: uuid.UUID | None, task: uuid.UUID | None, shown: bool
+    ):
+        state: dict = {"messages": [], "tool_call_ids": {}}
+        if task is not None:
+            state["admitted_as"] = {"conversation_task_id": str(task)}
+
+        from app.services import conversation_tasks as tasks
+
+        with (
+            patch.object(
+                tasks, "_check_execution", new=AsyncMock(side_effect=tasks.ConversationTaskStopped)
+            ),
+            patch.object(tasks.ConversationTaskService, "settle", new=AsyncMock()),
+        ):
+            build = await self._resumed(paused_state=state, surface=surface, parent_run_id=parent)
+
+        assert build.return_value.deps.shows_drafts is shown
 
     @pytest.mark.anyio
     @pytest.mark.security

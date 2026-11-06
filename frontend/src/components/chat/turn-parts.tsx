@@ -8,6 +8,7 @@ import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { BROWSER_TOOLS, DESKTOP_TOOLS } from "@/lib/browse";
 import { toolEntry } from "@/lib/tool-catalog";
 import { drawnUnderTheAnswer } from "@/lib/turn-extras";
+import { WRITE_DRAFT } from "@/lib/drafts";
 import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
@@ -17,6 +18,7 @@ import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { TurnFileSource } from "@/types/chat";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
+import { TurnDrafts } from "./draft-card";
 import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
@@ -125,6 +127,7 @@ export function TurnParts({
           </AgentSteps>
         </ToolGroup>
         {visuals && <TurnVisuals calls={visualCalls([run])} />}
+        {visuals && <TurnDrafts calls={draftCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
@@ -188,6 +191,7 @@ export function TurnParts({
       </WorkFold>
       <TurnBrowses calls={browseCalls(runs)} />
       <TurnVisuals calls={visualCalls(split.folded)} />
+      <TurnDrafts calls={draftCalls(split.folded)} />
       {split.shown.map((run, index) => render(run, true, index === 0))}
     </>
   );
@@ -485,6 +489,15 @@ export function visualCalls(runs: PartRun[]): ToolCall[] {
       ? run.parts.flatMap((part) =>
           part.toolCall && isVisualTool(part.toolCall.name) ? [part.toolCall] : [],
         )
+      : [],
+  );
+}
+
+/** The calls that write a draft in these runs, in the order they were made. */
+export function draftCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) => (part.toolCall?.name === WRITE_DRAFT ? [part.toolCall] : []))
       : [],
   );
 }

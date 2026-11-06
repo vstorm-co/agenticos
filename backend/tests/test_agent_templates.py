@@ -115,6 +115,21 @@ class TestTheStarterTemplate:
         assert starter
         assert set(starter) <= registered
 
+    def test_a_new_agent_starts_with_drafts(self):
+        assert "drafts" in agent_templates.starter_capabilities()
+
+    def test_every_shipped_template_offers_drafts_beside_ask_user(self):
+        bound = {
+            template.key: {binding["id"] for binding in template.capabilities}
+            for industry in agent_templates.catalog()
+            for template in industry.templates
+        }
+
+        assert bound
+        assert [
+            key for key, ids in bound.items() if "ask_user" in ids and "drafts" not in ids
+        ] == []
+
     @pytest.mark.anyio
     async def test_the_capability_catalog_carries_the_starters_binding(self):
         """Marked Recommended in the Toolbox, config and all, and nothing else is."""

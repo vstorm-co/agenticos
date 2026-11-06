@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 from sqlalchemy.sql import Select
 
-from app.db.locks import LockScope, try_hold_name
+from app.db.locks import LockScope, hold_name, try_hold_name
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.resource_grant import Visibility
 
@@ -200,6 +200,7 @@ async def get_org_scoped_by_catalog_key(
     result = await db.execute(
         select(McpConnection)
         .where(
+            McpConnection.purpose == "mcp",
             McpConnection.organization_id == organization_id,
             McpConnection.catalog_key == catalog_key,
             McpConnection.scope == "org",
@@ -441,7 +442,11 @@ async def close_outage(db: AsyncSession, *, connection: McpConnection) -> dateti
 
 async def get_by_oauth_state(db: AsyncSession, state: str) -> McpConnection | None:
     """Find the connection awaiting this OAuth callback (state is the CSRF token)."""
-    result = await db.execute(select(McpConnection).where(McpConnection.oauth_state == state))
+    result = await db.execute(
+        select(McpConnection)
+        .where(McpConnection.oauth_state == state)
+        .execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 
@@ -481,10 +486,12 @@ async def create(
     oauth_pending_payload: str | None = None,
     label: str | None = None,
     catalog_key: str | None = None,
+    purpose: str = "mcp",
 ) -> McpConnection:
     connection = McpConnection(
         user_id=user_id,
         catalog_key=catalog_key,
+        purpose=purpose,
         name=name,
         url=url,
         auth_token=auth_token,
@@ -609,3 +616,86 @@ async def portal_grants_for_account(
         )
     )
     return list(result.scalars().all())
+
+
+async def list_accounts(
+    db: AsyncSession,
+    *,
+    provider: str,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+) -> list[McpConnection]:
+    """Connected accounts on one provider: a person's own, or an organization's.
+
+    Exactly one of `user_id` and `organization_id`; the two are different owners
+    and a read across both would show a person the organization's grants as theirs.
+    Only accounts whose consent completed - a row still waiting at the consent
+    screen has no grant to mount.
+    """
+    owner = (
+        McpConnection.user_id == user_id
+        if user_id is not None
+        else (McpConnection.scope == "org") & (McpConnection.organization_id == organization_id)
+    )
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            owner,
+            McpConnection.purpose == "account",
+            McpConnection.catalog_key == provider,
+            McpConnection.oauth_payload.is_not(None),
+        )
+        .order_by(McpConnection.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def get_account(db: AsyncSession, account_id: UUID) -> McpConnection | None:
+    """One connected account by id, whoever owns it - the caller checks the owner."""
+    result = await db.execute(
+        select(McpConnection).where(
+            McpConnection.id == account_id, McpConnection.purpose == "account"
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_pending_account(
+    db: AsyncSession,
+    *,
+    provider: str,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+) -> McpConnection | None:
+    """Reuse an abandoned consent row instead of creating one on every attempt."""
+    await lock_account_owner(db, user_id=user_id, organization_id=organization_id)
+    owner = (
+        (McpConnection.scope == "user") & (McpConnection.user_id == user_id)
+        if user_id is not None
+        else (McpConnection.scope == "org") & (McpConnection.organization_id == organization_id)
+    )
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            owner,
+            McpConnection.purpose == "account",
+            McpConnection.catalog_key == provider,
+            McpConnection.oauth_payload.is_(None),
+        )
+        .order_by(McpConnection.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def lock_account_owner(
+    db: AsyncSession,
+    *,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
+) -> None:
+    """Serialize consent, deduplication and disconnect for one account owner."""
+    if (user_id is None) == (organization_id is None):
+        raise ValueError("An account has exactly one owner")
+    subject = f"user:{user_id}" if user_id is not None else f"org:{organization_id}"
+    await hold_name(db, LockScope.CONNECTED_ACCOUNTS, subject)

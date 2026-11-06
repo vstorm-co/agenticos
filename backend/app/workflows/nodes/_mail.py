@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from app.core.config import settings
 from app.db.session import get_worker_db_context
 from app.services import portals
+from app.services.file_storage import ARCHIVE_FILE_TYPE, classify_file
 from app.services.file_upload import FileUploadService
 from app.services.mcp_connection import McpConnectionService
 from app.services.portals import AttachmentTooLarge, PortalUnreachable
@@ -88,7 +89,10 @@ async def _stage(
             continue
         name = attachment.name
         allowed, _ = FileUploadService.validate_upload(attachment.content_type, 0, name)
-        if not allowed:
+        # An archive is accepted in a chat only because the chat reads it whole
+        # and unpacks it itself (#2479); staged here it would reach a workflow
+        # unchecked, from a sender nobody vouched for.
+        if not allowed or classify_file(attachment.content_type or "", name) == ARCHIVE_FILE_TYPE:
             staged.append(_skipped(attachment, "type_not_allowed"))
             continue
         if attachment.byte_size is not None and (

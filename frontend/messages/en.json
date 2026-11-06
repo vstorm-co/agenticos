@@ -1385,7 +1385,10 @@
       "storedSuffix": "{size} stored",
       "title": "Files",
       "beforeStart": "Files you attach and files the agent writes appear here once the conversation starts.",
-      "onThisComputer": "In {folder} on this computer"
+      "onThisComputer": "In {folder} on this computer",
+      "downloadAll": "Download as .zip",
+      "downloadFolder": "Download {name} as .zip",
+      "zipFailed": "The folder could not be downloaded."
     },
     "generateShareLink": "Generate share link",
     "helpful": "Helpful",
@@ -1780,22 +1783,6 @@
       "readVisual": "Read a visual",
       "workingInText": "Working on it in text",
       "workedInText": "Worked on it in text",
-      "tablesListing": "Checking which tables it can use",
-      "tablesChecking": "Checking a table",
-      "tablesDescribing": "Reading a table's columns",
-      "viewsListing": "Listing a table's saved views",
-      "tablesCreating": "Creating a table",
-      "recordsChecking": "Checking for a record",
-      "recordsListing": "Listing records",
-      "recordsReading": "Reading a record",
-      "recordsCreating": "Adding a record",
-      "recordsUpserting": "Saving a record",
-      "recordsUpdating": "Updating a record",
-      "recordsDeleting": "Deleting a record",
-      "approveCreateRecord": "Add a record to {table}",
-      "approveUpsertRecord": "Create or update a record in {table}",
-      "approveUpdateRecord": "Change a record in {table}",
-      "approveDeleteRecord": "Delete a record from {table}",
       "workflowsListing": "Checking which workflows it can start",
       "workflowRunning": "Running a workflow",
       "workflowRunReading": "Checking on a workflow run",
@@ -1843,7 +1830,9 @@
       "memoryResult": "Memory",
       "manageMemory": "Your memory",
       "memoryRecordedResult": "Saved to memory",
-      "memoryCorrectedResult": "Corrected; earlier version kept in history"
+      "memoryCorrectedResult": "Corrected; earlier version kept in history",
+      "writingDraft": "Writing a draft",
+      "draft": "Wrote a draft"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -2350,6 +2339,9 @@
       "workflow": "Workflow",
       "skill": "Skill",
       "context": "Context file"
+    },
+    "drafts": {
+      "versions": "Versions of this draft"
     }
   },
   "common": {
@@ -5873,7 +5865,8 @@
       "replyMailboxFailed": "Could not load mailboxes",
       "replyMailboxUnavailable": "Selected mailbox unavailable",
       "replyMailboxConnect": "Connect Gmail or Outlook in Integrations first.",
-      "replySharedMailbox": "Shared Outlook mailbox (optional)"
+      "replySharedMailbox": "Shared Outlook mailbox (optional)",
+      "startRunListHint": "One item per line. Blank lines are ignored."
     },
     "retention": {
       "title": "Data retention",
@@ -7255,7 +7248,23 @@
       "storedCount": "{count, plural, =1 {1 key stored} other {# keys stored}}",
       "vault": "Vault",
       "vault2": "Vault",
-      "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure."
+      "whoCanBindKey": "Who can bind this key to an agent, and who can rotate or delete it. A key nobody can reach is a capability nobody can configure.",
+      "connectedAccounts": {
+        "personalTitle": "Your connected accounts",
+        "organizationTitle": "The organization's connected accounts",
+        "count": "{count, plural, one {# account} other {# accounts}}",
+        "connect": "Connect Google account",
+        "noneYet": "No accounts connected yet",
+        "personalDetail": "An agent whose virtual terminal reads each person's own accounts mounts these when you talk to it.",
+        "organizationDetail": "An agent's virtual terminal can read one of these for everybody who talks to it.",
+        "needsReconnect": "Its sign-in stopped working. Connect it again.",
+        "scopes": "{count, plural, one {# permission granted} other {# permissions granted}}",
+        "reconnect": "Reconnect",
+        "disconnect": "Disconnect {email}",
+        "disconnectTitle": "Disconnect {email}?",
+        "disconnectDetail": "Agents that read this account lose its folders on their next run. The grant is deleted from the vault.",
+        "disconnectConfirm": "Disconnect"
+      }
     },
     "workspaces": {
       "failedLoadWorkspaces": "Failed to load workspaces",
@@ -9298,6 +9307,7 @@
       "add": "Add field",
       "types": {
         "text": "Text",
+        "string_list": "List of text",
         "number": "Number",
         "integer": "Integer",
         "boolean": "Yes or no",
@@ -11301,6 +11311,23 @@
       "needs": "A published console agent, an active member, and an approved folder for local work.",
       "never": "Does not copy the full conversation, waive approvals, restart interrupted actions, or start watches and routines.",
       "example1": "Investigate the export bug in a new topic while we continue planning the release."
+    },
+    "drafts": {
+      "name": "Drafts",
+      "does": "Shows text the agent writes for you to send - an e-mail, a chat reply, a post - as a card with a copy button on each part.",
+      "example1": "Reply to Marta about the Q4 deck",
+      "example2": "Two versions of a Slack announcement",
+      "needs": "Nothing extra. The card shows in the web chat.",
+      "never": "Never sends anything - you copy the text and send it yourself."
+    },
+    "mirage": {
+      "name": "Mirage (virtual terminal)",
+      "does": "Mounts the services you choose - a Drive, a GitHub repository, Notion, a database, an SSH server - as folders, so the agent lists, searches and reads them with a shell, and writes where you allow it.",
+      "example1": "Find every contract in a Drive folder that mentions a client",
+      "example2": "Search a repository and a Notion workspace in one go",
+      "example3": "Read a table from your database and summarise it",
+      "needs": "The services' credentials in the vault, or a connected Google account. A deployment installs the terminal with the mirage extra, and an operator allows the hosts of any server you type.",
+      "never": "Never writes to a folder you mounted read-only, and asks a person before each write where you said so."
     }
   },
   "capabilityCategories": {
@@ -11769,14 +11796,7 @@
       },
       "runs_on": {
         "title": "Where it runs",
-        "description": "The agent's own sandbox, on a key stored here - or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key.",
-        "options": {
-          "personal_sandbox": {
-            "label": "Private cloud task with my account",
-            "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
-            "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
-          }
-        }
+        "description": "The agent's sandbox with its configured key, a disposable private cloud task using the initiating person's profile account, or the folder a person chooses on their own computer in the desktop app, where Claude Code and Codex use the sign-in they already have and need no key."
       }
     },
     "workflows": {
@@ -11907,6 +11927,20 @@
       "endpoint_id": {
         "title": "Telephone endpoint",
         "description": "The configured Twilio telephone endpoint from Channels. Only explicit member consent and current limits authorize a call."
+      }
+    },
+    "mirage": {
+      "mounts": {
+        "title": "Folders",
+        "description": "What the terminal mounts, each as a folder."
+      },
+      "allowed_commands": {
+        "title": "Allowed commands",
+        "description": "Only these commands run, e.g. ls, cat, grep. Empty allows virtual commands; direct curl/wget are disabled."
+      },
+      "hidden_paths": {
+        "title": "Hidden paths",
+        "description": "Paths the agent cannot see at all, e.g. /drive/HR/."
       }
     }
   },
@@ -13032,6 +13066,15 @@
           "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
         }
       }
+    },
+    "coding_agent": {
+      "runs_on": {
+        "personal_sandbox": {
+          "label": "Private cloud task with my account",
+          "description": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged.",
+          "summary": "Use my profile account in an isolated container. Returns a diff and result archive for review; shared files remain unchanged."
+        }
+      }
     }
   },
   "outcomes": {
@@ -13357,5 +13400,31 @@
     "personalAccount": "Personal account: {label}",
     "baseRevision": "Workspace snapshot: {revision}",
     "chatHelp": "Connect your account here for private cloud coding. The agent’s Coding agent tool must use Private cloud task with my account. Local desktop coding uses its own sign-in."
+  },
+  "mirage": {
+    "folders": "Folders",
+    "foldersDetail": "Add an integration for each source, then choose its service, credentials and access. Each integration becomes a folder the agent can list, search and read.",
+    "addFolder": "Add integration",
+    "folder": "Folder",
+    "service": "Integration",
+    "servicePlaceholder": "Choose a service ({name} is not available here)",
+    "removeFolder": "Remove {folder}",
+    "writable": "The agent may write here",
+    "approveWrites": "Approve each write",
+    "secretFor": "Secret for {field}",
+    "entraApp": "Entra app",
+    "chooseSecret": "Choose a secret",
+    "noSecret": "None",
+    "noSecrets": "No suitable secret yet. Add one in the <link>vault</link>.",
+    "account": "Account",
+    "chooseAccount": "Choose an account",
+    "personalAccounts": "Each person's own accounts",
+    "personalAccountsDetail": "Each person who talks to the agent sees their own accounts, one folder per account. They connect them in the <link>vault</link>.",
+    "organizationAccountsDetail": "Everybody who talks to the agent reads this account. The organization connects accounts in the <link>vault</link>.",
+    "backendsUnavailable": "The list of services could not be loaded.",
+    "notInstalled": "This deployment does not have the virtual terminal installed. An operator installs it with the mirage extra.",
+    "jsonLabel": "{name} (JSON)",
+    "jsonHint": "Edit as JSON. Valid changes are saved; incomplete JSON keeps the last valid value.",
+    "jsonInvalid": "Enter valid JSON of the required type. The last valid value is unchanged."
   }
 }

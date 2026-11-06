@@ -1,4 +1,4 @@
-<!-- source_sha: bb5e85b15bed -->
+<!-- source_sha: fef9b3dae3d0 -->
 
 <div align="center">
 
@@ -479,12 +479,12 @@ La seguridad funciona por capas. Las credenciales están en un vault con cifrado
 <img src="docs/assets/readme/capabilities.webp" alt="Ejemplos de capabilities integradas en seis grupos: conocimiento y memoria, web, archivos, código y resultados, cómo trabaja, seguridad y límites, canales de chat." width="100%">
 
 <details>
-<summary>Las 36 capabilities integradas, en texto</summary>
+<summary>Las 37 capabilities integradas, en texto</summary>
 
 - **Conocimiento y memoria:** búsqueda en el conocimiento con citas, skills, contexto, memoria, conversaciones anteriores.
 - **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), lectura de páginas web y un navegador web que el agente maneja y que puedes tomar tú, y uso del ordenador con tu permiso.
 - **Archivos, código y resultados:** cálculos en Python, una sandbox con archivos y shell, un coding agent que pasa trabajo a Claude Code o Codex, gráficos, dibujos (diagramas, calculadoras, escenas 3D), generación de imágenes (OpenAI o Google), voz (OpenAI, ElevenLabs o Google), clips de vídeo (Google, BytePlus, xAI o Alibaba), seguimiento de comandos, Tables, Workflows y aplicaciones.
-- **Cómo trabaja:** subagentes, planificación, razonamiento, trabajo mientras corren las herramientas, búsqueda de herramientas, fecha y hora, recordatorios de instrucciones, preguntas al usuario y sugerencias de próximos pasos.
+- **Cómo trabaja:** subagentes, planificación, razonamiento, trabajo mientras corren las herramientas, búsqueda de herramientas, fecha y hora, recordatorios de instrucciones, preguntas al usuario, borradores y sugerencias de próximos pasos.
 - **Seguridad y límites:** guardrails que censuran secretos y datos personales, conversaciones largas, descarga de contenido multimedia, límites de salida de las herramientas.
 - **Canales de chat:** consulta de canales de chat para bots de Slack, Telegram y Mattermost.
 

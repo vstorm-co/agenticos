@@ -21,6 +21,32 @@ vi.mock("@/hooks/use-model-providers", () => ({
   useVideoProviders: () => videoProviders(),
 }));
 
+// The terminal's panel reads what can be mounted and the organization's accounts;
+// `mirage-section` covers both, so here the deployment offers scratch space alone.
+vi.mock("@/hooks/use-mirage-backends", () => ({
+  useMirageBackends: () => ({
+    data: {
+      installed: true,
+      items: [
+        {
+          name: "ram",
+          title: "Scratch space",
+          group: "scratch",
+          credential: "none",
+          available: true,
+          reason: null,
+          options_schema: { type: "object", properties: {} },
+          secret_fields: [],
+          required_secrets: [],
+          secret_purposes: ["ram"],
+          address_fields: [],
+        },
+      ],
+    },
+    isError: false,
+  }),
+}));
+
 // The memory panel's one action, which needs a query client this file does not
 // provide; `clear-agent-memory` covers the dialog and the call it makes.
 vi.mock("@/hooks/use-memory", () => ({
@@ -1034,5 +1060,36 @@ describe("the workbench as illustrated cards", () => {
     });
 
     expect(screen.getAllByText("Recommended")).toHaveLength(1);
+  });
+});
+
+describe("the virtual terminal", () => {
+  const MIRAGE: CapabilityCatalogEntry = {
+    ...CHARTS,
+    id: "mirage",
+    name: "Mirage (virtual terminal)",
+    category: "files",
+    description: "Mounts services as folders.",
+    tools: [],
+    contracts: [],
+    config_schema: null,
+  };
+
+  it("opens its own panel, where each folder picks a service", async () => {
+    renderWorkbench({ catalog: [MIRAGE, CHARTS], selected: [binding("mirage")] });
+
+    await openCapability("Mirage (virtual terminal)");
+
+    expect(screen.getByRole("button", { name: "Add integration" })).toBeVisible();
+  });
+
+  it("routes the terminal switch to its capability binding", async () => {
+    const onToggle = vi.fn();
+    renderWorkbench({ catalog: [MIRAGE], selected: [binding("mirage")], onToggle });
+    await openCapability("Mirage (virtual terminal)");
+    await userEvent.click(
+      screen.getByRole("switch", { name: "Mirage (virtual terminal) enabled" }),
+    );
+    expect(onToggle).toHaveBeenCalledWith("mirage");
   });
 });

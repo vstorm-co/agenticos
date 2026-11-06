@@ -128,6 +128,10 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "sandbox": "the sandbox runtime this deployment configures",
+    "mirage": (
+        "the mounted services' APIs; author-specified hosts must be on MIRAGE_ALLOWED_HOSTS; "
+        "RAM folders stay in the API process"
+    ),
     "text_to_speech": "the speech provider named in the binding",
     "video_generation": "the video provider named in the binding, with any starting image",
     # A drawing's pictures by address, only for an agent that already reads the
@@ -169,6 +173,8 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "compaction",
         "context",
         "conversation_search",
+        # The draft goes to the person's own screen, as a card in the answer.
+        "drafts",
         # Next steps go to the person's own screen, under the answer.
         "follow_ups",
         "guardrails",
@@ -255,6 +261,7 @@ def _settings_section() -> Section:
         ["SMTP_TLS", _yes_no(settings.SMTP_TLS)],
         ["LOG_PROVIDER_WRITE_TO_DISK", _yes_no(settings.LOG_PROVIDER_WRITE_TO_DISK)],
         ["RATE_LIMIT_TRUST_FORWARDED_FOR", _yes_no(settings.RATE_LIMIT_TRUST_FORWARDED_FOR)],
+        ["MIRAGE_ALLOWED_HOSTS", ", ".join(settings.MIRAGE_ALLOWED_HOSTS) or "none"],
         # Its host only: an address can carry a token, and this report is attached
         # to reviews.
         ["VISUAL_RENDER_CDP_URL", urlsplit(settings.VISUAL_RENDER_CDP_URL).hostname or "unset"],
@@ -479,12 +486,32 @@ async def _external_connections(db: AsyncSession) -> Section:
         for platform, name, api_base_url in bots.all()
     ]
 
+    accounts = await db.execute(
+        select(
+            McpConnection.scope,
+            func.coalesce(McpConnection.account_email, McpConnection.label, McpConnection.name),
+            McpConnection.catalog_key,
+            McpConnection.url,
+        )
+        .where(
+            McpConnection.is_enabled.is_(True),
+            McpConnection.purpose == "account",
+            McpConnection.oauth_payload.is_not(None),
+        )
+        .order_by(McpConnection.scope, McpConnection.name)
+    )
+    rows += [
+        ["Connected account", f"{scope}/{account}", _endpoint(url), f"{provider} OAuth grant"]
+        for scope, account, provider, url in accounts.all()
+    ]
+
     return Section(
         title="Other configured destinations",
         note=(
             "Tool arguments and results reach an MCP server; a sync source pulls "
             "documents in under its own credential; a channel bot posts the "
-            "agent's replies to the messaging vendor."
+            "agent's replies to the messaging vendor. Connected accounts hold "
+            "provider OAuth grants independently of an agent's current bindings."
         ),
         headers=("Kind", "Name", "Destination", "Detail"),
         rows=rows,

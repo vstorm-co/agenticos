@@ -1,5 +1,5 @@
 ---
-source_sha: "c7d098e193ca"
+source_sha: "bfeef046e22e"
 ---
 
 # Glosario { #glossary }
@@ -67,6 +67,7 @@ se describe en [Capabilities](capabilities.md).
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
+| Borradores | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
 | Llamadas telefónicas | `phone_calls` |
@@ -84,6 +85,7 @@ se describe en [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
+| Mirage (terminal virtual) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Temas en segundo plano | `background_tasks` |

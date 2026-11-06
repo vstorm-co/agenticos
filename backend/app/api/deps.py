@@ -642,6 +642,23 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
+async def get_optional_current_user(
+    request: Request,
+    token: Annotated[str | None, Depends(oauth2_scheme_optional)],
+    user_service: UserSvc,
+    impersonation: ImpersonationSvc,
+    session: SessionSvc,
+    api_keys: ApiKeySvc,
+) -> User | None:
+    """Authenticate a supplied session; keep state-only OAuth callbacks reachable."""
+    if token is None:
+        return None
+    return await get_current_user(request, token, user_service, impersonation, session, api_keys)
+
+
+OptionalCurrentUser = Annotated[User | None, Depends(get_optional_current_user)]
+
+
 async def get_current_session_id(
     token: Annotated[str | None, Depends(oauth2_scheme_optional)],
 ) -> UUID | None:

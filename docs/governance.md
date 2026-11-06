@@ -198,7 +198,18 @@ cap stops the run on the request after it.
 
 ### A cost that could not be measured says so
 
-`genai-prices` does not know every model. When a run reaches one it has no entry
+Stav's billed cost takes precedence over the snapshot: `usage.cost` with
+`cost_currency`, or the `x-stav-cost` and `x-stav-cost-currency` headers. Both
+Chat Completions and Responses include streamed requests. USD is used directly;
+NOK requires `STAV_NOK_PER_USD` ([configuration](configuration.md)), maintained
+by the operator. It is NOK per dollar: a value of `10` would divide NOK by 10,
+not a current exchange-rate recommendation. No rate is fetched automatically.
+Usage retains the billed amount, currency, rate and USD cost, and the ledger
+marks the source as provider-reported. Invalid costs, unsupported currencies or
+missing conversion leave the catalog fallback in place.
+
+Without a usable provider-reported cost, pricing falls back to `genai-prices`.
+It does not know every model. When a run reaches one it has no entry
 for, that request is booked at zero and the run is marked `cost_is_partial` — the
 total is short by exactly what those requests cost, and the honest reading of it
 is a **floor**.
@@ -1224,7 +1235,9 @@ fanning out over hundreds of sandboxed calls cannot open them all together.
 
 Each call from a script goes through the same guardrails, budget and permission
 checks as a direct call. A tool that needs approval is never folded in: it stays
-an ordinary call, and the run stops for the person as it always does. The run view
+an ordinary call, and the run stops for the person as it always does. So do questions,
+delegations and tools whose call is what the person sees (drafts, charts,
+drawings). The run view
 lists each script and every call it made.
 
 ### Reporting

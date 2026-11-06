@@ -429,21 +429,30 @@ def test_tap_deploy_key_is_scoped_and_removed_even_when_publishing_fails(
         for s in workflow["jobs"]["homebrew"]["steps"]
         if s.get("name") == "Publish the cask to the Homebrew tap"
     )
+    assert step["env"].get("GH_META_TOKEN") == "${{ github.token }}"
     tools = tmp_path / "bin"
     tools.mkdir()
     git = tools / "git"
     git.write_text("""#!/bin/sh
 case "$1" in
-  clone) mkdir -p "$3" ;;
+  clone)
+    hosts=$(cat "$RUNNER_TEMP/tap_known_hosts")
+    test "$hosts" = "github.com ssh-ed25519 public-host-key" || exit 1
+    mkdir -p "$3" ;;
   diff) exit 1 ;;
   push) test "$PUSH_FAILS" = "false" ;;
 esac
 """)
     curl = tools / "curl"
-    curl.write_text(
-        "#!/bin/sh\nprintf '%s\\n' '{\"ssh_keys\":[\"ssh-ed25519 public-host-key\"]}'\n"
-    )
-    for tool in (git, curl):
+    # Anonymous API access can be refused on a shared runner IP.
+    curl.write_text("#!/bin/sh\nexit 22\n")
+    gh = tools / "gh"
+    gh.write_text("""#!/bin/sh
+test "$1 $2" = "api meta" || exit 1
+test "$GH_TOKEN" = "test-metadata-token" || exit 1
+printf '%s\\n' 'github.com ssh-ed25519 public-host-key'
+""")
+    for tool in (git, curl, gh):
         tool.chmod(0o700)
     (tmp_path / "agenticos.rb").write_text("cask 'agenticos'\n")
     bash = shutil.which("bash")
@@ -458,6 +467,7 @@ esac
             "RUNNER_TEMP": str(tmp_path),
             "TAP_DEPLOY_KEY": "test-private-deploy-key",
             "GH_TOKEN": "",
+            "GH_META_TOKEN": "test-metadata-token",
             "TAG": "v1.35.0",
             "PUSH_FAILS": str(push_fails).lower(),
         },
@@ -466,6 +476,7 @@ esac
     assert not (tmp_path / "tap_deploy_key").exists()
     assert not (tmp_path / "tap_known_hosts").exists()
     assert "test-private-deploy-key" not in result.stdout + result.stderr
+    assert "test-metadata-token" not in result.stdout + result.stderr
     assert (tmp_path / "tap/Casks/agenticos.rb").read_text() == "cask 'agenticos'\n"
 
 

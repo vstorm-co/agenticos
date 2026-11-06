@@ -69,6 +69,7 @@ const REGISTERED = [
   "knowledge",
   "media",
   "memory_files",
+  "mirage",
   "planning",
   "sandbox",
   "skills",

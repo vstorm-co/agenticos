@@ -305,7 +305,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                     "spec": {
                         "name": "Bot",
                         "instructions": "Be brief.",
-                        "capabilities": [{"id": "ask_user"}],
+                        "capabilities": [{"id": "ask_user"}, {"id": "drafts"}],
                         "description": "A bot",
                     }
                 }
@@ -323,7 +323,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                     "spec": {
                         "name": "Bot",
                         "instructions": "Be brief.",
-                        "capabilities": [{"id": "ask_user"}],
+                        "capabilities": [{"id": "ask_user"}, {"id": "drafts"}],
                     }
                 }
             },
@@ -424,7 +424,11 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                     "spec": {
                         "name": "Bot",
                         "instructions": "Hi",
-                        "capabilities": [{"id": "ask_user"}, {"id": "web_research"}],
+                        "capabilities": [
+                            {"id": "ask_user"},
+                            {"id": "drafts"},
+                            {"id": "web_research"},
+                        ],
                     }
                 }
             },
@@ -460,7 +464,7 @@ CALLS: list[tuple[str, dict[str, Any], tuple[Any, ...]]] = [
                     "spec": {
                         "name": "Bot",
                         "instructions": "Hi",
-                        "capabilities": [{"id": "ask_user"}],
+                        "capabilities": [{"id": "ask_user"}, {"id": "drafts"}],
                         "model_profile_id": str(KB),
                         "starters": ["What can you do?"],
                     }
@@ -1219,6 +1223,7 @@ class TestConfiguredDrafts:
         spec = api.request.await_args.kwargs["json"]["spec"]
         assert spec["capabilities"] == [
             {"id": "ask_user"},
+            {"id": "drafts"},
             {
                 "id": "sandbox",
                 "config": {

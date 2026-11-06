@@ -1,5 +1,5 @@
 ---
-source_sha: "6054383d8e14"
+source_sha: "c60a0a5cad27"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -77,6 +77,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
+| `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
@@ -99,6 +100,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` | — | — | nicht verfügbar |
 | `phone_calls` | [Telefonanrufe](../voice.md#telephone-calls) | channels | `get_phone_contact_policy`, `call_me`, `list_phone_transfer_contacts`, `transfer_phone_call`, `end_phone_call` | `endpoint_id` | — | — |
 | `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
+| `drafts` | Entwürfe | utility | `write_draft` | — | — | nicht verfügbar |
 | `follow_ups` | Nächste Schritte | utility | `suggest_next_steps`, `propose_setup` | — | — | nicht verfügbar |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
@@ -1323,6 +1325,91 @@ Diese Dateien sind beschreibbar, und was der Agent schreibt, wird **nicht** zu
 einem Skill. Ein Skill sind Instruktionen, denen jeder daran gebundene Agent bei
 jedem Run folgt, deshalb wird eine Änderung als Vorschlag festgehalten und jemand
 mit `skills:edit` nimmt sie an oder verwirft sie — siehe [Skills](../skills.md).
+
+## Mirage (virtuelles Terminal) { #mirage }
+
+Die sieben Werkzeuge der `sandbox`, mit dem Präfix `mirage_`, über den Diensten,
+die ein Autor einbindet: ein Google Drive, ein GitHub-Repository, Notion, eine
+Postgres-Datenbank, ein SSH-Server, ein Postfach.
+[Mirage](https://github.com/strukto-ai/mirage) (Apache-2.0) bindet jeden Dienst als
+Ordner ein und führt die Shell darüber über die eigene API des Dienstes aus. Der
+Agent beantwortet „welche Verträge erwähnen Acme?“ also mit einem `grep` über einen
+Drive-Ordner. Kein Container startet. Ein Agent kann diese Capability und eine
+Sandbox zugleich haben: Die Werkzeuge des Terminals erreichen immer das Terminal,
+und `execute` erreicht weiterhin die Sandbox.
+
+| Konfiguration | Standard | Werte |
+|---|---|---|
+| `mounts` | erforderlich | Ein bis zehn Ordner, jeder wie unten beschrieben |
+| `allowed_commands` | virtuelle Befehle außer `curl`/`wget` | Befehlsnamen, die die Shell ausführen darf, etwa `ls`, `cat`, `grep` |
+| `hidden_paths` | keine | Absolute Pfade, die der Agent überhaupt nicht sieht, etwa `/drive/HR/` |
+
+**Ein Ordner ist ein Pfad, ein Dienst und eine Anmeldung.** Der Pfad ist ein
+kleingeschriebener Name zwischen Schrägstrichen (`/drive/`). Der Dienst ist eines
+der Backends, die das Deployment einbinden kann, mit dessen eigenen Optionen: ein
+Repository, eine Ordner-ID, ein Host. Ein Ordner ist schreibgeschützt, außer der
+Autor erlaubt das Schreiben. Ein beschreibbarer Ordner lässt jeden
+Schreibvorgang von einer Person freigeben, außer der Autor schaltet das ab. Der
+Builder listet jeden Dienst, den Mirage mitbringt, und nennt den Grund für jeden,
+den dieses Deployment nicht einbinden kann.
+
+**Wie ein Ordner sich anmeldet, hängt vom Dienst ab:**
+
+| Zugangsdaten | Dienste | Was der Spec enthält |
+|---|---|---|
+| Vault-Schlüssel | GitHub, Notion, Linear, Slack, Postgres, SSH, IMAP-Mail und die übrigen | Ein `api_key`-Secret pro Zugangsfeld (`token`, `dsn`, `password`) |
+| Eine Entra-App | OneDrive, SharePoint | Ein `entra_app`-Secret, als das sich der Run für ein Microsoft-Graph-Token anmeldet |
+| Ein Google-Konto | Drive, Docs, Sheets, Slides, Gmail, Kalender | Eines der [verbundenen Konten](../secrets.md#connected-accounts) der Organisation oder die eigenen jeder Person |
+| Keine | Arbeitsbereich (`ram`) | Nichts |
+
+**Die eigenen Konten einer Person werden gefunden, wenn sie mit dem Agenten
+spricht.** Wer zwei Google-Konten hat, bekommt unter dem Einhängepunkt zwei
+Ordner, je einen nach jeder Adresse benannt. Wer keines hat, etwa ein API-Schlüssel
+oder ein Zeitplan, bekommt keinen Ordner, und der Agent erfährt das. Ein Konto der
+Organisation antwortet für alle, die mit dem Agenten sprechen.
+
+**Ein Spec enthält nie Zugangsdaten, einen überschriebenen Endpunkt oder einen
+Pfad auf dem API-Host.** Die Veröffentlichung lehnt ein Secret ab, das der
+Veröffentlichende nicht verleihen darf, ein Secret der falschen Art und ein Konto,
+das die Organisation nicht hat. Ein Host, den der Autor eintippt, muss in
+[`MIRAGE_ALLOWED_HOSTS`](../configuration.md) stehen, etwa ein SSH-Server oder der
+Host in einem DSN. Die Veröffentlichung prüft den eingetippten Host, und der Run
+prüft die Hosts in den Secrets.
+
+**Freigabe gilt pro Ordner, nicht pro Werkzeug.** `mirage_execute ls` und
+`mirage_execute rm /drive/q3.pdf` sind dasselbe Werkzeug, also würde eine Freigabe
+auf dem Werkzeug nach beidem fragen. Stattdessen geht ein Aufruf, der in einen
+Ordner mit „Jeden Schreibvorgang freigeben“ schreiben würde, vor seiner Ausführung
+an die [Freigabe](../governance.md). Bei `mirage_write_file` und `mirage_edit_file`
+entscheidet der `path` des Aufrufs. Bei `mirage_execute` führt Mirage die
+Befehlszeile zuerst als Probelauf aus, sodass eine Umleitung, `cp`, `tee` und `rm`
+alle erkannt werden. Ein Schreibvorgang, den kein Probelauf vorhergesehen hat,
+etwa `echo x > $TARGET`, wird abgelehnt, außer der Aufruf wurde freigegeben.
+
+**Grenzen und Fortsetzung nach Freigabe.** Mirage 0.0.8 begrenzt den Dateicache
+auf 16 MiB und den Workspace-Speicher auf 16 MiB. Ein Befehl liefert höchstens
+64 KiB je Ausgabestream; danach endet das Einlesen mit einem Hinweis auf das
+unvollständige Ergebnis. RAM-Ordner bleiben in den Nachrichtenmetadaten des
+geparkten Runs erhalten und werden nach der Freigabe wiederhergestellt, auch bei
+Delegaten. Zugangsdaten und Caches externer Dienste gehören nicht dazu. Der Ordner
+eines persönlichen Kontos enthält dessen stabile ID, damit ähnliche
+E-Mail-Adressen keine Konten überschreiben.
+
+**Die Installation ist optional.** Installieren Sie das Extra `mirage` (`EXTRAS="--extra mirage"`). Mirage 0.0.8 benötigt den früheren Compilerschritt für den Shell-Parser nicht mehr. Ohne Extra meldet der Builder das fehlende Terminal und lehnt einen Spec ab, der es bindet. Die S3-Familie bleibt wegen eines Konflikts zwischen ihrem asynchronen SDK und den aktuellen AWS-Abhängigkeiten nicht verfügbar; der Builder nennt den Grund. Alle konfigurierbaren Hosts, auch Standardadressen der Backends, müssen durch `MIRAGE_ALLOWED_HOSTS` zugelassen sein.
+
+**Box und LanceDB.** Box verwendet ein Dienstkonto über Client Credentials: `client_id`, `enterprise_id` und ein API-Key-Secret im Vault (Zweck `custom`) für `client_secret`. Entwicklertokens und rotierende OAuth-Refresh-Tokens werden abgelehnt. LanceDB unterstützt nur Cloud/Enterprise: `uri: db://database-name`, ein erforderlicher HTTPS-Endpunkt `host_override` aus `MIRAGE_ALLOWED_HOSTS` und ein API-Key-Secret (`custom`) für `api_key`. Lokale Pfade, Objektspeicher-URIs und `storage_options` sind nicht erlaubt. Das Extra enthält LanceDB und PyArrow und vergrößert daher das Image.
+
+Qdrant und Langfuse sind mit dem Extra verfügbar. Qdrant bietet Dateilisten,
+Lesezugriffe und Text-grep; modellgestützte semantische Suche ist nicht aktiviert.
+Die Kontoverknüpfung muss im selben Browser und mit derselben angemeldeten
+Identität abgeschlossen werden, mit der sie begonnen wurde.
+
+
+Vault-Secrets müssen zum Zweck des Backends passen; `custom` erlaubt ausdrücklich eine eigene Integration. OneDrive und SharePoint akzeptieren eine Entra-App mit dem Zweck `sharepoint`, Hugging-Face-Dienste den Zweck `huggingface`. Veröffentlichung und Ausführung prüfen dieselbe Regel. Jeder Host einer PostgreSQL-Seed-Liste muss auf der Allowlist des Deployments stehen. MongoDB und GridFS benötigen genau einen `mongodb://`-Host: Die Plattform erzwingt `directConnection=true` und lehnt SRV-Erkennung ab. Nicht verknüpfte Kanalabsender benötigen für jedes Mirage-Werkzeug eine Genehmigung, auch zum Lesen; nach der Kontoverknüpfung gilt die normale Ordnerregel des Autors.
+
+PostgreSQL-Mounts benötigen ein nicht leeres Passwort im Vault-DSN; leere Passwörter und passwortlose Anmeldung werden nicht unterstützt. Sie greifen nicht auf `PGPASSWORD` oder `.pgpass` zurück. DSN-Parameter für Zugangsdaten- oder TLS-Dateien auf dem Host (`passfile`, `servicefile`, `sslkey`, `sslcert`, `sslrootcert`, `sslcrl`) werden abgelehnt.
+
+SSH verwendet einen ausdrücklich angegebenen Benutzernamen und ein Passwort aus dem Vault. Der vertrauenswürdige öffentliche `host_key` des Servers wird fest geprüft; lokale SSH-Konfiguration, lokale private Schlüssel und der SSH-Agent sind deaktiviert. Eine automatische Anmeldung mit Zugangsdaten der Umgebung ist nicht verfügbar.
 
 ## Diagramme { #charts }
 
@@ -2908,7 +2995,7 @@ parametrisiert die Konfiguration sie, statt eine Python-Prüfung mitzuführen.
 | Kante | Liest | Schwärzen | Blockieren |
 |---|---|---|---|
 | Eingabe | den Prompt des Nutzers | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
-| Ausgabe | die Antwort des Agents | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
+| Ausgabe | die Antwort des Agents und den Text, den seine Entwürfe, Zeichnungen, Diagramme, Seiten und Fragen zeigen | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | Tool-Ergebnis | was ein Tool zurückgab, bevor das Modell es liest | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
 | Tool-Argumente | was der Agent einem Tool übergibt, bevor das Tool läuft | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
@@ -2986,7 +3073,14 @@ Stream, und ein gesperrtes Stichwort beendet den Run, bevor ein Tool aufgerufen
 wird. Getrennt von der Ausgabeprüfung, weil das Schwärzen eines Arguments ändert,
 was das Tool tut: Eine E-Mail geht mit einem Platzhalter statt des Schlüssels
 hinaus. Solange sie aktiv ist, werden die Argumente eines Aufrufs zurückgehalten,
-bis der Aufruf vollständig ist, wie die Antwort.
+bis der Aufruf vollständig ist, wie die Antwort. Die Ausnahme ist, was ein Aufruf der Person zeigt - ein
+[Entwurf](#drafts), eine Zeichnung, ein Diagramm, eine Seite oder eine Frage: Die
+Ausgabe-Kante prüft seinen Text wie die Antwort, ob diese Kante aktiv ist oder nicht. In
+einer Zeichnung oder Seite sind das der Text, die lesbaren Attribute (`alt`, `title`,
+`aria-label`, `aria-description`, `label`,
+`placeholder`, `value`, `href`, `src`, außer einem eingebetteten Bild oder einer Base64-`data:`-URI) und die Strings in einem Skript; Tags,
+Kommentare, Stile und Code bleiben unverändert. Eine Zeichnung oder Seite erscheint,
+wenn der Aufruf vollständig ist, nicht beim Schreiben.
 
 **Ein Delegat streamt unter der Ausgabeprüfung des delegierenden Runs.** Text und
 Reasoning, die ein Delegat im Delegationspanel schreibt, durchlaufen dieselbe
@@ -3031,8 +3125,7 @@ in die Schleife gelangen — eine abgerufene Seite, eine Datei, die Antwort eine
 MCP-Servers —, wo eine Prompt-Injection-Nutzlast das Modell sonst ungelesen
 erreichen würde.
 
-Zwei Dinge stehen bewusst außerhalb des Umfangs. **Tool-Argumente** sind eine
-strukturierte Abbildung ohne Textdetektor, deshalb sind sie keine Kante. Und das
+Eine Sache steht bewusst außerhalb des Umfangs: Das
 `approve`-Urteil des Harness für ein Tool ist nicht portiert:
 [Genehmigungen](../governance.md) parken einen Run bereits pro Tool für eine
 menschliche Entscheidung, und ein zweiter, regelgetriebener Pfad zu demselben
@@ -3109,6 +3202,75 @@ stehen blieb. Antworten kann nur die gefragte Person, über
 zurück. Nach einem Tag (`QUESTION_EXPIRY_HOURS`, 24) endet der Run als
 abgebrochen, und der Schritt hält fest, dass die Person nicht rechtzeitig
 geantwortet hat.
+
+## Entwürfe { #drafts }
+
+`write_draft` — *Show a draft the person will send or paste somewhere else, as a card
+they copy from.*
+
+Bittet jemand um eine E-Mail, eine Antwort auf Slack, einen Beitrag oder eine
+Ticket-Beschreibung, legt der Agent den Text in eine eigene Karte, statt ihn in die
+Antwort zu mischen. So muss nichts von Hand markiert oder am Ziel aufgeräumt
+werden.
+
+Die Karte hat einen Titel und eine Art (Email, Slack message, Post). Ein
+Text mit Teilen, die an verschiedenen Stellen eingefügt werden - Betreff und Inhalt
+einer E-Mail - hat ein Segment pro Teil, und jedes Segment hat ein eigenes
+Kopiersymbol in der Ecke. Ein Segment zeigt seinen Namen nur dort, wo er die Teile
+unterscheidbar macht, und einen kleinen Typhinweis in der unteren Ecke: standardmäßig
+`text`, `markdown`, wenn die Person es wollte, oder eine Sprache für ein Snippet,
+das der Text mitbringt.
+
+Kopieren legt **reinen Text** in die Zwischenablage: genau den Text des Segments,
+ohne dessen Namen und ohne Leerzeilen am Anfang und Ende. Nie HTML oder
+formatierten Text, er wird also in der Schrift und den Farben des Ziels eingefügt.
+Ein Feld wird so gezeigt, wie es getippt wurde, und `<b>` wird nie interpretiert.
+Ein `markdown`-Teil hat eine Schaltfläche Vorschau, die ihn gerendert zeigt: Links
+funktionieren, Bilder erscheinen als Links und werden nicht geladen; Quelle führt
+zum Text zurück. Kopieren liefert immer die Quelle.
+
+Muss die Person eine Angabe selbst ergänzen, die der Agent nicht kennt, schreibt er
+statt einer Erfindung einen kurzen Platzhalter in eckigen Klammern, etwa `[Ihr Name]`
+oder `[Datum]`. Die Karte zeigt jeden Text in eckigen Klammern, der einen Buchstaben
+enthält, rot an, außer Links, Fußnoten, zitierte Zeilen und Code, damit nichts
+unausgefüllt verschickt wird, außer in der Vorschau eines Markdown-Teils. Kopieren
+behält die Klammern.
+
+Zwei bis fünf Varianten desselben Entwurfs („gib mir zwei Versionen") kommen in einem
+Aufruf als **Varianten** und erscheinen als Tabs mit ein bis zwei Wörtern als Name
+(„Kurz", „Mit Details"). Die Grenzen: ein Titel bis 120 Zeichen, bis zu 10 Felder je
+Variante, bis zu 20.000 Zeichen je Feld und kein leeres Feld, keinen leeren Titel und keine leere Art. Ein Aufruf, der eine
+Grenze verletzt, wird mit einer Meldung abgelehnt, die nennt, was zu korrigieren
+ist; das Modell versucht es erneut, und eine leere Karte erscheint nie.
+
+Die [Ausgabe-Kante](#guardrails) eines Agents prüft einen Entwurf wie seine Antwort:
+Ein Geheimnis oder personenbezogene Daten, die sie schwärzt, sind auch in der Karte
+geschwärzt, und ein gesperrtes Stichwort stoppt den Run. Entwürfe, die gespeichert
+wurden, bevor der Agent diese Schutzmaßnahme hatte, werden nicht umgeschrieben.
+
+Die Karte wird aus den Argumenten des gespeicherten Aufrufs neu aufgebaut; wer die
+Unterhaltung wieder öffnet, sieht dieselbe Karte. Eine per Link geteilte
+Unterhaltung trägt ihre Entwürfe ebenfalls (die neuesten 50, zusammen höchstens 500.000
+Zeichen, da jeder mit dem Link sie laden kann). Ein abgelehnter Aufruf oder einer,
+dessen Argumente sich nicht mehr lesen lassen, zeigt keine Karte.
+
+Angeboten wird sie **nur im Web-Chat**, weil nur diese Oberfläche die Karte
+zeichnet. Die Desktop- und die Telefon-App laden dieselbe Konsole und bekommen sie
+daher auch, einschließlich Quick Ask. Auf jeder anderen Oberfläche - gehostete
+Seiten und das eingebettete Widget, Chat-Kanäle, die API, Zeitpläne, Workflows, Hintergrund-Topics, Sprache - und
+für einen Subagent, dessen Ausgabe zum übergeordneten Modell geht und nicht zur
+Person, sieht der Agent das Tool nicht und schreibt den Text wie bisher in seine
+Antwort.
+
+Sie ist in jedem neuen Agent, jeder Vorlage und den vom Architect erstellten Agents
+standardmäßig an, und ein Autor kann sie abschalten. Bestehende Agents bleiben
+unverändert, bis ihr Autor sie einschaltet und eine neue Version veröffentlicht.
+
+!!! note "Grenze: ein umbenanntes Tool"
+    Die Konsole findet die Karte am Namen des Tools, wie bei `draw` und
+    `create_chart`. Eine Bindung, die `write_draft` umbenennt, verliert die Karte:
+    der Aufruf erscheint als gewöhnlicher Schritt. Verfolgt in
+    [#2740](https://github.com/vstorm-co/agenticos/issues/2740).
 
 ## Nächste Schritte { #follow-ups }
 

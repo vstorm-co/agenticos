@@ -96,6 +96,21 @@ const lobehubColour = (slug: string): Source => ({ set: "lobehub", slug, coloure
  */
 const BRANDS: Readonly<Record<string, Source>> = {
   airtable: logos("airtable"),
+  chroma: logos("chroma"),
+  dify: logos("dify"),
+  gdocs: thesvg("google-docs"),
+  gsheets: simple("googlesheets"),
+  gslides: simple("googleslides"),
+  jaeger: thesvg("jaeger"),
+  langfuse: thesvg("langfuse"),
+  mem0: logos("mem0-icon"),
+  mongodb: logos("mongodb-icon"),
+  nextcloud: thesvg("nextcloud"),
+  qdrant: logos("qdrant-icon"),
+  redis: simple("redis"),
+  tidb: thesvg("tidb"),
+  wandb: logos("wandb-icon"),
+
   asana: logos("asana-icon"),
   atlassian: logos("atlassian"),
   aws: logos("aws"),

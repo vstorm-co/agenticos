@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.mcp_oauth import OAuthError
-from app.api.deps import CurrentUser, McpConnectionSvc, key_needs
+from app.api.deps import CurrentUser, McpConnectionSvc, OptionalCurrentUser, key_needs
 from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -125,13 +125,23 @@ async def start_mcp_oauth(
 async def complete_mcp_oauth(
     data: McpOAuthCallback,
     service: McpConnectionSvc,
+    user: OptionalCurrentUser,
 ) -> Any:
     """Finish the OAuth flow. Authenticated by the `state` token (no session),
-    so the provider redirect can reach it without our auth cookie."""
+    except connected accounts, which also require the initiating session and nonce."""
     try:
-        connection = await service.oauth_callback(state=data.state, code=data.code)
+        connection = await service.oauth_callback(
+            state=data.state,
+            code=data.code,
+            browser_nonce=data.browser_nonce,
+            acting_user_id=user.id if user is not None else None,
+        )
     except (OAuthError, NotFoundError) as exc:
         return McpOAuthCallbackResult(ok=False, error=str(exc))
+    if connection.purpose == "account":
+        # A connected account is named by its address and bound by a terminal's
+        # mount, never added to an agent as a server - so no id to offer that with.
+        return McpOAuthCallbackResult(ok=True, connection_name=connection.label or connection.name)
     return McpOAuthCallbackResult(
         ok=True,
         connection_name=connection.name,

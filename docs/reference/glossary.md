@@ -62,6 +62,7 @@ in [Capabilities](capabilities.md).
 |---|---|
 | Apps | `artifacts` |
 | Ask the user | `ask_user` |
+| Drafts | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
 | Telephone calls | `phone_calls` |
@@ -79,6 +80,7 @@ in [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
+| Mirage (virtual terminal) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
 | Background topics | `background_tasks` |

@@ -42,12 +42,24 @@ starts, is refused at publish.
 
 ::: app.workflows.contracts.io.WorkflowInputPayload
 
-Its **Input fields** make the input a contract. A field has a name, a type - text,
+Its **Input fields** make the input a contract. A field has a name, a type - text, list of text,
 number, whole number, yes or no, date or choice - and whether it is required. With
 none, a run takes any JSON object. With some, **Start a run** asks for each by name,
 a run whose input misses one, sends one of the wrong type or sends one not declared
 is refused before it starts with `WORKFLOW_RUN_INPUT_INVALID`, and a binding to
 `payload.<field>` is type-checked at publish.
+
+**List of text** (`string_list`) accepts a JSON array of strings, for example
+`{"devices": ["leaf-01", "leaf-02"]}`. Scalars and non-string items are refused.
+The API accepts an empty array; a required field must be present and cannot be
+`null`, while an optional field may be omitted or `null`. Downstream steps read
+`payload.devices` as an array of strings.
+
+In **Start a run**, **Test draft** and public forms, enter one item per line.
+The form trims each line and drops blank lines, preserving order and duplicates.
+A blank required list needs an item; a blank optional list is omitted. API values
+are preserved exactly, including whitespace and empty strings. The same field type
+is available on Manual, Form and Called by a workflow triggers.
 
 ::: app.workflows.contracts.fields.InputField
 
