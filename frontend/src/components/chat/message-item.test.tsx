@@ -666,7 +666,7 @@ describe("citations", () => {
   });
 
   it("stacks a mark for each document an answer drew on, by its kind", () => {
-    // A file's kind for a knowledge base passage, the web's globe for a page:
+    // A file's kind for a knowledge base passage, the site's favicon for a page:
     // a reader scanning a thread sees where an answer came from without opening it.
     item({
       toolCalls: [
@@ -692,19 +692,16 @@ describe("citations", () => {
 
     // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelectorAll(".lucide-globe")).toHaveLength(1);
-    expect(footer.querySelectorAll("svg")).toHaveLength(3);
+    expect(footer.querySelector("img")).toHaveAttribute("src", "https://a.example/favicon.ico");
+    expect(footer.querySelectorAll("svg")).toHaveLength(2);
   });
 
-  it("opens into the list of documents, and a document onto its passages", async () => {
+  it("opens the source panel directly from the compact footer", async () => {
     item({ ...withSources });
 
     await userEvent.click(screen.getByRole("button", { name: /2 sources/ }));
-    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
-    await userEvent.click(screen.getByRole("button", { name: /policy\.md/ }));
-
     expect(useSourcesPanelStore.getState().isOpen).toBe(true);
-    expect(useSourcesPanelStore.getState().highlightedIndex).toBe(2);
+    expect(useSourcesPanelStore.getState().highlightedIndex).toBeNull();
   });
 
   it("opens on the citation that was clicked in the answer", async () => {

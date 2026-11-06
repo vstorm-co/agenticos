@@ -1,5 +1,5 @@
 ---
-source_sha: "4d03541cc6e2"
+source_sha: "dd2bf814f1d0"
 ---
 
 # Konsola { #the-console }
@@ -83,6 +83,8 @@ Nawigacja zachowuje wspólne layouty przy przechodzeniu między sekcjami i stosu
 Na telefonach wysłane wiadomości zatrzymują się poniżej pływających przycisków czatu, dzięki czemu avatar użytkownika pozostaje widoczny. Początek rozmowy i miejsce rezerwowane na odpowiedź uwzględniają ten sam odstęp pod przyciskami; desktop i osadzone czaty zachowują mniejszy odstęp.
 
 Domyślni agenci kończą jednorazowe zadanie bez przedłużania odpowiedzi pytaniem o opcjonalną automatyzację. Pytania służą decyzjom potrzebnym do bieżącego zadania albo automatyzacji, o którą użytkownik prosi lub którą akceptuje. Opcjonalne karty konfiguracji pozostają propozycjami, które nie blokują zakończenia.
+
+Kompaktowy przycisk źródeł pod odpowiedzią otwiera Sources obok rozmowy, a na telefonie panel na całą szerokość. Files i Sources dzielą boczny obszar: otwarcie jednego zastępuje drugi. Źródła internetowe używają favicon witryny pobieranej bez nagłówka Referer lub znanego logo usługi; globus pozostaje, gdy ikona jest niedostępna. Źródła z bazy wiedzy zachowują ikony plików i podgląd oryginalnego dokumentu.
 
 ## Dashboard { #the-dashboard }
 

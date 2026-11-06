@@ -13,6 +13,7 @@ import { useShell } from "@/hooks/use-shell";
 import { isDesktopShell } from "@/lib/desktop/shell";
 import { useLocalWorkspace } from "@/hooks/use-desktop";
 import { useFilePreviewStore } from "@/stores";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { getFileUrl } from "@/lib/file-api";
 import { cn, formatBytes } from "@/lib/utils";
 import { isRenderSafeImage } from "@/lib/file-kinds";
@@ -90,6 +91,9 @@ export function WorkspaceFiles({
   const { workspace, error, refresh } = localRoot === null ? cloud : local;
   const openAttachment = useFilePreviewStore((state) => state.open);
   const [open, setOpen] = useState(false);
+  const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
+  const closeSources = useSourcesPanelStore((state) => state.close);
+  const visible = open && !sourcesOpen;
   const panelId = useId();
   const toggle = useRef<HTMLButtonElement>(null);
   const reduceMotion = useReducedMotion();
@@ -153,14 +157,21 @@ export function WorkspaceFiles({
           <button
             ref={toggle}
             type="button"
-            aria-label={open ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })}
+            aria-label={
+              visible ? t("title") : count === 0 ? t("show") : t("showWithCount", { count })
+            }
             aria-controls={panelId}
-            aria-expanded={open}
-            title={open ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
-            onClick={() => setOpen((current) => !current)}
+            aria-expanded={visible}
+            title={visible ? t("close") : count === 0 ? t("show") : t("showWithCount", { count })}
+            onClick={() => {
+              if (sourcesOpen) {
+                closeSources();
+                setOpen(true);
+              } else setOpen((current) => !current);
+            }}
             className={cn(
               "text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex size-8 items-center justify-center rounded-lg transition-colors",
-              open && "bg-foreground/[0.06] text-foreground",
+              visible && "bg-foreground/[0.06] text-foreground",
             )}
           >
             <FolderOpen className="size-4" aria-hidden />
@@ -173,7 +184,7 @@ export function WorkspaceFiles({
           buttonSlot,
         )}
       <AnimatePresence initial={false}>
-        {open && (
+        {visible && (
           <motion.aside
             data-native-browser-blocked={overlay ? "" : undefined}
             id={panelId}

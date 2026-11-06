@@ -1,5 +1,5 @@
 ---
-source_sha: "4d03541cc6e2"
+source_sha: "dd2bf814f1d0"
 ---
 
 # La consola { #the-console }
@@ -85,6 +85,8 @@ La navegación conserva los layouts compartidos al cambiar de sección y usa una
 En el móvil, los mensajes enviados se detienen debajo de los botones flotantes del chat para mantener visible el avatar del usuario. El inicio de la conversación y el espacio reservado para la respuesta usan la misma separación; los chats de escritorio e integrados conservan un margen menor.
 
 Los agentes predeterminados terminan una solicitud puntual sin mantener abierta la respuesta con una pregunta sobre automatización opcional. Las preguntas resuelven decisiones necesarias para la tarea actual o una automatización solicitada o aceptada. Las tarjetas opcionales de configuración siguen siendo propuestas que no bloquean la finalización.
+
+El botón compacto bajo una respuesta abre Sources junto a la conversación y ocupa todo el ancho en el móvil. Files y Sources comparten el área lateral: abrir uno sustituye al otro. Las fuentes web muestran el favicon del sitio, solicitado sin Referer, o un logotipo conocido; aparece un globo si el icono no está disponible. Las fuentes de conocimiento conservan sus iconos de archivo y el visor del documento original.
 
 ## El dashboard { #the-dashboard }
 

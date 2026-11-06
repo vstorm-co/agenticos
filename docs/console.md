@@ -78,6 +78,8 @@ On phones, sent messages stop below the floating chat buttons, keeping the user 
 
 Default agents finish a one-off request without holding the answer open for an optional automation question. Questions settle decisions needed for the current task or an automation the person requests or accepts. Optional setup cards remain non-blocking proposals.
 
+The compact source button below an answer opens Sources beside the conversation, with a full-width panel on phones. Files and Sources share the side space: opening one replaces the other. Web sources use the site favicon, requested without a referrer, or a known service logo; a globe remains when the icon is unavailable. Knowledge-base sources retain their file marks and original-document viewer.
+
 ## The dashboard
 
 The landing page is an **arrangeable grid of widgets**, and it is the answer to

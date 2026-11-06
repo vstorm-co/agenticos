@@ -1,5 +1,5 @@
 ---
-source_sha: "4d03541cc6e2"
+source_sha: "dd2bf814f1d0"
 ---
 
 # Die Konsole { #the-console }
@@ -85,6 +85,8 @@ Die Navigation erhält gemeinsame Seitenlayouts beim Wechsel zwischen Bereichen 
 Auf dem Smartphone halten gesendete Nachrichten unterhalb der schwebenden Chat-Schaltflächen an, damit das Benutzerbild sichtbar bleibt. Der Gesprächsanfang und der reservierte Platz für eine Antwort berücksichtigen denselben Abstand zur Werkzeugleiste; Desktop und eingebettete Chats behalten ihren kleineren Abstand.
 
 Standardagenten schließen einmalige Anfragen ab, ohne die Antwort durch eine optionale Automatisierungsfrage offen zu halten. Fragen klären notwendige Entscheidungen zur aktuellen Aufgabe oder zu einer angefragten beziehungsweise akzeptierten Automatisierung. Optionale Einrichtungskarten bleiben unverbindliche Vorschläge und blockieren den Abschluss nicht.
+
+Die kompakte Quellen-Schaltfläche unter einer Antwort öffnet Sources neben dem Gespräch, auf dem Smartphone als vollbreites Panel. Files und Sources teilen sich den Seitenbereich: Das Öffnen eines Panels ersetzt das andere. Webquellen zeigen das ohne Referrer geladene Favicon oder ein bekanntes Dienstlogo; bei fehlendem Symbol bleibt der Globus. Wissensquellen behalten ihre Dateisymbole und die Originaldokumentansicht.
 
 ## Das Dashboard { #the-dashboard }
 

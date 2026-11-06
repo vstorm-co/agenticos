@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WorkspaceFiles } from "./workspace-files";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 const localInvoke = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/desktop/shell", async (original) => ({
@@ -52,6 +53,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  useSourcesPanelStore.getState().close();
   vi.clearAllMocks();
   vi.mocked(apiClient.get).mockResolvedValue(workspace());
 });
@@ -878,4 +880,19 @@ it("groups duplicate file names under their actual folders and opens the full pa
       "/conversations/c1/workspace/file?path=site%2Findex.html",
     ),
   );
+});
+
+it("switches between files and sources without keeping both panels open", async () => {
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+  );
+  await openPanel();
+  act(() =>
+    useSourcesPanelStore
+      .getState()
+      .open([{ index: 1, type: "web", title: "Source", url: "https://example.org" }]),
+  );
+  await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
+  await openPanel();
+  expect(useSourcesPanelStore.getState().isOpen).toBe(false);
 });

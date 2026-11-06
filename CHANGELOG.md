@@ -61,6 +61,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Open answer sources directly in a responsive side panel alongside chat, coordinate it with the Files panel, and use site favicons with a fallback instead of generic web marks.
+
 - Keep batched chat approvals in one full-width scrolling list, with the scrollbar at the card edge and decision buttons outside the scrolling area.
 
 - Give the page-help walkthrough action a distinct neutral fill and a compass icon.

@@ -1343,7 +1343,7 @@ function ChatUI({
   const showWorkspaceHome =
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   return (
-    <div className="chat-surface relative flex h-full min-h-0 w-full overflow-hidden">
+    <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
         {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
@@ -1861,7 +1861,6 @@ function ChatUI({
           )}
         </div>
         <FilePreviewDialog />
-        <SourcesPanel contained={compact} />
         {/* The browser shares the chat's width; a narrow chat opens it full screen. */}
         <BrowserPanel
           browses={browses}
@@ -1876,6 +1875,7 @@ function ChatUI({
           permanent third column took space from every conversation including the
           ones where the agent keeps nothing. Hidden on a narrow screen, where there
           is no room for it. */}
+      <SourcesPanel contained={compact} conversationId={conversationId} />
       <div className="hidden h-full min-h-0 shrink-0 lg:block">
         <WorkspaceFiles
           conversationId={conversationId}
