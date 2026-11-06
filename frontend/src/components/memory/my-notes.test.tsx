@@ -12,6 +12,8 @@ vi.mock("@/components/chat/markdown-content", () => ({
       <a href="./checklist.md">Open checklist</a>
     ) : content === "Missing link" ? (
       <a href="./missing.md">Find missing note</a>
+    ) : content === "Empty relative link" ? (
+      <a href="./">Current note</a>
     ) : content === "Malformed link" ? (
       <a href="./bad%ZZ.md">Malformed target</a>
     ) : (
@@ -137,4 +139,12 @@ it("clears a whole-store search with no matching notes", async () => {
   await userEvent.type(screen.getByRole("textbox", { name: "searchNotes" }), "unmatched");
   await userEvent.click(screen.getByRole("button", { name: "clearFilters" }));
   expect(screen.getByRole("textbox", { name: "searchNotes" })).toHaveValue("");
+});
+
+it("does not replace a selected note for an empty relative reference", async () => {
+  mount({ content: "Empty relative link" });
+  await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
+  await userEvent.click(await screen.findByRole("link", { name: "Current note" }));
+  expect(screen.getByRole("link", { name: "Current note" })).toBeInTheDocument();
+  expect(showPage).not.toHaveBeenCalled();
 });

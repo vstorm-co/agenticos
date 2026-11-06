@@ -1940,3 +1940,22 @@ it("does not send a read marker after the organization changes during query canc
     cancel.mockRestore();
   }
 });
+
+it("does not reopen the previous address when a refresh starts navigation", async () => {
+  const result = await hook();
+  window.history.replaceState({}, "", "/chat?id=c-9");
+  vi.mocked(apiClient.get).mockClear();
+  const invalidate = vi.spyOn(invalidation, "invalidateSoon").mockImplementation(() => {
+    window.history.replaceState({}, "", "/chat");
+    return Promise.resolve();
+  });
+  try {
+    await result.current.fetchConversations();
+    expect(apiClient.get).not.toHaveBeenCalledWith(
+      expect.stringContaining("c-9/messages"),
+      expect.anything(),
+    );
+  } finally {
+    invalidate.mockRestore();
+  }
+});

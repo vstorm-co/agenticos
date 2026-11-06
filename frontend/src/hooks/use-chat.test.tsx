@@ -1811,46 +1811,52 @@ describe("useChat - approvals and questions", () => {
     expect(post.mock.calls.filter(([url]) => url === "/approvals/ar-2")).toHaveLength(1);
   });
 
-  it("does not show a late approval continuation in another conversation", async () => {
-    let finish!: (value: object) => void;
-    const decision = new Promise<object>((resolve) => {
-      finish = resolve;
-    });
-    post.mockImplementation((url: string) =>
-      url.endsWith("/resume")
-        ? Promise.resolve({ status: "completed", output: "Old conversation result." })
-        : decision,
-    );
-    const { result, rerender } = renderHook(({ conversationId }) => useChat({ conversationId }), {
-      initialProps: { conversationId: "first" },
-      wrapper,
-    });
-    receive("tool_approval_required", {
-      run_id: "r-1",
-      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
-      review_configs: [],
-    });
-    let submitting!: Promise<void>;
-    act(() => {
-      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
-    });
-    rerender({ conversationId: "second" });
-    receive("tool_approval_required", {
-      run_id: "r-2",
-      action_requests: [{ id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", args: {} }],
-      review_configs: [],
-    });
-    await act(async () => {
-      finish({});
-      await submitting;
-    });
-    expect(result.current.pendingApproval?.runId).toBe("r-2");
-    expect(
-      useChatStore
-        .getState()
-        .messages.some((message) => message.content === "Old conversation result."),
-    ).toBe(false);
-  });
+  it.each([false, true])(
+    "does not replace another conversation after a stale decision fails: %s",
+    async (fails) => {
+      let finish!: (value: object) => void;
+      let fail!: (reason: Error) => void;
+      const decision = new Promise<object>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      });
+      post.mockImplementation((url: string) =>
+        url.endsWith("/resume")
+          ? Promise.resolve({ status: "completed", output: "Old conversation result." })
+          : decision,
+      );
+      const { result, rerender } = renderHook(({ conversationId }) => useChat({ conversationId }), {
+        initialProps: { conversationId: "first" },
+        wrapper,
+      });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+        review_configs: [],
+      });
+      let submitting!: Promise<void>;
+      act(() => {
+        submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+      });
+      rerender({ conversationId: "second" });
+      receive("tool_approval_required", {
+        run_id: "r-2",
+        action_requests: [{ id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", args: {} }],
+        review_configs: [],
+      });
+      await act(async () => {
+        if (fails) fail(new Error("Old decision failed"));
+        else finish({});
+        await submitting;
+      });
+      expect(result.current.pendingApproval?.runId).toBe("r-2");
+      expect(
+        useChatStore
+          .getState()
+          .messages.some((message) => message.content === "Old conversation result."),
+      ).toBe(false);
+    },
+  );
 
   it("keeps an HTTP continuation visibly working across a stale transcript refresh", async () => {
     let finish!: (value: object) => void;
@@ -5870,4 +5876,22 @@ it("settles a resumed tool in its original segment even before a new segment ope
   expect(
     useChatStore.getState().messages.find((m) => m.id === original.id)?.toolCalls?.[0]?.result,
   ).toBe('{"name":"Updated launch"}');
+});
+
+it("does not recover a second parked turn after leaving during the first failed lookup", async () => {
+  let fail!: (reason: Error) => void;
+  const pending = new Promise<never>((_resolve, reject) => {
+    fail = reject;
+  });
+  get.mockReturnValue(pending);
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useChatStore.getState().addMessage({ ...parkedTurn(), id: "older", runId: "older-run" });
+  useChatStore.getState().addMessage(parkedTurn());
+  const view = renderHook(() => useChat(), { wrapper: decider });
+  await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+  view.unmount();
+  await act(async () => {
+    fail(new Error("Connection lost"));
+  });
+  expect(get).not.toHaveBeenCalledWith("/runs/older-run/parked");
 });

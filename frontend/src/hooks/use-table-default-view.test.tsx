@@ -44,11 +44,21 @@ it("saves the current Kanban as a shared view and sets that exact view as the ta
   const { result } = renderHook(() => useTableDefaultView("tasks"), { wrapper });
   const config = { ...emptyViewConfig(), group_by: "status-column" };
   await act(async () => {
-    await result.current.mutateAsync({ view: null, kind: "kanban", config, names: [] });
+    await result.current.mutateAsync({
+      view: null,
+      kind: "kanban",
+      config,
+      names: ["Default kanban", "Default kanban 2"],
+    });
   });
   expect(createView).toHaveBeenCalledWith(
     "tasks",
-    expect.objectContaining({ kind: "kanban", visibility: "shared", config }),
+    expect.objectContaining({
+      name: "Default kanban 3",
+      kind: "kanban",
+      visibility: "shared",
+      config,
+    }),
   );
   expect(updateTable).toHaveBeenCalledWith("tasks", { default_view_id: "kanban-view" });
 });

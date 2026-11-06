@@ -89,3 +89,10 @@ it("keeps narration in place when more work arrives during a live turn", async (
   expect(after?.shown).toEqual([]);
   expect(after?.steps).toBe(2);
 });
+
+it("leaves a final answer without prior work directly visible", async () => {
+  const { foldWork, runsOf } = await import("./turn-parts");
+  expect(
+    foldWork(runsOf([{ id: "answer", type: "text", content: "Hello." }]), false, false),
+  ).toBeNull();
+});

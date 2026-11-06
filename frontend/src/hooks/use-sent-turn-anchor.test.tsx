@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { act, render } from "@testing-library/react";
+import { act, render, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/types";
 vi.mock("@/lib/scroll-gently", () => ({
@@ -122,4 +122,35 @@ describe("sent turn anchoring", () => {
       expect(scroller.scrollTop).toBe(20);
     },
   );
+});
+
+it("does not scroll before the transcript or the sent row mounts", () => {
+  function MissingTranscript() {
+    const absent = useRef<HTMLDivElement>(null);
+    const anchored = useRef(false);
+    const reader = useRef(false);
+    useSentTurnAnchor([user("sent")], absent, absent, absent, anchored, "sent", reader);
+    return null;
+  }
+  const { unmount } = render(<MissingTranscript />);
+  unmount();
+  const view = render(<Harness messages={[user("old")]} sentTurnId="not-present" />);
+  expect(view.getByTestId("scroller").scrollTop).toBe(0);
+});
+
+it("waits when a sent message exists in state but its row has not mounted", () => {
+  const scroller = document.createElement("div");
+  const transcript = document.createElement("div");
+  renderHook(() =>
+    useSentTurnAnchor(
+      [user("sent")],
+      { current: scroller },
+      { current: transcript },
+      { current: document.createElement("div") },
+      { current: false },
+      "sent",
+      { current: false },
+    ),
+  );
+  expect(scroller.scrollTop).toBe(0);
 });

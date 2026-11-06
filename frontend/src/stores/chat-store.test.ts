@@ -542,3 +542,9 @@ describe("a saved message arriving before its acknowledgement", () => {
     expect(store().messages.map((msg) => msg.id)).toEqual(["first", "second"]);
   });
 });
+
+it("ignores a late update for a turn removed during navigation", () => {
+  const updater = vi.fn();
+  store().updateMessage("no-longer-present", updater);
+  expect(updater).not.toHaveBeenCalled();
+});
