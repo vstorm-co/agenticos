@@ -50,6 +50,7 @@ function show(
     signedIn: boolean;
     heard: Heard | null;
     activityOn: boolean;
+    checkSession: () => Promise<boolean>;
   }> = {},
 ) {
   return render(
@@ -57,6 +58,7 @@ function show(
       settings={{ ...DESKTOP_STATE.blobby, activity: props.activityOn ?? true }}
       activity={props.activity ?? quiet}
       signedIn={props.signedIn ?? true}
+      checkSession={props.checkSession}
       heard={props.heard ?? null}
       reducedMotion={false}
     />,
@@ -209,4 +211,45 @@ describe("Blobby", () => {
       expect(env.report).toHaveBeenCalledWith("could not open a new chat", expect.any(Error)),
     );
   });
+});
+
+it("waits for the cookie session before greeting from a stale signed-out panel", async () => {
+  let finish!: (signedIn: boolean) => void;
+  show({
+    signedIn: false,
+    checkSession: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  fireEvent.keyDown(body(), { key: "Enter" });
+  expect(screen.queryByText(/Sign in in the console/)).toBeNull();
+  await act(async () => {
+    finish(true);
+  });
+  expect(screen.queryByText(/Sign in in the console/)).toBeNull();
+  expect(env.motion.react).toHaveBeenCalledWith("wave", expect.any(Number));
+});
+
+it("still explains sign-in when the fresh session check confirms there is no account", async () => {
+  show({ signedIn: false, checkSession: async () => false });
+  await act(async () => {
+    fireEvent.keyDown(body(), { key: "Enter" });
+  });
+  expect(screen.getByText(/Sign in in the console/)).toBeInTheDocument();
+});
+
+it("reports a failed session refresh without inventing a sign-out", async () => {
+  const error = new Error("session unavailable");
+  show({
+    signedIn: false,
+    checkSession: async () => {
+      throw error;
+    },
+  });
+  await act(async () => {
+    fireEvent.keyDown(body(), { key: "Enter" });
+  });
+  expect(env.report).toHaveBeenCalledWith("could not check blobby's session", error);
+  expect(screen.queryByText(/Sign in in the console/)).toBeNull();
 });

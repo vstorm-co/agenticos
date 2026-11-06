@@ -1,5 +1,5 @@
 ---
-source_sha: "cd5a3c0d3d72"
+source_sha: "c80bcad21f56"
 ---
 
 # La consola { #the-console }
@@ -358,7 +358,7 @@ AgenticOS, Architect y la configuración predeterminada de nuevos agentes no inc
 
 Ambos agentes iniciales y los nuevos agentes de consola incluyen Watch a command, Background topics, Work while tools run, búsqueda limitada de conversaciones anteriores y búsqueda local BM25 de herramientas con cinco resultados. Reciben especialistas research, explore y review, especialistas dinámicos y delegación sync/async automática. Los monitores necesitan una shell persistente y terminan con el turno; los temas en segundo plano sobreviven. Las conversaciones se buscan solo cuando hacen falta: primero fragmentos y después ventanas limitadas. Los grupos y las ejecuciones desatendidas no buscan historial privado.
 
-Solo el AgenticOS incluido tiene Computer use, navegador web y Coding agent. El control del equipo y la programación usan por defecto el escritorio autorizado; la programación en sandbox necesita credenciales configuradas. El navegador incluido también usa el escritorio vinculado; un administrador puede configurar en su lugar un endpoint de navegador del despliegue. Los agentes nuevos heredan la configuración común sin estas tres herramientas. AgenticOS fija el Architect publicado; las fijaciones intactas se actualizan y las personalizadas se conservan.
+Solo el AgenticOS incluido tiene Computer use, navegador web y Coding agent. El control del equipo y la programación usan por defecto el escritorio autorizado; la programación en sandbox necesita credenciales configuradas. El navegador incluido también usa el escritorio vinculado; un administrador puede configurar en su lugar un endpoint de navegador del despliegue. Los agentes nuevos heredan la configuración común sin estas tres herramientas. AgenticOS responde directamente a preguntas de la plataforma con su guía y AgenticOS MCP. Los valores incluidos ya no fijan Architect; la actualización elimina la fijación original sin modificar y conserva los delegados personalizados.
 
 Cada organización recibe **AgenticOS**, para trabajo general, y **Architect**,
 para configurar la plataforma. Ambos incluyen memoria. Los agentes creados en
@@ -946,4 +946,4 @@ Los pies de lista permanecen en el borde inferior del panel, con espaciado unifo
 El directorio de organizaciones de administración muestra la imagen cargada o las iniciales en el color elegido si no hay imagen. El acceso a las imágenes en esta vista se limita a administradores del despliegue; el endpoint normal de avatares sigue requiriendo pertenencia a la organización.
 
 
-**Chat controls → Model → Coding accounts** muestra tus conexiones de Claude Code y Codex con sus logotipos y el estado del consentimiento. Conecta o gestiona una cuenta sin salir del chat; las mismas cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.
+**Chat controls → Tools & files** muestra la cuenta de coding que necesita un agente cuando su Coding agent se ejecuta como **Private cloud task with my account**: solo ese harness, con su logotipo y el estado del consentimiento. Conéctala o gestiónala sin salir del chat; todas las cuentas aparecen en **Settings → Profile**. Conectar no cambia el modo de ejecución del agente: las tareas privadas en la nube siguen necesitando **Private cloud task with my account**, mientras que el coding de escritorio utiliza su propio inicio de sesión local.

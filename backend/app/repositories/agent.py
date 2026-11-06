@@ -27,7 +27,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.project import Project
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
-from app.schemas.agent import LocalCodingAgent
+from app.schemas.agent import PublishedCodingAgent
 
 
 async def get_many(
@@ -390,13 +390,13 @@ async def published_capabilities(
     }
 
 
-async def published_local_coding_agents(
+async def published_coding_agents(
     db: AsyncSession, *, version_ids: Sequence[UUID]
-) -> dict[UUID, LocalCodingAgent]:
-    """The coding agent each frozen version runs on the person's computer, where it does.
+) -> dict[UUID, PublishedCodingAgent]:
+    """The coding agent each frozen version runs, and where it runs it.
 
     Read from the version's published capability bindings, never its draft. A version
-    whose coding agent runs in the sandbox, or has none, is absent.
+    with no enabled coding agent is absent.
     """
     if not version_ids:
         return {}
@@ -405,19 +405,11 @@ async def published_local_coding_agents(
             AgentVersion.id.in_(list(version_ids))
         )
     )
-    found: dict[UUID, LocalCodingAgent] = {}
+    found: dict[UUID, PublishedCodingAgent] = {}
     for version_id, raw in result.all():
         for binding in _CAPABILITY_BINDINGS.validate_python([] if raw is None else raw):
-            config = binding.config or {}
-            if (
-                binding.id == "coding_agent"
-                and binding.enabled
-                and config.get("runs_on") == "this_computer"
-            ):
-                found[version_id] = LocalCodingAgent(
-                    harness=config.get("harness", "claude_code"),
-                    access=config.get("access", "edit"),
-                )
+            if binding.id == "coding_agent" and binding.enabled:
+                found[version_id] = PublishedCodingAgent.model_validate(binding.config or {})
                 break
     return found
 

@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A local instance created by the desktop app can be set up with a provider key again. The app wrote a `SANDBOXD_TOKEN` for a sandbox service it never starts, so new agents kept container workspaces publish refused, and bootstrap stopped at the Architect's publish. The instance no longer gets a token, and its agents get the files-only workspace. A publish refusal now leaves the Architect waiting for a model instead of failing every console load. An instance created earlier keeps its token: delete the `SANDBOXD_TOKEN` line from its `.env` and restart it.
+- Finished synchronous delegations no longer repeat below the answer. Their byline keeps the exchange, reasoning, actions, token usage and run link; nested specialists remain promotable. (#2782)
+- Quick Ask and blobby refresh a previously signed-out session when shown or when the console signs in. Blobby waits for a fresh session check before its first signed-out greeting. (#2784)
+
+### Changed
+
+- Chat controls split into three tabs: **Model** holds only the model, **Tools & files** holds the coding agent, Work on, browser, computer use and skills, and **Preferences** is unchanged. The chat no longer lists both coding accounts under the model: where an agent codes as a private cloud task on the person's account, Tools & files offers that account to connect. Agents with subagents retain both account connections for delegated coding tasks. The agent listing gains `personal_coding_harness`.
+- The default AgenticOS agent no longer has the Architect pinned as a delegate. It answered platform questions by asking the Architect, which took a minute and a second model's cost for what its own platform tools and guide already cover. Organizations pick the change up on the next console load; a starter whose delegates somebody changed keeps them.
+
 ## [1.50.2] - 2026-11-06
 
 ### Security

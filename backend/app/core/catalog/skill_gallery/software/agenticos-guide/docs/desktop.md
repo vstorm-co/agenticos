@@ -166,6 +166,12 @@ retries an interrupted installation using its existing files and keys. The menu
 bar's Start, Stop and Update act on the connected managed instance. Connecting
 to an externally started development stack does not make it managed by the app.
 
+A local instance runs the API, the worker, the console, the database and Redis,
+and no sandbox service, browser service or object store. Agents get the
+files-only workspace. In **Chat controls → Tools & files**, choose
+**Work on → This computer** for folder access and **Browser → Local browser**
+for browsing. **Computer use** grants screen, mouse and keyboard access separately.
+
 Metadata lives in `local-instances.json` in the configuration directory; new
 instance files are under `local-stacks/<id>/` in the app's data directory. Existing
 `local-stack/` installations keep their original Compose project and data.
@@ -484,7 +490,7 @@ credential store; successful sign-in and setup refresh the status automatically.
 
 In desktop **Chat controls → Tools & files → Coding agent**, choose **Claude Code** or **Codex**, even when the published capability is disabled or absent. The app prepares local file tools and opens the native folder picker unless the current folder already has a full-access grant. Cancelling leaves the previous settings unchanged. **Use agent setting** restores the published configuration.
 
-The choice belongs to this chat. Existing read-only and approval rules still apply, and native startup approval can be remembered for this agent and folder. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. The model is at the top, followed by Tools & files; expand **Work on** to manage folder access and **Preferences** for approvals and notifications.
+The choice belongs to this chat. Existing read-only and approval rules still apply, and native startup approval can be remembered for this agent and folder. Switching to Cloud clears the conversation's local coding choice. Chat controls opens above the composer. Its tabs are **Model**, **Tools & files** (Coding agent, Work on, Browser, Computer use and skills) and **Preferences** (approvals and notifications).
 
 Set the **Coding agent** capability to **On this computer**, choose a folder
 under **Work on**, and grant it full access. Native approval is remembered for
