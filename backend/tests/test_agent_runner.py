@@ -85,6 +85,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_environment import AgentEnvironmentConnection
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.db.models.skill import Skill
 from app.db.vector_tables import VectorScope
 from app.repositories.group import CappedGroup
 from app.services.agent_registry import UnpublishedCandidate
@@ -156,6 +157,17 @@ def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
 
 _THE_ASKER = uuid.uuid4()
 """The person a parked run was answering, told apart from whoever approves it."""
+
+
+def _served_skill(name: str, version_id: uuid.UUID) -> Skill:
+    return Skill(
+        id=uuid.uuid4(),
+        name=name,
+        description=name,
+        content=name,
+        resources=[],
+        latest_version_id=version_id,
+    )
 
 
 def _ctx() -> AuthContext:
@@ -2129,6 +2141,7 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
         resumed: MagicMock | None = None,
         spec: AgentSpec | None = None,
         use_workspace: bool = True,
+        resolve_skills: AsyncMock | None = None,
     ):
         """`prepare`, or with `resumed` the same assembly continuing that parked run."""
         service = AgentRunnerService(_db())
@@ -2160,7 +2173,11 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
             ),
-            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch.object(
+                service.skills,
+                "resolve_for_agent",
+                new=resolve_skills or AsyncMock(return_value=[]),
+            ),
             patch(
                 "app.services.agent_runner.agent_run_repo.create_run",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
@@ -2196,7 +2213,8 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             kwargs = dict(find.await_args.kwargs)
             screen = kwargs.pop("screen")
             # Without a guardrail, nothing is screened.
-            assert (screen is None) == (spec is None)
+            guarded = spec is not None and any(b.id == "guardrails" for b in spec.capabilities)
+            assert (screen is None) == (not guarded)
             assert kwargs == {
                 "conversation_id": conversation_id,
                 "organization_id": ctx.organization_id,
@@ -2324,14 +2342,61 @@ class TestAThreadsEarlierAttachmentsAreBroughtBack:
             skill_version_ids=[before],
         )
 
-        with patch.object(
-            AgentRunnerService, "_served_skill_versions", new=AsyncMock(return_value=[before, now])
-        ):
-            prepared, *_ = await self._prepare(
-                _sandbox(StateBackend()), earlier=None, ctx=ctx, resumed=resumed
-            )
+        prepared, *_ = await self._prepare(
+            _sandbox(StateBackend()),
+            earlier=None,
+            ctx=ctx,
+            resumed=resumed,
+            resolve_skills=AsyncMock(
+                return_value=[_served_skill("refunds", before), _served_skill("shipping", now)]
+            ),
+        )
 
         assert prepared.run.skill_version_ids == [before, now]
+
+    @pytest.mark.anyio
+    async def test_a_run_records_its_specialists_skill_versions_from_one_resolve_each(self):
+        """The specialist's skills are the ones it was built with, not resolved again."""
+        own, specialist = (
+            _served_skill("refunds", uuid.uuid4()),
+            _served_skill("invoices", uuid.uuid4()),
+        )
+        spec = AgentSpec.model_validate(
+            {
+                "name": "Books",
+                "skill_ids": [str(own.id)],
+                "capabilities": [
+                    {
+                        "id": "subagents",
+                        "config": {
+                            "inline": [
+                                {
+                                    "name": "billing",
+                                    "description": "Bills.",
+                                    "instructions": "Bill.",
+                                    "skill_ids": [str(specialist.id)],
+                                }
+                            ]
+                        },
+                    }
+                ],
+            }
+        )
+        resolve = AsyncMock(
+            side_effect=lambda ctx, skill_ids, **_: [
+                skill for skill in (own, specialist) if skill.id in skill_ids
+            ]
+        )
+
+        prepared, *_ = await self._prepare(
+            _sandbox(StateBackend()), earlier=None, spec=spec, resolve_skills=resolve
+        )
+
+        assert prepared.run.skill_version_ids == [
+            own.latest_version_id,
+            specialist.latest_version_id,
+        ]
+        assert [call.args[1] for call in resolve.await_args_list] == [[own.id], [specialist.id]]
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(("before", "after"), [(True, None), (False, False), (None, None)])

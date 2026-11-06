@@ -386,6 +386,11 @@ logger = logging.getLogger(__name__)
 #: its share from this, since it may follow a line the agent does not.
 RUN_SKILL_BODIES_RESOURCE = "run_skill_bodies"
 
+#: The skills the run's inline specialists were resolved with, gathered as each is.
+#: A published delegate's specialists are not the run's: the delegate records its own
+#: run, and its resources start without this list.
+SPECIALIST_SKILLS_RESOURCE = "specialist_skills"
+
 _PREVIEW_CHARS = 80
 
 _ORIGIN_KINDS: dict[str, Literal["grader", "improve", "knowledge_gaps", "test_questions"]] = {
@@ -454,7 +459,11 @@ def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
 
 
 def _served(skills: list[Skill]) -> list[UUID]:
-    """The versions these resolved skills serve; a candidate an eval projects has none."""
+    """The versions these resolved skills serve.
+
+    A skill an eval proposes to create has none. A candidate body for a stored skill
+    is resolved as that skill, so its stored version is the one named.
+    """
     return [skill.latest_version_id for skill in skills if skill.latest_version_id is not None]
 
 
@@ -3689,6 +3698,7 @@ class AgentRunnerService:
             SKILL_BODIES_RESOURCE: own_bodies,
             RUN_SKILL_BODIES_RESOURCE: dict(skill_bodies or {}),
             CONTEXT_BODIES_RESOURCE: dict(context_bodies or {}),
+            SPECIALIST_SKILLS_RESOURCE: [],
         }
         # What an earlier turn of this thread wrote down. Read here rather than
         # beside the build below, because one of the three is a resource.
@@ -3889,11 +3899,6 @@ class AgentRunnerService:
             # Recorded up to the park; this segment's uses are unknown until its own
             # finish writes them. A segment already lost stays lost.
             run.skill_uses_recorded = None
-        # A resumed run serves what its lines say now, which may be newer than what it
-        # started on, so it keeps both.
-        served = await self._served_skill_versions(ctx, spec, resources["skills"])
-        run.skill_version_ids = list(dict.fromkeys([*(run.skill_version_ids or []), *served]))
-
         # Two lookups, because the caps they feed meter two different things. The
         # agent's own cap used to read the organization-wide number below, which
         # made `AgentSpec.budget.monthly_usd` a second organization cap wearing
@@ -4187,6 +4192,11 @@ class AgentRunnerService:
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
+        # The versions the run could answer from: its own and its specialists'. A
+        # resumed run serves what its lines say now, which may be newer than what it
+        # started on, so it keeps both.
+        served = _served([*skills, *resources[SPECIALIST_SKILLS_RESOURCE]])
+        run.skill_version_ids = list(dict.fromkeys([*(run.skill_version_ids or []), *served]))
 
         # The audience is the run's own, not the resuming caller's: an approver
         # releasing somebody else's run must not become the person its memory is kept
@@ -5085,25 +5095,6 @@ class AgentRunnerService:
             collection_scopes=tuple(delegate_resources["kb_vector_scopes"].items()),
         )
 
-    async def _served_skill_versions(
-        self, ctx: AuthContext, spec: AgentSpec, skills: list[Skill]
-    ) -> list[UUID]:
-        """The skill versions a run serves: its own, and each inline specialist's.
-
-        A specialist resolves its skills only when it is delegated to, but the run
-        records what it would read now, so the run says which versions it could
-        have answered from.
-        """
-        served = _served(skills)
-        delegation = _delegation_config(spec)
-        for specialist in [] if delegation is None else delegation.inline:
-            served += _served(
-                await self.skills.resolve_for_agent(
-                    ctx, specialist.skill_ids, bindings=specialist.skill_bindings
-                )
-            )
-        return list(dict.fromkeys(served))
-
     async def _delegate_resources(
         self,
         ctx: AuthContext,
@@ -5160,6 +5151,9 @@ class AgentRunnerService:
             SKILL_BODIES_RESOURCE: projected,
             RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
+        gathered = parent_resources.get(SPECIALIST_SKILLS_RESOURCE)
+        if agent_id is None and isinstance(gathered, list):
+            gathered.extend(skills)
         parent_skills = parent_resources.get(SKILL_USE_LOG_RESOURCE)
         if isinstance(parent_skills, SkillUseLog):
             # Recorded on the run that delegated, under the delegate's own agent:
