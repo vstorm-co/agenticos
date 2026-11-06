@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "61e324359288"
 ---
 
 # Die Desktop-App { #the-desktop-app }
@@ -179,6 +179,11 @@ Die lokale Ansicht zeigt gespeicherte Instanzen, Adressen und ihren Laufstatus.
 unterbrochene Installation mit ihren vorhandenen Dateien und Schlüsseln. Start,
 Stop und Update im Menü betreffen die verbundene verwaltete Instanz. Die Verbindung
 zu einem extern gestarteten Entwicklungsstack macht diesen nicht appverwaltet.
+
+Eine lokale Instanz betreibt API, Worker, Konsole, Datenbank und Redis, aber
+keinen Sandbox-Dienst, keinen Browser-Dienst und keinen Objektspeicher. Agenten
+erhalten den reinen Datei-Workspace; der Computerzugriff der App gibt ihnen Ihre
+eigenen Ordner und Ihren Browser.
 
 Metadaten liegen in `local-instances.json` im Konfigurationsverzeichnis; neue
 Instanzdateien unter `local-stacks/<id>/` im Datenverzeichnis. Bestehende

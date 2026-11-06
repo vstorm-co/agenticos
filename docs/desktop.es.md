@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "61e324359288"
 ---
 
 # La app de escritorio { #the-desktop-app }
@@ -179,6 +179,11 @@ La pantalla local muestra las instancias guardadas, sus direcciones y estado.
 interrumpida conservando archivos y claves. Start, Stop y Update del menú actúan
 sobre la instancia administrada conectada. Conectarse a un entorno de desarrollo
 iniciado externamente no lo convierte en una instancia administrada.
+
+Una instancia local ejecuta la API, el worker, la consola, la base de datos y
+Redis, sin servicio de sandbox, servicio de navegador ni almacén de objetos. Los
+agentes reciben el espacio de trabajo solo de archivos; el acceso al equipo de la
+app les da sus propias carpetas y su navegador.
 
 Los metadatos están en `local-instances.json` en el directorio de configuración;
 los archivos nuevos en `local-stacks/<id>/` en el directorio de datos. Las

@@ -166,6 +166,11 @@ retries an interrupted installation using its existing files and keys. The menu
 bar's Start, Stop and Update act on the connected managed instance. Connecting
 to an externally started development stack does not make it managed by the app.
 
+A local instance runs the API, the worker, the console, the database and Redis,
+and no sandbox service, browser service or object store. Agents get the
+files-only workspace; the app's Computer access gives them your own folders and
+browser.
+
 Metadata lives in `local-instances.json` in the configuration directory; new
 instance files are under `local-stacks/<id>/` in the app's data directory. Existing
 `local-stack/` installations keep their original Compose project and data.

@@ -1,5 +1,5 @@
 ---
-source_sha: "3ef65d6f2f43"
+source_sha: "61e324359288"
 ---
 
 # Aplikacja desktopowa { #the-desktop-app }
@@ -172,6 +172,11 @@ connect** uruchamia wybraną instancję; **Finish setup** ponawia przerwaną ins
 z zachowaniem jej plików i kluczy. Start, Stop i Update w menu dotyczą połączonej,
 zarządzanej instancji. Połączenie do samodzielnie uruchomionego stosu deweloperskiego
 nie przekazuje aplikacji zarządzania nim.
+
+Lokalna instancja uruchamia API, workera, konsolę, bazę danych i Redis, bez
+usługi sandboxa, usługi przeglądarki i magazynu obiektów. Agenci dostają
+workspace przechowujący same pliki; dostęp do komputera w aplikacji daje im Twoje
+foldery i przeglądarkę.
 
 Metadane znajdują się w `local-instances.json` w katalogu konfiguracji; pliki nowych
 instancji w `local-stacks/<id>/` w katalogu danych aplikacji. Istniejące instalacje

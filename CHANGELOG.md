@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- A local instance created by the desktop app can be set up with a provider key again. The app wrote a `SANDBOXD_TOKEN` for a sandbox service it never starts, so new agents kept container workspaces publish refused, and bootstrap stopped at the Architect's publish. The instance no longer gets a token, and its agents get the files-only workspace. A publish refusal now leaves the Architect waiting for a model instead of failing every console load. An instance created earlier keeps its token: delete the `SANDBOXD_TOKEN` line from its `.env` and restart it.
+
 ## [1.50.1] - 2026-11-06
 
 ### Security
