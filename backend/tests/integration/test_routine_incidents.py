@@ -156,7 +156,7 @@ async def test_automatic_pause_escalates_the_same_case_and_supersedes_the_old_no
         await notifications.routine_result(failed)
     recorded = await notes(db)
     assert len(recorded) == (1 if limit == 1 else 2)
-    current = recorded[-1]
+    current = next(note for note in recorded if "Paused automatically" in note.summary)
     assert current.outcome_id is not None
     assert all(note.outcome_id == current.outcome_id for note in recorded)
     assert "Paused automatically" in current.summary and not world.trigger.is_active

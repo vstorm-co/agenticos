@@ -158,6 +158,7 @@ async def test_changed_workspace_invalidates_review_before_creating_resources(db
     assert await db.scalar(select(func.count()).select_from(AgentTrigger)) == 0
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("identity", ["api", "routine", "foreign", "no-create"])
 async def test_preset_refuses_unattended_cross_tenant_and_unentitled_callers(
     db: AsyncSession, identity: str

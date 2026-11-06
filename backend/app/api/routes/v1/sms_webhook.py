@@ -59,7 +59,8 @@ async def sms_webhook(bot_id: UUID, request: Request, bot_service: ChannelBotSvc
     return Response(content=_EMPTY_TWIML, media_type="text/xml")
 
 
-@router.api_route("/media/{media_id}", methods=["GET", "HEAD"], response_model=None)
+@router.get("/media/{media_id}", response_model=None)
+@router.head("/media/{media_id}", response_model=None, include_in_schema=False)
 async def get_outbound_mms_media(
     media_id: UUID,
     request: Request,

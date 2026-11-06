@@ -134,6 +134,7 @@ async def test_attachment_only_message_keeps_metadata_and_never_trusts_an_extern
         await adapter.aclose()
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("bad", ["", "Basic wrong", "Bearer callback-secret", "Basic ü"])
 async def test_callback_authentication_is_closed_without_the_correct_bot_secret(bad: str) -> None:
     adapter = ImessageAdapter(httpx.MockTransport(lambda _request: httpx.Response(200)))

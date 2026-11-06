@@ -152,7 +152,9 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
     }
     # Its skills for building agents, installed with it (#2069), and the guide
     # to AgenticOS itself, plus workflow-builder and virtual-tables.
-    assert len(spec.skill_ids) == 10
+    from app.services.assistant import _template
+
+    assert len(spec.skill_ids) == len(_template().skills)
     # What the chat offers somebody opening it there with nothing said yet (#2301).
     assert spec.starters[0] == "Build me an agent that answers questions from our documents"
 

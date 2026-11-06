@@ -1006,6 +1006,7 @@ class TestRemovingARoutine:
 
 
 class TestWhatNeverWaitsForApproval:
+    @pytest.mark.security
     def test_only_console_language_bypasses_write_approval(self) -> None:
         """Persistent automation requires the configured write confirmation."""
         tools = {tool.name: tool for tool in platform_tool_catalog()}
@@ -1029,6 +1030,7 @@ class TestWhatNeverWaitsForApproval:
         assert tools["create_skill"].writes and not tools["create_skill"].ungated
         assert tools["publish_agent"].writes and not tools["publish_agent"].ungated
 
+    @pytest.mark.security
     async def test_reads_run_under_writes_but_all_still_requires_approval(self) -> None:
         from pydantic_ai.tools import ToolDefinition
 
@@ -1551,6 +1553,7 @@ async def test_a_watch_limit_cannot_be_cleared_and_set_in_the_same_tool_request(
     api.request.assert_not_awaited()
 
 
+@pytest.mark.security
 async def test_delete_watch_uses_the_same_identity_and_requires_approval(api):
     tool = {tool.name: tool for tool in platform_tools(api)}["delete_watch"]
     assert await tool.function(watch_id=RUN) == {"deleted": str(RUN)}

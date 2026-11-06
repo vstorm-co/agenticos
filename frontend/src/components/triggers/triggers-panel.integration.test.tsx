@@ -34,7 +34,7 @@ vi.mock("@/components/watches/watches-card", () => ({
 vi.mock("@/components/watches/watch-dialog", () => ({
   WatchDialog: ({ open, agentId }: { open: boolean; agentId: string }) =>
     open ? (
-      <div role="dialog" aria-label="Watch and inform">
+      <div role="dialog" aria-label="Monitor and inform">
         {agentId}
       </div>
     ) : null,
@@ -118,15 +118,15 @@ describe("TriggersPanel", () => {
     watchState.allowed = true;
     serve([]);
     await mount();
-    await userEvent.click(await screen.findByRole("button", { name: "Watch and inform" }));
-    expect(screen.getByRole("dialog", { name: "Watch and inform" })).toHaveTextContent(AGENT_ID);
+    await userEvent.click(await screen.findByRole("button", { name: "Monitor and inform" }));
+    expect(screen.getByRole("dialog", { name: "Monitor and inform" })).toHaveTextContent(AGENT_ID);
     expect(screen.getByTestId("agent-watches")).toHaveTextContent(AGENT_ID);
   });
   it("does not offer watches without agent-level creation access", async () => {
     watchState.allowed = true;
     serve([]);
     await mount({ canCreate: false });
-    expect(screen.queryByRole("button", { name: "Watch and inform" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Monitor and inform" })).not.toBeInTheDocument();
   });
   it("says the agent runs only when messaged rather than showing an empty box", async () => {
     serve([]);

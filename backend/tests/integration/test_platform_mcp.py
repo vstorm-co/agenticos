@@ -305,7 +305,7 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
 
     assert tools["agenticos_create_project"].tool_def.metadata[NEEDS_APPROVAL] is True
     assert tools["agenticos_list_projects"].tool_def.metadata[NEEDS_APPROVAL] is False
-    assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_get_project"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert str(organization.id) in result.output
     assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
     assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True

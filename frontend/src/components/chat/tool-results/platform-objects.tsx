@@ -47,8 +47,8 @@ function response(call: ToolCall): Record<string, unknown> | null {
 export function platformCallError(call: ToolCall): string | null {
   if (!call.name.startsWith("agenticos_")) return null;
   if (typeof call.result === "string" && !/^\s*\{\s*"error"\s*:/.test(call.result)) return null;
-  const error = object(response(call)?.error);
-  return typeof error?.message === "string" ? error.message : null;
+  const envelope = object(response(call)?.error);
+  return typeof envelope?.message === "string" ? envelope.message : null;
 }
 
 /** Successful platform writes only; error envelopes never become success cards. */

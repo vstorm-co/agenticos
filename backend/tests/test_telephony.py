@@ -84,6 +84,7 @@ async def test_quiet_hours_use_the_contacts_timezone(hour: int, expected: bool):
     assert quiet_now(contact, datetime(2026, 11, 4, (hour - 1) % 24, tzinfo=UTC)) is expected
 
 
+@pytest.mark.security
 async def test_contact_and_call_contracts_refuse_ambiguous_modes_and_budgets():
     with pytest.raises(ValidationError):
         PhoneContactConfig(identity_id=uuid4(), timezone="Not/AZone")

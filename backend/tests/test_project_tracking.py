@@ -52,6 +52,7 @@ def test_full_table_grants_refuse_extension():
         _with_task_table(spec, uuid4(), name="Tracker")
 
 
+@pytest.mark.security
 def test_collection_creation_permissions_are_required():
     with pytest.raises(AuthorizationError):
         ProjectTrackingService._can_create(

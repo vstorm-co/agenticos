@@ -65,6 +65,7 @@ async def test_gmail_reads_only_metadata_and_authenticates_sender():
         await client.aclose()
 
 
+@pytest.mark.security
 @pytest.mark.parametrize(
     "variant",
     ["wrong_thread", "wrong_message_thread", "invalid_date", "http", "invalid_json", "redirect"],

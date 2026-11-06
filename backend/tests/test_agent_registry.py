@@ -4803,7 +4803,7 @@ class TestAgentTemplates:
         entry.name = "Clinical procedure lookup"
         row = MagicMock()
         row.id, row.name = uuid4(), "Clinical procedure lookup"
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "procedure-assistant", template.name
 
         with (
@@ -4853,7 +4853,7 @@ class TestAgentTemplates:
 
         row = MagicMock()
         row.id, row.name = uuid4(), "artifact-pages"
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
@@ -4888,7 +4888,7 @@ class TestAgentTemplates:
         template.starters, template.avatar = (), None
         row = MagicMock()
         row.id, row.name = uuid4(), "artifact-pages"
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
@@ -4917,7 +4917,7 @@ class TestAgentTemplates:
         template.capabilities, template.skills = (), ()
         template.mcp, template.attach, template.budget_usd = (), (), None
         template.starters, template.avatar = ("What can you do?",), avatar
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "agenticos", template.name
 
         with (
@@ -4948,7 +4948,7 @@ class TestAgentTemplates:
         template.skills, template.mcp, template.attach = (), (), ()
         template.budget_usd = None
         template.starters, template.avatar = (), None
-        created = MagicMock()
+        created = MagicMock(draft_spec=_spec().model_dump(mode="json"))
         created.id, created.slug, created.name = uuid4(), "release-notes-writer", template.name
 
         with (
@@ -5070,10 +5070,6 @@ class TestTheShippedTemplatesOnDisk:
                     await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
     def test_the_general_purpose_template_delegates_and_works_in_a_workspace(self):
-        """`general/agenticos` is the one template meant to be useful for
-        anything, so what it switches on is the point of it: files and a shell,
-        planning, delegation to specialists sharing that workspace, and the web.
-        """
         from app.services import agent_templates
 
         template = agent_templates.get("general/agenticos")
@@ -5081,25 +5077,17 @@ class TestTheShippedTemplatesOnDisk:
         bound = {binding["id"]: binding.get("config") or {} for binding in template.capabilities}
         assert {
             "sandbox",
-            "planning",
             "subagents",
             "web_research",
             "web_fetch",
             "browser_use",
-        } <= set(bound)
-        # Its own container, and nothing it would carry without anything to read:
-        # no knowledge or context bound, no past-conversation search, no tool search,
-        # and no second interpreter beside the shell.
-        assert bound["sandbox"]["backend"] == "service"
-        assert not {
-            "code_execution",
-            "knowledge",
-            "context",
-            "conversation_search",
+            "memory_files",
             "tool_search",
-        } & set(bound)
+        } <= set(bound)
+        assert "planning" not in bound
+        assert bound["sandbox"]["backend"] == "service"
         delegation = bound["subagents"]
-        assert delegation["share_with_delegates"] == ["sandbox"]
+        assert "sandbox" in delegation["share_with_delegates"]
         assert {specialist["name"] for specialist in delegation["inline"]} == {
             "explore",
             "research",

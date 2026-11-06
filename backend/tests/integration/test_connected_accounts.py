@@ -191,6 +191,7 @@ async def test_account_identity_is_unique_per_owner(db: AsyncSession, scope: str
             await db.flush()
 
 
+@pytest.mark.security
 async def test_same_person_can_connect_one_address_through_two_tenants(db: AsyncSession) -> None:
     from sqlalchemy import delete, select
 

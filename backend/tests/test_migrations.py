@@ -1065,6 +1065,7 @@ class TestConnectedAccountMigration:
 
 
 class TestConnectedAccountSources:
+    @pytest.mark.security
     def test_source_tenant_upgrade_and_downgrade_keep_mcp_connections(self) -> None:
         up = _alembic("upgrade", "head")
         assert up.returncode == 0, up.stderr

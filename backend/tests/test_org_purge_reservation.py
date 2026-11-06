@@ -68,6 +68,10 @@ def _patched(mocks: dict):
     # collection cleanup this file is about is a job queued on the purge's session.
     with (
         patch.multiple(SERVICE, **mocks),
+        patch(
+            "app.repositories.telephony.organization_has_unfinished_calls",
+            AsyncMock(return_value=False),
+        ),
         patch("app.core.background.spawn_after_commit"),
         patch(SERVICE_TEARDOWN, new=AsyncMock()) as queued,
     ):

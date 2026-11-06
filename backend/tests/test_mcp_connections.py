@@ -6686,6 +6686,7 @@ async def test_resumed_shared_accounts_are_refused_before_resolving_credentials(
     credentials.assert_not_awaited()
 
 
+@pytest.mark.security
 @pytest.mark.anyio
 @pytest.mark.parametrize("policy", ["writes", "all"])
 async def test_persistent_platform_automation_requires_binding_approval(policy):

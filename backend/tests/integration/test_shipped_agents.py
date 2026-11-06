@@ -110,6 +110,7 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
     assert refreshed.version == before
 
 
+@pytest.mark.security
 async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSession) -> None:
     ctx = await _owner(db)
     await AssistantService(db).state(ctx)
@@ -396,6 +397,7 @@ async def test_starter_pins_architect_and_refreshes_only_untouched_delegate_choi
     assert AgentSpec.model_validate(starter.draft_spec).subagents == []
 
 
+@pytest.mark.security
 async def test_other_agent_catalog_obeys_use_grants_tenant_and_lifecycle(db: AsyncSession) -> None:
     from dataclasses import replace
 

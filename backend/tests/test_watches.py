@@ -575,6 +575,7 @@ class TestOneLook:
         assert _key(one, "PR 12") != _key(other, "PR 12")
         assert len(_key(one, "PR 12")) <= 64
 
+    @pytest.mark.security
     async def test_selected_agent_executes_with_version_and_person_budget(self):
         watch = _watch(pinned_version_id=uuid.uuid4(), exclusions=["dependabot"])
         patches, execute = self._patches(watch)
@@ -707,6 +708,7 @@ class TestOneLook:
             assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 0
         execute.assert_not_awaited()
 
+    @pytest.mark.security
     async def test_person_budget_exhaustion_precedes_the_model_call(self):
         patches, execute = self._patches(_watch())
         with ExitStack() as stack:

@@ -69,6 +69,7 @@ def test_only_a_routine_gets_the_runtime_wrapper() -> None:
     assert len(wrappers) == 1 and wrappers[0].check is check
 
 
+@pytest.mark.security
 async def test_factory_checks_authority_after_waiting_for_approval_and_before_the_effect() -> None:
     revoked = False
     effects: list[str] = []

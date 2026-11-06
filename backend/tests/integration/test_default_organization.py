@@ -69,6 +69,7 @@ async def test_deleting_the_default_organization_clears_the_setting(db) -> None:
     assert row.default_organization_id is None
 
 
+@pytest.mark.security
 async def test_new_organizations_allow_chat_approval_waivers_from_orm_and_database(db) -> None:
     founder = await _person(db, "founder@acme.com")
     company = await _company(db, founder)
@@ -84,6 +85,7 @@ async def test_new_organizations_allow_chat_approval_waivers_from_orm_and_databa
     assert value is True
 
 
+@pytest.mark.security
 async def test_explicit_organization_approval_waiver_opt_out_is_preserved(db) -> None:
     founder = await _person(db, "founder@acme.com")
     company = Organization(

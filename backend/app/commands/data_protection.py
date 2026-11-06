@@ -111,6 +111,7 @@ UNREFERENCED_BY_DESIGN = (SCRATCH_DIRECTORY,)
 # either named here or in `CAPABILITIES_STAYING_INSIDE`, so a new one fails a
 # test rather than quietly leaving the inventory short.
 OUTBOUND_CAPABILITIES: dict[str, str] = {
+    "phone_calls": "the configured telephony provider and explicitly consented recipients",
     # The pages it opens are the destination a reviewer has to know about. What
     # each step sends the model - the page's address, element labels and an
     # excerpt of its text - goes to the agent's own model provider, which the
@@ -191,7 +192,6 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         "tool_output_limits",
         "tool_search",
         # Records are rows in this deployment's own database.
-        "virtual_tables",
         # A run is one of this deployment's own workflows, carried out by its
         # worker; whatever a step reaches is that workflow's, not this capability's.
         "workflows",

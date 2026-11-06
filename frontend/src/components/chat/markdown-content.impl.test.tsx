@@ -168,7 +168,7 @@ describe("rendering an answer", () => {
 
     const link = screen.getByRole("link", { name: "Open the app" });
     expect(link).not.toHaveAttribute("target");
-    expect(link.querySelector(".lucide-panels-top-left")).not.toBeNull();
+    expect(link.querySelector(".lucide-app")).not.toBeNull();
   });
 
   it("keeps an app link's own words when the agent gave it some", () => {
@@ -184,7 +184,7 @@ describe("rendering an answer", () => {
     markdown("Here are your routines: [Routines](/routines?highlight=routines-create)");
 
     const link = screen.getByRole("link", { name: "Routines" });
-    expect(link.querySelector(".lucide-timer-reset")).not.toBeNull();
+    expect(link.querySelector(".lucide-routine")).not.toBeNull();
     expect(link).not.toHaveAttribute("target");
   });
 

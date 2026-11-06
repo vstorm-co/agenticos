@@ -158,6 +158,7 @@ async def test_nonzero_cleanup_preserves_an_existing_copy_error() -> None:
         await snapshots.snapshot(workspace)
 
 
+@pytest.mark.security
 def test_credential_whitespace_is_rejected_without_changing_the_secret() -> None:
     from pydantic import SecretStr, ValidationError
 

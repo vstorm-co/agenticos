@@ -34,6 +34,7 @@ def test_credentials_refuse_ambiguous_or_embedded_authentication(url: str) -> No
         BridgeCredentials(bot_id=uuid4(), server=url, password=SecretStr("password"))
 
 
+@pytest.mark.security
 def test_ephemeral_credential_roundtrip_keeps_its_secret_out_of_representation() -> None:
     original = credentials()
     assert BridgeCredentials.decode(original.encode()) == original
@@ -46,6 +47,7 @@ def test_ephemeral_credential_roundtrip_keeps_its_secret_out_of_representation()
         original.url("https://different.example.com/steal")
 
 
+@pytest.mark.security
 @pytest.mark.parametrize(
     "value",
     ["{}", "not json", '{"server":"https://x.example","password":"","extra":"private-password"}'],

@@ -791,6 +791,7 @@ async def test_remote_source_review_fences_credential_rotation_but_not_label_cha
     await require_bound_sources(db, organization_id=ctx.organization_id, policy=reviewed)
 
 
+@pytest.mark.security
 async def test_budgeted_event_fires_share_one_worker_concurrency_key(db: AsyncSession):
     from decimal import Decimal
 

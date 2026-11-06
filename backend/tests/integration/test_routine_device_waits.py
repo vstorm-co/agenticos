@@ -201,6 +201,7 @@ async def test_changed_authority_cancels_old_wait_without_retargeting_its_event(
     assert wait.event_context is None
 
 
+@pytest.mark.security
 async def test_other_tenant_cannot_admit_or_consume_the_wait(db: AsyncSession) -> None:
     w = await world(db, event=True)
     activation = await park(db, w, context="private event")
@@ -221,6 +222,7 @@ async def test_revoked_device_never_uses_cached_presence_to_admit(db: AsyncSessi
     assert (await repo.get(db, activation)).status == "waiting"
 
 
+@pytest.mark.security
 async def test_dispatch_failure_budget_counts_each_dead_job_once_and_keeps_evidence(
     db: AsyncSession,
 ) -> None:
@@ -479,6 +481,7 @@ async def test_readiness_race_rolls_back_the_empty_run_but_keeps_the_committed_a
     ).fire_in_flight_since is None
 
 
+@pytest.mark.security
 async def test_an_old_permission_refusal_does_not_disable_the_reconfigured_routine(
     db: AsyncSession,
 ) -> None:

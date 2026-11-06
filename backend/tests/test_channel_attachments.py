@@ -1341,3 +1341,11 @@ async def test_mentions_and_default_turns_both_receive_the_saved_thread_history(
     answer = agents.answer if text.startswith("@") else agents.answer_default
     assert answer.await_args.kwargs["message_history"] == [backfill, earlier]
     load.assert_awaited_once()
+
+
+@pytest.fixture(autouse=True)
+def ordinary_channel_histories(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.channels.router.primary_conversation_repo.agent_for_conversation",
+        AsyncMock(return_value=None),
+    )

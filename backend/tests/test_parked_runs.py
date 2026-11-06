@@ -262,6 +262,10 @@ class TestDeciding:
             ),
             patch("app.services.approvals.record_audit", AsyncMock()),
             patch(
+                "app.services.approvals.agent_run_repo.list_approvals_for_run",
+                AsyncMock(return_value=[pending]),
+            ),
+            patch(
                 "app.services.approvals.spawn_after_commit",
                 side_effect=lambda d, c, name: wake(c, name=name),
             ),

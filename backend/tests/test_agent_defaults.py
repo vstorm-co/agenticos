@@ -2,10 +2,13 @@
 
 from uuid import uuid4
 
+import pytest
+
 from app.agents.spec import AgentSpec, BudgetSpec
 from app.services.agent_defaults import STARTER, baseline, legacy_defaults, merge_defaults
 
 
+@pytest.mark.security
 def test_model_and_budget_changes_keep_receiving_prompt_and_tool_updates() -> None:
     shipped = AgentSpec(name="AgenticOS", instructions="Old prompt", capabilities=[{"id": "clock"}])
     model = uuid4()

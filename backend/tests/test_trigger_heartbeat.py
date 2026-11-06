@@ -61,6 +61,6 @@ async def test_fire_job_forwards_the_stable_device_activation() -> None:
         patch.object(trigger_tasks, "get_worker_db_context", context),
         patch("app.services.agent_trigger.AgentTriggerService") as service,
     ):
-        service.return_value.fire = AsyncMock()
+        service.return_value.fire_job = AsyncMock()
         await trigger_tasks.fire_trigger(payload)
-        assert service.return_value.fire.call_args.kwargs["activation_id"] == payload.activation_id
+        service.return_value.fire_job.assert_awaited_once_with(payload)
