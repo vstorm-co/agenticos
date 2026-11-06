@@ -153,6 +153,7 @@
     "confirmPassword": "Potwierdź hasło",
     "continueWithGithub": "Kontynuuj z GitHub",
     "continueWithGoogle": "Kontynuuj z Google",
+    "googleNotConfigured": "Logowanie przez Google nie jest skonfigurowane w tej instalacji.",
     "continueWithProvider": "Kontynuuj z {provider}",
     "continueWithMicrosoft": "Kontynuuj z Microsoft",
     "createHeading": "Utwórz swój <em>workspace.</em>",

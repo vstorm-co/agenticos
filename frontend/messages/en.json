@@ -1009,6 +1009,7 @@
     "confirmPassword": "Confirm Password",
     "continueWithGithub": "Continue with GitHub",
     "continueWithGoogle": "Continue with Google",
+    "googleNotConfigured": "Google sign-in is not configured for this deployment.",
     "continueWithProvider": "Continue with {provider}",
     "continueWithMicrosoft": "Continue with Microsoft",
     "createHeading": "Create your <em>workspace.</em>",

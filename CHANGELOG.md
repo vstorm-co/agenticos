@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Always show Google sign-in and registration; disable the button with an explanation when the deployment has no Google credentials.
+
 - Keep the mobile chat welcome visible when an empty composer receives focus; collapse it only after writing starts.
 
 - Revoke unattended routine and telephone consent when a member leaves; stop personal coding tasks when their source conversation becomes editable by collaborators, and serialize descendant memory sharing with personal erasure.

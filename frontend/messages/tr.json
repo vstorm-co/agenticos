@@ -8,6 +8,7 @@
     "confirmPassword": "Şifreyi onayla",
     "continueWithGithub": "GitHub ile devam et",
     "continueWithGoogle": "Google ile devam et",
+    "googleNotConfigured": "Bu kurulumda Google ile oturum açma yapılandırılmamış.",
     "continueWithProvider": "{provider} ile devam et",
     "continueWithMicrosoft": "Microsoft ile devam et",
     "createHeading": "<em>Workspace’inizi</em> oluşturun.",

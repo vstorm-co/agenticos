@@ -1009,6 +1009,7 @@
     "confirmPassword": "Passwort bestätigen",
     "continueWithGithub": "Weiter mit GitHub",
     "continueWithGoogle": "Weiter mit Google",
+    "googleNotConfigured": "Die Google-Anmeldung ist für diese Installation nicht eingerichtet.",
     "continueWithProvider": "Weiter mit {provider}",
     "continueWithMicrosoft": "Weiter mit Microsoft",
     "createHeading": "Richten Sie Ihren <em>Workspace ein.</em>",
