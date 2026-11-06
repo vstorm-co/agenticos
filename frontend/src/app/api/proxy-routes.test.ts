@@ -24,6 +24,7 @@ import * as approvals from "./approvals/[[...path]]/route";
 import * as apps from "./apps/[[...path]]/route";
 import * as audit from "./audit/[[...path]]/route";
 import * as catalog from "./catalog/[[...path]]/route";
+import * as phone from "./phone/[[...path]]/route";
 import * as channels from "./channels/[[...path]]/route";
 import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
@@ -148,6 +149,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
   ["projects", projects],
+  ["tasks", tasks],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],
@@ -238,4 +240,11 @@ describe("the proxied route mounts", () => {
       expect(response.status, name).toBe(401);
     }
   });
+});
+
+it("the phone proxy exposes only its read and admitted effect verbs", () => {
+  expect(typeof phone.GET).toBe("function");
+  expect(typeof phone.POST).toBe("function");
+  expect(typeof phone.PUT).toBe("function");
+  expect(Object.keys(phone).sort()).toEqual(["GET", "POST", "PUT"]);
 });

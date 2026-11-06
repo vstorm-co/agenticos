@@ -1150,3 +1150,21 @@ async def test_anonymous_and_detached_calls_never_inherit_a_members_authority(
     await db.flush()
     with pytest.raises(AuthorizationError, match="consenting member"):
         await live_contact(db, row)
+
+
+async def test_member_reinvitation_requires_fresh_phone_opt_in(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.db.models.organization import OrganizationMember
+    from app.repositories import member as members
+    from app.services.member import end_membership
+
+    ctx, _, _, _, _ = await setup(db, monkeypatch)
+    membership = await members.get(db, organization_id=ctx.organization_id, user_id=ctx.user_id)
+    assert membership is not None
+    await end_membership(db, membership)
+    db.add(
+        OrganizationMember(organization_id=ctx.organization_id, user_id=ctx.user_id, role="owner")
+    )
+    await db.flush()
+    assert await repo.contact(db, organization_id=ctx.organization_id, user_id=ctx.user_id) is None

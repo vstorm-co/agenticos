@@ -780,3 +780,59 @@ async def test_sharing_waits_for_a_correction_to_its_shared_source(
         with pytest.raises(ConflictError, match="no longer current"):
             await task
         await reader.rollback()
+
+
+async def test_descendant_share_waits_for_personal_ancestry_erasure(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from app.core.exceptions import ConflictError
+    from app.db.locks import LockScope, hold_subject
+    from app.services.memory import _claims
+
+    org, user, _, _ = await _tenant(db)
+    personal = ClaimScope(person_owner_key(user.id), None)
+    root = (await _say(db, org, personal, "Private origin")).claim
+    project = await claims.share(
+        db, claim=root, to=ClaimScope(f"project:{uuid.uuid4()}", None), author_user_id=user.id
+    )
+    await db.commit()
+    sessions = async_sessionmaker(db.bind, expire_on_commit=False)
+    entered = asyncio.Event()
+    hold = _claims._hold_person
+    async with sessions() as erasing, sessions() as sharing:
+        stale = await claim_repo.get(sharing, organization_id=org.id, claim_id=project.id)
+        assert stale is not None
+        await hold_subject(erasing, LockScope.PERSONAL_DATA_PER_USER, user.id)
+
+        async def observe(session, key):
+            if session is sharing and key == personal.scope_key:
+                entered.set()
+            await hold(session, key)
+
+        monkeypatch.setattr(_claims, "_hold_person", observe)
+        task = asyncio.create_task(
+            claims.share(
+                sharing,
+                claim=stale,
+                to=ClaimScope(organization_owner_key(org.id), None),
+                author_user_id=user.id,
+            )
+        )
+        await asyncio.wait_for(entered.wait(), 2)
+        assert not task.done()
+        await claim_repo.delete_for_scope(
+            erasing, organization_id=org.id, scope_key=personal.scope_key
+        )
+        await erasing.commit()
+        with pytest.raises(ConflictError, match="no longer current"):
+            await task
+    assert (
+        await claim_repo.list_in_scopes(
+            db, organization_id=org.id, scopes=[ClaimScope(organization_owner_key(org.id), None)]
+        )
+        == []
+    )

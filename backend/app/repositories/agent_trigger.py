@@ -489,3 +489,18 @@ async def claim_ended(db: AsyncSession, *, now: datetime, limit: int) -> list[Ag
         .execution_options(populate_existing=True)
     )
     return list(result.all())
+
+
+async def revoke_member_authority(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID
+) -> None:
+    """A later invitation must not revive this membership's unattended consents."""
+    await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.organization_id == organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+        )
+        .values(is_active=False, approved_sources=None, action_consents=[])
+    )
+    await db.flush()

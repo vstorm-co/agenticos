@@ -449,3 +449,24 @@ async def delete_for_agent(db: AsyncSession, *, organization_id: UUID, agent_id:
     )
     await db.flush()
     return (result.rowcount or 0) + copies  # ty: ignore[unresolved-attribute]
+
+
+async def ancestry_scope_keys(
+    db: AsyncSession, *, organization_id: UUID, claim_id: UUID
+) -> set[str]:
+    """Find every source audience without exposing ancestor contents to a caller."""
+    seen: set[UUID] = set()
+    frontier = [claim_id]
+    keys: set[str] = set()
+    while frontier:
+        rows = (
+            await db.execute(
+                select(MemoryClaim.scope_key, MemoryClaim.derived_from).where(
+                    MemoryClaim.organization_id == organization_id, MemoryClaim.id.in_(frontier)
+                )
+            )
+        ).all()
+        seen.update(frontier)
+        keys.update(row.scope_key for row in rows)
+        frontier = sorted({UUID(str(parent)) for row in rows for parent in row.derived_from} - seen)
+    return keys

@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Revoke unattended routine and telephone consent when a member leaves; stop personal coding tasks when their source conversation becomes editable by collaborators, and serialize descendant memory sharing with personal erasure.
+
 - Include private task records, retained history, column schemas and routine action consents in bounded personal-data exports. Serialize shared memory corrections with sharing and durably end superseded routine telephone calls.
 
 - Cancel important-case telephone calls when their notification is read or the case is settled, including calls already starting or active; serialize admission and queue provider cleanup. Reject abandoned Google consent after membership removal, block inaccessible reminders for review, and preserve native drafts on embedded and background streams.

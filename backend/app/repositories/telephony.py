@@ -385,3 +385,13 @@ async def organization_has_unfinished_calls(db: AsyncSession, organization_id: U
             )
         )
     )
+
+
+async def delete_member_contact(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -> None:
+    """Remove organization-specific telephone opt-ins when membership ends."""
+    await db.execute(
+        delete(PhoneContact).where(
+            PhoneContact.organization_id == organization_id, PhoneContact.user_id == user_id
+        )
+    )
+    await db.flush()

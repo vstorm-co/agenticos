@@ -233,6 +233,8 @@ async def test_codex_refresh_preserves_owner_identity_and_checks_the_written_pai
         "success",
         "failure",
         "revoke",
+        "share",
+        "share_before_publish",
         "cancel",
         "codex",
         "cleanup",
@@ -343,6 +345,37 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
                     row.enabled = False
                 with anyio.fail_after(5):
                     await anyio.sleep_forever()
+            if ending in ("share", "share_before_publish"):
+                from app.db.models.conversation import Conversation
+                from app.db.models.conversation_share import ConversationShare
+
+                async with connection() as db:
+                    collaborator = await person(db)
+                    db.add(
+                        OrganizationMember(
+                            organization_id=org.id, user_id=collaborator.id, role="member"
+                        )
+                    )
+                    db.add(
+                        Conversation(
+                            id=run.deps.conversation_id,
+                            organization_id=org.id,
+                            user_id=owner.id,
+                            title="Private task",
+                        )
+                    )
+                    await db.flush()
+                    db.add(
+                        ConversationShare(
+                            conversation_id=run.deps.conversation_id,
+                            shared_with=collaborator.id,
+                            shared_by=owner.id,
+                            permission="edit",
+                        )
+                    )
+                if ending == "share":
+                    with anyio.fail_after(5):
+                        await anyio.sleep_forever()
             if ending == "wait":
                 await anyio.sleep(2.1)
             if ending == "cancel":
@@ -352,10 +385,18 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
 
     archive_path = ""
     with anyio.CancelScope() as scope:
-        if ending in ("failure", "revoke", "cleanup", "failure_cleanup", "missing_workspace"):
+        if ending in (
+            "failure",
+            "revoke",
+            "share",
+            "share_before_publish",
+            "cleanup",
+            "failure_cleanup",
+            "missing_workspace",
+        ):
             error = (
                 AuthorizationError
-                if ending == "revoke"
+                if ending in ("revoke", "share", "share_before_publish")
                 else ExternalServiceError
                 if ending == "cleanup"
                 else RuntimeError

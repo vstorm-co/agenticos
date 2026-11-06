@@ -292,8 +292,11 @@ async def share(
         )
     # Acquire person locks before scope locks, then scopes in a stable order:
     # simultaneous cross-scope shares must not deadlock each other or erasure.
+    ancestry = await claim_repo.ancestry_scope_keys(
+        db, organization_id=claim.organization_id, claim_id=claim.id
+    )
     keys = sorted({claim.scope_key, to.scope_key})
-    for key in keys:
+    for key in sorted(ancestry | set(keys)):
         await _hold_person(db, key)
     for key in keys:
         await _hold_scope(db, organization_id=claim.organization_id, scope_key=key)
@@ -302,6 +305,11 @@ async def share(
         raise ConflictError(
             message="That claim is no longer current", details={"claim_id": claim.id}
         )
+    refreshed_ancestry = await claim_repo.ancestry_scope_keys(
+        db, organization_id=claim.organization_id, claim_id=claim.id
+    )
+    if {key for key in refreshed_ancestry - ancestry if is_person_key(key)}:
+        raise ConflictError(message="The claim ancestry changed; retry sharing")
     claim = current
     result = await remember(
         db,

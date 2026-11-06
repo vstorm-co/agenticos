@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { useTableDefaultView } from "./use-table-views";
 import { createView, updateView } from "@/lib/table-views-api";
 import { updateTable } from "@/lib/tables-api";
@@ -78,4 +79,16 @@ it("copies another owner's view rather than discarding the current grouping", as
     expect.objectContaining({ config, visibility: "shared" }),
   );
   expect(updateTable).toHaveBeenCalledWith("tasks", { default_view_id: "copy" });
+});
+
+it("keeps a refused default-view update visible instead of reporting success", async () => {
+  vi.mocked(createView).mockRejectedValue(new Error("Table permissions changed"));
+  const { result } = renderHook(() => useTableDefaultView("tasks"), { wrapper });
+  await act(async () => {
+    await result.current
+      .mutateAsync({ view: null, kind: "kanban", config: emptyViewConfig(), names: [] })
+      .catch(() => undefined);
+  });
+  expect(toast.error).toHaveBeenCalled();
+  expect(updateTable).not.toHaveBeenCalled();
 });

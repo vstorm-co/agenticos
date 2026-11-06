@@ -44,7 +44,9 @@ class PersonalCodingSessionFactory:
     redis: RedisClient | None = None
     project_id: UUID | None = None
 
-    async def _active(self, account_id: UUID, generation: UUID) -> bool:
+    async def _active(
+        self, account_id: UUID, generation: UUID, conversation_id: UUID | None = None
+    ) -> bool:
         async with get_db_context() as db:
             membership = await member_repo.get(
                 db, organization_id=self.ctx.organization_id, user_id=account_owner(self.ctx)
@@ -68,6 +70,14 @@ class PersonalCodingSessionFactory:
                 try:
                     await project_for_workspace(db, fresh, self.project_id)
                 except NotFoundError, AuthorizationError:
+                    return False
+            if conversation_id is not None:
+                shares = await conversation_share_repo.get_shares_for_conversation(
+                    db, conversation_id, organization_id=self.ctx.organization_id
+                )
+                if any(
+                    share.shared_with is not None and share.permission == "edit" for share in shares
+                ):
                     return False
             return True
 
@@ -129,7 +139,7 @@ class PersonalCodingSessionFactory:
         self, ctx: RunContext[AgentDeps], account: CodingAccount, harness: Harness
     ) -> AsyncGenerator[PersonalCodingTask]:
         owner = account_owner(self.ctx)
-        if not await self._active(account.id, account.generation):
+        if not await self._active(account.id, account.generation, ctx.deps.conversation_id):
             raise AuthorizationError(message="Permission to use this coding account was revoked")
         value = unseal_secret(
             account.sealed_secret,
@@ -210,7 +220,9 @@ class PersonalCodingSessionFactory:
                         nonlocal revoked
                         while True:
                             await anyio.sleep(2)
-                            if not await self._active(account.id, account.generation):
+                            if not await self._active(
+                                account.id, account.generation, ctx.deps.conversation_id
+                            ):
                                 revoked = True
                                 group.cancel_scope.cancel()
                                 return
@@ -225,7 +237,9 @@ class PersonalCodingSessionFactory:
                         group.cancel_scope.cancel()
                 if task_error is not None and not revoked:
                     raise task_error
-                if revoked or not await self._active(account.id, account.generation):
+                if revoked or not await self._active(
+                    account.id, account.generation, ctx.deps.conversation_id
+                ):
                     raise AuthorizationError(
                         message="The personal coding account was revoked while the task ran"
                     )
@@ -241,7 +255,12 @@ class PersonalCodingSessionFactory:
                 if isinstance(value, OpenAICodexSecret):
                     current = await codex.load()
                     forbidden += (current.access_token, current.refresh_token)
-                await ctx.workspace.write_bytes(task.result_archive, result.archive(forbidden))
+                archive = result.archive(forbidden)
+                if not await self._active(account.id, account.generation, ctx.deps.conversation_id):
+                    raise AuthorizationError(
+                        message="The coding workspace is no longer private or its account was revoked"
+                    )
+                await ctx.workspace.write_bytes(task.result_archive, archive)
                 succeeded = True
             finally:
                 with anyio.CancelScope(shield=True):

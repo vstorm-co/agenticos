@@ -12,6 +12,8 @@ vi.mock("@/components/chat/markdown-content", () => ({
       <a href="./checklist.md">Open checklist</a>
     ) : content === "Missing link" ? (
       <a href="./missing.md">Find missing note</a>
+    ) : content === "Malformed link" ? (
+      <a href="./bad%ZZ.md">Malformed target</a>
     ) : (
       <p>{content}</p>
     ),
@@ -121,4 +123,18 @@ it("searches the whole note store when an index target is outside the loaded pag
   await userEvent.click(await screen.findByRole("link", { name: "Find missing note" }));
   expect(useMyMemory).toHaveBeenLastCalledWith("missing.md");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("ignores malformed index links without replacing the visible note", async () => {
+  mount({ content: "Malformed link" });
+  await userEvent.click(screen.getByRole("button", { name: /checklist.md/ }));
+  await userEvent.click(await screen.findByRole("link", { name: "Malformed target" }));
+  expect(screen.getByRole("dialog")).toBeVisible();
+  expect(useMyMemory).not.toHaveBeenLastCalledWith("bad%ZZ.md");
+});
+it("clears a whole-store search with no matching notes", async () => {
+  mount({}, []);
+  await userEvent.type(screen.getByRole("textbox", { name: "searchNotes" }), "unmatched");
+  await userEvent.click(screen.getByRole("button", { name: "clearFilters" }));
+  expect(screen.getByRole("textbox", { name: "searchNotes" })).toHaveValue("");
 });

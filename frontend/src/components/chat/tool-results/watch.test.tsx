@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { ToolCall } from "@/types";
-import { writtenWatches } from "./watch";
+import { WatchResult, writtenWatches } from "./watch";
 
 const id = "00000000-0000-4000-8000-000000000001";
 const connection = "00000000-0000-4000-8000-000000000002";
@@ -36,4 +37,12 @@ describe("watch references", () => {
   ])("ignores a refusal, malformed data or untrusted tool: %j", (change) => {
     expect(writtenWatches([call(change)])).toEqual([]);
   });
+});
+
+vi.mock("@/components/watches/watches-card", () => ({
+  WatchesCard: ({ watchId }: { watchId: string }) => <p>{watchId}</p>,
+}));
+it("renders a watch through its authorized management card", () => {
+  render(<WatchResult watchId={id} />);
+  expect(screen.getByText(id)).toBeVisible();
 });

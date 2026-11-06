@@ -59,6 +59,16 @@ def _row(**overrides) -> Notification:
     return Notification(**fields)
 
 
+@pytest.fixture(autouse=True)
+def no_telephone_case_notifications(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These route fixtures are ordinary run events; case cleanup has SQL coverage."""
+    monkeypatch.setattr(
+        notification_center.notification_repo,
+        "outcome_ids_for_notifications",
+        AsyncMock(return_value=[]),
+    )
+
+
 @pytest.fixture
 def client(mock_redis: MagicMock) -> Iterator[OpenClient]:
     context = AuthContext(

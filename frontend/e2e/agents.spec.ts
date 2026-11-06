@@ -584,6 +584,7 @@ test.describe("Agents", () => {
     await saveDraft(page);
 
     await page.reload();
+    await page.getByText("Model settings", { exact: true }).click();
 
     await expect(page.getByLabel("Temperature")).toHaveValue("0.95");
     await expect(page.getByText("0.95")).toBeVisible();
@@ -594,6 +595,7 @@ test.describe("Agents", () => {
     await saveDraft(page);
 
     await page.reload();
+    await page.getByText("Model settings", { exact: true }).click();
 
     await expect(page.getByRole("button", { name: "Use provider default" })).toBeHidden();
     await expect(page.getByText("Provider default").first()).toBeVisible();

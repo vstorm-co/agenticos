@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ToolCall } from "@/types";
 import { platformObjects, PlatformObjects, platformCallError } from "./platform-objects";
 
@@ -83,4 +83,23 @@ it("recognizes a platform refusal even when the transport completed", () => {
   expect(
     platformCallError(call("other_tool", { error: { message: "Not a platform envelope" } })),
   ).toBeNull();
+});
+
+it("ignores malformed provider JSON instead of presenting it as a platform object", () => {
+  expect(
+    platformObjects([{ ...call("agenticos_create_project", null), result: "{invalid" }]),
+  ).toEqual([]);
+});
+
+it("does not hide an unexpected parser failure as an empty object list", () => {
+  const parse = vi.spyOn(JSON, "parse").mockImplementationOnce(() => {
+    throw new Error("Parser failed");
+  });
+  try {
+    expect(() => platformObjects([call("agenticos_create_project", { id })])).toThrow(
+      "Parser failed",
+    );
+  } finally {
+    parse.mockRestore();
+  }
 });

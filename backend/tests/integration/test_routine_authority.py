@@ -579,3 +579,24 @@ async def test_changing_result_policy_requires_a_new_run(db: AsyncSession):
     await db.flush()
     with pytest.raises(AuthorizationError):
         await authority.check_in(db, world.agent.id)
+
+
+async def test_leaving_and_rejoining_cannot_restore_routine_waivers(db: AsyncSession) -> None:
+    from app.services.member import end_membership
+
+    world = await _world(db)
+    world.trigger.action_consents = [{"tool_name": "send_mail"}]
+    world.trigger.approved_sources = {"old_membership": True}
+    world.trigger.is_active = True
+    await db.flush()
+    await end_membership(db, world.member)
+    db.add(
+        OrganizationMember(
+            organization_id=world.organization.id, user_id=world.user.id, role="viewer"
+        )
+    )
+    await db.flush()
+    await db.refresh(world.trigger)
+    assert not world.trigger.is_active
+    assert world.trigger.action_consents == []
+    assert world.trigger.approved_sources is None
