@@ -197,7 +197,7 @@ describe("CheckAgents", () => {
     );
   });
 
-  it("breaks an older check's stages down from their runs, an unfinished case as not known", async () => {
+  it("breaks an older check's stages down from their runs, an unfinished or changed case as not known", async () => {
     const flip = (kind: string) => ({ flip: kind });
     compared.comparison = {
       cases: [
@@ -208,11 +208,12 @@ describe("CheckAgents", () => {
         flip("incomplete"),
       ] as EvalComparison["cases"],
       not_compared: 2,
+      changed: 1,
     };
     render(<CheckAgents check={skillCheck({ agents: [checkAgent("Refunds", "worse")] })} />);
     await openAll();
 
-    expect(screen.getByText("2 better · 1 same · 1 worse · 3 not known")).toBeInTheDocument();
+    expect(screen.getByText("2 better · 1 same · 1 worse · 4 not known")).toBeInTheDocument();
     expect(asked.enabled).toContain(true);
   });
 

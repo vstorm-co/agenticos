@@ -19,7 +19,7 @@ export function countsOf(comparison: EvalComparison): StageCounts {
     fixed,
     broken,
     unchanged,
-    unknown: flips("incomplete") + comparison.not_compared,
+    unknown: flips("incomplete") + comparison.not_compared + comparison.changed,
   };
 }
 
