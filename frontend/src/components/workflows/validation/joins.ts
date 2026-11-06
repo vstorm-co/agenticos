@@ -24,7 +24,7 @@
 import type { NodeInstance, WorkflowEdge, WorkflowGraph } from "@/lib/workflows/types";
 import { routesErrors } from "@/lib/workflows/ports";
 
-import { kahn, type DefinitionMap } from "./topology";
+import { kahn, loopItemOf, type DefinitionMap } from "./topology";
 
 /** The most terms a condition keeps before it is `unknown`. */
 export const MAX_TERMS = 64;
@@ -381,8 +381,10 @@ function analyseScope(
     }
   }
   const { order } = kahn(members, within);
+  // The top level starts at its entry, a body at its `loop.item` - no wire leads into one.
+  const root = level === null ? graph.entry_node_id : loopItemOf(graph, level);
   for (const nodeId of order) {
-    if (nodeId === graph.entry_node_id && level === null) {
+    if (nodeId === root) {
       conditions.set(nodeId, ALWAYS);
       continue;
     }
@@ -411,7 +413,8 @@ function analyseScope(
   for (const nodeId of order) {
     const condition = conditions.get(nodeId);
     if (condition === undefined) continue;
-    const before = new Set<string>();
+    // A body's item runs once its loop has: what precedes the loop precedes the body.
+    const before = new Set<string>(nodeId === root && level !== null ? [level] : []);
     for (const { source } of sources.get(nodeId) ?? []) {
       if (source === level) before.add(source);
       else if (conditions.has(source)) {

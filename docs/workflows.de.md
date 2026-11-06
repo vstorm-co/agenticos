@@ -1,5 +1,5 @@
 ---
-source_sha: "1e44896d7e1d"
+source_sha: "08e1516001c1"
 ---
 
 # Workflows { #workflows }
@@ -128,7 +128,7 @@ Jeder Knoten ist eine Karte mit dem Symbol des Schritts, seinem Namen und einer 
 darunter: was er tun soll - eine Bedingung, eine URL, die Zahl der zugeordneten
 Felder - danach der Agent, das Modell oder die Tabelle, mit denen er arbeitet. Ein
 Schritt mit mehr als einem Ausgang nennt seine Ports beim Namen: **true** und
-**false**, **Each item** und **Done** und einen roten **Error**-Port an einem
+**false**, das **Done** einer Schleife und einen roten **Error**-Port an einem
 Schritt, der seine Fehler behandelt. Ein Schritt, der das Veröffentlichen blockiert,
 trägt eine Einrichtungsmarkierung (rot nach einem Test- oder Veröffentlichungsversuch): Darüberfahren listet die ersten Angaben auf, und
 ein Klick darauf öffnet den Schritt.
@@ -188,11 +188,12 @@ die Zeichenfläche lassen sich nur die eigenen Zeilen eines Schritts ziehen.
 
 Ein neuer Schritt landet nie auf einem anderen, wird ausgewählt, öffnet seine
 Einstellungen, wenn er welche hat, und die Zeichenfläche scrollt zu ihm, wenn er
-außerhalb der Ansicht liegt. Im Körper einer Schleife wird jeder neue Schritt in den
-Körper verdrahtet, damit er dort bleibt. Die Auswahl zeigt, was an Ihrer Stelle
-gültig ist: **Loop item** und **Loop result** nur im Körper einer Schleife und eine
-Schleife, solange Schleifen nicht so tief verschachtelt sind, wie das Veröffentlichen
-erlaubt.
+außerhalb der Ansicht liegt. Ein Schritt, der im Körper einer Schleife hinzugefügt
+oder eingefügt wird, gehört zu diesem Körper: Er wird hinter dem letzten Schritt mit
+freiem Ausgang verdrahtet oder, wenn keiner einen hat, bleibt er zum Verbinden
+offen. Eine neue Schleife enthält bereits ihr **Loop item** und ihr **Loop result**,
+daher bietet die Auswahl sie nie an. Eine Schleife bietet die Auswahl an, solange Schleifen
+nicht so tief verschachtelt sind, wie das Veröffentlichen erlaubt.
 
 Ein Rechtsklick auf einen Schritt bietet **Open settings**, **Duplicate**, **Switch
 off** und **Delete step**. Sind mehrere Schritte ausgewählt, löscht eine
@@ -567,10 +568,16 @@ Körper enthält, öffnet diese Ansicht, und die **Workflow scope**-Brotkrumen i
 Ecke der Zeichenfläche zeigen, wo Sie sind, von **Workflow** hinunter zur geöffneten
 Schleife. Jede Krume führt wieder hinaus.
 
-Ein Körper beginnt bei **Loop item**, mit
-dem der **Each item**-Port der Schleife verbunden ist, und endet bei **Loop result**;
-nichts darin führt zurück zur Schleife, die über **Done** weitergeht, sobald jedes
-Element den Körper durchlaufen hat. Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
+Ein Körper beginnt bei **Loop item** und endet bei **Loop result**. Jeder Schritt
+merkt sich die Schleife, zu der er gehört, daher verschiebt das Entfernen einer
+Verbindung nie einen Schritt aus einem Körper; ein Schritt, zu dem **Loop item**
+nicht führt, wird gemeldet, bis Sie ihn verbinden. Keine Verbindung führt von der
+Schleife in ihren Körper oder zurück zur Schleife, die über **Done** weitergeht,
+sobald jedes Element den Körper durchlaufen hat. **Loop item** und **Loop result**
+verschwinden nur mit ihrer Schleife: Das Löschen der Schleife löscht ihren ganzen
+Körper, und das Kopieren kopiert den Körper mit.
+
+Die Schrittauswahl und die Binding-Quellen folgen dem Scope,
 in dem Sie sind, und ein Schritt im Körper darf alles lesen, was vor der Schleife
 lief. Was die Schleife tut, steht in der
 [Knoten-Referenz](reference/workflow-nodes.md#loops).

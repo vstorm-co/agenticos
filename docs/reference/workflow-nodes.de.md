@@ -1,5 +1,5 @@
 ---
-source_sha: "112189419852"
+source_sha: "4c0ea0dd7cf0"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -1135,9 +1135,13 @@ wiederholt, weil dieselbe Eingabe genauso scheitert.
 `control.foreach` führt seinen Rumpf einmal für jedes Element einer gebundenen
 Liste `items` aus, ein Element nach dem anderen und in Reihenfolge. Danach geht
 es über seinen Port `done` weiter, mit `results` in Eingabereihenfolge, `errors`
-und `count`. Der Rumpf beginnt bei `loop.item`, verbunden vom Port `body` der
-Schleife, das `item`, `index` und `count` bereitstellt. Er endet bei
-`loop.yield`, dessen gebundenes `value` das Ergebnis der Iteration ist. Keine
+und `count`. Der Rumpf sind die Schritte, die die Schleife in `scope_id` nennen;
+keine Kante führt in ihn hinein. Er beginnt bei `loop.item`, das `item`, `index`
+und `count` bereitstellt, und jeder Schritt darin muss von `loop.item` über die
+eigenen Kanten des Rumpfs erreicht werden. Er endet bei
+`loop.yield`, dessen gebundenes `value` das Ergebnis der Iteration ist.
+
+Keine
 Kante führt zur Schleife zurück. Ein Schritt im Rumpf darf an alles binden, was
 vor der Schleife lief, und nichts außerhalb des Rumpfs darf in ihn hinein
 binden.

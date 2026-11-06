@@ -472,7 +472,6 @@ describe("OutputPane", () => {
         {
           scope_node_id: "a",
           body_node_ids: ["b"],
-          entry_port: "body",
           exit_node_id: "a",
           exit_port: "done",
         },

@@ -1052,10 +1052,13 @@ because the same input fails the same way again.
 
 `control.foreach` runs its body once for every element of a bound `items` list,
 one element at a time and in order. It then continues through its `done` port
-with `results` in input order, `errors` and `count`. The body starts at
-`loop.item`, wired from the loop's `body` port, which provides `item`, `index`
-and `count`. It ends at `loop.yield`, whose bound `value` is the iteration's
-result. No edge leads back to the loop. A step in the body may bind to anything
+with `results` in input order, `errors` and `count`. The body is the steps that
+name the loop in `scope_id`; no wire leads into it. It starts at `loop.item`,
+which provides `item`, `index` and `count`, and every step in it must be reached
+from `loop.item` by the body's own wires. It ends at `loop.yield`, whose bound `value` is the iteration's
+result.
+
+No edge leads back to the loop. A step in the body may bind to anything
 that ran before the loop, and nothing outside the body may bind into it.
 
 The list is frozen when the loop starts, so an iteration never sees a source

@@ -132,6 +132,7 @@ from app.workflows.graph.joins import JoinVerdict, WireState, evaluate_join
 from app.workflows.graph.model import Edge, NodeInstance, WorkflowGraph, jsonb_value_fits
 from app.workflows.graph.validate import (
     FOREACH,
+    LOOP_ITEM,
     LOOP_YIELD,
     MERGE,
     derive_scopes,
@@ -139,7 +140,6 @@ from app.workflows.graph.validate import (
     owner_chain,
 )
 from app.workflows.nodes.control_foreach import (
-    BODY_PORT,
     ForeachConfig,
     ForeachItemError,
     ForeachManifest,
@@ -2757,10 +2757,11 @@ async def _start_iteration(
         )
         return []
     scope_path = [*loop_run.scope_path, {"loop_node_id": str(loop_id), "index": index}]
+    # Publishing proved the body holds exactly one item step; no wire leads to it.
     item_id = next(
-        edge.target_node_id
-        for edge in graph.edges
-        if edge.source_node_id == loop_id and edge.source_port == BODY_PORT
+        node.id
+        for node in graph.nodes
+        if node.scope_id == loop_id and node.definition_id == LOOP_ITEM
     )
     item_run = await _create_decided_node_run(
         db, run=run, target_id=item_id, runs=True, scope_path=scope_path

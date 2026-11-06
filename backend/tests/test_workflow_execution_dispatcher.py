@@ -2957,6 +2957,8 @@ class TestLoopsWithoutADatabase:
             ),
             "yield": _node_instance("loop.yield"),
         }
+        for name in ("item", "plain", "routed", "yield"):
+            nodes[name] = nodes[name].model_copy(update={"scope_id": nodes["loop"].id})
 
         def edge(a: str, b: str, port: str = "out") -> Edge:
             return Edge(
@@ -2972,7 +2974,6 @@ class TestLoopsWithoutADatabase:
             nodes=tuple(nodes.values()),
             edges=(
                 edge("entry", "loop"),
-                edge("loop", "item", "body"),
                 edge("item", "plain"),
                 edge("plain", "routed"),
                 edge("routed", "yield"),

@@ -87,22 +87,19 @@ def registered_node():
             REGISTRY.pop(node_id, None)
 
 
-def test_a_control_node_with_only_one_output_port_gets_no_derived_scope(registered_node):
+def test_a_control_node_with_no_output_port_gets_no_derived_scope(registered_node):
     definition = registered_node(
         NodeDefinition(
-            id="control.single_port",
+            id="control.no_exit",
             version=1,
-            name="Single port control",
+            name="Control with no way out",
             category="control",
-            description="only one output port, so it owns no scope",
+            description="no output port to continue through, so it owns no scope",
             kind="control",
             config_schema=None,
             input_schema=None,
             output_schema=None,
-            ports=(
-                Port(id="in", label="In", kind="input"),
-                Port(id="out", label="Out", kind="output"),
-            ),
+            ports=(Port(id="in", label="In", kind="input"),),
             effect_kind="pure",
             retry_guarantee="idempotent",
         )
@@ -120,11 +117,9 @@ def test_a_control_node_with_only_one_output_port_gets_no_derived_scope(register
     assert derived.scopes == ()
 
 
-def test_a_scope_body_with_a_diamond_and_a_loop_back_edge_is_derived_once_each(registered_node):
-    """Two paths converging on one body node, and a `continue`-style edge
-    back into the loop node, are exactly the shapes a real `control.foreach`
-    body has: `_body_reachable_from` must visit each body node once and never
-    re-enter `scope_node_id`."""
+def test_a_scope_body_is_the_steps_naming_it_whatever_their_wires(registered_node):
+    """A diamond, an edge back into the loop node and one back to an earlier
+    body step change nothing: membership is `scope_id`, never the wiring."""
     loop_def = registered_node(
         NodeDefinition(
             id="control.synthetic_loop",
@@ -138,7 +133,6 @@ def test_a_scope_body_with_a_diamond_and_a_loop_back_edge_is_derived_once_each(r
             output_schema=None,
             ports=(
                 Port(id="in", label="In", kind="input"),
-                Port(id="body", label="Body", kind="output"),
                 Port(id="done", label="Done", kind="output"),
             ),
             effect_kind="pure",
@@ -149,23 +143,19 @@ def test_a_scope_body_with_a_diamond_and_a_loop_back_edge_is_derived_once_each(r
     loop_node = NodeInstance(
         id=uuid4(), definition_id=loop_def.id, definition_version=1, config={}, layout=_pos()
     )
-    b1, b2, b3 = _echo_node(), _echo_node(), _echo_node()
+    b1, b2, b3 = (_echo_node(scope_id=loop_node.id) for _ in range(3))
+    after = _echo_node()
     edges = (
         _edge(entry.id, "out", loop_node.id, "in"),
-        _edge(loop_node.id, "body", b1.id, "in"),
-        _edge(loop_node.id, "body", b2.id, "in"),
         _edge(b1.id, "out", b3.id, "in"),
         _edge(b2.id, "out", b3.id, "in"),
-        # Closes the iteration: leads back into the loop node itself, not
-        # further into the body.
         _edge(b3.id, "out", loop_node.id, "in"),
-        # A second edge out of `b3`, back to `b1` - already visited by the
-        # time `b3` is processed, so this is the walk's "do not re-enqueue an
-        # already-seen node" branch, distinct from "never re-enter the scope
-        # node" above.
         _edge(b3.id, "out", b1.id, "in"),
+        _edge(loop_node.id, "done", after.id, "in"),
     )
-    graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry, loop_node, b1, b2, b3), edges=edges)
+    graph = WorkflowGraph(
+        entry_node_id=entry.id, nodes=(entry, loop_node, b1, b2, b3, after), edges=edges
+    )
     derived = derive_scopes(graph)
     scope = next(s for s in derived.scopes if s.scope_node_id == loop_node.id)
     assert scope.body_node_ids == frozenset({b1.id, b2.id, b3.id})
@@ -184,7 +174,6 @@ def _foreach_def(node_id: str) -> NodeDefinition:
         output_schema=None,
         ports=(
             Port(id="in", label="In", kind="input"),
-            Port(id="body", label="Body", kind="output"),
             Port(id="done", label="Done", kind="output"),
         ),
         effect_kind="pure",
@@ -195,12 +184,11 @@ def _foreach_def(node_id: str) -> NodeDefinition:
 def test_nested_scope_ownership_resolves_to_the_innermost_regardless_of_node_order(
     registered_node,
 ):
-    """An outer scope's body BFS only refuses to re-enter its own
-    `scope_node_id` - it walks straight through a nested loop into that
-    loop's own body, so both boundaries list the shared interior node.
-    `_node_scope_map` must resolve ownership to the inner loop either way,
-    not to whichever of the two scopes happens to come last in
-    `graph.scopes` because of `graph.nodes`' own order."""
+    """An outer scope's body holds a nested loop's body too, so both
+    boundaries list the shared interior node. `node_scope_map` must resolve
+    ownership to the inner loop either way, not to whichever of the two
+    scopes happens to come last in `graph.scopes` because of `graph.nodes`'
+    own order."""
     outer_def = registered_node(_foreach_def("control.foreach_outer"))
     inner_def = registered_node(_foreach_def("control.foreach_inner"))
     entry = _echo_node()
@@ -208,16 +196,15 @@ def test_nested_scope_ownership_resolves_to_the_innermost_regardless_of_node_ord
         id=uuid4(), definition_id=outer_def.id, definition_version=1, config={}, layout=_pos()
     )
     inner = NodeInstance(
-        id=uuid4(), definition_id=inner_def.id, definition_version=1, config={}, layout=_pos()
+        id=uuid4(),
+        definition_id=inner_def.id,
+        definition_version=1,
+        config={},
+        layout=_pos(),
+        scope_id=outer.id,
     )
-    inner_body = _echo_node()
-    edges = (
-        _edge(entry.id, "out", outer.id, "in"),
-        _edge(outer.id, "body", inner.id, "in"),
-        _edge(inner.id, "body", inner_body.id, "in"),
-        _edge(inner_body.id, "out", inner.id, "in"),
-        _edge(inner.id, "done", outer.id, "in"),
-    )
+    inner_body = _echo_node(scope_id=inner.id)
+    edges = (_edge(entry.id, "out", outer.id, "in"),)
 
     for nodes in (
         (entry, outer, inner, inner_body),

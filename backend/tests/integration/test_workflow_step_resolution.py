@@ -369,12 +369,12 @@ async def test_the_error_route_inside_a_loop_is_collected_with_its_error(
         _node("loop.yield"),
         _node("core.output"),
     )
+    item, step, yield_ = (n.model_copy(update={"scope_id": loop.id}) for n in (item, step, yield_))
     graph = WorkflowGraph(
         entry_node_id=entry.id,
         nodes=(entry, loop, item, step, yield_, out),
         edges=(
             _edge(entry, loop),
-            _edge(loop, item, "body"),
             _edge(loop, out, "done"),
             _edge(item, step),
             _edge(step, yield_),
