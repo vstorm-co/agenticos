@@ -1,12 +1,22 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toast } from "sonner";
+import { useOrgStore } from "@/stores/org-store";
+import { reportShellFailure } from "@/lib/desktop/shell";
+
 import { useConversationStore } from "@/stores";
 import { useLocalAccessStore } from "@/stores/local-access-store";
 import { useWorkOnStore } from "@/stores/work-on-store";
 import type { Agent } from "@/types/agents";
 
 import { useLocalAccessGate, worksOnThisComputer } from "./use-local-access-gate";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@/lib/desktop/shell", async (original) => ({
+  ...(await original<typeof import("@/lib/desktop/shell")>()),
+  reportShellFailure: vi.fn(),
+}));
 
 const shell = vi.hoisted(() => ({ desktop: true, local: vi.fn() }));
 vi.mock("@/lib/desktop/commands", async (original) => ({
@@ -33,6 +43,8 @@ function gate(agent: Agent | undefined) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  useOrgStore.setState({ activeOrgId: null });
   shell.desktop = true;
   shell.local.mockResolvedValue({
     grants: [{ path: "/work", mode: "workspace_write" }],
@@ -188,5 +200,173 @@ it("waits for selected-agent metadata before sending", async () => {
   rerender({ agent: local, loading: false });
   await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
   await act(async () => useLocalAccessStore.getState().answer(whole));
+  expect(send).toHaveBeenCalledWith("hello");
+});
+
+it("fails closed when selected-agent metadata could not load", () => {
+  const send = vi.fn();
+  const { result } = renderHook(() =>
+    useLocalAccessGate(send, undefined, {
+      selectedAgentId: local.id,
+      metadataPending: false,
+    }),
+  );
+  result.current("hello");
+  expect(send).not.toHaveBeenCalled();
+  expect(toast.error).toHaveBeenCalledOnce();
+});
+
+it.each(["agent", "conversation", "organization", "missing"] as const)(
+  "does not replay a metadata-waiting message after its %s changed",
+  (change) => {
+    const send = vi.fn();
+    const initial: { agent: Agent | undefined; loading: boolean } = {
+      agent: undefined,
+      loading: true,
+    };
+    const { result, rerender } = renderHook(
+      ({ agent, loading }: typeof initial) =>
+        useLocalAccessGate(send, agent, { selectedAgentId: local.id, metadataPending: loading }),
+      { initialProps: initial },
+    );
+    act(() => result.current("hello"));
+    if (change === "conversation")
+      useConversationStore.setState({ currentConversationId: "other" });
+    if (change === "organization") useOrgStore.setState({ activeOrgId: "other" });
+    rerender({
+      agent: change === "missing" ? undefined : change === "agent" ? cloud : local,
+      loading: false,
+    });
+    expect(send).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledOnce();
+  },
+);
+
+it("refuses a legacy remembered consent and asks for this conversation", async () => {
+  const { computer_grant_agent: _owner, ...legacy } = whole;
+  useWorkOnStore.getState().rememberForAgent(local.id, legacy);
+  const { send, gated } = gate(local);
+  gated("hello");
+  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("uses legacy native consent only within the conversation that chose it", async () => {
+  const { computer_grant_agent: _owner, ...legacy } = whole;
+  shell.local.mockResolvedValue({ grants: [], modes: ["full_access"] });
+  useWorkOnStore.getState().set("chat", legacy);
+  const { send, gated } = gate(local);
+  gated("hello");
+  await waitFor(() => expect(send).toHaveBeenCalledWith("hello"));
+});
+
+it("does not reuse remembered consent when an older app cannot verify it", async () => {
+  shell.local.mockResolvedValue({ grants: [], modes: ["full_access"] });
+  useWorkOnStore.getState().rememberForAgent(local.id, whole);
+  const { send, gated } = gate(local);
+  gated("hello");
+  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("asks again after native whole-computer consent was revoked", async () => {
+  shell.local.mockResolvedValue({ grants: [], modes: ["full_access"], computer_grants: [] });
+  useWorkOnStore.getState().set("chat", whole);
+  const { send, gated } = gate(local);
+  gated("hello");
+  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("does not reuse a folder after its access mode was narrowed", async () => {
+  useWorkOnStore.getState().rememberForAgent(local.id, { folder: "/work", mode: "full_access" });
+  const { send, gated } = gate(local);
+  gated("hello");
+  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+  expect(send).not.toHaveBeenCalled();
+});
+
+it.each(["explicit", "remembered"] as const)(
+  "abandons %s access if the chat changed during native validation",
+  async (choice) => {
+    let settle!: (value: { grants: []; modes: []; computer_grants: string[] }) => void;
+    shell.local.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    if (choice === "explicit") useWorkOnStore.getState().set("chat", whole);
+    else useWorkOnStore.getState().rememberForAgent(local.id, whole);
+    const { send, gated } = gate(local);
+    gated("hello");
+    await waitFor(() => expect(shell.local).toHaveBeenCalled());
+    useConversationStore.setState({ currentConversationId: "other" });
+    await act(async () => settle({ grants: [], modes: [], computer_grants: ["consent"] }));
+    expect(send).not.toHaveBeenCalled();
+    expect(useLocalAccessStore.getState().asking).toBeNull();
+  },
+);
+
+it("does not open an access dialog after a synchronous conversation switch", async () => {
+  const { send, gated } = gate(local);
+  gated("hello");
+  useConversationStore.setState({ currentConversationId: "other" });
+  await act(async () => {});
+  expect(send).not.toHaveBeenCalled();
+  expect(useLocalAccessStore.getState().asking).toBeNull();
+});
+
+it.each([true, false])(
+  "reports a native access failure and only toasts in the same context (%s)",
+  async (stay) => {
+    let reject!: (error: Error) => void;
+    shell.local.mockReturnValue(
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+    );
+    useWorkOnStore.getState().set("chat", whole);
+    const { send, gated } = gate(local);
+    gated("hello");
+    if (!stay) useOrgStore.setState({ activeOrgId: "other" });
+    await act(async () => reject(new Error("Native bridge unavailable")));
+    expect(reportShellFailure).toHaveBeenCalledOnce();
+    expect(toast.error).toHaveBeenCalledTimes(stay ? 1 : 0);
+    expect(send).not.toHaveBeenCalled();
+  },
+);
+
+it("checks the latest agent before applying a delayed native choice", async () => {
+  const send = vi.fn();
+  const { result, rerender } = renderHook(({ agent }) => useLocalAccessGate(send, agent), {
+    initialProps: { agent: local },
+  });
+  result.current("hello");
+  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+  rerender({ agent: cloud });
+  await act(async () => useLocalAccessStore.getState().answer(whole));
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("remembers a chosen folder for the agent without requiring whole-computer consent", async () => {
+  const { send, gated } = gate(local);
+  gated("hello");
+  await waitFor(() => expect(useLocalAccessStore.getState().asking).not.toBeNull());
+  const folder = { folder: "/work", mode: "workspace_write" } as const;
+  await act(async () => useLocalAccessStore.getState().answer(folder));
+  expect(send).toHaveBeenCalledWith("hello");
+  expect(useWorkOnStore.getState().agentTargetFor(local.id)).toEqual(folder);
+});
+
+it("respects an already-open project's cloud workspace", () => {
+  const send = vi.fn();
+  const { result } = renderHook(() =>
+    useLocalAccessGate(send, local, {
+      selectedAgentId: local.id,
+      metadataPending: false,
+      projectId: "project",
+    }),
+  );
+  result.current("hello");
   expect(send).toHaveBeenCalledWith("hello");
 });
