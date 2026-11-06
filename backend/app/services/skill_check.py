@@ -981,6 +981,10 @@ class SkillCheckService:
             for kind, run_id in runs
         ]
         stages = [_stage_comparison(comparison) for _, _, comparison in compared]
+        counted = [
+            await self._stage_counts(ctx, kind, run_id, comparison)
+            for kind, run_id, comparison in compared
+        ]
         result = rules.pooled(stages, minimum=MIN_HOLDOUT_CASES)
         state = rules.agent_state(stages, minimum=MIN_HOLDOUT_CASES)
         await skill_check_repo.update_agent(
@@ -993,14 +997,11 @@ class SkillCheckService:
                 else None,
                 "fixed": result.check.fixed_confirmed + result.fixed_unconfirmed,
                 "broken": result.check.regressions_confirmed + result.regressions_unconfirmed,
-                "held_out": result.compared,
+                "held_out": sum(int(entry["compared"]) for entry in counted),
                 "fixed_confirmed": result.check.fixed_confirmed,
                 "regressions_confirmed": result.check.regressions_confirmed,
                 "noisy": rules.noisy(result),
-                "stages": [
-                    await self._stage_counts(ctx, kind, run_id, comparison)
-                    for kind, run_id, comparison in compared
-                ],
+                "stages": counted,
             },
         )
 

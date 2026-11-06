@@ -1687,6 +1687,7 @@ class TestStageCounts:
             assert stage.counts.compared == held - 1
             assert stage.counts.compared + stage.counts.unknown == held
             assert stage.counts.unchanged == held - 2
+        assert a.held_out == sum(stage.counts.compared for stage in a.stages if stage.counts)
 
     async def test_an_agent_the_reader_may_not_see_shows_no_counts(self, db, monkeypatch):
         lab = await _lab(db)
