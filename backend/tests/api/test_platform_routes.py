@@ -248,6 +248,8 @@ _SPEC: dict[str, Any] = {"name": "Support"}
 # tests/test_agent_registry.py, tests/test_skills.py and the grant flows in
 # tests/integration/test_platform_flows.py.
 CALLS: tuple[Call, ...] = (
+    Call("GET", "/approvals/consents", Perm.APPROVALS_DECIDE),
+    Call("DELETE", "/approvals/{approval_id}/consent", Perm.APPROVALS_DECIDE),
     Call("GET", "/api-keys/scopes", Perm.API_KEYS_CREATE),
     Call(
         "POST",
@@ -1296,6 +1298,8 @@ class TestReadingWhatARunIsParkedOn:
                 "capability_tool_id": None,
                 "context": None,
                 "account": None,
+                "can_remember": False,
+                "subagent_name": None,
             },
             {
                 "id": str(shared_id),
@@ -1306,6 +1310,8 @@ class TestReadingWhatARunIsParkedOn:
                 "capability_tool_id": "update_record",
                 "context": {"table": "Support"},
                 "account": None,
+                "can_remember": False,
+                "subagent_name": None,
             },
         ]
 

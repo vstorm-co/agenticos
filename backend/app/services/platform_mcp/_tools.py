@@ -21,6 +21,7 @@ from uuid import UUID
 from pydantic import JsonValue
 
 from app.agents.spec import CapabilityBindingSpec, McpServerRef
+from app.schemas.agent import QuestionAnswers
 from app.schemas.context import ContextFileCreate, ContextFileUpdate
 from app.schemas.routine_notifications import ExternalNotificationChannel, WatchReportMode
 from app.schemas.skill import SkillResourceCreate, SkillUpdate
@@ -181,7 +182,11 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return await api.request("GET", "/agents", params={"limit": limit, "skip": skip})
 
     async def get_agent(agent_id: UUID) -> dict[str, Any]:
-        """One agent: its draft and published spec, status and labels. Needs `agents:view`."""
+        """One agent: its draft and published spec, status and labels. Needs `agents:view`.
+
+        Top-level `starters` belongs to the published version; inspect
+        `draft_spec.starters` when editing an unpublished draft.
+        """
         return await api.request("GET", f"/agents/{agent_id}")
 
     async def create_agent_draft(
@@ -211,7 +216,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         published. `starters` are up to four first messages the chat offers
         whoever opens the agent. Nothing goes live: try it with
         `test_agent_draft`, then `publish_agent` - or the person does both in the
-        console.
+        console. `ask_user` and `drafts` are always included so the agent can ask
+        the person questions and present draft cards, even if omitted from capabilities.
+        Draft starters are returned inside `draft_spec.starters` until publication.
         """
         # Able to ask the person questions and to show a draft as a card, like every
         # agent the console creates.
@@ -248,10 +255,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         starters: list[str] | None = None,
         mcp_servers: list[McpServerRef] | None = None,
         context_ids: list[UUID] | None = None,
+        name: str | None = None,
     ) -> dict[str, Any]:
         """Change an agent's draft - what its next publish makes live. Needs `agents:edit` on it.
 
-        Only what you pass changes. `instructions` replaces the whole prompt, so
+        Only what you pass changes. `name` renames the agent without changing its handle.
+        `instructions` replaces the whole prompt, so
         read the current one with `get_agent` and send the edited text.
         `add_capabilities` accepts ids or configured binding objects from
         `list_capabilities`. Objects upsert only their supplied fields, preserving
@@ -268,6 +277,8 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         if "draft_spec" not in agent:
             return agent
         spec: dict[str, Any] = dict(agent["draft_spec"])
+        if name is not None:
+            spec["name"] = name
         if instructions is not None:
             spec["instructions"] = instructions
         if description is not None:
@@ -300,13 +311,28 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         A test run, as the Builder's test panel makes: budgeted, recorded and
         marked as a test. Refused with the reason when the draft would not publish -
         no model, a capability missing its key - so it is also the check before
-        `publish_agent`. Pass the answer's `conversation_id` to ask a follow-up.
-        Needs `agents:edit` on it.
+        `publish_agent`. A question pauses the test with `status: awaiting_answer`
+        and its cards in `questions`; use `answer_agent_questions` with that run_id
+        to continue, rather than inventing a refusal. Pass `conversation_id` for
+        a new turn after the test completes. Needs `agents:edit` on it.
         """
         body: dict[str, Any] = {"prompt": prompt, "draft": True}
         if conversation_id is not None:
             body["conversation_id"] = str(conversation_id)
         return await api.request("POST", f"/agents/{agent_id}/run", json=body)
+
+    async def answer_agent_questions(run_id: UUID, answers: QuestionAnswers) -> dict[str, Any]:
+        """Continue your paused agent run with answers to its question cards.
+
+        Use the `run_id` and `questions` from test_agent_draft or run_agent. In
+        answers.responses, key each entry by tool_call_id; each value is a list
+        parallel to that call's questions, with selected, answer or skipped.
+        Return the actual person's answers or explicit test fixtures. Never
+        invent a person's reply. The run can pause on another question or approval.
+        """
+        return await api.request(
+            "POST", f"/runs/{run_id}/answers", json=answers.model_dump(mode="json")
+        )
 
     async def publish_agent(agent_id: UUID, note: str | None = None) -> dict[str, Any]:
         """Make an agent's draft the version that runs. Needs `agents:publish` on it.
@@ -386,7 +412,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     async def list_knowledge_bases() -> dict[str, Any]:
         """The knowledge bases this caller can see, with each one's `collection_name`.
 
-        Needs `collections:view`.
+        Needs `collections:view`. Organization bases are tenant-scoped; personal
+        bases follow their owner across organizations. A personal base's
+        organization_id does not make its embedding key reusable in this org.
         """
         return await api.request("GET", "/kb")
 
@@ -410,7 +438,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         easiest source is a knowledge base that already works: `list_knowledge_bases`
         shows each one's `embedding_provider`, `embedding_model`, `embedding_secret_id`
         and `embedding_endpoint_id`. `list_embedding_models` lists what this
-        deployment can embed with.
+        deployment can embed with. Reuse only configuration belonging to the active
+        organization: a personal base can reference another organization's vault.
+        If no compatible key exists, ask an administrator to configure one in
+        the console; credential management is session-only, not exposed by MCP.
         """
         body: dict[str, Any] = {
             "name": name,
@@ -1261,7 +1292,10 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Name is at most 64 characters. Columns declare labels and types, including
         rich_text for Markdown notes; secrets belong in the vault, never a table.
-        Returns the definition with stable column IDs and schema_version.
+        Returns the definition with stable column IDs and schema_version. Publishing
+        an agent does not share this table with people. For a team, use the
+        console's sharing controls; never assume an org-wide agent makes its
+        private tables visible to everyone.
         """
         return await api.request(
             "POST",
@@ -1306,8 +1340,9 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
     ) -> dict[str, JsonValue]:
         """Add one typed record to a table. Needs edit access; waits for approval.
 
-        Values use column IDs or stable names read from the schema. external_id
-        optionally identifies this record in the source system. Returns the record
+        Values are keyed by column UUIDs from get_virtual_table; display labels
+        are not keys. single_select values use option UUIDs from that schema.
+        external_id optionally identifies this record in the source system. Returns the record
         and its revision; invalid values are refused, never silently converted.
         """
         return await api.request(
@@ -1452,6 +1487,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (create_agent_draft, True),
         (update_agent_draft, True),
         (test_agent_draft, True),
+        (answer_agent_questions, True),
         (publish_agent, True),
         (discard_agent_draft, True),
         (run_agent, True),

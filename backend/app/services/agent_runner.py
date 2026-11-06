@@ -6725,6 +6725,8 @@ class AgentRunnerService:
                         {
                             "conversation_id": str(run.conversation_id),
                             "message_id": str(segment.message_id),
+                            "run_id": str(run.id),
+                            "run_status": run.status,
                         },
                     )
                 return segment

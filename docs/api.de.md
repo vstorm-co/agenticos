@@ -1,5 +1,5 @@
 ---
-source_sha: "b91e3f9da2ed"
+source_sha: "cfebf1118241"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -22,6 +22,12 @@ Drei Wege hinein, für drei verschiedene Aufrufer.
 | **API-Schlüssel der Organisation** | `Authorization: Bearer aos_…` | Ein Skript, einen HTTP-Client wie Postman oder einen MCP-Client. Handelt als das Mitglied, das ihn ausgestellt hat, beschränkt auf die Berechtigungen, mit denen er ausgestellt wurde |
 | **JWT** | `Authorization: Bearer <access token>` | Eine Person oder etwas, das für sie handelt. Kurzlebig, erneuert mit einem Refresh-Token |
 | **Sitzungs-Cookie** | von der Konsole gesetzt | Nur den Browser — das Token ist HttpOnly und erreicht nie JavaScript |
+
+Organisationsschlüssel verwenden `Authorization: Bearer aos_…`. `X-API-Key` ist ein separates
+Dienstzugangsmittel der Bereitstellung; ein `aos_…`-Schlüssel dort authentifiziert keine
+Organisationsanfrage. Tresorrouten wie `GET /api/v1/secrets` und die Nachrichtenroute der Konsole
+benötigen eine angemeldete Sitzung. API-Clients lesen Unterhaltungen über `GET
+/api/v1/conversations/{id}/transcript`.
 
 ### API-Schlüssel der Organisation { #organization-api-keys }
 
@@ -188,6 +194,18 @@ antwortet. `"draft": true` führt stattdessen den unveröffentlichten Entwurf au
 das Test-Panel des Builders: ein Test-Run, für einen Key, dessen Aussteller den
 Agent bearbeiten darf, mit Begründung abgelehnt, wenn der Entwurf nicht
 veröffentlicht werden könnte, und nie mit `Prefer: respond-async`.
+
+Synchrone Läufe einschließlich Entwurfstests liefern `status: awaiting_answer` und `questions`, wenn
+der Agent die Person fragt. Antworten gehen an `POST /api/v1/runs/{run_id}/answers` mit
+`{"responses":{"<tool_call_id>":[{"selected":["Auswahl"]}]}}`; `answer` enthält Freitext, `skipped:
+true` überspringt bewusst. Eine ausstehende Antwort gilt nicht automatisch als Ablehnung. Das
+Plattform-MCP bietet denselben Ablauf mit `test_agent_draft` und `answer_agent_questions`.
+
+Der Gesprächsverlauf behält beantwortete Fragekarten und erfolgreiche Ladevorgänge verzögerter
+Capabilities. Aktuell registrierte Skills erhalten im nächsten Durchgang ihre aktuellen Anweisungen;
+entfernte Skills werden nicht reaktiviert. Historische Tabellenergebnisse ersetzen keine aktuellen
+Daten. Das oberste Agentenfeld `starters` beschreibt die veröffentlichte Version; Entwurfsstarter
+stehen unter `draft_spec.starters`.
 
 Ein Key erreicht auch die Routinen eines Agents - `GET /api/v1/triggers` sowie
 `GET`, `POST`, `PATCH` und `DELETE` unter `/api/v1/agents/{agent_id}/triggers`,

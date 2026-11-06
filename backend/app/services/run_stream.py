@@ -161,6 +161,7 @@ class RunFrames:
                         "text_delta", {"index": event.index, "content": event.part.content}
                     )
                 elif isinstance(event.part, ThinkingPart) and event.part.content:
+                    self.timeline.next_response()
                     self.timeline.add_thinking(event.part.content)
                     await self.emit(
                         "thinking_delta", {"index": event.index, "content": event.part.content}

@@ -938,6 +938,7 @@ async def run_agent(
         structured=structured,
         reports_failure=True,
         draft=data.draft,
+        parks_questions=True,
     )
     return AgentRunResult(
         run_id=run.id,
@@ -952,4 +953,5 @@ async def run_agent(
         cache_read_tokens=run.cache_read_tokens,
         cache_write_tokens=run.cache_write_tokens,
         parked=await service.parked_calls(ctx, run),
+        questions=await service.parked_questions(ctx, run),
     )

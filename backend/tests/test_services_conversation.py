@@ -31,6 +31,13 @@ def coding_participants_repo() -> Iterator[AsyncMock]:
         yield mocked
 
 
+@pytest.fixture(autouse=True)
+def capability_loads_repo(monkeypatch):
+    mocked = AsyncMock(return_value=[])
+    monkeypatch.setattr(conversation_repo, "capability_loads_in_messages", mocked)
+    return mocked
+
+
 class MockConversation:
     """Mock conversation for testing."""
 
@@ -2194,6 +2201,113 @@ class TestTheThreadAModelIsGivenBack:
 
         assert [part.content for message in history for part in message.parts] == ["hi", "hello"]
 
+    async def test_loaded_skills_survive_without_replaying_large_or_failed_tool_results(
+        self, monkeypatch, capability_loads_repo
+    ):
+        from pydantic_ai.messages import CapabilityLoadDeltaPart
+
+        conversation = MockConversation()
+        row = self._row("assistant", "Ready.")
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(conversation_repo, "get_recent_messages", AsyncMock(return_value=[row]))
+        capability_loads_repo.return_value = [
+            MockToolCall(
+                args={"id": "interview"},
+                result=json.dumps(
+                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                ),
+            ),
+            MockToolCall(
+                args={"id": "interview"},
+                result=json.dumps(
+                    {"message": "Capability 'interview' loaded. Its instructions, if any, follow."}
+                ),
+            ),
+            MockToolCall(args={"id": "missing"}, result="No capability found"),
+            MockToolCall(args={"id": "failed"}, result=json.dumps({"error": "unavailable"})),
+            MockToolCall(args={"id": 7}, result="{}"),
+            MockToolCall(args={"id": "pending"}, result=None),
+        ]
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+        assert len(history) == 2
+        assert isinstance(history[-1].parts[0], CapabilityLoadDeltaPart)
+        assert history[-1].parts[0].loaded == ["interview"]
+        assert "unavailable" not in ModelMessagesTypeAdapter.dump_json(history).decode()
+        assert capability_loads_repo.await_args.args[1] == {row.id}
+
+    async def test_replayed_loads_resolve_current_instructions_and_do_not_reactivate_unbound_skills(
+        self, capability_loads_repo
+    ):
+        from pydantic_ai import Agent
+        from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart
+        from pydantic_ai.models.function import FunctionModel
+        from pydantic_ai.models.test import TestModel
+
+        from app.agents.capabilities.skills import Skills
+        from app.db.models.skill import Skill
+        from app.services.transcript import tool_calls_in
+
+        skill = Skill(
+            name="interview",
+            description="Interview procedure",
+            content="OLD_INTERVIEW_GUIDE",
+            resources=[],
+        )
+
+        def load_once(messages, info):
+            if any(
+                isinstance(part, ToolReturnPart) for message in messages for part in message.parts
+            ):
+                return ModelResponse(parts=[TextPart("Ready.")])
+            return ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        "load_capability", {"id": "interview"}, tool_call_id="load-interview"
+                    )
+                ]
+            )
+
+        first = await Agent(FunctionModel(load_once), capabilities=[Skills([skill])]).run(
+            "Interview me"
+        )
+        capability_loads_repo.return_value = tool_calls_in(first.new_messages())
+        history = await ConversationService(AsyncMock())._restore_capability_loads(
+            [], [self._row("assistant", "Ready.")], None
+        )
+        assert history
+        skill.content = "CURRENT_INTERVIEW_GUIDE"
+        resumed = await Agent(TestModel(call_tools=[]), capabilities=[Skills([skill])]).run(
+            "Continue", message_history=history
+        )
+        dumped = ModelMessagesTypeAdapter.dump_json(resumed.all_messages()).decode()
+        assert "CURRENT_INTERVIEW_GUIDE" in dumped
+        assert "OLD_INTERVIEW_GUIDE" not in dumped
+        unbound = await Agent(TestModel(call_tools=[])).run("Continue", message_history=history)
+        assert (
+            "CURRENT_INTERVIEW_GUIDE"
+            not in ModelMessagesTypeAdapter.dump_json(unbound.all_messages()).decode()
+        )
+
+    async def test_capability_replay_excludes_refused_and_current_rows(
+        self, monkeypatch, capability_loads_repo
+    ):
+        conversation = MockConversation()
+        refused = self._row("assistant", "Refused.")
+        refused.guardrail_refused = True
+        current = self._row("user", "Now.")
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_recent_messages", AsyncMock(return_value=[refused, current])
+        )
+        await ConversationService(AsyncMock()).model_history(
+            conversation.id, limit=50, exclude_message_id=current.id
+        )
+        assert capability_loads_repo.await_args.args[1] == set()
+
     async def test_a_file_sent_earlier_is_still_in_the_history(self, monkeypatch):
         """What the attachments added to a prompt is replayed after the words, so
         "and what about March" reaches a model that still has the file."""
@@ -2263,6 +2377,43 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == ["hi"]
+
+    @pytest.mark.parametrize(
+        "answer", ["Ray", "Ray, Theo", "My own response", "(skipped)", "(no answer)"]
+    )
+    async def test_card_answers_survive_into_the_next_model_turn(self, monkeypatch, answer):
+        conversation = MockConversation()
+        response = self._row("assistant", "Thanks, let's continue.")
+        response.parts = [{"type": "ask_user", "question": "Who are you?", "answer": answer}]
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_recent_messages", AsyncMock(return_value=[response])
+        )
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+        assert isinstance(history[0], ModelRequest)
+        assert history[0].parts[0].content == f"Question: Who are you?\nAnswer: {answer}"
+        assert history[1].parts[0].content == "Thanks, let's continue."
+
+    @pytest.mark.parametrize(
+        "answer,refused", [(None, False), (42, False), ("", False), ("Secret answer", True)]
+    )
+    async def test_pending_malformed_or_refused_cards_do_not_invent_answers(
+        self, monkeypatch, answer, refused
+    ):
+        conversation = MockConversation()
+        response = self._row("assistant", "Continue.")
+        response.guardrail_refused = refused
+        response.parts = [{"type": "ask_user", "question": "Who?", "answer": answer}]
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo, "get_recent_messages", AsyncMock(return_value=[response])
+        )
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+        assert all(not isinstance(message, ModelRequest) for message in history)
 
     async def test_what_the_person_added_mid_turn_is_read_back_before_the_answer(self, monkeypatch):
         """Codex review of #2062: a steer was stored only as a part of the answer,

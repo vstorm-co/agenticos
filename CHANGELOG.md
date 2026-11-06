@@ -21,6 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve question-card answers and successful skill loads between conversation turns, without replaying full tool outputs. Join streamed thinking chunks exactly, including chunks split inside words.
+- Return actual question cards from synchronous API and MCP draft tests; answer them through `answer_agent_questions`. Support renaming an agent draft through MCP, clarify table column IDs, private sharing and draft starter fields, and prevent resolved approval cards from reappearing after stream replay.
+
 - Stream web-chat continuations after tool approvals and answers, including after navigation. Reuse the live turn trace, avoid duplicate HTTP answers, and clear completed sidebar activity.
 
 - Reduce default-agent prompt overhead and duplicate skill manuals; retain focused procedures and load detailed design recipes on demand. Match the Routines loading placeholder to its row layout.

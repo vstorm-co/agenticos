@@ -7,6 +7,7 @@ which says so in its own docstring) and must not be called from anywhere a
 member's request reaches.
 """
 
+import json
 import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -14,7 +15,12 @@ from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import ValidationError
-from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.messages import (
+    CapabilityLoadDeltaPart,
+    ModelMessage,
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
@@ -108,17 +114,22 @@ def _as_history(
     for row in rows:
         if row.id == exclude_message_id:
             continue
-        # What the person added while the answer was being written, as they added
-        # it: before the answer it changed. Stored only as parts of the answer,
-        # it was in the conversation on screen and missing from the next turn.
-        # Not for a turn a guardrail stopped, whose words are withheld whole.
-        history.extend(
-            {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
-            for part in row.parts or []
-            if part.get("type") == "steer"
-            and isinstance(part.get("text"), str)
-            and not row.guardrail_refused
-        )
+        # Cards and steers are real user input stored in the assistant's parts.
+        # Preserve their order; a refused turn withholds all its words.
+        if not row.guardrail_refused:
+            for part in row.parts or []:
+                if part.get("type") == "steer" and isinstance(text := part.get("text"), str):
+                    history.append({"role": "user", "content": f"{STEER_PREFIX}\n\n{text}"})
+                elif (
+                    row.role == "assistant"
+                    and part.get("type") == "ask_user"
+                    and isinstance(question := part.get("question"), str)
+                    and isinstance(answer := part.get("answer"), str)
+                    and answer.strip()
+                ):
+                    history.append(
+                        {"role": "user", "content": f"Question: {question}\nAnswer: {answer}"}
+                    )
         history.append(
             {
                 "role": row.role,
@@ -203,7 +214,11 @@ class ConversationService:
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
         spoken = await self._spoken(since, conversation)
-        return [*replayed, *build_message_history(_as_history(since, exclude_message_id, spoken))]
+        history = [
+            *replayed,
+            *build_message_history(_as_history(since, exclude_message_id, spoken)),
+        ]
+        return await self._restore_capability_loads(history, since, exclude_message_id)
 
     async def _from_transcript(
         self,
@@ -215,7 +230,39 @@ class ConversationService:
         """The recent window, which is what every surface read before #49."""
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
         spoken = await self._spoken(rows, conversation)
-        return build_message_history(_as_history(rows, exclude_message_id, spoken))
+        history = build_message_history(_as_history(rows, exclude_message_id, spoken))
+        return await self._restore_capability_loads(history, rows, exclude_message_id)
+
+    async def _restore_capability_loads(
+        self, history: list[ModelMessage], rows: Sequence[Message], exclude_message_id: UUID | None
+    ) -> list[ModelMessage]:
+        """Keep successful on-demand loads across turns without replaying tool dumps.
+
+        The public delta records availability, not old instructions. Pydantic AI
+        intersects it with the current capability registry and resolves current
+        instructions, so an unbound skill cannot regain tools from old history.
+        Fresh table records and other mutable data must still be read afresh.
+        """
+        calls = await conversation_repo.capability_loads_in_messages(
+            self.db,
+            {row.id for row in rows if row.id != exclude_message_id and not row.guardrail_refused},
+        )
+        loaded: dict[str, None] = {}
+        for call in calls:
+            capability_id = call.args.get("id")
+            if not isinstance(capability_id, str) or call.result is None:
+                continue
+            try:
+                returned = json.loads(call.result)
+            except ValueError, TypeError:
+                continue
+            if isinstance(returned, dict) and returned.get("message") == (
+                f"Capability {capability_id!r} loaded. Its instructions, if any, follow."
+            ):
+                loaded[capability_id] = None
+        if loaded:
+            history.append(ModelRequest(parts=[CapabilityLoadDeltaPart(loaded=list(loaded))]))
+        return history
 
     async def find_conversation(self, conversation_id: UUID) -> Conversation | None:
         """A conversation by id with no access check, for a caller that already holds it.

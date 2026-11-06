@@ -1,5 +1,5 @@
 ---
-source_sha: "b91e3f9da2ed"
+source_sha: "cfebf1118241"
 ---
 
 # La API HTTP { #the-http-api }
@@ -22,6 +22,12 @@ Tres formas de entrar, para tres llamantes distintos.
 | **Clave de API de la organización** | `Authorization: Bearer aos_…` | Un script, un cliente HTTP como Postman o un cliente MCP. Actúa como el miembro que la emitió, limitada a los permisos con los que se emitió |
 | **JWT** | `Authorization: Bearer <access token>` | Una persona, o algo que actúa en su nombre. De vida corta, renovado con un refresh token |
 | **Cookie de sesión** | la pone la consola | Solo el navegador: el token es HttpOnly y nunca llega a JavaScript |
+
+Las claves de organización usan `Authorization: Bearer aos_…`. `X-API-Key` es una credencial
+independiente de los servicios del despliegue; enviar una clave `aos_…` allí no autentica una
+petición de organización. Las rutas de la bóveda como `GET /api/v1/secrets` y la ruta de mensajes de
+la consola requieren una sesión iniciada. Los clientes API leen conversaciones mediante `GET
+/api/v1/conversations/{id}/transcript`.
 
 ### Claves de API de la organización { #organization-api-keys }
 
@@ -180,6 +186,19 @@ el mismo objeto como un bloque JSON.
 pruebas del Builder: un run de prueba, para una clave cuyo emisor puede editar el
 agent, rechazado con el motivo cuando el borrador no se publicaría, y nunca con
 `Prefer: respond-async`.
+
+Las ejecuciones síncronas, incluidas las pruebas de borradores, devuelven `status: awaiting_answer`
+y `questions` cuando el agente pregunta a la persona. Responde con `POST
+/api/v1/runs/{run_id}/answers` y `{"responses":{"<tool_call_id>":[{"selected":["Opción"]}]}}`;
+`answer` admite texto libre y `skipped: true` omite la pregunta expresamente. La ausencia de
+respuesta no se considera un rechazo automático. El MCP de la plataforma ofrece el mismo flujo con
+`test_agent_draft` y `answer_agent_questions`.
+
+El historial conserva las respuestas de las tarjetas y las cargas correctas de capabilities
+diferidas. Los skills registrados actualmente reciben sus instrucciones vigentes en el siguiente
+turno; los eliminados no recuperan acceso. Los resultados históricos de tablas no sustituyen los
+datos actuales. El campo superior `starters` del agente describe la versión publicada; los del
+borrador están en `draft_spec.starters`.
 
 Una clave también llega a las rutinas de un agent - `GET /api/v1/triggers` y
 `GET`, `POST`, `PATCH` y `DELETE` bajo `/api/v1/agents/{agent_id}/triggers`, más

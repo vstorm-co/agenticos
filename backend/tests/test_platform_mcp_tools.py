@@ -942,6 +942,7 @@ class TestEditingADraft:
             {
                 "agent_id": str(AGENT),
                 "instructions": "New",
+                "name": "Renamed Bot",
                 "description": "Answers refunds",
                 "add_capabilities": ["knowledge", "clock", "knowledge"],
                 "remove_capabilities": ["ask_user"],
@@ -956,7 +957,7 @@ class TestEditingADraft:
         assert read.args == ("GET", f"/agents/{AGENT}")
         assert write.args == ("PUT", f"/agents/{AGENT}/draft")
         assert write.kwargs["json"]["spec"] == {
-            "name": "Bot",
+            "name": "Renamed Bot",
             "instructions": "New",
             "description": "Answers refunds",
             "model_profile_id": str(KB),
@@ -1599,3 +1600,23 @@ async def test_mcp_routine_result_policy_is_preserved_on_create_and_update(api):
     assert api.request.await_args.kwargs["json"]["result_mode"] == "inbox"
     await tools["update_routine"](agent_id=AGENT, routine_id=RUN, result_mode="report")
     assert api.request.await_args.kwargs["json"] == {"result_mode": "report"}
+
+
+async def test_answering_a_draft_question_uses_the_owned_run_answer_endpoint(
+    server: FastMCP, api: MagicMock
+) -> None:
+    await server.call_tool(
+        "answer_agent_questions",
+        {
+            "run_id": str(RUN),
+            "answers": {
+                "responses": {
+                    "question-call": [{"selected": ["Ray"], "answer": "", "skipped": False}]
+                }
+            },
+        },
+    )
+    assert api.request.await_args.args == ("POST", f"/runs/{RUN}/answers")
+    assert api.request.await_args.kwargs["json"] == {
+        "responses": {"question-call": [{"selected": ["Ray"], "answer": "", "skipped": False}]}
+    }

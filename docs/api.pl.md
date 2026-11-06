@@ -1,5 +1,5 @@
 ---
-source_sha: "b91e3f9da2ed"
+source_sha: "cfebf1118241"
 ---
 
 # API HTTP { #the-http-api }
@@ -21,6 +21,11 @@ Trzy drogi wejścia, dla trzech różnych wywołujących.
 | **Klucz API organizacji** | `Authorization: Bearer aos_…` | Skryptu, klienta HTTP takiego jak Postman albo klienta MCP. Działa jako członek, który go wydał, zawężony do uprawnień, z którymi został wydany |
 | **JWT** | `Authorization: Bearer <access token>` | Osoby albo czegoś, co działa w jej imieniu. Krótko żyjący, odświeżany refresh tokenem |
 | **Ciasteczko sesji** | ustawiane przez konsolę | Wyłącznie przeglądarki — token jest HttpOnly i nigdy nie trafia do JavaScriptu |
+
+Klucze organizacji wysyłaj przez `Authorization: Bearer aos_…`. `X-API-Key` służy osobnemu
+poświadczeniu usług wdrożenia; klucz `aos_…` w tym nagłówku nie uwierzytelnia żądania organizacji.
+Trasy sejfu, np. `GET /api/v1/secrets`, oraz trasa wiadomości konsoli wymagają zalogowanej sesji.
+Klient API czyta rozmowę przez `GET /api/v1/conversations/{id}/transcript`.
 
 ### Klucze API organizacji { #organization-api-keys }
 
@@ -173,6 +178,17 @@ jako blok JSON.
 Buildera: run testowy, dla klucza, którego wystawca może edytować agenta,
 odrzucany z podaniem powodu, gdy draft by się nie opublikował, i nigdy z
 `Prefer: respond-async`.
+
+Uruchomienia synchroniczne, także testy draftów, zwracają `status: awaiting_answer` i `questions`,
+gdy agent pyta użytkownika. Odpowiedz przez `POST /api/v1/runs/{run_id}/answers`, podając
+`{"responses":{"<tool_call_id>":[{"selected":["Wybór"]}]}}`; `answer` przyjmuje własny tekst, a
+`skipped: true` oznacza świadome pominięcie. Brak odpowiedzi nie jest automatyczną odmową.
+Platformowy MCP udostępnia ten przepływ przez `test_agent_draft` i `answer_agent_questions`.
+
+Historia rozmowy zachowuje odpowiedzi z kart pytań i udane załadowania odroczonych capabilities.
+Aktualnie przypięte skille wczytują bieżące instrukcje w następnej turze; odpięte skille nie
+odzyskują dostępu. Historyczne wyniki tabel nie zastępują aktualnych danych. Pole `starters` agenta
+opisuje wersję opublikowaną, a startery draftu są w `draft_spec.starters`.
 
 Klucz sięga też do rutyn agenta - `GET /api/v1/triggers` oraz `GET`, `POST`,
 `PATCH` i `DELETE` pod `/api/v1/agents/{agent_id}/triggers`, a także

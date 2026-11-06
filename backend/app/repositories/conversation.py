@@ -1405,6 +1405,29 @@ async def get_messages_after(
     return list(result.scalars().all())
 
 
+async def capability_loads_in_messages(
+    db: AsyncSession, message_ids: Collection[UUID]
+) -> list[ToolCall]:
+    """Completed capability loads in an already-authorized history window.
+
+    Read only these calls, not every potentially large tool result in the thread.
+    The service verifies the recorded return before restoring the load state.
+    """
+    if not message_ids:
+        return []
+    result = await db.scalars(
+        select(ToolCall)
+        .where(
+            ToolCall.message_id.in_(message_ids),
+            ToolCall.tool_name == "load_capability",
+            ToolCall.status == "completed",
+            ToolCall.result.is_not(None),
+        )
+        .order_by(ToolCall.started_at, ToolCall.id)
+    )
+    return list(result.all())
+
+
 async def set_summary(
     db: AsyncSession,
     *,

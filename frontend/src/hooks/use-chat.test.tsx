@@ -4228,7 +4228,9 @@ describe("useChat - a question its person came back to", () => {
     await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
     receive("tool_approval_required", {
       run_id: "other-run",
-      action_requests: [],
+      action_requests: [
+        { id: "approval-other", tool_call_id: "approve-other", tool: "execute", arguments: {} },
+      ],
       review_configs: [],
     });
     act(() => result.current.stopGeneration());
@@ -6018,6 +6020,13 @@ it.each(["completed", "awaiting_approval"] as const)(
     expect(
       result.current.messages.filter((message) => message.content === "Approved and done"),
     ).toHaveLength(1);
+    receive("tool_approval_required", {
+      run_id: "resume-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "change", tool_name: "change_record", args: {} },
+      ],
+      review_configs: [],
+    });
     expect(result.current.messages.some((message) => message.isStreaming)).toBe(false);
     expect(
       result.current.messages.filter((message) => message.id === "persisted-resume"),
@@ -6030,3 +6039,55 @@ it.each(["completed", "awaiting_approval"] as const)(
     );
   },
 );
+
+it("dismisses an obsolete approval when a saved continuation confirms it is complete", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("model_request_start", {});
+  receive("tool_approval_required", {
+    run_id: "r-done",
+    action_requests: [
+      { id: "decided-elsewhere", tool_call_id: "c-done", tool_name: "write", args: {} },
+    ],
+    review_configs: [],
+  });
+  expect(result.current.pendingApproval).not.toBeNull();
+  receive("message_saved", { message_id: "saved", run_id: "r-done", run_status: "completed" });
+  expect(result.current.pendingApproval).toBeNull();
+  receive("tool_approval_required", {
+    run_id: "r-done",
+    action_requests: [
+      { id: "decided-elsewhere", tool_call_id: "c-done", tool_name: "write", args: {} },
+    ],
+    review_configs: [],
+  });
+  expect(result.current.pendingApproval).toBeNull();
+});
+
+it("does not reopen a terminal approval from a late parked-call lookup", async () => {
+  let finish!: (calls: unknown[]) => void;
+  get.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  useConversationStore.getState().setCurrentConversationId("c-late");
+  useChatStore.getState().addMessage({
+    id: "parked-message",
+    role: "assistant",
+    content: "",
+    timestamp: new Date(),
+    conversationId: "c-late",
+    runId: "r-late",
+    runWaitingFor: "approval",
+    toolCalls: [{ id: "late-call", name: "write", args: {}, status: "awaiting_approval" }],
+  });
+  const { result } = renderHook(() => useChat(), { wrapper: decider });
+  await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-late/parked"));
+  receive("message_saved", { message_id: "saved", run_id: "r-late", run_status: "completed" });
+  await act(async () =>
+    finish([
+      { id: "stale-approval", tool_call_id: "late-call", tool_name: "write", tool_args: {} },
+    ]),
+  );
+  expect(result.current.pendingApproval).toBeNull();
+});
