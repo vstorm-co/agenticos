@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import hashlib
 import hmac
+import html
 import logging
 import time
 from collections.abc import Sequence
@@ -20,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import httpx
+from pydantic import JsonValue
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -48,6 +50,7 @@ from app.services.channels.base import (
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
+from app.services.channels.notification_send import NotificationRateLimited, retry_after_seconds
 from app.services.channels.router import ChannelMessageRouter
 from app.services.channels.slack_answer import SlackNativeAnswer, feedback_block
 
@@ -291,6 +294,63 @@ class SlackAdapter(ChannelAdapter):
         opened = await client.conversations_open(users=found["user"]["id"])
         await client.chat_postMessage(channel=opened["channel"]["id"], text=text)
         return True
+
+    async def send_notification(
+        self, bot_token: str, msg: OutgoingMessage, *, context_url: str | None
+    ) -> None:
+        """One explicit submission, plain-text blocks and a link to the shared outcome.
+
+        Disable SDK retries: an uncertain request must not become two notices.
+        Only a documented HTTP 429 refusal is safe for the durable queue to retry.
+        """
+        from slack_sdk.errors import SlackApiError
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        client = AsyncWebClient(token=bot_token, retry_handlers=[])
+        channel, thread = split_thread(msg.platform_chat_id)
+        summary = msg.text if len(msg.text) <= 3000 else msg.text[:2999] + "…"
+        blocks: list[dict[str, JsonValue]] = [
+            {"type": "section", "text": {"type": "plain_text", "text": summary, "emoji": False}}
+        ]
+        if context_url:
+            blocks.append(
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Open in AgenticOS",
+                                "emoji": False,
+                            },
+                            "url": context_url,
+                            "action_id": "open_notification",
+                        }
+                    ],
+                }
+            )
+        fallback = "\n\n".join(part for part in (msg.text, context_url) if part)
+        try:
+            await client.chat_postMessage(
+                channel=channel,
+                thread_ts=thread,
+                text=html.escape(fallback[:39999], quote=False),
+                blocks=blocks,
+                parse="none",
+                link_names=False,
+                unfurl_links=False,
+                unfurl_media=False,
+            )
+        except SlackApiError as exc:
+            if exc.response.status_code == 429:
+                headers = exc.response.headers or {}
+                raise NotificationRateLimited(
+                    retry_after_seconds=retry_after_seconds(
+                        headers.get("Retry-After", headers.get("retry-after"))
+                    )
+                ) from exc
+            raise
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
         """Send a reply back to Slack via the Web API."""

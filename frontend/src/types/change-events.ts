@@ -17,7 +17,8 @@ export type ChangeResource =
   | "notification"
   | "secret"
   | "mcp_connection"
-  | "run";
+  | "run"
+  | "conversation";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -51,4 +52,12 @@ export interface RunChange extends ChangeEventBase {
   actor_name: null;
 }
 
-export type ChangeEvent = MadeChange | RunChange;
+/** A persisted routine answer or its delivery state changed after the run ended. */
+export interface RoutineChange extends ChangeEventBase {
+  resource: "conversation" | "trigger";
+  surface: "run";
+  actor_user_id: string | null;
+  actor_name: null;
+}
+
+export type ChangeEvent = MadeChange | RunChange | RoutineChange;

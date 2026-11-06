@@ -22,7 +22,7 @@ somebody, and only the surface knows whether it has one.
 """
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Collection
 from typing import Any
 
 from pydantic_ai import (
@@ -42,6 +42,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 
+from app.agents.deps import AgentDeps
 from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
@@ -76,11 +77,14 @@ class RunFrames:
         timeline: TurnTimeline | None = None,
         tool_calls: list[dict[str, Any]] | None = None,
         prompt: str = "",
+        draft_tools: Callable[[], Collection[str]] | None = None,
     ) -> None:
         self.emit = emit
         self.timeline = timeline if timeline is not None else TurnTimeline()
         self.tool_calls = tool_calls if tool_calls is not None else []
         self.prompt = prompt
+        self.draft_tools = draft_tools
+        self._resolved_draft_tools: frozenset[str] = frozenset()
 
     async def drive(self, agent_run: Any) -> None:
         """Iterate the run, dispatching each node to its streaming half.
@@ -92,6 +96,9 @@ class RunFrames:
         type - so `Any` here is the boundary the narrowing runs behind, not a
         shortcut around one.
         """
+        deps = agent_run.ctx.deps.user_deps
+        if isinstance(deps, AgentDeps):
+            self._resolved_draft_tools = deps.draft_tool_names
         async for node in agent_run:
             if Agent.is_user_prompt_node(node):
                 said = node.user_prompt if isinstance(node.user_prompt, str) else self.prompt
@@ -154,6 +161,7 @@ class RunFrames:
                         "text_delta", {"index": event.index, "content": event.part.content}
                     )
                 elif isinstance(event.part, ThinkingPart) and event.part.content:
+                    self.timeline.next_response()
                     self.timeline.add_thinking(event.part.content)
                     await self.emit(
                         "thinking_delta", {"index": event.index, "content": event.part.content}
@@ -201,6 +209,12 @@ class RunFrames:
                     "tool_name": tool_event.part.tool_name,
                     "args": tool_event.part.args_as_dict(raise_if_invalid=False),
                 }
+                if tool_event.part.tool_name in (
+                    self.draft_tools()
+                    if self.draft_tools is not None
+                    else self._resolved_draft_tools
+                ):
+                    call["presentation_kind"] = "draft"
                 self.tool_calls.append(call)
                 self.timeline.add_tool(tool_event.part.tool_call_id)
                 pending[tool_event.part.tool_call_id] = call

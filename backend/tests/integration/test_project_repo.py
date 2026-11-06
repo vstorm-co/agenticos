@@ -7,9 +7,11 @@ it; and a project's container belongs to no agent.
 """
 
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation
@@ -441,3 +443,54 @@ async def test_project_file_users_block_transfer_registration_until_commit(db, e
         assert (
             await ProjectService(transfer).get(ctx, project.id, perm=Perm.PROJECTS_EDIT)
         ).id == project.id
+
+
+async def test_recent_project_order_and_unread_answers_are_per_reader(db: AsyncSession) -> None:
+    alice, bob = await _user(db), await _user(db)
+    org = await _org(db, owner=alice)
+    old = await _project(db, org, alice, name="Old", visibility=Visibility.ORG.value)
+    newer = await _project(db, org, alice, name="Newer", visibility=Visibility.ORG.value)
+    now = datetime.now(UTC)
+    old.created_at = old.updated_at = now - timedelta(days=2)
+    newer.created_at = newer.updated_at = now - timedelta(days=1)
+    chat = await conversation_repo.create_conversation(
+        db, organization_id=org.id, user_id=bob.id, title="Work", project_id=old.id
+    )
+    await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="user", content="Check"
+    )
+    await db.flush()
+
+    async def unread(reader: User, tenant: uuid.UUID = org.id) -> set[uuid.UUID]:
+        return await project_repo.unread_projects(
+            db, organization_id=tenant, user_id=reader.id, project_ids=[old.id, newer.id]
+        )
+
+    assert await unread(alice) == set()
+    answer = await conversation_repo.create_message(
+        db, conversation_id=chat.id, role="assistant", content="Ready"
+    )
+    answer.created_at = now - timedelta(minutes=1)
+    await db.flush()
+    assert await unread(alice) == {old.id}
+    assert await unread(alice, uuid.uuid4()) == set()
+    assert (
+        await project_repo.unread_projects(
+            db, organization_id=org.id, user_id=alice.id, project_ids=[]
+        )
+        == set()
+    )
+    await conversation_repo.mark_read(db, user_id=alice.id, conversation_id=chat.id)
+    assert await unread(alice) == set()
+    assert await unread(bob) == {old.id}
+    projects, total = await project_repo.list_visible(
+        db, organization_id=org.id, user_id=alice.id, see_all=True, shared_ids=[], limit=1
+    )
+    assert total == 2 and [p.id for p in projects] == [old.id]
+    chat.is_archived = True
+    await db.flush()
+    assert await unread(bob) == set()
+    projects, _ = await project_repo.list_visible(
+        db, organization_id=org.id, user_id=alice.id, see_all=True, shared_ids=[], limit=1
+    )
+    assert [p.id for p in projects] == [newer.id]

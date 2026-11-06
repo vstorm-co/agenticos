@@ -65,6 +65,7 @@ in [Capabilities](capabilities.md).
 | Drafts | `drafts` |
 | Web browser | `browser_use` |
 | Chat channel lookup | `channel_tools` |
+| Telephone calls | `phone_calls` |
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
@@ -79,7 +80,6 @@ in [Capabilities](capabilities.md).
 | Knowledge search | `knowledge` |
 | Media offload | `media` |
 | Memory | `memory_files` |
-| Memory (mem0) | `memory_mem0` |
 | Mirage (virtual terminal) | `mirage` |
 | Planning | `planning` |
 | Work while tools run | `background_tools` |
@@ -97,5 +97,5 @@ in [Capabilities](capabilities.md).
 | Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |
-| Tables | `virtual_tables` |
+| Tables | AgenticOS MCP: `list_virtual_tables`, `query_virtual_table` |
 | Workflows | `workflows` |

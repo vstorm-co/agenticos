@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { ImageGenerationSection } from "@/components/agents/image-generation-section";
 import { MirageSection } from "@/components/agents/mirage-section";
-import { TablesSection } from "@/components/agents/tables-section";
 import { WorkflowsSection } from "@/components/agents/workflows-section";
 import { TextToSpeechSection } from "@/components/agents/text-to-speech-section";
 import { VideoGenerationSection } from "@/components/agents/video-generation-section";
@@ -23,10 +22,8 @@ import { CapabilityGallery } from "@/components/agents/capability-art/capability
 import { ClearAgentMemory } from "@/components/memory/clear-agent-memory";
 import {
   IMAGE_GENERATION_ID,
-  VIRTUAL_TABLES_ID,
   WORKFLOWS_ID,
   MEMORY_FILES_ID,
-  MEMORY_MEM0_ID,
   MIRAGE_ID,
   SANDBOX_ID,
   SUBAGENTS_ID,
@@ -165,11 +162,9 @@ export function CapabilityWorkbench({
   const [query, setQuery] = useState("");
   const categories = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    // Stored bindings remain editable; new tools use the platform MCP server.
+    // Stored workflow bindings remain editable; new tools use platform MCP.
     const offered = catalog.filter(
-      (entry) =>
-        !["workflows", "virtual_tables"].includes(entry.id) ||
-        selected.some((binding) => binding.id === entry.id),
+      (entry) => entry.id !== "workflows" || selected.some((binding) => binding.id === entry.id),
     );
     const matching = needle
       ? offered.filter(
@@ -237,16 +232,6 @@ export function CapabilityWorkbench({
             />
           ) : focused.id === MIRAGE_ID ? (
             <MirageSection
-              definition={focused}
-              binding={bound ?? unboundBinding(focused.id)}
-              onToggleEnabled={() => onToggle(focused.id)}
-              onChange={onChange}
-              configProblems={configProblems}
-              disabled={disabled || !isOn}
-              readOnly={disabled}
-            />
-          ) : focused.id === VIRTUAL_TABLES_ID ? (
-            <TablesSection
               definition={focused}
               binding={bound ?? unboundBinding(focused.id)}
               onToggleEnabled={() => onToggle(focused.id)}
@@ -335,13 +320,7 @@ export function CapabilityWorkbench({
               // writes them.
               settingsFooter={
                 focused.id === MEMORY_FILES_ID && isOn && agentId !== null ? (
-                  <ClearAgentMemory
-                    agentId={agentId}
-                    usesMem0={selected.some(
-                      (binding) => binding.id === MEMORY_MEM0_ID && binding.enabled !== false,
-                    )}
-                    disabled={disabled}
-                  />
+                  <ClearAgentMemory agentId={agentId} disabled={disabled} />
                 ) : undefined
               }
               // A capability nobody granted has nothing to configure yet, so

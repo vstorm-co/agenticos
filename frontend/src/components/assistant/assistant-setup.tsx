@@ -1,5 +1,7 @@
 "use client";
 
+import { glideOrJump } from "@/lib/motion";
+
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
@@ -139,7 +141,7 @@ function Walkthrough({
 
   useEffect(() => {
     // Follow the conversation as it is typed, the way a chat does.
-    end.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    end.current?.scrollIntoView({ block: "end", behavior: glideOrJump() });
     if (!typing) return;
     const timer = setTimeout(() => setShown((count) => count + 1), TYPING_MS);
     return () => clearTimeout(timer);

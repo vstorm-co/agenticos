@@ -90,6 +90,10 @@ class Agent(Base, TimestampMixin):
     # neither what runs nor what exports to git.
     avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
 
+    # Hashes of the defaults last delivered to this installed platform agent.
+    # Model, budget and deployment credentials deliberately never belong here.
+    shipped_template: Mapped[dict[str, str] | None] = mapped_column(JSONB, nullable=True)
+
     # Editable discovery metadata, org-local and off the spec for the same reason
     # the avatar is: categories and tags change neither what runs nor what exports
     # to git. Stored as scalar arrays so a discovery filter is an array-overlap

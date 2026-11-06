@@ -18,7 +18,7 @@ register(
         version=1,
         name="Notify members",
         category="notification",
-        description="Notify members of the organization in the app or by email.",
+        description="Notify members through their opted-in notification channels.",
         kind="action",
         config_schema=NotificationSendConfig,
         input_schema=NotificationSendInput,

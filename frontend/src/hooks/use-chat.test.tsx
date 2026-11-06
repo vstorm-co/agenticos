@@ -1638,6 +1638,24 @@ describe("useChat - the summary of its own history", () => {
 });
 
 describe("useChat - approvals and questions", () => {
+  it("records a completed turn for the sidebar but leaves a parked approval unfinished", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Done." });
+    receive("complete", {});
+    expect(useWorkingStore.getState().finishedAt["c-1"]).toBeDefined();
+    useWorkingStore.getState().reset();
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "send_email", args: {}, tool_call_id: "tc-1" });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    expect(useWorkingStore.getState().finishedAt["c-1"]).toBeUndefined();
+  });
+
   it("surfaces the tools waiting on a person, and resolves their cards", async () => {
     // The card used to spin forever: a parked call produces no `tool_result`
     // until somebody decides, so "running" is a state it never leaves.
@@ -1702,6 +1720,205 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
+  it("submits a batch only once when two clicks arrive before a render", async () => {
+    let finish!: (value: object) => void;
+    const decision = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume")
+        ? Promise.resolve({ status: "completed", output: "Done." })
+        : decision,
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    const submit = result.current.sendResumeDecisions;
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = submit([{ type: "approve" }]);
+      second = submit([{ type: "approve" }]);
+    });
+    expect(post.mock.calls.filter(([url]) => url === "/approvals/ar-1")).toHaveLength(1);
+    await act(async () => {
+      finish({});
+      await Promise.all([first, second]);
+    });
+    expect(post.mock.calls.filter(([url]) => url.endsWith("/resume"))).toHaveLength(1);
+  });
+
+  it("does not restore the second HTTP approval batch while its decision is in flight", async () => {
+    const parked = {
+      id: "ar-2",
+      tool_call_id: "tc-2",
+      tool_name: "execute",
+      tool_args: { cmd: "ls" },
+    };
+    get.mockImplementation(async (url: string) => (url.endsWith("/parked") ? [parked] : {}));
+    let finish!: (value: object) => void;
+    const decision = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    let resumes = 0;
+    post.mockImplementation((url: string) => {
+      if (url === "/approvals/ar-2") return decision;
+      if (url.endsWith("/resume")) {
+        resumes += 1;
+        return Promise.resolve(
+          resumes === 1
+            ? {
+                status: "awaiting_approval",
+                output: "",
+                parked: [parked],
+                steps: [
+                  { tool_call_id: "tc-2", tool_name: "execute", args: { cmd: "ls" }, result: null },
+                ],
+              }
+            : { status: "completed", output: "Done.", parked: [] },
+        );
+      }
+      return Promise.resolve({});
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper: decider });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("ar-2");
+    let submitting!: Promise<void>;
+    await act(async () => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    expect(result.current.pendingApproval).toBeNull();
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(0);
+    await act(async () => {
+      finish({});
+      await submitting;
+    });
+    expect(result.current.pendingApproval).toBeNull();
+    expect(post.mock.calls.filter(([url]) => url === "/approvals/ar-2")).toHaveLength(1);
+  });
+
+  it.each([false, true])(
+    "does not replace another conversation after a stale decision fails: %s",
+    async (fails) => {
+      let finish!: (value: object) => void;
+      let fail!: (reason: Error) => void;
+      const decision = new Promise<object>((resolve, reject) => {
+        finish = resolve;
+        fail = reject;
+      });
+      post.mockImplementation((url: string) =>
+        url.endsWith("/resume")
+          ? Promise.resolve({ status: "completed", output: "Old conversation result." })
+          : decision,
+      );
+      const { result, rerender } = renderHook(({ conversationId }) => useChat({ conversationId }), {
+        initialProps: { conversationId: "first" },
+        wrapper,
+      });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+        review_configs: [],
+      });
+      let submitting!: Promise<void>;
+      act(() => {
+        submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+      });
+      rerender({ conversationId: "second" });
+      receive("tool_approval_required", {
+        run_id: "r-2",
+        action_requests: [{ id: "ar-2", tool_call_id: "tc-2", tool_name: "execute", args: {} }],
+        review_configs: [],
+      });
+      await act(async () => {
+        if (fails) fail(new Error("Old decision failed"));
+        else finish({});
+        await submitting;
+      });
+      expect(result.current.pendingApproval?.runId).toBe("r-2");
+      expect(
+        useChatStore
+          .getState()
+          .messages.some((message) => message.content === "Old conversation result."),
+      ).toBe(false);
+    },
+  );
+
+  it("keeps an HTTP continuation visibly working across a stale transcript refresh", async () => {
+    let finish!: (value: object) => void;
+    const resumed = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume") ? resumed : Promise.resolve({}),
+    );
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("message_saved", { message_id: "saved-turn" });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+    const parkedSnapshot = useChatStore.getState().messages.map((message) => ({ ...message }));
+    let submitting!: Promise<void>;
+    await act(async () => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      isStreaming: true,
+      toolCalls: [{ id: "tc-1", status: "running" }],
+    });
+    act(() => useChatStore.getState().rereadMessages(parkedSnapshot));
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      isStreaming: true,
+      toolCalls: [{ id: "tc-1", status: "running" }],
+    });
+    act(() => result.current.sendMessage("Follow up after the continuation"));
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(
+      useChatStore.getState().messages.filter((message) => message.role === "user"),
+    ).toHaveLength(0);
+    await act(async () => {
+      finish({
+        status: "completed",
+        output: "Done.",
+        settled: [{ tool_call_id: "tc-1", result: "ok" }],
+      });
+      await submitting;
+    });
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      isStreaming: false,
+      toolCalls: [{ id: "tc-1", status: "completed", result: "ok" }],
+    });
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
+    expect(
+      useChatStore
+        .getState()
+        .messages.some(
+          (message) =>
+            message.role === "user" && message.content === "Follow up after the continuation",
+        ),
+    ).toBe(true);
+  });
+
   it("keeps a rejected step refused when a chat run's batch mixes both", async () => {
     post.mockImplementation((url: string) =>
       Promise.resolve(url.startsWith("/approvals/") ? { continues_in_chat: true } : {}),
@@ -1729,7 +1946,7 @@ describe("useChat - approvals and questions", () => {
       .getState()
       .messages.flatMap((message) => message.parts ?? [])
       .map((part) => part.toolCall);
-    expect(steps.find((call) => call?.id === "tc-1")?.status).toBe("completed");
+    expect(steps.find((call) => call?.id === "tc-1")?.status).toBe("running");
     expect(steps.find((call) => call?.id === "tc-2")).toMatchObject({
       status: "error",
       result: "Refused",
@@ -1797,10 +2014,10 @@ describe("useChat - approvals and questions", () => {
       .filter((part) => part.toolCall !== undefined)
       .map((part) => part.toolCall);
     expect(steps.find((call) => call?.id === "tc-1")).toMatchObject({
-      status: "completed",
-      result: "Continued in the chat this was asked in",
+      status: "running",
+      result: undefined,
     });
-    expect(steps.some((call) => call?.status === "running")).toBe(false);
+    expect(steps.some((call) => call?.status === "running")).toBe(true);
     // A panel is not tied to a run, so a decision on a chat run leaves it alone.
     expect(result.current.delegations[0]?.status).toBe("running");
     expect(toast.info).toHaveBeenCalledWith(
@@ -2314,7 +2531,7 @@ describe("useChat - approvals and questions", () => {
     expect(result.current.pendingApproval).toBeNull();
   });
 
-  it("waits for the turn in flight before asking", async () => {
+  it("can recover an older parked approval while another turn is in flight", async () => {
     // While a turn is processing the parked state on screen is the live one,
     // and the live frame is what will carry the panel.
     get.mockResolvedValue([]);
@@ -2325,7 +2542,7 @@ describe("useChat - approvals and questions", () => {
       useChatStore.getState().addMessage(parkedTurn());
     });
     await act(async () => {});
-    expect(get).not.toHaveBeenCalled();
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(1);
 
     receive("complete", {});
     receive("session_ready", {});
@@ -2828,6 +3045,21 @@ describe("useChat - approvals and questions", () => {
     receive("ask_user", {});
 
     expect(result.current.pendingQuestions).toEqual([]);
+  });
+
+  it("pauses the working status while a tool question awaits an answer", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_name: "ask_user_question", tool_call_id: "ask-live", args: {} });
+    receive("ask_user", { questions: [{ question: "Which?", options: [{ label: "A" }] }] });
+    expect(useWorkingStore.getState().waiting["c-1"]).toBe("awaiting_answer");
+    expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe(
+      "awaiting_answer",
+    );
+    act(() => result.current.sendAskUserResponses([{ answer: "A", skipped: false }]));
+    expect(useWorkingStore.getState().waiting["c-1"]).toBeUndefined();
+    expect(streaming()?.toolCalls?.find((call) => call.id === "ask-live")?.status).toBe("running");
   });
 
   it("sends the answers and closes the prompt", () => {
@@ -3996,7 +4228,9 @@ describe("useChat - a question its person came back to", () => {
     await waitFor(() => expect(result.current.pendingQuestions).not.toBeNull());
     receive("tool_approval_required", {
       run_id: "other-run",
-      action_requests: [],
+      action_requests: [
+        { id: "approval-other", tool_call_id: "approve-other", tool_name: "execute", args: {} },
+      ],
       review_configs: [],
     });
     act(() => result.current.stopGeneration());
@@ -4440,6 +4674,21 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
   });
 
+  it("detaches a newly created chat when leaving with an unanswered question", () => {
+    const { result, rerender } = renderHook(
+      ({ conversationId }: { conversationId: string | null }) => useChat({ conversationId }),
+      { wrapper, initialProps: { conversationId: null as string | null } },
+    );
+    receive("conversation_created", { conversation_id: "c-new" });
+    rerender({ conversationId: "c-new" });
+    receive("ask_user", { questions: [{ question: "Which region?", options: [] }] });
+    expect(result.current.pendingQuestions).toHaveLength(1);
+    act(() => useConversationStore.getState().setCurrentConversationId(null));
+    rerender({ conversationId: null });
+    expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
+    expect(result.current.pendingQuestions).toBeNull();
+  });
+
   it("draws nothing of a turn announced for a chat no longer on screen", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     storedQuestion();
@@ -4685,6 +4934,12 @@ describe("useChat - the outbox (#2097)", () => {
     ]);
     expect(keepOutbox).toHaveBeenLastCalledWith("c-1", []);
     expect(frame(1).message).toBe("second");
+    expect(result.current.sentTurnId).toBe(
+      result.current.messages.find((message) => message.content === "first")?.clientMessageId,
+    );
+    expect(result.current.sentTurnId).not.toBe(
+      result.current.messages.find((message) => message.content === "second")?.clientMessageId,
+    );
     vi.useRealTimers();
   });
 
@@ -5457,4 +5712,457 @@ it("does not file a pending local origin under a newly selected organization", (
   act(() => useOrgStore.setState({ activeOrgId: organization }));
   expect(store.fileRootFor("late-source")).toBeUndefined();
   useWorkOnStore.setState({ byConversation: {}, draft: null, fileRoots: {} });
+});
+
+it("recovers a second approval batch of the same run after a server continuation", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  const { result } = renderHook(() => useChat(), { wrapper: decider });
+  receive("tool_approval_required", {
+    run_id: "r-1",
+    action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "write", args: {} }],
+    review_configs: [],
+  });
+  post.mockResolvedValue({ continues_in_chat: true });
+  await act(async () => {
+    await result.current.sendResumeDecisions([{ type: "approve" }]);
+  });
+  get.mockResolvedValue([
+    { id: "ar-2", tool_call_id: "tc-2", tool_name: "create_task", tool_args: {} },
+  ]);
+  act(() =>
+    useChatStore.getState().addMessage({
+      ...parkedTurn(),
+      id: "m-2",
+      toolCalls: [{ id: "tc-2", name: "create_task", args: {}, status: "awaiting_approval" }],
+    }),
+  );
+  await waitFor(() => expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("ar-2"));
+});
+
+it("finds an older pending run when the latest parked-looking run has no approvals", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useChatStore.getState().addMessage({ ...parkedTurn(), id: "older", runId: "older-run" });
+  useChatStore.getState().addMessage(parkedTurn());
+  get.mockImplementation(async (url: string) =>
+    url === "/runs/older-run/parked"
+      ? [{ id: "older-approval", tool_call_id: "tc-1", tool_name: "write", tool_args: {} }]
+      : [],
+  );
+  const { result } = renderHook(() => useChat(), { wrapper: decider });
+  await waitFor(() => expect(result.current.pendingApproval?.runId).toBe("older-run"));
+});
+
+describe("human decisions inside delegated tasks", () => {
+  it("restores a child approval when the parent only records a running task call", async () => {
+    get.mockImplementation(async (url: string) =>
+      url.endsWith("/parked")
+        ? [
+            {
+              id: "child-approval",
+              tool_call_id: "child-tool",
+              tool_name: "execute",
+              tool_args: { cmd: "review" },
+            },
+          ]
+        : false,
+    );
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...parkedTurn(),
+      runWaitingFor: "approval",
+      toolCalls: [{ id: "parent-task", name: "task", args: {}, status: "running" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper: decider });
+    await waitFor(() =>
+      expect(result.current.pendingApproval?.actionRequests[0]?.id).toBe("child-approval"),
+    );
+    expect(result.current.pendingApproval?.messageId).toBe("m-1");
+    expect(get).toHaveBeenCalledWith("/runs/r-1/parked");
+  });
+
+  it("does not expose a child decision to a non-decider", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore
+      .getState()
+      .addMessage({ ...parkedTurn(), runWaitingFor: "approval", toolCalls: [] });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    expect(result.current.pendingApproval).toBeNull();
+    expect(get.mock.calls.filter(([url]) => url.endsWith("/parked"))).toHaveLength(0);
+  });
+
+  it("restores a child question absent from the parent's task timeline", async () => {
+    get.mockImplementation(async (url: string) => (url.endsWith("/questions") ? ASKED : false));
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...askedTurn(),
+      runWaitingFor: "answer",
+      toolCalls: [{ id: "parent-task", name: "task", args: {}, status: "running" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await waitFor(() => expect(result.current.pendingQuestions?.[0]?.question).toBe("How formal?"));
+    expect(get).toHaveBeenCalledWith("/runs/r-1/questions");
+  });
+
+  it.each(["completed", "awaiting_approval"] as const)(
+    "shows a delegate working during resume and settled when its parent is %s",
+    async (status) => {
+      let finish!: (value: object) => void;
+      const continued = new Promise<object>((resolve) => {
+        finish = resolve;
+      });
+      post.mockImplementation((url: string) =>
+        url.endsWith("/resume") ? continued : Promise.resolve({}),
+      );
+      const { result } = renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("subagent_start", {
+        kind: "subagent_start",
+        task_id: "architect-task",
+        subagent: "Architect",
+        depth: 0,
+        mode: "sync",
+        prompt: "Review",
+        parent_task_id: null,
+      });
+      receive("subagent_awaiting_approval", {
+        kind: "subagent_awaiting_approval",
+        task_id: "architect-task",
+        subagent: "Architect",
+        depth: 0,
+      });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [
+          { id: "child-approval", tool_call_id: "child-tool", tool_name: "execute", args: {} },
+        ],
+        review_configs: [],
+      });
+      receive("complete", {});
+      let submitting!: Promise<void>;
+      await act(async () => {
+        submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+      });
+      expect(result.current.delegations[0]?.status).toBe("running");
+      await act(async () => {
+        finish({
+          status,
+          output: "Reviewed.",
+          delegations: [{ task_id: "architect-task", status: "completed" }],
+        });
+        await submitting;
+      });
+      expect(result.current.delegations[0]?.status).toBe("completed");
+    },
+  );
+});
+
+it("settles a resumed tool in its original segment even before a new segment opens", () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  renderHook(() => useChat(), { wrapper });
+  receive("model_request_start", {});
+  receive("tool_call", { tool_name: "agenticos_get_project", args: {}, tool_call_id: "old-read" });
+  receive("complete", {});
+  const original = useChatStore.getState().messages.at(-1)!;
+  receive("turn_attached", { conversation_id: "c-1" });
+  receive("tool_result", { tool_call_id: "old-read", content: '{"name":"Fall launch"}' });
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === original.id)?.toolCalls?.[0],
+  ).toMatchObject({
+    status: "completed",
+    result: '{"name":"Fall launch"}',
+  });
+  receive("model_request_start", {});
+  receive("text_delta", { index: 0, content: "Checked." });
+  receive("tool_result", { tool_call_id: "old-read", content: '{"name":"Updated launch"}' });
+  expect(
+    useChatStore.getState().messages.find((m) => m.id === original.id)?.toolCalls?.[0]?.result,
+  ).toBe('{"name":"Updated launch"}');
+});
+
+it("does not recover a second parked turn after leaving during the first failed lookup", async () => {
+  let fail!: (reason: Error) => void;
+  const pending = new Promise<never>((_resolve, reject) => {
+    fail = reject;
+  });
+  get.mockReturnValue(pending);
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  useChatStore.getState().addMessage({ ...parkedTurn(), id: "older", runId: "older-run" });
+  useChatStore.getState().addMessage(parkedTurn());
+  const view = renderHook(() => useChat(), { wrapper: decider });
+  await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-1/parked"));
+  view.unmount();
+  await act(async () => {
+    fail(new Error("Connection lost"));
+  });
+  expect(get).not.toHaveBeenCalledWith("/runs/older-run/parked");
+});
+
+it("binds the stopped partial reply to its saved row and immediately clears sidebar activity", () => {
+  const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+  receive("model_request_start", {});
+  receive("text_delta", { content: "Partial answer" });
+  receive("tool_call", {
+    tool_name: "web_fetch",
+    tool_call_id: "call",
+    args: { url: "https://example.com" },
+  });
+  const partial = useChatStore.getState().messages.find((m) => m.role === "assistant")!;
+  act(() => result.current.stopGeneration());
+  expect(useWorkingStore.getState().finishedAt["c-1"]).toBeDefined();
+  expect(useWorkingStore.getState().since["c-1"]).toBeUndefined();
+  expect(useChatStore.getState().messages.find((m) => m.id === partial.id)?.wasStopped).toBe(true);
+  receive("thinking_delta", { content: "Late thought" });
+  receive("model_request_start", {});
+  act(() =>
+    useChatStore.getState().rereadMessages([
+      {
+        ...partial,
+        id: "saved-stop",
+        isTemporaryId: false,
+        isStreaming: false,
+        wasStopped: true,
+      },
+    ]),
+  );
+  receive("message_saved", { message_id: "saved-stop", conversation_id: "c-1" });
+  receive("complete", { stopped: true });
+  receive("session_ready", {});
+  const replies = useChatStore.getState().messages.filter((m) => m.role === "assistant");
+  expect(replies).toHaveLength(1);
+  expect(replies[0]).toMatchObject({
+    id: "saved-stop",
+    wasStopped: true,
+    isStreaming: false,
+    content: "Partial answer",
+  });
+  expect(result.current.isProcessing).toBe(false);
+});
+
+it("ignores buffered model frames after Stop before the first assistant message", () => {
+  const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+  act(() => result.current.sendMessage("start"));
+  act(() => result.current.stopGeneration());
+  receive("model_request_start", {});
+  receive("thinking_delta", { content: "Too late" });
+  receive("text_delta", { content: "Too late" });
+  receive("complete", { stopped: true });
+  expect(useChatStore.getState().messages.filter((m) => m.role === "assistant")).toHaveLength(0);
+  expect(useWorkingStore.getState().finishedAt["c-1"]).toBeDefined();
+  receive("session_ready", {});
+  act(() => result.current.sendMessage("next"));
+  receive("user_prompt", { message_id: "next-prompt" });
+  receive("model_request_start", {});
+  receive("text_delta", { content: "Next answer" });
+  expect(useChatStore.getState().messages.find((m) => m.role === "assistant")?.content).toBe(
+    "Next answer",
+  );
+});
+
+it.each(["completed", "awaiting_approval"] as const)(
+  "shows a streamed HTTP continuation once when it is %s",
+  async (status) => {
+    useConversationStore.getState().setCurrentConversationId("c-resume");
+    let finish!: (value: object) => void;
+    const continued = new Promise<object>((resolve) => {
+      finish = resolve;
+    });
+    post.mockImplementation((url: string) =>
+      url.endsWith("/resume") ? continued : Promise.resolve({}),
+    );
+    const reread = vi.fn();
+    const { result } = renderHook(() => useChat({ onTurnInterrupted: reread }), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_approval_required", {
+      run_id: "resume-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "change", tool_name: "change_record", args: {} },
+      ],
+      review_configs: [],
+    });
+    receive("complete", {});
+    let submitting!: Promise<void>;
+    await act(async () => {
+      submitting = result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+    receive("turn_attached", { conversation_id: "c-resume" });
+    receive("background_task_turn", {
+      conversation_id: "c-resume",
+      agent_id: "a-1",
+      resumed_run_id: "resume-run",
+    });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "next-call", tool_name: "change_record", args: {} });
+    receive("tool_call", { tool_call_id: "read-call", tool_name: "read_record", args: {} });
+    receive("tool_result", { tool_call_id: "read-call", result: "Read" });
+    receive("text_delta", { index: 0, content: "Approved and done" });
+    act(() => {
+      useWorkingStore.getState().start("c-resume", "2026-11-06T09:00:00Z");
+      useWorkingStore.getState().handOff("c-resume");
+    });
+    receive("message_saved", {
+      message_id: "persisted-resume",
+      conversation_id: "c-resume",
+      run_id: "resume-run",
+    });
+    receive("turn_followed_to_end", { conversation_id: "c-resume" });
+    await act(async () => {
+      finish({
+        status,
+        output: "Approved and done",
+        parked:
+          status === "awaiting_approval"
+            ? [
+                {
+                  id: "next-approval",
+                  tool_call_id: "next-call",
+                  tool_name: "change_record",
+                  tool_args: {},
+                },
+              ]
+            : [],
+      });
+      await submitting;
+    });
+    expect(
+      result.current.messages.filter((message) => message.content === "Approved and done"),
+    ).toHaveLength(1);
+    receive("tool_approval_required", {
+      run_id: "resume-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "change", tool_name: "change_record", args: {} },
+      ],
+      review_configs: [],
+    });
+    expect(result.current.messages.some((message) => message.isStreaming)).toBe(false);
+    expect(
+      result.current.messages.filter((message) => message.id === "persisted-resume"),
+    ).toHaveLength(1);
+    expect(useWorkingStore.getState().since["c-resume"]).toBeUndefined();
+    expect(useWorkingStore.getState().handedOff["c-resume"]).toBeUndefined();
+    expect(reread).toHaveBeenCalled();
+    expect(result.current.pendingApproval?.actionRequests[0]?.id ?? null).toBe(
+      status === "awaiting_approval" ? "next-approval" : null,
+    );
+    receive("tool_approval_required", {
+      run_id: "resume-run",
+      action_requests: [
+        { id: "approval", tool_call_id: "change", tool_name: "change_record", args: {} },
+        { id: "next-approval", tool_call_id: "next-call", tool_name: "change_record", args: {} },
+        { id: "send-approval", tool_call_id: "send-call", tool_name: "send_email", args: {} },
+      ],
+      review_configs: [
+        { tool_name: "change_record", allow_edit: false },
+        { tool_name: "send_email", allow_edit: false },
+      ],
+    });
+    expect(
+      result.current.pendingApproval?.reviewConfigs.map((config) => config.tool_name) ?? [],
+    ).toEqual(status === "awaiting_approval" ? ["change_record", "send_email"] : []);
+  },
+);
+
+it("dismisses an obsolete approval when a saved continuation confirms it is complete", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("model_request_start", {});
+  receive("tool_approval_required", {
+    run_id: "r-done",
+    action_requests: [
+      { id: "decided-elsewhere", tool_call_id: "c-done", tool_name: "write", args: {} },
+    ],
+    review_configs: [],
+  });
+  expect(result.current.pendingApproval).not.toBeNull();
+  receive("message_saved", { message_id: "saved", run_id: "r-done", run_status: "completed" });
+  expect(result.current.pendingApproval).toBeNull();
+  receive("tool_approval_required", {
+    run_id: "r-done",
+    action_requests: [
+      { id: "decided-elsewhere", tool_call_id: "c-done", tool_name: "write", args: {} },
+    ],
+    review_configs: [],
+  });
+  expect(result.current.pendingApproval).toBeNull();
+});
+
+it("does not reopen a terminal approval from a late parked-call lookup", async () => {
+  let finish!: (calls: unknown[]) => void;
+  get.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  useConversationStore.getState().setCurrentConversationId("c-late");
+  useChatStore.getState().addMessage({
+    id: "parked-message",
+    role: "assistant",
+    content: "",
+    timestamp: new Date(),
+    conversationId: "c-late",
+    runId: "r-late",
+    runWaitingFor: "approval",
+    toolCalls: [{ id: "late-call", name: "write", args: {}, status: "awaiting_approval" }],
+  });
+  const { result } = renderHook(() => useChat(), { wrapper: decider });
+  await waitFor(() => expect(get).toHaveBeenCalledWith("/runs/r-late/parked"));
+  receive("message_saved", { message_id: "saved", run_id: "r-late", run_status: "completed" });
+  await act(async () =>
+    finish([
+      { id: "stale-approval", tool_call_id: "late-call", tool_name: "write", tool_args: {} },
+    ]),
+  );
+  expect(result.current.pendingApproval).toBeNull();
+});
+
+it("uses a new segment when the HTTP resume beats its first streamed model frame", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-resume");
+  let finish!: (value: object) => void;
+  post.mockImplementation((url: string) =>
+    url.endsWith("/resume")
+      ? new Promise((done) => {
+          finish = done;
+        })
+      : Promise.resolve({}),
+  );
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("model_request_start", {});
+  receive("tool_approval_required", {
+    run_id: "resume-run",
+    action_requests: [{ id: "first", tool_call_id: "old-call", tool_name: "change", args: {} }],
+    review_configs: [],
+  });
+  receive("complete", {});
+  const old = result.current.messages.at(-1)?.id;
+  let submission!: Promise<void>;
+  await act(async () => {
+    submission = result.current.sendResumeDecisions([{ type: "approve" }]);
+  });
+  receive("background_task_turn", {
+    conversation_id: "c-resume",
+    agent_id: "a-1",
+    resumed_run_id: "resume-run",
+  });
+  await act(async () => {
+    finish({
+      status: "awaiting_approval",
+      output: "Next step",
+      tool_calls: [{ tool_call_id: "next-call", tool_name: "change", args: {} }],
+      parked: [{ id: "next", tool_call_id: "next-call", tool_name: "change", tool_args: {} }],
+    });
+    await submission;
+  });
+  expect(result.current.messages.filter((message) => message.content === "Next step")).toHaveLength(
+    1,
+  );
+  expect(result.current.pendingApproval?.messageId).not.toBe(old);
+  expect(result.current.pendingApproval?.messageId).toBe(result.current.messages.at(-1)?.id);
+});
+
+it("does not restore approvals from stale transcript rows after a terminal receipt", async () => {
+  useConversationStore.getState().setCurrentConversationId("c-1");
+  renderHook(() => useChat(), { wrapper: decider });
+  receive("message_saved", { message_id: "finished", run_id: "r-1", run_status: "completed" });
+  act(() => useChatStore.getState().addMessage(parkedTurn()));
+  await act(async () => {});
+  expect(get).not.toHaveBeenCalledWith("/runs/r-1/parked");
 });

@@ -267,6 +267,10 @@ class TableCreate(_Request):
 
 
 class TableUpdate(_Request):
+    default_view_id: UUID | None = Field(
+        default=None,
+        description="Shared saved view opened by default; null resets to the plain table",
+    )
     name: Label | None = None
     description: Description | None = None
 
@@ -279,6 +283,7 @@ class SchemaUpdate(_Request):
 
 
 class TableSummary(_Schema):
+    default_view_id: UUID | None = None
     id: UUID
     name: str
     description: str | None = None

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { NotificationGlyph } from "./notification-glyph";
+import { NotificationGlyph, NotificationMeta } from "./notification-glyph";
 import type { Notification } from "@/lib/notifications-api";
 
 vi.mock("@/components/agents/agent-avatar", () => ({
@@ -36,7 +36,7 @@ const SUPPORT = {
 };
 
 describe("NotificationGlyph", () => {
-  it("draws the agent a row is about, with what happened as a badge on the face", () => {
+  it("keeps the agent portrait clear of status badges", () => {
     const { container } = render(
       <NotificationGlyph item={notification({ event_type: "run_failed", agent: SUPPORT })} />,
     );
@@ -45,8 +45,7 @@ describe("NotificationGlyph", () => {
     expect(face).toHaveAttribute("data-slug", "support");
     expect(face).toHaveAttribute("data-color", "4");
     expect(face).toHaveAttribute("data-picture", "true");
-    // The failure reads in red on the badge, not on the face.
-    expect(container.querySelector(".text-destructive svg")).not.toBeNull();
+    expect(container.querySelector("svg")).toBeNull();
   });
 
   it("draws the event's own icon for a row about no agent", () => {
@@ -55,7 +54,8 @@ describe("NotificationGlyph", () => {
     );
 
     expect(screen.queryByTestId("face")).toBeNull();
-    expect(container.querySelector(".text-success svg")).not.toBeNull();
+    expect(container.querySelector(".lucide-plug")).not.toBeNull();
+    expect(container.querySelector(".text-success")).toBeNull();
   });
 
   it("draws a neutral bell for a kind this console does not know yet", () => {
@@ -65,6 +65,25 @@ describe("NotificationGlyph", () => {
 
     expect(screen.queryByTestId("face")).toBeNull();
     expect(container.querySelector(".lucide-bell")).not.toBeNull();
-    expect(container.querySelector(".bg-muted")).not.toBeNull();
   });
+});
+
+describe("notification event metadata", () => {
+  it.each(["run_failed", "mcp_server_down", "approval_requested", "budget_warning"])(
+    "keeps %s visible beside the timestamp",
+    (event_type) => {
+      render(<NotificationMeta item={notification({ event_type })}>5m ago</NotificationMeta>);
+      expect(screen.getByText("Needs attention")).toBeInTheDocument();
+      expect(screen.getByText("5m ago")).toBeInTheDocument();
+    },
+  );
+
+  it.each(["run_completed", "mcp_server_recovered", "something_new"])(
+    "leaves routine %s events quiet",
+    (event_type) => {
+      render(<NotificationMeta item={notification({ event_type })}>5m ago</NotificationMeta>);
+      expect(screen.queryByText("Needs attention")).toBeNull();
+      expect(screen.getByText("5m ago")).toBeInTheDocument();
+    },
+  );
 });

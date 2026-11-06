@@ -108,12 +108,23 @@ class CodingReport(BaseModel):
     access: Access
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str
+    account_label: str | None = None
+    execution: Literal["isolated_task"] | None = None
+    base_revision: str | None = None
+    result_archive: str | None = None
     session_id: str | None = None
     steps: list[CodingStep] = []
     files_changed: list[str] = []
     task_updates: list[str] = []
     refused: list[str] = []
     """Tools the harness wanted and was not allowed at this access."""
+    changes_id: str | None = None
+    """The change set the task left in the sandbox, kept for its panel (#2480).
+
+    Its id, not the patch: this report is what the model reads back on every
+    later turn. Set only for a task at `edit` in a conversation whose workspace
+    could be snapshotted.
+    """
 
 
 @dataclass(frozen=True)

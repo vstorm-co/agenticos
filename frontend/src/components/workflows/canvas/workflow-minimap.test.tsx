@@ -59,6 +59,12 @@ describe("the overview map", () => {
     );
 
     expect(container.querySelectorAll(".react-flow__minimap-node")).toHaveLength(3);
+    const overview = getByTestId("rf__minimap").querySelector("svg")!;
+    const bounds = overview.getAttribute("viewBox")!.split(" ").map(Number);
+    expect(bounds).toHaveLength(4);
+    expect(bounds.every(Number.isFinite)).toBe(true);
+    expect(bounds[2]).toBeGreaterThan(0);
+    expect(bounds[3]).toBeGreaterThan(0);
     fireEvent.click(getByTestId("rf__minimap").querySelector("svg") as SVGElement);
 
     expect(flow.setCenter).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), {

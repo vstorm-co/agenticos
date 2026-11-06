@@ -1,12 +1,11 @@
 "use client";
 
-import { ContextHelp } from "@/components/ui/context-help";
 import Link from "next/link";
 import { ChevronRight, MoreHorizontal, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
-import { RestartTourButton } from "@/components/onboarding/restart-tour-button";
+import { PageHelp } from "@/components/onboarding/page-help";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
@@ -108,12 +107,7 @@ export function PageHeader({
             <h1 className="text-foreground min-w-0 text-lg leading-tight font-semibold tracking-tight text-balance sm:text-xl md:text-2xl">
               {title}
             </h1>
-            {description && descriptionMode === "help" && <ContextHelp>{description}</ContextHelp>}
-            {/* On a phone the help sits with the title it explains, rather than
-                alone on a row under the wrapped actions. */}
-            <span className="md:hidden">
-              <RestartTourButton />
-            </span>
+            <PageHelp description={descriptionMode === "help" ? description : undefined} />
           </div>
           {/* Status belongs to the thing named, so it sits under the name - it
               used to float above the action buttons, reading as a caption for
@@ -171,9 +165,6 @@ export function PageHeader({
             </>
           )}
           {actions}
-          <span className="hidden md:inline-flex">
-            <RestartTourButton />
-          </span>
         </div>
       </div>
     </div>

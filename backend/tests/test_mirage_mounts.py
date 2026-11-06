@@ -63,7 +63,10 @@ def vault(monkeypatch) -> dict:
 
 
 @pytest.fixture
-def accounts(monkeypatch) -> MagicMock:
+def accounts(monkeypatch, ctx) -> MagicMock:
+    monkeypatch.setattr(
+        mirage_mounts, "account_source_organization", lambda account: ctx.organization_id
+    )
     repo = MagicMock()
     repo.get_account = AsyncMock(return_value=None)
     repo.list_accounts = AsyncMock(return_value=[])
@@ -237,7 +240,7 @@ def _with_grants(monkeypatch, grants: dict) -> None:
     monkeypatch.setattr(
         mirage_mounts.McpConnectionService,
         "account_grant",
-        AsyncMock(side_effect=lambda account: grants.get(account.id)),
+        AsyncMock(side_effect=lambda account, **kwargs: grants.get(account.id)),
     )
 
 

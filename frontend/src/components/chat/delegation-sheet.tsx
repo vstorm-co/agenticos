@@ -28,6 +28,8 @@ export interface SheetDelegation {
   status: DelegationStatus;
   brief: string | null;
   answer: string;
+  thinking?: string;
+  costUsd?: number | null;
   /** What the delegate did, where it is known - live, from its frames. */
   steps?: DelegationStep[];
 }
@@ -51,6 +53,7 @@ export function DelegationSheet({
   onOpen: (key: string) => void;
   onClose: () => void;
 }) {
+  const chat = useTranslations("chat");
   const t = useTranslations("chat.delegation");
   const tTools = useTranslations("chat.tools");
   // `opened` is always one of `items`: every caller opens the sheet from one.
@@ -92,6 +95,7 @@ export function DelegationSheet({
             </SheetTitle>
             <p className="text-muted-foreground text-xs">
               {t(STATUS_KEY[item.status])}
+              {item.costUsd != null && <> · ${item.costUsd.toFixed(4)}</>}
               {item.steps && item.steps.length > 0 && (
                 <> · {t("actionCount", { count: item.steps.length })}</>
               )}
@@ -100,6 +104,16 @@ export function DelegationSheet({
         </div>
 
         <div className="min-h-0 flex-1 scrollbar-thin space-y-5 overflow-y-auto px-5 py-5">
+          {item.thinking && (
+            <details className="text-muted-foreground text-[13px]">
+              <summary className="hover:text-foreground cursor-pointer">
+                {chat("thoughtAboutIt")}
+              </summary>
+              <div className="border-foreground/10 mt-2 border-l pl-3">
+                <MarkdownContent content={item.thinking} />
+              </div>
+            </details>
+          )}
           {item.brief && (
             <section className="space-y-1.5">
               <h3 className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">

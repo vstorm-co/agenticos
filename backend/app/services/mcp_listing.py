@@ -26,7 +26,7 @@ from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.mcp_server_check import CheckOutcome, McpServerCheck
 from app.repositories import mcp_registry_server_repo, mcp_server_check_repo
 from app.services import mcp_catalog
-from app.services.mcp_audit import auth_found, verified
+from app.services.mcp_audit import BUNDLED_CHECKS, StoredCheck, auth_found, verified
 from app.services.mcp_catalog import CatalogEntry
 from app.services.mcp_connection import McpConnectionService
 
@@ -88,7 +88,7 @@ async def mirror_size(db: AsyncSession) -> int:
     return await mcp_registry_server_repo.count(db)
 
 
-def _listed_check(check: McpServerCheck | None) -> ListedCheck | None:
+def _listed_check(check: McpServerCheck | StoredCheck | None) -> ListedCheck | None:
     if check is None:
         return None
     return ListedCheck(
@@ -99,7 +99,13 @@ def _listed_check(check: McpServerCheck | None) -> ListedCheck | None:
     )
 
 
-def _curated(entry: CatalogEntry, check: McpServerCheck | None) -> ListedServer:
+def _curated(entry: CatalogEntry, check: McpServerCheck | StoredCheck | None) -> ListedServer:
+    # Updated installs may not rerun bootstrap. New catalog entries still have
+    # the release's audit; locally checked remote failures keep precedence.
+    # A self-hosted result cannot describe an entry that now has a hosted URL.
+    if check is None or (check.outcome == CheckOutcome.SELF_HOSTED and entry.url):
+        bundled = BUNDLED_CHECKS.get(entry.key)
+        check = bundled if bundled is not None else check
     return ListedServer(
         key=entry.key,
         name=entry.name,

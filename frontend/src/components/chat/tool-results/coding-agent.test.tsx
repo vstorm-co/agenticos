@@ -1,9 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 
 import { CodingAgentResult, parseCodingReport } from "./coding-agent";
 import type { ToolCall } from "@/types";
+
+vi.mock("./coding-changes", () => ({
+  TaskChanges: ({ changeId, fallback }: { changeId: string; fallback: ReactNode }) => (
+    <>
+      <p>{`changes ${changeId}`}</p>
+      <div data-testid="fallback">{fallback}</div>
+    </>
+  ),
+}));
 
 function call(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
@@ -40,6 +50,19 @@ describe("CodingAgentResult", () => {
     expect(await screen.findByText("the off-by-one")).toBeInTheDocument();
     expect(screen.getByText("Changed 1 file:")).toBeInTheDocument();
     expect(screen.getByText("Not allowed read-only: WebFetch")).toBeInTheDocument();
+  });
+
+  it("shows what the task changed, the names kept for a reader the diff is refused to", () => {
+    render(
+      <CodingAgentResult
+        toolCall={call()}
+        resultText={JSON.stringify({ ...REPORT, changes_id: "c-1" })}
+      />,
+    );
+
+    expect(screen.getByText("changes c-1")).toBeInTheDocument();
+    // The names are handed over only as the fallback for a diff that cannot be read.
+    expect(screen.getByTestId("fallback")).toHaveTextContent("Changed 1 file:");
   });
 
   it("lists every step, a failed one marked as failed", async () => {

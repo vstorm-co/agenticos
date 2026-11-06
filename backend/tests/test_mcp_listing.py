@@ -719,3 +719,31 @@ async def test_pruned_registry_metadata_does_not_rename_a_saved_server_bookmark(
     assert found.items[0].key == key
     assert found.items[0].connection_ids == (first.id, second.id)
     assert found.items[0].custom
+
+
+async def test_new_google_entries_have_bundled_checks_without_rebootstrapping(
+    repositories: ListingRepositories,
+) -> None:
+    entries = await mcp_listing.curated(AsyncMock())
+    calendar = next(entry for entry in entries if entry.key == "google-calendar")
+    assert calendar.verified
+    assert calendar.check is not None
+    assert calendar.check.outcome == "sign_in"
+
+
+def test_a_local_remote_failure_is_not_hidden_by_a_bundled_success() -> None:
+    entry = mcp_catalog.BY_KEY["google-calendar"]
+    check = McpServerCheck(
+        key=entry.key, source="catalog", outcome="unreachable", checked_at=datetime.now(UTC)
+    )
+    assert not mcp_listing._curated(entry, check).verified
+
+
+def test_an_old_self_hosted_check_does_not_hide_the_new_remote_bigquery() -> None:
+    entry = mcp_catalog.BY_KEY["bigquery"]
+    check = McpServerCheck(
+        key=entry.key, source="catalog", outcome="self_hosted", checked_at=datetime.now(UTC)
+    )
+    result = mcp_listing._curated(entry, check)
+    assert result.verified
+    assert result.url == "https://bigquery.googleapis.com/mcp"

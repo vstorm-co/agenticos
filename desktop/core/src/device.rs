@@ -101,6 +101,8 @@ pub struct Capabilities {
     pub sandbox_modes: Vec<&'static str>,
     /// Whether screen capture and input are available (permissions granted).
     pub screen: bool,
+    /// Scoped, persistent routine permissions and explicit work contexts.
+    pub routine_grants: bool,
 }
 
 /// What the app sends up the socket.
@@ -232,11 +234,12 @@ mod tests {
             capabilities: Capabilities {
                 sandbox_modes: vec!["read_only"],
                 screen: false,
+                routine_grants: true,
             },
         };
         assert_eq!(
             serde_json::to_value(&hello).unwrap(),
-            json!({"type": "hello", "version": "0.3.0", "capabilities": {"sandbox_modes": ["read_only"], "screen": false}})
+            json!({"type": "hello", "version": "0.3.0", "capabilities": {"sandbox_modes": ["read_only"], "screen": false, "routine_grants": true}})
         );
         assert_eq!(
             serde_json::to_value(AppFrame::answer(

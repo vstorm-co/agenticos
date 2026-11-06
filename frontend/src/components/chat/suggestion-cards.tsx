@@ -54,7 +54,9 @@ export function SuggestionCards({
           <div className="min-w-0 flex-1 space-y-2">
             <p className="text-sm">
               {suggestion.urgent && (
-                <span className="text-destructive mr-1.5 text-xs font-medium">{t("urgent")}</span>
+                <span className="text-destructive-ink mr-1.5 text-xs font-medium">
+                  {t("urgent")}
+                </span>
               )}
               {suggestion.title}
               {suggestion.detail && (

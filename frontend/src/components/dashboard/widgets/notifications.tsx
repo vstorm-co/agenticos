@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
-import { NotificationGlyph } from "@/components/layout/notification-glyph";
+import { NotificationGlyph, NotificationMeta } from "@/components/layout/notification-glyph";
 import { useNotificationInbox } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import { cn, timeAgo } from "@/lib/utils";
@@ -62,9 +62,9 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
                   >
                     {item.summary}
                   </span>
-                  <span className="text-muted-foreground block text-xs">
+                  <NotificationMeta item={item}>
                     {timeAgo(item.created_at, tTime, locale)}
-                  </span>
+                  </NotificationMeta>
                 </span>
                 <span
                   aria-hidden

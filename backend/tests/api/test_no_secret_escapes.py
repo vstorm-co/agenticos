@@ -74,6 +74,8 @@ _SECRET_WORDS = re.compile("secret|password|token|api_key|private_key")
 # promise about the value, and writing the promise down is the point - an
 # allowance nobody can explain is a hole.
 _PATTERN_ALLOWED: dict[str, str] = {
+    "secret_sources": "vault row IDs mapped to authorization-generation UUIDs, never credential values",
+    "review_token": "a metadata fingerprint binding a consent form to the reviewed snapshot, not an authentication credential",
     "secret_fields": "Mirage backend credential field names, never their values",
     "required_secrets": "the subset of credential field names required by a Mirage backend",
     "secret_purposes": "service purpose identifiers used to filter the Mirage vault picker",

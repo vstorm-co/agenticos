@@ -8,12 +8,12 @@ import { PRINCIPAL_COLUMN_TYPES, type ColumnDef } from "@/types/tables";
  * a value keeps its colour wherever it appears, and a new option takes the next.
  */
 const TONES = [
-  "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  "bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  "bg-rose-500/10 text-rose-700 dark:text-rose-300",
-  "bg-muted text-foreground",
+  OPTION_TONES.blue,
+  OPTION_TONES.green,
+  OPTION_TONES.yellow,
+  OPTION_TONES.purple,
+  OPTION_TONES.red,
+  OPTION_TONES.gray,
 ];
 
 /** A select value as a chip: its option's label, tinted by where the option sits. */

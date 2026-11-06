@@ -325,6 +325,7 @@ function ServerMark({ row, className }: { row: McpServerRow; className?: string 
     >
       <McpServerIcon
         icon={row.entry?.icon ?? null}
+        category={row.category}
         name={row.name}
         url={row.url}
         className="size-[60%] text-neutral-900"

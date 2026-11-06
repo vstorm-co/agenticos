@@ -19,6 +19,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.permissions import AuthContext, OrgRoleName
@@ -682,3 +683,156 @@ async def test_continuation_refreshes_a_preloaded_run_after_stop(
                 await service.resume(_ctx(org, owner), run.id)
         assert loaded.status == RunStatus.CANCELLED.value
         assert refused.value.details["status"] == RunStatus.CANCELLED.value
+
+
+async def _consent_chat(db: AsyncSession):
+    from app.db.models.agent import AgentVersion
+    from app.db.models.conversation import Conversation
+
+    org, user = await _org(db)
+    org.chat_may_waive_approvals = True
+    agent = await _agent(db, org)
+    version = AgentVersion(
+        id=uuid.uuid4(), organization_id=org.id, agent_id=agent.id, version=1, spec={}
+    )
+    chat = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+    db.add_all([version, chat])
+    await db.flush()
+    run = await _run(db, org, agent, started_by=user)
+    run.agent_version_id = version.id
+    run.conversation_id = chat.id
+    await db.flush()
+    ctx = AuthContext(user_id=user.id, organization_id=org.id, role="owner")
+    return org, user, run, ctx
+
+
+@pytest.mark.parametrize("scope", ["conversation", "agent"])
+async def test_remembered_tool_choice_is_scoped_versioned_and_revocable(
+    db: AsyncSession, scope: str
+):
+    from app.core.exceptions import NotFoundError
+    from app.db.models.agent import AgentVersion
+    from app.db.models.conversation import Conversation
+
+    org, user, run, ctx = await _consent_chat(db)
+    approval = await _approval(db, org, run)
+    service = ApprovalService(db)
+    with patch("app.services.approvals.spawn_after_commit") as spawn:
+        spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
+        await service.decide(ctx, approval.id, approved=True, remember_scope=scope)
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="send_email", account=None)
+        == user.id
+    )
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="delete_email", account=None)
+        is None
+    )
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="send_email", account="another")
+        is None
+    )
+    another = Conversation(id=uuid.uuid4(), organization_id=org.id, user_id=user.id)
+    db.add(another)
+    await db.flush()
+    second = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        agent_id=run.agent_id,
+        agent_version_id=run.agent_version_id,
+        user_id=user.id,
+        conversation_id=another.id,
+        surface="web",
+    )
+    db.add(second)
+    await db.flush()
+    assert await service.remembered_consent(
+        ctx, second.id, tool_name="send_email", account=None
+    ) == (user.id if scope == "agent" else None)
+    version = AgentVersion(
+        id=uuid.uuid4(), organization_id=org.id, agent_id=run.agent_id, version=2, spec={}
+    )
+    db.add(version)
+    await db.flush()
+    second.agent_version_id = version.id
+    await db.flush()
+    assert (
+        await service.remembered_consent(ctx, second.id, tool_name="send_email", account=None)
+        is None
+    )
+    org.chat_may_waive_approvals = False
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="send_email", account=None) is None
+    )
+    org.chat_may_waive_approvals = True
+    with pytest.raises(NotFoundError, match="Remembered approval not found"):
+        await service.revoke_consent(
+            AuthContext(user_id=uuid.uuid4(), organization_id=org.id, role="owner"), approval.id
+        )
+    await service.revoke_consent(ctx, approval.id)
+    assert approval.status == "approved"
+    assert await service.list_consents(ctx) == []
+    assert (
+        await service.remembered_consent(ctx, run.id, tool_name="send_email", account=None) is None
+    )
+
+
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "surface",
+        "user",
+        "delegate",
+        "version",
+        "test",
+        "policy",
+        "permission",
+        "key",
+        "fallback",
+        "impersonation",
+        "reject",
+    ],
+)
+async def test_remembering_approval_refuses_unattended_or_changed_authority(
+    db: AsyncSession, changed: str
+):
+    from dataclasses import replace
+
+    from app.core.audit import set_impersonator
+    from app.core.exceptions import AppException
+
+    org, user, run, ctx = await _consent_chat(db)
+    approval = await _approval(db, org, run)
+    if changed == "surface":
+        run.surface = "schedule"
+    if changed == "user":
+        run.user_id = None
+    if changed == "delegate":
+        approval.subagent_name = "Architect"
+    if changed == "version":
+        run.agent_version_id = None
+    if changed == "test":
+        run.test_spec = {}
+    if changed == "policy":
+        org.chat_may_waive_approvals = False
+    if changed == "permission":
+        member = await db.scalar(
+            select(OrganizationMember).where(OrganizationMember.organization_id == org.id)
+        )
+        member.role = "member"
+    if changed == "key":
+        ctx = replace(ctx, api_key_id=uuid.uuid4())
+    if changed == "fallback":
+        ctx = replace(ctx, subject_is_publisher_fallback=True)
+    if changed == "impersonation":
+        set_impersonator(uuid.uuid4())
+    await db.flush()
+    try:
+        with pytest.raises(AppException):
+            await ApprovalService(db).decide(
+                ctx, approval.id, approved=changed != "reject", remember_scope="conversation"
+            )
+    finally:
+        set_impersonator(None)
+    assert approval.status == "pending"
+    assert approval.remember_scope is None

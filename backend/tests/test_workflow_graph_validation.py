@@ -2443,3 +2443,10 @@ class TestMergeJudgedByRunConditions:
             bindings=[_decides_on(branch.id)],
         )
         assert await validate_graph(mock_db_session, _owner_ctx(), graph)
+
+
+@pytest.fixture(autouse=True)
+def ordinary_tables_only(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr("app.repositories.task.for_table", AsyncMock(return_value=None))

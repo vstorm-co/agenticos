@@ -128,10 +128,10 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 # so the widest setting is the one worth documenting: a tool nobody can describe
 # is exactly the one somebody reaching for this page needs described.
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "phone_calls": {"endpoint_id": str(UUID(int=0))},
     "mirage": {"mounts": [{"path": "/scratch/", "backend": "ram"}]},
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
     # Granted no table, it builds only to create one; that is the widest list.
-    "virtual_tables": {"allow_create": True},
     # Granted no workflow, it builds nothing; one id the prober never starts.
     "workflows": {"workflow_ids": [str(UUID(int=0))]},
 }
@@ -143,8 +143,8 @@ def _documentation_secret(definition: Any) -> ApiKeySecret | None:
     Read for its *shape* and never used: nothing here calls the service, so the
     value only has to satisfy the builder that a key exists. Without it a
     capability whose key is unconditional builds as `None`, has no toolset, and
-    falls back to the catalog's one-line summary - which is how `memory_mem0`
-    showed the Builder a sentence while the model was reading six (#1473).
+    falls back to the catalog's one-line summary - which once showed the
+    Builder a sentence while the model was reading six (#1473).
 
     Only `API_KEY`, because it is the only kind any capability requires
     unconditionally; another kind arriving that way should show up as a missing

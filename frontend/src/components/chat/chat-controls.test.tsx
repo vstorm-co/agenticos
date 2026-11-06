@@ -60,7 +60,12 @@ vi.mock("@/stores", () => ({
 
 // The agent's own-account section is tested on its own, and reads hooks this
 // file does not stage.
+vi.mock("./remembered-approvals", () => ({ RememberedApprovals: () => null }));
 vi.mock("./your-connections", () => ({ YourConnections: () => null }));
+vi.mock("@/components/settings/coding-accounts", () => ({
+  CodingAccounts: ({ compact }: { compact?: boolean }) =>
+    compact ? <section aria-label="Coding accounts" /> : null,
+}));
 
 // The picker is tested on its own; here it only needs to be able to choose.
 vi.mock("./chat-model-picker", () => ({
@@ -103,6 +108,7 @@ describe("the page's tips", () => {
     render(<ChatControls />);
     await userEvent.click(trigger());
 
+    await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
     await userEvent.click(screen.getByRole("button", { name: "Show tips for this page" }));
 
     expect(state.openPage).toHaveBeenCalledTimes(1);
@@ -241,6 +247,7 @@ describe("the approval mode", () => {
   async function openControls() {
     render(<ChatControls />);
     await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
   }
 
   it("follows the agent until somebody says otherwise", async () => {
@@ -256,6 +263,7 @@ describe("the approval mode", () => {
     const onApprovalModeChange = vi.fn();
     render(<ChatControls onApprovalModeChange={onApprovalModeChange} />);
     await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
 
     await userEvent.click(screen.getByRole("radio", { name: /Ask about everything/ }));
 
@@ -316,16 +324,18 @@ it("keeps the composer controls free of a duplicate folder badge", () => {
   expect(trigger()).toBeVisible();
 });
 
-it("keeps model and tools together and expands preferences without replacing them", async () => {
+it("separates preferences from model and tools and can return without losing them", async () => {
   state.desktop = true;
   open();
   await userEvent.click(trigger());
   expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
   expect(screen.queryByRole("radiogroup")).toBeNull();
-  await userEvent.click(screen.getByRole("button", { name: "Preferences" }));
-  expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
+  await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
+  expect(screen.queryByRole("region", { name: "Work environment" })).toBeNull();
   expect(screen.getByRole("radiogroup")).toBeVisible();
   expect(screen.getByText("Conversation notifications")).toBeVisible();
+  await userEvent.click(screen.getByRole("tab", { name: "Model" }));
+  expect(screen.getByRole("region", { name: "Work environment" })).toBeVisible();
 });
 
 describe("the compact settings panel", () => {
@@ -340,15 +350,14 @@ describe("the compact settings panel", () => {
     expect(trigger()).toHaveFocus();
   });
 
-  it("shows the current permission explanation and reveals the others on demand", async () => {
+  it("explains available permission modes before they are selected", async () => {
     open();
     await userEvent.click(trigger());
     const askHint =
       "Ask before every tool this agent can use, including the ones it does not normally gate.";
-    expect(screen.queryByText(askHint)).not.toBeInTheDocument();
-    const help = screen.getAllByRole("button", { name: "More information" });
-    await userEvent.click(help[1]!);
-    expect(screen.getByText(askHint)).toBeInTheDocument();
+    expect(screen.getByText(askHint)).not.toBeVisible();
+    await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
+    expect(screen.getByText(askHint)).toBeVisible();
   });
 });
 
@@ -356,6 +365,7 @@ it("explains an organization policy refusal and links directly to its approval s
   state.orgAllowsWaiving = false;
   open();
   await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
   expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
   expect(screen.getByText(/Your organization has disabled this mode/)).toBeVisible();
   expect(screen.getByRole("link", { name: "Open approval settings" })).toHaveAttribute(
@@ -370,6 +380,7 @@ it("does not call a missing organization policy disabled or offer its settings l
   state.orgLoaded = false;
   open();
   await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole("tab", { name: "Preferences" }));
   expect(screen.getByRole("radio", { name: "Approve everything" })).toBeDisabled();
   expect(screen.getByText(/Organization approval settings are not available yet/)).toBeVisible();
   expect(screen.queryByRole("link", { name: "Open approval settings" })).toBeNull();
@@ -381,4 +392,10 @@ it("uses an anchored panel without blocking the rest of the chat", async () => {
   expect(trigger()).toHaveAttribute("aria-expanded", "true");
   expect(document.querySelector("[data-radix-popper-content-wrapper]")).toBeInTheDocument();
   expect(document.body.style.pointerEvents).not.toBe("none");
+});
+
+it("promotes coding accounts in the web chat model tab", async () => {
+  open();
+  await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
+  expect(screen.getByRole("region", { name: "Coding accounts" })).toBeVisible();
 });

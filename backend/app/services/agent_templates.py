@@ -43,6 +43,7 @@ AVATAR = "avatar.png"
 # Architect - and what it is, instructions and settings, is what a new agent
 # starts with, so "what a good agent has" is written once (#2301).
 STARTER_TEMPLATE = "general/agenticos"
+AGENTICOS_ONLY = frozenset({"computer_use", "browser_use", "coding_agent"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,7 +129,7 @@ def get(key: str) -> AgentTemplate | None:
 
 
 def starter_capabilities() -> dict[str, dict[str, Any]]:
-    """The starter template's capability bindings, keyed by capability id.
+    """Common new-agent bindings, excluding AgenticOS-only interactive tools.
 
     Empty where the template is missing from this image, which recommends
     nothing rather than failing the catalog that asks.
@@ -136,7 +137,11 @@ def starter_capabilities() -> dict[str, dict[str, Any]]:
     starter = get(STARTER_TEMPLATE)
     if starter is None:
         return {}
-    return {binding["id"]: binding for binding in for_this_deployment(starter.capabilities)}
+    return {
+        binding["id"]: binding
+        for binding in for_this_deployment(starter.capabilities)
+        if binding["id"] not in AGENTICOS_ONLY
+    }
 
 
 BROWSER = "browser_use"
@@ -166,7 +171,11 @@ def for_this_deployment(bindings: tuple[dict[str, Any], ...]) -> list[dict[str, 
             config = {**(binding.get("config") or {}), "backend": "state"}
             config.pop("include_execute", None)
             binding = {**binding, "config": config}
-        if binding["id"] == BROWSER and not (binding.get("config") or {}).get("cdp_url"):
+        if (
+            binding["id"] == BROWSER
+            and (binding.get("config") or {}).get("connection") != "local"
+            and not (binding.get("config") or {}).get("cdp_url")
+        ):
             if not settings.BROWSER_SIGN_IN_CDP_URL:
                 continue
             binding = {

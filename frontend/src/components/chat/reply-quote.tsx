@@ -38,7 +38,9 @@ function jumpTo(messageId: string): void {
     `[data-message-id="${CSS.escape(messageId)}"]`,
   );
   if (!target) return;
-  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "center" });
+  if (reducedMotion) return;
   target.animate?.(
     [
       { backgroundColor: "var(--reply-flash, rgb(127 127 127 / 0.14))" },
@@ -49,8 +51,7 @@ function jumpTo(messageId: string): void {
 }
 
 /**
- * What a turn answers: a small "in reply to" line, and the quoted message as a
- * faded bubble just above the reply.
+ * A compact quote, embedded in a user reply or standing above an agent answer.
  *
  * In a chat several people talk to at once "yes, do that" has to say to what.
  * A click goes to the quoted message where it is still on screen.
@@ -59,33 +60,42 @@ export function ReplyQuote({
   reply,
   agents = [],
   align = "end",
+  embedded = false,
 }: {
   reply: MessageReply;
   agents?: readonly NamedAgent[];
   align?: "start" | "end";
+  embedded?: boolean;
 }) {
   const t = useTranslations("chat.reply");
   const author = useQuotedAuthor(reply, agents);
 
   return (
-    <div className={cn("flex max-w-[85%] flex-col", align === "end" ? "items-end" : "items-start")}>
-      <span className="text-muted-foreground mb-1 flex items-center gap-1 px-1 text-[11px]">
-        <CornerUpLeft className="h-3 w-3" aria-hidden />
-        {author.mine ? t("inReplyToYou") : t("inReplyTo", { name: author.name })}
-      </span>
+    <div
+      className={cn(
+        "min-w-0",
+        embedded ? "mb-2 w-full" : "w-fit max-w-[min(85%,28rem)]",
+        align === "end" ? "self-end" : "self-start",
+      )}
+    >
       <button
         type="button"
         onClick={() => jumpTo(reply.messageId)}
         title={t("jump")}
         className={cn(
-          // A fill rather than an outline, and above the reply rather than under
-          // it: a bubble pulled over the quote let the quote's edge show through
-          // its translucent fill.
-          "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.07] mb-1 line-clamp-2 rounded-2xl px-3.5 py-2 text-left text-[13px] leading-snug transition-colors",
-          align === "end" ? "rounded-br-md" : "rounded-bl-md",
+          "border-foreground/20 hover:border-foreground/40 focus-visible:ring-ring block w-full min-w-0 border-l-2 py-1 pl-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none motion-reduce:transition-none",
+          !embedded && "bg-foreground/[0.03] rounded-r-lg py-2 pr-3",
         )}
       >
-        {reply.excerpt}
+        <span className="text-foreground/75 mb-0.5 flex min-w-0 items-center gap-1.5 text-[11px] font-medium">
+          <CornerUpLeft className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">
+            {author.mine ? t("inReplyToYou") : t("inReplyTo", { name: author.name })}
+          </span>
+        </span>
+        <span className="text-muted-foreground line-clamp-2 text-xs leading-relaxed break-words">
+          {reply.excerpt}
+        </span>
       </button>
     </div>
   );
@@ -98,10 +108,10 @@ export function ReplyingTo({ reply, onCancel }: { reply: MessageReply; onCancel:
   const t = useTranslations("chat.reply");
   const author = useQuotedAuthor(reply, []);
   return (
-    <div className="animate-in fade-in-0 slide-in-from-bottom-2 border-border/60 flex min-w-0 items-start gap-3 border-b px-4 py-2.5">
-      <CornerUpLeft className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+    <div className="border-foreground/20 bg-foreground/[0.025] mx-3 mt-3 mb-1 flex min-w-0 items-start gap-2.5 rounded-r-lg border-l-2 py-2 pr-1.5 pl-2.5">
+      <CornerUpLeft className="text-muted-foreground mt-0.5 size-3.5 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1">
-        <p className="text-foreground text-xs">
+        <p className="text-foreground/85 text-xs leading-5">
           {author.mine
             ? t("replyingToYourself")
             : t.rich("replyingTo", {
@@ -109,14 +119,16 @@ export function ReplyingTo({ reply, onCancel }: { reply: MessageReply; onCancel:
                 strong: (chunks) => <span className="font-semibold">{chunks}</span>,
               })}
         </p>
-        <p className="text-muted-foreground truncate text-xs">{reply.excerpt}</p>
+        <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed break-words">
+          {reply.excerpt}
+        </p>
       </div>
       <button
         type="button"
         onClick={onCancel}
         aria-label={t("cancel")}
         title={t("cancel")}
-        className="text-muted-foreground hover:text-foreground hover:bg-accent/60 -mr-1 shrink-0 rounded-full p-1"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent/60 focus-visible:ring-ring flex size-8 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:outline-none"
       >
         <X className="h-3.5 w-3.5" aria-hidden />
       </button>

@@ -1,6 +1,7 @@
 "use client";
 
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ProjectTrackingOffer } from "./project-tracking-offer";
 import { useTranslations } from "next-intl";
 
 import { isAtAgentLimit } from "@/components/agents/agent-limit-notice";
@@ -99,6 +100,8 @@ export function CreationOffer() {
   if (offer === "create-routine" && anyRunnable !== true) {
     return null;
   }
+
+  if (offer === "create-project-tracker") return <ProjectTrackingOffer />;
 
   return (
     <ConfirmDialog

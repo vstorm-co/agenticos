@@ -253,7 +253,10 @@ async def probe_listing(
         return Probe(CheckOutcome.REFUSED, detail="address refused by the outbound guard")
     except Exception as exc:  # `probe_mcp_server` raises only McpProbeError or cancellation
         return Probe(CheckOutcome.OPEN, detail=f"handshake only: {exc}")
-    return Probe(CheckOutcome.OPEN, tools=tuple(tools))
+    # Some servers (Google) expose discovery/tools publicly but require OAuth
+    # to call them. An open tool list is not evidence of anonymous tool access.
+    outcome = CheckOutcome.SIGN_IN if await _publishes_oauth(url) else CheckOutcome.OPEN
+    return Probe(outcome, tools=tuple(tools))
 
 
 async def probe_many(
@@ -421,6 +424,9 @@ async def write_checks(db: AsyncSession, rows: Iterable[CheckRow], *, prune: boo
 
 _SNAPSHOT_ROWS: TypeAdapter[tuple[StoredCheck, ...]] = TypeAdapter(tuple[StoredCheck, ...])
 _REPORT_ROWS: TypeAdapter[tuple[CheckRow, ...]] = TypeAdapter(tuple[CheckRow, ...])
+BUNDLED_CHECKS: dict[str, StoredCheck] = {
+    row.key: row for row in catalog.load(SNAPSHOT, _SNAPSHOT_ROWS) if row.source == "catalog"
+}
 
 
 def snapshot_json(rows: Iterable[CheckRow]) -> str:

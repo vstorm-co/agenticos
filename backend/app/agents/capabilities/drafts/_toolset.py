@@ -123,5 +123,5 @@ class DraftsToolset(FunctionToolset[AgentDeps]):
             )
         return (
             f"{DRAFTED}{card.title!r}. The person can already see the draft in full as a "
-            "card: do not write it out again in your answer, and say at most one short line."
+            f"card: do not write it out again in your answer, and say at most one short line."
         )

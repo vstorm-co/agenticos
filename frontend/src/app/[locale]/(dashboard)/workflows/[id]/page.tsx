@@ -11,9 +11,9 @@ import {
   Pencil,
   ScrollText,
   Settings2,
-  Workflow,
   Zap,
 } from "lucide-react";
+import { WorkflowIcon as Workflow } from "@/components/icons/product-icons";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";

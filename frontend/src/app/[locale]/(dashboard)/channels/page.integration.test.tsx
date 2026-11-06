@@ -19,7 +19,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { toast } from "sonner";
 
-const permissions = { can: vi.fn(() => true) };
+const permissions = { can: vi.fn(() => true), isLoading: false, error: null as Error | null };
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => permissions }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -133,9 +133,35 @@ async function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   permissions.can.mockReturnValue(true);
+  permissions.isLoading = false;
+  permissions.error = null;
 });
 
 describe("the channels page", () => {
+  it("shows a permission-read failure without claiming a refusal or offering writes", () => {
+    permissions.can.mockReturnValue(false);
+    permissions.error = new Error("permissions unavailable");
+    render(<ChannelsPage />, { wrapper });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText(/channels:manage/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add channel" })).toBeNull();
+  });
+
+  it("does not flash a refusal or an empty list while permissions are loading", async () => {
+    permissions.can.mockReturnValue(false);
+    permissions.isLoading = true;
+    serve([]);
+    const view = render(<ChannelsPage />, { wrapper });
+    expect(screen.queryByText(/channels:manage/)).toBeNull();
+    expect(screen.queryByText("No channel registered yet")).toBeNull();
+    expect(view.container.querySelector(".animate-pulse")).not.toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalled();
+    permissions.isLoading = false;
+    permissions.can.mockReturnValue(true);
+    view.rerender(<ChannelsPage />);
+    expect(await screen.findByText("No channel registered yet")).toBeVisible();
+  });
+
   it("names each bot and the server it lives on", async () => {
     // "Mattermost" does not say which of them on a deployment with two.
     serve([bot()]);

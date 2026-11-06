@@ -264,10 +264,22 @@ was deleted, which only the project still reached and which goes with it.
 
 ## Where projects show up
 
-- **Projects** in the sidebar lists the five you used most recently, above the
-  link to all of them.
+- **Projects** in the sidebar lists the three you used most recently, above the
+  link to all of them. An unread-answer icon marks a project with a chat response you have not read.
 - The chat list files every chat in the projects you can see - yours and your
   teammates' - under the project's name, above the chats outside any project.
 - The dashboard's **Projects** card shows a row of them, with the chats in each.
 - `GET /api/v1/projects` and its sub-routes are part of the public API, so a
   script can create a project and fill it with files. See [the API](api.md).
+
+
+## Keep a project on track
+
+Choose **Keep project on track** on a project's page. Select a published agent you can edit, review its resources and connected accounts, name the new agent and task table, choose a cadence, and explicitly approve **Publish and start**. This creates a private copy of that agent, a task table (private unless you choose organization visibility), saved All tasks, Board, Open tasks and Blocked views, and a routine pinned to the new version. The original agent is unchanged.
+
+The routine runs as you inside that project and reports in its project conversation. It reads task state, verifies progress from the reviewed sources, updates next actions and flags blockers and deadlines. Sending an external follow-up still needs the usual authorization. New sources, account consent or a workspace replacement require a new source review. Losing project access stops subsequent tools; queued project notifications recheck the recipient's current project access. An identical setup retry reuses its existing resources. Manage its cadence and source review under Routines; open its table from the project page.
+
+An ownerless scheduled conversation in a project can be renamed, archived or deleted by someone with permission to edit that project. Chats started by another person remain under that person’s management.
+
+
+Deleting a project also erases its memory claims and derived shared copies, and attempts to remove its registered provider webhooks before cascading its routines. An unavailable provider is logged; it does not block deletion.

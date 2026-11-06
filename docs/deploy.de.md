@@ -1,5 +1,5 @@
 ---
-source_sha: "7972364d6328"
+source_sha: "a41c7a2c6e87"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -576,6 +576,58 @@ oder `0` bei Docker Desktop, wo der eingebundene Socket der VM gehört. Ein expl
     liest das Skript den Token, statt ein Flag entgegenzunehmen.
 
 ## Eine Änderung deployen { #deploying-a-change }
+
+### Nativer Speicher und Kontinuität von Routinen { #native-memory-upgrade }
+
+Erstelle vor dem Upgrade [Sicherungen von Datenbank, Medien und Vault-Schlüsseln](#backups)
+und koordiniere API- und Worker-Rollout. Nutze den normalen Migrationsschritt des
+Deployments; kopiere keine Zeilen und lege keine Ersatzzeitpläne manuell an.
+
+Stoppe vor `0285_member_proactivity.py` API und Sweep-Erzeuger, lasse aktive proaktive Jobs auslaufen und stoppe dann die Worker. Die Migration verweigert laufende Watch- oder nächtliche Modelljobs und ergänzt wartende Jobs um einen gemeinsamen Parallelitätsschlüssel pro Person. Aktualisiere API und Worker gemeinsam, damit neue Jobs denselben Schlüssel nutzen; eine Watch und ein nächtlicher Durchlauf derselben Person dürfen nicht unabhängig dasselbe Restbudget ausgeben.
+
+- `0248_drop_memory_mem0.py` stoppt das Upgrade, solange `memory_mem0` in einem
+  gespeicherten Entwurf oder veröffentlichten Spec verbleibt. Inventarisiere vor
+  dem erneuten Versuch alle Endpunkte und Vault-Zugangsdatenzuordnungen aus der
+  Sicherung, lösche die externen Erinnerungen und bestätige den Abschluss bei jedem
+  Anbieter. Entferne erst danach diese Bindungen ausdrücklich aus `agents.draft_spec`
+  und `agent_versions.spec`. Ein Export allein ist keine Löschung. Bewahre die
+  Löschbelege auf, prüfe ungenutzte Vault-Schlüssel und widerrufe ausgemusterte
+  Zugangsdaten. Die Migration führt keine Remote-Anfrage aus und setzt keine
+  erfolgreiche Löschung voraus. Hat ein früherer Entwicklungsstand die Bindungen
+  bereits entfernt, stelle das Inventar aus der Sicherung vor dem Upgrade wieder
+  her und führe dieselbe Löschung durch; die native Personen-/Agentenlöschung
+  erreicht diese externen Daten nicht.
+- `0251_primary_conversations.py` und `0258_primary_channel_history.py` richten
+  primäre private Chats ein. Bestehende Zuordnungen haben Vorrang. Nur nachweislich
+  privater Verlauf eines verknüpften Kanals wird einmalig übernommen; Projekt-,
+  Gruppen- und unklare Verläufe bleiben getrennt. Wiederhole die Übernahme nicht,
+  nachdem jemand seinen primären Chat geleert hat.
+- Bestehende Routinen-IDs, Zeitpläne und Logs bleiben erhalten.
+  `0255_trigger_delivery.py` setzt alte Routinen auf `run_log`; neue verwenden
+  standardmäßig den primären Chat oder ihre vertrauenswürdige Quellunterhaltung.
+  Prüfe Ziel, handelnde Person, Ende und Budget unter **Routinen**, statt Kopien
+  anzulegen.
+- `0259_trigger_version_pin.py` erlaubt unveränderliche Versionspins. Ein Pin und
+  eine benannte Umgebung schließen sich aus. Entferne einen Pin vor dem Löschen
+  seiner Version. Ein geparkter Run behält seine zugelassene Version;
+  `0260_routine_run_origin.py` erhält seine Herkunft, damit das Löschen der Routine
+  ihre Berechtigungsprüfung nicht aufhebt.
+- `0261_watch_attempt_status.py` beginnt die explizite Versuchserfassung ohne
+  erfundene ältere Erfolgs-/Fehlerhistorie. Nicht verfügbare oder unvollständige
+  Prüfungen verschieben den Erfolgszeitpunkt nicht. Prüfe bestehende
+  Beobachtungen und ihren Kontozugriff: alte Zeilen beweisen nicht, wie die
+  ursprüngliche Einwilligung erteilt wurde.
+
+Wähle vor dem Einschalten der Speicherpflege ausdrücklich ein Modell; das
+Tagesbriefing behält die bisherigen Modell-/Budgeteinstellungen der Organisation.
+Seit `0262_watch_agent_sources.py` verwenden Beobachtungen den ausgewählten
+Agenten und behalten die genehmigten Quellen im Run. Bestehende Beobachtungen
+erfordern eine Agentenauswahl und Quellenfreigabe; IDs und Funde bleiben erhalten. Prüfe
+[Governance](governance.md#proactive-work) und die [Kanaleinrichtung](channels.md#sms),
+einschließlich `PUBLIC_BASE_URL` und abgelaufener SMS-Verknüpfungen. Prüfe in einer
+Testorganisation einen privaten Chat, Aktivität/Zustellung einer Routine,
+Pause/Ablauf und eine Beobachtung mit nicht verfügbarer Quelle vor einem breiten
+Rollout.
 
 ### Die Grenze des Verlaufsformats in 1.25.0 { #retry-history-upgrade }
 

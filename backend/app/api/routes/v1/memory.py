@@ -20,13 +20,18 @@ it is somebody erasing themselves, or `MEMBERS_MANAGE` erasing a member - and th
 service is where that is decided.
 """
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import Auth, MemorySvc
+from app.schemas.decision_episode import ImproveCaseReview, ImproveDecisionCase
 from app.schemas.memory import (
+    MemoryClaimCorrect,
+    MemoryClaimDetail,
+    MemoryClaimList,
+    MemoryClaimRead,
     MemoryErasureResult,
     MemoryNoteList,
     MemoryNoteRead,
@@ -42,6 +47,7 @@ async def my_memory(
     ctx: Auth,
     skip: int = Query(0, ge=0, description="Notes to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max notes to return"),
+    q: str = Query("", max_length=200, description="Search all owned notes before pagination"),
 ) -> Any:
     """What the agents in this organization have written down about the caller.
 
@@ -50,7 +56,7 @@ async def my_memory(
     Suppressed notes are included and marked: they are the caller's own, and a
     view that hid them would be one they could not restore anything from.
     """
-    return await service.mine(ctx, skip=skip, limit=limit)
+    return await service.mine(ctx, skip=skip, limit=limit, q=q)
 
 
 @router.patch("/mine/{file_id}", response_model=MemoryNoteRead)
@@ -73,6 +79,65 @@ async def set_my_note_active(
 async def delete_my_note(file_id: UUID, service: MemorySvc, ctx: Auth) -> None:
     """Delete one of the caller's own notes outright."""
     await service.delete_note(ctx, file_id)
+
+
+@router.get("/claims/mine", response_model=MemoryClaimList)
+async def my_claims(
+    service: MemorySvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0, description="Claims to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Max claims to return"),
+    history: bool = Query(False, description="Include superseded, merged and retracted claims"),
+    q: str = Query(
+        "",
+        max_length=200,
+        description="Search statements, topics and agent names before pagination",
+    ),
+    kind: Literal["fact", "preference", "decision"] | None = Query(None),
+    scope: Literal["profile", "agent"] | None = Query(None),
+) -> Any:
+    """The facts, preferences and decisions recorded about the caller, with their source.
+
+    Current claims by default; `history` adds what they replaced. Always the caller's
+    own: no permission to ask for, and nobody else's through this route.
+    """
+    return await service.my_claims(
+        ctx,
+        skip=skip,
+        limit=limit,
+        history=history,
+        q=q,
+        kind=kind,
+        scope=scope,
+    )
+
+
+@router.get("/claims/mine/{claim_id}", response_model=MemoryClaimDetail)
+async def my_claim(claim_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
+    """One of the caller's claims with the claims it was drawn from and the one it replaced."""
+    return await service.claim_detail(ctx, claim_id)
+
+
+@router.post("/claims/mine/{claim_id}/improve-case", response_model=ImproveDecisionCase)
+async def reviewed_improve_case(
+    claim_id: UUID, data: ImproveCaseReview, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Prepare a personally reviewed decision episode for Improve's JSONL import."""
+    return await service.improve_case(ctx, claim_id, data)
+
+
+@router.post("/claims/mine/{claim_id}/correct", response_model=MemoryClaimRead)
+async def correct_my_claim(
+    claim_id: UUID, data: MemoryClaimCorrect, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Correct a claim in the caller's own words; the corrected claim stays in its history."""
+    return await service.correct_claim(ctx, claim_id, data)
+
+
+@router.post("/claims/mine/{claim_id}/retract", response_model=MemoryClaimRead)
+async def retract_my_claim(claim_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
+    """Take a claim out of use. It and everything it came from stay in the history."""
+    return await service.retract_claim(ctx, claim_id)
 
 
 @router.get("/person/{user_id}", response_model=MemoryNoteList)
@@ -104,9 +169,8 @@ async def inspect_person_memory(
 async def forget_person(user_id: UUID, service: MemorySvc, ctx: Auth) -> Any:
     """Forget everything every agent in this organization knows about one person.
 
-    Answers with what each half removed rather than 204, because the mem0 half is
-    somebody else's service and a caller has to be able to say which parts of
-    "forgotten" actually happened.
+    Answers with what was removed rather than 204, so a caller can say how much
+    of "forgotten" actually happened.
     """
     return await service.forget_person(ctx, user_id)
 

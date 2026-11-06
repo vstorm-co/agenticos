@@ -15,6 +15,7 @@ agent pipeline as the web chat.
 | `telegram.py` | Telegram (aiogram v3) |
 | `slack.py` | Slack (Events API + Socket Mode) |
 | `mattermost.py` | Mattermost |
+| `imessage.py`, `imessage_transport.py` | Company BlueBubbles Mac: bounded HTTP, separately authenticated webhook, text/files, optional tapbacks and numbered prompts; no polling |
 | `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `discord.py`, `discord_protocol.py` | Discord over its Gateway and REST API, no library (#2079); the protocol module holds the pure payloads, chunking and the channel-visibility arithmetic |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
