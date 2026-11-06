@@ -459,6 +459,8 @@ _LISTED_COLUMNS = (
     Conversation.origin,
     Conversation.created_at,
     Conversation.updated_at,
+    Conversation.forked_from_conversation_id,
+    Conversation.forked_from_message_id,
 )
 
 
@@ -919,6 +921,144 @@ async def create_conversation(
     await db.flush()
     await db.refresh(conversation)
     return conversation
+
+
+async def fork_conversation(
+    db: AsyncSession, *, source: Conversation, through: Message
+) -> Conversation:
+    """A new conversation holding `source`'s messages up to and including `through`.
+
+    Owned by the source's owner, in its organization and project, with the same
+    title. Each message is copied with its tool calls, in the order it was
+    written, and flushed one at a time: the ordinal comes from an identity, and
+    one multi-row insert does not promise to hand it out in the order of the
+    rows.
+
+    What a copy leaves behind is what belongs to the source's runs, readers or
+    storage rather than to its history: the run and its cost, attachments, the
+    server a tool call reached, and a part's pointer at the source's workspace -
+    which would name the source to anybody the fork is shared with, and lead
+    them to files they cannot open. A reply to a message that was not copied
+    loses its target.
+
+    The rows the model's history is rebuilt from are copied whole, but the
+    source's summary is not: it is keyed to the source's ordinals. A fork of a
+    summarised conversation rebuilds its history from the copied turns and
+    summarises again when it needs to.
+    """
+    fork = Conversation(
+        user_id=source.user_id,
+        organization_id=source.organization_id,
+        title=source.title,
+        project_id=source.project_id,
+        forked_from_conversation_id=source.id,
+        forked_from_message_id=through.id,
+    )
+    db.add(fork)
+    await db.flush()
+    originals = (
+        (
+            await db.execute(
+                select(Message)
+                .where(Message.conversation_id == source.id, Message.ordinal <= through.ordinal)
+                .options(selectinload(Message.tool_calls))
+                .order_by(Message.ordinal.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    copied: dict[UUID, UUID] = {}
+    for original in originals:
+        copy = Message(
+            conversation_id=fork.id,
+            role=original.role,
+            content=original.content,
+            thinking=original.thinking,
+            model_name=original.model_name,
+            parts=_without_source_workspace(original.parts, source.id),
+            attachment_context=original.attachment_context,
+            context_used_tokens=original.context_used_tokens,
+            agent_id=original.agent_id,
+            agent_version_id=original.agent_version_id,
+            channel_identity_id=original.channel_identity_id,
+            author_user_id=original.author_user_id,
+            reply_to_message_id=copied.get(original.reply_to_message_id)
+            if original.reply_to_message_id is not None
+            else None,
+            interrupted=original.interrupted,
+            guardrail_refused=original.guardrail_refused,
+            created_at=original.created_at,
+            tool_calls=[
+                ToolCall(
+                    tool_call_id=call.tool_call_id,
+                    tool_name=call.tool_name,
+                    args=call.args,
+                    result=call.result,
+                    status=call.status,
+                    started_at=call.started_at,
+                    completed_at=call.completed_at,
+                    duration_ms=call.duration_ms,
+                )
+                for call in original.tool_calls
+            ],
+        )
+        db.add(copy)
+        await db.flush()
+        copied[original.id] = copy.id
+    await db.refresh(fork)
+    return fork
+
+
+def _without_source_workspace(
+    parts: list[dict[str, object]] | None, source_id: UUID
+) -> list[dict[str, object]] | None:
+    """A message's parts with any pointer at the source conversation's workspace removed."""
+    if parts is None:
+        return None
+    kept: list[dict[str, object]] = []
+    for part in parts:
+        origin = part.get("file_source")
+        if (
+            isinstance(origin, dict)
+            and origin.get("kind") == "conversation"
+            and str(origin.get("id")) == str(source_id)
+        ):
+            part = {key: value for key, value in part.items() if key != "file_source"}
+        kept.append(part)
+    return kept
+
+
+async def run_ids_through(db: AsyncSession, *, conversation_id: UUID, ordinal: int) -> set[UUID]:
+    """The runs that wrote this conversation's messages up to and including `ordinal`."""
+    result = await db.execute(
+        select(Message.run_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.ordinal <= ordinal,
+            Message.run_id.is_not(None),
+        )
+        .distinct()
+    )
+    return {run_id for run_id in result.scalars().all() if run_id is not None}
+
+
+async def owned_titles(
+    db: AsyncSession, *, owner_id: UUID, conversation_ids: Collection[UUID]
+) -> dict[UUID, str | None]:
+    """The title of each of these conversations that `owner_id` owns, by id.
+
+    One query for a page of forks naming their sources: a source that is gone or
+    belongs to somebody else is simply absent.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(Conversation.id, Conversation.title).where(
+            Conversation.id.in_(list(conversation_ids)), Conversation.user_id == owner_id
+        )
+    )
+    return dict(result.tuples().all())
 
 
 async def ensure_workflow_conversation(

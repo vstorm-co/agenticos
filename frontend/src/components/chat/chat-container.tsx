@@ -47,6 +47,7 @@ import { MessageList } from "./message-list";
 import { TurnRail } from "./turn-rail";
 import { DelegationPanels } from "./delegation-panel";
 import { CompactionNotice } from "./compaction-notice";
+import { ForkedFrom } from "./forked-from";
 import { SandboxPreparingNotice } from "./sandbox-preparing-notice";
 import { InterruptedNotice } from "./interrupted-notice";
 import { ConnectAccountPrompt } from "./connect-account-prompt";
@@ -64,6 +65,7 @@ import type {
   ConnectionRequest,
   PersonalServiceGap,
   ConversationCost,
+  ConversationForkOrigin,
   Decision,
   Delegation,
   TurnUsage,
@@ -231,6 +233,7 @@ export function ChatContainer({
     isLoadingEarlier,
     loadEarlierMessages,
     markRead,
+    forkConversation,
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
 
@@ -695,6 +698,17 @@ export function ChatContainer({
     [messages, sendMessage],
   );
 
+  // Forking is the owner's own tool (#2762): somebody reading a shared thread,
+  // with view or edit, cannot fork it, so they are not offered the button.
+  const ownsOpenConversation = openConversation !== undefined && openConversation.user_id === meId;
+  const openId = openConversation?.id;
+  const handleFork = useCallback(
+    (messageId: string) => {
+      if (openId !== undefined) void forkConversation(openId, messageId);
+    },
+    [forkConversation, openId],
+  );
+
   // A prompt handed in from outside - a bubble the reader clicked in the
   // widget - goes out once the socket can carry it, and only once.
   const sentPromptRef = useRef<number | null>(null);
@@ -786,6 +800,9 @@ export function ChatContainer({
       // context gauge the model switch has to move.
       onApprovalModeChange={setApprovalMode}
       onRegenerate={handleRegenerate}
+      onFork={ownsOpenConversation ? handleFork : undefined}
+      forkedFrom={openConversation?.forked_from ?? null}
+      onOpenForkSource={(id) => void selectConversation(id)}
       pins={pins}
       slashContext={slashContext}
       slashCommands={slashCommands}
@@ -901,6 +918,11 @@ interface ChatUIProps {
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
   onRegenerate?: (messageId: string) => void;
+  /** Fork the open conversation at an answer; absent unless the reader owns it. */
+  onFork?: (messageId: string) => void;
+  /** Where the open conversation was forked from, for its owner alone. */
+  forkedFrom?: ConversationForkOrigin | null;
+  onOpenForkSource?: (conversationId: string) => void;
   pins?: PinnedPrompts;
   slashContext?: import("./slash-commands").SlashCommandContext;
   slashCommands?: import("./slash-commands").SlashCommand[];
@@ -972,6 +994,9 @@ function ChatUI({
   onModelProfileChange,
   onApprovalModeChange,
   onRegenerate,
+  onFork,
+  forkedFrom,
+  onOpenForkSource,
   pins,
   slashContext,
   slashCommands,
@@ -1341,7 +1366,15 @@ function ChatUI({
                         {t("loadEarlierMessages")}
                       </button>
                     )}
-                    <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                    {forkedFrom && onOpenForkSource && (
+                      <ForkedFrom origin={forkedFrom} onOpen={onOpenForkSource} />
+                    )}
+                    <MessageList
+                      messages={messages}
+                      onRegenerate={onRegenerate}
+                      onFork={onFork}
+                      pins={pins}
+                    />
                   </ConversationVisualsProvider>
                 </LiveBrowsesProvider>
               )}

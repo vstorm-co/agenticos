@@ -692,6 +692,14 @@ one row, with every connection's time and cost summed. The **Voice minutes**
 dashboard card, in the Usage band for a holder of `runs:view`, shows the
 period's call minutes and calls and the top three agents.
 
+### Forking a conversation { #forking }
+
+To try another approach, or to take a side question somewhere it will not crowd the main thread, choose **Fork into a new conversation** under one of the agent's answers. You get a new conversation of your own, in the same project, holding everything up to and including that answer. The next message continues from there with the same history; the original is not changed.
+
+Only the conversation's owner can fork it: somebody it is shared with, for viewing or editing, does not get the action. A fork copies the messages and the tool calls, not the attachments' files, the files the agent wrote in its workspace, the images agents generated, the cost or the run records. The agent still has the text of an attachment, but the fork shows no card for it; an image an agent generated is the original's, and stops loading once the original is deleted. While a run in the history is still writing, or waits on an approval or a question, the conversation cannot be forked.
+
+The top of a fork says **Forked from** the original, with a link to it. Only you see that line: if you share the fork, the person you share it with sees an ordinary conversation.
+
 ### Background topics { #background-topics }
 
 Enable **Background topics** on a published agent to ask, for example: “Investigate the export bug in a new topic while we continue the release plan”, or “Have the finance agent check these figures while we discuss the proposal”. It can use its own pinned version or a published delegate pinned in its spec. Start from a conversation you own; the fresh topic belongs to the same project and carries the agent's brief and a link back, without copying the original transcript.

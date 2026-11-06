@@ -57,6 +57,19 @@ export interface Conversation {
   unread?: boolean;
   /** When the run still at work in it began; null when none is. Listings only. */
   running_since?: string | null;
+  /**
+   * The conversation this one was forked from (#2762). Only ever set for a caller
+   * who owns both, so a fork shared with somebody else does not name its source.
+   */
+  forked_from?: ConversationForkOrigin | null;
+}
+
+/** Where a fork came from: the source conversation and the answer it was forked at. */
+export interface ConversationForkOrigin {
+  conversation_id: string;
+  /** Null once that answer is gone. */
+  message_id: string | null;
+  title: string | null;
 }
 
 /** One of a project's chats, with the people around it - a project's chats are its members'. */

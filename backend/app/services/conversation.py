@@ -24,6 +24,7 @@ from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
 from app.db.updates import writable
@@ -44,6 +45,7 @@ from app.schemas.conversation import (
     ConversationAgent,
     ConversationCost,
     ConversationCreate,
+    ConversationForkOrigin,
     ConversationUpdate,
     MessageCreate,
     MessageRead,
@@ -64,6 +66,12 @@ logger = logging.getLogger(__name__)
 API_HISTORY_MESSAGES = 200
 """How much of a conversation an API run sends the model: what a channel thread
 sends, with the same summary taking over beyond it."""
+
+
+_UNFINISHED_RUN = frozenset(
+    {RunStatus.RUNNING, RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER}
+)
+"""Run states a history cannot be forked in: still writing, or parked on a person."""
 
 
 def _api_title(prompt: str) -> str:
@@ -383,7 +391,8 @@ class ConversationService:
         eight while each route had to remember. It is turned **off** by the
         callers that use this only to authorize and then discard the row:
         `GET /conversations/{id}/messages` resolves it through `transcript`, which
-        serializes no star.
+        serializes no star. The same flag carries the fork's origin (#2762), which
+        is the reader's as much as the star is.
         """
         conversation = await conversation_repo.get_conversation_by_id(
             self.db, conversation_id, include_messages=include_messages
@@ -435,6 +444,7 @@ class ConversationService:
         # to nobody in particular there.
         if include_favourite:
             await self._attach_favourites([conversation], user_id=user_id)
+            await self._attach_fork_origins([conversation], user_id=user_id)
         return conversation
 
     async def _may_read(
@@ -881,6 +891,7 @@ class ConversationService:
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
+        await self._attach_fork_origins(items, user_id=user_id)
         await self._attach_running(items)
         await self._attach_unread(items, user_id=user_id)
         return items, total
@@ -1151,6 +1162,110 @@ class ConversationService:
             title=data.title,
             project_id=data.project_id,
         )
+
+    async def fork(
+        self,
+        conversation_id: UUID,
+        *,
+        message_id: UUID,
+        organization_id: UUID,
+        user_id: UUID,
+        ctx: AuthContext,
+    ) -> Conversation:
+        """A new chat for the owner, holding this one's history up to one of its answers (#2762).
+
+        Forking is the owner's own tool: a reader holding a share, view or edit,
+        cannot fork, and is told the conversation does not exist, as every other
+        refusal here does. The fork stays in the source's project, so an owner
+        who may no longer start chats there is refused rather than handed the
+        project's history outside it.
+
+        The answer must be an assistant turn of this conversation, and no run
+        that wrote the history up to it may still be writing or waiting on a
+        person: a parked call copied into the fork would wait there for ever,
+        since no run in the fork can settle it.
+
+        Raises:
+            NotFoundError: If the conversation is unknown, not the caller's, or
+                the message is not one of its answers.
+            BadRequestError: If a run in the copied history has not finished.
+        """
+        source = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if source.user_id != user_id:
+            raise NotFoundError(
+                message="Conversation not found",
+                details={"conversation_id": conversation_id},
+            )
+        answer = await conversation_repo.get_message_by_id(self.db, message_id)
+        if answer is None or answer.conversation_id != source.id or answer.role != "assistant":
+            raise NotFoundError(
+                message="Message not found",
+                details={"conversation_id": conversation_id, "message_id": message_id},
+            )
+        runs = await conversation_repo.run_ids_through(
+            self.db, conversation_id=source.id, ordinal=answer.ordinal
+        )
+        unfinished = sorted(
+            outcome.status
+            for outcome in (await conversation_repo.run_outcomes(self.db, runs)).values()
+            if outcome.status in _UNFINISHED_RUN
+        )
+        if unfinished:
+            raise BadRequestError(
+                message="A run in this history is still being written or waits on a decision - fork it once it has finished",
+                details={"message_id": message_id, "run_status": unfinished[0]},
+            )
+        if source.project_id is not None:
+            # Imported here: the project service builds on this one.
+            from app.services.project import ProjectService
+
+            await ProjectService(self.db).check_can_start(ctx, source.project_id)
+        fork = await conversation_repo.fork_conversation(self.db, source=source, through=answer)
+        # Its owner made it a moment ago: it holds nothing they have not seen.
+        await conversation_repo.mark_read(self.db, user_id=user_id, conversation_id=fork.id)
+        await self._attach_fork_origins([fork], user_id=user_id)
+        return fork
+
+    async def _attach_fork_origins(
+        self, conversations: Sequence[Conversation], *, user_id: UUID | None
+    ) -> None:
+        """Say, per row, which conversation it was forked from - to its owner alone.
+
+        Set on the ORM object for the reason `_attach_favourites` is. A reader who
+        does not own both the fork and its source gets nothing, so sharing a fork
+        does not name the conversation it came from.
+        """
+        sources = {
+            conversation.id: conversation.forked_from_conversation_id
+            for conversation in conversations
+            if conversation.forked_from_conversation_id is not None
+            and user_id is not None
+            and conversation.user_id == user_id
+        }
+        titles = (
+            await conversation_repo.owned_titles(
+                self.db, owner_id=user_id, conversation_ids=set(sources.values())
+            )
+            if sources and user_id is not None
+            else {}
+        )
+        for conversation in conversations:
+            source_id = sources.get(conversation.id)
+            conversation.forked_from = (  # ty: ignore[unresolved-attribute]
+                None
+                if source_id is None or source_id not in titles
+                else ConversationForkOrigin(
+                    conversation_id=source_id,
+                    message_id=conversation.forked_from_message_id,
+                    title=titles[source_id],
+                )
+            )
 
     async def update_conversation(
         self,

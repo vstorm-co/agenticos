@@ -1459,7 +1459,12 @@
         "interrupted": "Przerwane; bez ponownego uruchomienia"
       },
       "emptyTitle": "Deleguj pracę i kontynuuj rozmowę"
-    }
+    },
+    "fork": "Rozgałęź do nowej rozmowy",
+    "forkedToast": "Rozmowa rozgałęziona",
+    "failedForkConversation": "Nie udało się rozgałęzić rozmowy",
+    "forkedFrom": "Rozgałęzienie rozmowy <link>{title}</link>",
+    "untitledFork": "Rozmowa bez tytułu"
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",

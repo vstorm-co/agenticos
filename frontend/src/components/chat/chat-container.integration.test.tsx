@@ -1506,3 +1506,55 @@ it("keeps the draft focused when tapping dock buttons while leaving keyboard foc
   expect(send).toHaveFocus();
   expect(messageOf(editor)).toBe("An unsent phone draft");
 });
+
+describe("the chat container - forking a conversation (#2762)", () => {
+  function listOwnedBy(owner: string, forkedFrom: unknown = null) {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url.startsWith("/conversations?")
+        ? Promise.resolve({
+            items: [{ id: "c-mine", title: "Pricing", user_id: owner, forked_from: forkedFrom }],
+            total: 1,
+          })
+        : base(url),
+    );
+    useConversationStore.getState().setCurrentConversationId("c-mine");
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-answer",
+        conversation_id: "c-mine",
+        role: "assistant",
+        content: "Start at 10.",
+        created_at: "2026-11-06T10:00:00Z",
+      },
+    ] as never);
+  }
+
+  it("lets the owner fork at an answer, and names where their fork came from", async () => {
+    listOwnedBy(SIGNED_IN.id, { conversation_id: "c-source", message_id: "m-1", title: "Plans" });
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "c-fork", title: "Pricing" });
+    mount();
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Fork into a new conversation" }, SETTLE),
+    );
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-mine/fork", {
+        message_id: "m-answer",
+      }),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Plans" }, SETTLE));
+    await waitFor(() =>
+      expect(useConversationStore.getState().currentConversationId).toBe("c-source"),
+    );
+  });
+
+  it("offers no fork in somebody else's thread", async () => {
+    listOwnedBy("someone-else");
+    mount();
+
+    await screen.findByText("Start at 10.", undefined, SETTLE);
+    expect(screen.queryByRole("button", { name: "Fork into a new conversation" })).toBeNull();
+  });
+});

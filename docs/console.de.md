@@ -1,5 +1,5 @@
 ---
-source_sha: "659aee690fb0"
+source_sha: "5586bddfa409"
 ---
 
 # Die Konsole { #the-console }
@@ -786,6 +786,14 @@ Anruf, der sich neu verbunden hat, ist weiterhin eine Zeile, mit Zeit und Kosten
 aller Verbindungen summiert. Die Dashboard-Karte **Sprachminuten (Voice
 minutes)**, im Nutzungsband für jemanden mit `runs:view`, zeigt die
 Anrufminuten und Anrufe des Zeitraums und die drei häufigsten Agents.
+
+### Ein Gespräch abzweigen { #forking }
+
+Um einen anderen Ansatz zu probieren oder eine Nebenfrage dort zu klären, wo sie den Hauptfaden nicht überfrachtet, wählen Sie unter einer Antwort des Agenten **In neue Unterhaltung abzweigen**. Sie erhalten ein neues, eigenes Gespräch im selben Projekt, mit allem bis einschließlich dieser Antwort. Die nächste Nachricht macht dort mit demselben Verlauf weiter; das Original bleibt unverändert.
+
+Abzweigen kann nur, wem das Gespräch gehört: Wer es zum Ansehen oder Bearbeiten freigegeben bekommen hat, sieht die Aktion nicht. Eine Abzweigung kopiert die Nachrichten und die Tool-Aufrufe, nicht die Dateien der Anhänge, die Dateien, die der Agent in seinen Workspace geschrieben hat, die von Agenten erzeugten Bilder, die Kosten oder die Run-Datensätze. Der Agent kennt den Text eines Anhangs weiterhin, aber die Abzweigung zeigt keine Karte dafür; ein von einem Agenten erzeugtes Bild gehört dem Original und lädt nicht mehr, sobald das Original gelöscht ist. Solange ein Run in diesem Verlauf noch schreibt oder auf eine Freigabe oder eine Frage wartet, lässt sich das Gespräch nicht abzweigen.
+
+Oben in einer Abzweigung steht **Abgezweigt aus** mit einem Link zum Original. Diese Zeile sehen nur Sie: Geben Sie die Abzweigung frei, sieht die andere Person ein gewöhnliches Gespräch.
 
 ### Hintergrundthemen { #background-topics }
 

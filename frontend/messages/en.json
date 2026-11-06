@@ -2315,7 +2315,12 @@
         "interrupted": "Interrupted; not restarted"
       },
       "emptyTitle": "Delegate work while you keep talking"
-    }
+    },
+    "fork": "Fork into a new conversation",
+    "forkedToast": "Conversation forked",
+    "failedForkConversation": "Failed to fork conversation",
+    "forkedFrom": "Forked from <link>{title}</link>",
+    "untitledFork": "Untitled conversation"
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

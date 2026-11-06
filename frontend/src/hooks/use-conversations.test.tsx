@@ -870,6 +870,35 @@ describe("creating, renaming and removing a conversation", () => {
     expect(toast.error).toHaveBeenCalledWith("Failed to restore conversation");
   });
 
+  it("forks a conversation at an answer and opens the fork", async () => {
+    serve();
+    const result = await hook();
+    vi.mocked(apiClient.post).mockResolvedValueOnce(conversation("c-fork"));
+
+    await act(async () => {
+      await result.current.forkConversation("c-1", "m-7");
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/fork", { message_id: "m-7" });
+    expect(result.current.currentConversationId).toBe("c-fork");
+    expect(toast.success).toHaveBeenCalledWith("Conversation forked");
+  });
+
+  it("reports a refused fork and stays where it was", async () => {
+    serve();
+    const result = await hook();
+    vi.mocked(apiClient.post).mockRejectedValueOnce("boom");
+
+    let fork: unknown;
+    await act(async () => {
+      fork = await result.current.forkConversation("c-1", "m-7");
+    });
+
+    expect(fork).toBeNull();
+    expect(result.current.currentConversationId).not.toBe("c-fork");
+    expect(toast.error).toHaveBeenCalledWith("Failed to fork conversation");
+  });
+
   it("renames, then reads back the list - a new title can leave a search", async () => {
     serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();

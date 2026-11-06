@@ -24,6 +24,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.conversation import (
     ConversationCreate,
+    ConversationForkCreate,
     ConversationList,
     ConversationRead,
     ConversationReadWithMessages,
@@ -201,6 +202,38 @@ async def get_conversation(
     )
 
     return conversation if include_messages else ConversationRead.model_validate(conversation)
+
+
+@router.post(
+    "/{conversation_id}/fork", response_model=ConversationRead, status_code=status.HTTP_201_CREATED
+)
+async def fork_conversation(
+    conversation_id: UUID,
+    data: ConversationForkCreate,
+    conversation_service: ConversationSvc,
+    current_user: CurrentUser,
+    active_org: ActiveOrg,
+    ctx: Auth,
+) -> Any:
+    """Fork one of your conversations at an answer into a new chat (#2762).
+
+    The new conversation is yours, in the same project, and holds a copy of the
+    messages up to and including `message_id`, with their tool calls; the next
+    turn continues from there. The source is unchanged. Attachments, cost and
+    run records are not copied.
+
+    Only the conversation's owner may fork it; anybody else gets 404. `400`
+    when the answer's run is still running or parked on an approval or a
+    question. `forked_from` on the response names the source, and is only ever
+    set for the person who owns both.
+    """
+    return await conversation_service.fork(
+        conversation_id,
+        message_id=data.message_id,
+        organization_id=active_org.id,
+        user_id=current_user.id,
+        ctx=ctx,
+    )
 
 
 @router.get("/{conversation_id}/metadata", response_model=ConversationRead)

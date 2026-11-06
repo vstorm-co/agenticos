@@ -1,5 +1,5 @@
 ---
-source_sha: "659aee690fb0"
+source_sha: "5586bddfa409"
 ---
 
 # Konsola { #the-console }
@@ -719,6 +719,14 @@ która się ponownie połączyła, to nadal jeden wiersz, z czasem i kosztem
 wszystkich połączeń zsumowanymi. Karta pulpitu **Minuty rozmów (Voice minutes)**,
 w pasie Użycie dla posiadacza `runs:view`, pokazuje minuty i liczbę rozmów w
 okresie oraz trzech najczęstszych agentów.
+
+### Rozgałęzianie rozmowy { #forking }
+
+Aby spróbować innego podejścia albo zająć się pobocznym pytaniem tam, gdzie nie zaśmieci głównego wątku, wybierz **Rozgałęź do nowej rozmowy** pod jedną z odpowiedzi agenta. Dostajesz nową, własną rozmowę w tym samym projekcie, z całą historią aż do tej odpowiedzi włącznie. Następna wiadomość kontynuuje od tego miejsca z tą samą historią; oryginał się nie zmienia.
+
+Rozgałęzić rozmowę może tylko jej właściciel: osoba, której ją udostępniono do podglądu lub edycji, nie ma tej akcji. Rozgałęzienie kopiuje wiadomości i wywołania narzędzi, ale nie pliki załączników, pliki zapisane przez agenta w workspace, obrazy wygenerowane przez agentów, koszt ani rekordy runów. Agent nadal zna tekst załącznika, ale rozgałęzienie nie pokazuje jego karty; obraz wygenerowany przez agenta należy do oryginału i przestaje się wczytywać, gdy oryginał zostanie usunięty. Dopóki run w tej historii wciąż pisze albo czeka na zatwierdzenie lub odpowiedź na pytanie, rozmowy nie da się rozgałęzić.
+
+Na górze rozgałęzienia widać **Rozgałęzienie rozmowy** z linkiem do oryginału. Tę linię widzisz tylko ty: jeśli udostępnisz rozgałęzienie, odbiorca zobaczy zwykłą rozmowę.
 
 ### Tematy w tle { #background-topics }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "659aee690fb0"
+source_sha: "5586bddfa409"
 ---
 
 # La consola { #the-console }
@@ -739,6 +739,14 @@ que se reconectó sigue siendo una fila, con el tiempo y el coste de todas sus
 conexiones sumados. La tarjeta de panel **Voice minutes**, en la banda de Uso
 para quien tenga `runs:view`, muestra los minutos de llamada y las llamadas del
 periodo y los tres agents principales.
+
+### Bifurcar una conversación { #forking }
+
+Para probar otro enfoque, o para llevar una pregunta lateral a un sitio donde no sature el hilo principal, elija **Bifurcar en una nueva conversación** bajo una de las respuestas del agent. Obtiene una conversación nueva y propia, en el mismo proyecto, con todo hasta esa respuesta incluida. El siguiente mensaje continúa desde ahí con el mismo historial; el original no cambia.
+
+Solo el propietario de la conversación puede bifurcarla: quien la tiene compartida, para ver o para editar, no ve la acción. Una bifurcación copia los mensajes y las llamadas a herramientas, no los archivos de los adjuntos, los archivos que el agent escribió en su workspace, las imágenes que generaron los agents, el coste ni los registros de runs. El agent sigue teniendo el texto de un adjunto, pero la bifurcación no muestra su tarjeta; una imagen generada por un agent es la del original y deja de cargarse cuando el original se borra. Mientras un run de ese historial siga escribiendo, o espere una aprobación o una pregunta, la conversación no se puede bifurcar.
+
+Arriba de una bifurcación aparece **Bifurcada de** con un enlace al original. Esa línea solo la ve usted: si comparte la bifurcación, la otra persona ve una conversación normal.
 
 ### Temas en segundo plano { #background-topics }
 

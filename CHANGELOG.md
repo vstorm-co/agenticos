@@ -19,6 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Fork a conversation at an answer (#2762).** **Fork into a new conversation**
+  under an agent's answer opens a new conversation of your own, in the same
+  project, holding the history up to and including that answer, so you can try
+  another approach or take a side question elsewhere without changing the
+  original. Only the owner can fork; the fork copies messages and tool calls,
+  not attachment or workspace files, generated images, cost or runs. Its **Forked from** line
+  is shown only to you. `POST /conversations/{id}/fork` does the same over the
+  API. See [the console guide](docs/console.md#forking).
+
 ## [1.49.0] - 2026-11-05
 
 ### Added

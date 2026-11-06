@@ -9649,7 +9649,12 @@
         "ultra": "Ultra",
         "xhigh": "Çok yüksek"
       }
-    }
+    },
+    "fork": "Yeni konuşmaya dallandır",
+    "forkedToast": "Konuşma dallandırıldı",
+    "failedForkConversation": "Konuşma dallandırılamadı",
+    "forkedFrom": "<link>{title}</link> konuşmasından dallandırıldı",
+    "untitledFork": "Başlıksız konuşma"
   },
   "admin": {
     "actions": "Eylemler",
