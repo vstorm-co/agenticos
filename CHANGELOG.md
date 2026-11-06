@@ -19,6 +19,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.50.2] - 2026-11-06
+
 ### Security
 
 - A sync, a local-directory sync or `rag-ingest` now clears earlier failed attempts at a file only in the new row's own scope: the knowledge base it is filed under, or, for a row with no base, rows of the same organization. Until now it cleared every failed row at that path under the collection name, so one organization's sync deleted another organization's failed rows (their error and retry) when both used the same collection name and path. The same applied to two knowledge bases of one organization that share a name. (#2747)
@@ -20492,7 +20494,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.50.2...HEAD
+[1.50.2]: https://github.com/vstorm-co/agenticos/compare/v1.50.1...v1.50.2
 [1.50.1]: https://github.com/vstorm-co/agenticos/compare/v1.50.0...v1.50.1
 [1.50.0]: https://github.com/vstorm-co/agenticos/compare/v1.49.0...v1.50.0
 [1.49.0]: https://github.com/vstorm-co/agenticos/compare/v1.48.1...v1.49.0
