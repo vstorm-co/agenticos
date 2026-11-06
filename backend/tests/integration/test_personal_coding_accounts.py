@@ -306,9 +306,18 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
         )
         account_id = account.id
     monkeypatch.setattr(codex_module, "get_db_context", connection)
+    from app.db.models.conversation import Conversation
+
+    async with connection() as db:
+        conversation = Conversation(organization_id=org.id, user_id=owner.id, title="Private task")
+        db.add(conversation)
+        await db.flush()
     run = RunContext(
         deps=AgentDeps(
-            organization_id=org.id, user_id=str(owner.id), conversation_id=uuid4(), run_id=uuid4()
+            organization_id=org.id,
+            user_id=str(owner.id),
+            conversation_id=conversation.id,
+            run_id=uuid4(),
         ),
         model=TestModel(),
         usage=RunUsage(),
@@ -346,7 +355,6 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
                 with anyio.fail_after(5):
                     await anyio.sleep_forever()
             if ending in ("share", "share_before_publish"):
-                from app.db.models.conversation import Conversation
                 from app.db.models.conversation_share import ConversationShare
 
                 async with connection() as db:
@@ -354,14 +362,6 @@ async def test_private_task_lifecycle_copies_results_and_always_closes(
                     db.add(
                         OrganizationMember(
                             organization_id=org.id, user_id=collaborator.id, role="member"
-                        )
-                    )
-                    db.add(
-                        Conversation(
-                            id=run.deps.conversation_id,
-                            organization_id=org.id,
-                            user_id=owner.id,
-                            title="Private task",
                         )
                     )
                     await db.flush()

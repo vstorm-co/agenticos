@@ -1,5 +1,5 @@
 ---
-source_sha: "5feb1347875c"
+source_sha: "96494123ddae"
 ---
 
 # Virtual Tables { #virtual-tables }
@@ -817,3 +817,5 @@ Las notas de tareas son documentos Markdown con el mismo editor rich text y vist
 **Group by** se guarda automáticamente cuando un editor elige una columna. Actualiza una vista Kanban guardada que pueda administrar; si no existe, crea y selecciona una vista privada. Si se rechaza el guardado, se conserva la agrupación anterior. Los lectores pueden cambiarla temporalmente. **Set as default** en la barra de herramientas guarda el formato actual para todos; las tablas normales se abren como Table hasta que un editor elige otra vista predeterminada.
 
 No se puede eliminar un agent mientras una tarea gestionada dependa de su ejecución programada. Reasigna, completa o cancela primero esas tareas; eliminar el agent no debe descartar su trabajo silenciosamente.
+
+Restaurar un tablero administrado archivado vuelve a poner en cola sus recordatorios planificados para personas, incluidos los que vencieron durante el archivo. La entrega sigue comprobando el acceso actual del creador original y del destinatario; restaurar el tablero no autoriza nuevo trabajo del agente.

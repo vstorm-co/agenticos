@@ -141,6 +141,10 @@ class ConversationShareService:
                 details={"conversation_id": str(conversation_id)},
             )
 
+        if permission == "edit" and not await conversation_share_repo.lock_private_publication(
+            self.db, conversation_id, conv.organization_id
+        ):
+            raise NotFoundError(message="Conversation not found")
         share_token = None
 
         if generate_link:

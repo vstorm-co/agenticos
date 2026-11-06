@@ -32,6 +32,38 @@ class TaskExecution:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def restored_table(self, table_id: UUID, organization_id: UUID) -> None:
+        """Rearm planned human reminders consumed while their board was archived."""
+        from app.repositories import background_job as job_repo
+
+        board = await task_repo.for_table(self.db, table_id, organization_id)
+        if board is None:
+            return
+        for link in await task_repo.board_links(self.db, board):
+            record = await task_repo.record(self.db, link.record_id, organization_id, lock=True)
+            if record is None:
+                continue
+            fields = from_cells(board, record.values)
+            if fields.next_actor != "user" or fields.status != "planned" or fields.start_at is None:
+                continue
+            await job_repo.cancel_queued_for_payload(
+                self.db,
+                kind=WAKE_TASK.kind,
+                organization_id=organization_id,
+                payload_key="task_id",
+                payload_value=record.id,
+            )
+            await enqueue(
+                self.db,
+                WAKE_TASK,
+                WakeTask(
+                    organization_id=organization_id, task_id=record.id, revision=record.revision
+                ),
+                organization_id=organization_id,
+                run_after=fields.start_at,
+                dedupe_key=f"task:{record.id}:{record.revision}",
+            )
+
     async def changed(
         self,
         ctx: AuthContext,

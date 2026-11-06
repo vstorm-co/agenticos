@@ -1212,3 +1212,49 @@ async def test_assignment_options_follow_live_board_audience(db: AsyncSession) -
     await db.flush()
     with pytest.raises(NotFoundError):
         await service.assignee_options(data.contexts[0], board.table_id)
+
+
+async def test_restoring_a_board_rearms_a_reminder_consumed_during_archive(
+    db: AsyncSession,
+) -> None:
+    from app.db.models.background_job import BackgroundJob
+
+    data = await world(db)
+    service = TaskService(db)
+    reminder = await service.create(
+        data.contexts[0],
+        TaskCreate(title="Preserve reminder", start_at=datetime.now(UTC) - timedelta(minutes=1)),
+    )
+    tables = VirtualTableService(db)
+    await tables.archive_table(data.contexts[0], reminder.table_id)
+    payload = WakeTask(organization_id=data.org.id, task_id=reminder.id, revision=reminder.revision)
+    await TaskExecution(db).wake(payload)
+    link = await db.get(TaskLink, reminder.id)
+    assert link is not None and link.outcome_id is None
+    jobs = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.kind == "wake-task",
+                BackgroundJob.payload["task_id"].astext == str(reminder.id),
+            )
+        )
+    )
+    assert jobs
+    for job in jobs:
+        job.status = "succeeded"
+    await db.flush()
+    await tables.unarchive_table(data.contexts[0], reminder.table_id)
+    queued = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.kind == "wake-task",
+                BackgroundJob.payload["task_id"].astext == str(reminder.id),
+                BackgroundJob.status == "queued",
+            )
+        )
+    )
+    assert len(queued) == 1
+    assert queued[0].payload["revision"] == reminder.revision
+    await TaskExecution(db).wake(payload)
+    assert (await service.get(data.contexts[0], reminder.id)).status == "waiting_for_user"
+    assert link.outcome_id is not None

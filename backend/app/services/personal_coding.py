@@ -256,11 +256,20 @@ class PersonalCodingSessionFactory:
                     current = await codex.load()
                     forbidden += (current.access_token, current.refresh_token)
                 archive = result.archive(forbidden)
-                if not await self._active(account.id, account.generation, ctx.deps.conversation_id):
-                    raise AuthorizationError(
-                        message="The coding workspace is no longer private or its account was revoked"
-                    )
-                await ctx.workspace.write_bytes(task.result_archive, archive)
+                async with get_db_context() as publication_db:
+                    conversation_id = ctx.deps.conversation_id
+                    if (
+                        conversation_id is not None
+                        and not await conversation_share_repo.lock_private_publication(
+                            publication_db, conversation_id, self.ctx.organization_id
+                        )
+                    ):
+                        raise AuthorizationError(message="The coding conversation no longer exists")
+                    if not await self._active(account.id, account.generation, conversation_id):
+                        raise AuthorizationError(
+                            message="The coding workspace is no longer private or its account was revoked"
+                        )
+                    await ctx.workspace.write_bytes(task.result_archive, archive)
                 succeeded = True
             finally:
                 with anyio.CancelScope(shield=True):

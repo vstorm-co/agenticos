@@ -21,6 +21,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Rearm planned human reminders when their task board is restored, and serialize private coding-result publication against edit sharing.
+
 - Acknowledge saved partial replies after Stop, discard buffered model frames, and clear the stopped conversation’s sidebar activity immediately.
 
 - Filter managed task reviewers by current board access, keep agent placeholders as skeletons during chat loading, and let project editors manage ownerless scheduled project conversations. Other members’ private conversation ownership remains unchanged.
