@@ -555,16 +555,20 @@ class EvidenceService:
         *,
         window_days: int,
         versions: Collection[UUID] | None = None,
+        readers: Collection[UUID] | None = None,
     ) -> EvidencePack:
         """The runs that used the skill and were then rated or failed, across agents.
 
         A run counts when its agent, or an agent it delegated to, used the skill
-        - of `versions` only, when given. Only the agents the caller may see are
-        read; the others are counted in `hidden_agents`. A run whose conversation
-        the caller may not open - or with none, to a caller without `runs:view` -
-        keeps its rating and outcome and loses its text, the rule datasets follow.
-        Runs from before uses were recorded, of agents whose version bound the
-        skill, are counted in `unknown_runs`.
+        - of `versions` only, and by one of `readers` only, when given: one line's
+        versions and the agents that read it. Main and a fork with no version of
+        its own serve the same version, so the version alone does not say whose
+        line a use was. Only the agents the caller may see are read; the others
+        are counted in `hidden_agents`. A run whose conversation the caller may not
+        open - or with none, to a caller without `runs:view` - keeps its rating and
+        outcome and loses its text, the rule datasets follow. Runs from before uses
+        were recorded, of agents whose version bound the skill, are counted in
+        `unknown_runs`. Both counts keep to `readers` too.
         """
         since = self._since(window_days)
         involved = await skill_usage_repo.agents_involved(
@@ -573,6 +577,10 @@ class EvidenceService:
         unknown = await skill_usage_repo.unknown_runs(
             self.db, organization_id=ctx.organization_id, skill_id=skill_id, since=since
         )
+        reading = involved
+        if readers is not None:
+            reading = involved & set(readers)
+            unknown = {agent: count for agent, count in unknown.items() if agent in readers}
         agents = await agent_repo.get_many(
             self.db, [*involved, *unknown], organization_id=ctx.organization_id
         )
@@ -584,6 +592,7 @@ class EvidenceService:
             organization_id=ctx.organization_id,
             skill_id=skill_id,
             skill_versions=versions,
+            skill_readers=readers,
             # A delegate the caller may not see would be named by its use of the skill.
             skill_agent_ids=sorted(visible),
             agent_ids=sorted(visible & involved),
@@ -616,7 +625,7 @@ class EvidenceService:
         return EvidencePack(
             runs=marked,
             unknown_runs=sum(count for agent, count in unknown.items() if agent in visible),
-            hidden_agents=len((involved | set(unknown)) - visible),
+            hidden_agents=len((reading | set(unknown)) - visible),
         )
 
     async def for_context(

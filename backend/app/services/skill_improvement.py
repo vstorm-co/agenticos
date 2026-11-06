@@ -2451,7 +2451,7 @@ class SkillImprovementService:
     async def _evidence(
         self, ctx: AuthContext, line: SessionLine, window_days: int
     ) -> EvidencePack:
-        """The bad answers that loaded a version of this line.
+        """The bad answers of the line's agents that loaded a version of this line.
 
         A fork with no version of its own serves its base, a main version, and is read
         through it.
@@ -2466,8 +2466,12 @@ class SkillImprovementService:
         ids = [version.id for version in versions]
         if line.fork is not None and not ids:
             ids = [line.fork.base_version_id]
+        readers = [
+            reached.agent.id
+            for reached in await self.skill_agents.line_agents(line.skill, line.fork_id)
+        ]
         return await self.authoring.evidence.for_skill(
-            ctx, line.skill.id, window_days=window_days, versions=ids
+            ctx, line.skill.id, window_days=window_days, versions=ids, readers=readers
         )
 
     async def _base(self, line: SessionLine) -> SkillVersion:

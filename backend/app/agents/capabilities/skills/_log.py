@@ -60,12 +60,16 @@ class SkillUseLog:
         tools: The agent's tools by the name the model calls them, to their stable
             ids - what a binding's rename leaves alone. Empty reads every name as its id.
         tallies: What has been used so far, shared by every view.
+        own: The view is the agent's own, not an inline specialist's. One record is
+            kept per agent and skill, so where the two are served different versions
+            of a skill, the agent's own version is the one recorded.
     """
 
     agent_id: UUID
     served: Mapping[str, ServedSkill]
     tools: Mapping[str, str] = field(default_factory=dict)
     tallies: dict[tuple[UUID, UUID], _Tally] = field(default_factory=dict)
+    own: bool = True
     _paths: dict[str, re.Pattern[str]] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -86,7 +90,11 @@ class SkillUseLog:
     ) -> SkillUseLog:
         """A view for a delegate; one with no agent of its own uses skills as this one."""
         return SkillUseLog(
-            agent_id=agent_id or self.agent_id, served=served, tools=tools, tallies=self.tallies
+            agent_id=agent_id or self.agent_id,
+            served=served,
+            tools=tools,
+            tallies=self.tallies,
+            own=agent_id is not None,
         )
 
     def observe(self, tool_name: str, args: Mapping[str, Any]) -> None:
@@ -132,7 +140,10 @@ class SkillUseLog:
 
     def _tally(self, name: str) -> _Tally:
         served = self.served[name]
-        return self.tallies.setdefault((self.agent_id, served.skill_id), _Tally(served))
+        tally = self.tallies.setdefault((self.agent_id, served.skill_id), _Tally(served))
+        if self.own:
+            tally.served = served
+        return tally
 
 
 def tool_identities(bindings: Iterable[CapabilityBindingSpec]) -> dict[str, str]:

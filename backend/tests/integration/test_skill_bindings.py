@@ -32,7 +32,7 @@ from app.schemas.skill_version import (
 from app.services import proposal_reach
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
-from app.services.agent_runner import AgentRunnerService
+from app.services.agent_runner import SPECIALIST_SKILLS_RESOURCE, AgentRunnerService, _served
 from app.services.eval_suite import reads_skill_line
 from app.services.resource_usage import agents_serving_skills
 from app.services.skill_agents import SkillAgentService, lines_of
@@ -169,37 +169,27 @@ class TestWhatAnAgentReads:
     async def test_a_run_records_the_versions_it_and_its_specialists_serve(self, db):
         ctx = await _owner(db)
         skill, other = await _skill(db, ctx), await _skill(db, ctx, "invoices")
-        spec = AgentSpec.model_validate(
-            {
-                **_spec(skill, version=1),
-                "capabilities": [
-                    {
-                        "id": "subagents",
-                        "config": {
-                            "inline": [
-                                {
-                                    "name": "billing",
-                                    "description": "Bills.",
-                                    "instructions": "Bill.",
-                                    "skill_ids": [str(other.id)],
-                                }
-                            ]
-                        },
-                    }
-                ],
-            }
-        )
+        spec = AgentSpec.model_validate(_spec(skill, version=1))
         runner = AgentRunnerService(db)
         own = await runner.skills.resolve_for_agent(
             ctx, spec.skill_ids, bindings=spec.skill_bindings
         )
+        resources: dict[str, Any] = {SPECIALIST_SKILLS_RESOURCE: []}
 
-        served = await runner._served_skill_versions(ctx, spec, own)
+        await runner._delegate_resources(
+            ctx,
+            AgentSpec(name="billing", skill_ids=[other.id]),
+            agent_id=None,
+            shared=[],
+            parent_resources=resources,
+        )
 
+        served = _served([*own, *resources[SPECIALIST_SKILLS_RESOURCE]])
         pinned = await SkillService(db).resolve_for_agent(
             ctx, [skill.id], bindings=spec.skill_bindings
         )
         assert served == [pinned[0].latest_version_id, other.latest_version_id]
+        assert pinned[0].latest_version_id != skill.latest_version_id
 
 
 class TestPublishRefuses:

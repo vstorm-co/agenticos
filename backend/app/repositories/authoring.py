@@ -497,6 +497,7 @@ async def evidence_runs(
     agent_ids: Sequence[UUID] | None = None,
     skill_id: UUID | None = None,
     skill_versions: Collection[UUID] | None = None,
+    skill_readers: Collection[UUID] | None = None,
     skill_agent_ids: Collection[UUID] | None = None,
     excluded_message_ids: Sequence[UUID] = (),
     since: datetime,
@@ -511,8 +512,8 @@ async def evidence_runs(
     one agent's, `agent_ids` to several agents' - those binding a context file -
     and `skill_id` to those that used that skill, by their own agent or by an
     agent they delegated to, as `run_skill_uses` recorded it; `skill_versions`
-    narrows that to uses of those versions, and `skill_agent_ids` to runs in
-    which no other agent used it. A run that only named the skill's workspace
+    narrows that to uses of those versions, `skill_readers` to uses by those
+    agents, and `skill_agent_ids` to runs in which no other agent used it. A run that only named the skill's workspace
     folder counts here too, and its reader says it is probable.
     `excluded_message_ids` leaves out the runs that gave those answers.
     """
@@ -587,6 +588,8 @@ async def evidence_runs(
         )
         if skill_versions is not None:
             uses = uses.where(RunSkillUse.skill_version_id.in_(list(skill_versions)))
+        if skill_readers is not None:
+            uses = uses.where(RunSkillUse.agent_id.in_(list(skill_readers)))
         statement = statement.where(uses.exists())
         if skill_agent_ids is not None:
             other = select(RunSkillUse.id).where(

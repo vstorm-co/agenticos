@@ -188,6 +188,27 @@ class TestDelegates:
         [record] = parent.records()
         assert (record.agent_id, record.skill_id) == (AGENT, SHIPPING)
 
+    @pytest.mark.parametrize("specialist_first", [True, False])
+    def test_the_agent_s_own_version_is_recorded_over_its_specialist_s(
+        self, specialist_first: bool
+    ) -> None:
+        main, pinned = uuid.uuid4(), uuid.uuid4()
+        parent = _log(refunds=ServedSkill(REFUNDS, main))
+        inline = parent.for_agent(None, {"refunds": ServedSkill(REFUNDS, pinned)}, {})
+        readers = [inline, parent] if specialist_first else [parent, inline]
+        for reader in readers:
+            reader.observe("load_capability", {"id": "refunds"})
+        [record] = parent.records()
+        assert record.skill_version_id == main
+
+    def test_a_skill_only_the_specialist_reads_keeps_the_specialist_s_version(self) -> None:
+        main, pinned = uuid.uuid4(), uuid.uuid4()
+        parent = _log(refunds=ServedSkill(REFUNDS, main))
+        inline = parent.for_agent(None, {"refunds": ServedSkill(REFUNDS, pinned)}, {})
+        inline.observe("load_capability", {"id": "refunds"})
+        [record] = parent.records()
+        assert record.skill_version_id == pinned
+
 
 class TestServedSkills:
     def test_a_candidate_body_is_marked_and_a_proposed_new_skill_is_left_out(self) -> None:
