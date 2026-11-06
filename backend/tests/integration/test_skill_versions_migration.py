@@ -8,8 +8,10 @@ re-points, and the downgrade taking the binding back out of the stored specs.
 
 import importlib.util
 import uuid
+from decimal import Decimal
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 from alembic.migration import MigrationContext
@@ -18,11 +20,17 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.core.permissions import AuthContext
+from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent_run import AgentRun
+from app.db.models.eval_run import ArmRole, ArmSource, EvalRun, EvalRunArm, EvalRunStatus
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_proposal import SkillProposal
 from app.db.models.skill_usage import RunSkillUse
 from app.db.models.skill_version import SkillFile, SkillVersion
+from app.repositories import dataset_repo
 from tests.integration.test_authoring import _owner, _published
+from tests.integration.test_skill_checks import _dataset
 from tests.integration.test_skill_usage import _agent, _org, _used, _version
 from tests.integration.test_skill_usage import _run as _agent_run
 from tests.integration.test_skill_usage import _skill as _usage_skill
@@ -122,16 +130,86 @@ async def test_the_downgrade_takes_the_binding_out_of_every_stored_spec(db: Asyn
     }
     agent = await _published(db, ctx, name="Clerk", spec=spec)
     untouched = await _published(db, ctx, name="Plain", spec={"name": "Plain"})
+    tested = await _test_run(db, ctx, agent, spec)
+    arm = await _arm(db, ctx, agent, spec)
 
-    await db.run_sync(_run, "_strip_bindings", "agents", "draft_spec")
-    await db.run_sync(_run, "_strip_bindings", "agent_versions", "spec")
+    await db.run_sync(_run, "_strip_every_binding")
 
-    await db.refresh(agent)
-    assert "skill_bindings" not in agent.draft_spec
-    assert "skill_bindings" not in agent.draft_spec["capabilities"][0]["config"]["inline"][0]
-    assert agent.draft_spec["skill_ids"] == [skill_id]
+    for stored in (agent, tested, arm):
+        await db.refresh(stored)
+    for kept in (
+        agent.draft_spec,
+        (await db.scalar(select(AgentVersion.spec).where(AgentVersion.agent_id == agent.id))),
+        tested.test_spec,
+        arm.spec,
+    ):
+        assert kept is not None
+        assert "skill_bindings" not in kept
+        assert "skill_bindings" not in kept["capabilities"][0]["config"]["inline"][0]
+        assert kept["skill_ids"] == [skill_id]
     await db.refresh(untouched)
     assert untouched.draft_spec == {"name": "Plain"}
+
+
+async def _test_run(
+    db: AsyncSession, ctx: AuthContext, agent: Agent, spec: dict[str, Any]
+) -> AgentRun:
+    """A test-panel run, which keeps the whole draft spec it ran."""
+    run = AgentRun(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        surface="web",
+        status="completed",
+        is_test=True,
+        test_spec=spec,
+    )
+    db.add(run)
+    await db.flush()
+    return run
+
+
+async def _arm(
+    db: AsyncSession, ctx: AuthContext, agent: Agent, spec: dict[str, Any]
+) -> EvalRunArm:
+    """An eval arm, which keeps the whole spec it answered with."""
+    dataset = await _dataset(db, ctx, "arm")
+    version = await dataset_repo.create_version(
+        db,
+        dataset_id=dataset.id,
+        organization_id=ctx.organization_id,
+        number=1,
+        case_count=0,
+        change="add",
+        changed_cases=0,
+        created_by_user_id=ctx.user_id,
+    )
+    run = EvalRun(
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        dataset_id=dataset.id,
+        dataset_version_id=version.id,
+        created_by_user_id=ctx.user_id,
+        status=EvalRunStatus.COMPLETED.value,
+        scoring={},
+        scoring_hash="a" * 64,
+        estimate_usd=Decimal("0.1"),
+    )
+    db.add(run)
+    await db.flush()
+    arm = EvalRunArm(
+        organization_id=ctx.organization_id,
+        eval_run_id=run.id,
+        role=ArmRole.CANDIDATE.value,
+        position=0,
+        source=ArmSource.DRAFT.value,
+        model_label="m",
+        spec_hash="v",
+        spec=spec,
+    )
+    db.add(arm)
+    await db.flush()
+    return arm
 
 
 async def test_a_downgrade_forgets_the_version_each_use_was_served(db: AsyncSession):

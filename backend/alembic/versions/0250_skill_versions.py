@@ -409,9 +409,23 @@ def _strip_bindings(table: str, column: str) -> None:
         )
 
 
+_STORED_SPECS = (
+    ("agents", "draft_spec"),
+    ("agent_versions", "spec"),
+    ("agent_runs", "test_spec"),
+    ("eval_run_arms", "spec"),
+)
+"""Every column holding a whole agent spec, each of which the older code validates
+again: a parked test run resumed, an eval arm run again."""
+
+
+def _strip_every_binding() -> None:
+    for table, column in _STORED_SPECS:
+        _strip_bindings(table, column)
+
+
 def downgrade() -> None:
-    _strip_bindings("agents", "draft_spec")
-    _strip_bindings("agent_versions", "spec")
+    _strip_every_binding()
 
     _forget_served_versions()
     op.drop_index(op.f("run_skill_uses_skill_version_id_idx"), table_name="run_skill_uses")
