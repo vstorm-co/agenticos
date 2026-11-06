@@ -318,8 +318,6 @@ function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
   const desktop = isDesktopShell(useShell());
   return async (input: Parameters<typeof startMcpOAuth>[0]): Promise<boolean> => {
     if (desktop) {
-      const back =
-        returnTo ?? (input.catalog_key ? `/mcp-servers?server=${input.catalog_key}` : undefined);
       try {
         const { authorization_url } = await startMcpOAuth(input, scope);
         refreshOnReturn(queryClient);
@@ -329,7 +327,10 @@ function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
           // An app older than this console has no such command, and the shell
           // refuses a page it will not hand out (an allowlisted plain-HTTP
           // provider): the consent then runs in this window, as it did before.
-          if (back !== undefined) rememberMcpOAuthReturn(back);
+          rememberMcpOAuthReturn(
+            returnTo ??
+              (input.catalog_key ? `/mcp-servers?server=${input.catalog_key}` : "/mcp-servers"),
+          );
           window.location.assign(authorization_url);
           return true;
         }
