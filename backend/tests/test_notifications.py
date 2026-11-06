@@ -2482,3 +2482,18 @@ async def test_watch_terminal_results_do_not_report_an_obsolete_attempt(monkeypa
     service.watch_blocked = AsyncMock()
     await service._routine_result(run, origin_id=origin, budget_recipients=set())
     assert service.watch_blocked.await_count == (1 if change in {"current", "budget"} else 0)
+
+
+@pytest.mark.anyio
+async def test_a_routine_without_a_recipient_does_not_invent_one(written):
+    await NotificationService(MagicMock()).routine_blocked(
+        organization_id=uuid.uuid4(),
+        owner_user_id=None,
+        routine_id=uuid.uuid4(),
+        routine_kind="trigger",
+        reason="run",
+        name="Routine",
+        detail="Unavailable",
+        observed_at=datetime.now(UTC),
+    )
+    assert written.calls == []

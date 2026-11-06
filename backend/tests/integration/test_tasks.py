@@ -1258,3 +1258,64 @@ async def test_restoring_a_board_rearms_a_reminder_consumed_during_archive(
     await TaskExecution(db).wake(payload)
     assert (await service.get(data.contexts[0], reminder.id)).status == "waiting_for_user"
     assert link.outcome_id is not None
+
+
+@pytest.mark.parametrize("change", ["person_removed", "scope_revoked"])
+async def test_board_creation_rechecks_scope_after_serializing_admission(db, monkeypatch, change):
+    from unittest.mock import AsyncMock
+
+    from app.services import tasks
+
+    data = await world(db)
+    if change == "person_removed":
+        monkeypatch.setattr(tasks.user_repo, "get_by_id", AsyncMock(return_value=None))
+    else:
+        monkeypatch.setattr(tasks, "scope_allows", AsyncMock(side_effect=[True, False]))
+    with pytest.raises(NotFoundError):
+        await TaskService(db).ensure_board(data.contexts[0], BoardEnsure())
+    assert await db.scalar(select(func.count()).select_from(TaskBoard)) == 0
+
+
+@pytest.mark.parametrize("change", ["missing", "tenant", "owner", "archived", "another_chat"])
+async def test_tasks_cannot_link_an_unavailable_or_unrelated_private_conversation(db, change):
+    from dataclasses import replace
+
+    from app.core.exceptions import AuthorizationError
+    from app.repositories import conversation_repo
+
+    data = await world(db)
+    ctx = data.contexts[0]
+    service = TaskService(db)
+    board = await service.ensure_board(ctx, BoardEnsure())
+    conversation = await conversation_repo.create_conversation(
+        db,
+        title="Working",
+        organization_id=data.org.id,
+        user_id=data.users[1].id if change == "owner" else ctx.user_id,
+    )
+    if change == "tenant":
+        other = await world(db)
+        conversation.organization_id = other.org.id
+    elif change == "archived":
+        conversation.is_archived = True
+    elif change == "another_chat":
+        ctx = replace(ctx, source_conversation_id=uuid4())
+    await db.flush()
+    with pytest.raises((NotFoundError, AuthorizationError)):
+        await service._conversation(ctx, board, uuid4() if change == "missing" else conversation.id)
+
+
+async def test_generic_record_writes_reject_invalid_managed_task_fields(db):
+    from app.repositories import task as task_repo
+    from app.services import tasks
+
+    data = await world(db)
+    service = TaskService(db)
+    task = await service.create(data.contexts[0], TaskCreate(title="Task"))
+    record = await task_repo.record(db, task.id, data.org.id)
+    assert record is not None
+    board = await task_repo.for_table(db, record.table_id, data.org.id)
+    assert board is not None
+    record.values = {**record.values, board.column_ids["title"]: None}
+    with pytest.raises(BadRequestError, match="Invalid task fields"):
+        await tasks.TaskLifecycle(db).changed(data.contexts[0], record)

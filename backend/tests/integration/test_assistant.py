@@ -743,3 +743,23 @@ async def _bind_legacy_guide(
         ctx, agent.id, spec.model_copy(update={"skill_ids": [*spec.skill_ids, copy.id]})
     )
     await service.registry.publish(ctx, agent.id)
+
+
+async def test_a_shipped_refresh_failure_keeps_the_existing_assistant_available(db, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from app.core.exceptions import BadRequestError
+    from app.services.shipped_agents import ShippedAgentService
+
+    organization, owner = await _organization(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    service = AssistantService(db)
+    original = await service.state(ctx)
+    monkeypatch.setattr(
+        ShippedAgentService,
+        "refresh",
+        AsyncMock(side_effect=BadRequestError(message="Model temporarily unavailable")),
+    )
+    current = await service.state(ctx)
+    assert current.agent_id == original.agent_id
+    assert current.status == original.status

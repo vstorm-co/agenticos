@@ -184,3 +184,24 @@ async def test_an_existing_install_stamp_is_authoritative_without_guessing_by_si
         ctx, edited, ARCHITECT, legacy_instructions_fingerprint=stamp
     )
     assert previous["instructions"] == "customized"
+
+
+async def test_refresh_updates_an_already_bound_shipped_skill_before_using_its_template(
+    installed, monkeypatch
+):
+    from app.services.skills import LibraryRefresh
+
+    ctx, _, _, service = installed
+    entry = next(
+        skill for industry in shipped_agents.skill_library.gallery() for skill in industry.skills
+    )
+    template = replace(agent_templates.get(STARTER), skills=(entry.key,))
+    service.ensure_skills = AsyncMock()
+    service.registry.template_skills = AsyncMock(
+        return_value=[SimpleNamespace(id=uuid4(), name=entry.name)]
+    )
+    refresh = AsyncMock(return_value=LibraryRefresh.CURRENT)
+    monkeypatch.setattr(shipped_agents.SkillService, "refresh_gallery", refresh)
+    target = await service._target(ctx, template)
+    assert target.skill_ids
+    refresh.assert_awaited_once_with(ctx, entry.key)

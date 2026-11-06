@@ -1245,3 +1245,38 @@ async def test_an_unavailable_draft_chat_is_a_delivery_problem_not_a_failed_sour
         attempted = stack.enter_context(patch.object(WatchLook, "_mark_attempt", new=AsyncMock()))
         assert await WatchLook(MagicMock()).look(watch.id) == 0
     assert attempted.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE
+
+
+@pytest.mark.parametrize("published", [False, True])
+@pytest.mark.parametrize("current", [False, True])
+async def test_watch_drafts_have_one_owned_working_chat_and_stale_attempts_do_not_resolve_new_incidents(
+    published, current
+):
+    watch = _watch(urgent=True)
+    patches, _ = TestOneLook._patches(
+        watch,
+        reading=WatchReading(
+            findings=[
+                Found(
+                    key="mail-1",
+                    title="Draft reply",
+                    content="A proposed reply",
+                    revision="v2",
+                    urgent=True,
+                )
+            ]
+        ),
+    )
+    draft = uuid.uuid4() if published else None
+    publish = AsyncMock(return_value=draft)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(patch(f"{LOOK}.RoutineFindingService.publish", new=publish))
+        stack.enter_context(
+            patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock(return_value=current))
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == int(published)
+    assert publish.await_args.kwargs["origin_kind"] == "watch"
+    assert publish.await_args.kwargs["item"].content == "A proposed reply"
+    assert publish.await_args.kwargs["notify"] is True

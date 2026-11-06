@@ -84,19 +84,20 @@ async def test_missing_notifications_fail_a_claim_instead_of_attempting_delivery
     assert settle.await_args.kwargs["last_error"] == "notification missing"
 
 
-async def test_run_retention_drains_device_wait_batches_under_the_same_cutoff(monkeypatch):
+@pytest.mark.parametrize("full", [False, True])
+async def test_run_retention_drains_device_wait_batches_under_the_same_cutoff(monkeypatch, full):
     from app.services import retention
 
     db = MagicMock()
     service = retention.RetentionService(db)
     service._purge_batch = AsyncMock(return_value=0)
     monkeypatch.setattr(retention, "MAX_BATCHES", 2)
-    deleted = AsyncMock(side_effect=[retention.BATCH, 0])
+    deleted = AsyncMock(side_effect=[retention.BATCH, retention.BATCH if full else 0])
     monkeypatch.setattr(retention.retention_repo, "delete_finished_device_waits", deleted)
     result = retention.SweepResult(organization_id=uuid4())
     cutoff = datetime.now(UTC)
     await service._purge("runs", result, cutoff=cutoff)
-    assert result.removed["routine_device_waits"] == retention.BATCH
+    assert result.removed["routine_device_waits"] == retention.BATCH * (2 if full else 1)
     assert deleted.await_count == 2
     assert deleted.await_args.kwargs["cutoff"] == cutoff
 
@@ -124,3 +125,60 @@ async def test_workflow_email_polling_checks_current_active_provider_exposures(m
     )
     assert result is active
     assert read.await_args.kwargs["adapter"] == "gmail"
+
+
+@pytest.mark.parametrize("same_tenant", [False, True])
+async def test_managed_table_scope_overrides_broad_visibility_without_cross_tenant_leaks(
+    monkeypatch, same_tenant
+):
+    from app.core.permissions import Perm
+    from app.services import access, task_access
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    resource = SimpleNamespace(
+        id=uuid4(),
+        organization_id=ctx.organization_id if same_tenant else uuid4(),
+        owner_user_id=ctx.user_id,
+    )
+    monkeypatch.setattr(access, "visible_resource_ids", AsyncMock(return_value={resource.id}))
+    check = AsyncMock(return_value=False)
+    monkeypatch.setattr(task_access, "table_access", check)
+    assert (
+        await access.accessible_ids(
+            AsyncMock(), ctx, [resource], Perm.TABLES_VIEW, resource_type=access.TABLE
+        )
+        == set()
+    )
+    assert check.await_count == int(same_tenant)
+
+
+@pytest.mark.parametrize("change", ["missing", "tenant"])
+async def test_case_task_lock_does_not_touch_another_tenants_table(monkeypatch, change):
+    from app.repositories import task, virtual_table_repo
+
+    db = AsyncMock()
+    db.get.return_value = None if change == "missing" else SimpleNamespace(organization_id=uuid4())
+    monkeypatch.setattr(
+        task, "for_outcome", AsyncMock(return_value=SimpleNamespace(board_id=uuid4()))
+    )
+    read = AsyncMock()
+    monkeypatch.setattr(virtual_table_repo, "get_table", read)
+    await task.lock_case_task(db, uuid4(), uuid4())
+    read.assert_not_awaited()
+
+
+async def test_a_disappeared_finding_receipt_is_an_explicit_delivery_failure(monkeypatch):
+    from app.schemas.routine_notifications import RoutineFinding
+    from app.services import routine_delivery
+
+    monkeypatch.setattr(routine_delivery.suggestion_repo, "propose", AsyncMock(return_value=None))
+    monkeypatch.setattr(routine_delivery.suggestion_repo, "for_key", AsyncMock(return_value=None))
+    with pytest.raises(RuntimeError, match="finding disappeared"):
+        await routine_delivery.RoutineFindingService(AsyncMock()).publish(
+            run=MagicMock(organization_id=uuid4()),
+            user_id=uuid4(),
+            origin_id=uuid4(),
+            origin_kind="watch",
+            item=RoutineFinding(key="mail", revision="v1", title="Review", content="Draft"),
+            notify=True,
+        )

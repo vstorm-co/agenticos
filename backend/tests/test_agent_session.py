@@ -3866,3 +3866,11 @@ async def test_lost_conversation_access_is_reported_before_any_turn_is_written()
         fake.runner.run.assert_not_called()
     assert ("error", {"message": "Project access was removed"}) in _sent_events(session)
     assert session._admission_stack is None
+
+
+@pytest.mark.anyio
+async def test_a_closed_nonparking_surface_returns_no_answers_without_opening_a_prompt():
+    session = _session()
+    session._closed, session._round_parks = True, False
+    assert await session._ask_user([{"question": "Still there?"}]) == []
+    assert _sent_events(session) == []

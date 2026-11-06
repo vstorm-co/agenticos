@@ -85,3 +85,55 @@ async def test_nonchat_notification_channel_is_an_explicit_programming_error() -
         await NotificationCenterService(AsyncMock()).chat_channel_enabled(
             uuid4(), NotificationEventType.RUN_COMPLETED, NotificationChannel.EMAIL
         )
+
+
+@pytest.mark.parametrize(
+    "change", ["target_device", "scope_device", "person", "grant", "operations"]
+)
+def test_a_routine_folder_scope_cannot_be_borrowed_by_another_native_session(change):
+    from app.schemas.local_target import LocalOperations, LocalTarget, RoutineLocalScope
+    from app.services.device_hub.workspace import DeviceWorkspace
+
+    device, person, grant = uuid4(), uuid4(), uuid4()
+    operations = LocalOperations()
+    target = LocalTarget(
+        folder="/approved",
+        device_id=device,
+        routine_grant=grant,
+        mode="read_only",
+        operations=operations,
+    )
+    scope = RoutineLocalScope(
+        grant_id=grant,
+        organization_id=uuid4(),
+        routine_id=uuid4(),
+        user_id=person,
+        device_id=device,
+        operations=operations,
+    )
+    if change == "target_device":
+        target = target.model_copy(update={"device_id": uuid4()})
+    elif change == "scope_device":
+        scope.device_id = uuid4()
+    elif change == "person":
+        scope.user_id = uuid4()
+    elif change == "grant":
+        scope.grant_id = uuid4()
+    else:
+        scope.operations = operations.model_copy(update={"write": True})
+    with pytest.raises(WorkspaceUnavailableError, match="does not match"):
+        DeviceWorkspace(device, person, target, routine_scope=scope)
+
+
+async def test_project_metadata_admission_requires_current_project_use_permission(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from app.core.exceptions import AuthorizationError
+    from app.services import project
+
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="member")
+    service = project.ProjectService(AsyncMock())
+    service.get = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr(project, "resolve_access", AsyncMock(return_value=False))
+    with pytest.raises(AuthorizationError, match="no longer work"):
+        await service.source_for_routine(ctx, uuid4())

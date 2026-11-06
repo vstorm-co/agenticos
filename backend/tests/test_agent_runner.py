@@ -8003,7 +8003,9 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
 
 
 @pytest.mark.anyio
-async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation() -> None:
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["not_personal", "personal", "unavailable"])
+async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(change) -> None:
     from app.agents.routine_authority import RoutineGuard
     from app.services.routine_authority import RoutineAuthority
 
@@ -8030,7 +8032,7 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         user_id=ctx.subject_id,
         root_agent_id=agent.id,
         role=ctx.role,
-        acts_as_creator=False,
+        acts_as_creator=change == "personal",
         source_policy=source_policy,
     )
     with (
@@ -8054,6 +8056,25 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         ) as create,
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
+        if change == "unavailable":
+            from app.services.routine_sources import RoutineSourcesRequired
+
+            with (
+                patch(
+                    "app.services.agent_runner.build_toolsets_for_agent",
+                    new=AsyncMock(
+                        return_value=ResolvedMcpToolsets(
+                            toolsets=[],
+                            unavailable=[
+                                SimpleNamespace(catalog_key="github", gap="not_connected")
+                            ],
+                        )
+                    ),
+                ),
+                pytest.raises(RoutineSourcesRequired),
+            ):
+                await service.prepare(ctx, agent.id)
+            return
         await service.prepare(ctx, agent.id)
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
     assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
@@ -8107,7 +8128,11 @@ async def test_preparation_only_mints_source_provenance_for_private_human_chat(k
 
 
 @pytest.mark.anyio
-async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_and_origin() -> None:
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["current", "additional_tools", "no_tools"])
+async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_and_origin(
+    change,
+) -> None:
     from app.agents.watch_sources import WatchReadReceipt, WatchSourceTools
     from app.services.watch_sources import approve_sources, source_identity
 
@@ -8167,10 +8192,23 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
         ) as create,
         patch(
             "app.services.agent_runner.build_toolsets_for_agent",
-            new=AsyncMock(return_value=ResolvedMcpToolsets(toolsets=[MagicMock()], unavailable=[])),
+            new=AsyncMock(
+                return_value=ResolvedMcpToolsets(
+                    toolsets=[] if change == "no_tools" else [MagicMock()], unavailable=[]
+                )
+            ),
         ) as mcp,
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
+        if change != "current":
+            with pytest.raises((AuthorizationError, BadRequestError)):
+                await service.prepare(
+                    ctx,
+                    agent.id,
+                    watch_receipt=receipt,
+                    extra_toolsets=[MagicMock()] if change == "additional_tools" else (),
+                )
+            return
         prepared = await service.prepare(ctx, agent.id, watch_receipt=receipt)
     assert prepared.spec.instructions.startswith(spec.instructions)
     assert prepared.spec.collection_ids == spec.collection_ids
