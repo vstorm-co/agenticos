@@ -23,7 +23,12 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 const held = vi.hoisted(() => ({ sessions: [] as unknown[] }));
 
-const RETURNS = { id: "f1", name: "Returns", base: { id: "m7", number: 7 } } as SkillFork;
+const RETURNS = {
+  id: "f1",
+  name: "Returns",
+  base: { id: "m7", number: 7 },
+  started_from: { id: "m7", number: 7 },
+} as SkillFork;
 
 function version(number: number, extra: Partial<SkillVersionSummary> = {}): SkillVersionSummary {
   return {
@@ -91,6 +96,21 @@ describe("SkillHistory", () => {
 
     expect(await screen.findByText("As it was when versions began")).toBeInTheDocument();
     expect(screen.getAllByText(/Unknown · .* · used by 2 agents/)).toHaveLength(2);
+  });
+
+  it("names a version a merge made, from main or from a fork", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path.startsWith("/skills/s1/versions?")
+        ? {
+            items: [version(3, { source: "from_fork" }), version(2, { source: "catch_up" })],
+            total: 2,
+          }
+        : [],
+    );
+    mount();
+
+    expect(await screen.findByText("Moved in from a fork")).toBeInTheDocument();
+    expect(screen.getByText("Caught up with main")).toBeInTheDocument();
   });
 
   it("shows a version's changes against the one before it, and hides them again", async () => {
@@ -175,9 +195,13 @@ describe("SkillHistory", () => {
     expect(await screen.findByText("Boom")).toBeInTheDocument();
   });
 
-  it("says where a fork starts on main", async () => {
-    mount({ forks: [{ ...RETURNS, base: { id: "m1", number: 1 } }] });
-    expect(await screen.findByText("Fork “Returns” starts here")).toBeInTheDocument();
+  it("says where a fork starts on main, not where it last caught up", async () => {
+    mount({
+      forks: [{ ...RETURNS, base: { id: "m2", number: 2 }, started_from: { id: "m1", number: 1 } }],
+    });
+    const start = await screen.findByText("Fork “Returns” starts here");
+    expect(start.closest("li")).toHaveTextContent("v1");
+    expect(screen.getAllByText("Fork “Returns” starts here")).toHaveLength(1);
   });
 
   it("says what a fork with no version of its own reads", async () => {

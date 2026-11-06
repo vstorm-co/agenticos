@@ -9,7 +9,18 @@
 import type { AgentCheckState } from "./skill-checks";
 
 export type SkillVersionSource =
-  "backfill" | "created" | "edit" | "resources" | "library" | "workspace" | "improve" | "restore";
+  | "backfill"
+  | "created"
+  | "edit"
+  | "resources"
+  | "library"
+  | "workspace"
+  | "improve"
+  | "restore"
+  /** A fork took main's changes in. */
+  | "catch_up"
+  /** Main took a fork's changes in. */
+  | "from_fork";
 
 export interface SkillVersionRef {
   id: string;
@@ -61,8 +72,10 @@ export interface SkillFork {
   id: string;
   skill_id: string;
   name: string;
-  /** The main version it started from. */
+  /** The main version it is based on now: where it started, or the one it last caught up with. */
   base: SkillVersionRef;
+  /** The main version it started from, which catching up never moves. */
+  started_from: SkillVersionRef;
   /** Null until the fork saves a version of its own; it serves its base until then. */
   latest: SkillVersionRef | null;
   changes: number;

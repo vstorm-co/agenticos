@@ -3184,7 +3184,7 @@
         "skill": "{name} · {kind, select, main {main} other {fork “{line}”}}",
         "partial": "{failed, select, skills {Skill sessions could not be read.} behind {What main left behind could not be read.} other {Agent sessions could not be read.}}",
         "catchUp": "Catch up",
-        "behindName": "{name} · {kind, select, fork {fork “{line}”} other {pinned in {line}}}",
+        "behindName": "{name} · {kind, select, fork {fork “{line}”} other {pinned in {line}{specialist, select, yes { through {via}} other {}}}}",
         "behind": {
           "pinned": "On v{version} · {count, plural, =1 {1 change behind main} other {# changes behind main}}",
           "fork": "From v{version} · {agents, plural, =1 {1 agent} other {# agents}} · {count, plural, =1 {1 change behind main} other {# changes behind main}}"
@@ -4497,6 +4497,14 @@
       "improvement-session": {
         "title": "Walk through this session",
         "body": "See what each step did: the questions, today's answers, the result, and what publishing changes where people use the agent."
+      },
+      "first-skill-improvement": {
+        "title": "Improve this skill",
+        "body": "See who the change is checked on and what it costs before anything runs. Nothing changes in the skill until you accept it."
+      },
+      "skill-improvement-session": {
+        "title": "Walk through this session",
+        "body": "See the steps, each agent's result, and what you may do with the change."
       }
     },
     "steps": {
@@ -5580,6 +5588,30 @@
       "skill-merge-changes": {
         "title": "Settle the merge",
         "body": "Each part says which side it comes from. A conflict shows both sides and the merged text; rewrite it if it is wrong."
+      },
+      "flow-skill-improvement-start": {
+        "title": "Who it is checked on",
+        "body": "Every agent of the line is named before anything is spent, the ones that cannot be checked with the reason, and the price comes with a limit you set."
+      },
+      "flow-skill-merge-start": {
+        "title": "Merge a fork with main",
+        "body": "Shows how many parts both sides changed and what proposing their texts costs. The check is priced later, at Changes."
+      },
+      "flow-skill-improvement-steps": {
+        "title": "The same five steps",
+        "body": "Understand, Changes, Check, Result and Accept, as in agent Improve. The session stops for you after Understand, after Changes and at the result."
+      },
+      "flow-skill-merge-changes": {
+        "title": "Settle the merge",
+        "body": "Each part says which side it comes from. A conflict shows both sides and the merged text; rewrite it if it is wrong."
+      },
+      "flow-skill-improvement-agents": {
+        "title": "A result for every agent",
+        "body": "Each agent of the line comes out better, unchanged, within noise, worse or unknown, worst first, with what it fixed and broke and a link to its run."
+      },
+      "flow-skill-improvement-accept": {
+        "title": "What you may do with it",
+        "body": "Apply it when nobody got worse. When somebody did: keep them on their version, make a fork for the agents it helped, improve it further or discard it."
       }
     },
     "chooseLanguage": "Language",
@@ -8496,7 +8528,9 @@
           "library": "From the library",
           "workspace": "Written back by an agent",
           "improve": "Improve",
-          "restore": "Restored"
+          "restore": "Restored",
+          "catch_up": "Caught up with main",
+          "from_fork": "Moved in from a fork"
         },
         "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · used by 1 agent} other { · used by # agents}}",
         "unknownAuthor": "Unknown",
@@ -15805,6 +15839,13 @@
       "hidden": "{count, plural, =1 {1 agent you cannot see was left as it was.} other {# agents you cannot see were left as they were.}}",
       "archived": "Nobody reads the fork any more, so it was archived.",
       "remaining": "{count, plural, =0 {The fork was left as it was.} =1 {1 agent still reads the fork, so it was not archived.} other {# agents still read the fork, so it was not archived.}}"
+    },
+    "forked": {
+      "title": "What forking did",
+      "made": "The change is now the fork “{name}”.",
+      "live": "Moved onto it and published: {names}.",
+      "drafts": "{count, plural, =1 {Moved onto it in its draft, which waits to be published: {names}.} other {Moved onto it in their drafts, which wait to be published: {names}.}}",
+      "nobody": "No agent was moved onto it; move agents from the skill's page."
     }
   }
 }

@@ -115,7 +115,7 @@ export function SkillHistory({
                   <VersionLine
                     version={version}
                     label={label}
-                    starts={forks.filter((fork) => fork.base.id === version.id)}
+                    starts={forks.filter((fork) => fork.started_from.id === version.id)}
                     session={
                       madeBy.has(version.id)
                         ? sessionHref(skillId, madeBy.get(version.id)!.id)

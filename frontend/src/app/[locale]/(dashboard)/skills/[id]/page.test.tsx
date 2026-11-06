@@ -45,6 +45,7 @@ const RETURNS: SkillFork = {
   skill_id: "s1",
   name: "Returns",
   base: { id: "m7", number: 7 },
+  started_from: { id: "m7", number: 7 },
   latest: { id: "r2", number: 2 },
   changes: 2,
   behind_main: 5,

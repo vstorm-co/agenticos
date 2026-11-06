@@ -16,6 +16,7 @@ import {
   listSkillForks,
   listSkillVersions,
   restoreSkillVersion,
+  type BindingCheck,
   type BindingTarget,
   type SkillVersionEdit,
 } from "@/lib/skill-versions-api";
@@ -89,8 +90,15 @@ export function useSkillVersionWrites(skillId: string) {
     onSettled: settle,
   });
   const changeBinding = useMutation({
-    mutationFn: ({ agentId, target }: { agentId: string; target: BindingTarget }) =>
-      changeSkillBinding(skillId, agentId, target),
+    mutationFn: ({
+      agentId,
+      target,
+      check = null,
+    }: {
+      agentId: string;
+      target: BindingTarget;
+      check?: BindingCheck | null;
+    }) => changeSkillBinding(skillId, agentId, target, check),
     onSettled: async () => {
       await settle();
       await queryClient.invalidateQueries({ queryKey: qk.agents.all() });

@@ -3184,7 +3184,7 @@
         "skill": "{name} · {kind, select, main {main} other {Fork „{line}“}}",
         "partial": "{failed, select, skills {Die Sitzungen der Skills konnten nicht gelesen werden.} behind {Was main zurückgelassen hat, konnte nicht gelesen werden.} other {Die Sitzungen der Agents konnten nicht gelesen werden.}}",
         "catchUp": "Nachziehen",
-        "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}}}",
+        "behindName": "{name} · {kind, select, fork {Fork „{line}“} other {festgesetzt in {line}{specialist, select, yes { über {via}} other {}}}}",
         "behind": {
           "pinned": "Auf v{version} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}",
           "fork": "Ab v{version} · {agents, plural, =1 {1 Agent} other {# Agents}} · {count, plural, =1 {1 Änderung hinter main} other {# Änderungen hinter main}}"
@@ -4375,6 +4375,14 @@
       "improvement-session": {
         "title": "Diese Sitzung durchgehen",
         "body": "Sehen Sie, was jeder Schritt getan hat: die Fragen, die heutigen Antworten, das Ergebnis und was das Veröffentlichen dort ändert, wo Leute den Agent nutzen."
+      },
+      "first-skill-improvement": {
+        "title": "Diesen Skill verbessern",
+        "body": "Sieh, auf wem die Änderung geprüft wird und was das kostet, bevor etwas läuft. Am Skill ändert sich nichts, bis du annimmst."
+      },
+      "skill-improvement-session": {
+        "title": "Durch diese Sitzung gehen",
+        "body": "Sieh die Schritte, das Ergebnis jedes Agents und was du mit der Änderung tun kannst."
       }
     },
     "steps": {
@@ -5458,6 +5466,30 @@
       "skill-merge-changes": {
         "title": "Die Zusammenführung klären",
         "body": "Jeder Teil sagt, von welcher Seite er stammt. Ein Konflikt zeigt beide Seiten und den zusammengeführten Text; schreiben Sie ihn um, wenn er nicht stimmt."
+      },
+      "flow-skill-improvement-start": {
+        "title": "Auf wem geprüft wird",
+        "body": "Jeder Agent der Linie wird genannt, bevor etwas ausgegeben wird, die nicht prüfbaren mit Grund, und der Preis kommt mit einem Limit, das Sie setzen."
+      },
+      "flow-skill-merge-start": {
+        "title": "Einen Fork mit main zusammenführen",
+        "body": "Zeigt, wie viele Teile beide Seiten geändert haben und was die Textvorschläge kosten. Die Prüfung wird später bei Changes bepreist."
+      },
+      "flow-skill-improvement-steps": {
+        "title": "Dieselben fünf Schritte",
+        "body": "Verstehen, Änderungen, Prüfung, Ergebnis und Annehmen, wie beim Verbessern eines Agents. Die Sitzung hält nach Verstehen, nach Änderungen und beim Ergebnis für Sie an."
+      },
+      "flow-skill-merge-changes": {
+        "title": "Die Zusammenführung klären",
+        "body": "Jeder Teil sagt, von welcher Seite er stammt. Ein Konflikt zeigt beide Seiten und den zusammengeführten Text; schreiben Sie ihn um, wenn er nicht stimmt."
+      },
+      "flow-skill-improvement-agents": {
+        "title": "Ein Ergebnis für jeden Agent",
+        "body": "Jeder Agent der Linie wird besser, bleibt gleich, liegt im Rauschen, wird schlechter oder ist unbekannt, die schlechtesten zuerst, mit dem, was er behob und verschlechterte, und einem Link zu seinem Run."
+      },
+      "flow-skill-improvement-accept": {
+        "title": "Was Sie damit tun können",
+        "body": "Anwenden, wenn niemand schlechter wurde. Wenn doch: diese auf ihrer Version lassen, einen Fork für die Agents anlegen, denen es half, weiter verbessern oder verwerfen."
       }
     },
     "chooseLanguage": "Sprache",
@@ -8374,7 +8406,9 @@
           "library": "Aus der Bibliothek",
           "workspace": "Von einem Agent zurückgeschrieben",
           "improve": "Improve",
-          "restore": "Wiederhergestellt"
+          "restore": "Wiederhergestellt",
+          "catch_up": "Mit main abgeglichen",
+          "from_fork": "Aus einem Fork übernommen"
         },
         "madeBy": "{who} · {when}{agents, plural, =0 {} =1 { · von 1 Agent genutzt} other { · von # Agents genutzt}}",
         "unknownAuthor": "Unbekannt",
@@ -15477,6 +15511,13 @@
       "hidden": "{count, plural, =1 {1 Agent, den Sie nicht sehen, blieb unverändert.} other {# Agents, die Sie nicht sehen, blieben unverändert.}}",
       "archived": "Niemand liest den Fork mehr, daher wurde er archiviert.",
       "remaining": "{count, plural, =0 {Der Fork blieb unverändert.} =1 {1 Agent liest den Fork noch, daher wurde er nicht archiviert.} other {# Agents lesen den Fork noch, daher wurde er nicht archiviert.}}"
+    },
+    "forked": {
+      "title": "Was der Fork bewirkt hat",
+      "made": "Die Änderung ist jetzt der Fork „{name}“.",
+      "live": "Darauf verschoben und veröffentlicht: {names}.",
+      "drafts": "{count, plural, =1 {Im Entwurf darauf verschoben, der auf Veröffentlichung wartet: {names}.} other {In ihren Entwürfen darauf verschoben, die auf Veröffentlichung warten: {names}.}}",
+      "nobody": "Kein Agent wurde darauf verschoben; verschiebe Agents auf der Seite des Skills."
     }
   }
 }

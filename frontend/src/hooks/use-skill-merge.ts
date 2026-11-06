@@ -92,7 +92,11 @@ export function useReturnForkToMain(skillId: string, forkId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => returnForkToMain(skillId, forkId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+      ]),
   });
 }
 

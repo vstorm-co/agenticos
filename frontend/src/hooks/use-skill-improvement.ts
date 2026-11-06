@@ -101,10 +101,12 @@ export function useSkillImprovementsAwaiting({ enabled = true } = {}) {
 /** Apply a measured attempt, or fork it for the agents the person picks. */
 export function useSkillAccept(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
+  // Applying with pins and forking both move agents, which the Builder reads too.
   const settle = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
     ]);
   };
   const apply = useMutation({

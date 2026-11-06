@@ -266,6 +266,21 @@ describe("ImprovementsWaitingWidget", () => {
     expect(within(rows[3]!).queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
   });
 
+  it("lists an agent pinned itself and through a specialist as two rows", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    behind.behind = {
+      items: [behindItem({}), behindItem({ via_specialist: "Refund helper" })],
+      total: 2,
+      hidden: 0,
+    };
+    widget();
+
+    expect(screen.getByText("refunds · pinned in Desk")).toBeInTheDocument();
+    expect(screen.getByText("refunds · pinned in Desk through Refund helper")).toBeInTheDocument();
+    expect(error.mock.calls.some((call) => String(call[0]).includes("same key"))).toBe(false);
+    error.mockRestore();
+  });
+
   it("reads what main left behind only for a reader of skills, and opens a fork with nothing of its own", async () => {
     behind.behind = {
       items: [

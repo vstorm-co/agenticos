@@ -10,6 +10,8 @@ import {
   ORG_GROUPS,
   ORG_MEMBERS,
   ORG_ROLES,
+  SKILL_IMPROVEMENT,
+  SKILL_IMPROVEMENT_START,
   TABLE_DETAIL,
 } from "@/lib/onboarding/tour";
 import { Perm, type Permission } from "@/types/permissions";
@@ -46,7 +48,9 @@ export type FlowId =
   | "explore-chat"
   | "test-change"
   | "first-improvement"
-  | "improvement-session";
+  | "improvement-session"
+  | "first-skill-improvement"
+  | "skill-improvement-session";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -1144,6 +1148,67 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       },
     ],
   },
+  // A skill's start: who the line's change is checked on and what it costs, or, for
+  // an address that merges a fork with main, what the merge proposes. One of the two
+  // is drawn, so both are optional.
+  "first-skill-improvement": {
+    id: "first-skill-improvement",
+    permission: Perm.skillsEdit,
+    steps: [
+      {
+        id: "flow-skill-improvement-start",
+        page: SKILL_IMPROVEMENT_START,
+        target: "skill-improvement-start",
+        permission: Perm.skillsEdit,
+        optional: true,
+      },
+      {
+        id: "flow-skill-merge-start",
+        page: SKILL_IMPROVEMENT_START,
+        target: "skill-merge-start",
+        permission: Perm.skillsEdit,
+        optional: true,
+      },
+    ],
+  },
+  // A skill session's walk: the steps, a merge's Changes, each agent's result and
+  // what may be done with it. Each part past the steps exists only once its work does.
+  "skill-improvement-session": {
+    id: "skill-improvement-session",
+    permission: Perm.runsView,
+    steps: [
+      {
+        id: "flow-skill-improvement-steps",
+        page: SKILL_IMPROVEMENT,
+        target: "improvement-steps",
+        permission: Perm.runsView,
+      },
+      {
+        id: "flow-skill-merge-changes",
+        page: SKILL_IMPROVEMENT,
+        target: "skill-merge-changes",
+        activate: "improvement-step-changes",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
+        id: "flow-skill-improvement-agents",
+        page: SKILL_IMPROVEMENT,
+        target: "skill-improvement-agents",
+        activate: "improvement-step-result",
+        permission: Perm.runsView,
+        optional: true,
+      },
+      {
+        id: "flow-skill-improvement-accept",
+        page: SKILL_IMPROVEMENT,
+        target: "skill-improvement-accept",
+        activate: "improvement-step-accept",
+        permission: Perm.skillsEdit,
+        optional: true,
+      },
+    ],
+  },
   "test-change": {
     id: "test-change",
     permission: Perm.runsView,
@@ -1233,6 +1298,10 @@ export function flowForPage(pageId: string, systemAgent = false): FlowId | null 
       return "first-improvement";
     case IMPROVEMENT:
       return "improvement-session";
+    case SKILL_IMPROVEMENT_START:
+      return "first-skill-improvement";
+    case SKILL_IMPROVEMENT:
+      return "skill-improvement-session";
     case ROUTES.CHAT:
       return "explore-chat";
     case ROUTES.AGENTS:

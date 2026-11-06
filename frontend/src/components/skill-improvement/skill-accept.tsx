@@ -11,7 +11,11 @@ import { useReturnToMain } from "@/hooks/use-skill-merge";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { isMerge } from "@/lib/improvement-steps";
 import type { CheckOutcome, SkillCheck } from "@/types/skill-checks";
-import type { MergeOutcome, SkillImprovement } from "@/types/skill-improvement";
+import type {
+  MergeOutcome,
+  SkillImprovement,
+  SkillImprovementForked,
+} from "@/types/skill-improvement";
 import type { ReturnedToMain } from "@/types/skill-merge";
 import { AddTestQuestions } from "./add-test-questions";
 import { CheckAgain } from "./check-again";
@@ -59,12 +63,15 @@ export function SkillAccept({
   check,
   onStarted,
   onReturned,
+  onForked,
 }: {
   session: SkillImprovement;
   check: SkillCheck;
   onStarted: () => void;
   /** What returning the fork's agents to main did, which outlives this view. */
   onReturned?: (returned: ReturnedToMain) => void;
+  /** What forking the change did, which outlives this view. */
+  onForked?: (forked: SkillImprovementForked) => void;
 }) {
   const t = useTranslations("skillImprovement.accept");
   const tErrors = useTranslations("errors");
@@ -132,7 +139,10 @@ export function SkillAccept({
           disabled={unknown > 0 && !acknowledged}
           busy={busy}
           onFork={(choice) =>
-            decide(() => fork.mutateAsync({ ...choice, acknowledge_unknown: acknowledged }))
+            decide(async () => {
+              const done = await fork.mutateAsync({ ...choice, acknowledge_unknown: acknowledged });
+              onForked?.(done);
+            })
           }
         />
       )}

@@ -85,11 +85,14 @@ export function ImprovementsWaitingWidget({ title, hint, options }: DashboardWid
     ...(behind.error ? [] : (behind.behind?.items ?? [])).map((item) => {
       const skill = ROUTES.SKILL_DETAIL(item.skill.id);
       return {
-        id: `behind:${item.kind}:${item.skill.id}:${item.kind === "fork" ? item.fork.id : item.agent.id}`,
+        // An agent can pin a skill itself and through a specialist: two rows, two keys.
+        id: `behind:${item.kind}:${item.skill.id}:${item.kind === "fork" ? item.fork.id : item.agent.id}:${item.via_specialist ?? ""}`,
         name: t("behindName", {
           name: item.skill.name,
           kind: item.kind,
           line: item.kind === "fork" ? item.fork.name : item.agent.name,
+          via: item.via_specialist ?? "",
+          specialist: item.via_specialist === null ? "no" : "yes",
         }),
         href: skill,
         action: !item.can_act

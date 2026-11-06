@@ -30,16 +30,18 @@ function mount(
   check: SkillCheck,
   session: SkillImprovement = skillSession(),
   readOnly: "viewOnly" | null = null,
+  onForked = vi.fn(),
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const measured = { ...session, check, outcomes: check.outcomes };
-  render(<SkillAccept session={measured} check={check} onStarted={vi.fn()} />, {
+  render(<SkillAccept session={measured} check={check} onStarted={vi.fn()} onForked={onForked} />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>
         <ReadOnlyProvider value={readOnly}>{children}</ReadOnlyProvider>
       </QueryClientProvider>
     ),
   });
+  return onForked;
 }
 
 const confirm = () =>
@@ -92,7 +94,14 @@ describe("SkillAccept", () => {
   });
 
   it("offers pinning the worse and a fork for the helped when somebody got worse", async () => {
-    mount(BLOCKED);
+    const forked = {
+      session: skillSession(),
+      fork: { id: "f9", name: "Returns" },
+      moved: [],
+      draft_only: [{ id: "support", name: "Support" }],
+    };
+    vi.mocked(apiClient.post).mockResolvedValue(forked);
+    const onForked = mount(BLOCKED);
 
     expect(
       screen.getByRole("button", { name: "Apply, and keep Refunds on the version it has" }),
@@ -114,6 +123,7 @@ describe("SkillAccept", () => {
       acknowledge_unknown: false,
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(onForked).toHaveBeenCalledWith(forked);
   });
 
   it("offers a fork for the agents picked when nobody got better, with nothing to confirm", async () => {

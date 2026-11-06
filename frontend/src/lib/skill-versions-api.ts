@@ -110,10 +110,21 @@ export interface BindingChange {
 }
 
 /** Move one agent to another version or line of the skill. */
+/** The finished check that measured main's newest version on a pinned agent moving to it. */
+export interface BindingCheck {
+  check_id: string;
+  /** Required when that check could not check the agent. */
+  acknowledge_unknown: boolean;
+}
+
 export function changeSkillBinding(
   skillId: string,
   agentId: string,
   target: BindingTarget,
+  check: BindingCheck | null = null,
 ): Promise<BindingChange> {
-  return apiClient.put<BindingChange>(`/skills/${skillId}/agents/${agentId}/binding`, target);
+  return apiClient.put<BindingChange>(`/skills/${skillId}/agents/${agentId}/binding`, {
+    ...target,
+    ...check,
+  });
 }

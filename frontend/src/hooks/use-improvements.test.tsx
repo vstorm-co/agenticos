@@ -121,6 +121,18 @@ it("separates the free preview from pinned session evidence", async () => {
   );
 });
 
+it("asks a skill's session for no agent evidence", async () => {
+  vi.mocked(apiClient.get).mockClear();
+  const view = renderHook(
+    () => useImprovementEvidence({ skillId: "k1" }, { sessionId: "s1", live: false }),
+    { wrapper },
+  );
+
+  expect(view.result.current.evidence).toBeUndefined();
+  expect(view.result.current.isLoading).toBe(false);
+  expect(apiClient.get).not.toHaveBeenCalled();
+});
+
 it("binds selected checks to their choices, complete price and candidate hash", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready" });
   const quote = { suggestions: 1, total_usd: "0.04", affordable: true, candidate_hash: "hash" };
