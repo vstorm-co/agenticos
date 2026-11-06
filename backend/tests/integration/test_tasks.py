@@ -219,10 +219,12 @@ async def test_rescheduling_reminder_reopens_the_same_case(db: AsyncSession) -> 
 
 @pytest.mark.parametrize("delay", [0, 300])
 @pytest.mark.parametrize("scope", ["private", "project"])
-async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_review(
+@pytest.mark.parametrize("terminal_status", ["completed", "failed"])
+async def test_agent_task_is_pinned_and_ends_in_review_or_blocked_state(
     db: AsyncSession,
     delay: int,
     scope: str,
+    terminal_status: str,
 ) -> None:
     from app.agents.spec import AgentSpec
     from app.db.models.agent import Agent, AgentVersion
@@ -303,11 +305,17 @@ async def test_agent_task_is_a_single_pinned_execution_and_ends_waiting_for_revi
     )
     assert await TaskExecution(db).started(data.contexts[0], trigger)
     assert (await service.get(data.contexts[0], task.id)).status == "in_progress"
-    run.status = "completed"
+    for pending_status in ("running", "awaiting_approval", "awaiting_answer"):
+        run.status = pending_status
+        await TaskExecution(db).finished(trigger, run)
+        assert trigger.is_active
+        assert (await service.get(data.contexts[0], task.id)).status == "in_progress"
+    run.status = terminal_status
     await db.flush()
     await TaskExecution(db).finished(trigger, run)
     current = await service.get(data.contexts[0], task.id)
-    assert current.status == "waiting_for_user" and current.outcome_id is not None
+    assert current.status == ("waiting_for_user" if terminal_status == "completed" else "blocked")
+    assert current.outcome_id is not None
     assert not trigger.is_active
     await registry.delete(data.contexts[0], agent.id)
     assert await db.get(Agent, agent.id) is None
@@ -1111,3 +1119,64 @@ async def test_task_listing_and_board_index_do_not_reveal_another_members_privat
         await service.list_tasks(data.contexts[0], other.table_id)
     with pytest.raises(NotFoundError):
         await service.list_tasks(data.contexts[0], uuid4())
+
+
+async def test_editing_only_a_reminder_deadline_requeues_the_current_record_revision(
+    db: AsyncSession,
+):
+    from app.db.models.background_job import BackgroundJob
+
+    data = await world(db)
+    service = TaskService(db)
+    start = datetime.now(UTC) + timedelta(hours=1)
+    task = await service.create(data.contexts[0], TaskCreate(title="Review draft", start_at=start))
+    updated = await service.update(
+        data.contexts[0],
+        task.id,
+        TaskUpdate(
+            title=task.title,
+            start_at=start,
+            due_at=start + timedelta(hours=2),
+            expected_revision=task.revision,
+        ),
+    )
+    jobs = list(
+        await db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.kind == "wake-task", BackgroundJob.status == "queued"
+            )
+        )
+    )
+    assert len(jobs) == 1
+    assert jobs[0].payload["revision"] == updated.revision
+    await TaskExecution(db).wake(
+        WakeTask(organization_id=data.org.id, task_id=task.id, revision=task.revision)
+    )
+    assert (await service.get(data.contexts[0], task.id)).outcome_id is None
+
+
+async def test_an_agent_task_cannot_mark_its_own_commitment_complete(db: AsyncSession):
+    from dataclasses import replace
+
+    from app.core.exceptions import AuthorizationError
+
+    data = await world(db)
+    task = await TaskService(db).create(data.contexts[0], TaskCreate(title="Needs human review"))
+    link = await db.get(TaskLink, task.id)
+    board = await db.get(TaskBoard, task.board_id)
+    from app.db.models.virtual_table import VirtualTableRecord
+    from app.schemas.task import TaskFields
+
+    record = await db.get(VirtualTableRecord, task.id)
+    link.trigger_id = uuid4()
+    # The executing routine cannot use a tool write to close its own review obligation.
+    with pytest.raises(AuthorizationError, match="cannot close"):
+        await TaskExecution(db).changed(
+            replace(data.contexts[0], routine_id=link.trigger_id),
+            board,
+            record,
+            link,
+            TaskFields(title=task.title, status="done"),
+        )
+    link.trigger_id = None
+    assert (await TaskService(db).get(data.contexts[0], task.id)).status == "planned"
