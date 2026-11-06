@@ -125,6 +125,7 @@ def _session(status: str = "ready", **fields: Any) -> dict[str, Any]:
         "outcome": None,
         "applied_version_id": None,
         "try_again_blocked": None,
+        "can_restart": True,
         "can_discard": True,
         **fields,
     }
@@ -612,6 +613,86 @@ class TestReadingSessions:
             "End the session",
         ]
         assert "moved on since this session read it" in session["summary"]
+
+    async def test_a_stale_result_offers_no_ending_to_who_may_not_end_it(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(stale=True, can_discard=False),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert session["next_actions"] == ["Check again on the line as it is now"]
+        assert "Only whoever started the session, or an organization admin" in session["summary"]
+
+    async def test_the_last_attempt_offers_no_further_round(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """The server refuses a round past the last attempt, so neither the choices nor the
+        summary offer one."""
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(iteration=3, can_restart=False),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert not [a for a in session["next_actions"] if a.startswith("Improve further")]
+        assert "improve further" not in session["summary"]
+
+    async def test_a_blocked_fork_session_names_only_the_choices_it_has(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        check = {**BLOCKED, "outcomes": ["improve_further", "discard"]}
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(
+                    fork_id=FORK, line_name="Wholesale", check=check, outcomes=check["outcomes"]
+                ),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert session["next_actions"] == ["Improve further (attempt 2 of 3)", "End the session"]
+        assert (
+            "An agent got worse, so it cannot simply be applied: improve further or end the "
+            "session." in session["summary"]
+        )
+        assert "fork for" not in session["summary"]
+
+    async def test_a_blocked_move_to_main_that_may_not_be_ended_names_no_choice(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        check = {**BLOCKED, "outcomes": ["apply_and_pin", "discard"]}
+        api.request = _responder(
+            {
+                ("GET", SESSION_PATH): _session(
+                    purpose="to_main",
+                    fork_id=FORK,
+                    line_name="Wholesale",
+                    check=check,
+                    outcomes=check["outcomes"],
+                    can_restart=False,
+                    can_discard=False,
+                ),
+                ("GET", f"{SESSION_PATH}/evidence"): EVIDENCE,
+            }
+        )
+
+        session = await _call(server, "get_skill_improvement", skill_id=SKILL, session_id=SESSION)
+
+        assert (
+            "cannot simply be applied: apply it and keep the worse agents on their version."
+            in session["summary"]
+        )
 
     async def test_checking_again_is_priced_and_run_on_its_own_routes(
         self, server: FastMCP, api: MagicMock
@@ -1113,7 +1194,8 @@ class TestChangingAVersion:
                     "agent_version": 4,
                     "environments": ["Production"],
                     "usage": _usage(COUNTER, "Gift shop counter", PINNED),
-                }
+                },
+                ("GET", "/me/permissions"): _permissions("skills:view", "runs:view"),
             }
         )
 
@@ -1123,7 +1205,30 @@ class TestChangingAVersion:
 
         assert _sent(api, "PUT", path) == sent
         assert moved["agent"]["uses"] == "v1 · pinned · 2 behind main"
+        assert moved["agent"]["checked"] == "unknown"
         assert moved["environments"] == ["Production"]
+
+    async def test_a_moved_agent_s_check_is_not_shown_without_runs_view(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        """The API leaves the checks out for such a caller, which is not "never checked"."""
+        api.request = _responder(
+            {
+                ("PUT", f"{BASE}/agents/{COUNTER}/binding"): {
+                    "published": True,
+                    "agent_version": 4,
+                    "environments": [],
+                    "usage": _usage(COUNTER, "Gift shop counter", MAIN),
+                },
+                ("GET", "/me/permissions"): _permissions("skills:view", "agents:edit"),
+            }
+        )
+
+        moved = await _call(
+            server, "change_skill_version", skill_id=SKILL, agent_id=COUNTER, state="main"
+        )
+
+        assert moved["agent"]["checked"] == "not_shown"
 
     async def test_a_change_without_publish_lands_in_the_draft_and_may_leave_no_row(
         self, server: FastMCP, api: MagicMock
@@ -1250,16 +1355,23 @@ class TestCatchingUp:
                             "via_specialist": "Refunds",
                             "agent": _agent(ONLINE, "Online returns desk"),
                         },
+                        {
+                            **common,
+                            "kind": "fork",
+                            "agent": None,
+                            "can_act": True,
+                            "fork": {**ON_FORK["fork"], "name": "Untouched", "changes": 0},
+                        },
                     ],
                     "hidden": 1,
-                    "total": 4,
+                    "total": 5,
                 }
             }
         )
 
         behind = await _call(server, "list_skills_behind_main")
 
-        pinned, fork, through_specialist = behind["items"]
+        pinned, fork, through_specialist, unchanged = behind["items"]
         assert (pinned["agent_id"], pinned["catch_up"]) == (
             COUNTER,
             "Update Gift shop counter to v3",
@@ -1271,6 +1383,10 @@ class TestCatchingUp:
         assert through_specialist["catch_up"] == (
             "Its specialist Refunds pins the skill, so update it to v3 in "
             "Online returns desk's Builder"
+        )
+        # A fork with no changes of its own has nothing to merge: its agents go back instead.
+        assert unchanged["catch_up"] == (
+            'Return the fork "Untouched"\'s agents to main: it has no changes of its own'
         )
 
     @pytest.mark.parametrize(("thorough", "mode"), [(False, "quick"), (True, "thorough")])
@@ -1317,7 +1433,8 @@ class TestCatchingUp:
                     "agent_version": 5,
                     "environments": [],
                     "usage": _usage(COUNTER, "Gift shop counter", MAIN),
-                }
+                },
+                ("GET", "/me/permissions"): _permissions("skills:view", "runs:view"),
             }
         )
 
@@ -1547,13 +1664,36 @@ class TestCatchingUp:
         ]
         assert (dropped["still_on_fork"], dropped["archived"]) == (1, False)
 
+    @pytest.mark.parametrize(
+        ("agents", "hidden_unknown"),
+        [
+            (
+                [
+                    _checked(WHOLESALE, "Wholesale desk", "no_change"),
+                    _checked(COUNTER, "Gift shop counter", "unknown"),
+                ],
+                0,
+            ),
+            ([_checked(WHOLESALE, "Wholesale desk", "no_change")], 1),
+        ],
+    )
     async def test_dropping_a_fork_waits_for_its_unchecked_agents_to_be_acknowledged(
-        self, server: FastMCP, api: MagicMock
+        self,
+        server: FastMCP,
+        api: MagicMock,
+        agents: list[dict[str, Any]],
+        hidden_unknown: int,
     ) -> None:
-        """Main alone left some agents unchecked: the fork is not dropped on them unasked."""
+        """Main alone left some agents unchecked: the fork is not dropped on them unasked.
+
+        Main alone rarely makes anyone better, so its verdict is `no_better` before it is
+        `needs_ack`; the agents it could not check are counted, not read off the verdict.
+        """
+        alone = {**BLOCKED, "verdict": "no_better", "agents": agents}
+        alone["hidden_unknown"] = hidden_unknown
         api.request = _responder(
             {
-                ("GET", SESSION_PATH): _session(main_alone_check={"verdict": "needs_ack"}),
+                ("GET", SESSION_PATH): _session(main_alone_check=alone),
                 ("POST", f"{SESSION_PATH}/return-to-main"): {
                     "session": _session("accepted"),
                     "returned": RETURNED,
