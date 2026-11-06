@@ -185,7 +185,11 @@ export function useSkill(skillId: string | null) {
         `/skills/${skillId}${removeFromAgents ? "?remove_from_agents=true" : ""}`,
       ),
     onSuccess: async () => {
-      await invalidate();
+      await Promise.all([
+        invalidate(),
+        // Taking the skill off its agents changes them as well.
+        queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
+      ]);
       toast.success(t("deleted"));
     },
     // A refusal names who uses the skill now, which the agents list may not know yet.

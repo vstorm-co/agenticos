@@ -202,7 +202,12 @@ describe("useSkill", () => {
 
   it("deletes the skill", async () => {
     vi.mocked(apiClient.delete).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useSkill("s1"), { wrapper });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const scoped = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useSkill("s1"), { wrapper: scoped });
     await waitFor(() => expect(result.current.skill).toEqual(BODY));
 
     await result.current.remove.mutateAsync();
@@ -210,6 +215,7 @@ describe("useSkill", () => {
     expect(toastSuccess).toHaveBeenCalled();
     await result.current.remove.mutateAsync(true);
     expect(apiClient.delete).toHaveBeenCalledWith("/skills/s1?remove_from_agents=true");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents"] });
   });
 
   it("reads who uses the skill again when a delete is refused", async () => {

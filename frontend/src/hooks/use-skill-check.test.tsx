@@ -50,6 +50,7 @@ describe("useSkillCheck", () => {
     expect(api.applySkillCheck).toHaveBeenCalledWith("s-1", "c-1", { acknowledge_unknown: true });
     expect(api.discardSkillCheck).toHaveBeenCalledWith("s-1", "c-1");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["skill-changes"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agents"] });
   });
 
   it("reads a running check again until it finishes", async () => {

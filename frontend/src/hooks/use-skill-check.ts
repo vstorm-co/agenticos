@@ -39,6 +39,8 @@ export function useSkillCheck(skillId: string, checkId: string | null) {
       queryClient.invalidateQueries({ queryKey: qk.skillChanges.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
       queryClient.invalidateQueries({ queryKey: qk.skillChecks.skill(skillId) }),
+      // Applying with pins and forking for the helped agents move agents.
+      queryClient.invalidateQueries({ queryKey: qk.agents.all() }),
     ]);
   };
   return {
