@@ -6,6 +6,8 @@ analysis, stopping at Understand, proposing, filtering to Changes, and every
 refusal on the way.
 """
 
+import asyncio
+import contextlib
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -16,7 +18,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AiAssistanceDisabledError,
@@ -45,6 +47,7 @@ from app.repositories import (
     authoring_repo,
     skill_check_repo,
     skill_improvement_repo,
+    skill_repo,
     skill_version_repo,
 )
 from app.schemas.authoring import AuthoringEstimate, InstructionChange
@@ -83,6 +86,7 @@ from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner, _published, _rated
 from tests.integration.test_skill_bindings import _fork, _serving, _skill, _spec
+from tests.integration.test_skill_delete_from_agents import _waiting_for_a_lock
 
 pytestmark = pytest.mark.anyio
 
@@ -2374,3 +2378,42 @@ class TestAChosenHelper:
             await service.start(ctx, skill.id, _start(improver_agent_id=uuid.uuid4()))
         with pytest.raises(NotFoundError):
             await service.start(blind, skill.id, _start(improver_agent_id=helper.id))
+
+
+class TestADecisionBesideTheSkillsDelete:
+    async def test_a_decision_waits_for_the_delete_instead_of_deadlocking(
+        self, db: AsyncSession, engine: AsyncEngine, evidence
+    ):
+        """Deleting a skill locks it and then cascades into its sessions; a session's
+        decision locks the skill before the session too, so it waits and finds it gone."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        read = await SkillImprovementService(db).start(ctx, skill.id, _start())
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def deciding() -> None:
+            async with factory() as session:
+                service = SkillImprovementService(session)
+                await service._editable_row(ctx, skill.id, read.id, lock=True)
+                await skill_repo.lock(session, skill.id)
+
+        task: asyncio.Task[None] | None = None
+        async with factory() as deleting:
+            try:
+                await skill_repo.lock_for_delete(deleting, skill.id)
+                task = asyncio.create_task(deciding())
+                await _waiting_for_a_lock(factory, task)
+
+                gone = await skill_repo.get(deleting, skill.id, organization_id=ctx.organization_id)
+                assert gone is not None
+                await asyncio.wait_for(skill_repo.delete(deleting, gone), 5)
+                await deleting.commit()
+                with pytest.raises(NotFoundError):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task

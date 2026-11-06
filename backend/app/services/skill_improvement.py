@@ -2402,6 +2402,12 @@ class SkillImprovementService:
                 message="Taking a skill session's steps needs edit access to the skill",
                 details={"permission": Perm.SKILLS_EDIT.value},
             )
+        if lock:
+            # The skill before the session: deleting the skill locks it and then cascades
+            # into its sessions, and every decision locks the skill anyway.
+            locked = await skill_repo.lock(self.db, skill.id)
+            if locked is None:
+                raise NotFoundError(message="Skill not found", details={"skill_id": skill_id})
         run = await self._row(ctx, skill, run_id, lock=lock)
         return await self._line_of(skill, run), run
 
